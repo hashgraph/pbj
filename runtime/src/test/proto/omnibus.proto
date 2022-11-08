@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package test.proto;
+
+option java_package = "test.proto";
+option java_multiple_files = true;
+
+// Intentionally out of order
+enum Suit {
+  ACES = 0;
+  SPADES = 1;
+  DIAMONDS = 3;
+  CLUBS = 2;
+}
+
+message Nested {
+  string nestedMemo = 100;
+}
+
+message Apple {
+  string variety = 1;
+}
+
+message Banana {
+  string variety = 1;
+}
+
+message Fruits {
+  oneof fruit {
+    Apple apple = 1;
+    Banana banana = 2;
+  }
+}
+
+/**
+ * This protobuf message has something for everyone -- every data type, skipping field numbers,
+ * every repeated type possible, "oneOf", nested messages, etc.
+ */
+message Omnibus {
+  int32 int32Number = 10;
+  int64 int64Number = 11;
+  uint32 uint32Number = 12;
+  uint64 uint64Number = 13;
+  bool flag = 14;
+  Suit suitEnum = 15;
+
+  sint32 sint32Number = 30;
+  sint64 sint64Number = 31;
+
+  sfixed32 sfixed32Number = 20;
+  sfixed64 sfixed64Number = 25;
+  fixed32 fixed32Number = 21;
+  fixed64 fixed64Number = 26;
+  float floatNumber = 22;
+  double doubleNumber = 27;
+
+  string memo = 1;
+  bytes randomBytes = 2;
+  Nested nested = 3;
+
+  oneof fruit {
+    Apple apple = 200;
+    Banana banana = 201;
+  }
+
+  oneof everything {
+    int32 int32Unique = 210;
+    int64 int64Unique = 211;
+    uint32 uint32Unique = 212;
+    uint64 uint64Unique = 213;
+    bool flagUnique = 214;
+    Suit suitEnumUnique = 215;
+
+    sint32 sint32Unique = 230;
+    sint64 sint64Unique = 231;
+
+    sfixed32 sfixed32Unique = 220;
+    sfixed64 sfixed64Unique = 225;
+    fixed32 fixed32Unique = 221;
+    fixed64 fixed64Unique = 226;
+    float floatUnique = 222;
+    double doubleUnique = 227;
+
+    string memoUnique = 251;
+    bytes randomBytesUnique = 252;
+    Nested nestedUnique = 253;
+  }
+
+  repeated int32 int32NumberList = 300;
+  repeated int64 int64NumberList = 301;
+  repeated uint32 uint32NumberList = 302;
+  repeated uint64 uint64NumberList = 303;
+  repeated bool flagList = 304;
+  repeated Suit suitEnumList = 305;
+
+  repeated sint32 sint32NumberList = 306;
+  repeated sint64 sint64NumberList = 307;
+
+  repeated sfixed32 sfixed32NumberList = 308;
+  repeated sfixed64 sfixed64NumberList = 309;
+  repeated fixed32 fixed32NumberList = 310;
+  repeated fixed64 fixed64NumberList = 311;
+  repeated float floatNumberList = 312;
+  repeated double doubleNumberList = 313;
+
+  repeated string memoList = 314;
+  repeated bytes randomBytesList = 315;
+  repeated Nested nestedList = 316;
+  repeated Fruits fruitsList = 317;
+}
