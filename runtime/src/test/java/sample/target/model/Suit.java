@@ -1,6 +1,6 @@
 package sample.target.model;
 
-import com.hedera.hashgraph.protoparse.EnumWithProtoOrdinal;
+import com.hedera.hashgraph.pbj.runtime.EnumWithProtoOrdinal;
 
 public enum Suit implements EnumWithProtoOrdinal {
 	ACES, SPADES, CLUBS, DIAMONDS;

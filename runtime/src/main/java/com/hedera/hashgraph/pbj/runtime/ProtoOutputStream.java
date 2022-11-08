@@ -1,4 +1,4 @@
-package com.hedera.hashgraph.protoparse;
+package com.hedera.hashgraph.pbj.runtime;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -10,7 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-import static com.hedera.hashgraph.protoparse.ProtoConstants.*;
+import static com.hedera.hashgraph.pbj.runtime.ProtoConstants.*;
 
 /**
  * 

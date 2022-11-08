@@ -1,4 +1,4 @@
-package com.hedera.hashgraph.protoparse;
+package com.hedera.hashgraph.pbj.runtime;
 
 /**
  * When a protobuf schema defines a field as "oneof", it is often useful

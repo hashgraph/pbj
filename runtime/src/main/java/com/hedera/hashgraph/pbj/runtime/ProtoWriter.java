@@ -1,4 +1,4 @@
-package com.hedera.hashgraph.protoparse;
+package com.hedera.hashgraph.pbj.runtime;
 
 import java.io.IOException;
 import java.io.OutputStream;

@@ -1,4 +1,4 @@
-package com.hedera.hashgraph.protoparse;
+package com.hedera.hashgraph.pbj.runtime;
 
 /**
  * Enumeration of possible types of fields.

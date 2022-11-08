@@ -1,7 +1,7 @@
 package sample.target.model;
 
-import com.hedera.hashgraph.protoparse.EnumWithProtoOrdinal;
-import com.hedera.hashgraph.protoparse.OneOf;
+import com.hedera.hashgraph.pbj.runtime.EnumWithProtoOrdinal;
+import com.hedera.hashgraph.pbj.runtime.OneOf;
 import sample.target.proto.schemas.OmnibusSchema;
 
 import java.nio.ByteBuffer;

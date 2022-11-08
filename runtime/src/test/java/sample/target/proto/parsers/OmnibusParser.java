@@ -1,9 +1,9 @@
 package sample.target.proto.parsers;
 
-import com.hedera.hashgraph.protoparse.FieldDefinition;
-import com.hedera.hashgraph.protoparse.MalformedProtobufException;
-import com.hedera.hashgraph.protoparse.OneOf;
-import com.hedera.hashgraph.protoparse.ProtoParser;
+import com.hedera.hashgraph.pbj.runtime.FieldDefinition;
+import com.hedera.hashgraph.pbj.runtime.MalformedProtobufException;
+import com.hedera.hashgraph.pbj.runtime.OneOf;
+import com.hedera.hashgraph.pbj.runtime.ProtoParser;
 import sample.target.model.Fruits;
 import sample.target.model.Nested;
 import sample.target.model.Omnibus;

@@ -1,4 +1,4 @@
-package com.hedera.hashgraph.protoparse;
+package com.hedera.hashgraph.pbj.runtime;
 
 /**
  * Contains a definition of a field of a protobuf Message, as originally defined

@@ -1,6 +1,6 @@
 package tests;
 
-import com.hedera.hashgraph.protoparse.OneOf;
+import com.hedera.hashgraph.pbj.runtime.OneOf;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

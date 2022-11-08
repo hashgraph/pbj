@@ -1,7 +1,7 @@
 package tests;
 
-import com.hedera.hashgraph.protoparse.FieldDefinition;
-import com.hedera.hashgraph.protoparse.FieldType;
+import com.hedera.hashgraph.pbj.runtime.FieldDefinition;
+import com.hedera.hashgraph.pbj.runtime.FieldType;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;

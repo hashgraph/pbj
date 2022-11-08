@@ -1,4 +1,4 @@
-package com.hedera.hashgraph.protoparse;
+package com.hedera.hashgraph.pbj.runtime;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.hedera.hashgraph.protoparse.ProtoConstants.*;
+import static com.hedera.hashgraph.pbj.runtime.ProtoConstants.*;
 
 /**
  * An abstract class from which fast and highly efficient Protobuf parsers may be built.

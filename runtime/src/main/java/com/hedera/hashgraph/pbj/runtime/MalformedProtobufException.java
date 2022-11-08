@@ -1,4 +1,4 @@
-package com.hedera.hashgraph.protoparse;
+package com.hedera.hashgraph.pbj.runtime;
 
 /**
  * Thrown during the parsing of protobuf data when it is malformed.

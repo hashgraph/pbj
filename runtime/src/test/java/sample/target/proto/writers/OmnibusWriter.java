@@ -1,7 +1,7 @@
 package sample.target.proto.writers;
 
-import com.hedera.hashgraph.protoparse.ProtoOutputStream;
-import com.hedera.hashgraph.protoparse.ProtoWriter;
+import com.hedera.hashgraph.pbj.runtime.ProtoOutputStream;
+import com.hedera.hashgraph.pbj.runtime.ProtoWriter;
 import sample.target.model.Omnibus;
 import sample.target.model.Suit;
 import sample.target.proto.schemas.OmnibusSchema;
