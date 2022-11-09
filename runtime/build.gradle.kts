@@ -3,6 +3,7 @@ plugins {
     // jmh and protobuf plugins are only used for tests
     id("me.champeau.jmh") version "0.6.8"
     id("com.google.protobuf") version "0.9.1"
+    id("maven-publish")
 }
 
 group = "com.hedera.hashgraph.pbj.runtime"
@@ -48,3 +49,20 @@ tasks.jmhJar {
 //        }
 //    }
 //}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = "com.hedera.hashgraph.pbj"
+            artifactId = "pbj-runtime"
+            version = "1.0-SNAPSHOT"
+            from(components["java"])
+        }
+    }
+    repositories {
+        maven {
+            url = rootProject.layout.buildDirectory.dir("testRepo").get().asFile.toURI()
+            name = "test"
+        }
+    }
+}

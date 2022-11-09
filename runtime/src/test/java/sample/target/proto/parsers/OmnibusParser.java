@@ -37,9 +37,9 @@ public class OmnibusParser extends ProtoParser {
 	private ByteBuffer randomBytes;
 	private Nested nested;
 
-	private OneOf<Fruits.FruitKind, Object> fruit; // Apple or Banana
+	private OneOf<Fruits.FruitKind> fruit; // Apple or Banana
 
-	private OneOf<Omnibus.Everything, Object> everything; // WHAT DO WE DO HERE??!!
+	private OneOf<Omnibus.Everything> everything; // WHAT DO WE DO HERE??!!
 
 	private List<Integer> int32NumberList = Collections.emptyList();
 	private List<Long> int64NumberList = Collections.emptyList();
@@ -216,11 +216,11 @@ public class OmnibusParser extends ProtoParser {
 			case 30 -> sint32Number = value;
 			case 20 -> sfixed32Number = value;
 			case 21 -> fixed32Number = value;
-			case 210 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.INT32, value);
-			case 212 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.UINT32, value);
-			case 230 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.SINT32, value);
-			case 220 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.SFIXED32, value);
-			case 221 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.FIXED32, value);
+			case 210 -> everything = new OneOf<>(Omnibus.Everything.INT32, value);
+			case 212 -> everything = new OneOf<>(Omnibus.Everything.UINT32, value);
+			case 230 -> everything = new OneOf<>(Omnibus.Everything.SINT32, value);
+			case 220 -> everything = new OneOf<>(Omnibus.Everything.SFIXED32, value);
+			case 221 -> everything = new OneOf<>(Omnibus.Everything.FIXED32, value);
 			default -> throw new AssertionError("Not implemented in test code fieldNum='" + fieldNum + "'");
 		}
 	}
@@ -233,11 +233,11 @@ public class OmnibusParser extends ProtoParser {
 			case 31 -> sint64Number = value;
 			case 25 -> sfixed64Number = value;
 			case 26 -> fixed64Number = value;
-			case 211 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.INT64, value);
-			case 213 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.UINT64, value);
-			case 231 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.SINT64, value);
-			case 225 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.SFIXED64, value);
-			case 226 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.FIXED64, value);
+			case 211 -> everything = new OneOf<>(Omnibus.Everything.INT64, value);
+			case 213 -> everything = new OneOf<>(Omnibus.Everything.UINT64, value);
+			case 231 -> everything = new OneOf<>(Omnibus.Everything.SINT64, value);
+			case 225 -> everything = new OneOf<>(Omnibus.Everything.SFIXED64, value);
+			case 226 -> everything = new OneOf<>(Omnibus.Everything.FIXED64, value);
 			default -> throw new AssertionError("Not implemented in test code fieldNum='" + fieldNum + "'");
 		}
 	}
@@ -246,7 +246,7 @@ public class OmnibusParser extends ProtoParser {
 	public void booleanField(final int fieldNum, final boolean value) {
 		switch (fieldNum) {
 			case 14 -> flag = value;
-			case 214 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.FLAG, value);
+			case 214 -> everything = new OneOf<>(Omnibus.Everything.FLAG, value);
 			default -> throw new AssertionError("Not implemented in test code fieldNum='" + fieldNum + "'");
 		}
 	}
@@ -255,7 +255,7 @@ public class OmnibusParser extends ProtoParser {
 	public void floatField(final int fieldNum, final float value) {
 		switch (fieldNum) {
 			case 22 -> floatNumber = value;
-			case 222 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.FLOAT, value);
+			case 222 -> everything = new OneOf<>(Omnibus.Everything.FLOAT, value);
 			default -> throw new AssertionError("Not implemented in test code fieldNum='" + fieldNum + "'");
 		}
 	}
@@ -264,7 +264,7 @@ public class OmnibusParser extends ProtoParser {
 	public void doubleField(final int fieldNum, final double value) {
 		switch (fieldNum) {
 			case 27 -> doubleNumber = value;
-			case 227 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.DOUBLE, value);
+			case 227 -> everything = new OneOf<>(Omnibus.Everything.DOUBLE, value);
 			default -> throw new AssertionError("Not implemented in test code fieldNum='" + fieldNum + "'");
 		}
 	}
@@ -273,7 +273,7 @@ public class OmnibusParser extends ProtoParser {
 	public void enumField(final int fieldNum, final int ordinal) {
 		switch (fieldNum) {
 			case 15 -> suitEnum = Suit.fromOrdinal(ordinal);
-			case 215 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.SUIT, Suit.fromOrdinal(ordinal));
+			case 215 -> everything = new OneOf<>(Omnibus.Everything.SUIT, Suit.fromOrdinal(ordinal));
 			default -> throw new AssertionError("Not implemented in test code fieldNum='" + fieldNum + "'");
 		}
 	}
@@ -282,7 +282,7 @@ public class OmnibusParser extends ProtoParser {
 	public void stringField(final int fieldNum, final String value) {
 		switch (fieldNum) {
 			case 1 -> memo = value;
-			case 251 -> everything = new OneOf<>(fieldNum, Omnibus.Everything.MEMO, value);
+			case 251 -> everything = new OneOf<>(Omnibus.Everything.MEMO, value);
 			case 314 -> {
 				if (memoList == null) {
 					memoList = new ArrayList<>();
@@ -298,7 +298,7 @@ public class OmnibusParser extends ProtoParser {
 		switch (fieldNum) {
 			case 2 -> randomBytes = value;
 			case 252 ->
-					everything = new OneOf<>(fieldNum, Omnibus.Everything.RANDOM_BYTES, value);
+					everything = new OneOf<>(Omnibus.Everything.RANDOM_BYTES, value);
 			case 315 -> {
 				if (randomBytesList == null) {
 					randomBytesList = new ArrayList<>();
@@ -313,10 +313,10 @@ public class OmnibusParser extends ProtoParser {
 	public void objectField(int fieldNum, InputStream protoStream) throws IOException, MalformedProtobufException {
 		switch (fieldNum) {
 			case 3 -> nested = new NestedParser().parse(protoStream);
-			case 200 -> fruit = new OneOf<>(fieldNum, Fruits.FruitKind.APPLE, new AppleParser().parse(protoStream));
-			case 201 -> fruit = new OneOf<>(fieldNum, Fruits.FruitKind.BANANA, new BananaParser().parse(protoStream));
+			case 200 -> fruit = new OneOf<>(Fruits.FruitKind.APPLE, new AppleParser().parse(protoStream));
+			case 201 -> fruit = new OneOf<>(Fruits.FruitKind.BANANA, new BananaParser().parse(protoStream));
 			case 253 ->
-					everything = new OneOf<>(fieldNum, Omnibus.Everything.NESTED, new NestedParser().parse(protoStream));
+					everything = new OneOf<>(Omnibus.Everything.NESTED, new NestedParser().parse(protoStream));
 			case 316 -> {
 				if (nestedList == null) {
 					nestedList = new ArrayList<>();
