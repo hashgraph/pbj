@@ -26,7 +26,7 @@ public class WriterGenerator {
 	public static final String WRITER_JAVA_FILE_SUFFIX = "Writer";
 
 	/**
-	 * Main generate method that process directory of protovuf files
+	 * Main generate method that process directory of protobuf files
 	 *
 	 * @param protoDir The protobuf file to parse
 	 * @param destinationSrcDir the generated source directory to write files into
@@ -49,7 +49,7 @@ public class WriterGenerator {
 	private static void generate(File protoDirOrFile, File destinationSrcDir,
 			final LookupHelper lookupHelper) throws IOException {
 		if (protoDirOrFile.isDirectory()) {
-			for (final File file : protoDirOrFile.listFiles()) {
+			for (final File file : Objects.requireNonNull(protoDirOrFile.listFiles())) {
 				if (file.isDirectory() || file.getName().endsWith(".proto")) {
 					generate(file, destinationSrcDir, lookupHelper);
 				}
@@ -60,7 +60,7 @@ public class WriterGenerator {
 				final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
 				final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
 				final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
-				final String javaPackage = computeJavaPackage(WRITERS_DEST_PACKAGE, dirName);
+				final String javaPackage = computeJavaPackage(lookupHelper.getWriterPackage(), dirName);
 				final Path packageDir = destinationSrcDir.toPath().resolve(javaPackage.replace('.', '/'));
 				Files.createDirectories(packageDir);
 				for (var topLevelDef : parsedDoc.topLevelDef()) {
@@ -89,14 +89,10 @@ public class WriterGenerator {
 		final var schemaClassName = modelClassName+ SCHEMA_JAVA_FILE_SUFFIX;
 		final var writerClassName = modelClassName+ WRITER_JAVA_FILE_SUFFIX;
 		final var javaFile = packageDir.resolve(writerClassName + ".java");
-		String javaDocComment = (msgDef.docComment()== null) ? "" :
-				msgDef.docComment().getText()
-						.replaceAll("\n \\*\s*\n","\n * <p>\n");
-		String deprectaed = "";
 		final List<Field> fields = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
-		imports.add(computeJavaPackage(MODELS_DEST_PACKAGE, dirName));
-		imports.add(computeJavaPackage(SCHEMAS_DEST_PACKAGE, dirName));
+		imports.add(computeJavaPackage(lookupHelper.getModelPackage(), dirName));
+		imports.add(computeJavaPackage(lookupHelper.getSchemaPackage(), dirName));
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generateWriterFile(item.messageDef(), dirName, javaPackage,packageDir,lookupHelper);
@@ -106,16 +102,14 @@ public class WriterGenerator {
 				field.addAllNeededImports(imports, true, false, true, false);
 			} else if (item.mapField() != null) { // process map fields
 				throw new IllegalStateException("Encountered a mapField that was not handled in "+ writerClassName);
-			} else if (item.reserved() != null) { // process reserved
-				// reserved are not needed
+//			} else if (item.reserved() != null) { // process reserved - not needed
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
 				if (field.type() == Field.FieldType.MESSAGE) {
 					field.addAllNeededImports(imports, true, false, true, false);
 				}
-			} else if (item.optionStatement() != null){
-				// no needed for now
+//			} else if (item.optionStatement() != null){ // no needed for now
 			} else {
 				System.err.println("Unknown Element: "+item+" -- "+item.getText());
 			}
@@ -128,7 +122,7 @@ public class WriterGenerator {
 			javaWriter.write("""
 					package %s;
 									
-					import java.io.IOException;	
+					import java.io.IOException;
 					import java.io.OutputStream;
 					import com.hedera.hashgraph.pbj.runtime.ProtoOutputStream;
 					%s
@@ -140,7 +134,7 @@ public class WriterGenerator {
 					public final class %s {
 						/**
 						 * Write out a %s model to output stream in protobuf format.
-						 * 
+						 *
 						 * @param data The input model data to write
 						 * @param out The output stream to write to
 						 * @throws IOException If there is a problem writing
@@ -155,7 +149,7 @@ public class WriterGenerator {
 						imports.isEmpty() ? "" : imports.stream()
 								.filter(input -> !input.equals(javaPackage))
 								.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
-						computeJavaPackage(SCHEMAS_DEST_PACKAGE, dirName)+"."+schemaClassName,
+						computeJavaPackage(lookupHelper.getSchemaPackage(), dirName)+"."+schemaClassName,
 						modelClassName,
 						writerClassName,
 						modelClassName,
@@ -174,11 +168,11 @@ public class WriterGenerator {
 				.collect(Collectors.joining("\n		"));
 	}
 
+	@SuppressWarnings("unused")
 	private static String generateFieldWriteLines(final Field field, final String schemaClassName, final String getValueCode, final Set<String> imports) {
 		final String fieldName = field.nameCamelFirstLower();
 		final String fieldDef = camelToUpperSnake(field.name());
-		if (field instanceof OneOfField) {
-			final OneOfField oneOfField = (OneOfField)field;
+		if (field instanceof final OneOfField oneOfField) {
 			final String oneOfName = field.name()+"OneOf";
 			return """
 					final var %s = data.%s();
@@ -245,14 +239,10 @@ public class WriterGenerator {
 	}
 
 	private static String mapToWriteMethod(Field field) {
-		String writeType = switch(field.type()) {
+		return switch(field.type()) {
 			case BOOL -> "Boolean";
-			case INT32 -> "Integer";
-			case SINT32 -> "Integer";
-			case UINT32 -> "Integer";
-			case INT64 -> "Long";
-			case SINT64 -> "Long";
-			case UINT64 -> "Long";
+			case INT32, UINT32, SINT32 -> "Integer";
+			case INT64, SINT64, UINT64 -> "Long";
 			case FLOAT -> "Float";
 			case DOUBLE -> "Double";
 			case MESSAGE -> "Message";
@@ -261,7 +251,5 @@ public class WriterGenerator {
 			case BYTES -> "Bytes";
 			default -> throw new UnsupportedOperationException("mapToWriteMethod can not handle "+field.type());
 		};
-		return writeType;
 	}
-
 }

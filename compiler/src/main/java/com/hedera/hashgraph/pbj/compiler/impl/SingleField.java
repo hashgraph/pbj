@@ -19,7 +19,7 @@ import static com.hedera.hashgraph.pbj.compiler.impl.Common.snakeToCamel;
 public record SingleField(boolean repeated, FieldType type, int fieldNumber, String name, String messageType,
 						  String messageTypeModelPackage, String messageTypeParserPackage,
 						  String messageTypeWriterPackage, String messageTypeTestPackage,
-						  String comment, boolean depricated, OneOfField parent) implements Field {
+						  String comment, boolean deprecated, OneOfField parent) implements Field {
 	/**
 	 * Construct a SingleField from a parsed field context
 	 *
@@ -41,7 +41,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
 						lookupHelper.getTestPackage(fieldContext.type_().messageType().messageName().getText()),
 				fieldContext.docComment() == null ? null : fieldContext.docComment().getText(),
-				getDepricatedOption(fieldContext.fieldOptions()),
+				getDeprecatedOption(fieldContext.fieldOptions()),
 				null
 		);
 	}
@@ -67,7 +67,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				(fieldContext.type_().messageType() == null) ? null :
 						lookupHelper.getTestPackage(fieldContext.type_().messageType().messageName().getText()),
 				fieldContext.docComment() == null ? null : fieldContext.docComment().getText(),
-				getDepricatedOption(fieldContext.fieldOptions()),
+				getDeprecatedOption(fieldContext.fieldOptions()),
 				parent
 		);
 	}
@@ -290,22 +290,21 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	// ====== Staic Utility Methods ============================
 
 	/**
-	 * Extract if a field is depricated or not from the protobuf options on the field
+	 * Extract if a field is deprecated or not from the protobuf options on the field
 	 *
 	 * @param optionContext protobuf options from parser
-	 * @return true if field has depricated option, otherwise false
+	 * @return true if field has deprecated option, otherwise false
 	 */
-	private static boolean getDepricatedOption(Protobuf3Parser.FieldOptionsContext optionContext) {
-		boolean deprecated = false;
+	private static boolean getDeprecatedOption(Protobuf3Parser.FieldOptionsContext optionContext) {
 		if (optionContext != null) {
 			for (var option : optionContext.fieldOption()) {
 				if ("deprecated".equals(option.optionName().getText())) {
-					deprecated = true;
+					return true;
 				} else {
 					System.err.println("Unhandled Option on emum: "+optionContext.getText());
 				}
 			}
 		}
-		return deprecated;
+		return false;
 	}
 }

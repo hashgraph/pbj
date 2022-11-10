@@ -11,15 +11,10 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static com.hedera.hashgraph.pbj.compiler.impl.Common.MODELS_DEST_PACKAGE;
-import static com.hedera.hashgraph.pbj.compiler.impl.Common.SCHEMAS_DEST_PACKAGE;
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.computeJavaPackage;
 
 /**
@@ -29,11 +24,6 @@ public class SchemaGenerator {
 
 	/** Suffix for schema java classes */
 	public static final String SCHEMA_JAVA_FILE_SUFFIX = "Schema";
-
-	/** Record for a enum value tempory storage */
-	private record EnumValue(String name, boolean deprecated, String javaDoc) {}
-	/** Record for a field doc tempory storage */
-	private record FieldDoc(String fieldName, String fieldComment) {}
 
 	/**
 	 * Main generate method that process directory of protovuf files
@@ -60,7 +50,7 @@ public class SchemaGenerator {
 	private static void generate(File protoDirOrFile, File destinationSrcDir,
 			final LookupHelper lookupHelper) throws IOException {
 		if (protoDirOrFile.isDirectory()) {
-			for (final File file : protoDirOrFile.listFiles()) {
+			for (final File file : Objects.requireNonNull(protoDirOrFile.listFiles())) {
 				if (file.isDirectory() || file.getName().endsWith(".proto")) {
 					generate(file, destinationSrcDir, lookupHelper);
 				}
@@ -71,7 +61,7 @@ public class SchemaGenerator {
 				final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
 				final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
 				final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
-				final String javaPackage = computeJavaPackage(SCHEMAS_DEST_PACKAGE, dirName);
+				final String javaPackage = computeJavaPackage(lookupHelper.getSchemaPackage(), dirName);
 				final Path packageDir = destinationSrcDir.toPath().resolve(javaPackage.replace('.', '/'));
 				Files.createDirectories(packageDir);
 				for (var topLevelDef : parsedDoc.topLevelDef()) {
@@ -94,18 +84,14 @@ public class SchemaGenerator {
 	 * @param lookupHelper helper for global context
 	 * @throws IOException If there was a problem writing schema file
 	 */
+	@SuppressWarnings("unused")
 	private static void generateSchemaFile(Protobuf3Parser.MessageDefContext msgDef, String dirName, String javaPackage,
-			Path packageDir, final LookupHelper lookupHelper) throws IOException {
+										   Path packageDir, final LookupHelper lookupHelper) throws IOException {
 		final var modelClassName = msgDef.messageName().getText();
 		final var parserClassName = modelClassName+ SCHEMA_JAVA_FILE_SUFFIX;
 		final var javaFile = packageDir.resolve(parserClassName + ".java");
-		String javaDocComment = (msgDef.docComment()== null) ? "" :
-				msgDef.docComment().getText()
-						.replaceAll("\n \\*\s*\n","\n * <p>\n");
-		String deprectaed = "";
 		final List<Field> fields = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
-		final String modelJavaPackage = computeJavaPackage(MODELS_DEST_PACKAGE, dirName);
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generateSchemaFile(item.messageDef(), dirName, javaPackage,packageDir,lookupHelper);
@@ -115,13 +101,11 @@ public class SchemaGenerator {
 				field.addAllNeededImports(imports, true, false, false, false);
 			} else if (item.mapField() != null) { // process map flattenedFields
 				throw new IllegalStateException("Encountered a mapField that was not handled in "+ parserClassName);
-			} else if (item.reserved() != null) { // process reserved
-				// reserved are not needed
+//			} else if (item.reserved() != null) { // process reserved
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
-			} else if (item.optionStatement() != null){
-				// no needed for now
+//			} else if (item.optionStatement() != null){ // no needed for now
 			} else {
 				System.err.println("Unknown Element: "+item+" -- "+item.getText());
 			}
@@ -129,7 +113,7 @@ public class SchemaGenerator {
 
 		final List<Field> flattenedFields = fields.stream()
 				.flatMap(field -> field instanceof OneOfField ? ((OneOfField)field).fields().stream() :
-						Collections.singleton(field).stream())
+						Stream.of(field))
 				.collect(Collectors.toList());
 
 		try (FileWriter javaWriter = new FileWriter(javaFile.toFile())) {
@@ -170,7 +154,7 @@ public class SchemaGenerator {
 								.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
 						modelClassName,
 						parserClassName,
-						fields.stream().map(field -> field.schemaFieldsDef()).collect(Collectors.joining("\n")),
+						fields.stream().map(Field::schemaFieldsDef).collect(Collectors.joining("\n")),
 						generateGetField(flattenedFields)
 					)
 			);

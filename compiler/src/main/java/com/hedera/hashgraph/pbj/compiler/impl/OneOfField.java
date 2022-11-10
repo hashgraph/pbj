@@ -18,7 +18,7 @@ public record OneOfField(
 		String comment,
 		List<Field> fields,
 		boolean repeated,
-		boolean depricated
+		boolean deprecated
 ) implements Field {
 
 	/**
@@ -138,17 +138,17 @@ public record OneOfField(
 				", comment='" + comment + '\'' +
 				", fields.size=" + fields.size() +
 				", repeated=" + repeated +
-				", depricated=" + depricated +
+				", deprecated=" + deprecated +
 				'}';
 	}
 
 	// ====== Staic Utility Methods ============================
 
 	/**
-	 * Extract if a field is depricated or not from the protobuf options on the field
+	 * Extract if a field is deprecated or not from the protobuf options on the field
 	 *
 	 * @param optionContext protobuf options from parser
-	 * @return true if field has depricated option, otherwise false
+	 * @return true if field has deprecated option, otherwise false
 	 */
 	private static boolean getDepricatedOption(List<Protobuf3Parser.OptionStatementContext> optionContext) {
 		boolean deprecated = false;

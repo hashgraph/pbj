@@ -12,16 +12,6 @@ import java.util.stream.Collectors;
 public class Common {
 	/** The indent for fields, default 4 spaces */
 	public static final String FIELD_INDENT = " ".repeat(4);
-	/** The base package where all parser java classes should be placed */
-	public static final String PARSERS_DEST_PACKAGE = "com.hedera.hashgraph.pbj.runtime.parser";
-	/** The base package where all schema java classes should be placed */
-	public static final String SCHEMAS_DEST_PACKAGE = "com.hedera.hashgraph.pbj.runtime.schema";
-	/** The base package where all model java classes should be placed */
-	public static final String MODELS_DEST_PACKAGE = "com.hedera.hashgraph.pbj.runtime.model";
-	/** The base package where all writer java classes should be placed */
-	public static final String WRITERS_DEST_PACKAGE = "com.hedera.hashgraph.pbj.runtime.writer";
-	/** The base package where all unit test java classes should be placed */
-	public static final String UNIT_TESTS_DEST_PACKAGE = "com.hedera.hashgraph.pbj.runtime";
 
 	/**
 	 * Compute a destination Java package based on parent directory of the protobuf file

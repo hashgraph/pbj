@@ -11,22 +11,17 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 import static com.hedera.hashgraph.pbj.compiler.impl.EnumGenerator.*;
-import static com.hedera.hashgraph.pbj.compiler.impl.EnumGenerator.EnumValue;
 
 /**
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
  */
+@SuppressWarnings("StringConcatenationInLoop")
 public class ModelGenerator {
 	/** Record for a field doc temporary storage */
 	private record FieldDoc(String fieldName, String fieldComment) {}
@@ -37,9 +32,11 @@ public class ModelGenerator {
 	 *
 	 * @param protoFile The protobuf file to parse
 	 * @param destinationSrcDir the generated source directory to write files into
+	 * @param lookupHelper Lookup helper for finding classes and packages
 	 * @throws IOException if there was a problem writing files
 	 */
-	public static void generateModel(File protoFile, File destinationSrcDir, final LookupHelper lookupHelper) throws IOException {
+	public static void generateModel(File protoFile, File destinationSrcDir,
+									 final LookupHelper lookupHelper) throws IOException {
 		generate(protoFile, destinationSrcDir, lookupHelper);
 	}
 
@@ -51,9 +48,10 @@ public class ModelGenerator {
 	 * @param destinationSrcDir The destination source directory to generate into
 	 * @throws IOException if there was a problem writing generated files
 	 */
-	private static void generate(File protoDirOrFile, File destinationSrcDir, final LookupHelper lookupHelper) throws IOException {
+	private static void generate(File protoDirOrFile, File destinationSrcDir,
+								 final LookupHelper lookupHelper) throws IOException {
 		if (protoDirOrFile.isDirectory()) {
-			for (final File file : protoDirOrFile.listFiles()) {
+			for (final File file : Objects.requireNonNull(protoDirOrFile.listFiles())) {
 				if (file.isDirectory() || file.getName().endsWith(".proto")) {
 					generate(file, destinationSrcDir, lookupHelper);
 				}
@@ -64,7 +62,7 @@ public class ModelGenerator {
 				final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
 				final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
 				final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
-				final String javaPackage = computeJavaPackage(MODELS_DEST_PACKAGE, dirName);
+				final String javaPackage = computeJavaPackage(lookupHelper.getModelPackage(), dirName);
 				final Path packageDir = destinationSrcDir.toPath().resolve(javaPackage.replace('.', '/'));
 				Files.createDirectories(packageDir);
 				for (var topLevelDef : parsedDoc.topLevelDef()) {
@@ -116,12 +114,12 @@ public class ModelGenerator {
 				for(final Field field: oneOfField.fields()) {
 					final String fieldType = field.protobufFieldType();
 					final String javaFieldType = javaPrimativeToObjectType(field.javaFieldType());
-					enumValues.put(field.fieldNumber(), new EnumValue(field.name(),field.depricated(),field.comment()));
+					enumValues.put(field.fieldNumber(), new EnumValue(field.name(),field.deprecated(),field.comment()));
 					// generate getters for one ofs
 					oneofGetters.add("""
 							/**
 							 * Direct typed getter for one of field %s.
-							 * 
+							 *
 							 * @return optional for one of value. Optional.empty() if one of is not this one
 							 */
 							public Optional<%s> %s() {
@@ -153,15 +151,14 @@ public class ModelGenerator {
 				imports.add("com.hedera.hashgraph.pbj.runtime");
 			} else if (item.mapField() != null) { // process map fields
 				System.err.println("Encountered a mapField that was not handled in "+javaRecordName);
-			} else if (item.reserved() != null) { // process reserved
-				// reserved are not needed
+//			} else if (item.reserved() != null) { // process reserved -  not needed
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final SingleField field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
 				field.addAllNeededImports(imports, true, false, false, false);
 				// build java doc
 				if (field.comment() != null) {
-					final String fieldJavaDoc = item.field().docComment().getText();
+//					final String fieldJavaDoc = item.field().docComment().getText();
 					final String fieldNumComment = "<b>("+field.fieldNumber()+")</b> ";
 					fieldDocs.add(new FieldDoc(field.nameCamelFirstLower(), fieldNumComment + cleanJavaDocComment(field.comment())));
 				}
@@ -205,14 +202,14 @@ public class ModelGenerator {
 					).replaceAll("\n","\n"+FIELD_INDENT);
 		}
 		// oneof getters
-		bodyContent += oneofGetters.stream().collect(Collectors.joining("\n    "));
+		bodyContent += String.join("\n    ", oneofGetters);
 		bodyContent += "\n"+FIELD_INDENT;
 		// builder copy method
 		bodyContent += """
 				/**
-				 * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this 
+				 * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this
 				 * model object.
-				 * 
+				 *
 				 * @return a pre-populated builder
 				 */
 				Builder copyBuilder() {
@@ -226,7 +223,7 @@ public class ModelGenerator {
 		bodyContent += generateBuilder(javaRecordName, fields, lookupHelper);
 		bodyContent += "\n"+FIELD_INDENT;
 		// oneof enums
-		bodyContent += oneofEnums.stream().collect(Collectors.joining("\n    "));
+		bodyContent += String.join("\n    ", oneofEnums);
 		// === Build file
 		try (FileWriter javaWriter = new FileWriter(javaFile.toFile())) {
 			javaWriter.write("""
@@ -291,7 +288,7 @@ public class ModelGenerator {
 		return """
     
 			/**
-			 * Builder class for easy creation, ideal for clean code were performance is not critical. In critical performance 
+			 * Builder class for easy creation, ideal for clean code were performance is not critical. In critical performance
 			 * paths use the constructor directly.
 			 */
 			public static final class Builder {
@@ -350,13 +347,12 @@ public class ModelGenerator {
 									if (%s == null) {
 										throw new NullPointerException("Parameter '%s' must be supplied and can not be null");
 									}""".formatted(f.nameCamelFirstLower(),f.nameCamelFirstLower()));
-		if (f instanceof OneOfField) {
-			final OneOfField oof = (OneOfField)f;
+		if (f instanceof final OneOfField oof) {
 			for (Field subField: oof.fields()) {
 				if(subField.optional()) {
 					sb.append("""
        
-							// handle special case where protobuf does not have destination between a OneOf with optional 
+							// handle special case where protobuf does not have destination between a OneOf with optional
 							// value of empty vs a unset OneOf.
 							if(%s.kind() == %sOneOfType.%s && ((Optional)%s.value()).isEmpty()) {
 								%s = new OneOf<>(%sOneOfType.UNSET, null);

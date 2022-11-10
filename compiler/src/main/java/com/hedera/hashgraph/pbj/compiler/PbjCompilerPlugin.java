@@ -1,12 +1,14 @@
 package com.hedera.hashgraph.pbj.compiler;
 
-import com.hedera.hashgraph.pbj.compiler.impl.DefaultPbjSourceDirectorySet;
-import com.hedera.hashgraph.pbj.compiler.impl.PbjSourceDirectorySet;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.SourceDirectorySet;
+import org.gradle.api.internal.file.DefaultSourceDirectorySet;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.SourceSet;
 
 import javax.inject.Inject;
@@ -25,6 +27,9 @@ public class PbjCompilerPlugin implements Plugin<Project> {
     }
 
     public void apply(Project project) {
+        // create configuration extension
+        final var config = project.getExtensions().create("pbj", PbjCompilerPluginExtension.class);
+
         // apply java plugin as we depend on it
         project.getPluginManager().apply(JavaLibraryPlugin.class);
         // get reference to java plugin
@@ -47,7 +52,7 @@ public class PbjCompilerPlugin implements Plugin<Project> {
                 });
 
 
-        // 3) Set up the Proto Compiler output directory (adding to javac inputs!)
+        // Set up the Proto Compiler output directory (adding to javac inputs!)
         final File outputDirectory = new File(project.getBuildDir() + "/generated/source/pbj-proto/main");
         final File outputDirectoryMain = new File(outputDirectory,"java");
         final File outputDirectoryTest = new File(outputDirectory, "test");
@@ -56,10 +61,12 @@ public class PbjCompilerPlugin implements Plugin<Project> {
         javaMainSrcSet.getJava().srcDir(outputDirectoryMain);
         javaTestSrcSet.getJava().srcDir(outputDirectoryTest);
 
+
         // register generateProtoSource task and configure it
         final String taskName = "generatePbjProtoSource";
         project.getTasks().register(taskName, PbjCompilerTask.class, pbjCompilerTask -> {
             pbjCompilerTask.setDescription("Generates java src from the src/main/proto protobuf proto schemas.");
+            pbjCompilerTask.setBasePackage(config.getBasePackage().get());
             pbjCompilerTask.setProtoSrcDirectories(protoSourceSet.getSrcDirs());
             pbjCompilerTask.setSource(protoSourceSet);
             pbjCompilerTask.setJavaTestOutputDirectory(outputDirectoryTest);
@@ -68,4 +75,38 @@ public class PbjCompilerPlugin implements Plugin<Project> {
         // register fact that generateProtoSource should be run before compiling
         project.getTasks().named(javaMainSrcSet.getCompileJavaTaskName(), task -> task.dependsOn(taskName));
     }
+
+    public interface PbjSourceDirectorySet extends SourceDirectorySet {
+        String NAME = "pbj";
+    }
+
+    public static abstract class DefaultPbjSourceDirectorySet extends DefaultSourceDirectorySet implements PbjSourceDirectorySet {
+        @Inject
+        public DefaultPbjSourceDirectorySet(SourceDirectorySet sourceSet) {
+            super(sourceSet);
+        }
+    }
 }
+
+/*
+abstract class GreetingPluginExtension {
+    abstract Property<String> getMessage()
+
+    GreetingPluginExtension() {
+        message.convention('Hello from GreetingPlugin')
+    }
+}
+
+class GreetingPlugin implements Plugin<Project> {
+    void apply(Project project) {
+        // Add the 'greeting' extension object
+        def extension = project.extensions.create('greeting', GreetingPluginExtension)
+        // Add a task that uses configuration from the extension object
+        project.task('hello') {
+            doLast {
+                println extension.message.get()
+            }
+        }
+    }
+}
+ */

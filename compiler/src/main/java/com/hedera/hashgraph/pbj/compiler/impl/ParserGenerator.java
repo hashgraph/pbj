@@ -12,12 +12,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
@@ -61,7 +56,7 @@ public class ParserGenerator {
 	private static void generate(File protoDirOrFile, File destinationSrcDir,
 			final LookupHelper lookupHelper) throws IOException {
 		if (protoDirOrFile.isDirectory()) {
-			for (final File file : protoDirOrFile.listFiles()) {
+			for (final File file : Objects.requireNonNull(protoDirOrFile.listFiles())) {
 				if (file.isDirectory() || file.getName().endsWith(".proto")) {
 					generate(file, destinationSrcDir, lookupHelper);
 				}
@@ -72,7 +67,7 @@ public class ParserGenerator {
 				final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
 				final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
 				final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
-				final String javaPackage = computeJavaPackage(PARSERS_DEST_PACKAGE, dirName);
+				final String javaPackage = computeJavaPackage(lookupHelper.getParserPackage(), dirName);
 				final Path packageDir = destinationSrcDir.toPath().resolve(javaPackage.replace('.', '/'));
 				Files.createDirectories(packageDir);
 				for (var topLevelDef : parsedDoc.topLevelDef()) {
@@ -107,7 +102,7 @@ public class ParserGenerator {
 		final List<Field> fields = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
 		final List<String> oneOfUnsetConstants = new ArrayList<>();
-		final String moidelJavaPackage = computeJavaPackage(MODELS_DEST_PACKAGE, dirName);
+		final String moidelJavaPackage = computeJavaPackage(lookupHelper.getModelPackage(), dirName);
 		imports.add(moidelJavaPackage);
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
@@ -175,7 +170,7 @@ public class ParserGenerator {
 						imports.isEmpty() ? "" : imports.stream()
 								.filter(input -> !input.equals(javaPackage))
 								.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
-						computeJavaPackage(SCHEMAS_DEST_PACKAGE, dirName) + "." + modelClassName+ SchemaGenerator.SCHEMA_JAVA_FILE_SUFFIX,
+						computeJavaPackage(lookupHelper.getSchemaPackage(), dirName) + "." + modelClassName+ SchemaGenerator.SCHEMA_JAVA_FILE_SUFFIX,
 						modelClassName,
 						parserClassName,
 						oneOfUnsetConstants.stream().collect(Collectors.joining("\n")),
@@ -337,7 +332,7 @@ public class ParserGenerator {
 			}
 		}
 		return Arrays.stream(FieldMethodTypes.values())
-				.filter(fieldMethodType -> flattenedFields.stream().filter(field -> fieldMethodType.matches(field)).count() > 0)
+				.filter(fieldMethodType -> flattenedFields.stream().anyMatch(fieldMethodType::matches))
 				.map(fieldMethodType ->
 					"""	
 						 	@Override
@@ -349,16 +344,11 @@ public class ParserGenerator {
 							}
 						""".formatted(
 							fieldMethodType.toString(),
-							switch (fieldMethodType) {
-								case objectField -> "InputStream";
-								default -> fieldMethodType.javaType();
-							},
+							(fieldMethodType == FieldMethodTypes.objectField) ? "InputStream" : fieldMethodType.javaType(),
 							fieldMethodType == FieldMethodTypes.objectField ? "throws IOException, MalformedProtobufException " : "",
 							flattenedFields.stream()
-									.filter(field -> fieldMethodType.matches(field))
-									.map(field -> {
-											return field.parserFieldsSetMethodCase();
-									})
+									.filter(fieldMethodType::matches)
+									.map(Field::parserFieldsSetMethodCase)
 									.collect(Collectors.joining("\n            "))
 							)
 				)

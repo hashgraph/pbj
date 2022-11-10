@@ -1,6 +1,7 @@
 package com.hedera.hashgraph.pbj.compiler;
 
 import com.hedera.hashgraph.pbj.compiler.impl.*;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SourceTask;
 import org.gradle.api.tasks.TaskAction;
@@ -17,6 +18,7 @@ public abstract class PbjCompilerTask extends SourceTask {
 	private Set<File> protoSrcDirectories;
 	private File javaMainOutputDirectory;
 	private File javaTestOutputDirectory;
+	private String basePackage;
 
 	public void setProtoSrcDirectories(Set<File> protoSrcDirectories) {
 		this.protoSrcDirectories = protoSrcDirectories;
@@ -40,9 +42,18 @@ public abstract class PbjCompilerTask extends SourceTask {
 		this.javaTestOutputDirectory = javaTestOutputDirectory;
 	}
 
+	@Input
+	public String getBasePackage() {
+		return basePackage;
+	}
+
+	public void setBasePackage(String basePackage) {
+		this.basePackage = basePackage;
+	}
+
 	@TaskAction
 	public void perform() throws IOException {
-		System.out.println("PbjCompilerTask.perform");
+		System.out.println("PbjCompilerTask.perform getBasePackage="+getBasePackage());
 		try {
 			// for each proto src directory generate code
 			for (final File protoSrcDirectory : protoSrcDirectories) {
@@ -50,7 +61,7 @@ public abstract class PbjCompilerTask extends SourceTask {
 				System.out.println("protoSrcDirectory = " + protoSrcDirectory);
 				System.out.println("protoSrcDirectory.exists() = " + protoSrcDirectory.exists());
 				if (protoSrcDirectory.exists()) {
-					final LookupHelper lookupHelper = new LookupHelper(protoSrcDirectory);
+					final LookupHelper lookupHelper = new LookupHelper(protoSrcDirectory, basePackage);
 					ModelGenerator.generateModel(protoSrcDirectory, javaMainOutputDirectory, lookupHelper);
 					SchemaGenerator.generateSchemas(protoSrcDirectory, javaMainOutputDirectory, lookupHelper);
 					ParserGenerator.generateParsers(protoSrcDirectory, javaMainOutputDirectory, lookupHelper);

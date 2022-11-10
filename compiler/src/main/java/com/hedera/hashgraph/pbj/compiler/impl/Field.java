@@ -9,6 +9,7 @@ import static com.hedera.hashgraph.pbj.compiler.impl.Common.snakeToCamel;
 /**
  * Interface for SingleFields and OneOfFields
  */
+@SuppressWarnings("unused")
 public interface Field {
 
 	/**
@@ -127,11 +128,11 @@ public interface Field {
 	public String comment();
 
 	/**
-	 * Get if this field is depericated or not
+	 * Get if this field is deprecated or not
 	 *
-	 * @return true if field is depericated, otherwise false
+	 * @return true if field is deprecated, otherwise false
 	 */
-	public boolean depricated();
+	public boolean deprecated();
 
 	/**
 	 * Get the message type for this field if it is of type message otherwise null
@@ -143,7 +144,7 @@ public interface Field {
 	};
 
 	/**
-	 * Get if this field is optional, optionals are handled in protobuf by value type objects for primatives
+	 * Get if this field is optional, optionals are handled in protobuf by value type objects for primitives
 	 *
 	 * @return true if this field is option by use of a protobuf value type, otherwise false
 	 */

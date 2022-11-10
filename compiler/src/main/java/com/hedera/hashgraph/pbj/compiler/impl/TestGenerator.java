@@ -17,7 +17,6 @@ import java.util.stream.IntStream;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 import static com.hedera.hashgraph.pbj.compiler.impl.ParserGenerator.PARSER_JAVA_FILE_SUFFIX;
-import static com.hedera.hashgraph.pbj.compiler.impl.SchemaGenerator.SCHEMA_JAVA_FILE_SUFFIX;
 import static com.hedera.hashgraph.pbj.compiler.impl.WriterGenerator.WRITER_JAVA_FILE_SUFFIX;
 
 /**
@@ -53,7 +52,7 @@ public class TestGenerator {
 	private static void generate(File protoDirOrFile, File destinationSrcDir,
 			final LookupHelper lookupHelper) throws IOException {
 		if (protoDirOrFile.isDirectory()) {
-			for (final File file : protoDirOrFile.listFiles()) {
+			for (final File file : Objects.requireNonNull(protoDirOrFile.listFiles())) {
 				if (file.isDirectory() || file.getName().endsWith(".proto")) {
 					generate(file, destinationSrcDir, lookupHelper);
 				}
@@ -64,7 +63,7 @@ public class TestGenerator {
 				final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
 				final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
 				final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
-				final String javaPackage = computeJavaPackage(UNIT_TESTS_DEST_PACKAGE, dirName);
+				final String javaPackage = computeJavaPackage(lookupHelper.getTestPackage(), dirName);
 				final Path packageDir = destinationSrcDir.toPath().resolve(javaPackage.replace('.', '/'));
 				Files.createDirectories(packageDir);
 				// extract java package
@@ -100,20 +99,14 @@ public class TestGenerator {
 	private static void generateWriterFile(Protobuf3Parser.MessageDefContext msgDef, String dirName, String javaPackage,
 										   String protoJavaPackage, Path packageDir, final LookupHelper lookupHelper) throws IOException {
 		final var modelClassName = msgDef.messageName().getText();
-		final var schemaClassName = modelClassName+ SCHEMA_JAVA_FILE_SUFFIX;
 		final var writerClassName = modelClassName+ WRITER_JAVA_FILE_SUFFIX;
 		final var parserClassName = modelClassName+ PARSER_JAVA_FILE_SUFFIX;
-		final var testClassName = modelClassName+ TEST_JAVA_FILE_SUFFIX;
-		final var javaFile = packageDir.resolve(testClassName + ".java");
-		String javaDocComment = (msgDef.docComment()== null) ? "" :
-				msgDef.docComment().getText()
-						.replaceAll("\n \\*\s*\n","\n * <p>\n");
-		String deprectaed = "";
+		final var javaFile = packageDir.resolve(modelClassName + TEST_JAVA_FILE_SUFFIX + ".java");
 		final List<Field> fields = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
-		imports.add(computeJavaPackage(MODELS_DEST_PACKAGE, dirName));
-		imports.add(computeJavaPackage(WRITERS_DEST_PACKAGE, dirName));
-		imports.add(computeJavaPackage(PARSERS_DEST_PACKAGE, dirName));
+		imports.add(computeJavaPackage(lookupHelper.getModelPackage(), dirName));
+		imports.add(computeJavaPackage(lookupHelper.getWriterPackage(), dirName));
+		imports.add(computeJavaPackage(lookupHelper.getParserPackage(), dirName));
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generateWriterFile(item.messageDef(), dirName, javaPackage, protoJavaPackage+"."+modelClassName, packageDir,lookupHelper);
@@ -125,9 +118,8 @@ public class TestGenerator {
 					subField.addAllNeededImports(imports, true, false, true, true);
 				}
 			} else if (item.mapField() != null) { // process map fields
-				throw new IllegalStateException("Encountered a mapField that was not handled in "+ testClassName);
-			} else if (item.reserved() != null) { // process reserved
-				// reserved are not needed
+				throw new IllegalStateException("Encountered a mapField that was not handled in "+ (modelClassName + TEST_JAVA_FILE_SUFFIX));
+//			} else if (item.reserved() != null) { // process reserved - not needed
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
@@ -174,7 +166,7 @@ public class TestGenerator {
 								.filter(input -> !input.equals(javaPackage))
 								.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
 						modelClassName,
-						testClassName,
+							modelClassName+ TEST_JAVA_FILE_SUFFIX,
 						generateTestMethod(modelClassName, writerClassName, parserClassName, fields, protoJavaPackage)
 								.replaceAll("\n","\n"+FIELD_INDENT),
 						generateModelTestArgumentsMethod(modelClassName, fields)
