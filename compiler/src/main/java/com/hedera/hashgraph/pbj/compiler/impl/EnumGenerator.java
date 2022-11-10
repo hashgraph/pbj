@@ -17,9 +17,10 @@ import static com.hedera.hashgraph.pbj.compiler.impl.Common.camelToUpperSnake;
 /**
  * Code for generating enum code
  */
+@SuppressWarnings("InconsistentTextBlockIndent")
 public class EnumGenerator {
 
-	/** Record for a enum value tempory storage */
+	/** Record for an enum value temporary storage */
 	record EnumValue(String name, boolean deprecated, String javaDoc) {}
 
 	/**
@@ -29,48 +30,37 @@ public class EnumGenerator {
 	 * @param javaPackage the package the enum will be placed in
 	 * @param enumName the name of the enum to generate
 	 * @param javaFile the java file to write enum into
-	 * @param packageMap map of message type to Java package for imports
 	 * @throws IOException if there was a problem writing generated code
 	 */
-	static void generateEnumFile(Protobuf3Parser.EnumDefContext enumDef, String javaPackage, String enumName, File javaFile, final LookupHelper lookupHelper) throws IOException {
+	static void generateEnumFile(Protobuf3Parser.EnumDefContext enumDef, String javaPackage, String enumName, File javaFile) throws IOException {
 		String javaDocComment = (enumDef.docComment()== null) ? "" :
 				enumDef.docComment().getText()
 						.replaceAll("\n \\*\s*\n","\n * <p>\n");
-		String deprectaed = "";
+		String deprecated = "";
 		final Map<Integer, EnumValue> enumValues = new HashMap<>();
 		int maxIndex = 0;
 		for(var item: enumDef.enumBody().enumElement()) {
 			if (item.enumField() != null && item.enumField().ident() != null) {
 				final var enumValueName = item.enumField().ident().getText();
 				final var enumNumber = Integer.parseInt(item.enumField().intLit().getText());
-				boolean deprecated = false;
-				if (item.enumField().enumValueOptions() != null) {
-					for (var option : item.enumField().enumValueOptions().enumValueOption()) {
-						if ("deprecated".equals(option.optionName().getText())) {
-							deprecated = true;
-						} else {
-							System.err.println("Unhandled Option on emum: "+item.optionStatement().getText());
-						}
-					}
-				}
 				final String enumValueJavaDoc = item.enumField().docComment() == null ? "" :
 						item.enumField().docComment().getText();
 				maxIndex = Math.max(maxIndex, enumNumber);
 				enumValues.put(enumNumber, new EnumValue(enumValueName, false,enumValueJavaDoc));
 			} else if (item.optionStatement() != null){
 				if ("deprecated".equals(item.optionStatement().optionName().getText())) {
-					deprectaed = "@Deprecated ";
+					deprecated = "@Deprecated ";
 				} else {
 					System.err.println("Unhandled Option: "+item.optionStatement().getText());
 				}
 			} else {
-				System.err.println("Unknown Element: "+item+" -- "+item.getText());
+				System.err.println("EnumGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
 		}
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write(
 					"package "+javaPackage+";\n"+
-							createEnum("", javaDocComment, deprectaed, enumName, maxIndex, enumValues, false)
+							createEnum("", javaDocComment, deprecated, enumName, maxIndex, enumValues, false)
 			);
 		}
 	}
@@ -80,22 +70,23 @@ public class EnumGenerator {
 	 *
 	 * @param indent extra indent spaces beyond the default 4
 	 * @param javaDocComment either enum javadoc comment or empty string
-	 * @param deprectaed either @Depricated string or empty string
+	 * @param deprecated either @deprecated string or empty string
 	 * @param enumName the name for enum
 	 * @param maxIndex the max ordinal for enum
 	 * @param enumValues map of ordinal to enum value
-	 * @param addUnknown when true we add a enum value for one of
+	 * @param addUnknown when true we add an enum value for one of
 	 * @return string code for enum
 	 */
-	static String createEnum(String indent, String javaDocComment, String deprectaed, String enumName,
-			int maxIndex, Map<Integer, EnumValue> enumValues, boolean addUnknown) {
+	@SuppressWarnings("SpellCheckingInspection")
+	static String createEnum(String indent, String javaDocComment, String deprecated, String enumName,
+							 int maxIndex, Map<Integer, EnumValue> enumValues, boolean addUnknown) {
 		final List<String> enumValuesCode = new ArrayList<>(maxIndex);
 		if (addUnknown) {
 			enumValuesCode.add(FIELD_INDENT+"""
-     				 /**
-     				  * Enum value for a unset OneOf, to avoid null OneOfs
-     				  */
-     				 UNSET(-1)"""
+					 /**
+					  * Enum value for a unset OneOf, to avoid null OneOfs
+					  */
+					 UNSET(-1)"""
 					.replaceAll("\n","\n"+FIELD_INDENT));
 		}
 		for (int i = 0; i <= maxIndex; i++) {
@@ -111,56 +102,55 @@ public class EnumGenerator {
 			}
 		}
 		return """
-					%s
-					%spublic enum %s implements com.hedera.hashgraph.pbj.runtime.EnumWithProtoOrdinal{
-					%s;
-						
-						/** The oneof field ordinal in protobuf for this type */
-						private final int protoOrdinal;
-						
-						/**
-						 * OneOf Type Enum Constructor
-						 * 
-						 * @param protoOrdinal The oneof field ordinal in protobuf for this type
-						 */
-						%s(final int protoOrdinal) {
-							this.protoOrdinal = protoOrdinal;
-						}
-						
-						/**
-						 * Get the oneof field ordinal in protobuf for this type
-						 *
-						 * @return The oneof field ordinal in protobuf for this type 
-						 */
-						public int protoOrdinal() {
-							return protoOrdinal;
-						}
-						
-						/**
-						 * Get enum from protobuf ordinal
-						 * 
-						 * @param ordinal the protobuf ordinal number
-						 * @return enum for matching ordinal
-						 * @throws IllegalArgumentException if ordinal doesn't exist
-						 */
-						public static %s fromProtobufOrdinal(int ordinal) {
-							return switch(ordinal) {
-					%s
-								default -> throw new IllegalArgumentException("Unknown protobuf ordinal "+ordinal);
-							};
-						}
+				%s
+				%spublic enum %s implements com.hedera.hashgraph.pbj.runtime.EnumWithProtoOrdinal{
+				%s;
+					
+					/** The oneof field ordinal in protobuf for this type */
+					private final int protoOrdinal;
+					
+					/**
+					 * OneOf Type Enum Constructor
+					 *
+					 * @param protoOrdinal The oneof field ordinal in protobuf for this type
+					 */
+					%s(final int protoOrdinal) {
+						this.protoOrdinal = protoOrdinal;
 					}
-					""".formatted(
-						javaDocComment,
-						deprectaed,
-						enumName,
-						enumValuesCode.stream().collect(Collectors.joining(",\n\n")),
-						enumName,
-						enumName,
-						enumValues.entrySet().stream().map((entry) -> {
-							return "			case "+entry.getKey()+" -> "+camelToUpperSnake(entry.getValue().name)+";";
-						}).collect(Collectors.joining("\n"))
-				)
-				.replaceAll("\n","\n"+indent);
+					
+					/**
+					 * Get the oneof field ordinal in protobuf for this type
+					 *
+					 * @return The oneof field ordinal in protobuf for this type
+					 */
+					public int protoOrdinal() {
+						return protoOrdinal;
+					}
+					
+					/**
+					 * Get enum from protobuf ordinal
+					 *
+					 * @param ordinal the protobuf ordinal number
+					 * @return enum for matching ordinal
+					 * @throws IllegalArgumentException if ordinal doesn't exist
+					 */
+					public static %s fromProtobufOrdinal(int ordinal) {
+						return switch(ordinal) {
+				%s
+							default -> throw new IllegalArgumentException("Unknown protobuf ordinal "+ordinal);
+						};
+					}
+				}
+				"""
+			.formatted(
+				javaDocComment,
+				deprecated,
+				enumName,
+				String.join(",\n\n", enumValuesCode),
+				enumName,
+				enumName,
+				enumValues.entrySet().stream().map((entry) -> "			case " + entry.getKey() + " -> " + 
+								camelToUpperSnake(entry.getValue().name) + ";").collect(Collectors.joining("\n"))
+			).replaceAll("\n", "\n" + indent);
 	}
 }

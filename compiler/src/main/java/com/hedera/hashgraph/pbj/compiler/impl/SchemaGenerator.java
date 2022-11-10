@@ -101,13 +101,12 @@ public class SchemaGenerator {
 				field.addAllNeededImports(imports, true, false, false, false);
 			} else if (item.mapField() != null) { // process map flattenedFields
 				throw new IllegalStateException("Encountered a mapField that was not handled in "+ parserClassName);
-//			} else if (item.reserved() != null) { // process reserved
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
-//			} else if (item.optionStatement() != null){ // no needed for now
-			} else {
-				System.err.println("Unknown Element: "+item+" -- "+item.getText());
+			} else if (item.reserved() == null && item.optionStatement() == null) {
+				// we can ignore reserved and option statements for now
+				System.err.println("SchemaGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
 		}
 

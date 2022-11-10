@@ -53,13 +53,9 @@ public abstract class PbjCompilerTask extends SourceTask {
 
 	@TaskAction
 	public void perform() throws IOException {
-		System.out.println("PbjCompilerTask.perform getBasePackage="+getBasePackage());
 		try {
 			// for each proto src directory generate code
 			for (final File protoSrcDirectory : protoSrcDirectories) {
-
-				System.out.println("protoSrcDirectory = " + protoSrcDirectory);
-				System.out.println("protoSrcDirectory.exists() = " + protoSrcDirectory.exists());
 				if (protoSrcDirectory.exists()) {
 					final LookupHelper lookupHelper = new LookupHelper(protoSrcDirectory, basePackage);
 					ModelGenerator.generateModel(protoSrcDirectory, javaMainOutputDirectory, lookupHelper);

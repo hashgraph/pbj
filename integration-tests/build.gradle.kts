@@ -1,3 +1,17 @@
+
+// download HAPI repo protobuf files into build directory and add to sources to build them
+val hapiServicesProtoSrc = buildDir.resolve("repos/hapi/services")
+println("hapiServicesProtoSrc="+hapiServicesProtoSrc)
+
+sourceSets {
+    main {
+        allSource.srcDir(hapiServicesProtoSrc)
+        proto {
+            srcDir(hapiServicesProtoSrc)
+        }
+    }
+}
+
 plugins {
     java
     id("hedera.pbj-compiler") version "1.0-SNAPSHOT"
@@ -26,6 +40,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.0")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.0")
 }
+
 
 tasks.getByName<Test>("test") {
     useJUnitPlatform()

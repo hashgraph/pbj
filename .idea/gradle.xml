@@ -16,12 +16,24 @@
         </option>
       </GradleProjectSettings>
       <GradleProjectSettings>
+        <compositeConfiguration>
+          <compositeBuild compositeDefinitionSource="SCRIPT">
+            <builds>
+              <build path="$PROJECT_DIR$/integration-tests/build/repos/hapi" name="hapi">
+                <projects>
+                  <project path="$PROJECT_DIR$/integration-tests/build/repos/hapi" />
+                </projects>
+              </build>
+            </builds>
+          </compositeBuild>
+        </compositeConfiguration>
         <option name="distributionType" value="DEFAULT_WRAPPED" />
         <option name="externalProjectPath" value="$PROJECT_DIR$/integration-tests" />
         <option name="gradleJvm" value="#JAVA_HOME" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$/integration-tests" />
+            <option value="$PROJECT_DIR$/integration-tests/build/repos/hapi" />
           </set>
         </option>
       </GradleProjectSettings>

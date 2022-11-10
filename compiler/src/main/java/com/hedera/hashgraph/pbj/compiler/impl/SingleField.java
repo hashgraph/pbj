@@ -16,6 +16,7 @@ import static com.hedera.hashgraph.pbj.compiler.impl.Common.snakeToCamel;
  * @param name
  * @param messageType
  */
+@SuppressWarnings("DuplicatedCode")
 public record SingleField(boolean repeated, FieldType type, int fieldNumber, String name, String messageType,
 						  String messageTypeModelPackage, String messageTypeParserPackage,
 						  String messageTypeWriterPackage, String messageTypeTestPackage,
@@ -24,7 +25,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	 * Construct a SingleField from a parsed field context
 	 *
 	 * @param fieldContext the field context to extra field data from
-	 * @param lookupHelper loookup helper for finding packages and other global context data
+	 * @param lookupHelper lookup helper for finding packages and other global context data
 	 */
 	public SingleField(Protobuf3Parser.FieldContext fieldContext, final LookupHelper lookupHelper) {
 		this(fieldContext.REPEATED() != null,
@@ -47,10 +48,10 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	}
 
 	/**
-	 * Construct a SingleField from a parsed oneof sub field context
+	 * Construct a SingleField from a parsed oneof subfield context
 	 *
 	 * @param fieldContext the field context to extra field data from
-	 * @param lookupHelper loookup helper for finding packages and other global context data
+	 * @param lookupHelper lookup helper for finding packages and other global context data
 	 */
 	public SingleField(Protobuf3Parser.OneofFieldContext fieldContext, final OneOfField parent,  final LookupHelper lookupHelper) {
 		this(false,
@@ -113,12 +114,8 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 		};
 		fieldType = switch (fieldType) {
 			case "StringValue" -> "Optional<String>";
-			case "Int32Value" -> "Optional<Integer>";
-			case "UInt32Value" -> "Optional<Integer>";
-			case "SInt32Value" -> "Optional<Integer>";
-			case "Int64Value" -> "Optional<Long>";
-			case "UInt64Value" -> "Optional<Long>";
-			case "SInt64Value" -> "Optional<Long>";
+			case "Int32Value", "UInt32Value", "SInt32Value" -> "Optional<Integer>";
+			case "Int64Value", "UInt64Value", "SInt64Value" -> "Optional<Long>";
 			case "FloatValue" -> "Optional<Float>";
 			case "DoubleValue" -> "Optional<Double>";
 			case "BoolValue" -> "Optional<Boolean>";
@@ -287,7 +284,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 		}
 	}
 
-	// ====== Staic Utility Methods ============================
+	// ====== Static Utility Methods ============================
 
 	/**
 	 * Extract if a field is deprecated or not from the protobuf options on the field
@@ -301,7 +298,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				if ("deprecated".equals(option.optionName().getText())) {
 					return true;
 				} else {
-					System.err.println("Unhandled Option on emum: "+optionContext.getText());
+					System.err.println("Unhandled Option on enum: "+optionContext.getText());
 				}
 			}
 		}

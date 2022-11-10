@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.camelToUpperSnake;
 
 /**
- * A implementation of Field for OneOf fields 
+ * An implementation of Field for OneOf fields
  */
 public record OneOfField(
 		String parentMessageName,
@@ -34,7 +34,7 @@ public record OneOfField(
 			oneOfContext.docComment().getText(),
 			new ArrayList<>(oneOfContext.oneofField().size()),
 			false,
-			getDepricatedOption(oneOfContext.optionStatement())
+			getDeprecatedOption(oneOfContext.optionStatement())
 		);
 		for(var field: oneOfContext.oneofField()) {
 			fields.add(new SingleField(field, this, lookupHelper));
@@ -107,7 +107,7 @@ public record OneOfField(
 	 */
 	@Override
 	public String schemaFieldsDef() {
-		return fields.stream().map(field -> field.schemaFieldsDef()).collect(Collectors.joining("\n"));
+		return fields.stream().map(Field::schemaFieldsDef).collect(Collectors.joining("\n"));
 	}
 
 	/**
@@ -115,7 +115,7 @@ public record OneOfField(
 	 */
 	@Override
 	public String schemaGetFieldsDefCase() {
-		return fields.stream().map(field -> field.schemaGetFieldsDefCase()).collect(Collectors.joining("\n            "));
+		return fields.stream().map(Field::schemaGetFieldsDefCase).collect(Collectors.joining("\n            "));
 	}
 
 	/**
@@ -123,7 +123,7 @@ public record OneOfField(
 	 */
 	@Override
 	public String parserFieldsSetMethodCase() {
-		return fields.stream().map(field -> field.parserFieldsSetMethodCase()).collect(Collectors.joining("\n"));
+		return fields.stream().map(Field::parserFieldsSetMethodCase).collect(Collectors.joining("\n"));
 	}
 
 	public String getEnumClassRef() {
@@ -142,7 +142,7 @@ public record OneOfField(
 				'}';
 	}
 
-	// ====== Staic Utility Methods ============================
+	// ====== Static Utility Methods ============================
 
 	/**
 	 * Extract if a field is deprecated or not from the protobuf options on the field
@@ -150,7 +150,7 @@ public record OneOfField(
 	 * @param optionContext protobuf options from parser
 	 * @return true if field has deprecated option, otherwise false
 	 */
-	private static boolean getDepricatedOption(List<Protobuf3Parser.OptionStatementContext> optionContext) {
+	private static boolean getDeprecatedOption(List<Protobuf3Parser.OptionStatementContext> optionContext) {
 		boolean deprecated = false;
 		if (optionContext != null) {
 			for (var option : optionContext) {

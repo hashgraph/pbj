@@ -17,37 +17,37 @@ public interface Field {
 	 *
 	 * @return true if this field is a list and false if it is a single value
 	 */
-	public boolean repeated();
+	boolean repeated();
 
 	/**
 	 * Get the field number, the number of the field in the parent message
 	 *
 	 * @return this fields number
 	 */
-	public int fieldNumber();
+	int fieldNumber();
 
 	/**
-	 * Get this fields name in orginal case and format
+	 * Get this fields name in original case and format
 	 *
 	 * @return this fields name
 	 */
-	public String name();
+	String name();
 
 	/**
-	 * Get this fields name converted to camel case with the first leter upper case
+	 * Get this fields name converted to camel case with the first letter upper case
 	 *
 	 * @return this fields name converted
 	 */
-	public default String nameCamelFirstUpper() {
+	default String nameCamelFirstUpper() {
 		return snakeToCamel(name(),true);
 	}
 
 	/**
-	 * Get this fields name converted to camel case with the first leter lower case
+	 * Get this fields name converted to camel case with the first letter lower case
 	 *
 	 * @return this fields name converted
 	 */
-	public default String nameCamelFirstLower() {
+	default String nameCamelFirstLower() {
 		return snakeToCamel(name(),false);
 	}
 
@@ -56,32 +56,32 @@ public interface Field {
 	 *
 	 * @return this fields type
 	 */
-	public FieldType type();
+	FieldType type();
 
 	/**
 	 * Get the protobuf field type for this field
 	 *
 	 * @return this fields type in protobuf format
 	 */
-	public String protobufFieldType();
+	String protobufFieldType();
 
 	/**
 	 * Get the Java field type for this field
 	 *
 	 * @return this fields type in Java format
 	 */
-	public String javaFieldType();
+	String javaFieldType();
 
 	/**
 	 * Add all the needed imports for this field to the supplied set.
 	 *
 	 * @param imports set of imports to add to, this contains packages not classes. They are always imported as ".*".
-	 * @param modelImports if imports for this fields generated model classes should be added
-	 * @param parserImports if imports for this fields generated parser classes should be added
-	 * @param writerImports if imports for this fields generated writer classes should be added
-	 * @param testImports if imports for this fields generated test classes should be added
+	 * @param modelImports if imports for this field's generated model classes should be added
+	 * @param parserImports if imports for this field's generated parser classes should be added
+	 * @param writerImports if imports for this field's generated writer classes should be added
+	 * @param testImports if imports for this field's generated test classes should be added
 	 */
-	public void addAllNeededImports(Set<String> imports, boolean modelImports,boolean parserImports,
+	void addAllNeededImports(Set<String> imports, boolean modelImports,boolean parserImports,
 			final boolean writerImports, final boolean testImports);
 
 	/**
@@ -89,66 +89,66 @@ public interface Field {
 	 *
 	 * @return java source code to parse
 	 */
-	public String parseCode();
+	String parseCode();
 
 	/**
 	 * Get the java code default value for this field, "null" for object types
 	 *
 	 * @return code for default value
 	 */
-	public String javaDefault();
+	String javaDefault();
 
 	/**
-	 * Get the field definiations line of code for schema file for this field. One line for single fields and multiple
+	 * Get the field definitions line of code for schema file for this field. One line for single fields and multiple
 	 * for oneofs.
 	 *
 	 * @return field definition lines of code
 	 */
-	public String schemaFieldsDef();
+	String schemaFieldsDef();
 
 	/**
 	 * Get the schema case statement for getting the field definition by field number
 	 *
 	 * @return java source code for case statement to get field def for field number
 	 */
-	public String schemaGetFieldsDefCase();
+	String schemaGetFieldsDefCase();
 
 	/**
-	 * Get the case statement for seting this method to go in parser set method code
+	 * Get the case statement for setting this method to go in parser set method code
 	 *
 	 * @return java source code for case statement setting this field
 	 */
-	public String parserFieldsSetMethodCase();
+	String parserFieldsSetMethodCase();
 
 	/**
 	 * Get the java doc comment for this field
 	 *
 	 * @return java doc comment
 	 */
-	public String comment();
+	String comment();
 
 	/**
 	 * Get if this field is deprecated or not
 	 *
 	 * @return true if field is deprecated, otherwise false
 	 */
-	public boolean deprecated();
+	boolean deprecated();
 
 	/**
 	 * Get the message type for this field if it is of type message otherwise null
 	 *
 	 * @return message type or null if not a message type field
 	 */
-	public default String messageType() {
+	default String messageType() {
 		return null;
-	};
+	}
 
 	/**
 	 * Get if this field is optional, optionals are handled in protobuf by value type objects for primitives
 	 *
 	 * @return true if this field is option by use of a protobuf value type, otherwise false
 	 */
-	public default boolean optional() {
+	default boolean optional() {
 		return false;
 	}
 
@@ -157,14 +157,14 @@ public interface Field {
 	 *
 	 * @return this fields parent field for oneof fields
 	 */
-	public default OneOfField parent() {
+	default OneOfField parent() {
 		return null;
 	}
 
 	/**
 	 * Field type enum for use in field classes
 	 */
-	public enum FieldType {
+	enum FieldType {
 		MESSAGE("Object", "null"),
 		ENUM("int", "null"),
 		INT32("int", "0"),
@@ -184,15 +184,15 @@ public interface Field {
 		BYTES("ByteBuffer", "ByteBuffer.allocate(0).asReadOnlyBuffer()"),
 		ONE_OF("OneOf", "null");
 
-		public final String javaType;
-		public final String javaDefault;
+		final String javaType;
+		final String javaDefault;
 
 		FieldType(String javaType, final String javaDefault) {
 			this.javaType = javaType;
 			this.javaDefault = javaDefault;
 		}
 
-		public String fieldType() {
+		String fieldType() {
 			String name = toString();
 			if (Character.isDigit(name.charAt(name.length()-2))) {
 				return name.substring(0,name.length()-2) + "_" + name.substring(name.length()-2);
@@ -201,7 +201,8 @@ public interface Field {
 			}
 		}
 
-		public String javaType(boolean repeated) {
+		@SuppressWarnings("DuplicatedCode")
+		String javaType(boolean repeated) {
 			if (repeated) {
 				return switch (javaType) {
 					case "int" -> "List<Integer>";
@@ -216,7 +217,7 @@ public interface Field {
 			}
 		}
 
-		public static FieldType of(Protobuf3Parser.Type_Context typeContext,  final LookupHelper lookupHelper) {
+		static FieldType of(Protobuf3Parser.Type_Context typeContext,  final LookupHelper lookupHelper) {
 			if (typeContext.enumType() != null) {
 				return FieldType.ENUM;
 			} else if (typeContext.messageType() != null) {

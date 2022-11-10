@@ -38,10 +38,10 @@ public class WriterGenerator {
 	}
 
 	/**
-	 * Process a directory of protobuf files or indervidual protobuf file. Generating Java record clasess for each
+	 * Process a directory of protobuf files or individual protobuf file. Generating Java record classes for each
 	 * message type and Java enums for each protobuf enum.
 	 *
-	 * @param protoDirOrFile directory of protobuf files or indervidual protobuf file
+	 * @param protoDirOrFile directory of protobuf files or individual protobuf file
 	 * @param destinationSrcDir The destination source directory to generate into
 	 * @param lookupHelper helper for global context
 	 * @throws IOException if there was a problem writing generated files
@@ -102,20 +102,18 @@ public class WriterGenerator {
 				field.addAllNeededImports(imports, true, false, true, false);
 			} else if (item.mapField() != null) { // process map fields
 				throw new IllegalStateException("Encountered a mapField that was not handled in "+ writerClassName);
-//			} else if (item.reserved() != null) { // process reserved - not needed
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
 				if (field.type() == Field.FieldType.MESSAGE) {
 					field.addAllNeededImports(imports, true, false, true, false);
 				}
-//			} else if (item.optionStatement() != null){ // no needed for now
-			} else {
-				System.err.println("Unknown Element: "+item+" -- "+item.getText());
+			} else if (item.reserved() == null && item.optionStatement() == null) {
+				System.err.println("WriterGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
 		}
 		final List<Field> sortedFields = fields.stream()
-				.sorted((a,b) -> Integer.compare(a.fieldNumber(), b.fieldNumber()))
+				.sorted(Comparator.comparingInt(Field::fieldNumber))
 				.collect(Collectors.toList());
 		final String fieldWriteLines = generateFieldWriteLines(sortedFields, schemaClassName, imports);
 		try (FileWriter javaWriter = new FileWriter(javaFile.toFile())) {

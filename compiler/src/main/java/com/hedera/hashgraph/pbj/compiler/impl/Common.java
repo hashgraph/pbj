@@ -1,6 +1,5 @@
 package com.hedera.hashgraph.pbj.compiler.impl;
 
-import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Parser;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -37,26 +36,10 @@ public class Common {
 	}
 
 	/**
-	 * Extract Java package option from parsed protobuf document
+	 * Make sure first character of a string is upper case
 	 *
-	 * @param parsedDoc parseed protobuf source
-	 * @return the java package option if set or empty string
-	 */
-	public static String getJavaPackage(Protobuf3Parser.ProtoContext parsedDoc) {
-		String packageName = "";
-		for(var option: parsedDoc.optionStatement()){
-			if ("java_package".equals(option.optionName().getText())) {
-				packageName = option.constant().getText().replace("\"","");
-			}
-		}
-		return packageName;
-	}
-
-	/**
-	 * Make sure first charachter of a string is upper case
-	 *
-	 * @param name string input who's first charachter can be upper or lower case
-	 * @return name with first charachter converted to upper case
+	 * @param name string input who's first character can be upper or lower case
+	 * @return name with first character converted to upper case
 	 */
 	public static String capitalizeFirstLetter(String name) {
 		if (name.length() > 0) {
@@ -70,8 +53,8 @@ public class Common {
 	}
 
 	/**
-	 * Convert names like "hello_world" to "HelloWorld" or "helloWorld" depening on firstUpper. Also handles special case
-	 * like "HELLO_WORLD" to same output as "hello_world, while "HelloWorld_Two" still becomes "helloWorldTwo".
+	 * Convert names like "hello_world" to "HelloWorld" or "helloWorld" depending on firstUpper. Also handles special case
+	 * like "HELLO_WORLD" to same output as "hello_world", while "HelloWorld_Two" still becomes "helloWorldTwo".
 	 *
 	 * @param name input name in snake case
 	 * @param firstUpper if true then first char is upper case otherwise it is lower
@@ -95,7 +78,7 @@ public class Common {
 		// check if already has underscores, then just capitalize
 		if (name.chars().anyMatch(c -> c == '_')) return name.toUpperCase();
 		// else convert
-		StringBuffer buf = new StringBuffer();
+		final StringBuilder buf = new StringBuilder();
 		for (int i = 0; i < name.length(); i++) {
 			final char c = name.charAt(i);
 			if (Character.isUpperCase(c) && i > 0) {
@@ -105,9 +88,8 @@ public class Common {
 				buf.append(Character.toUpperCase(c));
 			}
 		}
-		// fix special case for captial ID
-		final String converted = buf.toString().replaceAll("_I_D", "_ID");
-		return converted;
+		// fix special case for capital ID
+		return buf.toString().replaceAll("_I_D", "_ID");
 	}
 
 	/**
@@ -123,19 +105,19 @@ public class Common {
 	}
 
 	/**
-	 * Convert a field type like "long" to the Java object wrapper type "Long", or pass though if not java primative
+	 * Convert a field type like "long" to the Java object wrapper type "Long", or pass though if not java primitive
 	 *
-	 * @param primativeFieldType java field type like "int" etc
+	 * @param primitiveFieldType java field type like "int" etc
 	 * @return java object wrapper type like "Integer" or pass though
 	 */
-	public static String javaPrimativeToObjectType(String primativeFieldType) {
-		return switch(primativeFieldType){
+	public static String javaPrimitiveToObjectType(String primitiveFieldType) {
+		return switch(primitiveFieldType){
 			case "boolean" -> "Boolean";
 			case "int" -> "Integer";
 			case "long" -> "Long";
 			case "float" -> "Float";
 			case "double" -> "Double";
-			default -> primativeFieldType;
+			default -> primitiveFieldType;
 		};
 	}
 }

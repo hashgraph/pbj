@@ -13,7 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 import static com.hedera.hashgraph.pbj.compiler.impl.ParserGenerator.PARSER_JAVA_FILE_SUFFIX;
@@ -28,7 +27,7 @@ public class TestGenerator {
 	public static final String TEST_JAVA_FILE_SUFFIX = "Test";
 
 	/**
-	 * Main generate method that process directory of protovuf files
+	 * Main generate method that process directory of protobuf files
 	 *
 	 * @param protoDir The protobuf file to parse
 	 * @param destinationSrcDir the generated source directory to write files into
@@ -41,10 +40,10 @@ public class TestGenerator {
 
 
 	/**
-	 * Process a directory of protobuf files or indervidual protobuf file. Generating Java record clasess for each
+	 * Process a directory of protobuf files or individual protobuf file. Generating Java record classes for each
 	 * message type and Java enums for each protobuf enum.
 	 *
-	 * @param protoDirOrFile directory of protobuf files or indervidual protobuf file
+	 * @param protoDirOrFile directory of protobuf files or individual protobuf file
 	 * @param destinationSrcDir The destination source directory to generate into
 	 * @param lookupHelper helper for global context
 	 * @throws IOException if there was a problem writing generated files
@@ -119,22 +118,16 @@ public class TestGenerator {
 				}
 			} else if (item.mapField() != null) { // process map fields
 				throw new IllegalStateException("Encountered a mapField that was not handled in "+ (modelClassName + TEST_JAVA_FILE_SUFFIX));
-//			} else if (item.reserved() != null) { // process reserved - not needed
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
 				if (field.type() == Field.FieldType.MESSAGE || field.type() == Field.FieldType.ENUM) {
 					field.addAllNeededImports(imports, true, false, true, true);
 				}
-			} else if (item.optionStatement() != null){
-				// no needed for now
-			} else {
-				System.err.println("Unknown Element: "+item+" -- "+item.getText());
+			} else if (item.reserved() == null && item.optionStatement() == null) {
+				System.err.println("TestGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
 		}
-		final List<Field> sortedFields = fields.stream()
-				.sorted((a,b) -> Integer.compare(a.fieldNumber(), b.fieldNumber()))
-				.toList();
 		imports.add("java.util");
 		try (FileWriter javaWriter = new FileWriter(javaFile.toFile())) {
 			javaWriter.write("""
@@ -167,7 +160,7 @@ public class TestGenerator {
 								.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
 						modelClassName,
 							modelClassName+ TEST_JAVA_FILE_SUFFIX,
-						generateTestMethod(modelClassName, writerClassName, parserClassName, fields, protoJavaPackage)
+						generateTestMethod(modelClassName, writerClassName, parserClassName, protoJavaPackage)
 								.replaceAll("\n","\n"+FIELD_INDENT),
 						generateModelTestArgumentsMethod(modelClassName, fields)
 								.replaceAll("\n","\n"+FIELD_INDENT)
@@ -180,7 +173,7 @@ public class TestGenerator {
 	private static String generateModelTestArgumentsMethod(final String modelClassName, final List<Field> fields) {
 		return """	
 				/**
-				 * Create a stream of all test permutations of the %s class we are testing. This is reused by other tests 
+				 * Create a stream of all test permutations of the %s class we are testing. This is reused by other tests
 				 * as well that have model objects with fields of this type.
 				 *
 				 * @return stream of model objects for all test cases
@@ -207,11 +200,10 @@ public class TestGenerator {
 							.map(f -> f.nameCamelFirstLower()+"List.size()")
 							.collect(Collectors.joining(",\n"+FIELD_INDENT+FIELD_INDENT)),
 					modelClassName,
-					IntStream.range(0,fields.size())
-							.mapToObj(i -> "%sList.get(Math.min(i, %sList.size()-1))".formatted(
-									fields.get(i).nameCamelFirstLower(),
-									fields.get(i).nameCamelFirstLower()
-							))
+					fields.stream().map(field -> "%sList.get(Math.min(i, %sList.size()-1))".formatted(
+								field.nameCamelFirstLower(),
+								field.nameCamelFirstLower()
+						))
 							.collect(Collectors.joining(",\n"+FIELD_INDENT+FIELD_INDENT+FIELD_INDENT+FIELD_INDENT))
 		);
 	}
@@ -219,9 +211,8 @@ public class TestGenerator {
 	private static String generateTestData(String modelClassName, Field field, boolean optional, boolean repeated) {
 		if (optional) {
 			Field.FieldType convertedFieldType = getOptionalConvertedFieldType(field);
-			System.out.println(field+" -- convertedFieldType = " + convertedFieldType);
 			return """
-     				makeListOptionals(%s)"""
+					makeListOptionals(%s)"""
 					.formatted(
 							getOptionsForFieldType(convertedFieldType, convertedFieldType.javaType))
 					.replaceAll("\n","\n"+FIELD_INDENT+FIELD_INDENT);
@@ -230,8 +221,7 @@ public class TestGenerator {
 			return """
 					generateListArguments(%s)""".formatted(optionsList)
 					.replaceAll("\n","\n"+FIELD_INDENT+FIELD_INDENT);
-		} else if(field instanceof OneOfField) {
-			final OneOfField oneOf = (OneOfField) field;
+		} else if(field instanceof final OneOfField oneOf) {
 			final List<String> options = new ArrayList<>();
 			for (var subField: oneOf.fields()) {
 				if(subField instanceof SingleField) {
@@ -269,9 +259,6 @@ public class TestGenerator {
 							modelClassName+"."+field.nameCamelFirstUpper(),
 							options.stream().collect(Collectors.joining(",\n"+FIELD_INDENT))
 					).replaceAll("\n","\n"+FIELD_INDENT+FIELD_INDENT);
-
-//			return "List.of(new OneOf(%sOneOfType.UNSET, null))"
-//					.formatted(modelClassName+"."+field.nameCamelFirstUpper());
 		} else {
 			return getOptionsForFieldType(field.type(), ((SingleField)field).javaFieldTypeForTest());
 		}
@@ -292,15 +279,6 @@ public class TestGenerator {
 			case "BytesValue" -> Field.FieldType.BYTES;
 			case "EnumValue" -> Field.FieldType.ENUM;
 			default -> Field.FieldType.MESSAGE;
-		};
-	}
-
-	private static String getBaseJavaType(Field field) {
-		if (field.optional()) return getOptionalConvertedFieldType(field).javaType;
-		return switch(field.type()) {
-			case MESSAGE -> field.messageType();
-			case ENUM -> snakeToCamel(field.messageType(), true);
-			default -> field.type().javaType;
 		};
 	}
 
@@ -326,7 +304,7 @@ public class TestGenerator {
 	}
 
 	private static String generateTestMethod(final String modelClassName, final String writerClassName,
-											 final String parserClassName, final List<Field> fields,
+											 final String parserClassName,
 											 final String protoJavaPackage) {
 		return """
 				@ParameterizedTest
@@ -360,22 +338,4 @@ public class TestGenerator {
 				parserClassName
 		);
 	}
-
-	private static String generateMethodParams(final List<Field> fields) {
-		return fields.stream()
-				.map(f -> f.javaFieldType()+" "+f.name())
-				.collect(Collectors.joining(", "));
-	}
-	private static String generateMethodParamsNames(final List<Field> fields) {
-		return fields.stream()
-				.map(f -> f.name())
-				.collect(Collectors.joining(", "));
-	}
-	private static String generateProtoBuilderLines(final List<Field> fields) {
-		return fields.stream()
-				.map(f -> FIELD_INDENT+FIELD_INDENT+".set"+f.nameCamelFirstUpper()+"("+f.name()+")")
-				.collect(Collectors.joining("\n"+FIELD_INDENT));
-	}
-
-
 }

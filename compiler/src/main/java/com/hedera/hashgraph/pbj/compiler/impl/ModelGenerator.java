@@ -74,7 +74,7 @@ public class ModelGenerator {
 					if (enumDef != null) {
 						final var enumName = snakeToCamel(enumDef.enumName().getText(), true);
 						final var javaFile = packageDir.resolve(enumName + ".java");
-						generateEnumFile(enumDef, javaPackage,enumName, javaFile.toFile(), lookupHelper);
+						generateEnumFile(enumDef, javaPackage,enumName, javaFile.toFile());
 					}
 				}
 			}
@@ -113,7 +113,7 @@ public class ModelGenerator {
 				final Map<Integer,EnumValue> enumValues = new HashMap<>();
 				for(final Field field: oneOfField.fields()) {
 					final String fieldType = field.protobufFieldType();
-					final String javaFieldType = javaPrimativeToObjectType(field.javaFieldType());
+					final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
 					enumValues.put(field.fieldNumber(), new EnumValue(field.name(),field.deprecated(),field.comment()));
 					// generate getters for one ofs
 					oneofGetters.add("""
@@ -151,7 +151,6 @@ public class ModelGenerator {
 				imports.add("com.hedera.hashgraph.pbj.runtime");
 			} else if (item.mapField() != null) { // process map fields
 				System.err.println("Encountered a mapField that was not handled in "+javaRecordName);
-//			} else if (item.reserved() != null) { // process reserved -  not needed
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final SingleField field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
@@ -168,8 +167,8 @@ public class ModelGenerator {
 				} else {
 					System.err.println("Unhandled Option: "+item.optionStatement().getText());
 				}
-			} else {
-				System.err.println("Unknown Element: "+item+" -- "+item.getText());
+			} else if (item.reserved() == null){ // ignore reserved and warn about anything else
+				System.err.println("ModelGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
 		}
 		// process field java doc and insert into record java doc

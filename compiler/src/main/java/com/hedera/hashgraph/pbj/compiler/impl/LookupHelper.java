@@ -79,7 +79,7 @@ public final class LookupHelper {
 	 * Get the Java package a parser class should be generated into for a given message. The directory structure for
 	 * where the message is relative to protobuf root is used as sub packages.
 	 *
-	 * @param messageName The name of the messgae
+	 * @param messageName The name of the message
 	 * @return java package to put parser class in
 	 */
 	public String getParserPackage(String messageName) {
@@ -158,7 +158,7 @@ public final class LookupHelper {
 	 * Check if the given messageType is a known enum
 	 *
 	 * @param messageType to check if enum
-	 * @return true if known as a enum, recorded by addEnum()
+	 * @return true if known as an enum, recorded by addEnum()
 	 */
 	public boolean isEnum(String messageType) {
 		return enumNames.contains(messageType);
@@ -209,7 +209,7 @@ public final class LookupHelper {
 	}
 
 	/**
-	 * Walk a enum def and build packages and enums lists
+	 * Walk an enum def and build packages and enums lists
 	 * *
 	 * @param enumDef protobuf enum def
 	 * @param javaPackageSuffix the java package relative to root package that the enum should be in

@@ -20,15 +20,11 @@ import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 /**
  * Code generator that parses protobuf files and generates nice parsers for each message type.
  */
+@SuppressWarnings("DuplicatedCode")
 public class ParserGenerator {
 
 	/** Suffix for parser java classes */
 	public static final String PARSER_JAVA_FILE_SUFFIX = "ProtoParser";
-
-	/** Record for a enum value tempory storage */
-	private record EnumValue(String name, boolean deprecated, String javaDoc) {}
-	/** Record for a field doc tempory storage */
-	private record FieldDoc(String fieldName, String fieldComment) {}
 
 	/**
 	 * Main generate method that process a single protobuf file and writes records and enums into package directories
@@ -45,10 +41,10 @@ public class ParserGenerator {
 
 
 	/**
-	 * Process a directory of protobuf files or indervidual protobuf file. Generating Java record clasess for each
+	 * Process a directory of protobuf files or individual protobuf file. Generating Java record classes for each
 	 * message type and Java enums for each protobuf enum.
 	 *
-	 * @param protoDirOrFile directory of protobuf files or indervidual protobuf file
+	 * @param protoDirOrFile directory of protobuf files or individual protobuf file
 	 * @param destinationSrcDir The destination source directory to generate into
 	 * @param lookupHelper helper for global context
 	 * @throws IOException if there was a problem writing generated files
@@ -95,15 +91,11 @@ public class ParserGenerator {
 		final var modelClassName = msgDef.messageName().getText();
 		final var parserClassName = modelClassName+ PARSER_JAVA_FILE_SUFFIX;
 		final var javaFile = packageDir.resolve(parserClassName + ".java");
-		String javaDocComment = (msgDef.docComment()== null) ? "" :
-				msgDef.docComment().getText()
-						.replaceAll("\n \\*\s*\n","\n * <p>\n");
-		String deprectaed = "";
 		final List<Field> fields = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
 		final List<String> oneOfUnsetConstants = new ArrayList<>();
-		final String moidelJavaPackage = computeJavaPackage(lookupHelper.getModelPackage(), dirName);
-		imports.add(moidelJavaPackage);
+		final String modelJavaPackage = computeJavaPackage(lookupHelper.getModelPackage(), dirName);
+		imports.add(modelJavaPackage);
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generateParserFile(item.messageDef(), dirName, javaPackage,packageDir,lookupHelper);
@@ -116,16 +108,12 @@ public class ParserGenerator {
 						.formatted(field.getEnumClassRef(),camelToUpperSnake(field.name())+"_UNSET", field.getEnumClassRef()));
 			} else if (item.mapField() != null) { // process map fields
 				throw new IllegalStateException("Encountered a mapField that was not handled in "+ parserClassName);
-			} else if (item.reserved() != null) { // process reserved
-				// reserved are not needed
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
 				field.addAllNeededImports(imports, true, true, false, false);
-			} else if (item.optionStatement() != null){
-				// no needed for now
-			} else {
-				System.err.println("Unknown Element: "+item+" -- "+item.getText());
+			} else if (item.reserved() == null && item.optionStatement() == null) {
+				System.err.println("ParserGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
 		}
 
@@ -173,10 +161,9 @@ public class ParserGenerator {
 						computeJavaPackage(lookupHelper.getSchemaPackage(), dirName) + "." + modelClassName+ SchemaGenerator.SCHEMA_JAVA_FILE_SUFFIX,
 						modelClassName,
 						parserClassName,
-						oneOfUnsetConstants.stream().collect(Collectors.joining("\n")),
-						fields.stream().map(field -> {
-							return "    private %s %s = %s;".formatted(field.javaFieldType(), field.name(), field.javaDefault());
-						}).collect(Collectors.joining("\n")),
+						String.join("\n", oneOfUnsetConstants),
+						fields.stream().map(field -> "    private %s %s = %s;".formatted(field.javaFieldType(),
+								field.name(), field.javaDefault())).collect(Collectors.joining("\n")),
 						generateParseMethods(modelClassName, fields),
 						generateGetFieldDefinition()+"\n"+generateResetMethod(fields),
 						generateFieldSetMethods(fields)
@@ -186,7 +173,7 @@ public class ParserGenerator {
 	}
 
 	/**
-	 * Generate get field definition method, it just deligates to the schema to get the answer
+	 * Generate get field definition method, it just delegates to the schema to get the answer
 	 *
 	 * @return source code for getFieldDefinition method
 	 */
@@ -221,9 +208,7 @@ public class ParserGenerator {
 							}
 						""".formatted(
 								fields.stream()
-										.map(field -> {
-											return "this.%s = %s;".formatted(field.name(), field.javaDefault());
-										})
+										.map(field -> "this.%s = %s;".formatted(field.name(), field.javaDefault()))
 										.collect(Collectors.joining("\n        ")));
 	}
 
@@ -238,11 +223,6 @@ public class ParserGenerator {
 	 * @return string of source code for parse methods
 	 */
 	private static String generateParseMethods(final String modelClassName, final List<Field> fields) {
-		final String resetFieldsCode = fields.stream()
-				.map(field -> {
-					return "this.%s = %s;".formatted(field.name(), field.javaDefault());
-				})
-				.collect(Collectors.joining("\n        "));
 		return Arrays.stream(PARSE_INPUT_TYPES)
 				.map(inputType ->
 					"""
@@ -287,19 +267,16 @@ public class ParserGenerator {
 		}
 
 		public String javaType() {
-			return fieldTypes.stream().findAny().get().javaType(repeated);
+			final var fieldType = fieldTypes.stream().findAny();
+			return fieldType.isEmpty() ? null : fieldType.get().javaType(repeated);
 		}
 
 		public boolean matches(Field field) {
 			if (field.type() == FieldType.MESSAGE) { // same method type for repeated and non-repeated
 				return switch (field.messageType()) {
 					case "StringValue" -> this == FieldMethodTypes.stringField;
-					case "Int32Value" -> this == FieldMethodTypes.intField;
-					case "UInt32Value" -> this == FieldMethodTypes.intField;
-					case "SInt32Value" -> this == FieldMethodTypes.intField;
-					case "Int64Value" -> this == FieldMethodTypes.longField;
-					case "UInt64Value" -> this == FieldMethodTypes.longField;
-					case "SInt64Value" -> this == FieldMethodTypes.longField;
+					case "Int32Value", "UInt32Value", "SInt32Value" -> this == FieldMethodTypes.intField;
+					case "Int64Value", "UInt64Value", "SInt64Value" -> this == FieldMethodTypes.longField;
 					case "BoolValue" -> this == FieldMethodTypes.booleanField;
 					case "BytesValue" -> this == FieldMethodTypes.bytesField;
 					default -> fieldTypes.contains(field.type());
