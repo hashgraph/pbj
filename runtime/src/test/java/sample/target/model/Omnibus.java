@@ -1,7 +1,7 @@
 package sample.target.model;
 
-import com.hedera.hashgraph.protoparse.EnumWithProtoOrdinal;
-import com.hedera.hashgraph.protoparse.OneOf;
+import com.hedera.hashgraph.pbj.runtime.EnumWithProtoOrdinal;
+import com.hedera.hashgraph.pbj.runtime.OneOf;
 import sample.target.proto.schemas.OmnibusSchema;
 
 import java.nio.ByteBuffer;
@@ -15,8 +15,8 @@ public record Omnibus(
         int sfixed32Number, long sfixed64Number, int fixed32Number, long fixed64Number,
         float floatNumber, double doubleNumber,
         String memo, ByteBuffer randomBytes, Nested nested,
-        OneOf<Fruits.FruitKind, Object> fruit,
-        OneOf<Everything, Object> everything,
+        OneOf<Fruits.FruitKind> fruit,
+        OneOf<Everything> everything,
         List<Integer> int32NumberList, List<Long> int64NumberList,
         List<Integer> uint32NumberList, List<Long> uint64NumberList,
         List<Boolean> flagList, List<Suit> suitEnumList,
@@ -69,8 +69,8 @@ public record Omnibus(
         private String memo = "";
         private ByteBuffer randomBytes = ByteBuffer.wrap(new byte[0]).asReadOnlyBuffer();
         private Nested nested;
-        private OneOf<Fruits.FruitKind, Object> fruit;
-        private OneOf<Everything, Object> everything;
+        private OneOf<Fruits.FruitKind> fruit;
+        private OneOf<Everything> everything;
         private List<Integer> int32NumberList = Collections.emptyList();
         private List<Long> int64NumberList = Collections.emptyList();
         private List<Integer> uint32NumberList = Collections.emptyList();
@@ -176,97 +176,97 @@ public record Omnibus(
         }
 
         public Builder apple(Apple apple) {
-            fruit = new OneOf<>(OmnibusSchema.FRUIT_APPLE.number(), Fruits.FruitKind.APPLE, apple);
+            fruit = new OneOf<>(Fruits.FruitKind.APPLE, apple);
             return this;
         }
 
         public Builder banana(Banana banana) {
-            fruit = new OneOf<>(OmnibusSchema.FRUIT_BANANA.number(), Fruits.FruitKind.BANANA, banana);
+            fruit = new OneOf<>(Fruits.FruitKind.BANANA, banana);
             return this;
         }
 
         public Builder int32Unique(int value) {
-            everything = new OneOf<>(OmnibusSchema.INT32_UNIQUE.number(), Everything.INT32, value);
+            everything = new OneOf<>(Everything.INT32, value);
             return this;
         }
 
         public Builder int64Unique(long value) {
-            everything = new OneOf<>(OmnibusSchema.INT64_UNIQUE.number(), Everything.INT64, value);
+            everything = new OneOf<>(Everything.INT64, value);
             return this;
         }
 
         public Builder uint32Unique(int value) {
-            everything = new OneOf<>(OmnibusSchema.UINT32_UNIQUE.number(), Everything.UINT32, value);
+            everything = new OneOf<>(Everything.UINT32, value);
             return this;
         }
 
         public Builder uint64Unique(long value) {
-            everything = new OneOf<>(OmnibusSchema.UINT64_UNIQUE.number(), Everything.UINT64, value);
+            everything = new OneOf<>(Everything.UINT64, value);
             return this;
         }
 
         public Builder flagUnique(boolean value) {
-            everything = new OneOf<>(OmnibusSchema.FLAG_UNIQUE.number(), Everything.FLAG, value);
+            everything = new OneOf<>(Everything.FLAG, value);
             return this;
         }
 
         public Builder suitEnumUnique(Suit value) {
-            everything = new OneOf<>(OmnibusSchema.SUIT_UNIQUE.number(), Everything.SUIT, value);
+            everything = new OneOf<>(Everything.SUIT, value);
             return this;
         }
 
         public Builder sint32Unique(int value) {
-            everything = new OneOf<>(OmnibusSchema.SINT32_UNIQUE.number(), Everything.SINT32, value);
+            everything = new OneOf<>(Everything.SINT32, value);
             return this;
         }
 
         public Builder sint64Unique(long value) {
-            everything = new OneOf<>(OmnibusSchema.SINT64_UNIQUE.number(), Everything.SINT64, value);
+            everything = new OneOf<>(Everything.SINT64, value);
             return this;
         }
 
         public Builder sfixed32Unique(int value) {
-            everything = new OneOf<>(OmnibusSchema.SFIXED32_UNIQUE.number(), Everything.SFIXED32, value);
+            everything = new OneOf<>(Everything.SFIXED32, value);
             return this;
         }
 
         public Builder sfixed64Unique(long value) {
-            everything = new OneOf<>(OmnibusSchema.SFIXED64_UNIQUE.number(), Everything.SFIXED64, value);
+            everything = new OneOf<>(Everything.SFIXED64, value);
             return this;
         }
 
         public Builder fixed32Unique(int value) {
-            everything = new OneOf<>(OmnibusSchema.FIXED32_UNIQUE.number(), Everything.FIXED32, value);
+            everything = new OneOf<>(Everything.FIXED32, value);
             return this;
         }
 
         public Builder fixed64Unique(long value) {
-            everything = new OneOf<>(OmnibusSchema.FIXED64_UNIQUE.number(), Everything.FIXED64, value);
+            everything = new OneOf<>(Everything.FIXED64, value);
             return this;
         }
 
         public Builder floatUnique(float value) {
-            everything = new OneOf<>(OmnibusSchema.FLOAT_UNIQUE.number(), Everything.FLOAT, value);
+            everything = new OneOf<>(Everything.FLOAT, value);
             return this;
         }
 
         public Builder doubleUnique(double value) {
-            everything = new OneOf<>(OmnibusSchema.DOUBLE_UNIQUE.number(), Everything.DOUBLE, value);
+            everything = new OneOf<>(Everything.DOUBLE, value);
             return this;
         }
 
         public Builder memoUnique(String value) {
-            everything = new OneOf<>(OmnibusSchema.MEMO_UNIQUE.number(), Everything.MEMO, value);
+            everything = new OneOf<>(Everything.MEMO, value);
             return this;
         }
 
         public Builder randomBytesUnique(ByteBuffer value) {
-            everything = new OneOf<>(OmnibusSchema.RANDOM_BYTES_UNIQUE.number(), Everything.RANDOM_BYTES, value);
+            everything = new OneOf<>(Everything.RANDOM_BYTES, value);
             return this;
         }
 
         public Builder nestedUnique(Nested value) {
-            everything = new OneOf<>(OmnibusSchema.NESTED_UNIQUE.number(), Everything.NESTED, value);
+            everything = new OneOf<>(Everything.NESTED, value);
             return this;
         }
 

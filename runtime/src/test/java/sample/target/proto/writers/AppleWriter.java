@@ -1,7 +1,6 @@
 package sample.target.proto.writers;
 
-import com.hedera.hashgraph.protoparse.ProtoOutputStream;
-import com.hedera.hashgraph.protoparse.ProtoWriter;
+import com.hedera.hashgraph.pbj.runtime.ProtoOutputStream;
 import sample.target.model.Apple;
 import sample.target.proto.schemas.AppleSchema;
 

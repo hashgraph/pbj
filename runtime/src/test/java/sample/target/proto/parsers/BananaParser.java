@@ -1,8 +1,8 @@
 package sample.target.proto.parsers;
 
-import com.hedera.hashgraph.protoparse.FieldDefinition;
-import com.hedera.hashgraph.protoparse.MalformedProtobufException;
-import com.hedera.hashgraph.protoparse.ProtoParser;
+import com.hedera.hashgraph.pbj.runtime.FieldDefinition;
+import com.hedera.hashgraph.pbj.runtime.MalformedProtobufException;
+import com.hedera.hashgraph.pbj.runtime.ProtoParser;
 import sample.target.model.Banana;
 
 import java.io.IOException;

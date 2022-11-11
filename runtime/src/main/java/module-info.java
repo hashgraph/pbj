@@ -1,3 +1,3 @@
-module com.hedera.hashgraph.protoparse {
-	exports com.hedera.hashgraph.protoparse;
+module com.hedera.hashgraph.pbj.runtime {
+	exports com.hedera.hashgraph.pbj.runtime;
 }

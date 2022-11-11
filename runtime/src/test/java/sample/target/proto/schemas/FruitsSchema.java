@@ -1,7 +1,7 @@
 package sample.target.proto.schemas;
 
-import com.hedera.hashgraph.protoparse.FieldDefinition;
-import com.hedera.hashgraph.protoparse.FieldType;
+import com.hedera.hashgraph.pbj.runtime.FieldDefinition;
+import com.hedera.hashgraph.pbj.runtime.FieldType;
 
 public final class FruitsSchema {
     public static final FieldDefinition APPLE = new FieldDefinition("apple", FieldType.MESSAGE, false, 1);

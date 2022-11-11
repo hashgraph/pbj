@@ -1,7 +1,7 @@
 package sample.target.proto.schemas;
 
-import com.hedera.hashgraph.protoparse.FieldDefinition;
-import com.hedera.hashgraph.protoparse.FieldType;
+import com.hedera.hashgraph.pbj.runtime.FieldDefinition;
+import com.hedera.hashgraph.pbj.runtime.FieldType;
 
 public class OmnibusSchema {
     public static final FieldDefinition INT32_NUMBER = new FieldDefinition("int32Number", FieldType.INT_32, false, 10);
