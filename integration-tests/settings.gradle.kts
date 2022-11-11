@@ -14,10 +14,6 @@ pluginManagement {
     }
 }
 
-apply {
-    println("DUDE")
-}
-
 // Use GIT plugin to clone HAPI protobuf files for testing
 // See documentation https://melix.github.io/includegit-gradle-plugin/latest/index.html
 

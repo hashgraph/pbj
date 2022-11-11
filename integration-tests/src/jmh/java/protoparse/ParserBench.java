@@ -3,10 +3,11 @@ package protoparse;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Timestamp;
 import com.hedera.hashgraph.pbj.runtime.MalformedProtobufException;
+import com.hedera.hashgraph.pbj.test.integration.model.AccountDetails;
+import com.hedera.hashgraph.pbj.test.integration.parser.TimestampProtoParser;
+import com.hedera.hashgraph.pbj.test.integration.writer.TimestampWriter;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
-import tests.TimestampParser;
-import tests.TimestampWriter;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -20,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 public class ParserBench {
 	private final byte[] protobuf = Timestamp.newBuilder().setNanos(1234).setSeconds(5678L).build().toByteArray();
-	private final TimestampParser parser = new TimestampParser();
+	private final TimestampProtoParser parser = new TimestampProtoParser();
 	private final NonSynchronizedByteArrayOutputStream bout = new NonSynchronizedByteArrayOutputStream();
 
 	@Benchmark
@@ -36,7 +37,8 @@ public class ParserBench {
 	@Benchmark
 	public void pbjWriteTimestamp(Blackhole blackhole) throws IOException {
 		bout.reset();
-		TimestampWriter.write(new tests.Timestamp(5678L, 1234), bout);
+		TimestampWriter.write(
+				new com.hedera.hashgraph.pbj.test.integration.model.Timestamp(5678L, 1234), bout);
 		blackhole.consume(bout.toByteArray());
 	}
 

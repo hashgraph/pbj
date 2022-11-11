@@ -1,9 +1,8 @@
 plugins {
     id("java-library")
-    // jmh and protobuf plugins are only used for tests
-    id("me.champeau.jmh") version "0.6.8"
-    id("com.google.protobuf") version "0.9.1"
     id("maven-publish")
+    // protobuf plugin is only used for tests
+    id("com.google.protobuf") version "0.9.1"
 }
 
 group = "com.hedera.hashgraph.pbj.runtime"
@@ -27,28 +26,6 @@ dependencies {
 tasks.getByName<Test>("test") {
     useJUnitPlatform()
 }
-
-jmh {
-    jmhVersion.set("1.35")
-    includeTests.set(true)
-}
-
-tasks.jmhJar {
-    manifest {
-        attributes(mapOf("Multi-Release" to true))
-    }
-}
-
-//publishing {
-//    publications {
-//        create<MavenPublication>("maven") {
-//            groupId = "com.hedera.hashgraph.pbj"
-//            artifactId = "pbj-runtime"
-//            version = "1.0-SNAPSHOT"
-//            from(components["java"])
-//        }
-//    }
-//}
 
 publishing {
     publications {
