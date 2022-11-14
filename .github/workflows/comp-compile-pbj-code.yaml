@@ -43,13 +43,13 @@ on:
         required: false
         default: "Compiles"
 
-  secrets:
-    access-token:
-      description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
-      required: true
-    sonar-token:
-      description: "The SonarCloud access token used by the SonarQube agent to report an analysis."
-      required: false
+    secrets:
+      access-token:
+        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      sonar-token:
+        description: "The SonarCloud access token used by the SonarQube agent to report an analysis."
+        required: false
 
 defaults:
   run:
