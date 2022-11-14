@@ -79,7 +79,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Protobuf Compiler
-        if: ${{ inputs.enable-integration-tests || inputs.enable-jmh-tests }
+        if: ${{ inputs.enable-integration-tests || inputs.enable-jmh-tests }}
         run: |
           if ! command -v protoc >/dev/null 2>&1; then
             echo "::group::Updating Aptitude Cache"
