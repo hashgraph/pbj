@@ -3,5 +3,6 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/integration-tests/build/hapi-repo2/hapi" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/integration-tests/build/repos/hapi" vcs="Git" />
   </component>
 </project>
