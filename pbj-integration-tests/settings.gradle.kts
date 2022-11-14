@@ -18,7 +18,8 @@ pluginManagement {
 // See documentation https://melix.github.io/includegit-gradle-plugin/latest/index.html
 
 plugins {
-    id("me.champeau.includegit") version "0.1.5"
+    id("com.gradle.enterprise").version("3.11.4")
+    id("me.champeau.includegit").version("0.1.5")
 }
 
 gitRepositories {
@@ -31,3 +32,11 @@ gitRepositories {
         //tag.set("v1.0")
     }
 }
+
+gradleEnterprise {
+    buildScan {
+        termsOfServiceUrl = "https://gradle.com/terms-of-service"
+        termsOfServiceAgree = "yes"
+    }
+}
+
