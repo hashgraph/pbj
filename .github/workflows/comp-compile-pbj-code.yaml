@@ -86,7 +86,7 @@ jobs:
               sudo apt update
             echo "::endgroup::"
             echo "::group::Installing Protobuf Compiler"
-              sudo apt install -y protobuf-compiler protobuf-compiler-grpc protobuf-compiler-grpc-java-plugin
+              sudo apt install -y protobuf-compiler protobuf-compiler-grpc
             echo "::endgroup::"
           fi
 
