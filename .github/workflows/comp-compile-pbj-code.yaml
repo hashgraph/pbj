@@ -78,6 +78,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Protobuf Compiler
+        if: ${{ inputs.enable-integration-tests || inputs.enable-jmh-tests }
+        run: |
+          if ! command -v protoc >/dev/null 2>&1; then
+            echo "::group::Updating Aptitude Cache"
+              sudo apt update
+            echo "::endgroup::
+            echo "::group::Installing Protobuf Compiler"
+              sudo apt install -y protobuf-compiler protobuf-compiler-grpc protobuf-compiler-grpc-java-plugin
+            echo "::endgroup::"
+          fi
+
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
