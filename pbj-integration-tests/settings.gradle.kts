@@ -1,7 +1,5 @@
 import me.champeau.gradle.igp.gitRepositories
 
-rootProject.name = "pbs-integration-tests"
-
 // Add local maven build directory to plugin repos
 pluginManagement {
     repositories {
@@ -11,7 +9,9 @@ pluginManagement {
         }
         gradlePluginPortal()
         mavenCentral()
+        mavenLocal()
     }
+
 }
 
 // Use GIT plugin to clone HAPI protobuf files for testing
@@ -28,6 +28,6 @@ gitRepositories {
         // optional, set what branch to use
         branch.set("main")
         // you can also use a tag
-//        tag.set("v1.0")
+        //tag.set("v1.0")
     }
 }

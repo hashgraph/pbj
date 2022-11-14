@@ -4,15 +4,13 @@
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
-        <option name="delegatedBuild" value="true" />
-        <option name="testRunner" value="GRADLE" />
         <option name="distributionType" value="DEFAULT_WRAPPED" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$/pbj-core" />
         <option name="modules">
           <set>
-            <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/compiler" />
-            <option value="$PROJECT_DIR$/runtime" />
+            <option value="$PROJECT_DIR$/pbj-core" />
+            <option value="$PROJECT_DIR$/pbj-core/pbj-compiler" />
+            <option value="$PROJECT_DIR$/pbj-core/pbj-runtime" />
           </set>
         </option>
       </GradleProjectSettings>
@@ -20,22 +18,20 @@
         <compositeConfiguration>
           <compositeBuild compositeDefinitionSource="SCRIPT">
             <builds>
-              <build path="$PROJECT_DIR$/integration-tests/build/repos/hapi" name="hapi">
+              <build path="$PROJECT_DIR$/pbj-integration-tests/build/repos/hapi" name="hapi">
                 <projects>
-                  <project path="$PROJECT_DIR$/integration-tests/build/repos/hapi" />
+                  <project path="$PROJECT_DIR$/pbj-integration-tests/build/repos/hapi" />
                 </projects>
               </build>
             </builds>
           </compositeBuild>
         </compositeConfiguration>
-        <option name="delegatedBuild" value="true" />
-        <option name="testRunner" value="GRADLE" />
         <option name="distributionType" value="DEFAULT_WRAPPED" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$/integration-tests" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$/pbj-integration-tests" />
         <option name="modules">
           <set>
-            <option value="$PROJECT_DIR$/integration-tests" />
-            <option value="$PROJECT_DIR$/integration-tests/build/repos/hapi" />
+            <option value="$PROJECT_DIR$/pbj-integration-tests" />
+            <option value="$PROJECT_DIR$/pbj-integration-tests/build/repos/hapi" />
           </set>
         </option>
       </GradleProjectSettings>
