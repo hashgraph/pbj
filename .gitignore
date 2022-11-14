@@ -703,3 +703,6 @@ Temporary Items
 ### Third Party IntelliJ Plugins
 .idea/sonarlint
 .idea/jpa-buddy.xml
+
+### Generated Protobuf Files
+/tests/src/main/proto/
