@@ -2,6 +2,5 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/integration-tests/build/hapi-repo2/hapi" vcs="Git" />
   </component>
 </project>
