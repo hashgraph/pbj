@@ -9,7 +9,7 @@ plugins {
 }
 
 
-group = "com.hedera.hashgraph.pbj.integration-tests"
+group = "com.hedera.pbj.integration-tests"
 version = "1.0-SNAPSHOT"
 
 repositories {
@@ -17,7 +17,6 @@ repositories {
     mavenLocal()
 }
 
-//val pbjVersion by project
 dependencies {
     implementation("com.hedera.pbj:pbj-runtime:${project.version}")
     implementation("com.google.protobuf:protobuf-java:3.21.9")

@@ -35,6 +35,10 @@ gradlePlugin {
     }
 }
 
+tasks.assemble {
+    dependsOn(tasks.publishToMavenLocal)
+}
+
 publishing {
     publications {
         create<MavenPublication>("maven") {

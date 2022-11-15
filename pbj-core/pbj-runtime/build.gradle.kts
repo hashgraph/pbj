@@ -23,6 +23,10 @@ tasks.getByName<Test>("test") {
     useJUnitPlatform()
 }
 
+tasks.assemble {
+    dependsOn(tasks.publishToMavenLocal)
+}
+
 publishing {
     publications {
         create<MavenPublication>("maven") {
