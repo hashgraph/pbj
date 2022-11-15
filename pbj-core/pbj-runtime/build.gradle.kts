@@ -5,11 +5,7 @@ plugins {
     id("com.google.protobuf") version "0.9.1"
 }
 
-group = "com.hedera.hashgraph.pbj.runtime"
-version = "1.0-SNAPSHOT"
-tasks.jar {
-    archiveBaseName.set("pbj-runtime")
-}
+group = "com.hedera.pbj"
 
 repositories {
     mavenCentral()
@@ -30,16 +26,7 @@ tasks.getByName<Test>("test") {
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            groupId = "com.hedera.hashgraph.pbj"
-            artifactId = "pbj-runtime"
-            version = "1.0-SNAPSHOT"
             from(components["java"])
-        }
-    }
-    repositories {
-        maven {
-            url = rootProject.layout.buildDirectory.dir("testRepo").get().asFile.toURI()
-            name = "test"
         }
     }
 }

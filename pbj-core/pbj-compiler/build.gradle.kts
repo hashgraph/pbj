@@ -1,14 +1,10 @@
 plugins {
-    id("java-gradle-plugin")
     id("antlr")
+    id("java-gradle-plugin")
     id("maven-publish")
 }
 
-group = "com.hedera.hashgraph.pbj.compiler"
-version = "1.0-SNAPSHOT"
-tasks.jar {
-    archiveBaseName.set("pbj-compiler")
-}
+group = "com.hedera.pbj"
 
 repositories {
     mavenCentral()
@@ -16,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.jetbrains:annotations:20.1.0")
+    implementation("org.jetbrains:annotations:23.0.0")
     antlr("org.antlr:antlr4:4.11.1")
 }
 
@@ -30,8 +26,9 @@ tasks.generateGrammarSource {
 
 gradlePlugin {
     plugins {
-        create("hedera.pbj-compiler") {
-            id = "hedera.pbj-compiler"
+        create("compiler") {
+            id = "com.hedera.pbj.pbj-compiler"
+            group = "com.hedera.pbj"
             implementationClass = "com.hedera.hashgraph.pbj.compiler.PbjCompilerPlugin"
             description = "The PBJ Protobuf plugin provides protobuf compilation to java records."
         }
@@ -41,16 +38,7 @@ gradlePlugin {
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            groupId = "com.hedera.hashgraph.pbj"
-            artifactId = "pbj-compiler"
-            version = "1.0-SNAPSHOT"
             from(components["java"])
-        }
-    }
-    repositories {
-        maven {
-            url = rootProject.layout.buildDirectory.dir("testRepo").get().asFile.toURI()
-            name = "test"
         }
     }
 }

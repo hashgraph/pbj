@@ -5,3 +5,5 @@ plugins {
 repositories {
     gradlePluginPortal()
 }
+
+group = "com.hedera.pbj"
