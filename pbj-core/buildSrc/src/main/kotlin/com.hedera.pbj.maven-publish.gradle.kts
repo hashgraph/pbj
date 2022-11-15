@@ -15,19 +15,19 @@
  */
 
 plugins {
-    id("java-library")
-    id("com.hedera.pbj.conventions")
-    id("com.hedera.pbj.maven-publish")
-    // protobuf plugin is only used for tests
-    id("com.google.protobuf") version "0.9.1"
+    java
+    `maven-publish`
+    signing
 }
 
-dependencies {
-    testImplementation(testLibs.bundles.protobuf)
-    testImplementation(testLibs.bundles.junit)
-    testRuntimeOnly(testLibs.junit.jupiter.engine)
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+        }
+    }
 }
 
-tasks.getByName<Test>("test") {
-    useJUnitPlatform()
+tasks.assemble {
+    dependsOn(tasks.publishToMavenLocal)
 }
