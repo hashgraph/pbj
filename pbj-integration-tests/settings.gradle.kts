@@ -26,10 +26,10 @@ gitRepositories {
     checkoutsDirectory.set(file("./build/repos"))
     include("hapi") {
         uri.set("https://github.com/hashgraph/hedera-protobufs.git")
-        // optional, set what branch to use
-        branch.set("main")
-        // you can also use a tag
-        //tag.set("v1.0")
+        // choose tag or branch of HAPI you would like to test with
+        tag.set("main")
+        // do not load project from repo
+        autoInclude.set(false)
     }
 }
 
