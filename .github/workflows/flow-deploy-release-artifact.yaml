@@ -132,6 +132,7 @@ jobs:
     runs-on: [ self-hosted, Linux, pbj, standard, ephemeral ]
     needs:
       - prepare-mc-release
+    if: ${{ needs.prepare-mc-release.result == 'success' }}
     steps:
       - name: Repository Dispatch
         uses: peter-evans/repository-dispatch@v2
