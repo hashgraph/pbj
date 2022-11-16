@@ -23,8 +23,66 @@ plugins {
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            from(components["java"])
+            from(components.getByName("java"))
+
+            pom {
+                packaging = findProperty("maven.project.packaging")?.toString() ?: "jar"
+                name.set(project.name)
+                url.set("https://www.hedera.com/")
+                inceptionYear.set("2022")
+
+                description.set("A high performance Google Protocol Buffers parser, code generator, and runtime library.")
+
+                organization {
+                    name.set("Hedera Hashgraph, LLC")
+                    url.set("https://www.hedera.com")
+                }
+
+                licenses {
+                    license {
+                        name.set("Apache 2.0 License")
+                        url.set("https://raw.githubusercontent.com/hashgraph/pbj/main/LICENSE")
+                    }
+                }
+
+                developers {
+                    developer {
+                        name.set("Jasper Potts")
+                        email.set("jasper.potts@swirldslabs.com")
+                        organization.set("Swirlds Labs, Inc.")
+                        organizationUrl.set("https://www.swirldslabs.com")
+                    }
+                }
+
+                scm {
+                    connection.set("scm:git:git://github.com/hashgraph/pbj.git")
+                    developerConnection.set("scm:git:ssh://github.com:hashgraph/pbj.git")
+                    url.set("https://github.com/hashgraph/pbj")
+                }
+            }
         }
+    }
+    repositories {
+        maven {
+            name = "sonatype"
+            url = uri("https://oss.sonatype.org/service/local/staging/deploy/maven2/")
+            credentials {
+                username = System.getenv("OSSRH_USERNAME")
+                password = System.getenv("OSSRH_PASSWORD")
+            }
+        }
+    }
+}
+
+signing {
+    useGpgCmd()
+    sign(publishing.publications.getByName("maven"))
+}
+
+tasks.withType<Sign>() {
+    onlyIf {
+        project.hasProperty("publishSigningEnabled")
+                && (project.property("publishSigningEnabled") as String).toBoolean()
     }
 }
 

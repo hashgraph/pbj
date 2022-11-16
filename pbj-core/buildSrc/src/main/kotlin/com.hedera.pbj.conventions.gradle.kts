@@ -33,6 +33,10 @@ java {
         vendor.set(JvmVendorSpec.ADOPTIUM)
     }
     modularity.inferModulePath.set(true)
+
+    // Enable JAR file generation required for publishing
+    withJavadocJar()
+    withSourcesJar()
 }
 
 tasks.withType<AbstractArchiveTask> {
