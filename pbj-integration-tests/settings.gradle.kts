@@ -11,7 +11,11 @@ pluginManagement {
         mavenCentral()
         mavenLocal()
     }
+    includeBuild("../pbj-core")
+}
 
+dependencyResolutionManagement {
+    includeBuild("../pbj-core")
 }
 
 // Use GIT plugin to clone HAPI protobuf files for testing
