@@ -101,7 +101,7 @@ tasks.assemble {
 
 tasks.register("release-maven-central") {
     group = "release"
-    
+
     val pluginPublish = tasks.findByName("publishPluginMavenPublicationToSonatypeRepository")
     if (pluginPublish != null) {
         dependsOn(pluginPublish)
