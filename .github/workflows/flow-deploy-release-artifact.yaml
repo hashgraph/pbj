@@ -20,7 +20,6 @@ on:
   push:
     branches:
       - main
-      - 00007-FInish-MC-Release
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+-?*"
 
