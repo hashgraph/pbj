@@ -19,7 +19,7 @@ plugins {
     id("com.hedera.pbj.conventions")
     id("com.hedera.pbj.maven-publish")
     // protobuf plugin is only used for tests
-    id("com.google.protobuf") version "0.9.1"
+    id("com.google.protobuf").version("0.9.1")
 }
 
 dependencies {

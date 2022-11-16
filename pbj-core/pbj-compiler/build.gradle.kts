@@ -18,6 +18,7 @@ plugins {
     `java-gradle-plugin`
     id("com.hedera.pbj.conventions")
     id("com.hedera.pbj.maven-publish")
+    id("com.gradle.plugin-publish").version("1.1.0")
     id("antlr")
 }
 
@@ -43,4 +44,11 @@ gradlePlugin {
             description = "The PBJ Protobuf plugin provides protobuf compilation to java records."
         }
     }
+}
+
+pluginBundle {
+    website = "https://github.com/hashgraph/pbj"
+    vcsUrl = "https://github.com/hashgraph/pbj"
+
+    tags = listOf("protobuf", "compiler", "generator", "runtime")
 }
