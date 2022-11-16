@@ -71,6 +71,14 @@ publishing {
                 password = System.getenv("OSSRH_PASSWORD")
             }
         }
+        maven {
+            name = "sonatypeSnapshot"
+            url = uri("https://oss.sonatype.org/content/repositories/snapshots/")
+            credentials {
+                username = System.getenv("OSSRH_USERNAME")
+                password = System.getenv("OSSRH_PASSWORD")
+            }
+        }
     }
 }
 
@@ -88,4 +96,15 @@ tasks.withType<Sign>() {
 
 tasks.assemble {
     dependsOn(tasks.publishToMavenLocal)
+}
+
+
+tasks.register("release-maven-central") {
+    group = "release"
+    dependsOn(tasks.named<Task>("publishMavenPublicationToSonatypeRepository"))
+}
+
+tasks.register("release-maven-central-snapshot") {
+    group = "release"
+    dependsOn(tasks.named<Task>("publishMavenPublicationToSonatypeSnapshotRepository"))
 }

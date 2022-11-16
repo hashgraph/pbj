@@ -15,6 +15,7 @@
  */
 
 plugins {
+    id("com.hedera.pbj.aggregate-reports")
     id("com.hedera.pbj.spotless-conventions")
     id("com.hedera.pbj.spotless-kotlin-conventions")
 }
