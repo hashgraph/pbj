@@ -1,23 +1,20 @@
 plugins {
     java
-    id("com.hedera.pbj.pbj-compiler") version "1.0-SNAPSHOT"
+    id("com.hedera.pbj.pbj-compiler").version("0.1.0-SNAPSHOT")
     // We depend on Google protobuf plugin as we generate protobuf code using it as well as pbj. Then use it in tests to
     // compare output and parsing with pbj to make sure it matches.
-    id("com.google.protobuf") version "0.9.1"
+    id("com.google.protobuf").version("0.9.1")
     // add jmh for performance benchmarks
-    id("me.champeau.jmh") version "0.6.8"
+    id("me.champeau.jmh").version("0.6.8")
 }
 
-
-group = "com.hedera.hashgraph.pbj.integration-tests"
-version = "1.0-SNAPSHOT"
+group = "com.hedera.pbj.integration-tests"
 
 repositories {
     mavenCentral()
     mavenLocal()
 }
 
-//val pbjVersion by project
 dependencies {
     implementation("com.hedera.pbj:pbj-runtime:${project.version}")
     implementation("com.google.protobuf:protobuf-java:3.21.9")
