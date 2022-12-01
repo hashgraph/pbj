@@ -116,7 +116,8 @@ public final class LookupHelper {
 			}
 			// we failed to find
 			throw new PbjCompilerException("Failed to find fully qualified message type for [" + messageType +
-					"] in file [" + protoSrcFile + "]");
+					"] in file [" + protoSrcFile + "] imports = "+
+					Arrays.toString(protoFileImports.get(protoSrcFile.getAbsolutePath()).toArray()));
 		} else if (context instanceof MessageDefContext || context instanceof EnumDefContext ) {
 			Map<String, String> fileMap = msgAndEnumByFile.get(protoSrcFile.getAbsolutePath());
 			if (fileMap == null) {
@@ -328,7 +329,7 @@ public final class LookupHelper {
 			}
 		}
 
-//		printDebug();
+		printDebug();
 	}
 
 	/** Debug dump internal state */
