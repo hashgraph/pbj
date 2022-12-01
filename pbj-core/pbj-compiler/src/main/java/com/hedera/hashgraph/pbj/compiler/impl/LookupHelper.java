@@ -12,6 +12,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.removingLeadingDot;
@@ -308,11 +309,14 @@ public final class LookupHelper {
 							continue;
 						}
 						// now scan all src files to find import as there can be many src directories
-						Optional<File> matchingSrcFile = StreamSupport.stream(allSrcFiles.spliterator(),false)
-								.filter(srcFile -> srcFile.getAbsolutePath().endsWith(importedFileName))
-								.findFirst();
-						if (matchingSrcFile.isPresent()) {
-							fileImports.add(matchingSrcFile.get().getAbsolutePath());
+						List<File> matchingSrcFiles = StreamSupport.stream(allSrcFiles.spliterator(), false)
+								.filter(srcFile -> srcFile.getAbsolutePath().endsWith("/" + importedFileName))
+								.toList();
+						if (matchingSrcFiles.size() == 1) {
+							fileImports.add(matchingSrcFiles.get(0).getAbsolutePath());
+						} else if (matchingSrcFiles.size() > 1){
+							throw new PbjCompilerException("Import \""+importedFileName+"\" in proto file \""+file.getAbsolutePath()+"\" matched more than 1 file in src files ["+
+									Arrays.toString(matchingSrcFiles.toArray())+"]");
 						} else {
 							throw new PbjCompilerException("Import \""+importedFileName+"\" in proto file \""+file.getAbsolutePath()+"\" can not be found in src files.");
 						}
