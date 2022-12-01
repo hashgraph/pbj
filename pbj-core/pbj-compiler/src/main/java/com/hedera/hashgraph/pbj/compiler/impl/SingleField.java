@@ -6,41 +6,44 @@ import java.util.Set;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.camelToUpperSnake;
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.snakeToCamel;
+import static com.hedera.hashgraph.pbj.compiler.impl.FileAndPackageNamesConfig.PARSER_JAVA_FILE_SUFFIX;
 
 /**
  * Record for Field in Protobuf file. Contains all logic and special cases for fields
  *
- * @param repeated
- * @param type
- * @param fieldNumber
- * @param name
- * @param messageType
+ * @param repeated If this is a repeated field, ie protobuf equivalent of array
+ * @param type The type of this single field
+ * @param fieldNumber The protobuf field number
+ * @param name The name of this filed
+ * @param messageType The message type of this field is of type message
  */
 @SuppressWarnings("DuplicatedCode")
 public record SingleField(boolean repeated, FieldType type, int fieldNumber, String name, String messageType,
 						  String messageTypeModelPackage, String messageTypeParserPackage,
 						  String messageTypeWriterPackage, String messageTypeTestPackage,
 						  String comment, boolean deprecated, OneOfField parent) implements Field {
+
+
 	/**
 	 * Construct a SingleField from a parsed field context
 	 *
 	 * @param fieldContext the field context to extra field data from
 	 * @param lookupHelper lookup helper for finding packages and other global context data
 	 */
-	public SingleField(Protobuf3Parser.FieldContext fieldContext, final LookupHelper lookupHelper) {
+	public SingleField(Protobuf3Parser.FieldContext fieldContext, final ContextualLookupHelper lookupHelper) {
 		this(fieldContext.REPEATED() != null,
 				FieldType.of(fieldContext.type_(), lookupHelper),
 				Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.fieldName().getText(),
 				(fieldContext.type_().messageType() == null) ? null :
 						fieldContext.type_().messageType().messageName().getText(),
 				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getModelPackage(fieldContext.type_().messageType().messageName().getText()),
+						lookupHelper.getPackageFieldMessageType(FileType.MODEL, fieldContext),
 				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getParserPackage(fieldContext.type_().messageType().messageName().getText()),
+						lookupHelper.getPackageFieldMessageType(FileType.PARSER, fieldContext),
 				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getWriterPackage(fieldContext.type_().messageType().messageName().getText()),
+						lookupHelper.getPackageFieldMessageType(FileType.WRITER, fieldContext),
 				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getTestPackage(fieldContext.type_().messageType().messageName().getText()),
+						lookupHelper.getPackageFieldMessageType(FileType.TEST, fieldContext),
 				fieldContext.docComment() == null ? null : fieldContext.docComment().getText(),
 				getDeprecatedOption(fieldContext.fieldOptions()),
 				null
@@ -53,20 +56,20 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	 * @param fieldContext the field context to extra field data from
 	 * @param lookupHelper lookup helper for finding packages and other global context data
 	 */
-	public SingleField(Protobuf3Parser.OneofFieldContext fieldContext, final OneOfField parent,  final LookupHelper lookupHelper) {
+	public SingleField(Protobuf3Parser.OneofFieldContext fieldContext, final OneOfField parent,  final ContextualLookupHelper lookupHelper) {
 		this(false,
 				FieldType.of(fieldContext.type_(), lookupHelper),
 				Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.fieldName().getText(),
 				(fieldContext.type_().messageType() == null) ? null :
 						fieldContext.type_().messageType().messageName().getText(),
 				(fieldContext.type_().messageType() == null) ? null :
-						lookupHelper.getModelPackage(fieldContext.type_().messageType().messageName().getText()),
+						lookupHelper.getPackageOneofFieldMessageType(FileType.MODEL, fieldContext),
 				(fieldContext.type_().messageType() == null) ? null :
-						lookupHelper.getParserPackage(fieldContext.type_().messageType().messageName().getText()),
+						lookupHelper.getPackageOneofFieldMessageType(FileType.PARSER, fieldContext),
 				(fieldContext.type_().messageType() == null) ? null :
-						lookupHelper.getWriterPackage(fieldContext.type_().messageType().messageName().getText()),
+						lookupHelper.getPackageOneofFieldMessageType(FileType.WRITER, fieldContext),
 				(fieldContext.type_().messageType() == null) ? null :
-						lookupHelper.getTestPackage(fieldContext.type_().messageType().messageName().getText()),
+						lookupHelper.getPackageOneofFieldMessageType(FileType.TEST, fieldContext),
 				fieldContext.docComment() == null ? null : fieldContext.docComment().getText(),
 				getDeprecatedOption(fieldContext.fieldOptions()),
 				parent
@@ -163,7 +166,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	@Override
 	public String parseCode() {
 		if (type == FieldType.MESSAGE) {
-			return "new %s().parse(input)".formatted(messageType + ParserGenerator.PARSER_JAVA_FILE_SUFFIX);
+			return "new %s().parse(input)".formatted(messageType + PARSER_JAVA_FILE_SUFFIX);
 		} else {
 			return "input";
 		}
@@ -236,7 +239,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				return "case %d -> this.%s = Optional.of(input);".formatted(fieldNumber, fieldNameToSet);
 			}
 		} else if (type == FieldType.MESSAGE) {
-			final String parserClassName = messageType + ParserGenerator.PARSER_JAVA_FILE_SUFFIX;
+			final String parserClassName = messageType + PARSER_JAVA_FILE_SUFFIX;
 			final String valueToSet = parent != null ?
 					"new OneOf<>(%s.%sOneOfType.%s,new %s().parse(input))"
 							.formatted(parent.parentMessageName(), snakeToCamel(parent.name(), true), camelToUpperSnake(name), parserClassName) :

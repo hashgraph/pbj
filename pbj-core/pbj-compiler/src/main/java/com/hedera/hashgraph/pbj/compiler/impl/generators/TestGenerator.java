@@ -1,114 +1,45 @@
-package com.hedera.hashgraph.pbj.compiler.impl;
+package com.hedera.hashgraph.pbj.compiler.impl.generators;
 
-import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Lexer;
+import com.hedera.hashgraph.pbj.compiler.impl.*;
 import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Parser;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
-import static com.hedera.hashgraph.pbj.compiler.impl.ParserGenerator.PARSER_JAVA_FILE_SUFFIX;
-import static com.hedera.hashgraph.pbj.compiler.impl.WriterGenerator.WRITER_JAVA_FILE_SUFFIX;
+import static com.hedera.hashgraph.pbj.compiler.impl.FileAndPackageNamesConfig.TEST_JAVA_FILE_SUFFIX;
 
 /**
  * Code generator that parses protobuf files and generates unit tests for each message type.
  */
-public class TestGenerator {
-
-	/** Suffix for schema java classes */
-	public static final String TEST_JAVA_FILE_SUFFIX = "Test";
+public final class TestGenerator implements Generator {
 
 	/**
-	 * Main generate method that process directory of protobuf files
-	 *
-	 * @param protoDir The protobuf file to parse
-	 * @param destinationSrcDir the generated source directory to write files into
-	 * @param lookupHelper helper for global context
-	 * @throws IOException if there was a problem writing files
+	 * {@inheritDoc}
 	 */
-	public static void generateUnitTests(File protoDir, File destinationSrcDir, final LookupHelper lookupHelper) throws IOException {
-		generate(protoDir, destinationSrcDir,lookupHelper);
-	}
-
-
-	/**
-	 * Process a directory of protobuf files or individual protobuf file. Generating Java record classes for each
-	 * message type and Java enums for each protobuf enum.
-	 *
-	 * @param protoDirOrFile directory of protobuf files or individual protobuf file
-	 * @param destinationSrcDir The destination source directory to generate into
-	 * @param lookupHelper helper for global context
-	 * @throws IOException if there was a problem writing generated files
-	 */
-	private static void generate(File protoDirOrFile, File destinationSrcDir,
-			final LookupHelper lookupHelper) throws IOException {
-		if (protoDirOrFile.isDirectory()) {
-			for (final File file : Objects.requireNonNull(protoDirOrFile.listFiles())) {
-				if (file.isDirectory() || file.getName().endsWith(".proto")) {
-					generate(file, destinationSrcDir, lookupHelper);
-				}
-			}
-		} else {
-			final String dirName = protoDirOrFile.getParentFile().getName().toLowerCase();
-			try (var input = new FileInputStream(protoDirOrFile)) {
-				final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
-				final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
-				final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
-				final String javaPackage = computeJavaPackage(lookupHelper.getTestPackage(), dirName);
-				final Path packageDir = destinationSrcDir.toPath().resolve(javaPackage.replace('.', '/'));
-				Files.createDirectories(packageDir);
-				// extract java package
-				String protoJavaPackage = null;
-				 if (parsedDoc.optionStatement() != null) {
-					 for (var option: parsedDoc.optionStatement()) {
-						 if (option.optionName().getText().equals("java_package")) {
-							 protoJavaPackage = option.constant().getText().replaceAll("\"","");
-						 }
-					 }
-				}
-				for (var topLevelDef : parsedDoc.topLevelDef()) {
-					final Protobuf3Parser.MessageDefContext msgDef = topLevelDef.messageDef();
-					if (msgDef != null) {
-						generateWriterFile(msgDef, dirName, javaPackage, protoJavaPackage, packageDir, lookupHelper);
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * Generate a Java writer class from protobuf message type
-	 *
-	 * @param msgDef the parsed message
-	 * @param dirName the directory name of the dir containing the protobuf file
-	 * @param javaPackage the java package the writer file should be generated in
-	 * @param protoJavaPackage the java package the protoc files are generated in
-	 * @param packageDir the output package directory
-	 * @param lookupHelper helper for global context
-	 * @throws IOException If there was a problem writing record file
-	 */
-	private static void generateWriterFile(Protobuf3Parser.MessageDefContext msgDef, String dirName, String javaPackage,
-										   String protoJavaPackage, Path packageDir, final LookupHelper lookupHelper) throws IOException {
-		final var modelClassName = msgDef.messageName().getText();
-		final var writerClassName = modelClassName+ WRITER_JAVA_FILE_SUFFIX;
-		final var parserClassName = modelClassName+ PARSER_JAVA_FILE_SUFFIX;
-		final var javaFile = packageDir.resolve(modelClassName + TEST_JAVA_FILE_SUFFIX + ".java");
+	public void generate(Protobuf3Parser.MessageDefContext msgDef, File destinationSrcDir,
+						 File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+		final var modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
+		final var testClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.TEST, msgDef);
+		final var writerClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.WRITER, msgDef);
+		final var parserClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.PARSER, msgDef);
+		final String testPackage = lookupHelper.getPackageForMessage(FileType.TEST, msgDef);
+		final String protoCJavaFullQualifiedClass = lookupHelper.getFullyQualifiedMessageClassname(FileType.PROTOC,msgDef);
+		final File javaFile = getJavaFile(destinationTestSrcDir, testPackage, testClassName);
 		final List<Field> fields = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
-		imports.add(computeJavaPackage(lookupHelper.getModelPackage(), dirName));
-		imports.add(computeJavaPackage(lookupHelper.getWriterPackage(), dirName));
-		imports.add(computeJavaPackage(lookupHelper.getParserPackage(), dirName));
+		imports.add(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef));
+		imports.add(lookupHelper.getPackageForMessage(FileType.WRITER, msgDef));
+		imports.add(lookupHelper.getPackageForMessage(FileType.PARSER, msgDef));
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
-				generateWriterFile(item.messageDef(), dirName, javaPackage, protoJavaPackage+"."+modelClassName, packageDir,lookupHelper);
+				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
 			} else if (item.oneof() != null) { // process one ofs
 				final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
 				fields.add(field);
@@ -117,7 +48,7 @@ public class TestGenerator {
 					subField.addAllNeededImports(imports, true, false, true, true);
 				}
 			} else if (item.mapField() != null) { // process map fields
-				throw new IllegalStateException("Encountered a mapField that was not handled in "+ (modelClassName + TEST_JAVA_FILE_SUFFIX));
+				throw new IllegalStateException("Encountered a mapField that was not handled in "+ modelClassName);
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
@@ -129,7 +60,7 @@ public class TestGenerator {
 			}
 		}
 		imports.add("java.util");
-		try (FileWriter javaWriter = new FileWriter(javaFile.toFile())) {
+		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
 					package %s;
 									
@@ -154,13 +85,13 @@ public class TestGenerator {
 						%s
 					}
 					""".formatted(
-						javaPackage,
+							testPackage,
 						imports.isEmpty() ? "" : imports.stream()
-								.filter(input -> !input.equals(javaPackage))
+								.filter(input -> !input.equals(testPackage))
 								.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
 						modelClassName,
-							modelClassName+ TEST_JAVA_FILE_SUFFIX,
-						generateTestMethod(modelClassName, writerClassName, parserClassName, protoJavaPackage)
+						testClassName,
+						generateTestMethod(modelClassName, writerClassName, parserClassName, protoCJavaFullQualifiedClass)
 								.replaceAll("\n","\n"+FIELD_INDENT),
 						generateModelTestArgumentsMethod(modelClassName, fields)
 								.replaceAll("\n","\n"+FIELD_INDENT)
@@ -298,14 +229,14 @@ public class TestGenerator {
 			case STRING -> "List.of(\"\", \"Dude\")";
 			case BYTES -> "List.of(ByteBuffer.wrap(new byte[0]).asReadOnlyBuffer(), ByteBuffer.wrap(new byte[]{0b001}).asReadOnlyBuffer(), ByteBuffer.wrap(new byte[]{0b001, 0b010, 0b011}).asReadOnlyBuffer())";
 			case ENUM -> "Arrays.asList(" + javaFieldType + ".values())";
-			case ONE_OF -> "List.of(null)"; // TODO
-			case MESSAGE -> javaFieldType + TEST_JAVA_FILE_SUFFIX + ".createModelTestArguments().toList()"; // TODO
+			case ONE_OF -> "List.of(null)"; // TODO something more comprehensive
+			case MESSAGE -> javaFieldType + TEST_JAVA_FILE_SUFFIX + ".createModelTestArguments().toList()"; // TODO something more comprehensive
 		};
 	}
 
 	private static String generateTestMethod(final String modelClassName, final String writerClassName,
 											 final String parserClassName,
-											 final String protoJavaPackage) {
+											 final String protoCJavaFullQualifiedClass) {
 		return """
 				@ParameterizedTest
 				@MethodSource("createModelTestArguments")
@@ -332,8 +263,8 @@ public class TestGenerator {
 				writerClassName,
 				modelClassName,
 				parserClassName,
-				protoJavaPackage+"."+modelClassName,
-				protoJavaPackage+"."+modelClassName,
+				protoCJavaFullQualifiedClass,
+				protoCJavaFullQualifiedClass,
 				modelClassName,
 				parserClassName
 		);

@@ -1,5 +1,7 @@
-package com.hedera.hashgraph.pbj.compiler.impl;
+package com.hedera.hashgraph.pbj.compiler.impl.generators;
 
+import com.hedera.hashgraph.pbj.compiler.impl.ContextualLookupHelper;
+import com.hedera.hashgraph.pbj.compiler.impl.FileType;
 import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Parser;
 
 import java.io.File;
@@ -11,14 +13,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.hedera.hashgraph.pbj.compiler.impl.Common.FIELD_INDENT;
-import static com.hedera.hashgraph.pbj.compiler.impl.Common.camelToUpperSnake;
+import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 
 /**
  * Code for generating enum code
  */
 @SuppressWarnings("InconsistentTextBlockIndent")
-public class EnumGenerator {
+public final class EnumGenerator {
 
 	/** Record for an enum value temporary storage */
 	record EnumValue(String name, boolean deprecated, String javaDoc) {}
@@ -27,13 +28,15 @@ public class EnumGenerator {
 	 * Generate a Java enum from protobuf enum
 	 *
 	 * @param enumDef the parsed enum def
-	 * @param javaPackage the package the enum will be placed in
-	 * @param enumName the name of the enum to generate
-	 * @param javaFile the java file to write enum into
+	 * @param destinationSrcDir The destination source directory to generate into
+	 * @param lookupHelper Lookup helper for package information
 	 * @throws IOException if there was a problem writing generated code
 	 */
-	static void generateEnumFile(Protobuf3Parser.EnumDefContext enumDef, String javaPackage, String enumName, File javaFile) throws IOException {
-		String javaDocComment = (enumDef.docComment()== null) ? "" :
+	public static void generateEnumFile(Protobuf3Parser.EnumDefContext enumDef, File destinationSrcDir,
+								 final ContextualLookupHelper lookupHelper) throws IOException {
+		final String enumName = enumDef.enumName().getText();
+		final String modelPackage = lookupHelper.getPackageForEnum(FileType.MODEL, enumDef);
+		final String javaDocComment = (enumDef.docComment()== null) ? "" :
 				enumDef.docComment().getText()
 						.replaceAll("\n \\*\s*\n","\n * <p>\n");
 		String deprecated = "";
@@ -57,9 +60,9 @@ public class EnumGenerator {
 				System.err.println("EnumGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
 		}
-		try (FileWriter javaWriter = new FileWriter(javaFile)) {
+		try (FileWriter javaWriter = new FileWriter(getJavaFile(destinationSrcDir, modelPackage, enumName))) {
 			javaWriter.write(
-					"package "+javaPackage+";\n"+
+					"package "+modelPackage+";\n"+
 							createEnum("", javaDocComment, deprecated, enumName, maxIndex, enumValues, false)
 			);
 		}

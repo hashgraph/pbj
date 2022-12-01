@@ -1,102 +1,39 @@
-package com.hedera.hashgraph.pbj.compiler.impl;
+package com.hedera.hashgraph.pbj.compiler.impl.generators;
 
-import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Lexer;
+import com.hedera.hashgraph.pbj.compiler.impl.*;
 import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Parser;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
-import static com.hedera.hashgraph.pbj.compiler.impl.EnumGenerator.*;
+import static com.hedera.hashgraph.pbj.compiler.impl.generators.EnumGenerator.*;
 
 /**
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
  */
 @SuppressWarnings("StringConcatenationInLoop")
-public class ModelGenerator {
+public final class ModelGenerator implements Generator {
 	/** Record for a field doc temporary storage */
 	private record FieldDoc(String fieldName, String fieldComment) {}
 
 	/**
-	 * Main generate method that process a single protobuf file and writes records and enums into package directories
-	 * inside the destinationSrcDir.
-	 *
-	 * @param protoFile The protobuf file to parse
-	 * @param destinationSrcDir the generated source directory to write files into
-	 * @param lookupHelper Lookup helper for finding classes and packages
-	 * @throws IOException if there was a problem writing files
+	 * {@inheritDoc}
 	 */
-	public static void generateModel(File protoFile, File destinationSrcDir,
-									 final LookupHelper lookupHelper) throws IOException {
-		generate(protoFile, destinationSrcDir, lookupHelper);
-	}
-
-	/**
-	 * Process a directory of protobuf files or individual protobuf file. Generating Java record classes for each
-	 * message type and Java enums for each protobuf enum.
-	 *
-	 * @param protoDirOrFile directory of protobuf files or individual protobuf file
-	 * @param destinationSrcDir The destination source directory to generate into
-	 * @throws IOException if there was a problem writing generated files
-	 */
-	private static void generate(File protoDirOrFile, File destinationSrcDir,
-								 final LookupHelper lookupHelper) throws IOException {
-		if (protoDirOrFile.isDirectory()) {
-			for (final File file : Objects.requireNonNull(protoDirOrFile.listFiles())) {
-				if (file.isDirectory() || file.getName().endsWith(".proto")) {
-					generate(file, destinationSrcDir, lookupHelper);
-				}
-			}
-		} else {
-			final String dirName = protoDirOrFile.getParentFile().getName().toLowerCase();
-			try (var input = new FileInputStream(protoDirOrFile)) {
-				final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
-				final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
-				final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
-				final String javaPackage = computeJavaPackage(lookupHelper.getModelPackage(), dirName);
-				final Path packageDir = destinationSrcDir.toPath().resolve(javaPackage.replace('.', '/'));
-				Files.createDirectories(packageDir);
-				for (var topLevelDef : parsedDoc.topLevelDef()) {
-					final Protobuf3Parser.MessageDefContext msgDef = topLevelDef.messageDef();
-					if (msgDef != null) {
-						generateRecordFile(msgDef, javaPackage, packageDir, lookupHelper);
-					}
-					final Protobuf3Parser.EnumDefContext enumDef = topLevelDef.enumDef();
-					if (enumDef != null) {
-						final var enumName = snakeToCamel(enumDef.enumName().getText(), true);
-						final var javaFile = packageDir.resolve(enumName + ".java");
-						generateEnumFile(enumDef, javaPackage,enumName, javaFile.toFile());
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * Generate a Java record from protobuf message type
-	 *
-	 * @param msgDef the parsed message
-	 * @param javaPackage the package the record will be placed in
-	 * @param packageDir the package directory for writing into
-	 * @throws IOException if there was a problem writing generated code
-	 */
-	private static void generateRecordFile(Protobuf3Parser.MessageDefContext msgDef, String javaPackage, Path packageDir,
-										   final LookupHelper lookupHelper) throws IOException {
-		final var javaRecordName = msgDef.messageName().getText();
-		final var javaFile = packageDir.resolve(javaRecordName + ".java");
+	public void generate(final Protobuf3Parser.MessageDefContext msgDef,
+						 final File destinationSrcDir,
+						 File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+		final var javaRecordName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
+		final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
+		final File javaFile = getJavaFile(destinationSrcDir, modelPackage, javaRecordName);
 		String javaDocComment = (msgDef.docComment()== null) ? "" :
 				msgDef.docComment().getText()
 						.replaceAll("\n \\*\s*\n","\n * <p>\n");
-		String deprectaed = "";
+		String deprecated = "";
 		final List<Field> fields = new ArrayList<>();
 		final List<String> oneofEnums = new ArrayList<>();
 		final List<String> oneofGetters = new ArrayList<>();
@@ -104,7 +41,7 @@ public class ModelGenerator {
 		final Set<String> imports = new TreeSet<>();
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
-				generateRecordFile(item.messageDef(), javaPackage,packageDir,lookupHelper);
+				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
 			} else if (item.oneof() != null) { // process one ofs
 				final OneOfField oneOfField = new OneOfField(item.oneof(),javaRecordName, lookupHelper);
 				final String enumName = oneOfField.nameCamelFirstUpper()+"OneOfType";
@@ -163,7 +100,7 @@ public class ModelGenerator {
 				}
 			} else if (item.optionStatement() != null){
 				if ("deprecated".equals(item.optionStatement().optionName().getText())) {
-					deprectaed = "@Deprecated ";
+					deprecated = "@Deprecated ";
 				} else {
 					System.err.println("Unhandled Option: "+item.optionStatement().getText());
 				}
@@ -219,12 +156,12 @@ public class ModelGenerator {
 				.formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
 				.replaceAll("\n","\n"+FIELD_INDENT);
 		// generate builder
-		bodyContent += generateBuilder(javaRecordName, fields, lookupHelper);
+		bodyContent += generateBuilder(msgDef, fields, lookupHelper);
 		bodyContent += "\n"+FIELD_INDENT;
 		// oneof enums
 		bodyContent += String.join("\n    ", oneofEnums);
 		// === Build file
-		try (FileWriter javaWriter = new FileWriter(javaFile.toFile())) {
+		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
 					package %s;
 					%s
@@ -236,10 +173,10 @@ public class ModelGenerator {
 						%s
 					}
 					""".formatted(
-					javaPackage,
+					modelPackage,
 					imports.isEmpty() ? "" : imports.stream().collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
 					javaDocComment,
-					deprectaed,
+					deprecated,
 					javaRecordName,
 					fields.stream().map(field ->
 						FIELD_INDENT+field.javaFieldType() + " " + field.nameCamelFirstLower()
@@ -249,7 +186,8 @@ public class ModelGenerator {
 		}
 	}
 
-	private static String generateBuilder(final String javaRecordName, List<Field> fields,  final LookupHelper lookupHelper) {
+	private static String generateBuilder(final Protobuf3Parser.MessageDefContext msgDef, List<Field> fields, final ContextualLookupHelper lookupHelper) {
+		final String javaRecordName = msgDef.messageName().getText();
 		List<String> builderMethods = new ArrayList<>();
 		for(Field field:fields) {
 			if (field.type() == Field.FieldType.ONE_OF) {
@@ -317,7 +255,7 @@ public class ModelGenerator {
 				""".formatted(
 					fields.stream().map(field ->
 									"private " + field.javaFieldType() + " " + field.nameCamelFirstLower() +
-											" = " + getDefaultValue(field,javaRecordName, lookupHelper)
+											" = " + getDefaultValue(field, msgDef, lookupHelper)
 					).collect(Collectors.joining(";\n    ")),
 					fields.stream().map(field ->
 									field.javaFieldType() + " " + field.nameCamelFirstLower()
@@ -333,9 +271,9 @@ public class ModelGenerator {
 				.replaceAll("\n","\n"+FIELD_INDENT);
 	}
 
-	private static String getDefaultValue(Field field, final String messageName, final LookupHelper lookupHelper) {
+	private static String getDefaultValue(Field field, final Protobuf3Parser.MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
 		if (field.type() == Field.FieldType.ONE_OF) {
-			return lookupHelper.getParserPackage(messageName) +"."+messageName+"ProtoParser."+field.javaDefault();
+			return lookupHelper.getFullyQualifiedMessageClassname(FileType.PARSER, msgDef)+"."+field.javaDefault();
 		} else {
 			return field.javaDefault();
 		}
