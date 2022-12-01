@@ -1,28 +1,23 @@
 package com.hedera.hashgraph.pbj.compiler;
 
 import com.hedera.hashgraph.pbj.compiler.impl.*;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.OutputDirectory;
-import org.gradle.api.tasks.SourceTask;
-import org.gradle.api.tasks.TaskAction;
+import com.hedera.hashgraph.pbj.compiler.impl.generators.*;
+import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Lexer;
+import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Parser;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.gradle.api.tasks.*;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.Set;
+import java.io.FileInputStream;
 
 /**
  * Gradle Task that generates java src code from protobuf proto schema files.
  */
 public abstract class PbjCompilerTask extends SourceTask {
 
-	private Set<File> protoSrcDirectories;
 	private File javaMainOutputDirectory;
 	private File javaTestOutputDirectory;
-	private String basePackage;
-
-	public void setProtoSrcDirectories(Set<File> protoSrcDirectories) {
-		this.protoSrcDirectories = protoSrcDirectories;
-	}
 
 	@OutputDirectory
 	public File getJavaMainOutputDirectory() {
@@ -42,27 +37,39 @@ public abstract class PbjCompilerTask extends SourceTask {
 		this.javaTestOutputDirectory = javaTestOutputDirectory;
 	}
 
-	@Input
-	public String getBasePackage() {
-		return basePackage;
-	}
-
-	public void setBasePackage(String basePackage) {
-		this.basePackage = basePackage;
-	}
-
 	@TaskAction
-	public void perform() throws IOException {
+	public void perform() throws Exception {
 		try {
+			// first we do a scan of files to build lookup tables for imports, packages etc.
+			final LookupHelper lookupHelper = new LookupHelper(getSource());
 			// for each proto src directory generate code
-			for (final File protoSrcDirectory : protoSrcDirectories) {
-				if (protoSrcDirectory.exists()) {
-					final LookupHelper lookupHelper = new LookupHelper(protoSrcDirectory, basePackage);
-					ModelGenerator.generateModel(protoSrcDirectory, javaMainOutputDirectory, lookupHelper);
-					SchemaGenerator.generateSchemas(protoSrcDirectory, javaMainOutputDirectory, lookupHelper);
-					ParserGenerator.generateParsers(protoSrcDirectory, javaMainOutputDirectory, lookupHelper);
-					WriterGenerator.generateWriters(protoSrcDirectory, javaMainOutputDirectory, lookupHelper);
-					TestGenerator.generateUnitTests(protoSrcDirectory, javaTestOutputDirectory, lookupHelper);
+			for (final File protoFile : getSource()) {
+				if (protoFile.exists() && protoFile.isFile() && protoFile.getName().endsWith(".proto")) {
+					final ContextualLookupHelper contextualLookupHelper = new ContextualLookupHelper(lookupHelper, protoFile);
+					try (var input = new FileInputStream(protoFile)) {
+						final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
+						final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
+						final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
+						for (var topLevelDef : parsedDoc.topLevelDef()) {
+							final Protobuf3Parser.MessageDefContext msgDef = topLevelDef.messageDef();
+							if (msgDef != null) {
+								// run all generators for message
+								for(var generatorClass: Generator.GENERATORS) {
+									final var generator = generatorClass.getDeclaredConstructor().newInstance();
+									generator.generate(msgDef, javaMainOutputDirectory, javaTestOutputDirectory, contextualLookupHelper);
+								}
+							}
+							final Protobuf3Parser.EnumDefContext enumDef = topLevelDef.enumDef();
+							if (enumDef != null) {
+								// run just enum generators for enum
+								EnumGenerator.generateEnumFile(enumDef, javaMainOutputDirectory, contextualLookupHelper);
+							}
+						}
+					} catch (Exception e) {
+						System.err.println("Exception while processing file: "+protoFile);
+						e.printStackTrace();
+						throw e;
+					}
 				}
 			}
 		} catch (Throwable e) {

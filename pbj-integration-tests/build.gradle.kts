@@ -24,12 +24,15 @@ dependencies {
 }
 
 // Add downloaded HAPI repo protobuf files into build directory and add to sources to build them
-val hapiServicesProtoSrc = buildDir.resolve("repos/hapi/services")
 sourceSets {
     main {
-        allSource.srcDir(hapiServicesProtoSrc)
+        pbj {
+            srcDir(buildDir.resolve("repos/hapi/services"))
+            srcDir(buildDir.resolve("repos/hapi/streams"))
+        }
         proto {
-            srcDir(hapiServicesProtoSrc)
+            srcDir(buildDir.resolve("repos/hapi/services"))
+            srcDir(buildDir.resolve("repos/hapi/streams"))
         }
     }
 }
@@ -38,9 +41,14 @@ tasks.getByName<Test>("test") {
     useJUnitPlatform()
 }
 
-// Configure PBJ to set the base package for generated code
-pbj {
-    basePackage.set("com.hedera.hashgraph.pbj.test.integration")
+tasks.withType<Test> {
+    // We are running a lot of tests 10s of thosands, so they need to run in parallel
+    systemProperties["junit.jupiter.execution.parallel.enabled"] = true
+    systemProperties["junit.jupiter.execution.parallel.mode.default"] = "concurrent"
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).takeIf { it > 0 } ?: 1
+    // Some also need more memory
+    minHeapSize = "512m"
+    maxHeapSize = "1024m"
 }
 
 jmh {

@@ -1,101 +1,39 @@
-package com.hedera.hashgraph.pbj.compiler.impl;
+package com.hedera.hashgraph.pbj.compiler.impl.generators;
 
-import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Lexer;
+import com.hedera.hashgraph.pbj.compiler.impl.*;
 import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Parser;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
-import static com.hedera.hashgraph.pbj.compiler.impl.SchemaGenerator.SCHEMA_JAVA_FILE_SUFFIX;
+import static com.hedera.hashgraph.pbj.compiler.impl.FileAndPackageNamesConfig.WRITER_JAVA_FILE_SUFFIX;
 
 /**
  * Code generator that parses protobuf files and generates writers for each message type.
  */
-public class WriterGenerator {
-
-	/** Suffix for schema java classes */
-	public static final String WRITER_JAVA_FILE_SUFFIX = "Writer";
+public final class WriterGenerator implements Generator {
 
 	/**
-	 * Main generate method that process directory of protobuf files
-	 *
-	 * @param protoDir The protobuf file to parse
-	 * @param destinationSrcDir the generated source directory to write files into
-	 * @param lookupHelper helper for global context
-	 * @throws IOException if there was a problem writing files
+	 * {@inheritDoc}
 	 */
-	public static void generateWriters(File protoDir, File destinationSrcDir, final LookupHelper lookupHelper) throws IOException {
-		generate(protoDir, destinationSrcDir,lookupHelper);
-	}
-
-	/**
-	 * Process a directory of protobuf files or individual protobuf file. Generating Java record classes for each
-	 * message type and Java enums for each protobuf enum.
-	 *
-	 * @param protoDirOrFile directory of protobuf files or individual protobuf file
-	 * @param destinationSrcDir The destination source directory to generate into
-	 * @param lookupHelper helper for global context
-	 * @throws IOException if there was a problem writing generated files
-	 */
-	private static void generate(File protoDirOrFile, File destinationSrcDir,
-			final LookupHelper lookupHelper) throws IOException {
-		if (protoDirOrFile.isDirectory()) {
-			for (final File file : Objects.requireNonNull(protoDirOrFile.listFiles())) {
-				if (file.isDirectory() || file.getName().endsWith(".proto")) {
-					generate(file, destinationSrcDir, lookupHelper);
-				}
-			}
-		} else {
-			final String dirName = protoDirOrFile.getParentFile().getName().toLowerCase();
-			try (var input = new FileInputStream(protoDirOrFile)) {
-				final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
-				final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
-				final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
-				final String javaPackage = computeJavaPackage(lookupHelper.getWriterPackage(), dirName);
-				final Path packageDir = destinationSrcDir.toPath().resolve(javaPackage.replace('.', '/'));
-				Files.createDirectories(packageDir);
-				for (var topLevelDef : parsedDoc.topLevelDef()) {
-					final Protobuf3Parser.MessageDefContext msgDef = topLevelDef.messageDef();
-					if (msgDef != null) {
-						generateWriterFile(msgDef, dirName, javaPackage, packageDir, lookupHelper);
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * Generate a Java writer class from protobuf message type
-	 *
-	 * @param msgDef the parsed message
-	 * @param dirName the directory name of the dir containing the protobuf file
-	 * @param javaPackage the java package the writer file should be generated in
-	 * @param packageDir the output package directory
-	 * @param lookupHelper helper for global context
-	 * @throws IOException If there was a problem writing record file
-	 */
-	private static void generateWriterFile(Protobuf3Parser.MessageDefContext msgDef, String dirName, String javaPackage,
-			Path packageDir, final LookupHelper lookupHelper) throws IOException {
-		final var modelClassName = msgDef.messageName().getText();
-		final var schemaClassName = modelClassName+ SCHEMA_JAVA_FILE_SUFFIX;
-		final var writerClassName = modelClassName+ WRITER_JAVA_FILE_SUFFIX;
-		final var javaFile = packageDir.resolve(writerClassName + ".java");
+	public void generate(Protobuf3Parser.MessageDefContext msgDef, final File destinationSrcDir,
+						 File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+		final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
+		final String schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
+		final String writerClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.WRITER, msgDef);
+		final String writerPackage = lookupHelper.getPackageForMessage(FileType.WRITER, msgDef);
+		final File javaFile = getJavaFile(destinationSrcDir, writerPackage, writerClassName);
 		final List<Field> fields = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
-		imports.add(computeJavaPackage(lookupHelper.getModelPackage(), dirName));
-		imports.add(computeJavaPackage(lookupHelper.getSchemaPackage(), dirName));
+		imports.add(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef));
+		imports.add(lookupHelper.getPackageForMessage(FileType.SCHEMA, msgDef));
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
-				generateWriterFile(item.messageDef(), dirName, javaPackage,packageDir,lookupHelper);
+				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
 			} else if (item.oneof() != null) { // process one ofs
 				final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
 				fields.add(field);
@@ -116,7 +54,7 @@ public class WriterGenerator {
 				.sorted(Comparator.comparingInt(Field::fieldNumber))
 				.collect(Collectors.toList());
 		final String fieldWriteLines = generateFieldWriteLines(sortedFields, schemaClassName, imports);
-		try (FileWriter javaWriter = new FileWriter(javaFile.toFile())) {
+		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
 					package %s;
 									
@@ -143,11 +81,11 @@ public class WriterGenerator {
 						}
 					}
 					""".formatted(
-						javaPackage,
+						writerPackage,
 						imports.isEmpty() ? "" : imports.stream()
-								.filter(input -> !input.equals(javaPackage))
+								.filter(input -> !input.equals(writerPackage))
 								.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
-						computeJavaPackage(lookupHelper.getSchemaPackage(), dirName)+"."+schemaClassName,
+						lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef),
 						modelClassName,
 						writerClassName,
 						modelClassName,

@@ -2,10 +2,8 @@ package com.hedera.hashgraph.pbj.compiler;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.file.SourceDirectorySet;
-import org.gradle.api.internal.file.DefaultSourceDirectorySet;
+import org.gradle.api.internal.tasks.DefaultSourceSet;
 import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 
@@ -24,69 +22,54 @@ public class PbjCompilerPlugin implements Plugin<Project> {
         this.objectFactory = objectFactory;
     }
 
+    @Override
     public void apply(Project project) {
-        // create configuration extension
-        final var config = project.getExtensions().create("pbj", PbjCompilerPluginExtension.class);
-
-        // apply java plugin as we depend on it
-        project.getPluginManager().apply(JavaLibraryPlugin.class);
         // get reference to java plugin
         final var javaPlugin = project.getExtensions().getByType(JavaPluginExtension.class);
         // get java src sets
         final var javaMainSrcSet = javaPlugin.getSourceSets().getByName(SourceSet.MAIN_SOURCE_SET_NAME);
         final var javaTestSrcSet = javaPlugin.getSourceSets().getByName(SourceSet.TEST_SOURCE_SET_NAME);
-
-        // for each java source we add a /proto sub dir to our protoSourceSet
-        final PbjSourceDirectorySet protoSourceSet = objectFactory.newInstance(DefaultPbjSourceDirectorySet.class,
-                objectFactory.sourceDirectorySet("pbj", "pbj Protobuf Src"));
-        protoSourceSet.getFilter().include("**/*.proto");
-
-        // Set up the Proto Compiler output directory (adding to javac inputs!)
         final File outputDirectory = new File(project.getBuildDir() + "/generated/source/pbj-proto/main");
         final File outputDirectoryMain = new File(outputDirectory,"java");
         final File outputDirectoryTest = new File(outputDirectory, "test");
         javaMainSrcSet.getJava().srcDir(outputDirectoryMain);
         javaTestSrcSet.getJava().srcDir(outputDirectoryTest);
 
-        // register generateProtoSource task and configure it
-        final String taskName = "generatePbjProtoSource";
-        project.getTasks().register(taskName, PbjCompilerTask.class, pbjCompilerTask -> {
-            // scan all java source sets, adding extension if needed
-            javaPlugin.getSourceSets().all(
-                    sourceSet -> {
-                        sourceSet.getExtensions().add(PbjSourceDirectorySet.class, PbjSourceDirectorySet.NAME, protoSourceSet);
-                        final String srcDir = "src/" + sourceSet.getName() + "/proto";
-                        protoSourceSet.srcDir(srcDir);
-                        sourceSet.getAllSource().source(protoSourceSet);
+        javaPlugin.getSourceSets().all(
+                sourceSet -> {
+                    // for each source set we will:
+                    // 1) Add a new 'pbj' virtual directory mapping
+                    PbjSourceDirectorySet pbjSourceSet = createPbjSourceDirectorySet(((DefaultSourceSet) sourceSet).getDisplayName(), objectFactory);
+                    sourceSet.getExtensions().add(PbjSourceDirectorySet.class, PbjSourceDirectorySet.NAME, pbjSourceSet);
+                    pbjSourceSet.getFilter()
+                            .include("**/*.proto");
+                    final String srcDir = "src/" + sourceSet.getName() + "/proto";
+                    pbjSourceSet.srcDir(srcDir);
+                    sourceSet.getAllSource().source(pbjSourceSet);
 
-                        // add any src directories that are not standard, i.e. java, resources, test or proto
-                        for (var dir : sourceSet.getAllSource().getSrcDirs()) {
-                            final var name = dir.getName();
-                            if (!(name.equals("java") || name.equals("resources") || name.equals("test") || name.equals("proto"))) {
-                                protoSourceSet.srcDir(dir);
-                            }
-                        }
+                    // 2) create an PbjTask for this sourceSet following the gradle
+                    //    naming conventions via call to sourceSet.getTaskName()
+                    final String taskName = sourceSet.getTaskName("generate", "PbjSource");
+
+                    project.getTasks().register(taskName, PbjCompilerTask.class, pbjTask -> {
+                        pbjTask.setDescription("Processes the " + sourceSet.getName() + " Pbj grammars.");
+                        // 4) set up convention mapping for default sources (allows user to not have to specify)
+                        pbjTask.setSource(pbjSourceSet);
+                        pbjTask.setJavaMainOutputDirectory(outputDirectoryMain);
+                        pbjTask.setJavaTestOutputDirectory(outputDirectoryTest);
                     });
 
-            pbjCompilerTask.setDescription("Generates java src from the src/main/proto protobuf proto schemas.");
-            pbjCompilerTask.setBasePackage(config.getBasePackage().get());
-            pbjCompilerTask.setProtoSrcDirectories(protoSourceSet.getSrcDirs());
-            pbjCompilerTask.setSource(protoSourceSet);
-            pbjCompilerTask.setJavaTestOutputDirectory(outputDirectoryTest);
-            pbjCompilerTask.setJavaMainOutputDirectory(outputDirectoryMain);
-        });
-        // register fact that generateProtoSource should be run before compiling
-        project.getTasks().named(javaMainSrcSet.getCompileJavaTaskName(), task -> task.dependsOn(taskName));
+                    // 5) register fact that pbj should be run before compiling
+                    // register fact that generateProtoSource should be run before compiling
+                    project.getTasks().named(javaMainSrcSet.getCompileJavaTaskName(), task -> task.dependsOn(taskName));
+                });
     }
 
-    public interface PbjSourceDirectorySet extends SourceDirectorySet {
-        String NAME = "pbj";
-    }
-
-    public static abstract class DefaultPbjSourceDirectorySet extends DefaultSourceDirectorySet implements PbjSourceDirectorySet {
-        @Inject
-        public DefaultPbjSourceDirectorySet(SourceDirectorySet sourceSet) {
-            super(sourceSet);
-        }
+    private static PbjSourceDirectorySet createPbjSourceDirectorySet(String parentDisplayName, ObjectFactory objectFactory) {
+        String name = parentDisplayName + ".pbj";
+        String displayName = parentDisplayName + " Pbj source";
+        PbjSourceDirectorySet pbjSourceSet = objectFactory.newInstance(DefaultPbjSourceDirectorySet.class, objectFactory.sourceDirectorySet(name, displayName));
+        pbjSourceSet.getFilter().include("**/*.proto");
+        return pbjSourceSet;
     }
 }

@@ -1,39 +1,16 @@
 package com.hedera.hashgraph.pbj.compiler.impl;
 
-import org.jetbrains.annotations.NotNull;
-
+import java.io.File;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
 /**
  * Common functions and constants for code generation
  */
+@SuppressWarnings("DuplicatedCode")
 public class Common {
 	/** The indent for fields, default 4 spaces */
 	public static final String FIELD_INDENT = " ".repeat(4);
-
-	/**
-	 * Compute a destination Java package based on parent directory of the protobuf file
-	 *
-	 * @param destPackage the base package to start from
-	 * @param dirName The name of the parent protobuf directory
-	 * @return complete java package
-	 */
-	@NotNull
-	public static String computeJavaPackage(final String destPackage, final String dirName) {
-		return destPackage + computeJavaPackageSuffix(dirName);
-	}
-
-	/**
-	 * Compute a destination Java package suffix based on parent directory of the protobuf file
-	 *
-	 * @param dirName The name of the parent protobuf directory
-	 * @return complete java package
-	 */
-	@NotNull
-	public static String computeJavaPackageSuffix(final String dirName) {
-		return (dirName.equals("services") ? "" : "." + dirName);
-	}
 
 	/**
 	 * Make sure first character of a string is upper case
@@ -119,5 +96,31 @@ public class Common {
 			case "double" -> "Double";
 			default -> primitiveFieldType;
 		};
+	}
+
+	/**
+	 * Remove leading dot from a string so ".a.b.c" becomes "a.b.c"
+	 */
+	public static String removingLeadingDot(String text) {
+		if (text.length() > 0 & text.charAt(0) == '.') {
+			return text.substring(1);
+		}
+		return text;
+	}
+
+	/**
+	 * Get the java file for a src directory, package and classname with optional suffix. All parent directories will
+	 * also be created.
+	 *
+	 * @param srcDir The src dir root of all java src
+	 * @param javaPackage the java package with '.' deliminators
+	 * @param className the camel case class name
+	 * @return File object for java file
+	 */
+	public static File getJavaFile(File srcDir, String javaPackage, String className) {
+		File packagePath = new File(srcDir.getPath() + File.separatorChar + javaPackage.replaceAll("\\.",File.separator));
+		//noinspection ResultOfMethodCallIgnored
+		packagePath.mkdirs();
+		return new File(packagePath,className+".java");
 	}
 }

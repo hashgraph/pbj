@@ -184,8 +184,8 @@ public interface Field {
 		BYTES("ByteBuffer", "ByteBuffer.allocate(0).asReadOnlyBuffer()"),
 		ONE_OF("OneOf", "null");
 
-		final String javaType;
-		final String javaDefault;
+		public final String javaType;
+		public final String javaDefault;
 
 		FieldType(String javaType, final String javaDefault) {
 			this.javaType = javaType;
@@ -202,7 +202,7 @@ public interface Field {
 		}
 
 		@SuppressWarnings("DuplicatedCode")
-		String javaType(boolean repeated) {
+		public String javaType(boolean repeated) {
 			if (repeated) {
 				return switch (javaType) {
 					case "int" -> "List<Integer>";
@@ -217,11 +217,11 @@ public interface Field {
 			}
 		}
 
-		static FieldType of(Protobuf3Parser.Type_Context typeContext,  final LookupHelper lookupHelper) {
+		static FieldType of(Protobuf3Parser.Type_Context typeContext,  final ContextualLookupHelper lookupHelper) {
 			if (typeContext.enumType() != null) {
 				return FieldType.ENUM;
 			} else if (typeContext.messageType() != null) {
-				if (lookupHelper.isEnum(typeContext.messageType().getText())) return FieldType.ENUM;
+				if (lookupHelper.isEnum(typeContext.messageType())) return FieldType.ENUM;
 				return FieldType.MESSAGE;
 			} else if (typeContext.INT32() != null) {
 				return FieldType.INT32;

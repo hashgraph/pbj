@@ -28,7 +28,7 @@ public record OneOfField(
 	 * @param parentMessageName the name of the parent message
 	 * @param lookupHelper helper for accessing global context
 	 */
-	public OneOfField(final Protobuf3Parser.OneofContext oneOfContext, final String parentMessageName, final LookupHelper lookupHelper) {
+	public OneOfField(final Protobuf3Parser.OneofContext oneOfContext, final String parentMessageName, final ContextualLookupHelper lookupHelper) {
 		this(parentMessageName,
 			oneOfContext.oneofName().getText(),
 			oneOfContext.docComment().getText(),
