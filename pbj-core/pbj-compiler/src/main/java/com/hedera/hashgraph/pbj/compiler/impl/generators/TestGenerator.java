@@ -70,6 +70,7 @@ public final class TestGenerator implements Generator {
 					import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 					import static org.junit.jupiter.api.Assertions.assertEquals;
 					import static com.hedera.hashgraph.pbj.runtime.Utils.*;
+					import com.hedera.hashgraph.pbj.runtime.NoToStringWrapper;
 					import java.io.ByteArrayOutputStream;
 					import java.util.stream.Collectors;
 					import java.util.stream.IntStream;
@@ -104,25 +105,33 @@ public final class TestGenerator implements Generator {
 	private static String generateModelTestArgumentsMethod(final String modelClassName, final List<Field> fields) {
 		return """	
 				/**
-				 * Create a stream of all test permutations of the %s class we are testing. This is reused by other tests
-				 * as well that have model objects with fields of this type.
-				 *
-				 * @return stream of model objects for all test cases
+				 * List of all valid arguments for testing, built as a static list, so we can reuse it.
 				 */
-				public static Stream<%s> createModelTestArguments() {
+				public static final List<%s> ARGUMENTS;
+				
+				static {
 					%s
 					// work out the longest of all the lists of args as that is how many test cases we need
 					final int maxValues = IntStream.of(
 						%s
 					).max().getAsInt();
 					// create new stream of model objects using lists above as constructor params
-					return IntStream.range(0,maxValues)
+					ARGUMENTS = IntStream.range(0,maxValues)
 							.mapToObj(i -> new %s(
 								%s
-							));
+							)).toList();
+				}
+				
+				/**
+				 * Create a stream of all test permutations of the %s class we are testing. This is reused by other tests
+				 * as well that have model objects with fields of this type.
+				 *
+				 * @return stream of model objects for all test cases
+				 */
+				public static Stream<NoToStringWrapper<%s>> createModelTestArguments() {
+					return ARGUMENTS.stream().map(NoToStringWrapper::new);
 				}
 				""".formatted(
-					modelClassName,
 					modelClassName,
 					fields.stream()
 							.map(f -> "final var "+f.nameCamelFirstLower()+"List = "+generateTestData(modelClassName, f, f.optional(), f.repeated())+";")
@@ -135,8 +144,10 @@ public final class TestGenerator implements Generator {
 								field.nameCamelFirstLower(),
 								field.nameCamelFirstLower()
 						))
-							.collect(Collectors.joining(",\n"+FIELD_INDENT+FIELD_INDENT+FIELD_INDENT+FIELD_INDENT))
-		);
+							.collect(Collectors.joining(",\n"+FIELD_INDENT+FIELD_INDENT+FIELD_INDENT+FIELD_INDENT)),
+					modelClassName,
+					modelClassName
+				);
 	}
 
 	private static String generateTestData(String modelClassName, Field field, boolean optional, boolean repeated) {
@@ -230,7 +241,7 @@ public final class TestGenerator implements Generator {
 			case BYTES -> "List.of(ByteBuffer.wrap(new byte[0]).asReadOnlyBuffer(), ByteBuffer.wrap(new byte[]{0b001}).asReadOnlyBuffer(), ByteBuffer.wrap(new byte[]{0b001, 0b010, 0b011}).asReadOnlyBuffer())";
 			case ENUM -> "Arrays.asList(" + javaFieldType + ".values())";
 			case ONE_OF -> "List.of(null)"; // TODO something more comprehensive
-			case MESSAGE -> javaFieldType + TEST_JAVA_FILE_SUFFIX + ".createModelTestArguments().toList()"; // TODO something more comprehensive
+			case MESSAGE -> javaFieldType + TEST_JAVA_FILE_SUFFIX + ".ARGUMENTS"; // TODO something more comprehensive
 		};
 	}
 
@@ -240,7 +251,8 @@ public final class TestGenerator implements Generator {
 		return """
 				@ParameterizedTest
 				@MethodSource("createModelTestArguments")
-				public void test%sAgainstProtoC(final %s modelObj) throws Exception {
+				public void test%sAgainstProtoC(final NoToStringWrapper<%s> modelObjWrapper) throws Exception {
+					final var modelObj = modelObjWrapper.getValue();
 					// model to bytes
 					final ByteArrayOutputStream bout = new ByteArrayOutputStream();
 					%s.write(modelObj,bout);
