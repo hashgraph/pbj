@@ -41,6 +41,7 @@ gradlePlugin {
             id = "com.hedera.pbj.pbj-compiler"
             group = "com.hedera.pbj"
             implementationClass = "com.hedera.hashgraph.pbj.compiler.PbjCompilerPlugin"
+            displayName = "PBJ Compiler"
             description = "The PBJ Protobuf plugin provides protobuf compilation to java records."
         }
     }
