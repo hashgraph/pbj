@@ -1,6 +1,10 @@
 package protoparse;
 
-import com.hedera.hashgraph.pbj.test.integration.model.*;
+import com.hedera.hapi.node.base.*;
+import com.hedera.hapi.node.token.AccountDetails;
+import com.hedera.hapi.node.token.GrantedCryptoAllowance;
+import com.hedera.hapi.node.token.GrantedNftAllowance;
+import com.hedera.hapi.node.token.GrantedTokenAllowance;
 
 import java.nio.ByteBuffer;
 import java.util.List;
