@@ -9,8 +9,8 @@ import com.hedera.hashgraph.pbj.runtime.FieldType;
 public final class TimestampSchema {
     // -- FIELD DEFINITIONS ---------------------------------------------
 
-    public static final FieldDefinition SECONDS = new FieldDefinition("seconds", FieldType.INT_64, false, false, false, 1);
-    public static final FieldDefinition NANOS = new FieldDefinition("nanos", FieldType.INT_32, false, false, false, 2);
+    public static final FieldDefinition SECONDS = new FieldDefinition("seconds", FieldType.INT64, false, false, false, 1);
+    public static final FieldDefinition NANOS = new FieldDefinition("nanos", FieldType.INT32, false, false, false, 2);
 
     // -- OTHER METHODS -------------------------------------------------
 

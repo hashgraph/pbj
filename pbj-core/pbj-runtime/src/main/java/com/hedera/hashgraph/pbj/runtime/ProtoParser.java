@@ -192,8 +192,8 @@ public abstract class ProtoParser implements ParseListener {
 					} else {
 						// means optional is default value
 						switch (f.type()) {
-							case INT_32, UINT_32, SINT_32, FIXED_32, SFIXED_32 -> intField(field, 0);
-							case INT_64, UINT_64, SINT_64, FIXED_64, SFIXED_64 -> longField(field, 0);
+							case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> intField(field, 0);
+							case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> longField(field, 0);
 							case BOOL -> booleanField(field, false);
 							case ENUM -> enumField(field,0); // TODO ? is this right
 							case FLOAT -> floatField(field, 0);
@@ -211,21 +211,21 @@ public abstract class ProtoParser implements ParseListener {
 				// (which will also invoke the appropriate callback).
 				// TODO Validate that the wire type is of the expected kind
 				switch (f.type()) {
-					case INT_32 -> handleInt32(field, f);
-					case INT_64 -> handleInt64(field, f);
-					case UINT_32 -> handleUint32(field, f);
-					case UINT_64 -> handleUint64(field, f);
+					case INT32 -> handleInt32(field, f);
+					case INT64 -> handleInt64(field, f);
+					case UINT32 -> handleUint32(field, f);
+					case UINT64 -> handleUint64(field, f);
 					case BOOL -> handleBoolean(field, f);
 					case ENUM -> handleEnum(field, f);
 
-					case SINT_32 -> handleSint32(field, f);
-					case SINT_64 -> handleSint64(field, f);
+					case SINT32 -> handleSint32(field, f);
+					case SINT64 -> handleSint64(field, f);
 
-					case SFIXED_32 -> handleSfixed32(field, f);
-					case FIXED_32 -> handleFixed32(field, f);
+					case SFIXED32 -> handleSfixed32(field, f);
+					case FIXED32 -> handleFixed32(field, f);
 					case FLOAT -> handleFloat(field, f);
-					case SFIXED_64 -> handleSfixed64(field, f);
-					case FIXED_64 -> handleFixed64(field, f);
+					case SFIXED64 -> handleSfixed64(field, f);
+					case FIXED64 -> handleFixed64(field, f);
 					case DOUBLE -> handleDouble(field, f);
 					case MESSAGE -> handleMessage(field, f);
 					case STRING -> handleString(field, f);
@@ -412,7 +412,7 @@ public abstract class ProtoParser implements ParseListener {
 		}
 	}
 
-	private static final class ProtoStream extends InputStream {
+	public static final class ProtoStream extends InputStream {
 		private InputStream stream;
 		private int nextByte = -1;
 
@@ -422,7 +422,7 @@ public abstract class ProtoParser implements ParseListener {
 		private final byte[] readBuffer = new byte[8];
 		private int totalBytesRead = 0;
 
-		private void reset(InputStream stream) throws IOException {
+		public void reset(InputStream stream) throws IOException {
 			this.stream = stream;
 			this.nextByte = stream.read();
 			this.totalBytesRead = 0;
@@ -540,7 +540,7 @@ public abstract class ProtoParser implements ParseListener {
 		 * @throws IOException                if the proto stream cannot be read
 		 * @throws MalformedProtobufException if the stream cannot be decoded properly due to a malformed stream
 		 */
-		private long readVarint(String fieldName, boolean zigZag) throws IOException, MalformedProtobufException {
+		public long readVarint(String fieldName, boolean zigZag) throws IOException, MalformedProtobufException {
 			// Protobuf encodes smaller integers with fewer bytes than larger integers. It takes a full byte
 			// to encode 7 bits of information. So, if all 64 bits of a long are in use (for example, if the
 			// leading bit is 1, or even all bits are 1) then it will take 10 bytes to transmit what would
@@ -693,12 +693,12 @@ public abstract class ProtoParser implements ParseListener {
 		}
 	}
 
-	private static final class ByteBufferInputStreamAdapter extends InputStream {
+	public static final class ByteBufferInputStreamAdapter extends InputStream {
 		private ByteBuffer buffer;
 		private int position = 0;
 		private int length = 0;
 
-		private void reset(ByteBuffer buffer) {
+		public void reset(ByteBuffer buffer) {
 			// TODO What about resetting the buffer position? Who is responsible for that kind of safety?
 			assert buffer != null : "The only code that calls this ensures this is true";
 			this.buffer = buffer;

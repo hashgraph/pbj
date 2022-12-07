@@ -90,6 +90,14 @@ public record OneOfField(
 	 * N/A for OneOfField
 	 */
 	@Override
+	public String parserClass() {
+		return null;
+	}
+
+	/**
+	 * N/A for OneOfField
+	 */
+	@Override
 	public String parseCode() {
 		return null;
 	}

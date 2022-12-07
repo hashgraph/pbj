@@ -124,7 +124,7 @@ public final class WriterGenerator implements Generator {
 			).replaceAll("\n","\n		");
 		} else {
 			final String writeMethodName = mapToWriteMethod(field);
-			if(field.optional()) {
+			if(field.optionalValueType()) {
 				return switch (field.messageType()) {
 					case "EnumValue" -> "pout.writeOptionalEnum(%s, %s);"
 							.formatted(fieldDef, getValueCode);

@@ -333,7 +333,7 @@ public final class LookupHelper {
 			}
 		}
 
-		printDebug();
+//		printDebug();
 	}
 
 	/** Debug dump internal state */

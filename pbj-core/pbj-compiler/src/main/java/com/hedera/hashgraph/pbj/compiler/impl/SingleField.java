@@ -80,7 +80,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	 * {@inheritDoc}
 	 */
 	@Override
-	public boolean optional() { // Move logic for checking built in types to common
+	public boolean optionalValueType() { // Move logic for checking built in types to common
 		return type == SingleField.FieldType.MESSAGE && (
 				messageType.equals("StringValue") ||
 				messageType.equals("Int32Value") ||
@@ -152,12 +152,20 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	@Override
 	public void addAllNeededImports(Set<String> imports, boolean modelImports,boolean parserImports,
 			final boolean writerImports, final boolean testImports) {
-		if (repeated || optional()) imports.add("java.util");
+		if (repeated || optionalValueType()) imports.add("java.util");
 		if (type == FieldType.BYTES) imports.add("java.nio");
 		if (messageTypeModelPackage != null && modelImports) imports.add(messageTypeModelPackage);
 		if (messageTypeParserPackage != null && parserImports) imports.add(messageTypeParserPackage);
 		if (messageTypeWriterPackage != null && writerImports) imports.add(messageTypeWriterPackage);
 		if (messageTypeTestPackage != null && testImports) imports.add(messageTypeTestPackage);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public String parserClass() {
+		return messageTypeParserPackage + '.' + messageType + PARSER_JAVA_FILE_SUFFIX;
 	}
 
 	/**
@@ -177,7 +185,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	 */
 	@Override
 	public String javaDefault() {
-		if (optional()) {
+		if (optionalValueType()) {
 			return "Optional.empty()";
 		} else if (repeated) {
 			return "Collections.emptyList()";
@@ -194,15 +202,15 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	@Override
 	public String schemaFieldsDef() {
 		boolean isPartOfOneOf = parent != null;
-		if (optional()) {
+		if (optionalValueType()) {
 			final String optionalBaseFieldType = switch (messageType) {
 				case "StringValue" -> "STRING";
-				case "Int32Value" -> "INT_32";
-				case "UInt32Value" -> "UINT_32";
-				case "SInt32Value" -> "SINT_32";
-				case "Int64Value" -> "INT_64";
-				case "UInt64Value" -> "UINT_64";
-				case "SInt64Value" -> "SINT_64";
+				case "Int32Value" -> "INT32";
+				case "UInt32Value" -> "UINT32";
+				case "SInt32Value" -> "SINT32";
+				case "Int64Value" -> "INT64";
+				case "UInt64Value" -> "UINT64";
+				case "SInt64Value" -> "SINT64";
 				case "FloatValue" -> "FLOAT";
 				case "DoubleValue" -> "DOUBLE";
 				case "BoolValue" -> "BOOL";
@@ -231,7 +239,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	@Override
 	public String parserFieldsSetMethodCase() {
 		final String fieldNameToSet = parent != null ? parent.name() : name;
-		if (optional()) {
+		if (optionalValueType()) {
 			if (parent != null) { // one of
 				return "case %d -> this.%s = new OneOf<>(%s.%sOneOfType.%s,Optional.of(input));"
 						.formatted(fieldNumber, fieldNameToSet, parent.parentMessageName(), snakeToCamel(parent.name(), true),camelToUpperSnake(name));

@@ -64,13 +64,14 @@ public final class TestGenerator implements Generator {
 			javaWriter.write("""
 					package %s;
 									
+					import com.google.protobuf.CodedOutputStream;
 					import org.junit.jupiter.params.ParameterizedTest;
 					import org.junit.jupiter.params.provider.Arguments;
 					import org.junit.jupiter.params.provider.MethodSource;
 					import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 					import static org.junit.jupiter.api.Assertions.assertEquals;
 					import static com.hedera.hashgraph.pbj.runtime.Utils.*;
-					import com.hedera.hashgraph.pbj.runtime.NoToStringWrapper;
+					import com.hedera.hashgraph.pbj.runtime.test.*;
 					import java.io.ByteArrayOutputStream;
 					import java.util.stream.Collectors;
 					import java.util.stream.IntStream;
@@ -134,7 +135,7 @@ public final class TestGenerator implements Generator {
 				""".formatted(
 					modelClassName,
 					fields.stream()
-							.map(f -> "final var "+f.nameCamelFirstLower()+"List = "+generateTestData(modelClassName, f, f.optional(), f.repeated())+";")
+							.map(f -> "final var "+f.nameCamelFirstLower()+"List = "+generateTestData(modelClassName, f, f.optionalValueType(), f.repeated())+";")
 							.collect(Collectors.joining("\n"+FIELD_INDENT)),
 					fields.stream()
 							.map(f -> f.nameCamelFirstLower()+"List.size()")
@@ -159,7 +160,7 @@ public final class TestGenerator implements Generator {
 							getOptionsForFieldType(convertedFieldType, convertedFieldType.javaType))
 					.replaceAll("\n","\n"+FIELD_INDENT+FIELD_INDENT);
 		} else if (repeated) {
-			final String optionsList = generateTestData(modelClassName, field, field.optional(), false);
+			final String optionsList = generateTestData(modelClassName, field, field.optionalValueType(), false);
 			return """
 					generateListArguments(%s)""".formatted(optionsList)
 					.replaceAll("\n","\n"+FIELD_INDENT+FIELD_INDENT);
@@ -172,7 +173,7 @@ public final class TestGenerator implements Generator {
 					if (!("THRESHOLD_KEY".equals(enumValueName) || "KEY_LIST".equals(enumValueName)
 							|| "THRESHOLD_SIGNATURE".equals(enumValueName)|| "SIGNATURE_LIST".equals(enumValueName))) {
 						final String listStr;
-						if (subField.optional()) {
+						if (subField.optionalValueType()) {
 							Field.FieldType convertedSubFieldType = getOptionalConvertedFieldType(subField);
 							listStr = "makeListOptionals("+getOptionsForFieldType(convertedSubFieldType, convertedSubFieldType.javaType)+")";
 						} else {
@@ -254,19 +255,20 @@ public final class TestGenerator implements Generator {
 				public void test%sAgainstProtoC(final NoToStringWrapper<%s> modelObjWrapper) throws Exception {
 					final var modelObj = modelObjWrapper.getValue();
 					// model to bytes
-					final ByteArrayOutputStream bout = new ByteArrayOutputStream();
+					final NonSynchronizedByteArrayOutputStream bout = NonSynchronizedByteArrayOutputStream.getThreadLocalInstance();
 					%s.write(modelObj,bout);
-					bout.flush();
-					final byte[] modelWriterBytes = bout.toByteArray();
 					// read proto bytes with new parser
-					final %s modelObj2 = new %s().parse(modelWriterBytes);
+					final %s modelObj2 = %s.parse(bout.getByteBuffer());
 					assertEquals(modelObj, modelObj2);
 					// read model with proto and compare bytes
-					final %s protoModelObj2 = %s.parseFrom(modelWriterBytes);
-					final byte[] protoBytes = protoModelObj2.toByteArray();
-					//assertArrayEquals(modelWriterBytes, protoBytes);
+					final %s protoModelObj2 = %s.parseFrom(bout.getByteBuffer());
+					// write proto model object back out to bytebuffer
+					ByteBuffer buf = bout.getByteBuffer().clear();
+					final CodedOutputStream codedOutput = CodedOutputStream.newInstance(buf);
+					protoModelObj2.writeTo(codedOutput);
+    				codedOutput.flush();
 					// read proto bytes with new parser
-					final %s modelObj3 = new %s().parse(protoBytes);
+					final %s modelObj3 = %s.parse(buf.flip());
 					assertEquals(modelObj, modelObj3);
 				}
 				""".formatted(

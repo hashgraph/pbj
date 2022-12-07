@@ -1,6 +1,7 @@
-package protoparse;
+package com.hedera.hashgraph.pbj.runtime.test;
 
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -8,16 +9,45 @@ import java.util.Objects;
  * Faster non-synchronized ByteArrayOutputStream
  */
 public final class NonSynchronizedByteArrayOutputStream extends OutputStream {
+
+    /** Thread local set of reusable buffers */
+    private static ThreadLocal<NonSynchronizedByteArrayOutputStream> THREAD_LOCAL_BUFFERS =
+            ThreadLocal.withInitial(NonSynchronizedByteArrayOutputStream::new);
+
+    /**
+     * Get the thread local instance of NonSynchronizedByteArrayOutputStream, reset and ready to use.
+     */
+    public static NonSynchronizedByteArrayOutputStream getThreadLocalInstance() {
+        final var local = THREAD_LOCAL_BUFFERS.get();
+        local.reset();
+        return local;
+    }
+
+    private ByteBuffer byteBuffer = null;
+
     private byte[] buf;
     private int count;
 
     public NonSynchronizedByteArrayOutputStream() {
-        this(32);
+        this(1*1024*1024);
     }
 
     public NonSynchronizedByteArrayOutputStream(int size) {
         if (size < 0) throw new IllegalArgumentException();
         buf = new byte[size];
+    }
+
+    /**
+     * get a reused bytebuffer directly over the internal buffer. It will have position reset and limit set to
+     * current data size.
+     */
+    public ByteBuffer getByteBuffer() {
+        if (byteBuffer == null || byteBuffer.array() != buf) {
+            byteBuffer = ByteBuffer.wrap(buf);
+            return byteBuffer.limit(count);
+        } else {
+            return byteBuffer.clear().limit(count);
+        }
     }
 
     private void ensureCapacity(int minCapacity) {

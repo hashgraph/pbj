@@ -1,4 +1,4 @@
-package com.hedera.hashgraph.pbj.runtime;
+package com.hedera.hashgraph.pbj.runtime.test;
 
 import java.util.Objects;
 

@@ -124,7 +124,7 @@ public final class ModelGenerator implements Generator {
 		// === Build Body Content
 		String bodyContent = "";
 		// constructor
-		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optional())) {
+		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optionalValueType())) {
 			bodyContent += """
 					public %s {
 					%s
@@ -132,7 +132,7 @@ public final class ModelGenerator implements Generator {
 					
 					""".formatted(javaRecordName,
 					fields.stream()
-							.filter(f -> f instanceof OneOfField || f.optional())
+							.filter(f -> f instanceof OneOfField || f.optionalValueType())
 							.map(ModelGenerator::generateConstructorCode)
 							.collect(Collectors.joining("\n"))
 					).replaceAll("\n","\n"+FIELD_INDENT);
@@ -286,7 +286,7 @@ public final class ModelGenerator implements Generator {
 									}""".formatted(f.nameCamelFirstLower(),f.nameCamelFirstLower()));
 		if (f instanceof final OneOfField oof) {
 			for (Field subField: oof.fields()) {
-				if(subField.optional()) {
+				if(subField.optionalValueType()) {
 					sb.append("""
        
 							// handle special case where protobuf does not have destination between a OneOf with optional

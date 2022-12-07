@@ -168,7 +168,7 @@ public class ProtoOutputStream {
     public void writeInteger(FieldDefinition field, int value) throws IOException {
         assert fieldChecker.test(field) : FIELD_ASSERT_MSG.formatted(field);
         assert switch(field.type()) {
-            case INT_32, UINT_32, SINT_32, FIXED_32, SFIXED_32 -> true;
+            case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
             default -> false;
         } : "Not an integer type " + field;
         assert !field.repeated() : "Use ProtoOutputStream#writeIntegerList with repeated types";
@@ -178,19 +178,19 @@ public class ProtoOutputStream {
         }
 
         switch (field.type()) {
-            case INT_32 -> {
+            case INT32 -> {
                 writeTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG);
                 writeVarint(value, false);
             }
-            case UINT_32 -> {
+            case UINT32 -> {
                 writeTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG);
                 writeVarint(Integer.toUnsignedLong(value), false);
             }
-            case SINT_32 -> {
+            case SINT32 -> {
                 writeTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG);
                 writeVarint(value, true);
             }
-            case SFIXED_32, FIXED_32 -> {
+            case SFIXED32, FIXED32 -> {
                 // The bytes in protobuf are in little-endian order -- backwards for Java.
                 // Smallest byte first.
                 writeTag(field, WIRE_TYPE_FIXED_32_BIT);
@@ -205,7 +205,7 @@ public class ProtoOutputStream {
     public void writeLong(FieldDefinition field, long value) throws IOException {
         assert fieldChecker.test(field) : FIELD_ASSERT_MSG.formatted(field);
         assert switch(field.type()) {
-            case INT_64, UINT_64, SINT_64, FIXED_64, SFIXED_64 -> true;
+            case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
             default -> false;
         } : "Not a long type " + field;
         assert !field.repeated() : "Use ProtoOutputStream#writeLongList with repeated types";
@@ -215,15 +215,15 @@ public class ProtoOutputStream {
         }
 
         switch (field.type()) {
-            case INT_64, UINT_64 -> {
+            case INT64, UINT64 -> {
                 writeTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG);
                 writeVarint(value, false);
             }
-            case SINT_64 -> {
+            case SINT64 -> {
                 writeTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG);
                 writeVarint(value, true);
             }
-            case SFIXED_64, FIXED_64 -> {
+            case SFIXED64, FIXED64 -> {
                 // The bytes in protobuf are in little-endian order -- backwards for Java.
                 // Smallest byte first.
                 writeTag(field, WIRE_TYPE_FIXED_64_BIT);
@@ -374,7 +374,7 @@ public class ProtoOutputStream {
     public void writeIntegerList(FieldDefinition field, List<Integer> list) throws IOException {
         assert fieldChecker.test(field) : FIELD_ASSERT_MSG.formatted(field);
         assert switch(field.type()) {
-            case INT_32, UINT_32, SINT_32, FIXED_32, SFIXED_32 -> true;
+            case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
             default -> false;
         } : "Not an integer type " + field;
         assert field.repeated() : "Use ProtoOutputStream#writeInteger with non-repeated types";
@@ -386,7 +386,7 @@ public class ProtoOutputStream {
 
         final var buffer = new ByteArrayOutputStream();
         switch (field.type()) {
-            case INT_32 -> {
+            case INT32 -> {
                 writeTag(field, WIRE_TYPE_DELIMITED);
                 for (final int i : list) {
                     writeVarint(i, false, buffer);
@@ -394,7 +394,7 @@ public class ProtoOutputStream {
                 writeVarint(buffer.size(), false);
                 out.write(buffer.toByteArray());
             }
-            case UINT_32 -> {
+            case UINT32 -> {
                 writeTag(field, WIRE_TYPE_DELIMITED);
                 for (final int i : list) {
                     writeVarint(Integer.toUnsignedLong(i), false, buffer);
@@ -402,7 +402,7 @@ public class ProtoOutputStream {
                 writeVarint(buffer.size(), false);
                 out.write(buffer.toByteArray());
             }
-            case SINT_32 -> {
+            case SINT32 -> {
                 writeTag(field, WIRE_TYPE_DELIMITED);
                 for (final int i : list) {
                     writeVarint(i, true, buffer);
@@ -410,7 +410,7 @@ public class ProtoOutputStream {
                 writeVarint(buffer.size(), false);
                 out.write(buffer.toByteArray());
             }
-            case SFIXED_32, FIXED_32 -> {
+            case SFIXED32, FIXED32 -> {
                 // The bytes in protobuf are in little-endian order -- backwards for Java.
                 // Smallest byte first.
                 writeTag(field, WIRE_TYPE_DELIMITED);
@@ -428,7 +428,7 @@ public class ProtoOutputStream {
     public void writeLongList(FieldDefinition field, List<Long> list) throws IOException {
         assert fieldChecker.test(field) : FIELD_ASSERT_MSG.formatted(field);
         assert switch(field.type()) {
-            case INT_64, UINT_64, SINT_64, FIXED_64, SFIXED_64 -> true;
+            case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
             default -> false;
         } : "Not a long type " + field;
         assert field.repeated() : "Use ProtoOutputStream#writeLong with non-repeated types";
@@ -440,7 +440,7 @@ public class ProtoOutputStream {
 
         final var buffer = new ByteArrayOutputStream();
         switch (field.type()) {
-            case INT_64, UINT_64 -> {
+            case INT64, UINT64 -> {
                 writeTag(field, WIRE_TYPE_DELIMITED);
                 for (final long i : list) {
                     writeVarint(i, false, buffer);
@@ -448,7 +448,7 @@ public class ProtoOutputStream {
                 writeVarint(buffer.size(), false);
                 out.write(buffer.toByteArray());
             }
-            case SINT_64 -> {
+            case SINT64 -> {
                 writeTag(field, WIRE_TYPE_DELIMITED);
                 for (final long i : list) {
                     writeVarint(i, true, buffer);
@@ -456,7 +456,7 @@ public class ProtoOutputStream {
                 writeVarint(buffer.size(), false);
                 out.write(buffer.toByteArray());
             }
-            case SFIXED_64, FIXED_64 -> {
+            case SFIXED64, FIXED64 -> {
                 // The bytes in protobuf are in little-endian order -- backwards for Java.
                 // Smallest byte first.
                 writeTag(field, WIRE_TYPE_DELIMITED);

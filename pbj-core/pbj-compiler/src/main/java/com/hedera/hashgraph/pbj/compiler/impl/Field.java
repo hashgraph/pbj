@@ -4,7 +4,7 @@ import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Parser;
 
 import java.util.Set;
 
-import static com.hedera.hashgraph.pbj.compiler.impl.Common.snakeToCamel;
+import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 
 /**
  * Interface for SingleFields and OneOfFields
@@ -92,6 +92,13 @@ public interface Field {
 	String parseCode();
 
 	/**
+	 * Get the fully qualified parser class for message type for message fields
+	 *
+	 * @return fully qualified class name for parser class
+	 */
+	String parserClass();
+
+	/**
 	 * Get the java code default value for this field, "null" for object types
 	 *
 	 * @return code for default value
@@ -144,11 +151,12 @@ public interface Field {
 	}
 
 	/**
-	 * Get if this field is optional, optionals are handled in protobuf by value type objects for primitives
+	 * Get if this field is an optional value type, optionals are handled in protobuf by value type objects for
+	 * primitives
 	 *
 	 * @return true if this field is option by use of a protobuf value type, otherwise false
 	 */
-	default boolean optional() {
+	default boolean optionalValueType() {
 		return false;
 	}
 
@@ -165,40 +173,41 @@ public interface Field {
 	 * Field type enum for use in field classes
 	 */
 	enum FieldType {
-		MESSAGE("Object", "null"),
-		ENUM("int", "null"),
-		INT32("int", "0"),
-		UINT32("int", "0"),
-		SINT32("int", "0"),
-		INT64("long", "0"),
-		UINT64("long", "0"),
-		SINT64("long", "0"),
-		FLOAT("long", "0"),
-		FIXED32("long", "0"),
-		SFIXED32("long", "0"),
-		DOUBLE("double", "0"),
-		FIXED64("double", "0"),
-		SFIXED64("double", "0"),
-		STRING("String", "\"\""),
-		BOOL("boolean", "false"),
-		BYTES("ByteBuffer", "ByteBuffer.allocate(0).asReadOnlyBuffer()"),
-		ONE_OF("OneOf", "null");
+		MESSAGE("Object", "null", TYPE_LENGTH_DELIMITED),
+		ENUM("int", "null", TYPE_VARINT),
+		INT32("int", "0", TYPE_VARINT),
+		UINT32("int", "0", TYPE_VARINT),
+		SINT32("int", "0", TYPE_VARINT),
+		INT64("long", "0", TYPE_VARINT),
+		UINT64("long", "0", TYPE_VARINT),
+		SINT64("long", "0", TYPE_VARINT),
+		FLOAT("long", "0", TYPE_FIXED32),
+		FIXED32("long", "0", TYPE_FIXED32),
+		SFIXED32("long", "0", TYPE_FIXED32),
+		DOUBLE("double", "0", TYPE_FIXED64),
+		FIXED64("double", "0", TYPE_FIXED64),
+		SFIXED64("double", "0", TYPE_FIXED64),
+		STRING("String", "\"\"", TYPE_LENGTH_DELIMITED),
+		BOOL("boolean", "false", TYPE_VARINT),
+		BYTES("ByteBuffer", "ByteBuffer.allocate(0).asReadOnlyBuffer()", TYPE_LENGTH_DELIMITED),
+		ONE_OF("OneOf", "null", 0 );// BAD TYPE
 
 		public final String javaType;
 		public final String javaDefault;
+		public final int wireType;
 
-		FieldType(String javaType, final String javaDefault) {
+		FieldType(String javaType, final String javaDefault, int wireType) {
 			this.javaType = javaType;
 			this.javaDefault = javaDefault;
+			this.wireType = wireType;
 		}
 
 		String fieldType() {
-			String name = toString();
-			if (Character.isDigit(name.charAt(name.length()-2))) {
-				return name.substring(0,name.length()-2) + "_" + name.substring(name.length()-2);
-			} else {
-				return name;
-			}
+			return name();
+		}
+
+		public int wireType() {
+			return wireType;
 		}
 
 		@SuppressWarnings("DuplicatedCode")

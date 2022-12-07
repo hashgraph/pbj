@@ -20,10 +20,7 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 1, time = 10)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
-public class TimestampBench {
-	static {
-		System.out.println("TimestampBench.static initializer 2");
-	}
+public class TimestampBench1000x {
 	private final byte[] protobuf = Timestamp.newBuilder().setNanos(1234).setSeconds(5678L).build().toByteArray();
 	private final ByteBuffer protobufByteBuffer = ByteBuffer.wrap(protobuf);
 	private final ByteBuffer protobufByteBufferDirect = ByteBuffer
@@ -34,33 +31,59 @@ public class TimestampBench {
 
 	@Benchmark
 	public void parsePbjByteBuffer(Blackhole blackhole) throws MalformedProtobufException {
-		blackhole.consume(parser.parse(protobufByteBuffer.clear()));
+		for (int i = 0; i < 1000; i++) {
+			blackhole.consume(parser.parse(protobufByteBuffer.clear()));
+		}
 	}
 	@Benchmark
 	public void parsePbjByteBufferDirect(Blackhole blackhole) throws MalformedProtobufException {
-		blackhole.consume(parser.parse(protobufByteBufferDirect.clear()));
+		for (int i = 0; i < 1000; i++) {
+			blackhole.consume(parser.parse(protobufByteBufferDirect.clear()));
+		}
 	}
 
 	@Benchmark
-	public void parseProtoCByteBuffer(Blackhole blackhole) throws InvalidProtocolBufferException {
-		blackhole.consume(Timestamp.parseFrom(protobufByteBuffer));
+	public void parseProtoCByteArray(Blackhole blackhole) throws InvalidProtocolBufferException {
+		for (int i = 0; i < 1000; i++) {
+			blackhole.consume(Timestamp.parseFrom(protobuf));
+		}
 	}
 	@Benchmark
 	public void parseProtoCByteBufferDirect(Blackhole blackhole) throws InvalidProtocolBufferException {
-		blackhole.consume(Timestamp.parseFrom(protobufByteBufferDirect));
+		for (int i = 0; i < 1000; i++) {
+			blackhole.consume(Timestamp.parseFrom(protobufByteBufferDirect));
+		}
+	}
+	@Benchmark
+	public void parseProtoCByteBuffer(Blackhole blackhole) throws InvalidProtocolBufferException {
+		for (int i = 0; i < 1000; i++) {
+			blackhole.consume(Timestamp.parseFrom(protobufByteBuffer));
+		}
 	}
 
 	@Benchmark
 	public void writePbj(Blackhole blackhole) throws IOException {
-		bout.reset();
-		TimestampWriter.write(
-				new com.hedera.hapi.node.base.Timestamp(5678L, 1234), bout);
-		blackhole.consume(bout.toByteArray());
+		for (int i = 0; i < 1000; i++) {
+			bout.reset();
+			TimestampWriter.write(
+					new com.hedera.hapi.node.base.Timestamp(5678L, 1234), bout);
+			blackhole.consume(bout.toByteArray());
+		}
 	}
 
 	@Benchmark
-	public void writeProtoC(Blackhole blackhole) {
-		blackhole.consume(Timestamp.newBuilder().setNanos(1234).setSeconds(5678L).build().toByteArray());
+	public void writeProtoCByteArray(Blackhole blackhole) {
+		for (int i = 0; i < 1000; i++) {
+			blackhole.consume(Timestamp.newBuilder().setNanos(1234).setSeconds(5678L).build().toByteArray());
+		}
 	}
 
+	@Benchmark
+	public void writeProtoCOutputStream(Blackhole blackhole) throws IOException {
+		for (int i = 0; i < 1000; i++) {
+			bout.reset();
+			Timestamp.newBuilder().setNanos(1234).setSeconds(5678L).build().writeTo(bout);
+			blackhole.consume(bout.toByteArray());
+		}
+	}
 }
