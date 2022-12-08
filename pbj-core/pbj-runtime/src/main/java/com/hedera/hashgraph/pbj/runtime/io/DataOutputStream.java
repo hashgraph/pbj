@@ -1,0 +1,84 @@
+package com.hedera.hashgraph.pbj.runtime.io;
+
+import java.io.FilterOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Objects;
+
+/**
+ * A {@code FilterOutputStream} that makes it easy to convert any {@code OutputStream} to a {@code DataOutput}
+ */
+public class DataOutputStream  extends FilterOutputStream implements DataOutput {
+
+    /** The current position, aka the number of bytes written */
+    private long position = 0;
+
+    /** The current limit for reading, defaults to Long.MAX_VALUE basically unlimited */
+    private long limit = Long.MAX_VALUE;
+
+    /**
+     * Creates an {@code FilterOutputStream} built on top of the specified underlying output stream, that implements
+     * {@code DataOutput}
+     *
+     * @param out the underlying output stream to be written to, can not be null
+     */
+    public DataOutputStream(OutputStream out) {
+        super(Objects.requireNonNull(out));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getPosition() {
+        return 0;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getLimit() {
+        return 0;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setLimit(long limit) {
+
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean hasRemaining() {
+        return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void writeByte(byte b) throws IOException {
+        out.write(b);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void writeBytes(byte[] src, int offset, int length) throws IOException {
+        out.write(src, offset, length);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void writeBytes(byte[] src) throws IOException {
+        out.write(src);
+    }
+}
