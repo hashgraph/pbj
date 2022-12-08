@@ -60,7 +60,7 @@ tasks.withType<Test> {
 }
 
 jmh {
-//    includes.add("protoparse.AccountDetailsBench")
+//    includes.add("VarIntBench")
     jmhVersion.set("1.35")
     includeTests.set(true)
 }

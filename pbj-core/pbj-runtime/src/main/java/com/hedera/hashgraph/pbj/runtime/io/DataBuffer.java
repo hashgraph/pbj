@@ -6,14 +6,52 @@ import java.nio.ByteOrder;
 /**
  * A Buffer backed by a ByteBuffer that implements {@code DataInput} and {@code DataOutput}.
  */
-public class DataBuffer implements DataInput, DataOutput {
-    private ByteBuffer buffer;
+public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapDataBuffer {
 
-    public DataBuffer(ByteBuffer buffer) {
+    /** ByteBuffer used as backing buffer for this DataBuffer */
+    protected ByteBuffer buffer;
+
+    /**
+     * Wrap an existing allocated ByteBuffer into a DataBuffer. No copy is made.
+     *
+     * @param buffer the ByteBuffer to wrap
+     */
+    protected DataBuffer(ByteBuffer buffer) {
         this.buffer = buffer;
     }
-    public DataBuffer(int size, boolean offHeap) {
-        this.buffer = offHeap ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
+
+    /**
+     * Allocate new on Java heap Data buffer
+     *
+     * @param size size of new buffer in bytes
+     */
+    protected DataBuffer(int size) {
+        this.buffer = ByteBuffer.allocate(size);
+    }
+
+    /**
+     * Wrap an existing allocated ByteBuffer into a DataBuffer. No copy is made.
+     *
+     * @param buffer the ByteBuffer to wrap
+     * @return new DataBuffer using {@code buffer} as its data buffer
+     */
+    public static DataBuffer wrap(ByteBuffer buffer) {
+        return buffer.isDirect() ? new OffHeapDataBuffer(buffer) : new DataBuffer(buffer);
+    }
+
+    /**
+     * Allocate a new DataBuffer with new memory, either on or off the Java heap. Off heap has higher cost of
+     * allocation and garbage collection but is much faster to read and write to. It should be used for long-lived
+     * buffers where performance is critical. On heap is slower for read and writes but cheaper to allocate and garbage
+     * collect. Off-heap comes from different memory allocation that needs to be manually managed so make sure we have
+     * space for it before using.
+     *
+     * @param size size of new buffer in bytes
+     * @param offHeap if the new buffer should be allocated from off-heap memory or the standard Java heap memory
+     * @return a new allocated DataBuffer
+     */
+    public static DataBuffer allocate(int size, boolean offHeap) {
+        return offHeap ? new OffHeapDataBuffer(size) : new DataBuffer(size);
     }
 
     /**

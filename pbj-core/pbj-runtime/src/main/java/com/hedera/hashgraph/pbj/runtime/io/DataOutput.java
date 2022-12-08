@@ -5,6 +5,15 @@ import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteOrder;
 
+/**
+ * <p>A high level interface to represent a way to write data as tokens, each method assumes there are enough space
+ * available to write fully or a exception is thrown. It is designed so that it can be backed by a stream or a
+ * buffer.</p>
+ *
+ * <p>It is simple to implement in basic form with just the writeByte() write method needing implementing as all other
+ * write methods have default implementations. Though it will work, it should not be used like that in performance
+ * critical cases as specialized write methods can be many times more efficient.</p>
+ */
 @SuppressWarnings("DuplicatedCode")
 public interface DataOutput {
 
@@ -222,5 +231,58 @@ public interface DataOutput {
      */
     default void writeDouble(double value, ByteOrder byteOrder) throws IOException {
         writeLong(Double.doubleToLongBits(value), byteOrder);
+    }
+
+    /**
+     * Write a 32bit protobuf varint at current position. An integer var int can be 1 to 5 bytes.
+     *
+     * @param value integer to write in var int format
+     * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
+     * @throws IOException if an I/O error occurs
+     */
+    default void writeVarInt(int value, boolean zigZag) throws IOException {
+        writeVarLong(value, zigZag);
+    }
+
+    /**
+     * Write a 64bit protobuf varint at current position. An long var int can be 1 to 10 bytes.
+     *
+     * @param value long to write in var int format
+     * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
+     * @throws IOException if an I/O error occurs
+     */
+    default void writeVarLong(long value, boolean zigZag) throws IOException {
+        if (zigZag) {
+            value = (value << 1) ^ (value >> 63);
+        }
+
+        // Small performance optimization for small values.
+        if (value < 128 && value >= 0) {
+            writeByte((byte) value);
+            return;
+        }
+
+        // We will send 7 bits of data with each byte we write. The high-order bit of
+        // each byte indicates whether there are subsequent bytes coming. So we need
+        // to know how many bytes we need to send. We do this by figuring out the position
+        // of the highest set bit (counting from the left. So the first bit on the far
+        // right is at position 1, the bit at the far left is at position 64).
+        // Then, we calculate how many bytes it will take if we are sending 7 bits at
+        // a time, being careful to round up when not aligned at a 7-bit boundary.
+        int numLeadingZeros = Long.numberOfLeadingZeros(value);
+        int bitPos = 64 - numLeadingZeros;
+        int numBytesToSend = bitPos / 7 + (bitPos % 7 == 0 ? 0 : 1);
+
+        // For all bytes except the last one, we need to mask off the last
+        // 7 bits of the value and combine that with a byte with the leading
+        // bit set. Then we shift the value 7 bits to the right.
+        for (int i = 0; i < numBytesToSend - 1; i++) {
+            writeByte((byte) (0x80 | (0x7F & value)));
+            value >>>= 7;
+        }
+
+        // And now we can send whatever is left as the last byte, knowing that
+        // the high order bit will never be set.
+        writeByte((byte) value);
     }
 }

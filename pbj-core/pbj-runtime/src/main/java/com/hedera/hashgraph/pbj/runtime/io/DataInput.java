@@ -4,6 +4,15 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteOrder;
 
+/**
+ * <p>A high level interface to represent a way to read data as tokens, each method assumes there are enough bytes
+ * available to read it fully or a exception is thrown. It is designed so that it can be backed by a stream or a
+ * buffer.</p>
+ *
+ * <p>It is simple to implement in basic form with just the readByte() read method needing implementing as all other
+ * read methods have default implementations. Though it will work, it should not be used like that in performance
+ * critical cases as specialized read methods can be many times more efficient.</p>
+ */
 @SuppressWarnings("DuplicatedCode")
 public interface DataInput {
 
@@ -30,7 +39,8 @@ public interface DataInput {
     void setLimit(long limit);
 
     /**
-     * If there are bytes remaining to be read between current position and limit
+     * If there are bytes remaining to be read between current position and limit. There will be at least one byte
+     * available to read.
      *
      * @return true if (limit - position) > 0
      */
@@ -238,5 +248,73 @@ public interface DataInput {
      */
     default double readDouble(ByteOrder byteOrder) throws IOException {
         return Double.longBitsToDouble(readLong(byteOrder));
+    }
+
+    /**
+     * Read a 32bit protobuf varint at current position. An integer var int can be 1 to 5 bytes.
+     *
+     * @return integer read in var int format
+     * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
+     * @throws IOException if an I/O error occurs
+     */
+    default int readVarInt(boolean zigZag) throws IOException {
+        return (int)readVarLong(zigZag);
+    }
+
+    /**
+     * Read a 64bit protobuf varint at current position. An long var int can be 1 to 10 bytes.
+     *
+     * @return long read in var int format
+     * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
+     * @throws IOException if an I/O error occurs
+     */
+    default long readVarLong(boolean zigZag) throws IOException {
+        // Protobuf encodes smaller integers with fewer bytes than larger integers. It takes a full byte
+        // to encode 7 bits of information. So, if all 64 bits of a long are in use (for example, if the
+        // leading bit is 1, or even all bits are 1) then it will take 10 bytes to transmit what would
+        // have otherwise been 8 bytes of data!
+        //
+        // Thus, at most, reading a varint should involve reading 10 bytes of data.
+        //
+        // The leading bit of each byte is a continuation bit. If set, another byte will follow.
+        // If we read 10 bytes in sequence with a continuation bit set, then we have a malformed
+        // byte stream.
+        // The bytes come least to most significant 7 bits. So the first byte we read represents
+        // the lowest 7 bytes, then the next byte is the next highest 7 bytes, etc.
+
+        // Keeps track of the number of bytes that have been read. If we read 10 in a row all with
+        // the leading continuation bit set, then throw a malformed protobuf exception.
+        int numBytesRead = 0;
+        // The final value.
+        long value = 0;
+        // The amount to shift the bits we read by before AND with the value
+        long shift = 0;
+        // The byte to read from the stream
+        int b;
+
+        while ((b = readByte()) != -1) {
+            // Keep track of the number of bytes read
+            numBytesRead++;
+            // Checks whether the continuation bit is set
+            final boolean continuationBitSet = (b & 0b1000_0000) != 0;
+            // Strip off the continuation bit by keeping only the data bits
+            b &= 0b0111_1111;
+            // Shift the data bits left into position to AND with the value
+            final long toBeAdded = (long) b << shift;
+            value |= toBeAdded;
+            // Increment the shift for the next data bits (if there are more bits)
+            shift += 7;
+
+            if (continuationBitSet) {
+                // msb is set, so there is another byte following this one. If we've just read our 10th byte,
+                // then we have a malformed protobuf stream
+                if (numBytesRead == 10) {
+                    throw new IOException("Malformed var int format");
+                }
+            } else {
+                break;
+            }
+        }
+        return zigZag ? ((value >>> 1) ^ -(value & 1)) : value;
     }
 }
