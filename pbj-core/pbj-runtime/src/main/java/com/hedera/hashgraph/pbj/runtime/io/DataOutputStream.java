@@ -3,6 +3,7 @@ package com.hedera.hashgraph.pbj.runtime.io;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.BufferUnderflowException;
 import java.util.Objects;
 
 /**
@@ -56,6 +57,21 @@ public class DataOutputStream  extends FilterOutputStream implements DataOutput 
     @Override
     public boolean hasRemaining() {
         return (limit - position) > 0;
+    }
+
+    /**
+     * Move position forward by {@code count} bytes byte writing zeros to output stream.
+     *
+     * @param count number of bytes to skip
+     * @return the actual number of bytes skipped.
+     */
+    @Override
+    public long skip(long count) throws IOException {
+        count = Math.max(count, getRemaining());
+        for (int i = 0; i < count; i++) {
+            out.write(0);
+        }
+        return count;
     }
 
     /**

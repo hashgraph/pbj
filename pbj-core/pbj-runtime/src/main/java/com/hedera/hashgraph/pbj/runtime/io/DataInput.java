@@ -14,37 +14,7 @@ import java.nio.ByteOrder;
  * critical cases as specialized read methods can be many times more efficient.</p>
  */
 @SuppressWarnings("DuplicatedCode")
-public interface DataInput {
-
-    /**
-     * Current read position relative to origin
-     *
-     * @return number of bytes that have been read since the origin
-     */
-    long getPosition();
-
-    /**
-     * Limit that we can read up to, relative to origin, can be {@code Long.MAX_VALUE} to indicate unlimited
-     *
-     * @return maximum position that can be read from origin
-     */
-    long getLimit();
-
-    /**
-     * Set limit that can be read up to, relative to origin. If less than position then set to position, meaning there
-     * are no bytes left available to be read.
-     *
-     * @param limit The new limit relative to origin, can be {@code Long.MAX_VALUE} to indicate unlimited
-     */
-    void setLimit(long limit);
-
-    /**
-     * If there are bytes remaining to be read between current position and limit. There will be at least one byte
-     * available to read.
-     *
-     * @return true if (limit - position) > 0
-     */
-    boolean hasRemaining();
+public interface DataInput extends PositionedData {
 
     /**
      * Reads the byte at current position, and then increments the position.

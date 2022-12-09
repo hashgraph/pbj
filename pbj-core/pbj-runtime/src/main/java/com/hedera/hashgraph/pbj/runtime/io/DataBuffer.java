@@ -6,10 +6,7 @@ import java.nio.ByteOrder;
 /**
  * A Buffer backed by a ByteBuffer that implements {@code DataInput} and {@code DataOutput}.
  */
-public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapDataBuffer {
-
-    /** ByteBuffer used as backing buffer for this DataBuffer */
-    protected ByteBuffer buffer;
+public sealed class DataBuffer extends ReadOnlyDataBuffer implements DataOutput permits OffHeapDataBuffer {
 
     /**
      * Wrap an existing allocated ByteBuffer into a DataBuffer. No copy is made.
@@ -17,7 +14,7 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
      * @param buffer the ByteBuffer to wrap
      */
     protected DataBuffer(ByteBuffer buffer) {
-        this.buffer = buffer;
+        super(buffer);
     }
 
     /**
@@ -26,8 +23,11 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
      * @param size size of new buffer in bytes
      */
     protected DataBuffer(int size) {
-        this.buffer = ByteBuffer.allocate(size);
+        super(size);
     }
+
+    // ================================================================================================================
+    // Static Builder Methods
 
     /**
      * Wrap an existing allocated ByteBuffer into a DataBuffer. No copy is made.
@@ -54,149 +54,8 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
         return offHeap ? new OffHeapDataBuffer(size) : new DataBuffer(size);
     }
 
-    /**
-     * Reset position to origin and limit to capacity, allowing this buffer to be read or written again
-     */
-    public void reset() {
-        buffer.clear();
-    }
-
-    /**
-     * Get the capacity in bytes that can be stored in this buffer
-     * 
-     * @return capacity in bytes
-     */
-    public int getCapacity() {
-        return buffer.capacity();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getPosition() {
-        return buffer.position();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getLimit() {
-        return buffer.limit();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLimit(long limit) {
-        buffer.limit((int)limit);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean hasRemaining() {
-        return buffer.hasRemaining();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public byte readByte() {
-        return buffer.get();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void readBytes(byte[] dst, int offset, int length) {
-        buffer.get(dst, offset, length);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void readBytes(byte[] dst) {
-        buffer.get(dst);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int readInt() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        return buffer.getInt();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int readInt(ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getInt();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long readLong() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        return buffer.getLong();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long readLong(ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getLong();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public float readFloat() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        return buffer.getFloat();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public float readFloat(ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getFloat();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public double readDouble() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        return buffer.getDouble();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public double readDouble(ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getDouble();
-    }
+    // ================================================================================================================
+    // DataOutput Write Methods
 
     /**
      * {@inheritDoc}

@@ -3,6 +3,7 @@ package com.hedera.hashgraph.pbj.runtime.io;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.BufferUnderflowException;
 import java.util.Objects;
 
 /**

@@ -15,36 +15,7 @@ import java.nio.ByteOrder;
  * critical cases as specialized write methods can be many times more efficient.</p>
  */
 @SuppressWarnings("DuplicatedCode")
-public interface DataOutput {
-
-    /**
-     * Current write position relative to origin
-     *
-     * @return number of bytes that have been written since the origin
-     */
-    long getPosition();
-
-    /**
-     * Limit that we can write up to, relative to origin, can be {@code Long.MAX_VALUE} to indicate unlimited
-     *
-     * @return maximum position that can be written from origin
-     */
-    long getLimit();
-
-    /**
-     * Set limit that can be written up to, relative to origin. If less than position then set to position, meaning there
-     * are no bytes left available to be written.
-     *
-     * @param limit The new limit relative to origin, can be {@code Long.MAX_VALUE} to indicate unlimited
-     */
-    void setLimit(long limit);
-
-    /**
-     * If there are bytes remaining to be written between current position and limit
-     *
-     * @return true if (limit - position) > 0
-     */
-    boolean hasRemaining();
+public interface DataOutput extends PositionedData {
 
     /**
      * Writes the given byte at the current position, and then increments the position.
