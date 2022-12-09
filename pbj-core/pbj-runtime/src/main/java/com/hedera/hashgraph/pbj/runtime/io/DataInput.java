@@ -56,6 +56,17 @@ public interface DataInput {
     byte readByte() throws IOException ;
 
     /**
+     * Reads the byte at current position as unsigned, and then increments the position.
+     *
+     * @return The byte at current position
+     * @throws BufferUnderflowException If the current position is not smaller than its limit
+     * @throws IOException if an I/O error occurs
+     */
+    default int readUnsignedByte() throws IOException  {
+        return Byte.toUnsignedInt(readByte());
+    }
+
+    /**
      * Read bytes starting at current position into dst array up to the size of {@code dst} array.
      *
      * @param dst The array into which bytes are to be written
@@ -132,6 +143,49 @@ public interface DataInput {
             final byte b2 = readByte();
             final byte b1 = readByte();
             return ((b1 & 0xFF) << 24) | ((b2 & 0xFF) << 16) | ((b3 & 0xFF) << 8) | ((b4 & 0xFF));
+        }
+    }
+
+    /**
+     * Reads the next four bytes at the current position, composing them into an unsigned int value according to the
+     * Java standard big-endian byte order, and then increments the position by four.
+     *
+     * @return The int value at the current position
+     * @throws BufferUnderflowException If there are fewer than four bytes remaining
+     * @throws IOException if an I/O error occurs
+     */
+    default long readUnsignedInt() throws IOException {
+        if ((getLimit() - getPosition()) < Integer.BYTES) {
+            throw new BufferUnderflowException();
+        }
+        final byte b1 = readByte();
+        final byte b2 = readByte();
+        final byte b3 = readByte();
+        final byte b4 = readByte();
+        return ((b1 & 0xFFL) << 24) | ((b2 & 0xFFL) << 16) | ((b3 & 0xFFL) << 8) | ((b4 & 0xFFL));
+    }
+
+    /**
+     * Reads the next four bytes at the current position, composing them into an unsigned int value according to
+     * specified byte order, and then increments the position by four.
+     *
+     * @param byteOrder the byte order, aka endian to use
+     * @return The int value at the current position
+     * @throws BufferUnderflowException If there are fewer than four bytes remaining
+     * @throws IOException if an I/O error occurs
+     */
+    default long readUnsignedInt(ByteOrder byteOrder) throws IOException {
+        if ((getLimit() - getPosition()) < Integer.BYTES) {
+            throw new BufferUnderflowException();
+        }
+        if (byteOrder == ByteOrder.BIG_ENDIAN) {
+            return readInt();
+        } else {
+            final byte b4 = readByte();
+            final byte b3 = readByte();
+            final byte b2 = readByte();
+            final byte b1 = readByte();
+            return ((b1 & 0xFFL) << 24) | ((b2 & 0xFFL) << 16) | ((b3 & 0xFFL) << 8) | ((b4 & 0xFFL));
         }
     }
 
@@ -269,52 +323,14 @@ public interface DataInput {
      * @throws IOException if an I/O error occurs
      */
     default long readVarLong(boolean zigZag) throws IOException {
-        // Protobuf encodes smaller integers with fewer bytes than larger integers. It takes a full byte
-        // to encode 7 bits of information. So, if all 64 bits of a long are in use (for example, if the
-        // leading bit is 1, or even all bits are 1) then it will take 10 bytes to transmit what would
-        // have otherwise been 8 bytes of data!
-        //
-        // Thus, at most, reading a varint should involve reading 10 bytes of data.
-        //
-        // The leading bit of each byte is a continuation bit. If set, another byte will follow.
-        // If we read 10 bytes in sequence with a continuation bit set, then we have a malformed
-        // byte stream.
-        // The bytes come least to most significant 7 bits. So the first byte we read represents
-        // the lowest 7 bytes, then the next byte is the next highest 7 bytes, etc.
-
-        // Keeps track of the number of bytes that have been read. If we read 10 in a row all with
-        // the leading continuation bit set, then throw a malformed protobuf exception.
-        int numBytesRead = 0;
-        // The final value.
-        long value = 0;
-        // The amount to shift the bits we read by before AND with the value
-        long shift = 0;
-        // The byte to read from the stream
-        int b;
-
-        while ((b = readByte()) != -1) {
-            // Keep track of the number of bytes read
-            numBytesRead++;
-            // Checks whether the continuation bit is set
-            final boolean continuationBitSet = (b & 0b1000_0000) != 0;
-            // Strip off the continuation bit by keeping only the data bits
-            b &= 0b0111_1111;
-            // Shift the data bits left into position to AND with the value
-            final long toBeAdded = (long) b << shift;
-            value |= toBeAdded;
-            // Increment the shift for the next data bits (if there are more bits)
-            shift += 7;
-
-            if (continuationBitSet) {
-                // msb is set, so there is another byte following this one. If we've just read our 10th byte,
-                // then we have a malformed protobuf stream
-                if (numBytesRead == 10) {
-                    throw new IOException("Malformed var int format");
-                }
-            } else {
-                break;
+        long result = 0;
+        for (int shift = 0; shift < 64; shift += 7) {
+            final byte b = readByte();
+            result |= (long) (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                return zigZag ? ((result >>> 1) ^ -(result & 1)) : result;
             }
         }
-        return zigZag ? ((value >>> 1) ^ -(value & 1)) : value;
+        throw new IOException("Malformed Varint");
     }
 }

@@ -31,7 +31,7 @@ public class DataOutputStream  extends FilterOutputStream implements DataOutput 
      */
     @Override
     public long getPosition() {
-        return 0;
+        return position;
     }
 
     /**
@@ -39,7 +39,7 @@ public class DataOutputStream  extends FilterOutputStream implements DataOutput 
      */
     @Override
     public long getLimit() {
-        return 0;
+        return limit;
     }
 
     /**
@@ -47,7 +47,7 @@ public class DataOutputStream  extends FilterOutputStream implements DataOutput 
      */
     @Override
     public void setLimit(long limit) {
-
+        this.limit = limit;
     }
 
     /**
@@ -55,7 +55,7 @@ public class DataOutputStream  extends FilterOutputStream implements DataOutput 
      */
     @Override
     public boolean hasRemaining() {
-        return false;
+        return (limit - position) > 0;
     }
 
     /**

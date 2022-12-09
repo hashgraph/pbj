@@ -56,6 +56,17 @@ public interface DataOutput {
     void writeByte(byte b) throws IOException;
 
     /**
+     * Writes the given unsigned byte at the current position, and then increments the position.
+     *
+     * @param b The unsigned byte in a integer to be written
+     * @throws BufferOverflowException If this buffer's current position is not smaller than its limit
+     * @throws IOException if an I/O error occurs
+     */
+    default void writeUnsignedByte(int b) throws IOException {
+        writeByte((byte)b);
+    }
+
+    /**
      * Write {@code length} bytes from the given array, starting at the given offset in the array and at the current
      * position.  The position is then incremented by {@code length}.
      *
@@ -126,6 +137,47 @@ public interface DataOutput {
         }
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             writeInt(value);
+        } else {
+            writeByte((byte) (value));
+            writeByte((byte) (value >>> 8));
+            writeByte((byte) (value >>> 16));
+            writeByte((byte) (value >>> 24));
+        }
+    }
+
+    /**
+     * Writes four bytes containing the given int value, in the standard Java big-endian byte order, at the current
+     * position, and then increments the position by four.
+     *
+     * @param value The int value to be written
+     * @throws BufferOverflowException If there are fewer than four bytes remaining
+     * @throws IOException if an I/O error occurs
+     */
+    default void writeUnsignedInt(long value) throws IOException {
+        if ((getLimit() - getPosition()) < Integer.BYTES) {
+            throw new BufferUnderflowException();
+        }
+        writeByte((byte)(value >>> 24));
+        writeByte((byte)(value >>> 16));
+        writeByte((byte)(value >>>  8));
+        writeByte((byte)(value));
+    }
+
+    /**
+     * Writes four bytes containing the given int value, in the standard Java big-endian byte order, at the current
+     * position, and then increments the position by four.
+     *
+     * @param value The int value to be written
+     * @param byteOrder the byte order, aka endian to use
+     * @throws BufferOverflowException If there are fewer than four bytes remaining
+     * @throws IOException if an I/O error occurs
+     */
+    default void writeUnsignedInt(long value, ByteOrder byteOrder) throws IOException {
+        if ((getLimit() - getPosition()) < Integer.BYTES) {
+            throw new BufferUnderflowException();
+        }
+        if (byteOrder == ByteOrder.BIG_ENDIAN) {
+            writeUnsignedInt(value);
         } else {
             writeByte((byte) (value));
             writeByte((byte) (value >>> 8));
@@ -255,34 +307,14 @@ public interface DataOutput {
         if (zigZag) {
             value = (value << 1) ^ (value >> 63);
         }
-
-        // Small performance optimization for small values.
-        if (value < 128 && value >= 0) {
-            writeByte((byte) value);
-            return;
+        while (true) {
+            if ((value & ~0x7FL) == 0) {
+                writeByte((byte) value);
+                return;
+            } else {
+                writeByte((byte) (((int) value & 0x7F) | 0x80));
+                value >>>= 7;
+            }
         }
-
-        // We will send 7 bits of data with each byte we write. The high-order bit of
-        // each byte indicates whether there are subsequent bytes coming. So we need
-        // to know how many bytes we need to send. We do this by figuring out the position
-        // of the highest set bit (counting from the left. So the first bit on the far
-        // right is at position 1, the bit at the far left is at position 64).
-        // Then, we calculate how many bytes it will take if we are sending 7 bits at
-        // a time, being careful to round up when not aligned at a 7-bit boundary.
-        int numLeadingZeros = Long.numberOfLeadingZeros(value);
-        int bitPos = 64 - numLeadingZeros;
-        int numBytesToSend = bitPos / 7 + (bitPos % 7 == 0 ? 0 : 1);
-
-        // For all bytes except the last one, we need to mask off the last
-        // 7 bits of the value and combine that with a byte with the leading
-        // bit set. Then we shift the value 7 bits to the right.
-        for (int i = 0; i < numBytesToSend - 1; i++) {
-            writeByte((byte) (0x80 | (0x7F & value)));
-            value >>>= 7;
-        }
-
-        // And now we can send whatever is left as the last byte, knowing that
-        // the high order bit will never be set.
-        writeByte((byte) value);
     }
 }
