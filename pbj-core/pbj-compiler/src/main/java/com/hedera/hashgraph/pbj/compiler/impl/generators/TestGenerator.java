@@ -65,25 +65,34 @@ public final class TestGenerator implements Generator {
 					package %s;
 									
 					import com.google.protobuf.CodedOutputStream;
+					import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
 					import org.junit.jupiter.params.ParameterizedTest;
-					import org.junit.jupiter.params.provider.Arguments;
 					import org.junit.jupiter.params.provider.MethodSource;
-					import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-					import static org.junit.jupiter.api.Assertions.assertEquals;
-					import static com.hedera.hashgraph.pbj.runtime.Utils.*;
 					import com.hedera.hashgraph.pbj.runtime.test.*;
-					import java.io.ByteArrayOutputStream;
-					import java.util.stream.Collectors;
 					import java.util.stream.IntStream;
 					import java.util.stream.Stream;
 					import java.nio.ByteBuffer;
 					%s
+					
+					import static com.hedera.hashgraph.pbj.runtime.ProtoTestTools.*;
+					import static org.junit.jupiter.api.Assertions.assertEquals;
 										
 					/**
 					 * Unit Test for %s model object. Generate based on protobuf schema.
 					 */
 					public final class %s {
 						%s
+						
+						private void assertEqualBuffers(ByteBuffer expected, DataBuffer value) {
+							// move read points back to beginning
+							expected.position(0);
+							value.resetPosition();
+							// compare number of bytes up to limit
+							assertEquals(expected.limit(), value.getLimit());
+							// compare as strings so easy to debug
+							assertEquals(toDebugString(expected), toDebugString(value));
+						}
+	
 						%s
 					}
 					""".formatted(
@@ -212,34 +221,27 @@ public final class TestGenerator implements Generator {
 			case "StringValue" -> Field.FieldType.STRING;
 			case "Int32Value" -> Field.FieldType.INT32;
 			case "UInt32Value" -> Field.FieldType.UINT32;
-			case "SInt32Value" -> Field.FieldType.SINT32;
 			case "Int64Value" -> Field.FieldType.INT64;
 			case "UInt64Value" -> Field.FieldType.UINT64;
-			case "SInt64Value" -> Field.FieldType.SINT64;
 			case "FloatValue" -> Field.FieldType.FLOAT;
 			case "DoubleValue" -> Field.FieldType.DOUBLE;
 			case "BoolValue" -> Field.FieldType.BOOL;
 			case "BytesValue" -> Field.FieldType.BYTES;
-			case "EnumValue" -> Field.FieldType.ENUM;
 			default -> Field.FieldType.MESSAGE;
 		};
 	}
 
 	private static String getOptionsForFieldType(Field.FieldType fieldType, String javaFieldType) {
 		return switch (fieldType) {
-			case INT32, SINT32 -> "List.of(Integer.MIN_VALUE, -42, -21, 0, 21, 42, Integer.MAX_VALUE)";
-			case UINT32 -> "List.of(0, 1, 2, Integer.MAX_VALUE)";
-			case INT64, SINT64 -> "List.of(Long.MIN_VALUE, -42L, -21L, 0L, 21L, 42L, Long.MAX_VALUE)";
-			case UINT64 -> "List.of(0L, 21L, 42L, Long.MAX_VALUE)";
-			case FLOAT, SFIXED32 ->
-					"List.of(Float.NEGATIVE_INFINITY, Float.MIN_VALUE, -102.7f, -5f, 1.7f, 0f, 3f, 5.2f, 42.1f, Float.MAX_VALUE, Float.POSITIVE_INFINITY, Float.NaN)";
-			case FIXED32 -> "List.of(0f, 3f, 5.2f, 42.1f, Float.MAX_VALUE, Float.POSITIVE_INFINITY, Float.NaN)";
-			case DOUBLE, SFIXED64 ->
-					"List.of(Double.NEGATIVE_INFINITY, Double.MIN_VALUE, -102.7, -5, 1.7, 0d, 3, 5.2, 42.1, Double.MAX_VALUE, Double.POSITIVE_INFINITY, Double.NaN)";
-			case FIXED64 -> "List.of(0d, 3, 5.2, 42.1, Double.MAX_VALUE, Double.POSITIVE_INFINITY, Double.NaN)";
-			case BOOL -> "List.of(true, false)";
-			case STRING -> "List.of(\"\", \"Dude\")";
-			case BYTES -> "List.of(ByteBuffer.wrap(new byte[0]).asReadOnlyBuffer(), ByteBuffer.wrap(new byte[]{0b001}).asReadOnlyBuffer(), ByteBuffer.wrap(new byte[]{0b001, 0b010, 0b011}).asReadOnlyBuffer())";
+			case INT32, SINT32, SFIXED32 -> "INTEGER_TESTS_LIST";
+			case UINT32, FIXED32 -> "UNSIGNED_INTEGER_TESTS_LIST";
+			case INT64, SINT64, SFIXED64 -> "LONG_TESTS_LIST";
+			case UINT64, FIXED64 -> "UNSIGNED_LONG_TESTS_LIST";
+			case FLOAT -> "FLOAT_TESTS_LIST";
+			case DOUBLE -> "DOUBLE_TESTS_LIST";
+			case BOOL -> "BOOLEAN_TESTS_LIST";
+			case STRING -> "STRING_TESTS_LIST";
+			case BYTES -> "BYTES_TESTS_LIST";
 			case ENUM -> "Arrays.asList(" + javaFieldType + ".values())";
 			case ONE_OF -> "List.of(null)"; // TODO something more comprehensive
 			case MESSAGE -> javaFieldType + TEST_JAVA_FILE_SUFFIX + ".ARGUMENTS"; // TODO something more comprehensive
@@ -252,35 +254,55 @@ public final class TestGenerator implements Generator {
 		return """
 				@ParameterizedTest
 				@MethodSource("createModelTestArguments")
-				public void test%sAgainstProtoC(final NoToStringWrapper<%s> modelObjWrapper) throws Exception {
-					final var modelObj = modelObjWrapper.getValue();
-					// model to bytes
-					final NonSynchronizedByteArrayOutputStream bout = NonSynchronizedByteArrayOutputStream.getThreadLocalInstance();
-					%s.write(modelObj,bout);
-					// read proto bytes with new parser
-					final %s modelObj2 = %s.parse(bout.getByteBuffer());
+				public void test$modelClassNameAgainstProtoC(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
+					final $modelClassName modelObj = modelObjWrapper.getValue();
+					// get reusable thread buffers
+					final DataBuffer dataBuffer = getThreadLocalDataBuffer();
+					final ByteBuffer byteBuffer = getThreadLocalByteBuffer();
+					
+					// model to bytes with PBJ
+					$writerClassName.write(modelObj,dataBuffer);
+					// clamp limit to bytes written
+					dataBuffer.setLimit(dataBuffer.getPosition());
+					
+					// copy bytes to ByteBuffer
+					dataBuffer.resetPosition();
+					dataBuffer.readBytes(byteBuffer, 0, (int)dataBuffer.getRemaining());
+					byteBuffer.flip();
+					
+					// read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
+					final $protocModelClass protoCModelObj = $protocModelClass.parseFrom(byteBuffer);
+					
+					// read proto bytes with PBJ parser
+					dataBuffer.resetPosition();
+					final $modelClassName modelObj2 = $parserClassName.parse(dataBuffer);
+					
+					// check the read back object is equal to written original one
+					assertEquals(modelObj.toString(), modelObj2.toString());
 					assertEquals(modelObj, modelObj2);
-					// read model with proto and compare bytes
-					final %s protoModelObj2 = %s.parseFrom(bout.getByteBuffer());
-					// write proto model object back out to bytebuffer
-					ByteBuffer buf = bout.getByteBuffer().clear();
-					final CodedOutputStream codedOutput = CodedOutputStream.newInstance(buf);
-					protoModelObj2.writeTo(codedOutput);
-    				codedOutput.flush();
-					// read proto bytes with new parser
-					final %s modelObj3 = %s.parse(buf.flip());
+					
+					// model to bytes with ProtoC writer
+					byteBuffer.clear();
+					final CodedOutputStream codedOutput = CodedOutputStream.newInstance(byteBuffer);
+					protoCModelObj.writeTo(codedOutput);
+					codedOutput.flush();
+					byteBuffer.flip();
+					
+					// compare written bytes
+//					assertEqualBuffers(byteBuffer, dataBuffer);
+
+					// parse those bytes again with PBJ
+					final DataBuffer dataBuffer2 = DataBuffer.wrap(byteBuffer);
+					final $modelClassName modelObj3 = $parserClassName.parse(dataBuffer2);
 					assertEquals(modelObj, modelObj3);
+					
 				}
-				""".formatted(
-				modelClassName,
-				modelClassName,
-				writerClassName,
-				modelClassName,
-				parserClassName,
-				protoCJavaFullQualifiedClass,
-				protoCJavaFullQualifiedClass,
-				modelClassName,
-				parserClassName
-		);
+				"""
+				.replace("$modelClassName",modelClassName)
+				.replace("$writerClassName",writerClassName)
+				.replace("$parserClassName",parserClassName)
+				.replace("$protocModelClass",protoCJavaFullQualifiedClass)
+				.replace("$modelClassName",modelClassName)
+		;
 	}
 }

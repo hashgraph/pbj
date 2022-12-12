@@ -1,4 +1,4 @@
-package com.hedera.hashgraph.pbj.runtime.test;
+package protoparse;
 
 import java.io.OutputStream;
 import java.nio.ByteBuffer;

@@ -2,21 +2,12 @@ package protoparse;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.Timestamp;
-import com.hedera.hapi.node.base.parser.TimestampProtoParser;
-import com.hedera.hapi.node.base.writer.TimestampWriter;
-import com.hedera.hashgraph.pbj.runtime.FieldDefinition;
 import com.hedera.hashgraph.pbj.runtime.MalformedProtobufException;
-import com.hedera.hashgraph.pbj.runtime.ProtoParser;
-import com.hedera.hashgraph.pbj.runtime.test.NonSynchronizedByteArrayOutputStream;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 

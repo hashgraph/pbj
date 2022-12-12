@@ -3,11 +3,16 @@ package com.hedera.hashgraph.pbj.runtime.io;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 /**
  * A Buffer backed by a ByteBuffer that implements {@code DataInput} and {@code DataOutput}.
  */
 public sealed class ReadOnlyDataBuffer implements DataInput permits DataBuffer, ReadOnlyOffHeapDataBuffer {
+
+    /** Single instance of an empty buffer we can use anywhere we need an empty read only buffer */
+    public static final ReadOnlyDataBuffer EMPTY_BUFFER = wrap(ByteBuffer.allocate(0));
 
     /** ByteBuffer used as backing buffer for this DataBuffer */
     protected ByteBuffer buffer;
@@ -37,20 +42,74 @@ public sealed class ReadOnlyDataBuffer implements DataInput permits DataBuffer, 
      * Wrap an existing allocated ByteBuffer into a ReadOnlyDataBuffer. No copy is made.
      *
      * @param buffer the ByteBuffer to wrap
-     * @return new DataBuffer using {@code buffer} as its data buffer
+     * @return new ReadOnlyDataBuffer using {@code buffer} as its data buffer
      */
     public static ReadOnlyDataBuffer wrap(ByteBuffer buffer) {
         return buffer.isDirect() ? new ReadOnlyOffHeapDataBuffer(buffer) : new ReadOnlyDataBuffer(buffer);
     }
 
+    /**
+     * Wrap an existing allocated byte[] into a ReadOnlyDataBuffer. No copy is made.
+     *
+     * @param array the byte[] to wrap
+     * @return new ReadOnlyDataBuffer using {@code array} as its data buffer
+     */
+    public static ReadOnlyDataBuffer wrap(byte[] array) {
+        return new ReadOnlyDataBuffer(ByteBuffer.wrap(array));
+    }
+
     // ================================================================================================================
     // DataBuffer Methods
+
+    private static final byte[] HEX_ARRAY = "0123456789ABCDEF".getBytes(StandardCharsets.US_ASCII);
+
+    @Override
+    public String toString() {
+        // move read points back to beginning
+        buffer.position(0);
+        // build string
+        StringBuilder sb = new StringBuilder();
+        sb.append("ReadOnlyDataBuffer[");
+        for (int i = 0; i < buffer.limit(); i++) {
+            int v = buffer.get(i) & 0xFF;
+            sb.append(HEX_ARRAY[v >>> 4]);
+            sb.append(HEX_ARRAY[v & 0x0F]);
+            if (i < (buffer.limit()-1)) sb.append('.');
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReadOnlyDataBuffer that = (ReadOnlyDataBuffer) o;
+        if (getCapacity() != that.getCapacity()) return false;
+        if (getLimit() != that.getLimit()) return false;
+        for (int i = 0; i < getLimit(); i++) {
+            if (buffer.get(i) != that.buffer.get(i)) return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(buffer);
+    }
 
     /**
      * Reset position to origin and limit to capacity, allowing this buffer to be read or written again
      */
     public void reset() {
         buffer.clear();
+    }
+
+    /**
+     * Reset position to origin and leave limit alone, allowing this buffer to be read again with existing limit
+     */
+    public void resetPosition() {
+        buffer.position(0);
     }
 
     /**

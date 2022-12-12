@@ -9,20 +9,38 @@ public final class NoToStringWrapper<T> {
     private final T value;
     private final String toString;
 
+    /**
+     * Construct new NoToStringWrapper
+     *
+     * @param value the value to wrap
+     */
     public NoToStringWrapper(T value) {
         this.value = Objects.requireNonNull(value);
         this.toString = "NoToStringWrapper{" + value.getClass().getName() + '}';
     }
 
+    /**
+     * Get the wrapped value
+     *
+     * @return the wrapped value
+     */
     public T getValue() {
         return value;
     }
 
+    /**
+     * Simple light weight toString
+     *
+     * @return static simple toString
+     */
     @Override
     public String toString() {
         return toString;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -31,6 +49,9 @@ public final class NoToStringWrapper<T> {
         return value.equals(that.value);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int hashCode() {
         return Objects.hash(value);

@@ -4,7 +4,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.token.parser.AccountDetailsProtoParser;
 import com.hedera.hapi.node.token.writer.AccountDetailsWriter;
 import com.hedera.hashgraph.pbj.runtime.MalformedProtobufException;
-import com.hedera.hashgraph.pbj.runtime.test.NonSynchronizedByteArrayOutputStream;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;

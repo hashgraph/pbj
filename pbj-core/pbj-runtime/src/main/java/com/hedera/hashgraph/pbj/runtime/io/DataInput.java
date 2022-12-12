@@ -2,6 +2,7 @@ package com.hedera.hashgraph.pbj.runtime.io;
 
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
@@ -65,12 +66,48 @@ public interface DataInput extends PositionedData {
      * Read bytes starting at current position into dst array up to the size of {@code }dst} array.
      *
      * @param dst The destination array
-     * @return This buffer
      * @throws BufferUnderflowException If there are fewer than {@code length} bytes remaining in this buffer
      * @throws IOException if an I/O error occurs
      */
     default void readBytes(byte[] dst) throws IOException {
         readBytes(dst, 0, dst.length);
+    }
+
+    /**
+     * Read bytes starting at current position into dst array up to the size of {@code dst} array.
+     *
+     * @param dst The ByteBuffer into which bytes are to be written
+     * @param offset The offset within the {@code dst} array of the first byte to be written; must be non-negative and
+     *                no larger than {@code dst.limit()}
+     * @param length The maximum number of bytes to be written to the given {@code dst} array; must be non-negative and
+     *                no larger than {@code dst.length - offset}
+     * @throws BufferUnderflowException If there are fewer than {@code length} bytes remaining to be read
+     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length} parameters do
+     * not hold
+     * @throws IOException if an I/O error occurs
+     */
+    default void readBytes(ByteBuffer dst, int offset, int length) throws IOException {
+        if ((getLimit() - getPosition()) < length) {
+            throw new BufferUnderflowException();
+        }
+        dst.position(offset);
+        if (offset < 0 || (offset + length) >= dst.remaining()) {
+            throw new IndexOutOfBoundsException();
+        }
+        for (int i = offset; i < (offset+length); i++) {
+            dst.put(readByte());
+        }
+    }
+
+    /**
+     * Read bytes starting at current position into dst array up to remaining bytes in ByteBuffer.
+     *
+     * @param dst The destination ByteBuffer
+     * @throws BufferUnderflowException If there are fewer than {@code dst.remaining()} bytes remaining in this buffer
+     * @throws IOException if an I/O error occurs
+     */
+    default void readBytes(ByteBuffer dst) throws IOException {
+        readBytes(dst, 0, dst.remaining());
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.hedera.hashgraph.pbj.runtime;
 
+import com.hedera.hashgraph.pbj.runtime.io.DataOutputStream;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -363,7 +365,8 @@ public class ProtoOutputStream {
         } else if (message != null) {
             writeTag(field, WIRE_TYPE_DELIMITED);
             final var baos = new ByteArrayOutputStream();
-            writer.write(message, baos);
+            final var dout = new DataOutputStream(baos);
+            writer.write(message, dout);
             writeVarint(baos.size(), false);
             if (baos.size() > 0) {
                 out.write(baos.toByteArray());

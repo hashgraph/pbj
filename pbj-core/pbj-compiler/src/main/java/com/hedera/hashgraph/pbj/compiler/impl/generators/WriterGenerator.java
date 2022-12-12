@@ -56,46 +56,44 @@ public final class WriterGenerator implements Generator {
 		final String fieldWriteLines = generateFieldWriteLines(sortedFields, schemaClassName, imports);
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
-					package %s;
+					package $package;
 									
+					import com.hedera.hashgraph.pbj.runtime.io.DataOutput;
 					import java.io.IOException;
 					import java.io.OutputStream;
-					import com.hedera.hashgraph.pbj.runtime.ProtoOutputStream;
-					%s
-					import static %s.*;
+					$imports
+					import static $schemaClass.*;
+					import static com.hedera.hashgraph.pbj.runtime.ProtoWriterTools.*;
 										
 					/**
-					 * Writer for %s model object. Generate based on protobuf schema.
+					 * Writer for $modelClass model object. Generate based on protobuf schema.
 					 */
-					public final class %s {
+					public final class $writerClass {
 						/**
-						 * Write out a %s model to output stream in protobuf format.
+						 * Write out a $modelClass model to output stream in protobuf format.
 						 *
 						 * @param data The input model data to write
 						 * @param out The output stream to write to
 						 * @throws IOException If there is a problem writing
 						 */
-						public static void write(%s data, OutputStream out) throws IOException {
-							final ProtoOutputStream pout = new ProtoOutputStream(%s::valid,out);
-							%s
+						public static void write($modelClass data, DataOutput out) throws IOException {
+							$fieldWriteLines
 						}
 					}
-					""".formatted(
-						writerPackage,
-						imports.isEmpty() ? "" : imports.stream()
-								.filter(input -> !input.equals(writerPackage))
-								.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
-						lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef),
-						modelClassName,
-						writerClassName,
-						modelClassName,
-						modelClassName,
-						schemaClassName,
-						fieldWriteLines
-					)
-					//  final ProtoOutputStream pout = new ProtoOutputStream(%s::valid, out);
+					"""
+					.replace("$package", writerPackage)
+					.replace("$imports", imports.isEmpty() ? "" : imports.stream()
+							.filter(input -> !input.equals(writerPackage))
+							.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")))
+					.replace("$schemaClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef))
+					.replace("$modelClass", modelClassName)
+					.replace("$writerClass", writerClassName)
+					.replace("$fieldWriteLines", fieldWriteLines)
 			);
 		}
+
+		// TODO add checks back in before each field line if wanted
+		//  assert $schemaClass.valid(field) : "Field " + field + " doesn't belong to the expected schema".
 	}
 
 	private static String generateFieldWriteLines(final List<Field> fields, String schemaClassName,final Set<String> imports) {
@@ -126,48 +124,46 @@ public final class WriterGenerator implements Generator {
 			final String writeMethodName = mapToWriteMethod(field);
 			if(field.optionalValueType()) {
 				return switch (field.messageType()) {
-					case "EnumValue" -> "pout.writeOptionalEnum(%s, %s);"
-							.formatted(fieldDef, getValueCode);
-					case "StringValue" -> "pout.writeOptionalString(%s, %s);"
+					case "StringValue" -> "writeOptionalString(out, %s, %s);"
 							.formatted(fieldDef,getValueCode);
-					case "BoolValue" -> "pout.writeOptionalBoolean(%s, %s);"
+					case "BoolValue" -> "writeOptionalBoolean(out, %s, %s);"
 							.formatted(fieldDef, getValueCode);
-					case "Int32Value","UInt32Value","SInt32Value" -> "pout.writeOptionalInteger(%s, %s);"
+					case "Int32Value","UInt32Value" -> "writeOptionalInteger(out, %s, %s);"
 							.formatted(fieldDef, getValueCode);
-					case "Int64Value","UInt64Value","SInt64Value" -> "pout.writeOptionalLong(%s, %s);"
+					case "Int64Value","UInt64Value" -> "writeOptionalLong(out, %s, %s);"
 							.formatted(fieldDef, getValueCode);
-					case "FloatValue" -> "pout.writeOptionalFloat(%s, %s);"
+					case "FloatValue" -> "writeOptionalFloat(out, %s, %s);"
 							.formatted(fieldDef, getValueCode);
-					case "DoubleValue" -> "pout.writeOptionalDouble(%s, %s);"
+					case "DoubleValue" -> "writeOptionalDouble(out, %s, %s);"
 							.formatted(fieldDef, getValueCode);
-					case "BytesValue" -> "pout.writeOptionalBytes(%s, %s);"
+					case "BytesValue" -> "writeOptionalBytes(out, %s, %s);"
 							.formatted(fieldDef, getValueCode);
 					default -> throw new UnsupportedOperationException("Unhandled optional message type:"+field.messageType());
 				};
 			} else if (field.repeated()) {
 				return switch(field.type()) {
-					case ENUM -> "pout.writeEnumList(%s, %s);"
+					case ENUM -> "writeEnumList(out, %s, %s);"
 							.formatted(fieldDef, getValueCode);
-					case MESSAGE -> "pout.writeMessageList(%s, %s, %s::write);"
+					case MESSAGE -> "writeMessageList(out, %s, %s, %s::write);"
 							.formatted(fieldDef,getValueCode,
 									capitalizeFirstLetter(field.messageType())+ WRITER_JAVA_FILE_SUFFIX
 							);
-					default -> "pout.write%sList(%s, %s);"
+					default -> "write%sList(out, %s, %s);"
 							.formatted(writeMethodName, fieldDef, getValueCode);
 				};
 			} else {
 				return switch(field.type()) {
-					case ENUM -> "pout.writeEnum(%s, %s);"
+					case ENUM -> "writeEnum(out, %s, %s);"
 							.formatted(fieldDef, getValueCode);
-					case STRING -> "pout.writeString(%s, %s);"
+					case STRING -> "writeString(out, %s, %s);"
 							.formatted(fieldDef,getValueCode);
-					case MESSAGE -> "pout.writeMessage(%s, %s, %s::write);"
+					case MESSAGE -> "writeMessage(out, %s, %s, %s::write);"
 							.formatted(fieldDef,getValueCode,
 									capitalizeFirstLetter(field.messageType())+ WRITER_JAVA_FILE_SUFFIX
 							);
-					case BOOL -> "pout.writeBoolean(%s, %s);"
+					case BOOL -> "writeBoolean(out, %s, %s);"
 							.formatted(fieldDef,getValueCode);
-					default -> "pout.write%s(%s, %s);"
+					default -> "write%s(out, %s, %s);"
 							.formatted(writeMethodName, fieldDef, getValueCode);
 				};
 			}
@@ -177,8 +173,8 @@ public final class WriterGenerator implements Generator {
 	private static String mapToWriteMethod(Field field) {
 		return switch(field.type()) {
 			case BOOL -> "Boolean";
-			case INT32, UINT32, SINT32 -> "Integer";
-			case INT64, SINT64, UINT64 -> "Long";
+			case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> "Integer";
+			case INT64, SINT64, UINT64, FIXED64, SFIXED64 -> "Long";
 			case FLOAT -> "Float";
 			case DOUBLE -> "Double";
 			case MESSAGE -> "Message";

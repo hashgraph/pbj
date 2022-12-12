@@ -1,8 +1,9 @@
 package com.hedera.hashgraph.pbj.runtime;
 
+import com.hedera.hashgraph.pbj.runtime.io.DataOutput;
+
 import java.io.IOException;
-import java.io.OutputStream;
 
 public interface ProtoWriter<T> {
-    void write(T obj, OutputStream out) throws IOException;
+    void write(T obj, DataOutput out) throws IOException;
 }

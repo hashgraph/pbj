@@ -52,6 +52,7 @@ public interface PositionedData {
      *
      * @param count number of bytes to skip
      * @return the actual number of bytes skipped.
+     * @throws IOException if an I/O error occurs
      */
     long skip(long count) throws IOException;
 }

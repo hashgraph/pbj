@@ -1,5 +1,7 @@
 package com.hedera.hashgraph.pbj.runtime.io;
 
+import java.io.IOException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -40,6 +42,16 @@ public sealed class DataBuffer extends ReadOnlyDataBuffer implements DataOutput 
     }
 
     /**
+     * Wrap an existing allocated byte[] into a DataBuffer. No copy is made.
+     *
+     * @param array the byte[] to wrap
+     * @return new DataBuffer using {@code array} as its data buffer
+     */
+    public static DataBuffer wrap(byte[] array) {
+        return new DataBuffer(ByteBuffer.wrap(array));
+    }
+
+    /**
      * Allocate a new DataBuffer with new memory, either on or off the Java heap. Off heap has higher cost of
      * allocation and garbage collection but is much faster to read and write to. It should be used for long-lived
      * buffers where performance is critical. On heap is slower for read and writes but cheaper to allocate and garbage
@@ -52,6 +64,17 @@ public sealed class DataBuffer extends ReadOnlyDataBuffer implements DataOutput 
      */
     public static DataBuffer allocate(int size, boolean offHeap) {
         return offHeap ? new OffHeapDataBuffer(size) : new DataBuffer(size);
+    }
+
+    // ================================================================================================================
+    // DataOutput Methods
+
+    /**
+     * Set the limit to current position and position to origin. This is useful when you have just finished writing
+     * into a buffer and want to flip it ready to read back from.
+     */
+    public void flip() {
+       buffer.flip();
     }
 
     // ================================================================================================================
@@ -79,6 +102,19 @@ public sealed class DataBuffer extends ReadOnlyDataBuffer implements DataOutput 
     @Override
     public void writeBytes(byte[] src) {
         buffer.put(src);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void writeBytes(ReadOnlyDataBuffer src) throws IOException {
+        if ((getLimit() - getPosition()) < src.getRemaining()) {
+            System.err.println("Trying to write [" + src.getRemaining() + "] bytes but only [" +
+                    (getLimit() - getPosition()) + "] remaining of [" + getCapacity() + "]");
+            throw new BufferUnderflowException();
+        }
+        buffer.put(src.buffer);
     }
 
     /**

@@ -85,15 +85,12 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				messageType.equals("StringValue") ||
 				messageType.equals("Int32Value") ||
 				messageType.equals("UInt32Value") ||
-				messageType.equals("SInt32Value") ||
 				messageType.equals("Int64Value") ||
 				messageType.equals("UInt64Value") ||
-				messageType.equals("SInt64Value") ||
 				messageType.equals("FloatValue") ||
 				messageType.equals("DoubleValue") ||
 				messageType.equals("BoolValue") ||
-				messageType.equals("BytesValue") ||
-				messageType.equals("enumValue")
+				messageType.equals("BytesValue")
 		);
 	}
 
@@ -117,13 +114,12 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 		};
 		fieldType = switch (fieldType) {
 			case "StringValue" -> "Optional<String>";
-			case "Int32Value", "UInt32Value", "SInt32Value" -> "Optional<Integer>";
-			case "Int64Value", "UInt64Value", "SInt64Value" -> "Optional<Long>";
+			case "Int32Value", "UInt32Value" -> "Optional<Integer>";
+			case "Int64Value", "UInt64Value" -> "Optional<Long>";
 			case "FloatValue" -> "Optional<Float>";
 			case "DoubleValue" -> "Optional<Double>";
 			case "BoolValue" -> "Optional<Boolean>";
-			case "BytesValue" -> "Optional<ByteBuffer>";
-			case "EnumValue" -> "Optional<"+snakeToCamel(messageType, true)+">";
+			case "BytesValue" -> "Optional<ReadOnlyDataBuffer>";
 			default -> fieldType;
 		};
 		if (repeated) {
@@ -153,7 +149,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	public void addAllNeededImports(Set<String> imports, boolean modelImports,boolean parserImports,
 			final boolean writerImports, final boolean testImports) {
 		if (repeated || optionalValueType()) imports.add("java.util");
-		if (type == FieldType.BYTES) imports.add("java.nio");
+		if (type == FieldType.BYTES) imports.add("com.hedera.hashgraph.pbj.runtime.io");
 		if (messageTypeModelPackage != null && modelImports) imports.add(messageTypeModelPackage);
 		if (messageTypeParserPackage != null && parserImports) imports.add(messageTypeParserPackage);
 		if (messageTypeWriterPackage != null && writerImports) imports.add(messageTypeWriterPackage);
@@ -207,15 +203,12 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				case "StringValue" -> "STRING";
 				case "Int32Value" -> "INT32";
 				case "UInt32Value" -> "UINT32";
-				case "SInt32Value" -> "SINT32";
 				case "Int64Value" -> "INT64";
 				case "UInt64Value" -> "UINT64";
-				case "SInt64Value" -> "SINT64";
 				case "FloatValue" -> "FLOAT";
 				case "DoubleValue" -> "DOUBLE";
 				case "BoolValue" -> "BOOL";
 				case "BytesValue" -> "BYTES";
-				case "EnumValue" -> "ENUM";
 				default -> throw new UnsupportedOperationException("Unsupported optional field type found: "+type.javaType+" in "+this);
 			};
 			return "    public static final FieldDefinition %s = new FieldDefinition(\"%s\", FieldType.%s, %s, true, %s, %d);"

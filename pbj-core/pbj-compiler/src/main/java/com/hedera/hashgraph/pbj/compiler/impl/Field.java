@@ -181,15 +181,15 @@ public interface Field {
 		INT64("long", "0", TYPE_VARINT),
 		UINT64("long", "0", TYPE_VARINT),
 		SINT64("long", "0", TYPE_VARINT),
-		FLOAT("long", "0", TYPE_FIXED32),
-		FIXED32("long", "0", TYPE_FIXED32),
-		SFIXED32("long", "0", TYPE_FIXED32),
+		FLOAT("float", "0", TYPE_FIXED32),
+		FIXED32("int", "0", TYPE_FIXED32),
+		SFIXED32("int", "0", TYPE_FIXED32),
 		DOUBLE("double", "0", TYPE_FIXED64),
-		FIXED64("double", "0", TYPE_FIXED64),
-		SFIXED64("double", "0", TYPE_FIXED64),
+		FIXED64("long", "0", TYPE_FIXED64),
+		SFIXED64("long", "0", TYPE_FIXED64),
 		STRING("String", "\"\"", TYPE_LENGTH_DELIMITED),
 		BOOL("boolean", "false", TYPE_VARINT),
-		BYTES("ByteBuffer", "ByteBuffer.allocate(0).asReadOnlyBuffer()", TYPE_LENGTH_DELIMITED),
+		BYTES("ReadOnlyDataBuffer", "ReadOnlyDataBuffer.EMPTY_BUFFER", TYPE_LENGTH_DELIMITED),
 		ONE_OF("OneOf", "null", 0 );// BAD TYPE
 
 		public final String javaType;

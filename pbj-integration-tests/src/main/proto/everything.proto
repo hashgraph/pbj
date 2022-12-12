@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hederahashgraph.api.proto.java.test";
+option java_multiple_files = true;
+
+import "pbj_custom_options.proto";
+option (pbj.java_package) = "com.hederahashgraph.api.proto.pbj.test";
+
+import "timestampTest.proto";
+import "google/protobuf/wrappers.proto";
+
+/**
+ * Example protobuf containing examples of all types
+ */
+message Everything {
+  int32 int32Number = 1;
+  sint32 sint32Number = 2;
+  uint32 uint32Number = 3;
+  fixed32 fixed32Number = 4;
+  sfixed32 sfixed32Number = 5;
+  float floatNumber = 6;
+  int64 int64Number = 7;
+  sint64 sint64Number = 8;
+  uint64 uint64Number = 9;
+  fixed64 fixed64Number = 10;
+  sfixed64 sfixed64Number = 11;
+  double doubleNumber = 12;
+  bool booleanField = 13;
+  Suit enumSuit = 14;
+  TimestampTest subObject = 15;
+  string text = 16;
+  bytes bytesField = 17;
+
+  repeated int32 int32NumberList = 100;
+  repeated sint32 sint32NumberList = 102;
+  repeated uint32 uint32NumberList = 103;
+  repeated fixed32 fixed32NumberList = 104;
+  repeated sfixed32 sfixed32NumberList = 105;
+  repeated float floatNumberList = 106;
+  repeated int64 int64NumberList = 107;
+  repeated sint64 sint64NumberList = 108;
+  repeated uint64 uint64NumberList = 109;
+  repeated fixed64 fixed64NumberList = 110;
+  repeated sfixed64 sfixed64NumberList = 111;
+  repeated double doubleNumberList = 112;
+  repeated bool booleanList = 113;
+  repeated Suit enumSuitList = 114;
+  repeated TimestampTest subObjectList = 115;
+  repeated string textList = 116;
+  repeated bytes bytesExampleList = 117;
+
+  // optional types
+  google.protobuf.Int32Value int32Optional = 1001;
+  google.protobuf.UInt32Value uint32Optional = 1002;
+  google.protobuf.Int64Value int64Optional = 1004;
+  google.protobuf.UInt64Value uint64Optional = 1005;
+  google.protobuf.FloatValue floatOptional = 1007;
+  google.protobuf.DoubleValue doubleOptional = 1008;
+  google.protobuf.BoolValue boolOptional = 1009;
+  google.protobuf.BytesValue bytesOptional = 10010;
+  google.protobuf.StringValue stringOptional = 10011;
+
+  oneof oneofExample {
+    int32 int32NumberOneOf = 100001;
+    sint32 sint32NumberOneOf = 100002;
+    uint32 uint32NumberOneOf = 100003;
+    fixed32 fixed32NumberOneOf = 100004;
+    sfixed32 sfixed32NumberOneOf = 100005;
+    float floatNumberOneOf = 100006;
+    int64 int64NumberOneOf = 100007;
+    sint64 sint64NumberOneOf = 100008;
+    uint64 uint64NumberOneOf = 100009;
+    fixed64 fixed64NumberOneOf = 100010;
+    sfixed64 sfixed64NumberOneOf = 100011;
+    double doubleNumberOneOf = 100012;
+    bool booleanFieldOneOf = 100013;
+    Suit enumSuitOneOf = 100014;
+    TimestampTest subObjectOneOf = 100015;
+    string textOneOf = 100016;
+    bytes bytesFieldOneOf = 100017;
+    // optional types
+    google.protobuf.Int32Value int32OptionalOneOf = 100018;
+    google.protobuf.UInt32Value uint32OptionalOneOf = 100019;
+    google.protobuf.Int64Value int64OptionalOneOf = 100020;
+    google.protobuf.UInt64Value uint64OptionalOneOf = 100021;
+    google.protobuf.FloatValue floatOptionalOneOf = 100022;
+    google.protobuf.DoubleValue doubleOptionalOneOf = 100023;
+    google.protobuf.BoolValue boolOptionalOneOf = 100024;
+    google.protobuf.BytesValue bytesOptionalOneOf = 100025;
+    google.protobuf.StringValue stringOptionalOneOf = 100026;
+  }
+}
+
+enum Suit {
+    ACES = 0;
+    SPADES = 1;
+    CLUBS = 2;
+    DIAMONDS = 3;
+}

@@ -72,7 +72,7 @@ public final class ModelGenerator implements Generator {
 							javaFieldType,
 							oneOfField.nameCamelFirstLower()
 					).replaceAll("\n","\n"+FIELD_INDENT));
-					if ("ByteBuffer".equals(fieldType)) imports.add("java.nio");
+					if ("ReadOnlyDataBuffer".equals(fieldType)) imports.add("com.hedera.hashgraph.pbj.runtime.io");
 					if (field.type() == Field.FieldType.MESSAGE){
 						field.addAllNeededImports(imports, true, false, false, false);
 					}
@@ -232,7 +232,7 @@ public final class ModelGenerator implements Generator {
 				%s;
 		
 				/**
-				 * Create a empty builder
+				 * Create an empty builder
 				 */
 				public Builder() {}
 		

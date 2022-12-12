@@ -76,6 +76,23 @@ public interface DataOutput extends PositionedData {
     }
 
     /**
+     * This method writes the entire content of the given DataBuffer, all bytes between current position and limit. The
+     * position is then incremented by {@code src.getRemaining()}.
+     *
+     * @param src The source DataBuffer to write
+     * @throws BufferOverflowException If there is insufficient space before limit
+     * @throws IOException if an I/O error occurs
+     */
+    default void writeBytes(ReadOnlyDataBuffer src) throws IOException {
+        if ((getLimit() - getPosition()) < src.getRemaining()) {
+            throw new BufferUnderflowException();
+        }
+        while(src.hasRemaining()) {
+            writeByte(src.readByte());
+        }
+    }
+
+    /**
      * Writes four bytes containing the given int value, in the standard Java big-endian byte order, at the current
      * position, and then increments the position by four.
      *

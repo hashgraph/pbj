@@ -5,7 +5,6 @@ import com.google.protobuf.Timestamp;
 import com.hedera.hapi.node.base.parser.TimestampProtoParser;
 import com.hedera.hapi.node.base.writer.TimestampWriter;
 import com.hedera.hashgraph.pbj.runtime.MalformedProtobufException;
-import com.hedera.hashgraph.pbj.runtime.test.NonSynchronizedByteArrayOutputStream;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 

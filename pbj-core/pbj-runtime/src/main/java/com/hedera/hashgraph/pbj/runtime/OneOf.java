@@ -13,6 +13,12 @@ package com.hedera.hashgraph.pbj.runtime;
  * @param <E>      The enum type
  */
 public record OneOf<E>(E kind, Object value) {
+    /**
+     * Construct a new OneOf
+     *
+     * @param kind     An enum representing the kind of data being represented. Must not be null.
+     * @param value    The actual value in the "oneof". May be null.
+     */
     public OneOf {
         if (kind == null) {
             throw new NullPointerException("An enum 'kind' must be supplied");
