@@ -7,7 +7,6 @@ import com.hedera.hapi.node.token.GrantedNftAllowance;
 import com.hedera.hapi.node.token.GrantedTokenAllowance;
 import com.hedera.hashgraph.pbj.runtime.io.Bytes;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Random;
 
