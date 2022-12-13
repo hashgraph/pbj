@@ -4,7 +4,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Timestamp;
 import com.hedera.hapi.node.base.parser.TimestampProtoParser;
 import com.hedera.hapi.node.base.writer.TimestampWriter;
-import com.hedera.hashgraph.pbj.runtime.MalformedProtobufException;
+import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -22,24 +22,27 @@ import java.util.concurrent.TimeUnit;
 public class TimestampBench1000x {
 	private final byte[] protobuf = Timestamp.newBuilder().setNanos(1234).setSeconds(5678L).build().toByteArray();
 	private final ByteBuffer protobufByteBuffer = ByteBuffer.wrap(protobuf);
+	private final DataBuffer protobufDataBuffer = DataBuffer.wrap(protobuf);
 	private final ByteBuffer protobufByteBufferDirect = ByteBuffer
 			.allocateDirect(protobuf.length)
 			.put(protobuf);
 	private final TimestampProtoParser parser = new TimestampProtoParser();
 	private final NonSynchronizedByteArrayOutputStream bout = new NonSynchronizedByteArrayOutputStream();
 
+	private final DataBuffer outDataBuffer = DataBuffer.allocate(protobuf.length, false);
 	@Benchmark
-	public void parsePbjByteBuffer(Blackhole blackhole) throws MalformedProtobufException {
+	public void parsePbjByteBuffer(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
-			blackhole.consume(parser.parse(protobufByteBuffer.clear()));
+			protobufDataBuffer.resetPosition();
+			blackhole.consume(parser.parse(protobufDataBuffer));
 		}
 	}
-	@Benchmark
-	public void parsePbjByteBufferDirect(Blackhole blackhole) throws MalformedProtobufException {
-		for (int i = 0; i < 1000; i++) {
-			blackhole.consume(parser.parse(protobufByteBufferDirect.clear()));
-		}
-	}
+//	@Benchmark
+//	public void parsePbjByteBufferDirect(Blackhole blackhole) throws IOException {
+//		for (int i = 0; i < 1000; i++) {
+//			blackhole.consume(parser.parse(protobufByteBufferDirect.clear()));
+//		}
+//	}
 
 	@Benchmark
 	public void parseProtoCByteArray(Blackhole blackhole) throws InvalidProtocolBufferException {
@@ -63,10 +66,10 @@ public class TimestampBench1000x {
 	@Benchmark
 	public void writePbj(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
-			bout.reset();
+			outDataBuffer.reset();
 			TimestampWriter.write(
-					new com.hedera.hapi.node.base.Timestamp(5678L, 1234), bout);
-			blackhole.consume(bout.toByteArray());
+					new com.hedera.hapi.node.base.Timestamp(5678L, 1234), outDataBuffer);
+			blackhole.consume(outDataBuffer);
 		}
 	}
 

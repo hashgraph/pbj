@@ -5,6 +5,7 @@ import com.hedera.hapi.node.token.AccountDetails;
 import com.hedera.hapi.node.token.GrantedCryptoAllowance;
 import com.hedera.hapi.node.token.GrantedNftAllowance;
 import com.hedera.hapi.node.token.GrantedTokenAllowance;
+import com.hedera.hashgraph.pbj.runtime.io.Bytes;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -127,10 +128,10 @@ public class AccountDetailsPbj {
         return RANDOM.nextLong(0, Integer.MAX_VALUE);
     }
 
-    private static ByteBuffer randomBytes(int size) {
-        ByteBuffer buf = ByteBuffer.allocate(size);
-        RANDOM.nextBytes(buf.array());
-        return buf;
+    private static Bytes randomBytes(int size) {
+        byte[] data = new byte[size];
+        RANDOM.nextBytes(data);
+        return Bytes.wrap(data);
     }
 
     private static String randomHex(int size) {
