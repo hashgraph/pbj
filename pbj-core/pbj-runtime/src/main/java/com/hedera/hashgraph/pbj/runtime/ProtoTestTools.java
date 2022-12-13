@@ -1,7 +1,7 @@
 package com.hedera.hashgraph.pbj.runtime;
 
+import com.hedera.hashgraph.pbj.runtime.io.Bytes;
 import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
-import com.hedera.hashgraph.pbj.runtime.io.ReadOnlyDataBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -9,19 +9,24 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.IntStream;
 
 /**
  * Static tools used by generated test classes
  */
 public final class ProtoTestTools {
 
+    private static final int BUFFER_SIZE = 64*1024*1024;
+
     /** Instance should never be created */
     private ProtoTestTools() {}
 
     /** Thread local set of reusable buffers */
     private static ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS =
-            ThreadLocal.withInitial(() -> DataBuffer.allocate(5*1024*1024, false));
+            ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, true));
+
+    /** Thread local set of reusable buffers, second buffer for each thread */
+    private static ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS_2 =
+            ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, true));
 
     /**
      * Get the thread local instance of DataBuffer, reset and ready to use.
@@ -34,9 +39,20 @@ public final class ProtoTestTools {
         return local;
     }
 
+    /**
+     * Get the second thread local instance of DataBuffer, reset and ready to use.
+     *
+     * @return a DataBuffer that can be reused by current thread
+     */
+    public static DataBuffer getThreadLocalDataBuffer2() {
+        final var local = THREAD_LOCAL_BUFFERS_2.get();
+        local.reset();
+        return local;
+    }
+
     /** Thread local set of reusable buffers */
     private static ThreadLocal<ByteBuffer> THREAD_LOCAL_BYTE_BUFFERS =
-            ThreadLocal.withInitial(() -> ByteBuffer.allocate(5*1024*1024));
+            ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(BUFFER_SIZE));
 
     /**
      * Get the thread local instance of ByteBuffer, reset and ready to use.
@@ -83,51 +99,7 @@ public final class ProtoTestTools {
         );
     }
 
-    /** HEX chars for conversion to HEX */
-    private static final byte[] HEX_ARRAY = "0123456789ABCDEF".getBytes(StandardCharsets.US_ASCII);
-
-    /**
-     * Create a string of hex pairs of the form {@code [AA.BB.7D.9F.B2]}
-     *
-     * @param buffer The buffer to toString
-     * @return Hex debug string
-     */
-    public static String toDebugString(ByteBuffer buffer) {
-        // move read points back to beginning
-        buffer.position(0);
-        // build string
-        StringBuilder sb = new StringBuilder();
-        sb.append('[');
-        while(buffer.hasRemaining()) {
-            int v = buffer.get() & 0xFF;
-            sb.append(HEX_ARRAY[v >>> 4]);
-            sb.append(HEX_ARRAY[v & 0x0F]);
-            if (buffer.hasRemaining()) sb.append('.');
-        }
-        sb.append(']');
-        return sb.toString();
-    }
-
-    /**
-     * Create a string of hex pairs of the form {@code [AA.BB.7D.9F.B2]}
-     *
-     * @param buffer The buffer to toString
-     * @return Hex debug string
-     */
-    public static String toDebugString(DataBuffer buffer) {
-        // move read points back to beginning
-        buffer.resetPosition();
-        // build string
-        StringBuilder sb = new StringBuilder();
-        sb.append('[');
-        while(buffer.hasRemaining()) {
-            int v = buffer.readByte() & 0xFF;
-            sb.append(HEX_ARRAY[v >>> 4]);
-            sb.append(HEX_ARRAY[v & 0x0F]);
-            if (buffer.hasRemaining()) sb.append('.');
-        }
-        sb.append(']');
-        return sb.toString();
+    public void debugPrintBinaryProtobuf(DataBuffer data) {
 
     }
 
@@ -172,9 +144,9 @@ public final class ProtoTestTools {
 //                    That makes calamity of so long life…"""
     );
     /** bytes type test cases */
-    public static final List<ReadOnlyDataBuffer> BYTES_TESTS_LIST = List.of(
-            ReadOnlyDataBuffer.wrap(new byte[0]),
-            ReadOnlyDataBuffer.wrap(new byte[]{0b001}),
-            ReadOnlyDataBuffer.wrap(new byte[]{0b001, 0b010, 0b011, (byte)0xFF, Byte.MIN_VALUE, Byte.MAX_VALUE})
+    public static final List<Bytes> BYTES_TESTS_LIST = List.of(
+            Bytes.wrap(new byte[0]),
+            Bytes.wrap(new byte[]{0b001}),
+            Bytes.wrap(new byte[]{0b001, 0b010, 0b011, (byte)0xFF, Byte.MIN_VALUE, Byte.MAX_VALUE})
     );
 }

@@ -119,7 +119,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 			case "FloatValue" -> "Optional<Float>";
 			case "DoubleValue" -> "Optional<Double>";
 			case "BoolValue" -> "Optional<Boolean>";
-			case "BytesValue" -> "Optional<ReadOnlyDataBuffer>";
+			case "BytesValue" -> "Optional<Bytes>";
 			default -> fieldType;
 		};
 		if (repeated) {

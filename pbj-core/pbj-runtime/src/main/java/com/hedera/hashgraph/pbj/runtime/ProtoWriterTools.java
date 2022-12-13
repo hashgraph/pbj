@@ -1,14 +1,16 @@
 package com.hedera.hashgraph.pbj.runtime;
 
+import com.hedera.hashgraph.pbj.runtime.io.Bytes;
 import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
 import com.hedera.hashgraph.pbj.runtime.io.DataOutput;
-import com.hedera.hashgraph.pbj.runtime.io.ReadOnlyDataBuffer;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 import static com.hedera.hashgraph.pbj.runtime.ProtoConstants.*;
 
@@ -18,10 +20,30 @@ import static com.hedera.hashgraph.pbj.runtime.ProtoConstants.*;
 @SuppressWarnings({"DuplicatedCode", "OptionalUsedAsFieldOrParameterType"})
 public final class ProtoWriterTools {
 
-    static final int TAG_TYPE_BITS = 3;
+    private static final int TAG_TYPE_BITS = 3;
 
     /** Instance should never be created */
     private ProtoWriterTools() {}
+
+    // ================================================================================================================
+    // BUFFER CACHE
+
+    private static ConcurrentLinkedDeque<DataBuffer> BUFFER_CACHE = new ConcurrentLinkedDeque<>();
+
+    private static DataBuffer checkoutBuffer() {
+        try {
+            DataBuffer buffer =  BUFFER_CACHE.removeFirst();
+            buffer.reset();
+            return buffer;
+        } catch (NoSuchElementException e) {
+            return DataBuffer.allocate(12*1024*1024,false);
+        }
+    }
+    
+    private static void returnBuffer(DataBuffer buffer) {
+        BUFFER_CACHE.add(buffer);
+    }
+    
 
     // ================================================================================================================
     // COMMON METHODS
@@ -44,7 +66,7 @@ public final class ProtoWriterTools {
         if (value != null && value.isPresent()) {
             // TODO this will work for now could be more optimal
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var buffer = DataBuffer.allocate(16*1024, false);
+            final var buffer = checkoutBuffer();
             writeInteger(buffer,
                     new FieldDefinition("value",field.type(),false,1),
                     value.get());
@@ -53,13 +75,14 @@ public final class ProtoWriterTools {
             if (buffer.getRemaining() > 0) {
                 out.writeBytes(buffer);
             }
+            returnBuffer(buffer);
         }
     }
     public static void writeOptionalLong(DataOutput out, FieldDefinition field, Optional<Long> value) throws IOException {
         if (value != null && value.isPresent()) {
             // TODO this will work for now could be more optimal
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var buffer = DataBuffer.allocate(16*1024, false);
+            final var buffer = checkoutBuffer();
             writeLong(buffer,
                     new FieldDefinition("value",field.type(),false,1),
                     value.get());
@@ -68,13 +91,14 @@ public final class ProtoWriterTools {
             if (buffer.getRemaining() > 0) {
                 out.writeBytes(buffer);
             }
+            returnBuffer(buffer);
         }
     }
     public static void writeOptionalFloat(DataOutput out, FieldDefinition field, Optional<Float> value) throws IOException {
         if (value != null && value.isPresent()) {
             // TODO this will work for now could be more optimal
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var buffer = DataBuffer.allocate(16*1024, false);
+            final var buffer = checkoutBuffer();
             writeFloat(buffer,
                     new FieldDefinition("value",field.type(),false,1),
                     value.get());
@@ -83,13 +107,14 @@ public final class ProtoWriterTools {
             if (buffer.getRemaining() > 0) {
                 out.writeBytes(buffer);
             }
+            returnBuffer(buffer);
         }
     }
     public static void writeOptionalDouble(DataOutput out, FieldDefinition field, Optional<Double> value) throws IOException {
         if (value != null && value.isPresent()) {
             // TODO this will work for now could be more optimal
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var buffer = DataBuffer.allocate(16*1024, false);
+            final var buffer = checkoutBuffer();
             writeDouble(buffer,
                     new FieldDefinition("value",field.type(),false,1),
                     value.get());
@@ -98,13 +123,14 @@ public final class ProtoWriterTools {
             if (buffer.getRemaining() > 0) {
                 out.writeBytes(buffer);
             }
+            returnBuffer(buffer);
         }
     }
     public static void writeOptionalBoolean(DataOutput out, FieldDefinition field, Optional<Boolean> value) throws IOException {
         if (value != null && value.isPresent()) {
             // TODO this will work for now could be more optimal
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var buffer = DataBuffer.allocate(16*1024, false);
+            final var buffer = checkoutBuffer();
             writeBoolean(buffer,
                     new FieldDefinition("value",field.type(),false,1),
                     value.get());
@@ -113,13 +139,14 @@ public final class ProtoWriterTools {
             if (buffer.getRemaining() > 0) {
                 out.writeBytes(buffer);
             }
+            returnBuffer(buffer);
         }
     }
     public static void writeOptionalString(DataOutput out, FieldDefinition field, Optional<String> value) throws IOException {
         if (value != null && value.isPresent()) {
             // TODO this will work for now could be more optimal
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var buffer = DataBuffer.allocate(16*1024, false);
+            final var buffer = checkoutBuffer();
             writeString(buffer,
                     new FieldDefinition("value",field.type(),false,1),
                     value.get());
@@ -128,14 +155,15 @@ public final class ProtoWriterTools {
             if (buffer.getRemaining() > 0) {
                 out.writeBytes(buffer);
             }
+            returnBuffer(buffer);
         }
     }
 
-    public static void writeOptionalBytes(DataOutput out, FieldDefinition field, Optional<ReadOnlyDataBuffer> value) throws IOException {
+    public static void writeOptionalBytes(DataOutput out, FieldDefinition field, Optional<Bytes> value) throws IOException {
         if (value != null && value.isPresent()) {
             // TODO this will work for now could be more optimal
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var buffer = DataBuffer.allocate(16*1024, false);
+            final var buffer = checkoutBuffer();
             writeBytes(buffer,
                     new FieldDefinition("value",field.type(),false,1),
                     value.get());
@@ -144,6 +172,7 @@ public final class ProtoWriterTools {
             if (buffer.getRemaining() > 0) {
                 out.writeBytes(buffer);
             }
+            returnBuffer(buffer);
         }
     }
 
@@ -268,10 +297,10 @@ public final class ProtoWriterTools {
     public static void writeString(DataOutput out, FieldDefinition field, String value) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert !field.repeated() : "Use writeStringList with repeated types";
-        _writeString(out, field, value);
+        writeStringNoTag(out, field, value);
     }
 
-    private static void _writeString(DataOutput out, FieldDefinition field, String value) throws IOException {
+    private static void writeStringNoTag(DataOutput out, FieldDefinition field, String value) throws IOException {
         // When not a oneOf don't write default value
         if (!field.oneOf() && (value == null || value.isBlank())) {
             return;
@@ -283,33 +312,37 @@ public final class ProtoWriterTools {
         out.writeBytes(bytes);
     }
 
-    public static void writeBytes(DataOutput out, FieldDefinition field, ReadOnlyDataBuffer value) throws IOException {
+    public static void writeBytes(DataOutput out, FieldDefinition field, Bytes value) throws IOException {
         assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert !field.repeated() : "Use writeBytesList with repeated types";
-        value.reset();
-        _writeBytes(out, field, value, true);
+        writeBytes(out, field, value, true);
     }
 
     /**
      * @param skipZeroLength this is true for normal single bytes and false for repeated lists
      */
-    private static void _writeBytes(DataOutput out, FieldDefinition field, ReadOnlyDataBuffer value, boolean skipZeroLength) throws IOException {
+    private static void writeBytes(DataOutput out, FieldDefinition field, Bytes value, boolean skipZeroLength) throws IOException {
         // When not a oneOf don't write default value
-        if (!field.oneOf() && (skipZeroLength && !value.hasRemaining())) {
+        if (!field.oneOf() && (skipZeroLength && (value.getLength() == 0))) {
             return;
         }
         writeTag(out, field, WIRE_TYPE_DELIMITED);
-        out.writeVarInt((int)value.getRemaining(), false);
+        out.writeVarInt(value.getLength(), false);
+        final long posBefore = out.getPosition();
         out.writeBytes(value);
+        final long bytesWritten = out.getPosition() - posBefore;
+        if (bytesWritten != value.getLength()) {
+            throw new IOException("Wrote less bytes [" + bytesWritten + "] than expected [" + value.getLength() + "]");
+        }
     }
 
     public static <T> void writeMessage(DataOutput out, FieldDefinition field, T message, ProtoWriter<T> writer) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert !field.repeated() : "Use writeMessageList with repeated types";
-        _writeMessage(out, field, message, writer);
+        writeMessageNoTag(out, field, message, writer);
     }
 
-    private static <T> void _writeMessage(DataOutput out, FieldDefinition field, T message, ProtoWriter<T> writer) throws IOException {
+    private static <T> void writeMessageNoTag(DataOutput out, FieldDefinition field, T message, ProtoWriter<T> writer) throws IOException {
         // When not a oneOf don't write default value
         if (field.oneOf() && message == null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
@@ -317,7 +350,7 @@ public final class ProtoWriterTools {
         } else if (message != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             // TODO need size estimation for performance
-            final var buffer = DataBuffer.allocate(5*1024*1024, false);
+            final var buffer = checkoutBuffer();
             writer.write(message, buffer);
             buffer.flip();
 
@@ -325,6 +358,7 @@ public final class ProtoWriterTools {
             if (buffer.getRemaining() > 0) {
                 out.writeBytes(buffer);
             }
+            returnBuffer(buffer);
         }
     }
 
@@ -340,7 +374,7 @@ public final class ProtoWriterTools {
             return;
         }
 
-        final var buffer = DataBuffer.allocate(16*1024, false);
+        final var buffer = checkoutBuffer();
         switch (field.type()) {
             case INT32 -> {
                 writeTag(out, field, WIRE_TYPE_DELIMITED);
@@ -385,6 +419,7 @@ public final class ProtoWriterTools {
                     throw new RuntimeException(
                             "Unsupported field type for integer. Bug in ProtoOutputStream, shouldn't happen.");
         }
+        returnBuffer(buffer);
     }
 
     public static void writeLongList(DataOutput out, FieldDefinition field, List<Long> list) throws IOException {
@@ -399,7 +434,7 @@ public final class ProtoWriterTools {
             return;
         }
 
-        final var buffer = DataBuffer.allocate(16*1024, false);
+        final var buffer = checkoutBuffer();
         switch (field.type()) {
             case INT64, UINT64 -> {
                 writeTag(out, field, WIRE_TYPE_DELIMITED);
@@ -434,6 +469,7 @@ public final class ProtoWriterTools {
                     throw new RuntimeException(
                             "Unsupported field type for integer. Bug in ProtoOutputStream, shouldn't happen.");
         }
+        returnBuffer(buffer);
     }
     public static void writeFloatList(DataOutput out, FieldDefinition field, List<Float> list) throws IOException {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
@@ -446,7 +482,7 @@ public final class ProtoWriterTools {
 
         writeTag(out, field, WIRE_TYPE_DELIMITED);
 
-        final var buffer = DataBuffer.allocate(16*1024, false);
+        final var buffer = checkoutBuffer();
         for (final Float i : list) {
             buffer.writeFloat(i, ByteOrder.LITTLE_ENDIAN);
         }
@@ -454,6 +490,7 @@ public final class ProtoWriterTools {
 
         out.writeVarInt((int)buffer.getRemaining(), false);
         out.writeBytes(buffer);
+        returnBuffer(buffer);
     }
 
     public static void writeDoubleList(DataOutput out, FieldDefinition field, List<Double> list) throws IOException {
@@ -467,7 +504,7 @@ public final class ProtoWriterTools {
 
         writeTag(out, field, WIRE_TYPE_DELIMITED);
 
-        final var buffer = DataBuffer.allocate(16*1024, false);
+        final var buffer = checkoutBuffer();
         for (final Double i : list) {
             buffer.writeDouble(i, ByteOrder.LITTLE_ENDIAN);
         }
@@ -475,6 +512,7 @@ public final class ProtoWriterTools {
 
         out.writeVarInt((int)buffer.getRemaining(), false);
         out.writeBytes(buffer);
+        returnBuffer(buffer);
     }
 
     public static void writeBooleanList(DataOutput out, FieldDefinition field, List<Boolean> list) throws IOException {
@@ -488,7 +526,7 @@ public final class ProtoWriterTools {
 
         writeTag(out, field, WIRE_TYPE_DELIMITED);
 
-        final var buffer = DataBuffer.allocate(16*1024, false);
+        final var buffer = checkoutBuffer();
         for (final boolean b : list) {
             buffer.writeVarInt(b ? 1 : 0, false);
         }
@@ -496,6 +534,7 @@ public final class ProtoWriterTools {
 
         out.writeVarInt((int)buffer.getRemaining(), false);
         out.writeBytes(buffer);
+        returnBuffer(buffer);
     }
 
     public static void writeEnumList(DataOutput out, FieldDefinition field, List<? extends EnumWithProtoOrdinal> list) throws IOException {
@@ -509,7 +548,7 @@ public final class ProtoWriterTools {
 
         writeTag(out, field, WIRE_TYPE_DELIMITED);
 
-        final var buffer = DataBuffer.allocate(16*1024, false);
+        final var buffer = checkoutBuffer();
         for (final EnumWithProtoOrdinal enumValue : list) {
             buffer.writeVarInt(enumValue.protoOrdinal(), false);
         }
@@ -517,6 +556,7 @@ public final class ProtoWriterTools {
 
         out.writeVarInt((int)buffer.getRemaining(), false);
         out.writeBytes(buffer);
+        returnBuffer(buffer);
     }
 
     public static void writeStringList(DataOutput out, FieldDefinition field, List<String> list) throws IOException {
@@ -546,19 +586,19 @@ public final class ProtoWriterTools {
         }
 
         for (final T value : list) {
-            _writeMessage(out, field, value, writer);
+            writeMessageNoTag(out, field, value, writer);
         }
     }
 
-    public static void writeBytesList(DataOutput out, FieldDefinition field, List<ReadOnlyDataBuffer> list) throws IOException {
+    public static void writeBytesList(DataOutput out, FieldDefinition field, List<Bytes> list) throws IOException {
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) {
             return;
         }
 
-        for (final ReadOnlyDataBuffer value : list) {
+        for (final Bytes value : list) {
             // TODO be nice to avoid copy here but not sure how, could reuse byte[] if _writeBytes supported length to read from byte[]
-            _writeBytes(out, field, value, false);
+            writeBytes(out, field, value, false);
         }
     }
 }

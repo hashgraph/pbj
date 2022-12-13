@@ -189,7 +189,7 @@ public interface Field {
 		SFIXED64("long", "0", TYPE_FIXED64),
 		STRING("String", "\"\"", TYPE_LENGTH_DELIMITED),
 		BOOL("boolean", "false", TYPE_VARINT),
-		BYTES("ReadOnlyDataBuffer", "ReadOnlyDataBuffer.EMPTY_BUFFER", TYPE_LENGTH_DELIMITED),
+		BYTES("Bytes", "Bytes.EMPTY_BYTES", TYPE_LENGTH_DELIMITED),
 		ONE_OF("OneOf", "null", 0 );// BAD TYPE
 
 		public final String javaType;

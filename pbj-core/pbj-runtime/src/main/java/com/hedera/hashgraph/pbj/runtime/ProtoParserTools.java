@@ -1,7 +1,7 @@
 package com.hedera.hashgraph.pbj.runtime;
 
+import com.hedera.hashgraph.pbj.runtime.io.Bytes;
 import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
-import com.hedera.hashgraph.pbj.runtime.io.ReadOnlyDataBuffer;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -117,9 +117,9 @@ public final class ProtoParserTools {
         return new String(bytes,StandardCharsets.UTF_8);
     }
 
-    public static ReadOnlyDataBuffer readBytes(final DataBuffer buf) throws IOException {
+    public static Bytes readBytes(final DataBuffer buf) throws IOException {
         final int length = buf.readVarInt(false);
-        return buf.readDataBuffer(length);
+        return buf.readBytes(length);
     }
 
     public static void skipField(final DataBuffer buf, final int wireType) throws IOException {

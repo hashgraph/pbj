@@ -322,6 +322,23 @@ public class DataTest {
         db.reset();
         T readValue3 = dataBufferReadMethod.read(db);
         assertEquals(value, readValue3);
+        // read into Bytes and check all data is valid
+        db.reset();
+        final Bytes readBytes = db.readBytes(writtenData.length);
+        for (int i = 0; i < writtenData.length; i++) {
+            assertEquals(writtenData[i], readBytes.getByte(i));
+        }
+        // read subset into Bytes and check all data is valid
+        if (writtenData.length > 3) {
+            db.reset();
+            // read 1 byte, so we are doing a starting not at 0
+            db.readByte();
+            // read length -2 so subset
+            final Bytes readBytes2 = db.readBytes(writtenData.length-2);
+            for (int i = 0; i < writtenData.length - 2; i++) {
+                assertEquals(writtenData[i+1], readBytes2.getByte(i));
+            }
+        }
     }
 
     public interface IoWrite<T, U> {

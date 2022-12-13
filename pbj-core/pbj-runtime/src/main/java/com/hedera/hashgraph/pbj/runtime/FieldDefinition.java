@@ -19,7 +19,7 @@ package com.hedera.hashgraph.pbj.runtime;
  * @param name     The name of the field as contained in the schema. Cannot be null.
  * @param type     The type of the field as contained in the schema. Cannot be null.
  * @param repeated Whether this is a "repeated" field
- * @param optional Whether this is a "optional" field - which uses Protobuf built in value types to wrap raw value
+ * @param optional Whether this is an "optional" field - which uses Protobuf built in value types to wrap raw value
  * @param oneOf    Whether this is a field is part of a oneOf
  * @param number   The field number. Must be &gt;= 0.
  */

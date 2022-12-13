@@ -264,7 +264,7 @@ public final class ParserGenerator implements Generator {
 								case "FloatValue" -> "Optional.of(0f)";
 								case "DoubleValue" -> "Optional.of(0d)";
 								case "BoolValue" -> "Optional.of(false)";
-								case "BytesValue" -> "Optional.of(ReadOnlyDataBuffer.EMPTY_BUFFER)";
+								case "BytesValue" -> "Optional.of(Bytes.EMPTY_BYTES)";
 								case "StringValue" -> "Optional.of(\"\")";
 								default -> throw new PbjCompilerException("Unexpected and unknown field type " + field.type() + " cannot be parsed");
 							})

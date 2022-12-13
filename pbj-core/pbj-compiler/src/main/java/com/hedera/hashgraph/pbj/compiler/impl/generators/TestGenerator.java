@@ -62,40 +62,33 @@ public final class TestGenerator implements Generator {
 		imports.add("java.util");
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
-					package %s;
-									
-					import com.google.protobuf.CodedOutputStream;
-					import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
-					import org.junit.jupiter.params.ParameterizedTest;
-					import org.junit.jupiter.params.provider.MethodSource;
-					import com.hedera.hashgraph.pbj.runtime.test.*;
-					import java.util.stream.IntStream;
-					import java.util.stream.Stream;
-					import java.nio.ByteBuffer;
-					%s
-					
-					import static com.hedera.hashgraph.pbj.runtime.ProtoTestTools.*;
-					import static org.junit.jupiter.api.Assertions.assertEquals;
-										
-					/**
-					 * Unit Test for %s model object. Generate based on protobuf schema.
-					 */
-					public final class %s {
-						%s
-						
-						private void assertEqualBuffers(ByteBuffer expected, DataBuffer value) {
-							// move read points back to beginning
-							expected.position(0);
-							value.resetPosition();
-							// compare number of bytes up to limit
-							assertEquals(expected.limit(), value.getLimit());
-							// compare as strings so easy to debug
-							assertEquals(toDebugString(expected), toDebugString(value));
-						}
-	
-						%s
-					}
-					""".formatted(
+							package %s;
+											
+							import com.google.protobuf.CodedOutputStream;
+							import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
+							import org.junit.jupiter.params.ParameterizedTest;
+							import org.junit.jupiter.params.provider.MethodSource;
+							import com.hedera.hashgraph.pbj.runtime.test.*;
+							import java.util.stream.IntStream;
+							import java.util.stream.Stream;
+							import java.nio.ByteBuffer;
+							%s
+														
+							import com.google.protobuf.CodedInputStream;
+							import com.google.protobuf.WireFormat;
+							import java.io.IOException;
+												
+							import static com.hedera.hashgraph.pbj.runtime.ProtoTestTools.*;
+							import static org.junit.jupiter.api.Assertions.assertEquals;
+												
+							/**
+							 * Unit Test for %s model object. Generate based on protobuf schema.
+							 */
+							public final class %s {
+								%s
+								%s
+							}
+							""".formatted(
 							testPackage,
 						imports.isEmpty() ? "" : imports.stream()
 								.filter(input -> !input.equals(testPackage))
@@ -258,6 +251,7 @@ public final class TestGenerator implements Generator {
 					final $modelClassName modelObj = modelObjWrapper.getValue();
 					// get reusable thread buffers
 					final DataBuffer dataBuffer = getThreadLocalDataBuffer();
+					final DataBuffer dataBuffer2 = getThreadLocalDataBuffer2();
 					final ByteBuffer byteBuffer = getThreadLocalByteBuffer();
 					
 					// model to bytes with PBJ
@@ -278,7 +272,7 @@ public final class TestGenerator implements Generator {
 					final $modelClassName modelObj2 = $parserClassName.parse(dataBuffer);
 					
 					// check the read back object is equal to written original one
-					assertEquals(modelObj.toString(), modelObj2.toString());
+					//assertEquals(modelObj.toString(), modelObj2.toString());
 					assertEquals(modelObj, modelObj2);
 					
 					// model to bytes with ProtoC writer
@@ -287,15 +281,17 @@ public final class TestGenerator implements Generator {
 					protoCModelObj.writeTo(codedOutput);
 					codedOutput.flush();
 					byteBuffer.flip();
+					// copy to a data buffer
+					dataBuffer2.writeBytes(byteBuffer);
+					dataBuffer2.flip();
 					
 					// compare written bytes
-//					assertEqualBuffers(byteBuffer, dataBuffer);
+					assertEquals(dataBuffer, dataBuffer2);
 
 					// parse those bytes again with PBJ
-					final DataBuffer dataBuffer2 = DataBuffer.wrap(byteBuffer);
+					dataBuffer2.resetPosition();
 					final $modelClassName modelObj3 = $parserClassName.parse(dataBuffer2);
 					assertEquals(modelObj, modelObj3);
-					
 				}
 				"""
 				.replace("$modelClassName",modelClassName)

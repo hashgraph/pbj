@@ -3,6 +3,7 @@ package com.hedera.hashgraph.pbj.runtime.io;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
@@ -76,6 +77,8 @@ public interface DataOutput extends PositionedData {
     }
 
     /**
+     * TODO maybe not needed ?
+     *
      * This method writes the entire content of the given DataBuffer, all bytes between current position and limit. The
      * position is then incremented by {@code src.getRemaining()}.
      *
@@ -83,12 +86,46 @@ public interface DataOutput extends PositionedData {
      * @throws BufferOverflowException If there is insufficient space before limit
      * @throws IOException if an I/O error occurs
      */
-    default void writeBytes(ReadOnlyDataBuffer src) throws IOException {
+    default void writeBytes(DataBuffer src) throws IOException {
         if ((getLimit() - getPosition()) < src.getRemaining()) {
             throw new BufferUnderflowException();
         }
         while(src.hasRemaining()) {
             writeByte(src.readByte());
+        }
+    }
+
+    /**
+     * This method writes the entire content of the given ByteBuffer, all bytes between its current position and limit.
+     * Our position is then incremented by number of read bytes.
+     *
+     * @param src The source ByteBuffer to write, its position and limit is expected to be set correctly
+     * @throws BufferOverflowException If there is insufficient space before limit
+     * @throws IOException if an I/O error occurs
+     */
+    default void writeBytes(ByteBuffer src) throws IOException {
+        if ((getLimit() - getPosition()) < src.remaining()) {
+            throw new BufferUnderflowException();
+        }
+        while(src.hasRemaining()) {
+            writeByte(src.get());
+        }
+    }
+
+    /**
+     * This method writes the entire content of the given Bytes. The
+     * position is then incremented by {@code src.getLength()}.
+     *
+     * @param src The source DataBuffer to write
+     * @throws BufferOverflowException If there is insufficient space before limit
+     * @throws IOException if an I/O error occurs
+     */
+    default void writeBytes(Bytes src) throws IOException {
+        if ((getLimit() - getPosition()) < src.getLength()) {
+            throw new BufferUnderflowException();
+        }
+        for (int i = 0; i < src.getLength(); i++) {
+            writeByte(src.getByte(i));
         }
     }
 
