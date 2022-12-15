@@ -20,9 +20,9 @@ import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("unused")
 @State(Scope.Benchmark)
-@Fork(0)
+@Fork(1)
 @Warmup(iterations = 1, time = 2)
-@Measurement(iterations = 6, time = 5)
+@Measurement(iterations = 5, time = 3)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
 public class AccountDetailsBench {
@@ -36,12 +36,10 @@ public class AccountDetailsBench {
 	private final DataBuffer protobufDataBuffer;
 	private final ByteBuffer protobufByteBufferDirect;
 	private final DataBuffer protobufDataBufferDirect;
-	private NonSynchronizedByteArrayInputStream bin;
-	private DataInputStream din;
+	private final NonSynchronizedByteArrayInputStream bin;
 
 	// output buffers
 	private final NonSynchronizedByteArrayOutputStream bout;
-	private final DataOutputStream dout;
 	private final DataBuffer outDataBuffer;
 	private final DataBuffer outDataBufferDirect;
 	private final ByteBuffer bbout;
@@ -68,10 +66,10 @@ public class AccountDetailsBench {
 			System.out.println("protobufByteBufferDirect = " + protobufByteBufferDirect);
 			protobufDataBufferDirect = DataBuffer.wrap(protobufByteBufferDirect);
 			bin = new NonSynchronizedByteArrayInputStream(protobuf);
-			din = new DataInputStream(bin);
+			DataInputStream din = new DataInputStream(bin);
 			// output buffers
 			bout = new NonSynchronizedByteArrayOutputStream();
-			dout = new DataOutputStream(bout);
+			DataOutputStream dout = new DataOutputStream(bout);
 			outDataBuffer = DataBuffer.allocate(protobuf.length, false);
 			outDataBufferDirect = DataBuffer.allocate(protobuf.length, true);
 			bbout = ByteBuffer.allocate(protobuf.length);
@@ -192,49 +190,4 @@ public class AccountDetailsBench {
 			blackhole.consume(bout.toByteArray());
 		}
 	}
-
-//
-//	@Benchmark
-//	public void parsePbjByteBuffer(Blackhole blackhole) throws IOException {
-//		for (int i = 0; i < 1000; i++) {
-//			PROTOBUF_DATA_BUFFER.resetPosition();
-//			blackhole.consume(parser.parse(PROTOBUF_DATA_BUFFER));
-//		}
-//	}
-////	@Benchmark
-////	public void parsePbjByteBufferDirect(Blackhole blackhole) throws IOException {
-////		for (int i = 0; i < 1000; i++) {
-////			PROTOBUF_DATA_BUFFER.resetPosition();
-////			blackhole.consume(parser.parse(PROTOBUF_DATA_BUFFER.clear()));
-////		}
-////	}
-//
-//	@Benchmark
-//	public void parseProtoC(Blackhole blackhole) throws InvalidProtocolBufferException {
-//		for (int i = 0; i < 1000; i++) {
-//			blackhole.consume(GetAccountDetailsResponse.AccountDetails.parseFrom(PROTOBUF_BYTE_BUFFER));
-//		}
-//	}
-//	@Benchmark
-//	public void parseProtoCByteBufferDirect(Blackhole blackhole) throws InvalidProtocolBufferException {
-//		for (int i = 0; i < 1000; i++) {
-//			blackhole.consume(GetAccountDetailsResponse.AccountDetails.parseFrom(PROTOBUF_BYTE_BUFFER_DIRECT));
-//		}
-//	}
-//
-//	@Benchmark
-//	public void writePbj(Blackhole blackhole) throws IOException {
-//		for (int i = 0; i < 1000; i++) {
-//			OUT_DATA_BUFFER.reset();
-//			AccountDetailsWriter.write(ACCOUNT_DETAILS_PBJ, OUT_DATA_BUFFER);
-//			blackhole.consume(OUT_DATA_BUFFER);
-//		}
-//	}
-//
-//	@Benchmark
-//	public void writeProtoC(Blackhole blackhole) {
-//		for (int i = 0; i < 1000; i++) {
-//			blackhole.consume(ACCOUNT_DETAILS_PROTOC.toByteArray());
-//		}
-//	}
 }

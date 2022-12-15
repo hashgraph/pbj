@@ -60,7 +60,7 @@ tasks.withType<Test> {
 }
 
 jmh {
-//    includes.add("AccountDetailsBench.writePbjByteBuffer")
+    includes.add("AccountDetailsBench")
     jmhVersion.set("1.35")
     includeTests.set(true)
     // 100 = 682846.464

@@ -36,79 +36,15 @@ public final class ProtoWriterTools {
      * @param wireType The field wire type to include in tag
      * @throws IOException if an I/O error occurs
      */
-    public static void writeTag(final DataOutput out, final FieldDefinition field, final int wireType) throws IOException {
+    private static void writeTag(final DataOutput out, final FieldDefinition field, final int wireType) throws IOException {
         out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType, false);
     }
 
+    /** Create a unsupported field type exception */
     private static RuntimeException unsupported() {
         return new RuntimeException("Unsupported field type. Bug in ProtoOutputStream, shouldn't happen.");
     }
 
-    // ================================================================================================================
-    // OPTIONAL VERSIONS OF WRITE METHODS
-
-    public static void writeOptionalInteger(DataOutput out, FieldDefinition field, Optional<Integer> value) throws IOException {
-        if (value != null && value.isPresent()) {
-            writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfInteger(newField, value.get()), false);
-            writeInteger(out,newField,value.get());
-        }
-    }
-
-    public static void writeOptionalLong(DataOutput out, FieldDefinition field, Optional<Long> value) throws IOException {
-        if (value != null && value.isPresent()) {
-            writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfLong(newField, value.get()), false);
-            writeLong(out,newField,value.get());
-        }
-    }
-
-    public static void writeOptionalFloat(DataOutput out, FieldDefinition field, Optional<Float> value) throws IOException {
-        if (value != null && value.isPresent()) {
-            writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfFloat(newField, value.get()), false);
-            writeFloat(out,newField,value.get());
-        }
-    }
-    public static void writeOptionalDouble(DataOutput out, FieldDefinition field, Optional<Double> value) throws IOException {
-        if (value != null && value.isPresent()) {
-            writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfDouble(newField, value.get()), false);
-            writeDouble(out,newField,value.get());
-        }
-    }
-    public static void writeOptionalBoolean(DataOutput out, FieldDefinition field, Optional<Boolean> value) throws IOException {
-        if (value != null && value.isPresent()) {
-            writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfBoolean(newField, value.get()), false);
-            writeBoolean(out,newField,value.get());
-        }
-    }
-    public static void writeOptionalString(DataOutput out, FieldDefinition field, Optional<String> value) throws IOException {
-        if (value != null && value.isPresent()) {
-            writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfString(newField, value.get()), false);
-            writeString(out,newField,value.get());
-        }
-    }
-
-    public static void writeOptionalBytes(DataOutput out, FieldDefinition field, Optional<Bytes> value) throws IOException {
-        if (value != null && value.isPresent()) {
-            writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final var newField = field.type().optionalFieldDefinition;
-            final int size = sizeOfBytes(newField, value.get());
-            out.writeVarInt(size, false);
-            if (size > 0) {
-                writeBytes(out,newField, value.get());
-            }
-        }
-    }
 
     // ================================================================================================================
     // STANDARD WRITE METHODS
@@ -274,6 +210,72 @@ public final class ProtoWriterTools {
             out.writeVarInt(size, false);
             if (size > 0) {
                 writer.write(message, out);
+            }
+        }
+    }
+
+    // ================================================================================================================
+    // OPTIONAL VERSIONS OF WRITE METHODS
+
+    public static void writeOptionalInteger(DataOutput out, FieldDefinition field, Optional<Integer> value) throws IOException {
+        if (value != null && value.isPresent()) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarInt(sizeOfInteger(newField, value.get()), false);
+            writeInteger(out,newField,value.get());
+        }
+    }
+
+    public static void writeOptionalLong(DataOutput out, FieldDefinition field, Optional<Long> value) throws IOException {
+        if (value != null && value.isPresent()) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarInt(sizeOfLong(newField, value.get()), false);
+            writeLong(out,newField,value.get());
+        }
+    }
+
+    public static void writeOptionalFloat(DataOutput out, FieldDefinition field, Optional<Float> value) throws IOException {
+        if (value != null && value.isPresent()) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarInt(sizeOfFloat(newField, value.get()), false);
+            writeFloat(out,newField,value.get());
+        }
+    }
+    public static void writeOptionalDouble(DataOutput out, FieldDefinition field, Optional<Double> value) throws IOException {
+        if (value != null && value.isPresent()) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarInt(sizeOfDouble(newField, value.get()), false);
+            writeDouble(out,newField,value.get());
+        }
+    }
+    public static void writeOptionalBoolean(DataOutput out, FieldDefinition field, Optional<Boolean> value) throws IOException {
+        if (value != null && value.isPresent()) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarInt(sizeOfBoolean(newField, value.get()), false);
+            writeBoolean(out,newField,value.get());
+        }
+    }
+    public static void writeOptionalString(DataOutput out, FieldDefinition field, Optional<String> value) throws IOException {
+        if (value != null && value.isPresent()) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarInt(sizeOfString(newField, value.get()), false);
+            writeString(out,newField,value.get());
+        }
+    }
+
+    public static void writeOptionalBytes(DataOutput out, FieldDefinition field, Optional<Bytes> value) throws IOException {
+        if (value != null && value.isPresent()) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            final int size = sizeOfBytes(newField, value.get());
+            out.writeVarInt(size, false);
+            if (size > 0) {
+                writeBytes(out,newField, value.get());
             }
         }
     }
@@ -453,12 +455,10 @@ public final class ProtoWriterTools {
     public static void writeStringList(DataOutput out, FieldDefinition field, List<String> list) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "Use writeString with non-repeated types";
-
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) {
             return;
         }
-
         for (final String value : list) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             out.writeVarInt(sizeOfStringNoTag(field,value), false);
@@ -469,29 +469,27 @@ public final class ProtoWriterTools {
     public static <T> void writeMessageList(DataOutput out, FieldDefinition field, List<T> list, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert field.repeated() : "Use writeMessage with non-repeated types";
-
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) {
             return;
         }
-
         for (final T value : list) {
             writeMessageNoChecks(out, field, value, writer, sizeOf);
         }
     }
 
     public static void writeBytesList(DataOutput out, FieldDefinition field, List<Bytes> list) throws IOException {
+        assert field.type() == FieldType.BYTES : "Not a message type " + field;
+        assert field.repeated() : "Use writeBytes with non-repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) {
             return;
         }
-
         for (final Bytes value : list) {
             // TODO be nice to avoid copy here but not sure how, could reuse byte[] if _writeBytes supported length to read from byte[]
             writeBytesNoChecks(out, field, value, false);
         }
     }
-
 
     // ================================================================================================================
     // SIZE OF METHODS
@@ -543,6 +541,7 @@ public final class ProtoWriterTools {
     private static int sizeOfTag(final FieldDefinition field, final int wireType) {
         return sizeOfVarInt32((field.number() << TAG_TYPE_BITS) | wireType);
     }
+
     public static int sizeOfOptionalInteger(FieldDefinition field, Optional<Integer> value) {
         if (value != null && value.isPresent()) {
             final int intValue = value.get();
@@ -551,6 +550,7 @@ public final class ProtoWriterTools {
         }
         return 0;
     }
+
     public static int sizeOfOptionalLong(FieldDefinition field, Optional<Long> value) {
         if (value != null && value.isPresent()) {
             final long longValue = value.get();
@@ -566,6 +566,7 @@ public final class ProtoWriterTools {
         }
         return 0;
     }
+
     public static int sizeOfOptionalDouble(FieldDefinition field, Optional<Double> value) {
         if (value != null && value.isPresent()) {
             final int size = value.get() == 0 ? 0 : 1 + FIXED64_SIZE;
@@ -573,6 +574,7 @@ public final class ProtoWriterTools {
         }
         return 0;
     }
+
     public static int sizeOfOptionalBoolean(FieldDefinition field, Optional<Boolean> value) {
         if (value != null && value.isPresent()) {
             final int size = !value.get() ? 0 : 2;
@@ -580,6 +582,7 @@ public final class ProtoWriterTools {
         }
         return 0;
     }
+
     public static int sizeOfOptionalString(FieldDefinition field, Optional<String> value) {
         if (value != null && value.isPresent()) {
             final int size = sizeOfString(field.type().optionalFieldDefinition,value.get());
@@ -587,6 +590,7 @@ public final class ProtoWriterTools {
         }
         return 0;
     }
+
     public static int sizeOfOptionalBytes(FieldDefinition field, Optional<Bytes> value) {
         if (value != null && value.isPresent()) {
             final int size = sizeOfBytes(field.type().optionalFieldDefinition, value.get());

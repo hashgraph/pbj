@@ -225,8 +225,37 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
      * {@inheritDoc}
      */
     @Override
+    public int readUnsignedByte() {
+        return Byte.toUnsignedInt(buffer.get());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void readBytes(byte[] dst, int offset, int length) {
         buffer.get(dst, offset, length);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void readBytes(ByteBuffer dst) throws IOException {
+        final int length = dst.remaining();
+        final int dtsPos = dst.position();
+        dst.put(dtsPos,buffer,0,length);
+        dst.position(dtsPos+length);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void readBytes(ByteBuffer dst, int offset, int length) throws IOException {
+        final int dtsPos = dst.position();
+        dst.put(dtsPos,buffer,offset,length);
+        dst.position(dtsPos+length);
     }
 
     /**
@@ -236,98 +265,208 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     public void readBytes(byte[] dst) {
         buffer.get(dst);
     }
-//
-//    /**
-//     * Create a new Bytes over a subsection of this buffer. Data is shared and not copied, so any changes to
-//     * the contents of this buffer will be reflected in the Bytes. This position is incremented by
-//     * {@code length}.
-//     *
-//     * @param length The length in bytes of this buffer starting at current position to be in sub buffer
-//     * @return new read only data buffer representing a subsection of this buffers data
-//     * @throws BufferUnderflowException If length is more than remaining bytes
-//     */
-//    @Override
-//    public Bytes readBytes(int length) {
-//        if (length > buffer.remaining()) {
-//            throw new BufferUnderflowException();
-//        }
-//        final int startPos = buffer.position();
-//        // move on position
-//        buffer.position(startPos + length);
-//        return new ByteOverByteBuffer(buffer ,startPos , length);
-//    }
-//
-//    /**
-//     * {@inheritDoc}
-//     */
-//    @Override
-//    public int readInt() {
-//        buffer.order(ByteOrder.BIG_ENDIAN);
-//        return buffer.getInt();
-//    }
-//
-//    /**
-//     * {@inheritDoc}
-//     */
-//    @Override
-//    public int readInt(ByteOrder byteOrder) {
-//        buffer.order(byteOrder);
-//        return buffer.getInt();
-//    }
-//
-//    /**
-//     * {@inheritDoc}
-//     */
-//    @Override
-//    public long readLong() {
-//        buffer.order(ByteOrder.BIG_ENDIAN);
-//        return buffer.getLong();
-//    }
-//
-//    /**
-//     * {@inheritDoc}
-//     */
-//    @Override
-//    public long readLong(ByteOrder byteOrder) {
-//        buffer.order(byteOrder);
-//        return buffer.getLong();
-//    }
-//
-//    /**
-//     * {@inheritDoc}
-//     */
-//    @Override
-//    public float readFloat() {
-//        buffer.order(ByteOrder.BIG_ENDIAN);
-//        return buffer.getFloat();
-//    }
-//
-//    /**
-//     * {@inheritDoc}
-//     */
-//    @Override
-//    public float readFloat(ByteOrder byteOrder) {
-//        buffer.order(byteOrder);
-//        return buffer.getFloat();
-//    }
-//
-//    /**
-//     * {@inheritDoc}
-//     */
-//    @Override
-//    public double readDouble() {
-//        buffer.order(ByteOrder.BIG_ENDIAN);
-//        return buffer.getDouble();
-//    }
-//
-//    /**
-//     * {@inheritDoc}
-//     */
-//    @Override
-//    public double readDouble(ByteOrder byteOrder) {
-//        buffer.order(byteOrder);
-//        return buffer.getDouble();
-//    }
+
+    /**
+     * Create a new Bytes over a subsection of this buffer. Data is shared and not copied, so any changes to
+     * the contents of this buffer will be reflected in the Bytes. This position is incremented by
+     * {@code length}.
+     *
+     * @param length The length in bytes of this buffer starting at current position to be in sub buffer
+     * @return new read only data buffer representing a subsection of this buffers data
+     * @throws BufferUnderflowException If length is more than remaining bytes
+     */
+    @Override
+    public Bytes readBytes(int length) {
+        if (length > buffer.remaining()) {
+            throw new BufferUnderflowException();
+        }
+        final int startPos = buffer.position();
+        // move on position
+        buffer.position(startPos + length);
+        return new ByteOverByteBuffer(buffer ,startPos , length);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int readInt() {
+        buffer.order(ByteOrder.BIG_ENDIAN);
+        return buffer.getInt();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int readInt(ByteOrder byteOrder) {
+        buffer.order(byteOrder);
+        return buffer.getInt();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long readUnsignedInt() {
+        buffer.order(ByteOrder.BIG_ENDIAN);
+        return Integer.toUnsignedLong(buffer.getInt());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long readUnsignedInt(ByteOrder byteOrder) {
+        buffer.order(byteOrder);
+        return Integer.toUnsignedLong(buffer.getInt());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long readLong() {
+        buffer.order(ByteOrder.BIG_ENDIAN);
+        return buffer.getLong();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long readLong(ByteOrder byteOrder) {
+        buffer.order(byteOrder);
+        return buffer.getLong();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public float readFloat() {
+        buffer.order(ByteOrder.BIG_ENDIAN);
+        return buffer.getFloat();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public float readFloat(ByteOrder byteOrder) {
+        buffer.order(byteOrder);
+        return buffer.getFloat();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public double readDouble() {
+        buffer.order(ByteOrder.BIG_ENDIAN);
+        return buffer.getDouble();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public double readDouble(ByteOrder byteOrder) {
+        buffer.order(byteOrder);
+        return buffer.getDouble();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int readVarInt(boolean zigZag) throws IOException {
+        int tempPos = buffer.position();
+        if (!hasRemaining()) throw new IOException("Tried to rad var int from 0 bytes remaining");
+        int x;
+        if ((x = buffer.get(tempPos++)) >= 0) {
+            buffer.position(buffer.position() + 1);
+            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+        } else if (buffer.remaining() < 10) {
+            return DataInput.super.readVarInt(zigZag);
+        } else if ((x ^= (buffer.get(tempPos++) << 7)) < 0) {
+            x ^= (~0 << 7);
+        } else if ((x ^= (buffer.get(tempPos++) << 14)) >= 0) {
+            x ^= (~0 << 7) ^ (~0 << 14);
+        } else if ((x ^= (buffer.get(tempPos++) << 21)) < 0) {
+            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+        } else {
+            int y = buffer.get(tempPos++);
+            x ^= y << 28;
+            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+            if (y < 0
+                    && buffer.get(tempPos++) < 0
+                    && buffer.get(tempPos++) < 0
+                    && buffer.get(tempPos++) < 0
+                    && buffer.get(tempPos++) < 0
+                    && buffer.get(tempPos++) < 0) {
+                throw new IOException("Malformed Varint");
+            }
+        }
+        buffer.position(tempPos);
+        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long readVarLong(boolean zigZag) throws IOException {
+        int tempPos = buffer.position();
+        if (!buffer.hasRemaining()) throw new IOException("Tried to rad var int from 0 bytes remaining");
+        long x;
+        int y;
+        if ((y = buffer.get(tempPos++)) >= 0) {
+            buffer.position(buffer.position() + 1);
+            return zigZag ? (y >>> 1) ^ -(y & 1) : y;
+        } else if (buffer.remaining() < 10) {
+            return DataInput.super.readVarLong(zigZag);
+        } else if ((y ^= (buffer.get(tempPos++) << 7)) < 0) {
+            x = y ^ (~0 << 7);
+        } else if ((y ^= (buffer.get(tempPos++) << 14)) >= 0) {
+            x = y ^ ((~0 << 7) ^ (~0 << 14));
+        } else if ((y ^= (buffer.get(tempPos++) << 21)) < 0) {
+            x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+        } else if ((x = y ^ ((long) buffer.get(tempPos++) << 28)) >= 0L) {
+            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+        } else if ((x ^= ((long) buffer.get(tempPos++) << 35)) < 0L) {
+            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+        } else if ((x ^= ((long) buffer.get(tempPos++) << 42)) >= 0L) {
+            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+        } else if ((x ^= ((long) buffer.get(tempPos++) << 49)) < 0L) {
+            x ^=
+                    (~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49);
+        } else {
+            x ^= ((long) buffer.get(tempPos++) << 56);
+            x ^=
+                    (~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56);
+            if (x < 0L) {
+                if (buffer.get(tempPos++) < 0L) {
+                    throw new IOException("Malformed Varint");
+                }
+            }
+        }
+        buffer.position(tempPos);
+        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+    }
 
     // ================================================================================================================
     // DataOutput Write Methods
@@ -338,6 +477,13 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     @Override
     public void writeByte(byte b) {
         buffer.put(b);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void writeUnsignedByte(int b) {
+        buffer.put((byte)b);
     }
 
     /**
@@ -372,6 +518,7 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     /**
      * {@inheritDoc}
      */
+    @Override
     public void writeBytes(ByteBuffer src) throws IOException {
         if ((getLimit() - getPosition()) < src.remaining()) {
             throw new BufferUnderflowException();
@@ -382,6 +529,7 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     /**
      * {@inheritDoc}
      */
+    @Override
     public void writeBytes(Bytes src) throws IOException {
         if (src instanceof ByteOverByteBuffer) {
             if ((getLimit() - getPosition()) < src.getLength()) {
@@ -409,6 +557,25 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     public void writeInt(int value, ByteOrder byteOrder) {
         buffer.order(byteOrder);
         buffer.putInt(value);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void writeUnsignedInt(long value) {
+        buffer.order(ByteOrder.BIG_ENDIAN);
+        buffer.putInt((int)value);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void writeUnsignedInt(long value, ByteOrder byteOrder) {
+        buffer.order(byteOrder);
+        buffer.order(ByteOrder.BIG_ENDIAN);
+        buffer.putInt((int)value);
     }
 
     /**
@@ -463,5 +630,44 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     public void writeDouble(double value, ByteOrder byteOrder) {
         buffer.order(byteOrder);
         buffer.putDouble(value);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void writeVarInt(int value, boolean zigZag) {
+        long longValue = value;
+        if (zigZag) {
+            longValue = (longValue << 1) ^ (longValue >> 63);
+        }
+        while (true) {
+            if ((longValue & ~0x7F) == 0) {
+                buffer.put((byte) longValue);
+                break;
+            } else {
+                buffer.put((byte) ((longValue & 0x7F) | 0x80));
+                longValue >>>= 7;
+            }
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void writeVarLong(long value, boolean zigZag) {
+        if (zigZag) {
+            value = (value << 1) ^ (value >> 63);
+        }
+        while (true) {
+            if ((value & ~0x7FL) == 0) {
+                buffer.put((byte) value);
+                break;
+            } else {
+                buffer.put((byte) (((int) value & 0x7F) | 0x80));
+                value >>>= 7;
+            }
+        }
     }
 }

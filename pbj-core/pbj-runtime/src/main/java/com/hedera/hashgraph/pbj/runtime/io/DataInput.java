@@ -338,7 +338,7 @@ public interface DataInput extends PositionedData {
     }
 
     /**
-     * Read a 64bit protobuf varint at current position. An long var int can be 1 to 10 bytes.
+     * Read a 64bit protobuf varint at current position. A long var int can be 1 to 10 bytes.
      *
      * @return long read in var int format
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
