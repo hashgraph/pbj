@@ -1,4 +1,4 @@
-package protoparse;
+package com.hedera.hashgraph.pbj.integration;
 
 import com.hedera.hapi.node.base.*;
 import com.hedera.hapi.node.token.AccountDetails;
@@ -19,15 +19,15 @@ public class AccountDetailsPbj {
     public static final AccountDetails ACCOUNT_DETAILS =
             new AccountDetails.Builder()
                     .accountId(new AccountID.Builder()
-                            .shardNum(posLong())
-                            .realmNum(posLong())
+                            .shardNum(0)
+                            .realmNum(0)
                             .accountNum(posLong())
                             .build())
                     .contractAccountId(randomHex(64))
                     .deleted(false)
                     .proxyAccountId(new AccountID.Builder()
-                            .shardNum(posLong())
-                            .realmNum(posLong())
+                            .shardNum(0)
+                            .realmNum(0)
                             .accountNum(posLong())
                             .alias(randomBytes(32))
                             .build())
@@ -43,8 +43,8 @@ public class AccountDetailsPbj {
                                                     .build(),
                                             new Key.Builder()
                                                     .contractID(new ContractID.Builder()
-                                                            .shardNum(posLong())
-                                                            .realmNum(posLong())
+                                                            .shardNum(0)
+                                                            .realmNum(0)
                                                             .contractNum(posLong())
                                                             .build())
                                                     .build()
@@ -83,41 +83,41 @@ public class AccountDetailsPbj {
                     .ledgerId(randomBytes(32))
                     .grantedCryptoAllowances(List.of(
                             new GrantedCryptoAllowance(new AccountID.Builder()
-                                    .shardNum(posLong()).realmNum(posLong()).accountNum(posLong())
+                                    .shardNum(0).realmNum(0).accountNum(posLong())
                                     .build()
                                     ,posLong()),
                             new GrantedCryptoAllowance(new AccountID.Builder()
-                                    .shardNum(posLong()).realmNum(posLong()).accountNum(posLong())
+                                    .shardNum(0).realmNum(0).accountNum(posLong())
                                     .build()
                                     ,posLong())
                     ))
                     .grantedNftAllowances(List.of(
                             new GrantedNftAllowance(new TokenID.Builder()
-                                    .shardNum(posLong()).realmNum(posLong()).tokenNum(posLong())
+                                    .shardNum(0).realmNum(0).tokenNum(posLong())
                                     .build()
                                     ,new AccountID.Builder()
-                                    .shardNum(posLong()).realmNum(posLong()).accountNum(posLong())
+                                    .shardNum(0).realmNum(0).accountNum(posLong())
                                     .build()),
                             new GrantedNftAllowance(new TokenID.Builder()
-                                    .shardNum(posLong()).realmNum(posLong()).tokenNum(posLong())
+                                    .shardNum(0).realmNum(0).tokenNum(posLong())
                                     .build()
                                     ,new AccountID.Builder()
-                                    .shardNum(posLong()).realmNum(posLong()).accountNum(posLong())
+                                    .shardNum(0).realmNum(0).accountNum(posLong())
                                     .build())
                     ))
                     .grantedTokenAllowances(List.of(
                             new GrantedTokenAllowance(new TokenID.Builder()
-                                    .shardNum(posLong()).realmNum(posLong()).tokenNum(posLong())
+                                    .shardNum(0).realmNum(0).tokenNum(posLong())
                                     .build()
                                     ,new AccountID.Builder()
-                                    .shardNum(posLong()).realmNum(posLong()).accountNum(posLong())
+                                    .shardNum(0).realmNum(0).accountNum(posLong())
                                     .build(),
                                     posLong()),
                             new GrantedTokenAllowance(new TokenID.Builder()
-                                    .shardNum(posLong()).realmNum(posLong()).tokenNum(posLong())
+                                    .shardNum(0).realmNum(0).tokenNum(posLong())
                                     .build()
                                     ,new AccountID.Builder()
-                                    .shardNum(posLong()).realmNum(posLong()).accountNum(posLong())
+                                    .shardNum(0).realmNum(0).accountNum(posLong())
                                     .build(),
                                     posLong())
                     ))

@@ -1,7 +1,7 @@
 package com.hedera.hashgraph.pbj.runtime;
 
 import com.hedera.hashgraph.pbj.runtime.io.Bytes;
-import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
+import com.hedera.hashgraph.pbj.runtime.io.DataInput;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -13,9 +13,9 @@ import java.util.List;
 import static com.hedera.hashgraph.pbj.runtime.ProtoConstants.*;
 
 /**
- * This class is full of parse helper methods, they depend on a DataBuffer as input with position and limit set
+ * This class is full of parse helper methods, they depend on a DataInput as input with position and limit set
  * correctly.
- *
+ * <p>
  * Methods that IDE things are unused are used in generated code by PBJ compiler.
  */
 @SuppressWarnings({"DuplicatedCode", "unused"})
@@ -50,23 +50,23 @@ public final class ProtoParserTools {
         return list;
     }
 
-    public static int readInt32(final DataBuffer buf) throws IOException {
+    public static int readInt32(final DataInput buf) throws IOException {
         return buf.readVarInt(false);
     }
 
-    public static long readInt64(final DataBuffer buf) throws IOException {
+    public static long readInt64(final DataInput buf) throws IOException {
         return buf.readVarLong(false);
     }
 
-    public static int readUint32(final DataBuffer buf) throws IOException {
+    public static int readUint32(final DataInput buf) throws IOException {
         return buf.readVarInt(false);
     }
 
-    public static long readUint64(final DataBuffer buf) throws IOException {
+    public static long readUint64(final DataInput buf) throws IOException {
         return buf.readVarLong(false);
     }
 
-    public static boolean readBool(final DataBuffer buf) throws IOException {
+    public static boolean readBool(final DataInput buf) throws IOException {
         final var i = buf.readVarInt(false);
         if (i != 1 && i != 0) {
             throw new IOException("Bad protobuf encoding. Boolean was not 0 or 1");
@@ -74,55 +74,55 @@ public final class ProtoParserTools {
         return i == 1;
     }
 
-    public static int readEnum(final DataBuffer buf) throws IOException {
+    public static int readEnum(final DataInput buf) throws IOException {
         return buf.readVarInt(false);
     }
 
-    public static int readSignedInt32(final DataBuffer buf) throws IOException {
+    public static int readSignedInt32(final DataInput buf) throws IOException {
         return buf.readVarInt(true);
     }
 
-    public static long readSignedInt64(final DataBuffer buf) throws IOException {
+    public static long readSignedInt64(final DataInput buf) throws IOException {
         return buf.readVarLong(true);
     }
 
-    public static int readSignedFixed32(final DataBuffer buf) throws IOException {
+    public static int readSignedFixed32(final DataInput buf) throws IOException {
         return buf.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static int readFixed32(final DataBuffer buf) throws IOException {
+    public static int readFixed32(final DataInput buf) throws IOException {
         return buf.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static float readFloat(final DataBuffer buf) throws IOException {
+    public static float readFloat(final DataInput buf) throws IOException {
         return buf.readFloat(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static long readSignedFixed64(final DataBuffer buf) throws IOException {
+    public static long readSignedFixed64(final DataInput buf) throws IOException {
         return buf.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static long readFixed64(final DataBuffer buf) throws IOException {
+    public static long readFixed64(final DataInput buf) throws IOException {
         return buf.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static double readDouble(final DataBuffer buf) throws IOException {
+    public static double readDouble(final DataInput buf) throws IOException {
         return buf.readDouble(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static String readString(final DataBuffer buf) throws IOException {
+    public static String readString(final DataInput buf) throws IOException {
         final int length = buf.readVarInt(false);
         byte[] bytes = new byte[length];
         buf.readBytes(bytes);
         return new String(bytes,StandardCharsets.UTF_8);
     }
 
-    public static Bytes readBytes(final DataBuffer buf) throws IOException {
+    public static Bytes readBytes(final DataInput buf) throws IOException {
         final int length = buf.readVarInt(false);
         return buf.readBytes(length);
     }
 
-    public static void skipField(final DataBuffer buf, final int wireType) throws IOException {
+    public static void skipField(final DataInput buf, final int wireType) throws IOException {
         switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> buf.skip(8);
             case WIRE_TYPE_FIXED_32_BIT -> buf.skip(4);
@@ -147,7 +147,7 @@ public final class ProtoParserTools {
 //    // Optimized VarInt parsing implementation, derived from the google implementation
 //    // https://github.com/protocolbuffers/protobuf
 //
-//    public static int readRawVarint32(final DataBuffer buf) throws IOException {
+//    public static int readRawVarint32(final DataInput buf) throws IOException {
 //        // See implementation notes for readRawVarint64
 //        fastpath:
 //        {
@@ -187,7 +187,7 @@ public final class ProtoParserTools {
 //        return (int) readRawVarint64SlowPath(buf);
 //    }
 //
-//    public static long readRawVarint64(final DataBuffer buf) throws IOException {
+//    public static long readRawVarint64(final DataInput buf) throws IOException {
 //        // Implementation notes:
 //        //
 //        // Optimized for one-byte values, expected to be common.
@@ -258,7 +258,7 @@ public final class ProtoParserTools {
 //        return readRawVarint64SlowPath(buf);
 //    }
 //    
-//    private static long readRawVarint64SlowPath(DataBuffer buf) throws IOException {
+//    private static long readRawVarint64SlowPath(DataInput buf) throws IOException {
 //        long result = 0;
 //        for (int shift = 0; shift < 64; shift += 7) {
 //            final byte b = buf.read();

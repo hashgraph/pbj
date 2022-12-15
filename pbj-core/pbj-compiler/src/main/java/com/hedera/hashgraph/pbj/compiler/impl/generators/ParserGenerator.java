@@ -15,7 +15,7 @@ import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 /**
  * Code generator that parses protobuf files and generates nice parsers for each message type.
  */
-@SuppressWarnings("DuplicatedCode")
+@SuppressWarnings({"DuplicatedCode", "StringConcatenationInsideStringBufferAppend"})
 public final class ParserGenerator implements Generator {
 
 	/**
@@ -101,19 +101,19 @@ public final class ParserGenerator implements Generator {
 	private static String generateParseMethod(final String modelClassName, final List<Field> fields) {
 		return FIELD_INDENT + """
 						/**
-						 * Parses a $modelClassName object from ProtoBuf bytes in a DataBuffer
+						 * Parses a $modelClassName object from ProtoBuf bytes in a DataInput
 						 *
-						 * @param buf The data buffer to parse data from, it is assumed to be in a state ready to read with position at start
-						 *            of data to read and limit set at the end of data to read. The buffers state like position, mark, byte
-						 *            order etc. will be changed by this method. If null, the method returns immediately. If there are no
-						 *            bytes remaining in the buffer, then the method also returns immediately.
-						 * @return Parsed Timestamp model object or null if buffer was null or empty
+						 * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
+						 *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
+						 *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
+						 *              then the method also returns immediately.
+						 * @return Parsed $modelClassName model object or null if data input was null or empty
 						 * @throws IOException If the protobuf stream is not empty and has malformed
 						 * 									  protobuf bytes (i.e. isn't valid protobuf).
 						 */
-						public static $modelClassName parse(DataBuffer buf) throws IOException {
+						public static $modelClassName parse(DataInput input) throws IOException {
 							// If protobuf stream is null, then return null (valid protobuf encoding can be 0+ tag/value pairs)
-							if (buf == null) {
+							if (input == null) {
 								return null;
 							}
 					
@@ -122,10 +122,10 @@ public final class ParserGenerator implements Generator {
 
 							// -- PARSE LOOP ---------------------------------------------
 							// Continue to parse bytes out of the input stream until we get to the end.
-							while (buf.hasRemaining()) {
+							while (input.hasRemaining()) {
 								// Read the "tag" byte which gives us the field number for the next field to read
 								// and the wire type (way it is encoded on the wire).
-								final int tag = buf.readVarInt(false);
+								final int tag = input.readVarInt(false);
 					
 								// The field is the top 5 bits of the byte. Read this off
 								final int field = tag >>> TAG_FIELD_OFFSET;
@@ -152,7 +152,7 @@ public final class ParserGenerator implements Generator {
 										// It may be that the parser subclass doesn't know about this field. In that case, we
 										// just need to read off the bytes for this field to skip it and move on to the next one.
 										if (f == null) {
-											skipField(buf, wireType);
+											skipField(input, wireType);
 										} else {
 											throw new IOException("Bad tag ["+tag+"], field [" + field + "] wireType [" + wireType + "]");
 										}
@@ -209,13 +209,13 @@ public final class ParserGenerator implements Generator {
 				"field=" + fieldNum + " [" + field.name() + "] */ -> {\n");
 		sb.append(FIELD_INDENT + """
 				// Read the length of packed repeated field data
-				final int length = buf.readVarInt(false);
-				final long beforeLimit = buf.getLimit();
-				buf.setLimit(buf.getPosition() + length);
-				while (buf.hasRemaining()) {
+				final int length = input.readVarInt(false);
+				final long beforeLimit = input.getLimit();
+				input.setLimit(input.getPosition() + length);
+				while (input.hasRemaining()) {
 					$tempFieldName = addToList($tempFieldName,$readMethod);
 				}
-				buf.setLimit(beforeLimit);"""
+				input.setLimit(beforeLimit);"""
 				.replace("$tempFieldName", "temp_" + field.name())
 				.replace("$readMethod", readMethod(field))
 				.replaceAll("\n","\n" + FIELD_INDENT)
@@ -238,21 +238,21 @@ public final class ParserGenerator implements Generator {
 		if (field.optionalValueType()) {
 			sb.append(FIELD_INDENT + """
 							// Read the message size, it is not needed
-							final int valueTypeMessageSize = buf.readVarInt(false);
+							final int valueTypeMessageSize = input.readVarInt(false);
 							final $fieldType value;
 							if (valueTypeMessageSize > 0) {
-								final long beforeLimit = buf.getLimit();
-								buf.setLimit(buf.getPosition() + valueTypeMessageSize);
+								final long beforeLimit = input.getLimit();
+								input.setLimit(input.getPosition() + valueTypeMessageSize);
 								// read inner tag
-								final int valueFieldTag = buf.readVarInt(false);
+								final int valueFieldTag = input.readVarInt(false);
 								// assert tag is as expected
 								assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
 								assert (valueFieldTag & TAG_WRITE_TYPE_MASK) == $valueTypeWireType;
 								// read value
 								value = Optional.of($readMethod);
-								buf.setLimit(beforeLimit);
+								input.setLimit(beforeLimit);
 							} else {
-								// means optional is default value 
+								// means optional is default value
 								value = $defaultValue;
 							}"""
 					.replace("$fieldType", field.javaFieldType())
@@ -281,11 +281,11 @@ public final class ParserGenerator implements Generator {
 			sb.append('\n');
 		} else if (field.type() == FieldType.MESSAGE){
 			sb.append(FIELD_INDENT + """
-						final int messageLength = buf.readVarInt(false);
-						final long limitBefore = buf.getLimit();
-						buf.setLimit(buf.getPosition() + messageLength);
+						final int messageLength = input.readVarInt(false);
+						final long limitBefore = input.getLimit();
+						input.setLimit(input.getPosition() + messageLength);
 						final var value = $readMethod;
-						buf.setLimit(limitBefore);"""
+						input.setLimit(limitBefore);"""
 					.replace("$readMethod", readMethod(field))
 					.replaceAll("\n", "\n" + FIELD_INDENT)
 			);
@@ -311,36 +311,36 @@ public final class ParserGenerator implements Generator {
 	private static String readMethod(Field field) {
 		if (field.optionalValueType()) {
 			return switch (field.messageType()) {
-				case "StringValue" -> "readString(buf)";
-				case "Int32Value" -> "readInt32(buf)";
-				case "UInt32Value" -> "readUint32(buf)";
-				case "Int64Value" -> "readInt64(buf)";
-				case "UInt64Value" -> "readUint64(buf)";
-				case "FloatValue" -> "readFloat(buf)";
-				case "DoubleValue" -> "readDouble(buf)";
-				case "BoolValue" -> "readBool(buf)";
-				case "BytesValue" -> "readBytes(buf)";
+				case "StringValue" -> "readString(input)";
+				case "Int32Value" -> "readInt32(input)";
+				case "UInt32Value" -> "readUint32(input)";
+				case "Int64Value" -> "readInt64(input)";
+				case "UInt64Value" -> "readUint64(input)";
+				case "FloatValue" -> "readFloat(input)";
+				case "DoubleValue" -> "readDouble(input)";
+				case "BoolValue" -> "readBool(input)";
+				case "BytesValue" -> "readBytes(input)";
 				default -> throw new PbjCompilerException("Optional message type [" + field.messageType() + "] not supported");
 			};
 		}
 		return switch(field.type()) {
-			case ENUM ->  snakeToCamel(field.messageType(), true) + ".fromProtobufOrdinal(readEnum(buf))";
-			case INT32 -> "readInt32(buf)";
-			case UINT32 -> "readUint32(buf)";
-			case SINT32 -> "readSignedInt32(buf)";
-			case INT64 -> "readInt64(buf)";
-			case UINT64 -> "readUint64(buf)";
-			case SINT64 -> "readSignedInt64(buf)";
-			case FLOAT -> "readFloat(buf)";
-			case FIXED32 -> "readFixed32(buf)";
-			case SFIXED32 -> "readSignedFixed32(buf)";
-			case DOUBLE -> "readDouble(buf)";
-			case FIXED64 -> "readFixed64(buf)";
-			case SFIXED64 -> "readSignedFixed64(buf)";
-			case STRING -> "readString(buf)";
-			case BOOL -> "readBool(buf)";
-			case BYTES -> "readBytes(buf)";
-			case MESSAGE -> field.parserClass() + ".parse(buf)";
+			case ENUM ->  snakeToCamel(field.messageType(), true) + ".fromProtobufOrdinal(readEnum(input))";
+			case INT32 -> "readInt32(input)";
+			case UINT32 -> "readUint32(input)";
+			case SINT32 -> "readSignedInt32(input)";
+			case INT64 -> "readInt64(input)";
+			case UINT64 -> "readUint64(input)";
+			case SINT64 -> "readSignedInt64(input)";
+			case FLOAT -> "readFloat(input)";
+			case FIXED32 -> "readFixed32(input)";
+			case SFIXED32 -> "readSignedFixed32(input)";
+			case DOUBLE -> "readDouble(input)";
+			case FIXED64 -> "readFixed64(input)";
+			case SFIXED64 -> "readSignedFixed64(input)";
+			case STRING -> "readString(input)";
+			case BOOL -> "readBool(input)";
+			case BYTES -> "readBytes(input)";
+			case MESSAGE -> field.parserClass() + ".parse(input)";
 			case ONE_OF -> throw new PbjCompilerException("Should never happen, oneof handled else where");
 		};
 	}

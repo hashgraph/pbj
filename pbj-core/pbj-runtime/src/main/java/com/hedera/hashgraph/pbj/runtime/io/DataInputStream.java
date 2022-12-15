@@ -3,11 +3,15 @@ package com.hedera.hashgraph.pbj.runtime.io;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.BufferUnderflowException;
 import java.util.Objects;
 
 /**
- * A {@code FilterInputStream} that makes it easy to convert any {@code InputStream} to a {@code DataInput}
+ * <p>A {@code FilterInputStream} that makes it easy to convert any {@code InputStream} to a {@code DataInput}. This is
+ * not the fastest way to read data but useful when you do not have a better option.</p>
+ *
+ * <p>It always has to read 1 byte ahead so it can detect end of stream and set limit correctly. This allows code to
+ * read while hasRemaining() == true</p>
+ *
  */
 public class DataInputStream extends FilterInputStream implements DataInput {
 
@@ -17,13 +21,26 @@ public class DataInputStream extends FilterInputStream implements DataInput {
     /** The current limit for reading, defaults to Long.MAX_VALUE basically unlimited */
     private long limit = Long.MAX_VALUE;
 
+    /** The next byte to be read from input stream, this is read ahead to detect end of stream */
+    private byte nextByte;
+
     /**
      * Creates a {@code FilterInputStream} that implements {@code DataInput} API.
      *
      * @param in the underlying input stream, can not be null
      */
-    protected DataInputStream(InputStream in) {
+    public DataInputStream(InputStream in) {
         super(Objects.requireNonNull(in));
+        try {
+            readNextByte();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void readNextByte() throws IOException{
+        nextByte = (byte)in.read();
+        if (nextByte == -1) limit = position;
     }
 
     /**
@@ -47,7 +64,8 @@ public class DataInputStream extends FilterInputStream implements DataInput {
      */
     @Override
     public void setLimit(long limit) {
-        this.limit = limit;
+        // don't allow setting of limit beyond position when we are at end of stream
+        this.limit = nextByte == -1 ? position : limit;
     }
 
     /**
@@ -63,22 +81,9 @@ public class DataInputStream extends FilterInputStream implements DataInput {
      */
     @Override
     public byte readByte() throws IOException {
-        return (byte) in.read();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void readBytes(byte[] dst, int offset, int length) throws IOException {
-        in.read(dst, offset, length);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void readBytes(byte[] dst) throws IOException {
-        in.read(dst);
+        byte readByte = nextByte;
+        readNextByte();
+        position ++;
+        return readByte;
     }
 }

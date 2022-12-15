@@ -1,4 +1,4 @@
-package protoparse;
+package com.hedera.hashgraph.pbj.intergration.jmh;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;

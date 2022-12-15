@@ -3,7 +3,6 @@ package com.hedera.hashgraph.pbj.runtime.io;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.BufferUnderflowException;
 import java.util.Objects;
 
 /**
@@ -71,6 +70,7 @@ public class DataOutputStream  extends FilterOutputStream implements DataOutput 
         for (int i = 0; i < count; i++) {
             out.write(0);
         }
+        position += count;
         return count;
     }
 
@@ -80,6 +80,7 @@ public class DataOutputStream  extends FilterOutputStream implements DataOutput 
     @Override
     public void writeByte(byte b) throws IOException {
         out.write(b);
+        position ++;
     }
 
     /**
@@ -88,6 +89,7 @@ public class DataOutputStream  extends FilterOutputStream implements DataOutput 
     @Override
     public void writeBytes(byte[] src, int offset, int length) throws IOException {
         out.write(src, offset, length);
+        position += length;
     }
 
     /**
@@ -96,5 +98,6 @@ public class DataOutputStream  extends FilterOutputStream implements DataOutput 
     @Override
     public void writeBytes(byte[] src) throws IOException {
         out.write(src);
+        position += src.length;
     }
 }

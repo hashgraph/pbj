@@ -1,9 +1,10 @@
-package protoparse;
+package com.hedera.hashgraph.pbj.intergration.jmh;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Timestamp;
 import com.hedera.hapi.node.base.parser.TimestampProtoParser;
 import com.hedera.hapi.node.base.writer.TimestampWriter;
+import com.hedera.hashgraph.pbj.integration.NonSynchronizedByteArrayOutputStream;
 import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;

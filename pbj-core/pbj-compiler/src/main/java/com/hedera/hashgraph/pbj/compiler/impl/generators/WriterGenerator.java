@@ -16,6 +16,7 @@ import static com.hedera.hashgraph.pbj.compiler.impl.FileAndPackageNamesConfig.W
 /**
  * Code generator that parses protobuf files and generates writers for each message type.
  */
+@SuppressWarnings("DuplicatedCode")
 public final class WriterGenerator implements Generator {
 
 	/**
@@ -24,7 +25,6 @@ public final class WriterGenerator implements Generator {
 	public void generate(Protobuf3Parser.MessageDefContext msgDef, final File destinationSrcDir,
 						 File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
 		final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
-		final String schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
 		final String writerClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.WRITER, msgDef);
 		final String writerPackage = lookupHelper.getPackageForMessage(FileType.WRITER, msgDef);
 		final File javaFile = getJavaFile(destinationSrcDir, writerPackage, writerClassName);
@@ -51,11 +51,15 @@ public final class WriterGenerator implements Generator {
 				System.err.println("WriterGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
 		}
-		final Stream<Field> sortedFieldsStream = fields.stream()
+		final String fieldWriteLines = fields.stream()
 				.flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
-				.sorted(Comparator.comparingInt(Field::fieldNumber));
-		final String fieldWriteLines = sortedFieldsStream
+				.sorted(Comparator.comparingInt(Field::fieldNumber))
 				.map(field -> generateFieldWriteLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower()), imports))
+				.collect(Collectors.joining("\n		"));
+		final String fieldSizeOfLines = fields.stream()
+				.flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
+				.sorted(Comparator.comparingInt(Field::fieldNumber))
+				.map(field -> generateFieldSizeOfLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower()), imports))
 				.collect(Collectors.joining("\n		"));
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
@@ -82,6 +86,18 @@ public final class WriterGenerator implements Generator {
 						public static void write($modelClass data, DataOutput out) throws IOException {
 							$fieldWriteLines
 						}
+						
+						/**
+						 * Compute number of bytes that would be written when calling {@code write()} method.
+						 *
+						 * @param data The input model data to measure write bytes for
+						 * @return size in bytes that would be written
+						 */
+						public static int sizeOf($modelClass data) {
+							int size = 0;
+							$fieldSizeOfLines
+							return size;
+						}
 					}
 					"""
 					.replace("$package", writerPackage)
@@ -92,6 +108,7 @@ public final class WriterGenerator implements Generator {
 					.replace("$modelClass", modelClassName)
 					.replace("$writerClass", writerClassName)
 					.replace("$fieldWriteLines", fieldWriteLines)
+					.replace("$fieldSizeOfLines", fieldSizeOfLines)
 			);
 		}
 
@@ -99,9 +116,7 @@ public final class WriterGenerator implements Generator {
 		//  assert $schemaClass.valid(field) : "Field " + field + " doesn't belong to the expected schema".
 	}
 
-	@SuppressWarnings("unused")
 	private static String generateFieldWriteLines(final Field field, final String modelClassName, String getValueCode, final Set<String> imports) {
-		final String fieldName = field.nameCamelFirstLower();
 		final String fieldDef = camelToUpperSnake(field.name());
 		String prefix = "// ["+field.fieldNumber()+"] - "+field.name();
 		prefix += "\n"+FIELD_INDENT.repeat(2);
@@ -138,8 +153,9 @@ public final class WriterGenerator implements Generator {
 			return prefix + switch(field.type()) {
 				case ENUM -> "writeEnumList(out, %s, %s);"
 						.formatted(fieldDef, getValueCode);
-				case MESSAGE -> "writeMessageList(out, %s, %s, %s::write);"
+				case MESSAGE -> "writeMessageList(out, %s, %s, %s::write, %s::sizeOf);"
 						.formatted(fieldDef,getValueCode,
+								capitalizeFirstLetter(field.messageType())+ WRITER_JAVA_FILE_SUFFIX,
 								capitalizeFirstLetter(field.messageType())+ WRITER_JAVA_FILE_SUFFIX
 						);
 				default -> "write%sList(out, %s, %s);"
@@ -151,13 +167,76 @@ public final class WriterGenerator implements Generator {
 						.formatted(fieldDef, getValueCode);
 				case STRING -> "writeString(out, %s, %s);"
 						.formatted(fieldDef,getValueCode);
-				case MESSAGE -> "writeMessage(out, %s, %s, %s::write);"
+				case MESSAGE -> "writeMessage(out, %s, %s, %s::write, %s::sizeOf);"
 						.formatted(fieldDef,getValueCode,
+								capitalizeFirstLetter(field.messageType())+ WRITER_JAVA_FILE_SUFFIX,
 								capitalizeFirstLetter(field.messageType())+ WRITER_JAVA_FILE_SUFFIX
 						);
 				case BOOL -> "writeBoolean(out, %s, %s);"
 						.formatted(fieldDef,getValueCode);
 				default -> "write%s(out, %s, %s);"
+						.formatted(writeMethodName, fieldDef, getValueCode);
+			};
+		}
+	}
+
+	private static String generateFieldSizeOfLines(final Field field, final String modelClassName, String getValueCode, final Set<String> imports) {
+		final String fieldDef = camelToUpperSnake(field.name());
+		String prefix = "// ["+field.fieldNumber()+"] - "+field.name();
+		prefix += "\n"+FIELD_INDENT.repeat(2);
+
+		if (field.parent() != null) {
+			final OneOfField oneOfField = field.parent();
+			final String oneOfType = modelClassName+"."+oneOfField.nameCamelFirstUpper()+"OneOfType";
+			getValueCode = "data."+oneOfField.nameCamelFirstLower()+"().as()";
+			prefix += "if(data."+oneOfField.nameCamelFirstLower()+"().kind() == "+ oneOfType +"."+
+					camelToUpperSnake(field.name())+")";
+			prefix += "\n"+FIELD_INDENT.repeat(3);
+		}
+
+		final String writeMethodName = mapToWriteMethod(field);
+		if(field.optionalValueType()) {
+			return prefix + switch (field.messageType()) {
+				case "StringValue" -> "size += sizeOfOptionalString(%s, %s);"
+						.formatted(fieldDef,getValueCode);
+				case "BoolValue" -> "size += sizeOfOptionalBoolean(%s, %s);"
+						.formatted(fieldDef, getValueCode);
+				case "Int32Value","UInt32Value" -> "size += sizeOfOptionalInteger(%s, %s);"
+						.formatted(fieldDef, getValueCode);
+				case "Int64Value","UInt64Value" -> "size += sizeOfOptionalLong(%s, %s);"
+						.formatted(fieldDef, getValueCode);
+				case "FloatValue" -> "size += sizeOfOptionalFloat(%s, %s);"
+						.formatted(fieldDef, getValueCode);
+				case "DoubleValue" -> "size += sizeOfOptionalDouble(%s, %s);"
+						.formatted(fieldDef, getValueCode);
+				case "BytesValue" -> "size += sizeOfOptionalBytes(%s, %s);"
+						.formatted(fieldDef, getValueCode);
+				default -> throw new UnsupportedOperationException("Unhandled optional message type:"+field.messageType());
+			};
+		} else if (field.repeated()) {
+			return prefix + switch(field.type()) {
+				case ENUM -> "size += sizeOfEnumList(%s, %s);"
+						.formatted(fieldDef, getValueCode);
+				case MESSAGE -> "size += sizeOfMessageList(%s, %s, %s::sizeOf);"
+						.formatted(fieldDef,getValueCode,
+								capitalizeFirstLetter(field.messageType())+ WRITER_JAVA_FILE_SUFFIX
+						);
+				default -> "size += sizeOf%sList(%s, %s);"
+						.formatted(writeMethodName, fieldDef, getValueCode);
+			};
+		} else {
+			return prefix + switch(field.type()) {
+				case ENUM -> "size += sizeOfEnum(%s, %s);"
+						.formatted(fieldDef, getValueCode);
+				case STRING -> "size += sizeOfString(%s, %s);"
+						.formatted(fieldDef,getValueCode);
+				case MESSAGE -> "size += sizeOfMessage(%s, %s, %s::sizeOf);"
+						.formatted(fieldDef,getValueCode,
+								capitalizeFirstLetter(field.messageType())+ WRITER_JAVA_FILE_SUFFIX
+						);
+				case BOOL -> "size += sizeOfBoolean(%s, %s);"
+						.formatted(fieldDef,getValueCode);
+				default -> "size += sizeOf%s(%s, %s);"
 						.formatted(writeMethodName, fieldDef, getValueCode);
 			};
 		}

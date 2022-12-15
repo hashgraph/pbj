@@ -1,11 +1,9 @@
 package com.hedera.hashgraph.pbj.runtime.io;
 
 import java.io.IOException;
-import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 
 /**
  * A Buffer backed by a ByteBuffer that implements {@code DataInput} and {@code DataOutput}.
@@ -13,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapDataBuffer {
 
     /** Single instance of an empty buffer we can use anywhere we need an empty read only buffer */
+    @SuppressWarnings("unused")
     public static final DataBuffer EMPTY_BUFFER = wrap(ByteBuffer.allocate(0));
 
     /** ByteBuffer used as backing buffer for this DataBuffer */
@@ -106,25 +105,6 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
      */
     public int getCapacity() {
         return buffer.capacity();
-    }
-
-    /**
-     * Create a new Bytes over a subsection of this buffer. Data is shared and not copied, so any changes to
-     * the contents of this buffer will be reflected in the Bytes. This position is incremented by
-     * {@code length}.
-     *
-     * @param length The length in bytes of this buffer starting at current position to be in sub buffer
-     * @return new read only data buffer representing a subsection of this buffers data
-     * @throws BufferUnderflowException If length is more than remaining bytes
-     */
-    public Bytes readBytes(int length) {
-        if (length > buffer.remaining()) {
-            throw new BufferUnderflowException();
-        }
-        final int startPos = buffer.position();
-        // move on position
-        buffer.position(startPos + length);
-        return new ByteOverByteBuffer(buffer ,startPos , length);
     }
 
     /**
@@ -231,7 +211,7 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     }
 
     // ================================================================================================================
-    // DataOutput Read Methods
+    // DataInput Read Methods
 
     /**
      * {@inheritDoc}
@@ -256,78 +236,98 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     public void readBytes(byte[] dst) {
         buffer.get(dst);
     }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int readInt() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        return buffer.getInt();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int readInt(ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getInt();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long readLong() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        return buffer.getLong();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long readLong(ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getLong();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public float readFloat() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        return buffer.getFloat();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public float readFloat(ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getFloat();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public double readDouble() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        return buffer.getDouble();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public double readDouble(ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getDouble();
-    }
+//
+//    /**
+//     * Create a new Bytes over a subsection of this buffer. Data is shared and not copied, so any changes to
+//     * the contents of this buffer will be reflected in the Bytes. This position is incremented by
+//     * {@code length}.
+//     *
+//     * @param length The length in bytes of this buffer starting at current position to be in sub buffer
+//     * @return new read only data buffer representing a subsection of this buffers data
+//     * @throws BufferUnderflowException If length is more than remaining bytes
+//     */
+//    @Override
+//    public Bytes readBytes(int length) {
+//        if (length > buffer.remaining()) {
+//            throw new BufferUnderflowException();
+//        }
+//        final int startPos = buffer.position();
+//        // move on position
+//        buffer.position(startPos + length);
+//        return new ByteOverByteBuffer(buffer ,startPos , length);
+//    }
+//
+//    /**
+//     * {@inheritDoc}
+//     */
+//    @Override
+//    public int readInt() {
+//        buffer.order(ByteOrder.BIG_ENDIAN);
+//        return buffer.getInt();
+//    }
+//
+//    /**
+//     * {@inheritDoc}
+//     */
+//    @Override
+//    public int readInt(ByteOrder byteOrder) {
+//        buffer.order(byteOrder);
+//        return buffer.getInt();
+//    }
+//
+//    /**
+//     * {@inheritDoc}
+//     */
+//    @Override
+//    public long readLong() {
+//        buffer.order(ByteOrder.BIG_ENDIAN);
+//        return buffer.getLong();
+//    }
+//
+//    /**
+//     * {@inheritDoc}
+//     */
+//    @Override
+//    public long readLong(ByteOrder byteOrder) {
+//        buffer.order(byteOrder);
+//        return buffer.getLong();
+//    }
+//
+//    /**
+//     * {@inheritDoc}
+//     */
+//    @Override
+//    public float readFloat() {
+//        buffer.order(ByteOrder.BIG_ENDIAN);
+//        return buffer.getFloat();
+//    }
+//
+//    /**
+//     * {@inheritDoc}
+//     */
+//    @Override
+//    public float readFloat(ByteOrder byteOrder) {
+//        buffer.order(byteOrder);
+//        return buffer.getFloat();
+//    }
+//
+//    /**
+//     * {@inheritDoc}
+//     */
+//    @Override
+//    public double readDouble() {
+//        buffer.order(ByteOrder.BIG_ENDIAN);
+//        return buffer.getDouble();
+//    }
+//
+//    /**
+//     * {@inheritDoc}
+//     */
+//    @Override
+//    public double readDouble(ByteOrder byteOrder) {
+//        buffer.order(byteOrder);
+//        return buffer.getDouble();
+//    }
 
     // ================================================================================================================
     // DataOutput Write Methods

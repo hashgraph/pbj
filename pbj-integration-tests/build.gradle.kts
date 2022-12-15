@@ -60,9 +60,12 @@ tasks.withType<Test> {
 }
 
 jmh {
-//    includes.add("VarIntBench")
+//    includes.add("AccountDetailsBench.writePbjByteBuffer")
     jmhVersion.set("1.35")
     includeTests.set(true)
+    // 100 = 682846.464
+    // 500 = 682650.241
+//    jvmArgsAppend.add("-XX:MaxInlineSize=100 -XX:MaxInlineLevel=20")
 }
 
 tasks.jmhJar {

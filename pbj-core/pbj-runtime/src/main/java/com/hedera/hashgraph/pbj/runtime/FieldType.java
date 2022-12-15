@@ -37,5 +37,15 @@ public enum FieldType {
 	/** Protobuf enum type */
 	ENUM,
 	/** Protobuf sub-message type */
-	MESSAGE
+	MESSAGE;
+
+	/**
+	 * Optional values have an inner field, with a standard definition for every FieldType. We create singleton
+	 * instances here for them to avoid them having to be created on every use. Placing them on the enum avoid a switch.
+	 */
+	final FieldDefinition optionalFieldDefinition;
+
+	FieldType() {
+		optionalFieldDefinition = new FieldDefinition("value",this,false,1);
+	}
 }

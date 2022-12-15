@@ -54,8 +54,9 @@ public interface DataInput extends PositionedData {
         if ((getLimit() - getPosition()) < length) {
             throw new BufferUnderflowException();
         }
-        if (offset < 0 || (offset + length) >= dst.length) {
-            throw new IndexOutOfBoundsException();
+        if (offset < 0 || (offset + length) > dst.length) {
+            throw new IndexOutOfBoundsException("offset="+offset+" (offset + length)="+(offset + length)+
+                    "  dst.length="+ dst.length);
         }
         for (int i = offset; i < (offset+length); i++) {
             dst[i] = readByte();
@@ -108,6 +109,20 @@ public interface DataInput extends PositionedData {
      */
     default void readBytes(ByteBuffer dst) throws IOException {
         readBytes(dst, 0, dst.remaining());
+    }
+
+    /**
+     * Read {@code length} bytes from DataInput returning them as a Bytes object. That Bytes my not be a copy and refer
+     * back to the original data. So will only have a valid life of the src data.
+     *
+     * @param length The length in bytes ro read
+     * @return new Bytes containing read data
+     * @throws BufferUnderflowException If length is more than remaining bytes
+     */
+    default Bytes readBytes(int length) throws IOException {
+        byte[] bytes = new byte[length];
+        readBytes(bytes);
+        return Bytes.wrap(bytes);
     }
 
     /**

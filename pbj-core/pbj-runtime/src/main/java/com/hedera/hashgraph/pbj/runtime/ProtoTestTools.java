@@ -4,7 +4,6 @@ import com.hedera.hashgraph.pbj.runtime.io.Bytes;
 import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -21,11 +20,11 @@ public final class ProtoTestTools {
     private ProtoTestTools() {}
 
     /** Thread local set of reusable buffers */
-    private static ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS =
+    private static final ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS =
             ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, true));
 
     /** Thread local set of reusable buffers, second buffer for each thread */
-    private static ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS_2 =
+    private static final ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS_2 =
             ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, true));
 
     /**
@@ -51,7 +50,7 @@ public final class ProtoTestTools {
     }
 
     /** Thread local set of reusable buffers */
-    private static ThreadLocal<ByteBuffer> THREAD_LOCAL_BYTE_BUFFERS =
+    private static final ThreadLocal<ByteBuffer> THREAD_LOCAL_BYTE_BUFFERS =
             ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(BUFFER_SIZE));
 
     /**
@@ -99,10 +98,6 @@ public final class ProtoTestTools {
         );
     }
 
-    public void debugPrintBinaryProtobuf(DataBuffer data) {
-
-    }
-
     // =================================================================================================================
     // Standard lists of values to test with
 
@@ -123,10 +118,10 @@ public final class ProtoTestTools {
     /** string type test cases */
     public static final List<String> STRING_TESTS_LIST = List.of(
             "",
-            "Dude"//,
-//            "©«",
-//            "I need some HBAR to run work on Hedera!"//,
-//            "I need some ℏ to run work on Hedera!",
+            "Dude",
+            "©«",
+            "I need some HBAR to run work on Hedera!",
+            "I need some ℏ to run work on Hedera!"//,
 //            """
 //                    To be, or not to be, that is the question:
 //                    Whether ’tis nobler in the mind to suffer

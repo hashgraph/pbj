@@ -39,6 +39,7 @@ public final class ModelGenerator implements Generator {
 		final List<String> oneofGetters = new ArrayList<>();
 		final List<FieldDoc> fieldDocs = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
+		imports.add("com.hedera.hashgraph.pbj.runtime.io");
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);

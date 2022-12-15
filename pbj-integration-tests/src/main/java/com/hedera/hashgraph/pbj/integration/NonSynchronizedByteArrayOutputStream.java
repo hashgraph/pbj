@@ -1,4 +1,4 @@
-package protoparse;
+package com.hedera.hashgraph.pbj.integration;
 
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -10,26 +10,13 @@ import java.util.Objects;
  */
 public final class NonSynchronizedByteArrayOutputStream extends OutputStream {
 
-    /** Thread local set of reusable buffers */
-    private static ThreadLocal<NonSynchronizedByteArrayOutputStream> THREAD_LOCAL_BUFFERS =
-            ThreadLocal.withInitial(NonSynchronizedByteArrayOutputStream::new);
-
-    /**
-     * Get the thread local instance of NonSynchronizedByteArrayOutputStream, reset and ready to use.
-     */
-    public static NonSynchronizedByteArrayOutputStream getThreadLocalInstance() {
-        final var local = THREAD_LOCAL_BUFFERS.get();
-        local.reset();
-        return local;
-    }
-
     private ByteBuffer byteBuffer = null;
 
     private byte[] buf;
     private int count;
 
     public NonSynchronizedByteArrayOutputStream() {
-        this(1*1024*1024);
+        this(1024 * 1024);
     }
 
     public NonSynchronizedByteArrayOutputStream(int size) {
@@ -70,7 +57,7 @@ public final class NonSynchronizedByteArrayOutputStream extends OutputStream {
         count += 1;
     }
 
-    public void write(byte b[], int off, int len) {
+    public void write(byte[] b, int off, int len) {
         Objects.checkFromIndexSize(off, len, b.length);
         ensureCapacity(count + len);
         System.arraycopy(b, off, buf, count, len);
