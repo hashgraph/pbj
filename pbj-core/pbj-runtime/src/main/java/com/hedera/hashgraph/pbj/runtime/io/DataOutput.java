@@ -77,8 +77,6 @@ public interface DataOutput extends PositionedData {
     }
 
     /**
-     * TODO maybe not needed ?
-     *
      * This method writes the entire content of the given DataBuffer, all bytes between current position and limit. The
      * position is then incremented by {@code src.getRemaining()}.
      *

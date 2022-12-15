@@ -18,7 +18,7 @@ import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 /**
  * Code for generating enum code
  */
-@SuppressWarnings("InconsistentTextBlockIndent")
+@SuppressWarnings({"InconsistentTextBlockIndent", "EscapedSpace"})
 public final class EnumGenerator {
 
 	/** Record for an enum value temporary storage */

@@ -31,8 +31,8 @@ public record OneOf<E>(E kind, Object value) {
      * @return value
      * @param <V> the type to cast value to
      */
+    @SuppressWarnings("unchecked")
     public <V> V as() {
-        //noinspection unchecked
         return (V) value;
     }
 }

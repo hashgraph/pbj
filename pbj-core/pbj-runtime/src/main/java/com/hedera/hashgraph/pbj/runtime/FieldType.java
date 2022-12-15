@@ -45,6 +45,9 @@ public enum FieldType {
 	 */
 	final FieldDefinition optionalFieldDefinition;
 
+	/**
+	 * Constructor, creates optionalFieldDefinition automatically
+	 */
 	FieldType() {
 		optionalFieldDefinition = new FieldDefinition("value",this,false,1);
 	}

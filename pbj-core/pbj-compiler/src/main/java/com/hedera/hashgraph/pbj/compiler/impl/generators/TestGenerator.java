@@ -195,7 +195,6 @@ public final class TestGenerator implements Generator {
 							"modelClassName="+modelClassName+" field="+field+" subField="+subField);
 				}
 			}
-			// TODO
 			return """
 					Stream.of(
 						List.of(new OneOf<>(%sOneOfType.UNSET, null)),
@@ -236,8 +235,8 @@ public final class TestGenerator implements Generator {
 			case STRING -> "STRING_TESTS_LIST";
 			case BYTES -> "BYTES_TESTS_LIST";
 			case ENUM -> "Arrays.asList(" + javaFieldType + ".values())";
-			case ONE_OF -> "List.of(null)"; // TODO something more comprehensive
-			case MESSAGE -> javaFieldType + TEST_JAVA_FILE_SUFFIX + ".ARGUMENTS"; // TODO something more comprehensive
+			case ONE_OF -> throw new RuntimeException("Should never happen, should have been caught in generateTestData()");
+			case MESSAGE -> javaFieldType + TEST_JAVA_FILE_SUFFIX + ".ARGUMENTS";
 		};
 	}
 

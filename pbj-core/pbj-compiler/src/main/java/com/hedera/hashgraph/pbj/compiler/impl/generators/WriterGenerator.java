@@ -54,12 +54,12 @@ public final class WriterGenerator implements Generator {
 		final String fieldWriteLines = fields.stream()
 				.flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
 				.sorted(Comparator.comparingInt(Field::fieldNumber))
-				.map(field -> generateFieldWriteLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower()), imports))
+				.map(field -> generateFieldWriteLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower())))
 				.collect(Collectors.joining("\n		"));
 		final String fieldSizeOfLines = fields.stream()
 				.flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
 				.sorted(Comparator.comparingInt(Field::fieldNumber))
-				.map(field -> generateFieldSizeOfLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower()), imports))
+				.map(field -> generateFieldSizeOfLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower())))
 				.collect(Collectors.joining("\n		"));
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
@@ -111,12 +111,17 @@ public final class WriterGenerator implements Generator {
 					.replace("$fieldSizeOfLines", fieldSizeOfLines)
 			);
 		}
-
-		// TODO add checks back in before each field line if wanted
-		//  assert $schemaClass.valid(field) : "Field " + field + " doesn't belong to the expected schema".
 	}
 
-	private static String generateFieldWriteLines(final Field field, final String modelClassName, String getValueCode, final Set<String> imports) {
+	/**
+	 * Generate lines of code for writing field
+	 *
+	 * @param field The field to generate writing line of code for
+	 * @param modelClassName The model class name for model class for message type we are generating writer for
+	 * @param getValueCode java code to get the value of field
+	 * @return java code to write field to output
+	 */
+	private static String generateFieldWriteLines(final Field field, final String modelClassName, String getValueCode) {
 		final String fieldDef = camelToUpperSnake(field.name());
 		String prefix = "// ["+field.fieldNumber()+"] - "+field.name();
 		prefix += "\n"+FIELD_INDENT.repeat(2);
@@ -180,7 +185,15 @@ public final class WriterGenerator implements Generator {
 		}
 	}
 
-	private static String generateFieldSizeOfLines(final Field field, final String modelClassName, String getValueCode, final Set<String> imports) {
+	/**
+	 * Generate lines of code for size of method, that measure the size of each field and add to "size" variable.
+	 *
+	 * @param field The field to generate size of line
+	 * @param modelClassName The model class name for model class for message type we are generating writer for
+	 * @param getValueCode java code to get the value of field
+	 * @return java code for adding fields size to "size" variable
+	 */
+	private static String generateFieldSizeOfLines(final Field field, final String modelClassName, String getValueCode) {
 		final String fieldDef = camelToUpperSnake(field.name());
 		String prefix = "// ["+field.fieldNumber()+"] - "+field.name();
 		prefix += "\n"+FIELD_INDENT.repeat(2);

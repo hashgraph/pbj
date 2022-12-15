@@ -39,8 +39,10 @@ public class DataInputStream extends FilterInputStream implements DataInput {
     }
 
     private void readNextByte() throws IOException{
-        nextByte = (byte)in.read();
-        if (nextByte == -1) limit = position;
+        // Have to read as int, so we can detect difference between byte -1 int for EOF and 255 valid byte
+        final int nextByteAsInt = in.read();
+        nextByte = (byte) nextByteAsInt;
+        if (nextByteAsInt == -1) limit = position;
     }
 
     /**

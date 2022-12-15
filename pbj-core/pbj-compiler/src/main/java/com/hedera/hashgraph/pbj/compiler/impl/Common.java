@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 /**
  * Common functions and constants for code generation
  */
-@SuppressWarnings("DuplicatedCode")
+@SuppressWarnings({"DuplicatedCode", "EscapedSpace"})
 public final class Common {
 	/** The indent for fields, default 4 spaces */
 	public static final String FIELD_INDENT = " ".repeat(4);
@@ -25,7 +25,13 @@ public final class Common {
 	public static final int TYPE_FIXED32 = 5;
 
 
-	/** Makes a tag value given a field number and wire type. */
+	/**
+	 * Makes a tag value given a field number and wire type.
+	 *
+	 * @param wireType the wire type part of tag
+	 * @param fieldNumber the field number part of tag
+	 * @return packed encoded tag
+	 */
 	public static int getTag(final int wireType, final int fieldNumber) {
 		return (fieldNumber << TAG_TYPE_BITS) | wireType;
 	}
@@ -118,6 +124,9 @@ public final class Common {
 
 	/**
 	 * Remove leading dot from a string so ".a.b.c" becomes "a.b.c"
+	 *
+	 * @param text text to remove leading dot from
+	 * @return  text without a leading dot
 	 */
 	public static String removingLeadingDot(String text) {
 		if (text.length() > 0 & text.charAt(0) == '.') {

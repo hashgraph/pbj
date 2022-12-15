@@ -53,3 +53,8 @@ pluginBundle {
 
     tags = listOf("protobuf", "compiler", "generator", "runtime")
 }
+
+// Do not generate Java Doc for generated antlr grammar
+tasks.withType<Javadoc> {
+    excludes.add("com/hedera/hashgraph/pbj/compiler/impl/grammar/**")
+}

@@ -16,7 +16,7 @@ import static com.hedera.hashgraph.pbj.compiler.impl.generators.EnumGenerator.*;
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
  */
-@SuppressWarnings("StringConcatenationInLoop")
+@SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
 public final class ModelGenerator implements Generator {
 	/** Record for a field doc temporary storage */
 	private record FieldDoc(String fieldName, String fieldComment) {}
@@ -163,6 +163,7 @@ public final class ModelGenerator implements Generator {
 		bodyContent += String.join("\n    ", oneofEnums);
 		// === Build file
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
+			//noinspection SpellCheckingInspection
 			javaWriter.write("""
 					package %s;
 					%s

@@ -574,7 +574,6 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     @Override
     public void writeUnsignedInt(long value, ByteOrder byteOrder) {
         buffer.order(byteOrder);
-        buffer.order(ByteOrder.BIG_ENDIAN);
         buffer.putInt((int)value);
     }
 

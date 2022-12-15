@@ -50,89 +50,209 @@ public final class ProtoParserTools {
         return list;
     }
 
-    public static int readInt32(final DataInput buf) throws IOException {
-        return buf.readVarInt(false);
+    /**
+     * Read a protobuf int32 from input
+     *
+     * @param input The input data to read from
+     * @return the read int
+     * @throws IOException If a I/O error occurs
+     */
+    public static int readInt32(final DataInput input) throws IOException {
+        return input.readVarInt(false);
     }
 
-    public static long readInt64(final DataInput buf) throws IOException {
-        return buf.readVarLong(false);
+    /**
+     * Read a protobuf int64(long) from input
+     *
+     * @param input The input data to read from
+     * @return the read long
+     * @throws IOException If a I/O error occurs
+     */
+    public static long readInt64(final DataInput input) throws IOException {
+        return input.readVarLong(false);
     }
 
-    public static int readUint32(final DataInput buf) throws IOException {
-        return buf.readVarInt(false);
+    /**
+     * Read a protobuf uint32 from input
+     *
+     * @param input The input data to read from
+     * @return the read int
+     * @throws IOException If a I/O error occurs
+     */
+    public static int readUint32(final DataInput input) throws IOException {
+        return input.readVarInt(false);
     }
 
-    public static long readUint64(final DataInput buf) throws IOException {
-        return buf.readVarLong(false);
+    /**
+     * Read a protobuf uint64 from input
+     *
+     * @param input The input data to read from
+     * @return the read long
+     * @throws IOException If a I/O error occurs
+     */
+    public static long readUint64(final DataInput input) throws IOException {
+        return input.readVarLong(false);
     }
 
-    public static boolean readBool(final DataInput buf) throws IOException {
-        final var i = buf.readVarInt(false);
+    /**
+     * Read a protobuf bool from input
+     *
+     * @param input The input data to read from
+     * @return the read boolean
+     * @throws IOException If a I/O error occurs
+     */
+    public static boolean readBool(final DataInput input) throws IOException {
+        final var i = input.readVarInt(false);
         if (i != 1 && i != 0) {
             throw new IOException("Bad protobuf encoding. Boolean was not 0 or 1");
         }
         return i == 1;
     }
 
-    public static int readEnum(final DataInput buf) throws IOException {
-        return buf.readVarInt(false);
+    /**
+     * Read a protobuf enum from input
+     *
+     * @param input The input data to read from
+     * @return the read enum protoc ordinal
+     * @throws IOException If a I/O error occurs
+     */
+    public static int readEnum(final DataInput input) throws IOException {
+        return input.readVarInt(false);
     }
 
-    public static int readSignedInt32(final DataInput buf) throws IOException {
-        return buf.readVarInt(true);
+    /**
+     * Read a protobuf sint32 from input
+     *
+     * @param input The input data to read from
+     * @return the read int
+     * @throws IOException If a I/O error occurs
+     */
+    public static int readSignedInt32(final DataInput input) throws IOException {
+        return input.readVarInt(true);
     }
 
-    public static long readSignedInt64(final DataInput buf) throws IOException {
-        return buf.readVarLong(true);
+    /**
+     * Read a protobuf uint64(long) from input
+     *
+     * @param input The input data to read from
+     * @return the read long
+     * @throws IOException If a I/O error occurs
+     */
+    public static long readSignedInt64(final DataInput input) throws IOException {
+        return input.readVarLong(true);
     }
 
-    public static int readSignedFixed32(final DataInput buf) throws IOException {
-        return buf.readInt(ByteOrder.LITTLE_ENDIAN);
+    /**
+     * Read a protobuf sfixed32 from input
+     *
+     * @param input The input data to read from
+     * @return the read int
+     * @throws IOException If a I/O error occurs
+     */
+    public static int readSignedFixed32(final DataInput input) throws IOException {
+        return input.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static int readFixed32(final DataInput buf) throws IOException {
-        return buf.readInt(ByteOrder.LITTLE_ENDIAN);
+    /**
+     * Read a protobuf fixed32 from input
+     *
+     * @param input The input data to read from
+     * @return the read int
+     * @throws IOException If a I/O error occurs
+     */
+    public static int readFixed32(final DataInput input) throws IOException {
+        return input.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static float readFloat(final DataInput buf) throws IOException {
-        return buf.readFloat(ByteOrder.LITTLE_ENDIAN);
+    /**
+     * Read a protobuf float from input
+     *
+     * @param input The input data to read from
+     * @return the read float
+     * @throws IOException If a I/O error occurs
+     */
+    public static float readFloat(final DataInput input) throws IOException {
+        return input.readFloat(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static long readSignedFixed64(final DataInput buf) throws IOException {
-        return buf.readLong(ByteOrder.LITTLE_ENDIAN);
+    /**
+     * Read a protobuf sfixed64 from input
+     *
+     * @param input The input data to read from
+     * @return the read long
+     * @throws IOException If a I/O error occurs
+     */
+    public static long readSignedFixed64(final DataInput input) throws IOException {
+        return input.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static long readFixed64(final DataInput buf) throws IOException {
-        return buf.readLong(ByteOrder.LITTLE_ENDIAN);
+    /**
+     * Read a fixed 64, which is a fixed size encoded long
+     *
+     * @param input the input to read from
+     * @return read long
+     * @throws IOException If there was a problem reading
+     */
+    public static long readFixed64(final DataInput input) throws IOException {
+        return input.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static double readDouble(final DataInput buf) throws IOException {
-        return buf.readDouble(ByteOrder.LITTLE_ENDIAN);
+    /**
+     * Read a double from input data
+     *
+     * @param input the input to read from
+     * @return read double
+     * @throws IOException If there was a problem reading
+     */
+    public static double readDouble(final DataInput input) throws IOException {
+        return input.readDouble(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static String readString(final DataInput buf) throws IOException {
-        final int length = buf.readVarInt(false);
+    /**
+     * Read a String field from data input
+     *
+     * @param input the input to read from
+     * @return Read string
+     * @throws IOException If there was a problem reading
+     */
+    public static String readString(final DataInput input) throws IOException {
+        final int length = input.readVarInt(false);
         byte[] bytes = new byte[length];
-        buf.readBytes(bytes);
+        input.readBytes(bytes);
         return new String(bytes,StandardCharsets.UTF_8);
     }
 
-    public static Bytes readBytes(final DataInput buf) throws IOException {
-        final int length = buf.readVarInt(false);
-        return buf.readBytes(length);
+    /**
+     * Read a Bytes field from data input
+     *
+     * @param input the input to read from
+     * @return read Bytes object, this can be a copy or a direct reference to inputs data. So it has same life span
+     * of InputData
+     * @throws IOException If there was a problem reading
+     */
+    public static Bytes readBytes(final DataInput input) throws IOException {
+        final int length = input.readVarInt(false);
+        return input.readBytes(length);
     }
 
-    public static void skipField(final DataInput buf, final int wireType) throws IOException {
+    /**
+     * Skip over the bytes in a stream for a given wire type. Assumes you have already read tag.
+     * 
+     * @param input The input to move ahead
+     * @param wireType The wire type of field to skip
+     * @throws IOException For unsupported wire types
+     */
+    public static void skipField(final DataInput input, final int wireType) throws IOException {
         switch (wireType) {
-            case WIRE_TYPE_FIXED_64_BIT -> buf.skip(8);
-            case WIRE_TYPE_FIXED_32_BIT -> buf.skip(4);
+            case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
+            case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
             // The value for "zigZag" when calling varint doesn't matter because we are just reading past
             // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
             // the bytes, not how many of them there are)
-            case WIRE_TYPE_VARINT_OR_ZIGZAG -> buf.readVarLong(false);
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
             case WIRE_TYPE_DELIMITED -> {
-                final int length = buf.readVarInt(false);
-                buf.skip(length);
+                final int length = input.readVarInt(false);
+                input.skip(length);
             }
             case WIRE_TYPE_GROUP_START -> throw new IOException(
                     "Wire type 'Group Start' is unsupported");
@@ -142,157 +262,4 @@ public final class ProtoParserTools {
                     "Unhandled wire type while trying to skip a field " + wireType);
         }
     }
-
-//    // =================================================================================================================
-//    // Optimized VarInt parsing implementation, derived from the google implementation
-//    // https://github.com/protocolbuffers/protobuf
-//
-//    public static int readRawVarint32(final DataInput buf) throws IOException {
-//        // See implementation notes for readRawVarint64
-//        fastpath:
-//        {
-//            int tempPos = (int)buf.getPosition();
-//
-//            if (!buf.hasRemaining()) {
-//                break fastpath;
-//            }
-//            int x;
-//            if ((x = buf.readByte(tempPos++)) >= 0) {
-//                buf.position(tempPos);
-//                return x;
-//            } else if (buf.remaining() - tempPos < 9) {
-//                break fastpath;
-//            } else if ((x ^= (buf.get(tempPos++) << 7)) < 0) {
-//                x ^= (~0 << 7);
-//            } else if ((x ^= (buf.get(tempPos++) << 14)) >= 0) {
-//                x ^= (~0 << 7) ^ (~0 << 14);
-//            } else if ((x ^= (buf.get(tempPos++) << 21)) < 0) {
-//                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
-//            } else {
-//                int y = buf.read(tempPos++);
-//                x ^= y << 28;
-//                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
-//                if (y < 0
-//                        && buf.read(tempPos++) < 0
-//                        && buf.read(tempPos++) < 0
-//                        && buf.read(tempPos++) < 0
-//                        && buf.read(tempPos++) < 0
-//                        && buf.read(tempPos++) < 0) {
-//                    break fastpath; // Will throw malformedVarint()
-//                }
-//            }
-//            buf.position(tempPos);
-//            return x;
-//        }
-//        return (int) readRawVarint64SlowPath(buf);
-//    }
-//
-//    public static long readRawVarint64(final DataInput buf) throws IOException {
-//        // Implementation notes:
-//        //
-//        // Optimized for one-byte values, expected to be common.
-//        // The particular code below was selected from various candidates
-//        // empirically, by winning VarintBenchmark.
-//        //
-//        // Sign extension of (signed) Java bytes is usually a nuisance, but
-//        // we exploit it here to more easily obtain the sign of bytes read.
-//        // Instead of cleaning up the sign extension bits by masking eagerly,
-//        // we delay until we find the final (positive) byte, when we clear all
-//        // accumulated bits with one xor.  We depend on javac to constant fold.
-//        fastpath:
-//        {
-//            int tempPos = buf.position();
-//
-//            if (buf.remaining() == 0) {
-//                break fastpath;
-//            }
-//
-//            long x;
-//            int y;
-//            if ((y = buf.read(tempPos++)) >= 0) {
-//                buf.position(tempPos);
-//                return y;
-//            } else if (buf.remaining() - tempPos < 9) {
-//                break fastpath;
-//            } else if ((y ^= (buf.get(tempPos++) << 7)) < 0) {
-//                x = y ^ (~0 << 7);
-//            } else if ((y ^= (buf.get(tempPos++) << 14)) >= 0) {
-//                x = y ^ ((~0 << 7) ^ (~0 << 14));
-//            } else if ((y ^= (buf.get(tempPos++) << 21)) < 0) {
-//                x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
-//            } else if ((x = y ^ ((long) buf.read(tempPos++) << 28)) >= 0L) {
-//                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
-//            } else if ((x ^= ((long) buf.read(tempPos++) << 35)) < 0L) {
-//                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
-//            } else if ((x ^= ((long) buf.read(tempPos++) << 42)) >= 0L) {
-//                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
-//            } else if ((x ^= ((long) buf.read(tempPos++) << 49)) < 0L) {
-//                x ^=
-//                        (~0L << 7)
-//                                ^ (~0L << 14)
-//                                ^ (~0L << 21)
-//                                ^ (~0L << 28)
-//                                ^ (~0L << 35)
-//                                ^ (~0L << 42)
-//                                ^ (~0L << 49);
-//            } else {
-//                x ^= ((long) buf.read(tempPos++) << 56);
-//                x ^=
-//                        (~0L << 7)
-//                                ^ (~0L << 14)
-//                                ^ (~0L << 21)
-//                                ^ (~0L << 28)
-//                                ^ (~0L << 35)
-//                                ^ (~0L << 42)
-//                                ^ (~0L << 49)
-//                                ^ (~0L << 56);
-//                if (x < 0L) {
-//                    if (buf.get(tempPos++) < 0L) {
-//                        break fastpath; // Will throw malformedVarint()
-//                    }
-//                }
-//            }
-//            buf.position(tempPos);
-//            return x;
-//        }
-//        return readRawVarint64SlowPath(buf);
-//    }
-//    
-//    private static long readRawVarint64SlowPath(DataInput buf) throws IOException {
-//        long result = 0;
-//        for (int shift = 0; shift < 64; shift += 7) {
-//            final byte b = buf.read();
-//            result |= (long) (b & 0x7F) << shift;
-//            if ((b & 0x80) == 0) {
-//                return result;
-//            }
-//        }
-//        throw new IOException("Malformed varInt");
-//    }
-//
-//    /**
-//     * Decode a ZigZag-encoded 32-bit value. ZigZag encodes signed integers into values that can be
-//     * efficiently encoded with varint. (Otherwise, negative values must be sign-extended to 64 bits
-//     * to be varint encoded, thus always taking 10 bytes on the wire.)
-//     *
-//     * @param n An unsigned 32-bit integer, stored in a signed int because Java has no explicit
-//     *     unsigned support.
-//     * @return A signed 32-bit integer.
-//     */
-//    private static int decodeZigZag32(final int n) {
-//        return (n >>> 1) ^ -(n & 1);
-//    }
-//
-//    /**
-//     * Decode a ZigZag-encoded 64-bit value. ZigZag encodes signed integers into values that can be
-//     * efficiently encoded with varint. (Otherwise, negative values must be sign-extended to 64 bits
-//     * to be varint encoded, thus always taking 10 bytes on the wire.)
-//     *
-//     * @param n An unsigned 64-bit integer, stored in a signed int because Java has no explicit
-//     *     unsigned support.
-//     * @return A signed 64-bit integer.
-//     */
-//    private static long decodeZigZag64(final long n) {
-//        return (n >>> 1) ^ -(n & 1);
-//    }
 }

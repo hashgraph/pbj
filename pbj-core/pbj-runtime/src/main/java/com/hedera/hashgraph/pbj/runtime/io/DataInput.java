@@ -20,7 +20,7 @@ public interface DataInput extends PositionedData {
     /**
      * Reads the byte at current position, and then increments the position.
      *
-     * @return The byte at current position TODO should this be a int, to match InputStream?
+     * @return The byte at current position
      * @throws BufferUnderflowException If the current position is not smaller than its limit
      * @throws IOException if an I/O error occurs
      */
@@ -118,6 +118,7 @@ public interface DataInput extends PositionedData {
      * @param length The length in bytes ro read
      * @return new Bytes containing read data
      * @throws BufferUnderflowException If length is more than remaining bytes
+     * @throws IOException if an I/O error occurs
      */
     default Bytes readBytes(int length) throws IOException {
         byte[] bytes = new byte[length];

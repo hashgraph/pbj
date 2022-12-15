@@ -134,10 +134,20 @@ public record OneOfField(
 		return fields.stream().map(Field::parserFieldsSetMethodCase).collect(Collectors.joining("\n"));
 	}
 
+	/**
+	 * Get reference to enum class in Java code
+	 *
+	 * @return enum class reference
+	 */
 	public String getEnumClassRef() {
 		return parentMessageName+"."+ nameCamelFirstUpper()+"OneOfType";
 	}
 
+	/**
+	 * Helpful debug toString
+	 *
+	 * @return debug toString
+	 */
 	@Override
 	public String toString() {
 		return "OneOfField{" +

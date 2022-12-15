@@ -16,27 +16,55 @@ import java.io.FileInputStream;
  */
 public abstract class PbjCompilerTask extends SourceTask {
 
+	/** The java main directory that we write generated code into */
 	private File javaMainOutputDirectory;
+
+	/** The java test directory that we write generated code into */
 	private File javaTestOutputDirectory;
 
+	/**
+	 * Get the java main directory that we write generated code into
+	 *
+	 * @return The java main directory that we write generated code into
+	 */
 	@OutputDirectory
 	public File getJavaMainOutputDirectory() {
 		return javaMainOutputDirectory;
 	}
 
+	/**
+	 * Set the java main directory that we write generated code into
+	 *
+	 * @param javaMainOutputDirectory The new java main directory that we write generated code into
+	 */
 	public void setJavaMainOutputDirectory(File javaMainOutputDirectory) {
 		this.javaMainOutputDirectory = javaMainOutputDirectory;
 	}
 
+	/**
+	 * Get the java test directory that we write generated code into
+	 *
+	 * @return The java test directory that we write generated code into
+	 */
 	@OutputDirectory
 	public File getJavaTestOutputDirectory() {
 		return javaTestOutputDirectory;
 	}
 
+	/**
+	 * Set the java test directory that we write generated code into
+	 *
+	 * @param javaTestOutputDirectory The new java test directory that we write generated code into
+	 */
 	public void setJavaTestOutputDirectory(File javaTestOutputDirectory) {
 		this.javaTestOutputDirectory = javaTestOutputDirectory;
 	}
 
+	/**
+	 * Perform task action - Generates all the PBJ java source files
+	 *
+	 * @throws Exception If there was a problem performing action
+	 */
 	@TaskAction
 	public void perform() throws Exception {
 		try {

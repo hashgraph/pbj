@@ -259,7 +259,6 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				return "case %d -> this.%s = %s;".formatted(fieldNumber, fieldNameToSet,valueToSet);
 			}
 		} else if (type == FieldType.ENUM) {
-			// TODO oneof ?
 			if (repeated) {
 				return "case %d -> this.%s = input.stream().map(%s::fromProtobufOrdinal).toList();".formatted(fieldNumber, fieldNameToSet,
 						snakeToCamel(messageType, true));

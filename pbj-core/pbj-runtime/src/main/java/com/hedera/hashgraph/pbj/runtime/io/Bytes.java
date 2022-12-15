@@ -79,8 +79,7 @@ public abstract class Bytes {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || !(o instanceof Bytes)) return false;
-        Bytes that = (Bytes) o;
+        if (!(o instanceof Bytes that)) return false;
         final int length = getLength();
         if (length != that.getLength()) {
             return false;
@@ -130,7 +129,7 @@ public abstract class Bytes {
      * Gets the byte at given {@code offset}.
      *
      * @param offset The offset into data to get byte at
-     * @return The byte at given {@code offset} TODO should this be a int, to match InputStream?
+     * @return The byte at given {@code offset}
      * @throws BufferUnderflowException If the given {@code offset} is not smaller than its limit
      * @throws IOException if an I/O error occurs
      */

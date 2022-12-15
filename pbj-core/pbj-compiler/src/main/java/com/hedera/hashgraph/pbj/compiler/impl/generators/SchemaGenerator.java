@@ -103,7 +103,7 @@ public final class SchemaGenerator implements Generator {
 	/**
 	 * Generate getField method to get a field definition given a field number
 	 *
-	 * @param flattenedFields flattened list of all fields, with oneof's flattened
+	 * @param flattenedFields flattened list of all fields, with oneofs flattened
 	 * @return source code string for getField method
 	 */
 	private static String generateGetField(final List<Field> flattenedFields) {

@@ -288,56 +288,61 @@ public class DataTest {
                            IoRead<java.io.DataInputStream,T> javaDataInputReadMethod,
                            IoRead<DataBuffer,T> dataBufferReadMethod
     ) throws IOException {
-        // write to byte array with DataIO DataOutputStream
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        DataOutputStream dout = new DataOutputStream(bout);
-        dataOutputWriteMethod.write(dout,value);
-        byte[] writtenData = bout.toByteArray();
-        // write to byte array with Java IO DataOutputStream
-        ByteArrayOutputStream bout2 = new ByteArrayOutputStream();
-        java.io.DataOutputStream dout2 = new java.io.DataOutputStream(bout2);
-        javaDataOutputWriteMethod.write(dout2,value);
-        byte[] writtenData2 = bout2.toByteArray();
-        // compare written arrays
-        assertArrayEquals(writtenData, writtenData2);
-        // read back with DataInputStream
-        ByteArrayInputStream bin = new ByteArrayInputStream(writtenData);
-        DataInputStream din = new DataInputStream(bin);
-        T readValue = dataInputReadMethod.read(din);
-        assertEquals(value, readValue);
-        // read back with Java IO DataOutputStream
-        bin.reset();
-        java.io.DataInputStream din2 = new java.io.DataInputStream(bin);
-        T readValue2 = javaDataInputReadMethod.read(din2);
-        assertEquals(value, readValue2);
-        // write with DataBuffer
-        DataBuffer db = new DataBuffer(writtenData.length);
-        dataBufferWriteMethod.write(db,value);
-        db.reset();
-        // check bytes in buffer
-        byte[] writtenData3 = new byte[writtenData.length];
-        db.readBytes(writtenData3);
-        assertArrayEquals(writtenData, writtenData3);
-        // read with DataBuffer
-        db.reset();
-        T readValue3 = dataBufferReadMethod.read(db);
-        assertEquals(value, readValue3);
-        // read into Bytes and check all data is valid
-        db.reset();
-        final Bytes readBytes = db.readBytes(writtenData.length);
-        for (int i = 0; i < writtenData.length; i++) {
-            assertEquals(writtenData[i], readBytes.getByte(i));
-        }
-        // read subset into Bytes and check all data is valid
-        if (writtenData.length > 3) {
+        try {
+            // write to byte array with DataIO DataOutputStream
+            ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            DataOutputStream dout = new DataOutputStream(bout);
+            dataOutputWriteMethod.write(dout, value);
+            byte[] writtenData = bout.toByteArray();
+            // write to byte array with Java IO DataOutputStream
+            ByteArrayOutputStream bout2 = new ByteArrayOutputStream();
+            java.io.DataOutputStream dout2 = new java.io.DataOutputStream(bout2);
+            javaDataOutputWriteMethod.write(dout2, value);
+            byte[] writtenData2 = bout2.toByteArray();
+            // compare written arrays
+            assertArrayEquals(writtenData, writtenData2);
+            // read back with DataInputStream
+            ByteArrayInputStream bin = new ByteArrayInputStream(writtenData);
+            DataInputStream din = new DataInputStream(bin);
+            T readValue = dataInputReadMethod.read(din);
+            assertEquals(value, readValue);
+            // read back with Java IO DataOutputStream
+            bin.reset();
+            java.io.DataInputStream din2 = new java.io.DataInputStream(bin);
+            T readValue2 = javaDataInputReadMethod.read(din2);
+            assertEquals(value, readValue2);
+            // write with DataBuffer
+            DataBuffer db = new DataBuffer(writtenData.length);
+            dataBufferWriteMethod.write(db, value);
             db.reset();
-            // read 1 byte, so we are doing a starting not at 0
-            db.readByte();
-            // read length -2 so subset
-            final Bytes readBytes2 = db.readBytes(writtenData.length-2);
-            for (int i = 0; i < writtenData.length - 2; i++) {
-                assertEquals(writtenData[i+1], readBytes2.getByte(i));
+            // check bytes in buffer
+            byte[] writtenData3 = new byte[writtenData.length];
+            db.readBytes(writtenData3);
+            assertArrayEquals(writtenData, writtenData3);
+            // read with DataBuffer
+            db.reset();
+            T readValue3 = dataBufferReadMethod.read(db);
+            assertEquals(value, readValue3);
+            // read into Bytes and check all data is valid
+            db.reset();
+            final Bytes readBytes = db.readBytes(writtenData.length);
+            for (int i = 0; i < writtenData.length; i++) {
+                assertEquals(writtenData[i], readBytes.getByte(i));
             }
+            // read subset into Bytes and check all data is valid
+            if (writtenData.length > 3) {
+                db.reset();
+                // read 1 byte, so we are doing a starting not at 0
+                db.readByte();
+                // read length -2 so subset
+                final Bytes readBytes2 = db.readBytes(writtenData.length - 2);
+                for (int i = 0; i < writtenData.length - 2; i++) {
+                    assertEquals(writtenData[i + 1], readBytes2.getByte(i));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw e;
         }
     }
 
