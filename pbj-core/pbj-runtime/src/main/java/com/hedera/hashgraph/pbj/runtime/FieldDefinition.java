@@ -19,11 +19,21 @@ package com.hedera.hashgraph.pbj.runtime;
  * @param name     The name of the field as contained in the schema. Cannot be null.
  * @param type     The type of the field as contained in the schema. Cannot be null.
  * @param repeated Whether this is a "repeated" field
- * @param optional Whether this is a "optional" field - which uses Protobuf built in value types to wrap raw value
+ * @param optional Whether this is an "optional" field - which uses Protobuf built in value types to wrap raw value
  * @param oneOf    Whether this is a field is part of a oneOf
  * @param number   The field number. Must be &gt;= 0.
  */
 public record FieldDefinition(String name, FieldType type, boolean repeated, boolean optional, boolean oneOf, int number) {
+    /**
+     * Construct new FieldDefinition, standard record all args constructor with extra checks
+     *
+     * @param name     The name of the field as contained in the schema. Cannot be null.
+     * @param type     The type of the field as contained in the schema. Cannot be null.
+     * @param repeated Whether this is a "repeated" field
+     * @param optional Whether this is a "optional" field - which uses Protobuf built in value types to wrap raw value
+     * @param oneOf    Whether this is a field is part of a oneOf
+     * @param number   The field number. Must be &gt;= 0.
+     */
     public FieldDefinition {
         if (name == null) {
             throw new NullPointerException("Name must be specified on a FieldDefinition");

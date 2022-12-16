@@ -62,29 +62,33 @@ public final class TestGenerator implements Generator {
 		imports.add("java.util");
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
-					package %s;
-									
-					import org.junit.jupiter.params.ParameterizedTest;
-					import org.junit.jupiter.params.provider.Arguments;
-					import org.junit.jupiter.params.provider.MethodSource;
-					import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-					import static org.junit.jupiter.api.Assertions.assertEquals;
-					import static com.hedera.hashgraph.pbj.runtime.Utils.*;
-					import java.io.ByteArrayOutputStream;
-					import java.util.stream.Collectors;
-					import java.util.stream.IntStream;
-					import java.util.stream.Stream;
-					import java.nio.ByteBuffer;
-					%s
-										
-					/**
-					 * Unit Test for %s model object. Generate based on protobuf schema.
-					 */
-					public final class %s {
-						%s
-						%s
-					}
-					""".formatted(
+							package %s;
+											
+							import com.google.protobuf.CodedOutputStream;
+							import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
+							import org.junit.jupiter.params.ParameterizedTest;
+							import org.junit.jupiter.params.provider.MethodSource;
+							import com.hedera.hashgraph.pbj.runtime.test.*;
+							import java.util.stream.IntStream;
+							import java.util.stream.Stream;
+							import java.nio.ByteBuffer;
+							%s
+														
+							import com.google.protobuf.CodedInputStream;
+							import com.google.protobuf.WireFormat;
+							import java.io.IOException;
+												
+							import static com.hedera.hashgraph.pbj.runtime.ProtoTestTools.*;
+							import static org.junit.jupiter.api.Assertions.assertEquals;
+												
+							/**
+							 * Unit Test for %s model object. Generate based on protobuf schema.
+							 */
+							public final class %s {
+								%s
+								%s
+							}
+							""".formatted(
 							testPackage,
 						imports.isEmpty() ? "" : imports.stream()
 								.filter(input -> !input.equals(testPackage))
@@ -104,28 +108,36 @@ public final class TestGenerator implements Generator {
 	private static String generateModelTestArgumentsMethod(final String modelClassName, final List<Field> fields) {
 		return """	
 				/**
-				 * Create a stream of all test permutations of the %s class we are testing. This is reused by other tests
-				 * as well that have model objects with fields of this type.
-				 *
-				 * @return stream of model objects for all test cases
+				 * List of all valid arguments for testing, built as a static list, so we can reuse it.
 				 */
-				public static Stream<%s> createModelTestArguments() {
+				public static final List<%s> ARGUMENTS;
+				
+				static {
 					%s
 					// work out the longest of all the lists of args as that is how many test cases we need
 					final int maxValues = IntStream.of(
 						%s
 					).max().getAsInt();
 					// create new stream of model objects using lists above as constructor params
-					return IntStream.range(0,maxValues)
+					ARGUMENTS = IntStream.range(0,maxValues)
 							.mapToObj(i -> new %s(
 								%s
-							));
+							)).toList();
+				}
+				
+				/**
+				 * Create a stream of all test permutations of the %s class we are testing. This is reused by other tests
+				 * as well that have model objects with fields of this type.
+				 *
+				 * @return stream of model objects for all test cases
+				 */
+				public static Stream<NoToStringWrapper<%s>> createModelTestArguments() {
+					return ARGUMENTS.stream().map(NoToStringWrapper::new);
 				}
 				""".formatted(
 					modelClassName,
-					modelClassName,
 					fields.stream()
-							.map(f -> "final var "+f.nameCamelFirstLower()+"List = "+generateTestData(modelClassName, f, f.optional(), f.repeated())+";")
+							.map(f -> "final var "+f.nameCamelFirstLower()+"List = "+generateTestData(modelClassName, f, f.optionalValueType(), f.repeated())+";")
 							.collect(Collectors.joining("\n"+FIELD_INDENT)),
 					fields.stream()
 							.map(f -> f.nameCamelFirstLower()+"List.size()")
@@ -135,8 +147,10 @@ public final class TestGenerator implements Generator {
 								field.nameCamelFirstLower(),
 								field.nameCamelFirstLower()
 						))
-							.collect(Collectors.joining(",\n"+FIELD_INDENT+FIELD_INDENT+FIELD_INDENT+FIELD_INDENT))
-		);
+							.collect(Collectors.joining(",\n"+FIELD_INDENT+FIELD_INDENT+FIELD_INDENT+FIELD_INDENT)),
+					modelClassName,
+					modelClassName
+				);
 	}
 
 	private static String generateTestData(String modelClassName, Field field, boolean optional, boolean repeated) {
@@ -148,7 +162,7 @@ public final class TestGenerator implements Generator {
 							getOptionsForFieldType(convertedFieldType, convertedFieldType.javaType))
 					.replaceAll("\n","\n"+FIELD_INDENT+FIELD_INDENT);
 		} else if (repeated) {
-			final String optionsList = generateTestData(modelClassName, field, field.optional(), false);
+			final String optionsList = generateTestData(modelClassName, field, field.optionalValueType(), false);
 			return """
 					generateListArguments(%s)""".formatted(optionsList)
 					.replaceAll("\n","\n"+FIELD_INDENT+FIELD_INDENT);
@@ -161,7 +175,7 @@ public final class TestGenerator implements Generator {
 					if (!("THRESHOLD_KEY".equals(enumValueName) || "KEY_LIST".equals(enumValueName)
 							|| "THRESHOLD_SIGNATURE".equals(enumValueName)|| "SIGNATURE_LIST".equals(enumValueName))) {
 						final String listStr;
-						if (subField.optional()) {
+						if (subField.optionalValueType()) {
 							Field.FieldType convertedSubFieldType = getOptionalConvertedFieldType(subField);
 							listStr = "makeListOptionals("+getOptionsForFieldType(convertedSubFieldType, convertedSubFieldType.javaType)+")";
 						} else {
@@ -181,7 +195,6 @@ public final class TestGenerator implements Generator {
 							"modelClassName="+modelClassName+" field="+field+" subField="+subField);
 				}
 			}
-			// TODO
 			return """
 					Stream.of(
 						List.of(new OneOf<>(%sOneOfType.UNSET, null)),
@@ -200,37 +213,30 @@ public final class TestGenerator implements Generator {
 			case "StringValue" -> Field.FieldType.STRING;
 			case "Int32Value" -> Field.FieldType.INT32;
 			case "UInt32Value" -> Field.FieldType.UINT32;
-			case "SInt32Value" -> Field.FieldType.SINT32;
 			case "Int64Value" -> Field.FieldType.INT64;
 			case "UInt64Value" -> Field.FieldType.UINT64;
-			case "SInt64Value" -> Field.FieldType.SINT64;
 			case "FloatValue" -> Field.FieldType.FLOAT;
 			case "DoubleValue" -> Field.FieldType.DOUBLE;
 			case "BoolValue" -> Field.FieldType.BOOL;
 			case "BytesValue" -> Field.FieldType.BYTES;
-			case "EnumValue" -> Field.FieldType.ENUM;
 			default -> Field.FieldType.MESSAGE;
 		};
 	}
 
 	private static String getOptionsForFieldType(Field.FieldType fieldType, String javaFieldType) {
 		return switch (fieldType) {
-			case INT32, SINT32 -> "List.of(Integer.MIN_VALUE, -42, -21, 0, 21, 42, Integer.MAX_VALUE)";
-			case UINT32 -> "List.of(0, 1, 2, Integer.MAX_VALUE)";
-			case INT64, SINT64 -> "List.of(Long.MIN_VALUE, -42L, -21L, 0L, 21L, 42L, Long.MAX_VALUE)";
-			case UINT64 -> "List.of(0L, 21L, 42L, Long.MAX_VALUE)";
-			case FLOAT, SFIXED32 ->
-					"List.of(Float.NEGATIVE_INFINITY, Float.MIN_VALUE, -102.7f, -5f, 1.7f, 0f, 3f, 5.2f, 42.1f, Float.MAX_VALUE, Float.POSITIVE_INFINITY, Float.NaN)";
-			case FIXED32 -> "List.of(0f, 3f, 5.2f, 42.1f, Float.MAX_VALUE, Float.POSITIVE_INFINITY, Float.NaN)";
-			case DOUBLE, SFIXED64 ->
-					"List.of(Double.NEGATIVE_INFINITY, Double.MIN_VALUE, -102.7, -5, 1.7, 0d, 3, 5.2, 42.1, Double.MAX_VALUE, Double.POSITIVE_INFINITY, Double.NaN)";
-			case FIXED64 -> "List.of(0d, 3, 5.2, 42.1, Double.MAX_VALUE, Double.POSITIVE_INFINITY, Double.NaN)";
-			case BOOL -> "List.of(true, false)";
-			case STRING -> "List.of(\"\", \"Dude\")";
-			case BYTES -> "List.of(ByteBuffer.wrap(new byte[0]).asReadOnlyBuffer(), ByteBuffer.wrap(new byte[]{0b001}).asReadOnlyBuffer(), ByteBuffer.wrap(new byte[]{0b001, 0b010, 0b011}).asReadOnlyBuffer())";
+			case INT32, SINT32, SFIXED32 -> "INTEGER_TESTS_LIST";
+			case UINT32, FIXED32 -> "UNSIGNED_INTEGER_TESTS_LIST";
+			case INT64, SINT64, SFIXED64 -> "LONG_TESTS_LIST";
+			case UINT64, FIXED64 -> "UNSIGNED_LONG_TESTS_LIST";
+			case FLOAT -> "FLOAT_TESTS_LIST";
+			case DOUBLE -> "DOUBLE_TESTS_LIST";
+			case BOOL -> "BOOLEAN_TESTS_LIST";
+			case STRING -> "STRING_TESTS_LIST";
+			case BYTES -> "BYTES_TESTS_LIST";
 			case ENUM -> "Arrays.asList(" + javaFieldType + ".values())";
-			case ONE_OF -> "List.of(null)"; // TODO something more comprehensive
-			case MESSAGE -> javaFieldType + TEST_JAVA_FILE_SUFFIX + ".createModelTestArguments().toList()"; // TODO something more comprehensive
+			case ONE_OF -> throw new RuntimeException("Should never happen, should have been caught in generateTestData()");
+			case MESSAGE -> javaFieldType + TEST_JAVA_FILE_SUFFIX + ".ARGUMENTS";
 		};
 	}
 
@@ -240,33 +246,58 @@ public final class TestGenerator implements Generator {
 		return """
 				@ParameterizedTest
 				@MethodSource("createModelTestArguments")
-				public void test%sAgainstProtoC(final %s modelObj) throws Exception {
-					// model to bytes
-					final ByteArrayOutputStream bout = new ByteArrayOutputStream();
-					%s.write(modelObj,bout);
-					bout.flush();
-					final byte[] modelWriterBytes = bout.toByteArray();
-					// read proto bytes with new parser
-					final %s modelObj2 = new %s().parse(modelWriterBytes);
+				public void test$modelClassNameAgainstProtoC(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
+					final $modelClassName modelObj = modelObjWrapper.getValue();
+					// get reusable thread buffers
+					final DataBuffer dataBuffer = getThreadLocalDataBuffer();
+					final DataBuffer dataBuffer2 = getThreadLocalDataBuffer2();
+					final ByteBuffer byteBuffer = getThreadLocalByteBuffer();
+					
+					// model to bytes with PBJ
+					$writerClassName.write(modelObj,dataBuffer);
+					// clamp limit to bytes written
+					dataBuffer.setLimit(dataBuffer.getPosition());
+					
+					// copy bytes to ByteBuffer
+					dataBuffer.resetPosition();
+					dataBuffer.readBytes(byteBuffer, 0, (int)dataBuffer.getRemaining());
+					byteBuffer.flip();
+					
+					// read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
+					final $protocModelClass protoCModelObj = $protocModelClass.parseFrom(byteBuffer);
+					
+					// read proto bytes with PBJ parser
+					dataBuffer.resetPosition();
+					final $modelClassName modelObj2 = $parserClassName.parse(dataBuffer);
+					
+					// check the read back object is equal to written original one
+					//assertEquals(modelObj.toString(), modelObj2.toString());
 					assertEquals(modelObj, modelObj2);
-					// read model with proto and compare bytes
-					final %s protoModelObj2 = %s.parseFrom(modelWriterBytes);
-					final byte[] protoBytes = protoModelObj2.toByteArray();
-					//assertArrayEquals(modelWriterBytes, protoBytes);
-					// read proto bytes with new parser
-					final %s modelObj3 = new %s().parse(protoBytes);
+					
+					// model to bytes with ProtoC writer
+					byteBuffer.clear();
+					final CodedOutputStream codedOutput = CodedOutputStream.newInstance(byteBuffer);
+					protoCModelObj.writeTo(codedOutput);
+					codedOutput.flush();
+					byteBuffer.flip();
+					// copy to a data buffer
+					dataBuffer2.writeBytes(byteBuffer);
+					dataBuffer2.flip();
+					
+					// compare written bytes
+					assertEquals(dataBuffer, dataBuffer2);
+
+					// parse those bytes again with PBJ
+					dataBuffer2.resetPosition();
+					final $modelClassName modelObj3 = $parserClassName.parse(dataBuffer2);
 					assertEquals(modelObj, modelObj3);
 				}
-				""".formatted(
-				modelClassName,
-				modelClassName,
-				writerClassName,
-				modelClassName,
-				parserClassName,
-				protoCJavaFullQualifiedClass,
-				protoCJavaFullQualifiedClass,
-				modelClassName,
-				parserClassName
-		);
+				"""
+				.replace("$modelClassName",modelClassName)
+				.replace("$writerClassName",writerClassName)
+				.replace("$parserClassName",parserClassName)
+				.replace("$protocModelClass",protoCJavaFullQualifiedClass)
+				.replace("$modelClassName",modelClassName)
+		;
 	}
 }

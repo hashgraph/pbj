@@ -1,40 +1,22 @@
 package com.hedera.hashgraph.pbj.runtime;
 
-class ProtoConstants {
-
-    // In protobuf, the "wire type" indicates the way the value was encoded on the wire.
-    // Normally this isn't needed because when I know the field type, I know what the wire
-    // type should be (although this should be validated). However, this is needed when
-    // "skipping" bytes for unknown fields.
+/**
+ * Common constants used by parsers, writers and tests.
+ */
+public class ProtoConstants {
+    /** On wire encoded type for varint */
     static final int WIRE_TYPE_VARINT_OR_ZIGZAG = 0;
+    /** On wire encoded type for fixed 64bit */
     static final int WIRE_TYPE_FIXED_64_BIT = 1;
+    /** On wire encoded type for length delimited */
     static final int WIRE_TYPE_DELIMITED = 2;
+    /** On wire encoded type for group start, deprecated */
     static final int WIRE_TYPE_GROUP_START = 3;
+    /** On wire encoded type for group end, deprecated */
     static final int WIRE_TYPE_GROUP_END = 4;
+    /** On wire encoded type for fixed 32bit */
     static final int WIRE_TYPE_FIXED_32_BIT = 5;
-    /**
-     * The number of lower order bits from the "tag" byte that should be rotated out
-     * to reveal the field number
-     */
-    static final int TAG_FIELD_OFFSET = 3;
-    /**
-     * Mask used to extract the wire type from the "tag" byte
-     */
-    static final int TAG_WRITE_TYPE_MASK = 0b0000_0111;
-    /**
-     * Mask used to read the continuation bit from a varint encoded byte
-     */
-    static final int VARINT_CONTINUATION_MASK = 0b1000_0000;
-    /**
-     * Mask used to read off the actual data bits from a varint encoded byte
-     */
-    static final int VARINT_DATA_MASK = 0b0111_1111;
-    /**
-     * The number of actual data bits in a varint byte
-     */
-    static final int NUM_BITS_PER_VARINT_BYTE = 7;
 
-    private ProtoConstants() {
-
-    }
+    /** Never create an instance */
+    private ProtoConstants() {}
 }

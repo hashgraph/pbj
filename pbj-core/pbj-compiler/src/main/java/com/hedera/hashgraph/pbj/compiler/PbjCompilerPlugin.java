@@ -15,13 +15,24 @@ import java.io.File;
  */
 @SuppressWarnings("unused")
 public class PbjCompilerPlugin implements Plugin<Project> {
+    /** object factory for building objects needed */
     private final ObjectFactory objectFactory;
 
+    /**
+     * Construct new plugin instance
+     *
+     * @param objectFactory object factory for building objects needed
+     */
     @Inject
     public PbjCompilerPlugin(ObjectFactory objectFactory) {
         this.objectFactory = objectFactory;
     }
 
+    /**
+     * Apply plugin to project, called during configuration phase
+     *
+     * @param project The project to apply to
+     */
     @Override
     public void apply(Project project) {
         // get reference to java plugin
@@ -65,6 +76,13 @@ public class PbjCompilerPlugin implements Plugin<Project> {
                 });
     }
 
+    /**
+     * Create a PBJ source set
+     *
+     * @param parentDisplayName The parent display name
+     * @param objectFactory object factory for building objects needed
+     * @return new PBJ source directory set
+     */
     private static PbjSourceDirectorySet createPbjSourceDirectorySet(String parentDisplayName, ObjectFactory objectFactory) {
         String name = parentDisplayName + ".pbj";
         String displayName = parentDisplayName + " Pbj source";

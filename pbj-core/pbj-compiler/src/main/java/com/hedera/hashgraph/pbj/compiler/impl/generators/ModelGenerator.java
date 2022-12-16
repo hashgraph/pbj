@@ -16,7 +16,7 @@ import static com.hedera.hashgraph.pbj.compiler.impl.generators.EnumGenerator.*;
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
  */
-@SuppressWarnings("StringConcatenationInLoop")
+@SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
 public final class ModelGenerator implements Generator {
 	/** Record for a field doc temporary storage */
 	private record FieldDoc(String fieldName, String fieldComment) {}
@@ -39,6 +39,7 @@ public final class ModelGenerator implements Generator {
 		final List<String> oneofGetters = new ArrayList<>();
 		final List<FieldDoc> fieldDocs = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
+		imports.add("com.hedera.hashgraph.pbj.runtime.io");
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
@@ -72,7 +73,7 @@ public final class ModelGenerator implements Generator {
 							javaFieldType,
 							oneOfField.nameCamelFirstLower()
 					).replaceAll("\n","\n"+FIELD_INDENT));
-					if ("ByteBuffer".equals(fieldType)) imports.add("java.nio");
+					if ("Bytes".equals(fieldType)) imports.add("com.hedera.hashgraph.pbj.runtime.io");
 					if (field.type() == Field.FieldType.MESSAGE){
 						field.addAllNeededImports(imports, true, false, false, false);
 					}
@@ -124,7 +125,7 @@ public final class ModelGenerator implements Generator {
 		// === Build Body Content
 		String bodyContent = "";
 		// constructor
-		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optional())) {
+		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optionalValueType())) {
 			bodyContent += """
 					public %s {
 					%s
@@ -132,7 +133,7 @@ public final class ModelGenerator implements Generator {
 					
 					""".formatted(javaRecordName,
 					fields.stream()
-							.filter(f -> f instanceof OneOfField || f.optional())
+							.filter(f -> f instanceof OneOfField || f.optionalValueType())
 							.map(ModelGenerator::generateConstructorCode)
 							.collect(Collectors.joining("\n"))
 					).replaceAll("\n","\n"+FIELD_INDENT);
@@ -162,6 +163,7 @@ public final class ModelGenerator implements Generator {
 		bodyContent += String.join("\n    ", oneofEnums);
 		// === Build file
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
+			//noinspection SpellCheckingInspection
 			javaWriter.write("""
 					package %s;
 					%s
@@ -232,7 +234,7 @@ public final class ModelGenerator implements Generator {
 				%s;
 		
 				/**
-				 * Create a empty builder
+				 * Create an empty builder
 				 */
 				public Builder() {}
 		
@@ -286,7 +288,7 @@ public final class ModelGenerator implements Generator {
 									}""".formatted(f.nameCamelFirstLower(),f.nameCamelFirstLower()));
 		if (f instanceof final OneOfField oof) {
 			for (Field subField: oof.fields()) {
-				if(subField.optional()) {
+				if(subField.optionalValueType()) {
 					sb.append("""
        
 							// handle special case where protobuf does not have destination between a OneOf with optional

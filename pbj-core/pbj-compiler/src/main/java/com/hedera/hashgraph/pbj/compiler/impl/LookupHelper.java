@@ -12,7 +12,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.removingLeadingDot;
@@ -333,7 +332,7 @@ public final class LookupHelper {
 			}
 		}
 
-		printDebug();
+//		printDebug();
 	}
 
 	/** Debug dump internal state */

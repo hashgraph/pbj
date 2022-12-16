@@ -7,10 +7,34 @@ import java.util.stream.Collectors;
 /**
  * Common functions and constants for code generation
  */
-@SuppressWarnings("DuplicatedCode")
-public class Common {
+@SuppressWarnings({"DuplicatedCode", "EscapedSpace"})
+public final class Common {
 	/** The indent for fields, default 4 spaces */
 	public static final String FIELD_INDENT = " ".repeat(4);
+
+	/** Number of bits used to represent the tag type */
+	static final int TAG_TYPE_BITS = 3;
+
+	/** Wire format code for var int */
+	public static final int TYPE_VARINT = 0;
+	/** Wire format code for fixed 64bit number */
+	public static final int TYPE_FIXED64 = 1;
+	/** Wire format code for length delimited, all the complex types */
+	public static final int TYPE_LENGTH_DELIMITED = 2;
+	/** Wire format code for fixed 32bit number */
+	public static final int TYPE_FIXED32 = 5;
+
+
+	/**
+	 * Makes a tag value given a field number and wire type.
+	 *
+	 * @param wireType the wire type part of tag
+	 * @param fieldNumber the field number part of tag
+	 * @return packed encoded tag
+	 */
+	public static int getTag(final int wireType, final int fieldNumber) {
+		return (fieldNumber << TAG_TYPE_BITS) | wireType;
+	}
 
 	/**
 	 * Make sure first character of a string is upper case
@@ -100,6 +124,9 @@ public class Common {
 
 	/**
 	 * Remove leading dot from a string so ".a.b.c" becomes "a.b.c"
+	 *
+	 * @param text text to remove leading dot from
+	 * @return  text without a leading dot
 	 */
 	public static String removingLeadingDot(String text) {
 		if (text.length() > 0 & text.charAt(0) == '.') {

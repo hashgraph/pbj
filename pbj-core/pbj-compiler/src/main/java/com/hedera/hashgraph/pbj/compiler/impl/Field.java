@@ -4,7 +4,7 @@ import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Parser;
 
 import java.util.Set;
 
-import static com.hedera.hashgraph.pbj.compiler.impl.Common.snakeToCamel;
+import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 
 /**
  * Interface for SingleFields and OneOfFields
@@ -92,6 +92,13 @@ public interface Field {
 	String parseCode();
 
 	/**
+	 * Get the fully qualified parser class for message type for message fields
+	 *
+	 * @return fully qualified class name for parser class
+	 */
+	String parserClass();
+
+	/**
 	 * Get the java code default value for this field, "null" for object types
 	 *
 	 * @return code for default value
@@ -144,11 +151,12 @@ public interface Field {
 	}
 
 	/**
-	 * Get if this field is optional, optionals are handled in protobuf by value type objects for primitives
+	 * Get if this field is an optional value type, optionals are handled in protobuf by value type objects for
+	 * primitives
 	 *
 	 * @return true if this field is option by use of a protobuf value type, otherwise false
 	 */
-	default boolean optional() {
+	default boolean optionalValueType() {
 		return false;
 	}
 
@@ -165,42 +173,87 @@ public interface Field {
 	 * Field type enum for use in field classes
 	 */
 	enum FieldType {
-		MESSAGE("Object", "null"),
-		ENUM("int", "null"),
-		INT32("int", "0"),
-		UINT32("int", "0"),
-		SINT32("int", "0"),
-		INT64("long", "0"),
-		UINT64("long", "0"),
-		SINT64("long", "0"),
-		FLOAT("long", "0"),
-		FIXED32("long", "0"),
-		SFIXED32("long", "0"),
-		DOUBLE("double", "0"),
-		FIXED64("double", "0"),
-		SFIXED64("double", "0"),
-		STRING("String", "\"\""),
-		BOOL("boolean", "false"),
-		BYTES("ByteBuffer", "ByteBuffer.allocate(0).asReadOnlyBuffer()"),
-		ONE_OF("OneOf", "null");
+		/** Protobuf message field type */
+		MESSAGE("Object", "null", TYPE_LENGTH_DELIMITED),
+		/** Protobuf enum(unsigned varint encoded int of ordinal) field type */
+		ENUM("int", "null", TYPE_VARINT),
+		/** Protobuf int32(signed varint encoded int) field type */
+		INT32("int", "0", TYPE_VARINT),
+		/** Protobuf uint32(unsigned varint encoded int) field type */
+		UINT32("int", "0", TYPE_VARINT),
+		/** Protobuf sint32(signed zigzag varint encoded int) field type */
+		SINT32("int", "0", TYPE_VARINT),
+		/** Protobuf int64(signed varint encoded long) field type */
+		INT64("long", "0", TYPE_VARINT),
+		/** Protobuf uint64(unsigned varint encoded long)  field type */
+		UINT64("long", "0", TYPE_VARINT),
+		/** Protobuf sint64(signed zigzag varint encoded long) field type */
+		SINT64("long", "0", TYPE_VARINT),
+		/** Protobuf float field type */
+		FLOAT("float", "0", TYPE_FIXED32),
+		/** Protobuf fixed int32(fixed encoding int) field type */
+		FIXED32("int", "0", TYPE_FIXED32),
+		/** Protobuf sfixed int32(signed fixed encoding int) field type */
+		SFIXED32("int", "0", TYPE_FIXED32),
+		/** Protobuf double field type */
+		DOUBLE("double", "0", TYPE_FIXED64),
+		/** Protobuf sfixed64(fixed encoding long) field type */
+		FIXED64("long", "0", TYPE_FIXED64),
+		/** Protobuf sfixed64(signed fixed encoding long) field type */
+		SFIXED64("long", "0", TYPE_FIXED64),
+		/** Protobuf string field type */
+		STRING("String", "\"\"", TYPE_LENGTH_DELIMITED),
+		/** Protobuf bool(boolean) field type */
+		BOOL("boolean", "false", TYPE_VARINT),
+		/** Protobuf bytes field type */
+		BYTES("Bytes", "Bytes.EMPTY_BYTES", TYPE_LENGTH_DELIMITED),
+		/** Protobuf oneof field type, this is not a true field type in protobuf. Needed here for a few edge cases */
+		ONE_OF("OneOf", "null", 0 );// BAD TYPE
 
+		/** The type of field type in Java code */
 		public final String javaType;
+		/** The field type default value in Java code */
 		public final String javaDefault;
+		/** The protobuf wire type for field type */
+		public final int wireType;
 
-		FieldType(String javaType, final String javaDefault) {
+		/**
+		 * Construct a new FieldType enum
+		 *
+		 * @param javaType The type of field type in Java code
+		 * @param javaDefault The field type default value in Java code
+		 * @param wireType The protobuf wire type for field type
+		 */
+		FieldType(String javaType, final String javaDefault, int wireType) {
 			this.javaType = javaType;
 			this.javaDefault = javaDefault;
+			this.wireType = wireType;
 		}
 
+		/**
+		 * Get the field type string = the enum name
+		 *
+		 * @return Field type string
+		 */
 		String fieldType() {
-			String name = toString();
-			if (Character.isDigit(name.charAt(name.length()-2))) {
-				return name.substring(0,name.length()-2) + "_" + name.substring(name.length()-2);
-			} else {
-				return name;
-			}
+			return name();
 		}
 
+		/**
+		 * Get the protobuf wire type for field type
+		 *
+		 * @return protobuf wire type for field type
+		 */
+		public int wireType() {
+			return wireType;
+		}
+
+		/**
+		 * Get the type of field type in Java code
+		 *
+		 * @param repeated if the field is repeated or not, java types are different for repeated field
+		 * @return The type of field type in Java code
+		 */
 		@SuppressWarnings("DuplicatedCode")
 		public String javaType(boolean repeated) {
 			if (repeated) {
@@ -217,6 +270,13 @@ public interface Field {
 			}
 		}
 
+		/**
+		 * Get the field type for a given parser context
+		 *
+		 * @param typeContext The parser context to get field type for
+		 * @param lookupHelper Lookup helper with global context
+		 * @return The field type enum for parser context
+		 */
 		static FieldType of(Protobuf3Parser.Type_Context typeContext,  final ContextualLookupHelper lookupHelper) {
 			if (typeContext.enumType() != null) {
 				return FieldType.ENUM;
