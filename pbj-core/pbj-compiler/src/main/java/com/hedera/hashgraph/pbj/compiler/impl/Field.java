@@ -128,7 +128,7 @@ public interface Field {
 	String parserFieldsSetMethodCase();
 
 	/**
-	 * Get the java doc comment for this field
+	 * Get the java doc comment for this field, cleaned and ready to insert in output
 	 *
 	 * @return java doc comment
 	 */

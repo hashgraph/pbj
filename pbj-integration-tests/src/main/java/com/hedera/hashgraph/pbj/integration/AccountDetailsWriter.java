@@ -3,12 +3,22 @@ package com.hedera.hashgraph.pbj.integration;
 import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 
-import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import static com.hedera.hashgraph.pbj.integration.AccountDetailsPbj.ACCOUNT_DETAILS;
 
+/**
+ * Testing main class for profiling parser and writer performance
+ */
+@SuppressWarnings("unused")
 public class AccountDetailsWriter {
 
+    /**
+     * Testing main method for profiling parser and writer performance
+     *
+     * @param args command line args
+     * @throws Exception if there was a problem
+     */
     public static void main(String[] args) throws Exception {
         final DataBuffer outDataBuffer = DataBuffer.allocate(1024*1024, false);
 
@@ -20,6 +30,13 @@ public class AccountDetailsWriter {
             }
         }
     }
+
+    /**
+     * Testing main method for profiling parser and writer performance
+     *
+     * @param args command line args
+     * @throws Exception if there was a problem
+     */
     public static void main2(String[] args) throws Exception {
         // write to temp data buffer and then read into byte array
         DataBuffer tempDataBuffer = DataBuffer.allocate(5 * 1024 * 1024, false);
@@ -36,7 +53,7 @@ public class AccountDetailsWriter {
 //            bbout.clear();
             final byte[] writtenData = accountDetailsProtoC.toByteArray();
             if (writtenData.length != protobuf.length) {
-                System.out.println("writtenData = " + writtenData);
+                System.out.println("writtenData = " + Arrays.toString(writtenData));
             }
         }
     }

@@ -14,8 +14,13 @@ import java.util.Random;
  * Create a complex account details we can use as benchmark
  */
 public class AccountDetailsPbj {
+
+    /** Random for generating sample data */
     private static final Random RANDOM = new Random(351343135153L);
 
+    /**
+     * Sample test object for JMH benchmarks
+     */
     public static final AccountDetails ACCOUNT_DETAILS =
             new AccountDetails.Builder()
                     .accountId(new AccountID.Builder()

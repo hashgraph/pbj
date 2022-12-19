@@ -1,7 +1,11 @@
 package com.hedera.hashgraph.pbj.compiler.impl;
 
+import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Parser;
+
 import java.io.File;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -94,15 +98,58 @@ public final class Common {
 	}
 
 	/**
+	 * Build a clean java doc comment for a field
+	 *
+	 * @param fieldNumber The field proto number
+	 * @param docContext The parsed field comment contact
+	 * @return clean comment
+	 */
+	public static String buildCleanFieldJavaDoc(int fieldNumber, Protobuf3Parser.DocCommentContext docContext) {
+		final String cleanedComment = docContext == null ? "" : cleanJavaDocComment(docContext.getText());
+		final String fieldNumComment = "<b>("+fieldNumber+")</b> ";
+		return fieldNumComment + cleanedComment;
+	}
+
+	/**
+	 * Build a clean java doc comment for an oneof field
+	 *
+	 * @param fieldNumbers The field proto numbers for all fields in oneof
+	 * @param docContext The parsed field comment contact
+	 * @return clean comment
+	 */
+	public static String buildCleanFieldJavaDoc(List<Integer> fieldNumbers, Protobuf3Parser.DocCommentContext docContext) {
+		final String cleanedComment = docContext == null ? "" : cleanJavaDocComment(docContext.getText());
+		final String fieldNumComment =
+				"<b>("+fieldNumbers.stream().map(Objects::toString).collect(Collectors.joining(", "))+")</b> ";
+		return fieldNumComment + cleanedComment;
+	}
+
+	/**
 	 * Clean up a java doc style comment removing all the "*" etc.
 	 *
 	 * @param fieldComment raw Java doc style comment
 	 * @return clean multi-line content of the comment
 	 */
 	public static String cleanJavaDocComment(String fieldComment) {
-		return fieldComment
+		return cleanDocStr(fieldComment
 				.replaceAll("/\\*\\*[\n\r\s\t]*\\*[\t\s]*|[\n\r\s\t]*\\*/","") // remove java doc
-				.replaceAll("\n\s+\\*\s+","\n"); // remove indenting and *
+				.replaceAll("\n\s+\\*\s+","\n") // remove indenting and *
+		);
+	}
+
+	/**
+	 * Clean a string so that it can be included in JavaDoc. Does things like replace unsupported HTML tags.
+	 *
+	 * @param docStr The string to clean
+	 * @return cleaned output
+	 */
+	public static String cleanDocStr(String docStr) {
+		return docStr
+				.replaceAll("<(/?)tt>", "<$1code>") // tt tags are not supported in javadoc
+				.replaceAll(" < ", " &lt; ") // escape loose less than
+				.replaceAll(" > ", " &gt; ") // escape loose less than
+				.replaceAll(" & ", " &amp; ") // escape loose less than
+		;
 	}
 
 	/**
