@@ -10,7 +10,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
-import static com.hedera.hashgraph.pbj.compiler.impl.generators.EnumGenerator.*;
+import static com.hedera.hashgraph.pbj.compiler.impl.generators.EnumGenerator.EnumValue;
+import static com.hedera.hashgraph.pbj.compiler.impl.generators.EnumGenerator.createEnum;
 
 /**
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
@@ -18,8 +19,6 @@ import static com.hedera.hashgraph.pbj.compiler.impl.generators.EnumGenerator.*;
  */
 @SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
 public final class ModelGenerator implements Generator {
-	/** Record for a field doc temporary storage */
-	private record FieldDoc(String fieldName, String fieldComment) {}
 
 	/**
 	 * {@inheritDoc}
@@ -31,13 +30,11 @@ public final class ModelGenerator implements Generator {
 		final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
 		final File javaFile = getJavaFile(destinationSrcDir, modelPackage, javaRecordName);
 		String javaDocComment = (msgDef.docComment()== null) ? "" :
-				msgDef.docComment().getText()
-						.replaceAll("\n \\*\s*\n","\n * <p>\n");
+				cleanDocStr(msgDef.docComment().getText().replaceAll("\n \\*\s*\n","\n * <p>\n"));
 		String deprecated = "";
 		final List<Field> fields = new ArrayList<>();
 		final List<String> oneofEnums = new ArrayList<>();
 		final List<String> oneofGetters = new ArrayList<>();
-		final List<FieldDoc> fieldDocs = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
 		imports.add("com.hedera.hashgraph.pbj.runtime.io");
 		for(var item: msgDef.messageBody().messageElement()) {
@@ -46,13 +43,13 @@ public final class ModelGenerator implements Generator {
 			} else if (item.oneof() != null) { // process one ofs
 				final OneOfField oneOfField = new OneOfField(item.oneof(),javaRecordName, lookupHelper);
 				final String enumName = oneOfField.nameCamelFirstUpper()+"OneOfType";
-				int minIndex = oneOfField.fields().get(0).fieldNumber();
-				int maxIndex = oneOfField.fields().get(oneOfField.fields().size()-1).fieldNumber();
+				final int maxIndex = oneOfField.fields().get(oneOfField.fields().size()-1).fieldNumber();
 				final Map<Integer,EnumValue> enumValues = new HashMap<>();
 				for(final Field field: oneOfField.fields()) {
 					final String fieldType = field.protobufFieldType();
 					final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
-					enumValues.put(field.fieldNumber(), new EnumValue(field.name(),field.deprecated(),field.comment()));
+					enumValues.put(field.fieldNumber(), new EnumValue(field.name(),field.deprecated(),
+							"/** " + cleanDocStr(field.comment()) + "\n     */"));
 					// generate getters for one ofs
 					oneofGetters.add("""
 							/**
@@ -85,7 +82,6 @@ public final class ModelGenerator implements Generator {
 				final String enumString = createEnum(FIELD_INDENT,enumComment ,"",enumName,maxIndex,enumValues, true);
 				oneofEnums.add(enumString);
 				fields.add(oneOfField);
-				fieldDocs.add(new FieldDoc(oneOfField.nameCamelFirstLower(), "<b>("+minIndex+" to "+maxIndex+")</b> "+ cleanJavaDocComment(oneOfField.comment())));
 				imports.add("com.hedera.hashgraph.pbj.runtime");
 			} else if (item.mapField() != null) { // process map fields
 				System.err.println("Encountered a mapField that was not handled in "+javaRecordName);
@@ -93,12 +89,6 @@ public final class ModelGenerator implements Generator {
 				final SingleField field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
 				field.addAllNeededImports(imports, true, false, false, false);
-				// build java doc
-				if (field.comment() != null) {
-//					final String fieldJavaDoc = item.field().docComment().getText();
-					final String fieldNumComment = "<b>("+field.fieldNumber()+")</b> ";
-					fieldDocs.add(new FieldDoc(field.nameCamelFirstLower(), fieldNumComment + cleanJavaDocComment(field.comment())));
-				}
 			} else if (item.optionStatement() != null){
 				if ("deprecated".equals(item.optionStatement().optionName().getText())) {
 					deprecated = "@Deprecated ";
@@ -110,28 +100,39 @@ public final class ModelGenerator implements Generator {
 			}
 		}
 		// process field java doc and insert into record java doc
-		if (!fieldDocs.isEmpty()) {
+		if (!fields.isEmpty()) {
 			String recordJavaDoc = javaDocComment.length() > 0 ?
 					javaDocComment.replaceAll("\n\s*\\*/","") :
 					"/**\n * "+javaRecordName;
 			recordJavaDoc += "\n *";
-			for(var fieldDoc: fieldDocs) {
-				recordJavaDoc += "\n * @param "+fieldDoc.fieldName+" "+
-						fieldDoc.fieldComment.replaceAll("\n", "\n *         "+" ".repeat(fieldDoc.fieldName.length()));
+			for(var field: fields) {
+				recordJavaDoc += "\n * @param "+field.nameCamelFirstLower()+" "+
+							field.comment()
+								.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()));
 			}
 			recordJavaDoc += "\n */";
-			javaDocComment = recordJavaDoc;
+			javaDocComment = cleanDocStr(recordJavaDoc);
 		}
 		// === Build Body Content
 		String bodyContent = "";
 		// constructor
 		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optionalValueType())) {
 			bodyContent += """
+     
+					/**
+					 * Override the default constructor adding input validation
+					 * %s
+					 */
 					public %s {
 					%s
 					}
 					
-					""".formatted(javaRecordName,
+					""".formatted(
+					fields.stream().map(field -> "\n * @param "+field.nameCamelFirstLower()+" "+
+						field.comment()
+						.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()))
+					).collect(Collectors.joining()),
+					javaRecordName,
 					fields.stream()
 							.filter(f -> f instanceof OneOfField || f.optionalValueType())
 							.map(ModelGenerator::generateConstructorCode)
@@ -168,6 +169,7 @@ public final class ModelGenerator implements Generator {
 					package %s;
 					%s
 					import java.util.Optional;
+					
 					%s
 					%spublic record %s(
 					    %s
@@ -191,47 +193,55 @@ public final class ModelGenerator implements Generator {
 	private static String generateBuilder(final Protobuf3Parser.MessageDefContext msgDef, List<Field> fields, final ContextualLookupHelper lookupHelper) {
 		final String javaRecordName = msgDef.messageName().getText();
 		List<String> builderMethods = new ArrayList<>();
-		for(Field field:fields) {
+		for (Field field: fields) {
 			if (field.type() == Field.FieldType.ONE_OF) {
 				final OneOfField oneOfField = (OneOfField) field;
 				for (Field subField: oneOfField.fields()) {
 					builderMethods.add("""
-						public Builder %s(%s %s) {
-							this.%s = new OneOf<>(%s, %s);
+						/**
+						 * $fieldDoc
+						 *
+						 * @param $fieldName value to set
+						 * @return builder to continue building with
+						 */
+						public Builder $fieldName($fieldType $fieldName) {
+							this.$oneOfFieldName = new OneOf<>($oneOfEnumValue, $fieldName);
 							return this;
-						}""".formatted(
-									subField.nameCamelFirstLower(),
-									subField.javaFieldType(),
-									subField.nameCamelFirstLower(),
-									field.nameCamelFirstLower(),
-									oneOfField.getEnumClassRef()+"."+camelToUpperSnake(subField.name()),
-									subField.nameCamelFirstLower()
-							)
-							.replaceAll("\n","\n"+FIELD_INDENT));
+						}"""
+						.replace("$fieldDoc",subField.comment()
+								.replaceAll("\n", "\n * "))
+						.replace("$fieldName",subField.nameCamelFirstLower())
+						.replace("$fieldType",subField.javaFieldType())
+						.replace("$oneOfFieldName",field.nameCamelFirstLower())
+						.replace("$oneOfEnumValue",oneOfField.getEnumClassRef()+"."+camelToUpperSnake(subField.name()))
+						.replaceAll("\n","\n"+FIELD_INDENT));
 				}
 			} else {
 				builderMethods.add("""
-						public Builder %s(%s %s) {
-							this.%s = %s;
+						/**
+						 * $fieldDoc
+						 *
+						 * @param $fieldName value to set
+						 * @return builder to continue building with
+						 */
+						public Builder $fieldName($fieldType $fieldName) {
+							this.$fieldName = $fieldName;
 							return this;
-						}""".formatted(
-								field.nameCamelFirstLower(),
-								field.javaFieldType(),
-								field.nameCamelFirstLower(),
-								field.nameCamelFirstLower(),
-								field.nameCamelFirstLower()
-						)
+						}"""
+						.replace("$fieldDoc",field.comment()
+								.replaceAll("\n", "\n * "))
+						.replace("$fieldName",field.nameCamelFirstLower())
+						.replace("$fieldType",field.javaFieldType())
 						.replaceAll("\n","\n"+FIELD_INDENT));
 			}
 		}
 		return """
-    
 			/**
-			 * Builder class for easy creation, ideal for clean code were performance is not critical. In critical performance
+			 * Builder class for easy creation, ideal for clean code where performance is not critical. In critical performance
 			 * paths use the constructor directly.
 			 */
 			public static final class Builder {
-				%s;
+				$fields;
 		
 				/**
 				 * Create an empty builder
@@ -240,36 +250,40 @@ public final class ModelGenerator implements Generator {
 		
 				/**
 				 * Create a pre-populated builder
+				 * $constructorParamDocs
 				 */
-				public Builder(%s) {
-					%s;
+				public Builder($constructorParams) {
+					$constructorCode;
 				}
 		
 				/**
 				 * Build a new model record with data set on builder
+				 *
+				 * @return new model record with data set
 				 */
-				public %s build() {
-					return new %s(%s);
+				public $javaRecordName build() {
+					return new $javaRecordName($recordParams);
 				}
 		
-				%s
-			}
-				""".formatted(
-					fields.stream().map(field ->
-									"private " + field.javaFieldType() + " " + field.nameCamelFirstLower() +
-											" = " + getDefaultValue(field, msgDef, lookupHelper)
-					).collect(Collectors.joining(";\n    ")),
-					fields.stream().map(field ->
-									field.javaFieldType() + " " + field.nameCamelFirstLower()
-					).collect(Collectors.joining(", ")),
-					fields.stream().map(field ->
-									"this." + field.nameCamelFirstLower() + " = " + field.nameCamelFirstLower()
-					).collect(Collectors.joining(";\n"+FIELD_INDENT+FIELD_INDENT)),
-					javaRecordName,
-					javaRecordName,
-					fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")),
-					builderMethods.stream().collect(Collectors.joining("\n\n"+FIELD_INDENT))
-				)
+				$builderMethods
+			}"""
+				.replace("$fields", fields.stream().map(field ->
+						"private " + field.javaFieldType() + " " + field.nameCamelFirstLower() +
+								" = " + getDefaultValue(field, msgDef, lookupHelper)
+						).collect(Collectors.joining(";\n    ")))
+				.replace("$constructorParamDocs",fields.stream().map(field ->
+						"\n     * @param "+field.nameCamelFirstLower()+" "+
+								field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
+						).collect(Collectors.joining(", ")))
+				.replace("$constructorParams",fields.stream().map(field ->
+						field.javaFieldType() + " " + field.nameCamelFirstLower()
+						).collect(Collectors.joining(", ")))
+				.replace("$constructorCode",fields.stream().map(field ->
+						"this." + field.nameCamelFirstLower() + " = " + field.nameCamelFirstLower()
+						).collect(Collectors.joining(";\n"+FIELD_INDENT+FIELD_INDENT)))
+				.replace("$javaRecordName",javaRecordName)
+				.replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
+				.replace("$builderMethods",builderMethods.stream().collect(Collectors.joining("\n\n"+FIELD_INDENT)))
 				.replaceAll("\n","\n"+FIELD_INDENT);
 	}
 
@@ -283,9 +297,9 @@ public final class ModelGenerator implements Generator {
 
 	private static String generateConstructorCode(final Field f) {
 		StringBuilder sb = new StringBuilder(FIELD_INDENT+"""
-									if (%s == null) {
-										throw new NullPointerException("Parameter '%s' must be supplied and can not be null");
-									}""".formatted(f.nameCamelFirstLower(),f.nameCamelFirstLower()));
+									if ($fieldName == null) {
+										throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
+									}""".replace("$fieldName", f.nameCamelFirstLower()));
 		if (f instanceof final OneOfField oof) {
 			for (Field subField: oof.fields()) {
 				if(subField.optionalValueType()) {
@@ -293,16 +307,13 @@ public final class ModelGenerator implements Generator {
        
 							// handle special case where protobuf does not have destination between a OneOf with optional
 							// value of empty vs a unset OneOf.
-							if(%s.kind() == %sOneOfType.%s && ((Optional)%s.value()).isEmpty()) {
-								%s = new OneOf<>(%sOneOfType.UNSET, null);
-							}""".formatted(
-							f.nameCamelFirstLower(),
-							f.nameCamelFirstUpper(),
-							camelToUpperSnake(subField.name()),
-							f.nameCamelFirstLower(),
-							f.nameCamelFirstLower(),
-							f.nameCamelFirstUpper()
-					));
+							if($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && ((Optional)$fieldName.value()).isEmpty()) {
+								$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
+							}"""
+							.replace("$fieldName", f.nameCamelFirstLower())
+							.replace("$fieldUpperName", f.nameCamelFirstUpper())
+							.replace("$subFieldNameUpper", camelToUpperSnake(subField.name()))
+					);
 				}
 			}
 		}

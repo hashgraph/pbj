@@ -40,8 +40,15 @@ public final class ParserGenerator implements Generator {
 				fields.add(field);
 				field.addAllNeededImports(imports, true, true, false, false);
 				oneOfUnsetConstants.add(
-						"    public static final OneOf<%s> %s = new OneOf<>(%s.UNSET,null);"
-								.formatted(field.getEnumClassRef(),camelToUpperSnake(field.name())+"_UNSET", field.getEnumClassRef()));
+						"""
+							/** Constant for an unset oneof for $fieldName */
+							public static final OneOf<$enum> $unsetFieldName = new OneOf<>($enum.UNSET,null);
+						"""
+						.replace("$enum", field.getEnumClassRef())
+						.replace("$fieldName", field.name())
+						.replace("$unsetFieldName", camelToUpperSnake(field.name())+"_UNSET")
+						.replace("$unsetFieldName", field.getEnumClassRef())
+				);
 			} else if (item.mapField() != null) { // process map fields
 				throw new IllegalStateException("Encountered a mapField that was not handled in "+ parserClassName);
 			} else if (item.field() != null && item.field().fieldName() != null) {
@@ -73,7 +80,9 @@ public final class ParserGenerator implements Generator {
 					 * Parser for $modelClassName model object from protobuf format
 					 */
 					public class $parserClassName {
+					
 					$unsetConstants
+					
 					$parseMethod
 					}
 					"""

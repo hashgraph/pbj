@@ -4,8 +4,7 @@ import com.hedera.hashgraph.pbj.compiler.impl.grammar.Protobuf3Parser;
 
 import java.util.Set;
 
-import static com.hedera.hashgraph.pbj.compiler.impl.Common.camelToUpperSnake;
-import static com.hedera.hashgraph.pbj.compiler.impl.Common.snakeToCamel;
+import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 import static com.hedera.hashgraph.pbj.compiler.impl.FileAndPackageNamesConfig.PARSER_JAVA_FILE_SUFFIX;
 
 /**
@@ -44,7 +43,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 						lookupHelper.getPackageFieldMessageType(FileType.WRITER, fieldContext),
 				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
 						lookupHelper.getPackageFieldMessageType(FileType.TEST, fieldContext),
-				fieldContext.docComment() == null ? null : fieldContext.docComment().getText(),
+				buildCleanFieldJavaDoc(Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
 				getDeprecatedOption(fieldContext.fieldOptions()),
 				null
 		);
@@ -70,7 +69,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 						lookupHelper.getPackageOneofFieldMessageType(FileType.WRITER, fieldContext),
 				(fieldContext.type_().messageType() == null) ? null :
 						lookupHelper.getPackageOneofFieldMessageType(FileType.TEST, fieldContext),
-				fieldContext.docComment() == null ? null : fieldContext.docComment().getText(),
+				buildCleanFieldJavaDoc(Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
 				getDeprecatedOption(fieldContext.fieldOptions()),
 				parent
 		);
@@ -197,6 +196,13 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	 */
 	@Override
 	public String schemaFieldsDef() {
+		final String javaDocComment =
+				"""
+                    /**
+                     * $doc
+                     */
+                """
+				.replace("$doc", comment().replaceAll("\n","\n     * "));
 		boolean isPartOfOneOf = parent != null;
 		if (optionalValueType()) {
 			final String optionalBaseFieldType = switch (messageType) {
@@ -211,10 +217,10 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				case "BytesValue" -> "BYTES";
 				default -> throw new UnsupportedOperationException("Unsupported optional field type found: "+type.javaType+" in "+this);
 			};
-			return "    public static final FieldDefinition %s = new FieldDefinition(\"%s\", FieldType.%s, %s, true, %s, %d);"
+			return javaDocComment + "    public static final FieldDefinition %s = new FieldDefinition(\"%s\", FieldType.%s, %s, true, %s, %d);\n"
 					.formatted(camelToUpperSnake(name), name, optionalBaseFieldType, repeated, isPartOfOneOf, fieldNumber);
 		} else {
-			return "    public static final FieldDefinition %s = new FieldDefinition(\"%s\", FieldType.%s, %s, false, %s, %d);"
+			return javaDocComment + "    public static final FieldDefinition %s = new FieldDefinition(\"%s\", FieldType.%s, %s, false, %s, %d);\n"
 					.formatted(camelToUpperSnake(name), name, type.fieldType(), repeated, isPartOfOneOf, fieldNumber);
 		}
 	}

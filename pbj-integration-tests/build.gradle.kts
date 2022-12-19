@@ -37,6 +37,15 @@ sourceSets {
     }
 }
 
+/** Exclude protoc generated from docs, so we can see clear warnings and errors */
+tasks.withType<Javadoc>() {
+    exclude("com/hederahashgraph/api/proto/**")
+    exclude("com/hederahashgraph/service/proto/**")
+    exclude("com/hedera/services/stream/proto/**")
+    exclude("com/hedera/hashgraph/pbj/integration/**")
+    exclude("pbj/**")
+}
+
 protobuf {
     // Configure the protoc executable
     protoc {
@@ -63,8 +72,6 @@ jmh {
     includes.add("AccountDetailsBench")
     jmhVersion.set("1.35")
     includeTests.set(true)
-    // 100 = 682846.464
-    // 500 = 682650.241
 //    jvmArgsAppend.add("-XX:MaxInlineSize=100 -XX:MaxInlineLevel=20")
 }
 

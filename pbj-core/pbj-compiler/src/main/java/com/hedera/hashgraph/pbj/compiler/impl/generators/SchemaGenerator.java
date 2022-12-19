@@ -57,20 +57,21 @@ public final class SchemaGenerator implements Generator {
 
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
-					package %s;
+					package $schemaPackage;
 										
 					import com.hedera.hashgraph.pbj.runtime.FieldDefinition;
 					import com.hedera.hashgraph.pbj.runtime.FieldType;
 					import com.hedera.hashgraph.pbj.runtime.Schema;
-					%s
+					$imports
 										
 					/**
-					 * Schema for %s model object. Generate based on protobuf schema.
+					 * Schema for $modelClassName model object. Generate based on protobuf schema.
 					 */
-					public final class %s implements Schema {
+					public final class $schemaClassName implements Schema {
+					
 						// -- FIELD DEFINITIONS ---------------------------------------------
 						
-					%s
+					$fields
 										
 						// -- OTHER METHODS -------------------------------------------------
 						
@@ -84,18 +85,19 @@ public final class SchemaGenerator implements Generator {
 							return f != null && getField(f.number()) == f;
 						}
 						
-					%s
+					$getMethods
 					}
-					""".formatted(
-						schemaPackage,
-						imports.isEmpty() ? "" : imports.stream()
-								.filter(input -> !input.equals(schemaPackage))
-								.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
-						modelClassName,
-						schemaClassName,
-						fields.stream().map(Field::schemaFieldsDef).collect(Collectors.joining("\n")),
-						generateGetField(flattenedFields)
-					)
+					"""
+					.replace("$schemaPackage", schemaPackage)
+					.replace("$imports", imports.isEmpty() ? "" : imports.stream()
+							.filter(input -> !input.equals(schemaPackage))
+							.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")))
+					.replace("$modelClassName", modelClassName)
+					.replace("$schemaClassName", schemaClassName)
+					.replace("$fields", fields.stream().map(
+							Field::schemaFieldsDef
+					).collect(Collectors.joining("\n\n")))
+					.replace("$getMethods", generateGetField(flattenedFields))
 			);
 		}
 	}

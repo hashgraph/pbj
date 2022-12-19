@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static com.hedera.hashgraph.pbj.compiler.impl.Common.camelToUpperSnake;
+import static com.hedera.hashgraph.pbj.compiler.impl.Common.*;
 
 /**
  * An implementation of Field for OneOf fields
@@ -31,7 +31,9 @@ public record OneOfField(
 	public OneOfField(final Protobuf3Parser.OneofContext oneOfContext, final String parentMessageName, final ContextualLookupHelper lookupHelper) {
 		this(parentMessageName,
 			oneOfContext.oneofName().getText(),
-			oneOfContext.docComment().getText(),
+			buildCleanFieldJavaDoc(
+					oneOfContext.oneofField().stream().map(field -> Integer.parseInt(field.fieldNumber().getText())).toList(),
+					oneOfContext.docComment()),
 			new ArrayList<>(oneOfContext.oneofField().size()),
 			false,
 			getDeprecatedOption(oneOfContext.optionStatement())
@@ -40,7 +42,6 @@ public record OneOfField(
 			fields.add(new SingleField(field, this, lookupHelper));
 		}
 	}
-
 
 	/**
 	 * {@inheritDoc}
