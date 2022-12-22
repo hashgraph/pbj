@@ -301,12 +301,11 @@ public final class LookupHelper {
 						if (matcher.find()) {
 							final String optionName = matcher.group(1);
 							final String optionValue = matcher.group(2);
-							switch (optionName) {
-								case PBJ_PACKAGE_OPTION_NAME -> pbjJavaPackage = optionValue;
+							if (optionName.equals(PBJ_PACKAGE_OPTION_NAME)) {
+								pbjJavaPackage = optionValue;
 							}
 						}
 					}
-					System.out.println(" -----> pbjJavaPackage = " + pbjJavaPackage);
 					if (file.getName().endsWith("pbj_custom_options.proto")) {
 						// ignore pbj_custom_options.proto file
 						continue;
