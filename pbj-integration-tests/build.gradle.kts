@@ -17,7 +17,7 @@ repositories {
 
 dependencies {
     implementation("com.hedera.pbj:pbj-runtime:${project.version}")
-    implementation("com.google.protobuf:protobuf-java:3.21.9")
+    implementation("com.google.protobuf:protobuf-java:3.21.12")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.0")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.0")
@@ -50,7 +50,7 @@ protobuf {
     // Configure the protoc executable
     protoc {
         // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.21.10"
+        artifact = "com.google.protobuf:protoc:3.21.12"
     }
 }
 
