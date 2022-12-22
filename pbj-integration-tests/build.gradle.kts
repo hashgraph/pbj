@@ -61,10 +61,13 @@ tasks.getByName<Test>("test") {
 tasks.withType<Test> {
     // We are running a lot of tests 10s of thousands, so they need to run in parallel
     systemProperties["junit.jupiter.execution.parallel.enabled"] = true
-    systemProperties["junit.jupiter.execution.parallel.mode.default"] = "concurrent"
+    systemProperties["junit.jupiter.execution.parallel.mode.default"] = "same_thread"
+    systemProperties["junit.jupiter.execution.parallel.mode.classes.default"] = "concurrent"
+    // fork every 15K tests to make sure we clean memory
+    forkEvery.times(15000)
     // Some also need more memory
     minHeapSize = "512m"
-    maxHeapSize = "3072m"
+    maxHeapSize = "4096m"
 }
 
 jmh {
