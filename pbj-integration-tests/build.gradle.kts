@@ -63,8 +63,9 @@ tasks.withType<Test> {
     systemProperties["junit.jupiter.execution.parallel.enabled"] = true
     systemProperties["junit.jupiter.execution.parallel.mode.default"] = "same_thread"
     systemProperties["junit.jupiter.execution.parallel.mode.classes.default"] = "concurrent"
-    // fork every 15K tests to make sure we clean memory
-    forkEvery.times(15000)
+    // us parallel GC to keep up with high temporary garbage creation
+    jvmArgs.add("-XX:+UseParallelGC")
+    jvmArgs.add("-XX:GCTimeRatio=39") // allow GC to use 40% of CPU if needed
     // Some also need more memory
     minHeapSize = "512m"
     maxHeapSize = "4096m"
