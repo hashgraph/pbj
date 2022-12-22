@@ -61,11 +61,11 @@ tasks.getByName<Test>("test") {
 tasks.withType<Test> {
     // We are running a lot of tests 10s of thousands, so they need to run in parallel
     systemProperties["junit.jupiter.execution.parallel.enabled"] = true
-    systemProperties["junit.jupiter.execution.parallel.mode.default"] = "same_thread"
-    systemProperties["junit.jupiter.execution.parallel.mode.classes.default"] = "concurrent"
-    // us parallel GC to keep up with high temporary garbage creation
-    jvmArgs.add("-XX:+UseParallelGC")
-    jvmArgs.add("-XX:GCTimeRatio=39") // allow GC to use 40% of CPU if needed
+    systemProperties["junit.jupiter.execution.parallel.mode.default"] = "concurrent"
+    // us parallel GC to keep up with high temporary garbage creation, and allow GC to use 40% of CPU if needed
+    jvmArgs("-XX:+UseParallelGC","-XX:GCTimeRatio=90")
+//    jvmArgs("-XX:+UseZGC","-XX:ZAllocationSpikeTolerance=2")
+//    jvmArgs("-XX:+UseG1GC", "-XX:GCTimeRatio=90", "-XX:MaxGCPauseMillis=100")
     // Some also need more memory
     minHeapSize = "512m"
     maxHeapSize = "4096m"

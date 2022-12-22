@@ -19,11 +19,10 @@ import java.util.Optional;
 public final class ProtoTestTools {
 
     /** Size for reusable test buffers */
-    private static final int BUFFER_SIZE = 64*1024*1024;
+    private static final int BUFFER_SIZE = 24*1024*1024;
 
     /** Instance should never be created */
     private ProtoTestTools() {}
-
     /** Thread local set of reusable buffers */
     private static final ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS =
             ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, false));
