@@ -62,14 +62,13 @@ tasks.withType<Test> {
     // We are running a lot of tests 10s of thousands, so they need to run in parallel
     systemProperties["junit.jupiter.execution.parallel.enabled"] = true
     systemProperties["junit.jupiter.execution.parallel.mode.default"] = "concurrent"
-//    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 3).takeIf { it > 0 } ?: 1
     // Some also need more memory
     minHeapSize = "512m"
     maxHeapSize = "3072m"
 }
 
 jmh {
-    includes.add("AccountDetailsBench")
+//    includes.add("AccountDetailsBench")
     jmhVersion.set("1.35")
     includeTests.set(true)
 //    jvmArgsAppend.add("-XX:MaxInlineSize=100 -XX:MaxInlineLevel=20")
