@@ -22,10 +22,13 @@ proto
       | optionStatement
       | topLevelDef
       | emptyStatement_
+      | optionComment
     )*
   ;
 
 docComment: DOC_COMMENT*;
+
+optionComment: OPTION_LINE_COMMENT;
 
 // Syntax
 
@@ -165,6 +168,7 @@ enumBody
 
 enumElement
   : optionStatement
+  | optionComment
   | enumField
   | emptyStatement_
   ;
@@ -196,6 +200,7 @@ messageElement
   | enumDef
   | messageDef
   | optionStatement
+  | optionComment
   | oneof
   | mapField
   | reserved
@@ -339,6 +344,7 @@ fragment HEX_DIGIT: [0-9A-Fa-f];
 
 // comments
 WS  :   [ \t\r\n\u000C]+ -> skip;
+OPTION_LINE_COMMENT: '// <<<' ~[\r\n]*;
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
 DOC_COMMENT: '/**' .*? '*/';
 COMMENT: '/*' .*? '*/' -> skip;

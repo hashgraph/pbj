@@ -12,6 +12,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.StreamSupport;
 
 import static com.hedera.hashgraph.pbj.compiler.impl.Common.removingLeadingDot;
@@ -22,12 +23,14 @@ import static com.hedera.hashgraph.pbj.compiler.impl.FileAndPackageNamesConfig.*
  */
 @SuppressWarnings({"unused", "DuplicatedCode"})
 public final class LookupHelper {
+	/** REGEX pattern to match options in special option comments */
+	private static final Pattern OPTION_COMMENT = Pattern.compile("//\\s+<<<\\s*([\\w.]+)\\s*=\\s*\"([^\"]+)\"\\s*>>>");
 	/** The option name for PBJ package at file level */
-	private static final String PBJ_PACKAGE_OPTION_NAME = "(pbj.java_package)";
+	private static final String PBJ_PACKAGE_OPTION_NAME = "pbj.java_package";
 	/** The option name for PBJ package at msgDef level */
-	private static final String PBJ_MESSAGE_PACKAGE_OPTION_NAME = "(pbj.message_java_package)";
+	private static final String PBJ_MESSAGE_PACKAGE_OPTION_NAME = "pbj.message_java_package";
 	/** The option name for PBJ package at msgDef level */
-	private static final String PBJ_ENUM_PACKAGE_OPTION_NAME = "(pbj.enum_java_package)";
+	private static final String PBJ_ENUM_PACKAGE_OPTION_NAME = "pbj.enum_java_package";
 	/** The option name for protoc java package at file level */
 	private static final String PROTOC_JAVA_PACKAGE_OPTION_NAME = "java_package";
 
@@ -285,12 +288,25 @@ public final class LookupHelper {
 					// look for PBJ package option
 					String pbjJavaPackage = null;
 					String protocJavaPackage = null;
+					// check for custom option
 					for(var option: parsedDoc.optionStatement()) {
-						switch (option.optionName().getText()) {
+						switch (option.optionName().getText().replaceAll("[()]","")) {
 							case PBJ_PACKAGE_OPTION_NAME -> pbjJavaPackage = option.constant().getText().replaceAll("\"","");
 							case PROTOC_JAVA_PACKAGE_OPTION_NAME -> protocJavaPackage = option.constant().getText().replaceAll("\"","");
 						}
 					}
+					// check for special comment option
+					for(var optionComment: parsedDoc.optionComment()) {
+						final var matcher = OPTION_COMMENT.matcher(optionComment.getText());
+						if (matcher.find()) {
+							final String optionName = matcher.group(1);
+							final String optionValue = matcher.group(2);
+							switch (optionName) {
+								case PBJ_PACKAGE_OPTION_NAME -> pbjJavaPackage = optionValue;
+							}
+						}
+					}
+					System.out.println(" -----> pbjJavaPackage = " + pbjJavaPackage);
 					if (file.getName().endsWith("pbj_custom_options.proto")) {
 						// ignore pbj_custom_options.proto file
 						continue;
@@ -380,8 +396,19 @@ public final class LookupHelper {
 		for(final var element: msgDef.messageBody().messageElement()) {
 			final var option = element.optionStatement();
 			if (option != null) {
-				if (PBJ_MESSAGE_PACKAGE_OPTION_NAME.equals(option.optionName().getText())) {
+				if (PBJ_MESSAGE_PACKAGE_OPTION_NAME.equals(option.optionName().getText().replaceAll("[()]",""))) {
 					messagePbjPackage = option.constant().getText().replaceAll("\"","");
+				}
+			}
+			final var optionComment = element.optionComment();
+			if (optionComment != null) {
+				final var matcher = OPTION_COMMENT.matcher(optionComment.getText());
+				if (matcher.find()) {
+					final String optionName = matcher.group(1);
+					final String optionValue = matcher.group(2);
+					if (optionName.equals(PBJ_PACKAGE_OPTION_NAME)) {
+						messagePbjPackage = optionValue;
+					}
 				}
 			}
 		}
@@ -420,8 +447,19 @@ public final class LookupHelper {
 		for(final var element: enumDef.enumBody().enumElement()) {
 			final var option = element.optionStatement();
 			if (option != null) {
-				if (PBJ_ENUM_PACKAGE_OPTION_NAME.equals(option.optionName().getText())) {
+				if (PBJ_ENUM_PACKAGE_OPTION_NAME.equals(option.optionName().getText().replaceAll("[()]",""))) {
 					enumPbjPackage = option.constant().getText().replaceAll("\"","");
+				}
+			}
+			final var optionComment = element.optionComment();
+			if (optionComment != null) {
+				final var matcher = OPTION_COMMENT.matcher(optionComment.getText());
+				if (matcher.find()) {
+					final String optionName = matcher.group(1);
+					final String optionValue = matcher.group(2);
+					if (optionName.equals(PBJ_PACKAGE_OPTION_NAME)) {
+						enumPbjPackage = optionValue;
+					}
 				}
 			}
 		}
