@@ -344,7 +344,7 @@ fragment HEX_DIGIT: [0-9A-Fa-f];
 
 // comments
 WS  :   [ \t\r\n\u000C]+ -> skip;
-OPTION_LINE_COMMENT: '// <<<' ~[\r\n]*;
+OPTION_LINE_COMMENT: '//' WS? '<<<' .* '>>>' ~[\r\n]*;
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
 DOC_COMMENT: '/**' .*? '*/';
 COMMENT: '/*' .*? '*/' -> skip;
