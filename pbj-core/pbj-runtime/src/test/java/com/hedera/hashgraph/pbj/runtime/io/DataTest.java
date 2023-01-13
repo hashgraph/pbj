@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -312,12 +313,13 @@ public class DataTest {
             T readValue2 = javaDataInputReadMethod.read(din2);
             assertEquals(value, readValue2);
             // write with DataBuffer
-            DataBuffer db = new DataBuffer(writtenData.length);
+            DataBuffer db = DataBuffer.allocate(writtenData.length, true);
             dataBufferWriteMethod.write(db, value);
             db.reset();
             // check bytes in buffer
             byte[] writtenData3 = new byte[writtenData.length];
             db.readBytes(writtenData3);
+            assertEquals(Arrays.toString(writtenData), Arrays.toString(writtenData3),"value = "+value);
             assertArrayEquals(writtenData, writtenData3);
             // read with DataBuffer
             db.reset();

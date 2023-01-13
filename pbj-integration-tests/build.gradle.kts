@@ -72,7 +72,10 @@ tasks.withType<Test> {
 }
 
 jmh {
-//    includes.add("AccountDetailsBench")
+//    includes.add("AccountDetailsBench.parsePbjByteBufferDirect")
+//    includes.add("AccountDetailsBench.writePbjByteDirect")
+//    includes.add("EverythingBench")
+    includes.add("EverythingBench.parsePbjByteBufferDirect")
     jmhVersion.set("1.35")
     includeTests.set(true)
 //    jvmArgsAppend.add("-XX:MaxInlineSize=100 -XX:MaxInlineLevel=20")

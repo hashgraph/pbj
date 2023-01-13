@@ -2,7 +2,10 @@ package com.hedera.hashgraph.pbj.integration;
 
 import com.hedera.hashgraph.pbj.runtime.io.DataBuffer;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
+import com.hederahashgraph.api.proto.pbj.test.parser.EverythingProtoParser;
 import com.hederahashgraph.api.proto.pbj.test.writer.EverythingWriter;
+
+import java.nio.ByteBuffer;
 
 import static com.hedera.hashgraph.pbj.integration.AccountDetailsPbj.ACCOUNT_DETAILS;
 import static com.hedera.hashgraph.pbj.integration.EverythingTestData.EVERYTHING;
@@ -11,8 +14,13 @@ import static com.hedera.hashgraph.pbj.integration.EverythingTestData.EVERYTHING
 public class EverythingWriterPerfTest {
 
     public static void main(String[] args) throws Exception {
-        final DataBuffer outDataBuffer = DataBuffer.allocate(1024*1024, true);
+        parse();
+//        parseProtoC();
+//        write();
+    }
 
+    private static void write() throws Exception {
+        final DataBuffer outDataBuffer = DataBuffer.allocate(1024*1024, true);
         for (int i = 0; i < 10_000_000; i++) {
             outDataBuffer.reset();
             EverythingWriter.write(EVERYTHING, outDataBuffer);
@@ -21,7 +29,33 @@ public class EverythingWriterPerfTest {
             }
         }
     }
-    public static void main2(String[] args) throws Exception {
+
+    private static void parse() throws Exception {
+        final DataBuffer inDataBuffer = DataBuffer.allocate(1024*1024, true);
+        EverythingWriter.write(EVERYTHING, inDataBuffer);
+        inDataBuffer.flip();
+
+        for (int i = 0; i < 10_000_000; i++) {
+            inDataBuffer.resetPosition();
+            var e = EverythingProtoParser.parse(inDataBuffer);
+//            if (!e.booleanField()) {
+//                System.out.println("outDataBuffer = " + inDataBuffer);
+//            }
+        }
+    }
+    private static void parseProtoC() throws Exception {
+        final ByteBuffer inBuffer = ByteBuffer.allocateDirect(1024*1024);
+        final DataBuffer inDataBuffer = DataBuffer.wrap(inBuffer);
+        EverythingWriter.write(EVERYTHING, inDataBuffer);
+        inDataBuffer.flip();
+        inBuffer.limit((int)inDataBuffer.getLimit());
+
+        for (int i = 0; i < 10_000_000; i++) {
+            inBuffer.position(0);
+            com.hederahashgraph.api.proto.java.test.Everything.parseFrom(inBuffer);
+        }
+    }
+    public static void write3() throws Exception {
         // write to temp data buffer and then read into byte array
         DataBuffer tempDataBuffer = DataBuffer.allocate(5 * 1024 * 1024, false);
         EverythingWriter.write(EVERYTHING, tempDataBuffer);

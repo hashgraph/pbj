@@ -44,7 +44,23 @@ public final class ByteOverByteBuffer extends Bytes {
         this.length = data.length;
     }
 
+    /**
+     * Package protected direct access to buffer
+     *
+     * @return the internal buffer
+     */
+    ByteBuffer getBuffer() {
+        return buffer;
+    }
 
+    /**
+     * Package protected direct access to start offset
+     *
+     * @return the internal start offset
+     */
+    int getStart() {
+        return start;
+    }
 
     // ================================================================================================================
     // Bytes Methods

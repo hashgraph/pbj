@@ -17,6 +17,7 @@ import com.hederahashgraph.api.proto.pbj.test.writer.EverythingWriter;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -31,7 +32,7 @@ import static com.hedera.hashgraph.pbj.integration.EverythingTestData.EVERYTHING
 @State(Scope.Benchmark)
 @Fork(1)
 @Warmup(iterations = 1, time = 2)
-@Measurement(iterations = 5, time = 3)
+@Measurement(iterations = 30, time = 3)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
 public class EverythingBench {
@@ -46,6 +47,7 @@ public class EverythingBench {
 	private final ByteBuffer protobufByteBufferDirect;
 	private final DataBuffer protobufDataBufferDirect;
 	private final NonSynchronizedByteArrayInputStream bin;
+	private final DataInputStream din;
 
 	// output buffers
 	private final NonSynchronizedByteArrayOutputStream bout;
@@ -72,10 +74,9 @@ public class EverythingBench {
 			protobufDataBuffer = DataBuffer.wrap(protobuf);
 			protobufByteBufferDirect = ByteBuffer.allocateDirect(protobuf.length);
 			protobufByteBufferDirect.put(protobuf);
-			System.out.println("protobufByteBufferDirect = " + protobufByteBufferDirect);
 			protobufDataBufferDirect = DataBuffer.wrap(protobufByteBufferDirect);
 			bin = new NonSynchronizedByteArrayInputStream(protobuf);
-			DataInputStream din = new DataInputStream(bin);
+			din = new DataInputStream(bin);
 			// output buffers
 			bout = new NonSynchronizedByteArrayOutputStream();
 			DataOutputStream dout = new DataOutputStream(bout);
@@ -109,8 +110,8 @@ public class EverythingBench {
 	public void parsePbjInputStream(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
 			bin.resetPosition();
-//			blackhole.consume(EverythingProtoParser.parse(din));
-			blackhole.consume(EverythingProtoParser.parse(new DataInputStream(bin)));
+			din.setInputStream(bin);
+			blackhole.consume(EverythingProtoParser.parse(din));
 		}
 	}
 

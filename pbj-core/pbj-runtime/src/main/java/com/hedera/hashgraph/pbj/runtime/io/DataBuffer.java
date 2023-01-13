@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 /**
  * A Buffer backed by a ByteBuffer that implements {@code DataInput} and {@code DataOutput}.
@@ -75,6 +77,13 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
 
     // ================================================================================================================
     // DataOutput Methods
+
+
+    static String bufToString(ByteBuffer buf) {
+        byte[] b = new byte[Math.min(30,buf.remaining())];
+        buf.get(0, b);
+        return "ByteBuffer{direct="+buf.isDirect()+",pos="+buf.position()+",remaining="+buf.remaining()+" ,d="+ Arrays.toString(b)+"}";
+    }
 
     /**
      * Set the limit to current position and position to origin. This is useful when you have just finished writing
@@ -468,6 +477,23 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String readUtf8String(int lengthInBytes) throws IOException {
+//        if (buffer.remaining() < lengthInBytes) throw new IOException("Not enough bytes to remaining [" +
+//                buffer.remaining() + "] to read string of [" + lengthInBytes + "] bytes");
+//        int oldLimit = buffer.limit();
+//        buffer.limit(buffer.position()+lengthInBytes);
+//        final String readStr = StandardCharsets.UTF_8.decode(buffer).toString();
+//        buffer.limit(oldLimit);
+//        return readStr;
+        final String readStr = new String(buffer.array(), buffer.position(), lengthInBytes, StandardCharsets.UTF_8);
+        buffer.position(buffer.position() + lengthInBytes);
+        return readStr;
+    }
+
     // ================================================================================================================
     // DataOutput Write Methods
 
@@ -508,8 +534,6 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     @Override
     public void writeBytes(DataBuffer src) throws IOException {
         if ((getLimit() - getPosition()) < src.getRemaining()) {
-            System.err.println("Trying to write [" + src.getRemaining() + "] bytes but only [" +
-                    (getLimit() - getPosition()) + "] remaining of [" + getCapacity() + "]");
             throw new BufferUnderflowException();
         }
         buffer.put(src.buffer);
