@@ -48,8 +48,13 @@ public final class ModelGenerator implements Generator {
 				for(final Field field: oneOfField.fields()) {
 					final String fieldType = field.protobufFieldType();
 					final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
+					final String enumComment = cleanDocStr(field.comment())
+						.replaceAll("[\t\s]*/\\*\\*","") // remove doc start indenting
+						.replaceAll("\n[\t\s]+\\*","\n") // remove doc indenting
+						.replaceAll("/\\*\\*","") //  remove doc start
+						.replaceAll("\\*\\*/",""); //  remove doc end
 					enumValues.put(field.fieldNumber(), new EnumValue(field.name(),field.deprecated(),
-							"/** " + cleanDocStr(field.comment()) + "\n     */"));
+							enumComment));
 					// generate getters for one ofs
 					oneofGetters.add("""
 							/**
@@ -141,17 +146,26 @@ public final class ModelGenerator implements Generator {
 		}
 		// oneof getters
 		bodyContent += String.join("\n    ", oneofGetters);
-		bodyContent += "\n"+FIELD_INDENT;
-		// builder copy method
-		bodyContent += """
+		bodyContent += "\n";
+		// builder copy & new builder methods
+		bodyContent += FIELD_INDENT + """
 				/**
 				 * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this
 				 * model object.
 				 *
 				 * @return a pre-populated builder
 				 */
-				Builder copyBuilder() {
+				public Builder copyBuilder() {
 					return new Builder(%s);
+				}
+				
+				/**
+				 * Return a new builder for building a model object. This is just a shortcut for <code>new Model.Builder()</code>.
+				 *
+				 * @return a new builder
+				 */
+				public static Builder newBuilder() {
+					return new Builder();
 				}
 				
 				"""
@@ -228,6 +242,66 @@ public final class ModelGenerator implements Generator {
 							this.$fieldName = $fieldName;
 							return this;
 						}"""
+						.replace("$fieldDoc",field.comment()
+								.replaceAll("\n", "\n * "))
+						.replace("$fieldName",field.nameCamelFirstLower())
+						.replace("$fieldType",field.javaFieldType())
+						.replaceAll("\n","\n"+FIELD_INDENT));
+			}
+			// add nice method for simple message fields so can just set using un-built builder
+			if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType() && !field.repeated()) {
+				builderMethods.add("""
+						/**
+						 * $fieldDoc
+						 *
+						 * @param builder A pre-populated builder
+						 * @return builder to continue building with
+						 */
+						public Builder $fieldName($messageClass.Builder builder) {
+							this.$fieldName = builder.build();
+							return this;
+						}"""
+						.replace("$messageClass",field.messageType())
+						.replace("$fieldDoc",field.comment()
+								.replaceAll("\n", "\n * "))
+						.replace("$fieldName",field.nameCamelFirstLower())
+						.replace("$fieldType",field.javaFieldType())
+						.replaceAll("\n","\n"+FIELD_INDENT));
+			}
+			// add nice method for message fields with optional types so can set unwrapped
+			if (field.type() == Field.FieldType.MESSAGE && field.optionalValueType() && !field.repeated()) {
+				builderMethods.add("""
+						/**
+						 * $fieldDoc
+						 *
+						 * @param value raw value not wrapped in optional
+						 * @return builder to continue building with
+						 */
+						public Builder $fieldName($baseType value) {
+							this.$fieldName = Optional.of(value);
+							return this;
+						}"""
+						.replace("$baseType",field.javaFieldType().substring("Optional<".length(),field.javaFieldType().length()-1))
+						.replace("$fieldDoc",field.comment()
+								.replaceAll("\n", "\n * "))
+						.replace("$fieldName",field.nameCamelFirstLower())
+						.replace("$fieldType",field.javaFieldType())
+						.replaceAll("\n","\n"+FIELD_INDENT));
+			}
+			// add nice method for message fields with list types for varargs
+			if (field.repeated()) {
+				builderMethods.add("""
+						/**
+						 * $fieldDoc
+						 *
+						 * @param values varargs value to be built into a list
+						 * @return builder to continue building with
+						 */
+						public Builder $fieldName($baseType ... values) {
+							this.$fieldName = List.of(values);
+							return this;
+						}"""
+						.replace("$baseType",field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1))
 						.replace("$fieldDoc",field.comment()
 								.replaceAll("\n", "\n * "))
 						.replace("$fieldName",field.nameCamelFirstLower())

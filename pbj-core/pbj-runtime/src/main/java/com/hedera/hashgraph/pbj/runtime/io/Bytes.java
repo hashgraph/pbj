@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 
 /**
  * <p>A alternative to byte array that is immutable</p>
@@ -41,6 +42,16 @@ public abstract class Bytes {
     public static Bytes wrap(byte[] byteArray) {
         // For now use ByteOverByteBuffer, could have better array based implementation later
         return new ByteOverByteBuffer(byteArray);
+    }
+
+    /**
+     * Create a new Bytes with the contents of a String UTF8 encoded.
+     *
+     * @param string The string to UFT8 encode and create a bytes for
+     * @return new Bytes with string contents UTF8 encoded
+     */
+    public static Bytes wrap(String string) {
+        return wrap(string.getBytes(StandardCharsets.UTF_8));
     }
 
     // ================================================================================================================
@@ -117,6 +128,18 @@ public abstract class Bytes {
 
     // ================================================================================================================
     // Bytes Methods
+
+    /**
+     * Get the contents of this byte as a string, assuming bytes contained are UTF8 encoded string.
+     *
+     * @return Bytes data converted to string
+     * @throws IOException If there was a problem getting bytes
+     */
+    public String asUtf8String() throws IOException {
+        byte[] data = new byte[getLength()];
+        getBytes(0,data);
+        return new String(data, StandardCharsets.UTF_8);
+    }
 
     /**
      * Get the number of bytes of data stored
