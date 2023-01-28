@@ -47,10 +47,13 @@ public final class EnumGenerator {
 				final var enumNumber = Integer.parseInt(item.enumField().intLit().getText());
 				final String enumValueJavaDoc = cleanDocStr(
 						(item.enumField().docComment() == null || item.enumField().docComment().getText().isBlank()) ?
-								"    /** \n" +
-								"     * " + enumValueName + "\n" +
-								"     */" :
-						item.enumField().docComment().getText());
+								enumValueName :
+						item.enumField().docComment().getText()
+								.replaceAll("[\t\s]*/\\*\\*","") // remove doc start indenting
+								.replaceAll("\n[\t\s]+\\*","\n") // remove doc indenting
+								.replaceAll("/\\*\\*","") //  remove doc start
+								.replaceAll("\\*\\*/","") //  remove doc end
+				);
 				maxIndex = Math.max(maxIndex, enumNumber);
 				enumValues.put(enumNumber, new EnumValue(enumValueName, false,enumValueJavaDoc));
 			} else if (item.optionStatement() != null){
@@ -97,13 +100,25 @@ public final class EnumGenerator {
 		for (int i = 0; i <= maxIndex; i++) {
 			final EnumValue enumValue = enumValues.get(i);
 			if (enumValue != null) {
-				final String cleanedEnumComment = cleanDocStr(enumValue.javaDoc
-						.replaceAll("[\t\s]*/\\*\\*",FIELD_INDENT+"/**") // clean up doc start indenting
-						.replaceAll("\n[\t\s]+\\*","\n"+FIELD_INDENT+" *") // clean up doc indenting
-						.replaceAll("/\\*\\*","/**\n"+FIELD_INDENT+" * <b>("+i+")</b>") // add field index
-						+ "\n");
+				System.out.println("======================================================================");
+				System.out.println(enumValue.javaDoc);
+				System.out.println("----------------------------------------------------------------------");
+				final String cleanedEnumComment = FIELD_INDENT + "/** \n"
+						+ FIELD_INDENT+" * "
+						+ enumValue.javaDoc.replaceAll("\n[\t\s]*","\n"+FIELD_INDENT+" * ") // clean up doc indenting
+						+ "\n"
+						+ FIELD_INDENT + " */\n";
+
+//						.replaceAll("[\t\s]*/\\*\\*",FIELD_INDENT+"/**") // clean up doc start indenting
+//						.replaceAll("\n[\t\s]+\\*","\n"+FIELD_INDENT+" *") // clean up doc indenting
+//						.replaceAll("/\\*\\*","/**\n"+FIELD_INDENT+" * <b>("+i+")</b>") // add field index
+
+				System.out.println(cleanedEnumComment);
+				System.out.println("======================================================================");
 				final String deprecatedText = enumValue.deprecated ? FIELD_INDENT+"@Deprecated\n" : "";
-				enumValuesCode.add(cleanedEnumComment+deprecatedText+FIELD_INDENT+camelToUpperSnake(enumValue.name)+"("+i+")");
+				enumValuesCode.add(
+						cleanedEnumComment
+						+ deprecatedText+FIELD_INDENT+camelToUpperSnake(enumValue.name)+"("+i+")");
 			}
 		}
 		return """
