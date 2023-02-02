@@ -49,10 +49,11 @@ public final class EnumGenerator {
 						(item.enumField().docComment() == null || item.enumField().docComment().getText().isBlank()) ?
 								enumValueName :
 						item.enumField().docComment().getText()
-								.replaceAll("[\t\s]*/\\*\\*","") // remove doc start indenting
-								.replaceAll("\n[\t\s]+\\*","\n") // remove doc indenting
+								.replaceAll("[\t ]*/\\*\\*([\n\t ]+\\*\s+)?","") // remove doc start indenting
 								.replaceAll("/\\*\\*","") //  remove doc start
-								.replaceAll("\\*\\*/","") //  remove doc end
+								.replaceAll("[\n\t ]+\\*/","") //  remove doc end
+								.replaceAll("\n[\t\s]+\\*\\*?","\n") // remove doc indenting
+								.replaceAll("/n\s*/n","/n") //  remove empty lines
 				);
 				maxIndex = Math.max(maxIndex, enumNumber);
 				enumValues.put(enumNumber, new EnumValue(enumValueName, false,enumValueJavaDoc));
@@ -100,21 +101,11 @@ public final class EnumGenerator {
 		for (int i = 0; i <= maxIndex; i++) {
 			final EnumValue enumValue = enumValues.get(i);
 			if (enumValue != null) {
-				System.out.println("======================================================================");
-				System.out.println(enumValue.javaDoc);
-				System.out.println("----------------------------------------------------------------------");
 				final String cleanedEnumComment = FIELD_INDENT + "/** \n"
 						+ FIELD_INDENT+" * "
 						+ enumValue.javaDoc.replaceAll("\n[\t\s]*","\n"+FIELD_INDENT+" * ") // clean up doc indenting
 						+ "\n"
 						+ FIELD_INDENT + " */\n";
-
-//						.replaceAll("[\t\s]*/\\*\\*",FIELD_INDENT+"/**") // clean up doc start indenting
-//						.replaceAll("\n[\t\s]+\\*","\n"+FIELD_INDENT+" *") // clean up doc indenting
-//						.replaceAll("/\\*\\*","/**\n"+FIELD_INDENT+" * <b>("+i+")</b>") // add field index
-
-				System.out.println(cleanedEnumComment);
-				System.out.println("======================================================================");
 				final String deprecatedText = enumValue.deprecated ? FIELD_INDENT+"@Deprecated\n" : "";
 				enumValuesCode.add(
 						cleanedEnumComment

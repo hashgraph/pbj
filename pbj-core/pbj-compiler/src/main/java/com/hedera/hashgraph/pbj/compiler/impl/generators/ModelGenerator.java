@@ -204,14 +204,20 @@ public final class ModelGenerator implements Generator {
 		}
 	}
 
-	private static String generateBuilder(final Protobuf3Parser.MessageDefContext msgDef, List<Field> fields, final ContextualLookupHelper lookupHelper) {
-		final String javaRecordName = msgDef.messageName().getText();
-		List<String> builderMethods = new ArrayList<>();
-		for (Field field: fields) {
-			if (field.type() == Field.FieldType.ONE_OF) {
-				final OneOfField oneOfField = (OneOfField) field;
-				for (Field subField: oneOfField.fields()) {
-					builderMethods.add("""
+	private static void generateBuilderMethods(List<String> builderMethods, Field field) {
+		final String prefix, postfix, fieldToSet;
+		final OneOfField parentOneOfField = field.parent();
+		if (parentOneOfField != null) {
+			final String oneOfEnumValue = parentOneOfField.getEnumClassRef()+"."+camelToUpperSnake(field.name());
+			prefix = "new OneOf<>("+oneOfEnumValue+",";
+			postfix = ")";
+			fieldToSet = parentOneOfField.nameCamelFirstLower();
+		} else {
+			prefix = "";
+			postfix = "";
+			fieldToSet = field.nameCamelFirstLower();
+		}
+		builderMethods.add("""
 						/**
 						 * $fieldDoc
 						 *
@@ -219,38 +225,20 @@ public final class ModelGenerator implements Generator {
 						 * @return builder to continue building with
 						 */
 						public Builder $fieldName($fieldType $fieldName) {
-							this.$oneOfFieldName = new OneOf<>($oneOfEnumValue, $fieldName);
+							this.$fieldToSet = $prefix $fieldName $postfix;
 							return this;
 						}"""
-						.replace("$fieldDoc",subField.comment()
-								.replaceAll("\n", "\n * "))
-						.replace("$fieldName",subField.nameCamelFirstLower())
-						.replace("$fieldType",subField.javaFieldType())
-						.replace("$oneOfFieldName",field.nameCamelFirstLower())
-						.replace("$oneOfEnumValue",oneOfField.getEnumClassRef()+"."+camelToUpperSnake(subField.name()))
-						.replaceAll("\n","\n"+FIELD_INDENT));
-				}
-			} else {
-				builderMethods.add("""
-						/**
-						 * $fieldDoc
-						 *
-						 * @param $fieldName value to set
-						 * @return builder to continue building with
-						 */
-						public Builder $fieldName($fieldType $fieldName) {
-							this.$fieldName = $fieldName;
-							return this;
-						}"""
-						.replace("$fieldDoc",field.comment()
-								.replaceAll("\n", "\n * "))
-						.replace("$fieldName",field.nameCamelFirstLower())
-						.replace("$fieldType",field.javaFieldType())
-						.replaceAll("\n","\n"+FIELD_INDENT));
-			}
-			// add nice method for simple message fields so can just set using un-built builder
-			if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType() && !field.repeated()) {
-				builderMethods.add("""
+				.replace("$fieldDoc",field.comment()
+						.replaceAll("\n", "\n * "))
+				.replace("$fieldName",field.nameCamelFirstLower())
+				.replace("$fieldToSet",fieldToSet)
+				.replace("$prefix",prefix)
+				.replace("$postfix",postfix)
+				.replace("$fieldType",field.javaFieldType())
+				.replaceAll("\n","\n"+FIELD_INDENT));
+		// add nice method for simple message fields so can just set using un-built builder
+		if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType() && !field.repeated()) {
+			builderMethods.add("""
 						/**
 						 * $fieldDoc
 						 *
@@ -258,19 +246,22 @@ public final class ModelGenerator implements Generator {
 						 * @return builder to continue building with
 						 */
 						public Builder $fieldName($messageClass.Builder builder) {
-							this.$fieldName = builder.build();
+							this.$fieldToSet = $prefix builder.build() $postfix;
 							return this;
 						}"""
-						.replace("$messageClass",field.messageType())
-						.replace("$fieldDoc",field.comment()
-								.replaceAll("\n", "\n * "))
-						.replace("$fieldName",field.nameCamelFirstLower())
-						.replace("$fieldType",field.javaFieldType())
-						.replaceAll("\n","\n"+FIELD_INDENT));
-			}
-			// add nice method for message fields with optional types so can set unwrapped
-			if (field.type() == Field.FieldType.MESSAGE && field.optionalValueType() && !field.repeated()) {
-				builderMethods.add("""
+					.replace("$messageClass",field.messageType())
+					.replace("$fieldDoc",field.comment()
+							.replaceAll("\n", "\n * "))
+					.replace("$fieldName",field.nameCamelFirstLower())
+					.replace("$fieldToSet",fieldToSet)
+					.replace("$prefix",prefix)
+					.replace("$postfix",postfix)
+					.replace("$fieldType",field.javaFieldType())
+					.replaceAll("\n","\n"+FIELD_INDENT));
+		}
+		// add nice method for message fields with optional types so can set unwrapped
+		if (field.type() == Field.FieldType.MESSAGE && field.optionalValueType() && !field.repeated()) {
+			builderMethods.add("""
 						/**
 						 * $fieldDoc
 						 *
@@ -278,19 +269,22 @@ public final class ModelGenerator implements Generator {
 						 * @return builder to continue building with
 						 */
 						public Builder $fieldName($baseType value) {
-							this.$fieldName = Optional.of(value);
+							this.$fieldToSet = $prefix Optional.of(value) $postfix;
 							return this;
 						}"""
-						.replace("$baseType",field.javaFieldType().substring("Optional<".length(),field.javaFieldType().length()-1))
-						.replace("$fieldDoc",field.comment()
-								.replaceAll("\n", "\n * "))
-						.replace("$fieldName",field.nameCamelFirstLower())
-						.replace("$fieldType",field.javaFieldType())
-						.replaceAll("\n","\n"+FIELD_INDENT));
-			}
-			// add nice method for message fields with list types for varargs
-			if (field.repeated()) {
-				builderMethods.add("""
+					.replace("$baseType",field.javaFieldType().substring("Optional<".length(),field.javaFieldType().length()-1))
+					.replace("$fieldDoc",field.comment()
+							.replaceAll("\n", "\n * "))
+					.replace("$fieldName",field.nameCamelFirstLower())
+					.replace("$fieldToSet",fieldToSet)
+					.replace("$fieldType",field.javaFieldType())
+					.replace("$prefix",prefix)
+					.replace("$postfix",postfix)
+					.replaceAll("\n","\n"+FIELD_INDENT));
+		}
+		// add nice method for message fields with list types for varargs
+		if (field.repeated()) {
+			builderMethods.add("""
 						/**
 						 * $fieldDoc
 						 *
@@ -298,15 +292,32 @@ public final class ModelGenerator implements Generator {
 						 * @return builder to continue building with
 						 */
 						public Builder $fieldName($baseType ... values) {
-							this.$fieldName = List.of(values);
+							this.$fieldToSet = $prefix List.of(values) $postfix;
 							return this;
 						}"""
-						.replace("$baseType",field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1))
-						.replace("$fieldDoc",field.comment()
-								.replaceAll("\n", "\n * "))
-						.replace("$fieldName",field.nameCamelFirstLower())
-						.replace("$fieldType",field.javaFieldType())
-						.replaceAll("\n","\n"+FIELD_INDENT));
+					.replace("$baseType",field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1))
+					.replace("$fieldDoc",field.comment()
+							.replaceAll("\n", "\n * "))
+					.replace("$fieldName",field.nameCamelFirstLower())
+					.replace("$fieldToSet",fieldToSet)
+					.replace("$fieldType",field.javaFieldType())
+					.replace("$prefix",prefix)
+					.replace("$postfix",postfix)
+					.replaceAll("\n","\n"+FIELD_INDENT));
+		}
+	}
+
+	private static String generateBuilder(final Protobuf3Parser.MessageDefContext msgDef, List<Field> fields, final ContextualLookupHelper lookupHelper) {
+		final String javaRecordName = msgDef.messageName().getText();
+		List<String> builderMethods = new ArrayList<>();
+		for (Field field: fields) {
+			if (field.type() == Field.FieldType.ONE_OF) {
+				final OneOfField oneOfField = (OneOfField) field;
+				for (Field subField: oneOfField.fields()) {
+					generateBuilderMethods(builderMethods, subField);
+				}
+			} else {
+				generateBuilderMethods(builderMethods, field);
 			}
 		}
 		return """
@@ -380,7 +391,7 @@ public final class ModelGenerator implements Generator {
 					sb.append("""
        
 							// handle special case where protobuf does not have destination between a OneOf with optional
-							// value of empty vs a unset OneOf.
+							// value of empty vs an unset OneOf.
 							if($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && ((Optional)$fieldName.value()).isEmpty()) {
 								$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
 							}"""

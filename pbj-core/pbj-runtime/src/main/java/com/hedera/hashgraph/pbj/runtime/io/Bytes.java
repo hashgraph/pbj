@@ -1,6 +1,5 @@
 package com.hedera.hashgraph.pbj.runtime.io;
 
-import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -9,8 +8,8 @@ import java.nio.charset.StandardCharsets;
 /**
  * <p>A alternative to byte array that is immutable</p>
  *
- * <p>It is simple to implement in basic form with just the {@code getLength()} and {@code getByte(int offset)} method 
- * needing implementing as all other get methods have public implementations. Though it will work, it should not be 
+ * <p>It is simple to implement in basic form with just the {@code getLength()} and {@code getByte(int offset)} method
+ * needing implementing as all other get methods have public implementations. Though it will work, it should not be
  * used like that in performance critical cases as specialized get methods can be many times more efficient.</p>
  */
 @SuppressWarnings({"DuplicatedCode", "unused"})
@@ -67,14 +66,10 @@ public abstract class Bytes {
         // build string
         StringBuilder sb = new StringBuilder();
         sb.append("Bytes[");
-        try {
-            for (int i = 0; i < getLength(); i++) {
-                int v = getByte(i) & 0xFF;
-                sb.append(v);
-                if (i < (getLength()-1)) sb.append(',');
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        for (int i = 0; i < getLength(); i++) {
+            int v = getByte(i) & 0xFF;
+            sb.append(v);
+            if (i < (getLength()-1)) sb.append(',');
         }
         sb.append(']');
         return sb.toString();
@@ -96,14 +91,10 @@ public abstract class Bytes {
             return false;
         }
         if (length == 0) return true;
-        try {
-            for (int i = 0; i < length; i++) {
-                if (getByte(i) != that.getByte(i)) {
-                    return false;
-                }
+        for (int i = 0; i < length; i++) {
+            if (getByte(i) != that.getByte(i)) {
+                return false;
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
         return true;
     }
@@ -116,12 +107,8 @@ public abstract class Bytes {
     @Override
     public int hashCode() {
         int h = 1;
-        try {
-            for (int i = getLength() - 1; i >= 0; i--) {
-                h = 31 * h + (int) getByte(i);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        for (int i = getLength() - 1; i >= 0; i--) {
+            h = 31 * h + getByte(i);
         }
         return h;
     }
@@ -133,9 +120,8 @@ public abstract class Bytes {
      * Get the contents of this byte as a string, assuming bytes contained are UTF8 encoded string.
      *
      * @return Bytes data converted to string
-     * @throws IOException If there was a problem getting bytes
      */
-    public String asUtf8String() throws IOException {
+    public String asUtf8String() {
         byte[] data = new byte[getLength()];
         getBytes(0,data);
         return new String(data, StandardCharsets.UTF_8);
@@ -143,20 +129,19 @@ public abstract class Bytes {
 
     /**
      * Get the number of bytes of data stored
-     * 
+     *
      * @return number of bytes of data stored
      */
     public abstract int getLength();
-    
+
     /**
      * Gets the byte at given {@code offset}.
      *
      * @param offset The offset into data to get byte at
      * @return The byte at given {@code offset}
      * @throws BufferUnderflowException If the given {@code offset} is not smaller than its limit
-     * @throws IOException if an I/O error occurs
      */
-    public abstract byte getByte(int offset) throws IOException ;
+    public abstract byte getByte(int offset);
 
     /**
      * Gets the byte at given {@code offset} as unsigned.
@@ -164,9 +149,8 @@ public abstract class Bytes {
      * @param offset The offset into data to get byte at
      * @return The byte at given {@code offset}
      * @throws BufferUnderflowException If the given {@code offset} is not smaller than its limit
-     * @throws IOException if an I/O error occurs
      */
-    public int getUnsignedByte(int offset) throws IOException  {
+    public int getUnsignedByte(int offset) {
         return Byte.toUnsignedInt(getByte(offset));
     }
 
@@ -182,9 +166,8 @@ public abstract class Bytes {
      * @throws BufferUnderflowException If there are fewer than {@code length} bytes remaining to be get
      * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length} parameters do
      * not hold
-     * @throws IOException if an I/O error occurs
      */
-    public void getBytes(int offset, byte[] dst, int dstOffset, int length) throws IOException {
+    public void getBytes(int offset, byte[] dst, int dstOffset, int length) {
         if ((offset + length) > getLength()) {
             throw new BufferUnderflowException();
         }
@@ -202,9 +185,8 @@ public abstract class Bytes {
      * @param offset The offset into data to get bytes at
      * @param dst The destination array
      * @throws BufferUnderflowException If there are fewer than {@code length} bytes remaining in this buffer
-     * @throws IOException if an I/O error occurs
      */
-    public void getBytes(int offset, byte[] dst) throws IOException {
+    public void getBytes(int offset, byte[] dst) {
         getBytes(offset, dst, 0, dst.length);
     }
 
@@ -214,9 +196,8 @@ public abstract class Bytes {
      * @param offset The offset into data to get bytes at
      * @param dst The destination ByteBuffer
      * @throws BufferUnderflowException If there are fewer than {@code dst.remaining()} bytes remaining in this buffer
-     * @throws IOException if an I/O error occurs
      */
-    public void getBytes(int offset, ByteBuffer dst) throws IOException {
+    public void getBytes(int offset, ByteBuffer dst) {
         if ((offset + dst.remaining()) > getLength()) {
             throw new BufferUnderflowException();
         }
@@ -232,9 +213,8 @@ public abstract class Bytes {
      * @param offset The offset into data to get int at
      * @return The int value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws IOException if an I/O error occurs
      */
-    public int getInt(int offset) throws IOException {
+    public int getInt(int offset) {
         if ((getLength() - offset) < Integer.BYTES) {
             throw new BufferUnderflowException();
         }
@@ -253,9 +233,8 @@ public abstract class Bytes {
      * @param byteOrder the byte order, aka endian to use
      * @return The int value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws IOException if an I/O error occurs
      */
-    public int getInt(int offset, ByteOrder byteOrder) throws IOException {
+    public int getInt(int offset, ByteOrder byteOrder) {
         if ((getLength() - offset) < Integer.BYTES) {
             throw new BufferUnderflowException();
         }
@@ -277,9 +256,8 @@ public abstract class Bytes {
      * @param offset The offset into data to get int at
      * @return The int value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws IOException if an I/O error occurs
      */
-    public long getUnsignedInt(int offset) throws IOException {
+    public long getUnsignedInt(int offset) {
         if ((getLength() - offset) < Integer.BYTES) {
             throw new BufferUnderflowException();
         }
@@ -298,9 +276,8 @@ public abstract class Bytes {
      * @param byteOrder the byte order, aka endian to use
      * @return The int value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws IOException if an I/O error occurs
      */
-    public long getUnsignedInt(int offset, ByteOrder byteOrder) throws IOException {
+    public long getUnsignedInt(int offset, ByteOrder byteOrder) {
         if ((getLength() - offset) < Integer.BYTES) {
             throw new BufferUnderflowException();
         }
@@ -322,9 +299,8 @@ public abstract class Bytes {
      * @param offset The offset into data to get long at
      * @return The long value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
-     * @throws IOException if an I/O error occurs
      */
-    public long getLong(int offset) throws IOException {
+    public long getLong(int offset) {
         if ((getLength() - offset) < Long.BYTES) {
             throw new BufferUnderflowException();
         }
@@ -354,9 +330,8 @@ public abstract class Bytes {
      * @param byteOrder the byte order, aka endian to use
      * @return The long value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
-     * @throws IOException if an I/O error occurs
      */
-    public long getLong(int offset, ByteOrder byteOrder) throws IOException {
+    public long getLong(int offset, ByteOrder byteOrder) {
         if ((getLength() - offset) < Long.BYTES) {
             throw new BufferUnderflowException();
         }
@@ -389,9 +364,8 @@ public abstract class Bytes {
      * @param offset The offset into data to get float at
      * @return The float value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws IOException if an I/O error occurs
      */
-    public float getFloat(int offset) throws IOException {
+    public float getFloat(int offset) {
         return Float.intBitsToFloat(getInt(offset));
     }
 
@@ -403,9 +377,8 @@ public abstract class Bytes {
      * @param byteOrder the byte order, aka endian to use
      * @return The float value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws IOException if an I/O error occurs
      */
-    public float getFloat(int offset, ByteOrder byteOrder) throws IOException {
+    public float getFloat(int offset, ByteOrder byteOrder) {
         return Float.intBitsToFloat(getInt(offset, byteOrder));
     }
 
@@ -416,9 +389,8 @@ public abstract class Bytes {
      * @param offset The offset into data to get double at
      * @return The double value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
-     * @throws IOException if an I/O error occurs
      */
-    public double getDouble(int offset) throws IOException {
+    public double getDouble(int offset) {
         return Double.longBitsToDouble(getLong(offset));
     }
 
@@ -430,9 +402,8 @@ public abstract class Bytes {
      * @param byteOrder the byte order, aka endian to use
      * @return The double value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
-     * @throws IOException if an I/O error occurs
      */
-    public double getDouble(int offset, ByteOrder byteOrder) throws IOException {
+    public double getDouble(int offset, ByteOrder byteOrder) {
         return Double.longBitsToDouble(getLong(offset, byteOrder));
     }
 
@@ -442,21 +413,19 @@ public abstract class Bytes {
      * @param offset The offset into data to get varint at
      * @return integer get in var int format
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
-     * @throws IOException if an I/O error occurs
      */
-    public int getVarInt(int offset, boolean zigZag) throws IOException {
+    public int getVarInt(int offset, boolean zigZag) {
         return (int)getVarLong(offset, zigZag);
     }
 
     /**
-     * Get a 64bit protobuf varint at given {@code offset}. An long var int can be 1 to 10 bytes.
+     * Get a 64bit protobuf varint at given {@code offset}. A long var int can be 1 to 10 bytes.
      *
      * @param offset The offset into data to get varint at
      * @return long get in var int format
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
-     * @throws IOException if an I/O error occurs
      */
-    public long getVarLong(int offset, boolean zigZag) throws IOException {
+    public long getVarLong(int offset, boolean zigZag) {
         long result = 0;
         for (int shift = 0; shift < 64; shift += 7) {
             final byte b = getByte(offset++);
@@ -465,6 +434,42 @@ public abstract class Bytes {
                 return zigZag ? ((result >>> 1) ^ -(result & 1)) : result;
             }
         }
-        throw new IOException("Malformed Varint");
+        throw new RuntimeException("Malformed Varint");
+    }
+
+    /**
+     * Check if the beginning of our bytes data matches the given prefix bytes.
+     *
+     * @param prefix the prefix bytes to compare with
+     * @return true if prefix bytes match the beginning of our bytes
+     */
+    public boolean matchesPrefix(byte[] prefix) {
+        if (prefix == null || getLength() < prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if (prefix[i] != getByte(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Check if the beginning of our bytes data matches the given prefix bytes.
+     *
+     * @param prefix the prefix bytes to compare with
+     * @return true if prefix bytes match the beginning of our bytes
+     */
+    public boolean matchesPrefix(Bytes prefix) {
+        if (prefix == null || getLength() < prefix.getLength()) {
+            return false;
+        }
+        for (int i = 0; i < prefix.getLength(); i++) {
+            if (prefix.getByte(i) != getByte(i)) {
+                return false;
+            }
+        }
+        return true;
     }
 }
