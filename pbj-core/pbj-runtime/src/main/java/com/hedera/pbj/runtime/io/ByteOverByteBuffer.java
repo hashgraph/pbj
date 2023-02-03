@@ -106,39 +106,4 @@ public final class ByteOverByteBuffer extends Bytes {
     public void getBytes(int offset, byte[] dst) {
         buffer.get(start+offset, dst);
     }
-
-    /**
-     * Check if the beginning of our bytes data matches the given prefix bytes.
-     *
-     * @param prefix the prefix bytes to compare with
-     * @return true if prefix bytes match the beginning of our bytes
-     */
-    @Override
-    public boolean matchesPrefix(byte[] prefix) {
-        if (prefix == null || getLength() < prefix.length) {
-            return false;
-        }
-
-        final int misMatch = buffer.mismatch(ByteBuffer.wrap(prefix));
-        return misMatch > prefix.length;
-    }
-
-    /**
-     * Check if the beginning of our bytes data matches the given prefix bytes.
-     *
-     * @param prefix the prefix bytes to compare with
-     * @return true if prefix bytes match the beginning of our bytes
-     */
-    @Override
-    public boolean matchesPrefix(Bytes prefix) {
-        if (prefix instanceof ByteOverByteBuffer byteOverByteBuffer) {
-            if (getLength() < prefix.getLength()) {
-                return false;
-            }
-            final int misMatch = buffer.mismatch(byteOverByteBuffer.buffer);
-            return misMatch > prefix.getLength();
-        } else {
-            return super.matchesPrefix(prefix);
-        }
-    }
 }

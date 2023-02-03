@@ -1,13 +1,13 @@
 package com.hedera.pbj.runtime.io;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.nio.ByteOrder;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class BytesTest {
     static Stream<byte[]> byteArraysTestCases() {
@@ -172,5 +172,37 @@ public class BytesTest {
         final Bytes bytes = db.readBytes(length);
         assertEquals(value, bytes.getDouble(0));
         assertEquals(value, bytes.getDouble(Double.BYTES, ByteOrder.LITTLE_ENDIAN));
+    }
+
+    @Test
+    void matchesPrefixByteArrayTest() {
+        Bytes primary = new ByteOverByteBuffer(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09});
+        assertTrue(primary.matchesPrefix(new byte[]{0x01}));
+        assertTrue(primary.matchesPrefix(new byte[]{0x01,0x02}));
+        assertTrue(primary.matchesPrefix(new byte[]{0x01,0x02,0x03,0x04,}));
+        assertTrue(primary.matchesPrefix(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09}));
+
+        assertFalse(primary.matchesPrefix(new byte[]{0x02}));
+        assertFalse(primary.matchesPrefix(new byte[]{0x01,0x02,0x03,0x02}));
+        assertFalse(primary.matchesPrefix(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x00}));
+    }
+    @Test
+    void matchesPrefixBytesTest() {
+        Bytes primary = new ByteOverByteBuffer(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09});
+        Bytes prefixGood1 = new ByteOverByteBuffer(new byte[]{0x01});
+        assertTrue(primary.matchesPrefix(prefixGood1));
+        Bytes prefixGood2 = new ByteOverByteBuffer(new byte[]{0x01,0x02});
+        assertTrue(primary.matchesPrefix(prefixGood2));
+        Bytes prefixGood3 = new ByteOverByteBuffer(new byte[]{0x01,0x02,0x03,0x04,});
+        assertTrue(primary.matchesPrefix(prefixGood3));
+        Bytes prefixGood4 = new ByteOverByteBuffer(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09});
+        assertTrue(primary.matchesPrefix(prefixGood4));
+
+        Bytes prefixBad1 = new ByteOverByteBuffer(new byte[]{0x02});
+        assertFalse(primary.matchesPrefix(prefixBad1));
+        Bytes prefixBad2 = new ByteOverByteBuffer(new byte[]{0x01,0x02,0x03,0x02});
+        assertFalse(primary.matchesPrefix(prefixBad2));
+        Bytes prefixBad3 = new ByteOverByteBuffer(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x00});
+        assertFalse(primary.matchesPrefix(prefixBad3));
     }
 }
