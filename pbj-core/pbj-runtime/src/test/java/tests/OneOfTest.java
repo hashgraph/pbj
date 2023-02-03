@@ -1,6 +1,6 @@
 package tests;
 
-import com.hedera.hashgraph.pbj.runtime.OneOf;
+import com.hedera.pbj.runtime.OneOf;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -14,9 +14,7 @@ class OneOfTest {
 
     @Test
     void nullTypeThrows() {
-        assertThrows(NullPointerException.class, () -> {
-            new OneOf<>(null, "Value");
-        });
+        assertThrows(NullPointerException.class, () -> new OneOf<>(null, "Value"));
     }
 
     @Test
