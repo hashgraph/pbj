@@ -3,9 +3,7 @@ package com.hedera.pbj.intergration.test;
 import com.google.protobuf.CodedOutputStream;
 import com.hedera.pbj.runtime.io.DataBuffer;
 import com.hedera.pbj.runtime.test.NoToStringWrapper;
-import com.hederahashgraph.api.proto.pbj.test.TimestampTest;
-import com.hederahashgraph.api.proto.pbj.test.parser.TimestampTestProtoParser;
-import com.hederahashgraph.api.proto.pbj.test.writer.TimestampTestWriter;
+import com.hedera.pbj.test.proto.pbj.TimestampTest;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -31,7 +29,7 @@ public final class TimestampTestTest {
 		final ByteBuffer byteBuffer = getThreadLocalByteBuffer();
 
 		// model to bytes with PBJ
-		TimestampTestWriter.write(modelObj,dataBuffer);
+		TimestampTest.PROTOBUF.write(modelObj,dataBuffer);
 		// clamp limit to bytes written
 		dataBuffer.setLimit(dataBuffer.getPosition());
 
@@ -41,11 +39,11 @@ public final class TimestampTestTest {
 		byteBuffer.flip();
 
 		// read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
-		final com.hederahashgraph.api.proto.java.test.TimestampTest protoCModelObj = com.hederahashgraph.api.proto.java.test.TimestampTest.parseFrom(byteBuffer);
+		final com.hedera.pbj.test.proto.java.TimestampTest protoCModelObj = com.hedera.pbj.test.proto.java.TimestampTest.parseFrom(byteBuffer);
 
 		// read proto bytes with PBJ parser
 		dataBuffer.resetPosition();
-		final TimestampTest modelObj2 = TimestampTestProtoParser.parse(dataBuffer);
+		final TimestampTest modelObj2 = TimestampTest.PROTOBUF.parse(dataBuffer);
 
 		// check the read back object is equal to written original one
 		//assertEquals(modelObj.toString(), modelObj2.toString());
@@ -66,7 +64,7 @@ public final class TimestampTestTest {
 
 		// parse those bytes again with PBJ
 		dataBuffer2.resetPosition();
-		final TimestampTest modelObj3 = TimestampTestProtoParser.parse(dataBuffer2);
+		final TimestampTest modelObj3 = TimestampTest.PROTOBUF.parse(dataBuffer2);
 		assertEquals(modelObj, modelObj3);
 	}
 

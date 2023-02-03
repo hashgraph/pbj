@@ -16,6 +16,7 @@ repositories {
 }
 
 dependencies {
+    compileOnly("com.github.spotbugs:spotbugs-annotations:4.7.3")
     implementation("com.hedera.pbj:pbj-runtime:${project.version}")
     implementation("com.google.protobuf:protobuf-java:3.21.12")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")

@@ -1,10 +1,10 @@
 package com.hedera.pbj.integration;
 
 import com.hedera.pbj.runtime.io.Bytes;
-import com.hederahashgraph.api.proto.pbj.test.Everything;
-import com.hederahashgraph.api.proto.pbj.test.InnerEverything;
-import com.hederahashgraph.api.proto.pbj.test.Suit;
-import com.hederahashgraph.api.proto.pbj.test.TimestampTest;
+import com.hedera.pbj.test.proto.pbj.Everything;
+import com.hedera.pbj.test.proto.pbj.InnerEverything;
+import com.hedera.pbj.test.proto.pbj.Suit;
+import com.hedera.pbj.test.proto.pbj.TimestampTest;
 
 import java.util.List;
 import java.util.Optional;

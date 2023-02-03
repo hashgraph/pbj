@@ -23,6 +23,7 @@ plugins {
 }
 
 dependencies {
+    compileOnly(libs.spotbugs.annotations)
     testImplementation(testLibs.bundles.protobuf)
     testImplementation(testLibs.bundles.junit)
     testRuntimeOnly(testLibs.junit.jupiter.engine)

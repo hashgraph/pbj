@@ -4,9 +4,7 @@ import com.google.protobuf.CodedOutputStream;
 import com.hedera.pbj.runtime.io.DataBuffer;
 import com.hedera.pbj.runtime.io.DataInputStream;
 import com.hedera.pbj.runtime.io.DataOutputStream;
-import com.hederahashgraph.api.proto.pbj.test.TimestampTest;
-import com.hederahashgraph.api.proto.pbj.test.parser.TimestampTestProtoParser;
-import com.hederahashgraph.api.proto.pbj.test.writer.TimestampTestWriter;
+import com.hedera.pbj.test.proto.pbj.TimestampTest;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -36,7 +34,7 @@ public class Test {
         final ByteBuffer byteBuffer = ByteBuffer.allocate(1024*1024);
 
         // model to bytes with PBJ
-        TimestampTestWriter.write(modelObj,dataBuffer);
+        TimestampTest.PROTOBUF.write(modelObj,dataBuffer);
 
         // clamp limit to bytes written and reset position
         dataBuffer.flip();
@@ -46,11 +44,11 @@ public class Test {
         byteBuffer.flip();
 
         // read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
-        final com.hederahashgraph.api.proto.java.test.TimestampTest protoCModelObj = com.hederahashgraph.api.proto.java.test.TimestampTest.parseFrom(byteBuffer);
+        final com.hedera.pbj.test.proto.java.TimestampTest protoCModelObj = com.hedera.pbj.test.proto.java.TimestampTest.parseFrom(byteBuffer);
 
         // read proto bytes with PBJ parser
         dataBuffer.resetPosition();
-        final TimestampTest modelObj2 = TimestampTestProtoParser.parse(dataBuffer);
+        final TimestampTest modelObj2 = TimestampTest.PROTOBUF.parse(dataBuffer);
 
         // check the read back object is equal to written original one
         //assertEquals(modelObj.toString(), modelObj2.toString());
@@ -71,7 +69,7 @@ public class Test {
 
         // parse those bytes again with PBJ
         dataBuffer2.resetPosition();
-        final TimestampTest modelObj3 = TimestampTestProtoParser.parse(dataBuffer2);
+        final TimestampTest modelObj3 = TimestampTest.PROTOBUF.parse(dataBuffer2);
         System.out.println(modelObj.equals(modelObj3));
 
         // test with input stream
@@ -79,7 +77,7 @@ public class Test {
         byte[] protoBytes = new byte[byteBuffer.remaining()];
         byteBuffer.get(protoBytes);
         NonSynchronizedByteArrayInputStream bin = new NonSynchronizedByteArrayInputStream(protoBytes);
-        TimestampTestProtoParser.parse(new DataInputStream(bin));
+        TimestampTest.PROTOBUF.parse(new DataInputStream(bin));
     }
     public record Everything(
             List<String> textList
