@@ -32,7 +32,7 @@ tasks.test {
 }
 
 tasks.generateGrammarSource {
-    arguments = arguments + listOf("-package", "com.hedera.hashgraph.pbj.compiler.impl.grammar")
+    arguments = arguments + listOf("-package", "com.hedera.pbj.compiler.impl.grammar")
 }
 
 gradlePlugin {
@@ -40,7 +40,7 @@ gradlePlugin {
         create("compiler") {
             id = "com.hedera.pbj.pbj-compiler"
             group = "com.hedera.pbj"
-            implementationClass = "com.hedera.hashgraph.pbj.compiler.PbjCompilerPlugin"
+            implementationClass = "com.hedera.pbj.compiler.PbjCompilerPlugin"
             displayName = "PBJ Compiler"
             description = "The PBJ Protobuf plugin provides protobuf compilation to java records."
         }
