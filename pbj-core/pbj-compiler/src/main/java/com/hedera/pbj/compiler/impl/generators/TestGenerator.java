@@ -251,7 +251,8 @@ public final class TestGenerator implements Generator {
 					
 					// copy bytes to ByteBuffer
 					dataBuffer.resetPosition();
-					dataBuffer.readBytes(byteBuffer, 0, (int)dataBuffer.getRemaining());
+					final int protoBufByteCount = (int)dataBuffer.getRemaining();
+					dataBuffer.readBytes(byteBuffer, 0, protoBufByteCount);
 					byteBuffer.flip();
 					
 					// read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
@@ -282,6 +283,15 @@ public final class TestGenerator implements Generator {
 					dataBuffer2.resetPosition();
 					final $modelClassName modelObj3 = $modelClassName.PROTOBUF.parse(dataBuffer2);
 					assertEquals(modelObj, modelObj3);
+
+					// check measure methods
+					dataBuffer2.resetPosition();
+					assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measure(dataBuffer2));
+					assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measureRecord(modelObj));
+			
+					// check fast equals
+					dataBuffer2.resetPosition();
+					$modelClassName.PROTOBUF.fastEquals(modelObj, dataBuffer2);
 				}
 				"""
 				.replace("$modelClassName",modelClassName)

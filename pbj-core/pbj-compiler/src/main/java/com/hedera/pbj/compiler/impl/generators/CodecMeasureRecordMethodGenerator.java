@@ -3,41 +3,46 @@ package com.hedera.pbj.compiler.impl.generators;
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.OneOfField;
+import com.hedera.pbj.compiler.impl.SingleField;
 
+import java.util.Comparator;
 import java.util.List;
-
-import static com.hedera.pbj.compiler.impl.FileAndPackageNamesConfig.CODEC_JAVA_FILE_SUFFIX;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
- * Code to generate the sizeOf method for Codec classes.
+ * Code to generate the measure record method for Codec classes. This measures the number of bytes that would be
+ * written if the record was serialized in protobuf format.
  */
-class CodeTypicalSizeMethodGenerator {
+class CodecMeasureRecordMethodGenerator {
 
-    static String generateTypicalSizeMethod(final String modelClassName, final List<Field> fields) {
-//
-//        final String fieldSizeOfLines = fields.stream()
-//                .flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
-//                .sorted(Comparator.comparingInt(Field::fieldNumber))
-//                .map(field -> generateFieldSizeOfLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower())))
-//                .collect(Collectors.joining("\n		"));
+    static String generateMeasureMethod(final String modelClassName, final List<Field> fields) {
+        final String fieldSizeOfLines = fields.stream()
+                .flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
+                .sorted(Comparator.comparingInt(Field::fieldNumber))
+                .map(field -> generateFieldSizeOfLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower())))
+                .collect(Collectors.joining("\n" + Common.FIELD_INDENT));
         return """
                 /**
-                 * A number that represents the typical size of a serialized object of this type in bytes.
+                 * Compute number of bytes that would be written when calling {@code write()} method.
                  *
-                 * @return A non-negative integer.
+                 * @param data The input model data to measure write bytes for
+                 * @return The length in bytes that would be written
                  */
-                public int typicalSize() {
-                    return -1;
+                public int measureRecord($modelClass data) {
+                    int size = 0;
+                    $fieldSizeOfLines
+                    return size;
                 }
                 """
                 .replace("$modelClass", modelClassName)
-//                .replace("$fieldSizeOfLines", fieldSizeOfLines)
+                .replace("$fieldSizeOfLines", fieldSizeOfLines)
                 .replaceAll("\n", "\n" + Common.FIELD_INDENT)
                 ;
     }
 
     /**
-     * Generate lines of code for size of method, that measure the size of each field and add to "size" variable.
+     * Generate lines of code for measure method, that measure the size of each field and add to "size" variable.
      *
      * @param field The field to generate size of line
      * @param modelClassName The model class name for model class for message type we are generating writer for
@@ -81,10 +86,11 @@ class CodeTypicalSizeMethodGenerator {
             return prefix + switch(field.type()) {
                 case ENUM -> "size += sizeOfEnumList(%s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case MESSAGE -> "size += sizeOfMessageList(%s, %s, %s::sizeOf);"
-                        .formatted(fieldDef,getValueCode,
-                                Common.capitalizeFirstLetter(field.messageType())+ CODEC_JAVA_FILE_SUFFIX
-                        );
+                case MESSAGE -> "size += sizeOfMessageList($fieldDef, $valueCode, $codec::measureRecord);"
+                        .replace("$fieldDef", fieldDef)
+                        .replace("$valueCode", getValueCode)
+                        .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +
+                                Common.capitalizeFirstLetter(field.messageType())+ ".PROTOBUF");
                 default -> "size += sizeOf%sList(%s, %s);"
                         .formatted(writeMethodName, fieldDef, getValueCode);
             };
@@ -94,10 +100,11 @@ class CodeTypicalSizeMethodGenerator {
                         .formatted(fieldDef, getValueCode);
                 case STRING -> "size += sizeOfString(%s, %s);"
                         .formatted(fieldDef,getValueCode);
-                case MESSAGE -> "size += sizeOfMessage(%s, %s, %s::sizeOf);"
-                        .formatted(fieldDef,getValueCode,
-                                Common.capitalizeFirstLetter(field.messageType())+ CODEC_JAVA_FILE_SUFFIX
-                        );
+                case MESSAGE -> "size += sizeOfMessage($fieldDef, $valueCode, $codec::measureRecord);"
+                        .replace("$fieldDef", fieldDef)
+                        .replace("$valueCode", getValueCode)
+                        .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +
+                                Common.capitalizeFirstLetter(field.messageType())+ ".PROTOBUF");
                 case BOOL -> "size += sizeOfBoolean(%s, %s);"
                         .formatted(fieldDef,getValueCode);
                 default -> "size += sizeOf%s(%s, %s);"

@@ -85,7 +85,7 @@ final class CodecWriteMethodGenerator {
             return prefix + switch(field.type()) {
                 case ENUM -> "writeEnumList(out, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case MESSAGE -> "writeMessageList(out, $fieldDef, $valueCode, $codec::write, $codec::sizeOf);"
+                case MESSAGE -> "writeMessageList(out, $fieldDef, $valueCode, $codec::write, $codec::measureRecord);"
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode)
                         .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +
@@ -100,7 +100,7 @@ final class CodecWriteMethodGenerator {
                         .formatted(fieldDef, getValueCode);
                 case STRING -> "writeString(out, %s, %s);"
                         .formatted(fieldDef,getValueCode);
-                case MESSAGE -> "writeMessage(out, $fieldDef, $valueCode, $codec::write, $codec::sizeOf);"
+                case MESSAGE -> "writeMessage(out, $fieldDef, $valueCode, $codec::write, $codec::measureRecord);"
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode)
                         .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +

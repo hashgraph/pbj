@@ -76,9 +76,8 @@ public final class CodecGenerator implements Generator {
 						$unsetOneOfConstants
 						$parseMethod
 						$writeMethod
-						$measureMethod
-						$sizeOfMethod
-						$typicalSizeMethod
+						$measureDataMethod
+						$measureRecordMethod
 						$fastEqualsMethod
 					}
 					"""
@@ -91,12 +90,11 @@ public final class CodecGenerator implements Generator {
 					.replace("$qualifiedModelClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef))
 					.replace("$codecClass", codecClassName)
 					.replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
-					.replace("$writeMethod", writeMethod)
-					.replace("$sizeOfMethod", CodeSizeOfMethodGenerator.generateSizeOfMethod(modelClassName, fields))
 					.replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, fields))
-					.replace("$measureMethod", CodeMeasureMethodGenerator.generateMeasureMethod(modelClassName, fields))
-					.replace("$typicalSizeMethod", CodeTypicalSizeMethodGenerator.generateTypicalSizeMethod(modelClassName, fields))
-					.replace("$fastEqualsMethod", CodeFastEqualsMethodGenerator.generateFastEqualsMethod(modelClassName, fields))
+					.replace("$writeMethod", writeMethod)
+					.replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))
+					.replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
+					.replace("$fastEqualsMethod", CodecFastEqualsMethodGenerator.generateFastEqualsMethod(modelClassName, fields))
 			);
 		}
 	}

@@ -12,7 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *
  * @param <T> The type of object to serialize and deserialize
  */
-public interface Codec<T> {
+public interface Codec<T extends Record> {
     /**
      * Parses an object from the {@link DataInput} and returns it.
      *
@@ -48,16 +48,9 @@ public interface Codec<T> {
      * Compute number of bytes that would be written when calling {@code write()} method.
      *
      * @param item The input model data to measure write bytes for
-     * @return size in bytes that would be written
+     * @return The length in bytes that would be written
      */
-    int sizeOf(T item);
-
-    /**
-     * A number that represents the typical size of a serialized object of this type in bytes.
-     *
-     * @return A non-negative integer.
-     */
-    int typicalSize();
+    int measureRecord(T item);
 
     /**
      * Compares the given item with the bytes in the input, and returns false if it determines that
@@ -69,6 +62,7 @@ public interface Codec<T> {
      * @param item The item to compare. Cannot be null.
      * @param input The input with the bytes to compare
      * @return true if the bytes represent the item, false otherwise.
+     * @throws IOException If it is impossible to read from the {@link DataInput}
      */
-    boolean fastEquals(@NonNull T item, @NonNull DataInput input);
+    boolean fastEquals(@NonNull T item, @NonNull DataInput input) throws IOException;
 }
