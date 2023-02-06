@@ -3,9 +3,7 @@ package com.hedera.pbj.intergration.test;
 import com.google.protobuf.CodedOutputStream;
 import com.hedera.pbj.runtime.io.DataBuffer;
 import com.hedera.pbj.runtime.test.NoToStringWrapper;
-import com.hederahashgraph.api.proto.pbj.test.MessageWithString;
-import com.hederahashgraph.api.proto.pbj.test.parser.MessageWithStringProtoParser;
-import com.hederahashgraph.api.proto.pbj.test.writer.MessageWithStringWriter;
+import com.hedera.pbj.test.proto.pbj.MessageWithString;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -31,7 +29,7 @@ public final class ExtendedUtf8MessageWithStringTest {
     	final ByteBuffer byteBuffer = getThreadLocalByteBuffer();
     
     	// model to bytes with PBJ
-    	MessageWithStringWriter.write(modelObj,dataBuffer);
+    	MessageWithString.PROTOBUF.write(modelObj,dataBuffer);
     	// clamp limit to bytes written
     	dataBuffer.setLimit(dataBuffer.getPosition());
     
@@ -41,11 +39,11 @@ public final class ExtendedUtf8MessageWithStringTest {
     	byteBuffer.flip();
     
     	// read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
-    	final com.hederahashgraph.api.proto.java.test.MessageWithString protoCModelObj = com.hederahashgraph.api.proto.java.test.MessageWithString.parseFrom(byteBuffer);
+    	final com.hedera.pbj.test.proto.java.MessageWithString protoCModelObj = com.hedera.pbj.test.proto.java.MessageWithString.parseFrom(byteBuffer);
     
     	// read proto bytes with PBJ parser
     	dataBuffer.resetPosition();
-    	final MessageWithString modelObj2 = MessageWithStringProtoParser.parse(dataBuffer);
+    	final MessageWithString modelObj2 = MessageWithString.PROTOBUF.parse(dataBuffer);
     
     	// check the read back object is equal to written original one
     	//assertEquals(modelObj.toString(), modelObj2.toString());
@@ -66,7 +64,7 @@ public final class ExtendedUtf8MessageWithStringTest {
     
     	// parse those bytes again with PBJ
     	dataBuffer2.resetPosition();
-    	final MessageWithString modelObj3 = MessageWithStringProtoParser.parse(dataBuffer2);
+    	final MessageWithString modelObj3 = MessageWithString.PROTOBUF.parse(dataBuffer2);
     	assertEquals(modelObj, modelObj3);
     }
     

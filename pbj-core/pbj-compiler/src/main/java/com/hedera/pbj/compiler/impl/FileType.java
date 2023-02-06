@@ -8,10 +8,8 @@ public enum FileType {
     MODEL,
     /** Generated schema class */
     SCHEMA,
-    /** Generated parser class */
-    PARSER,
-    /** Generated writer class */
-    WRITER,
+    /** Generated codec class */
+    CODEC,
     /** Generated test class */
     TEST,
     /** Protoc generated model class */

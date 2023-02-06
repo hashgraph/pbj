@@ -25,7 +25,6 @@ public final class SchemaGenerator implements Generator {
 						 File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
 		final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
 		final String schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
-		final String parserClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.PARSER, msgDef);
 		final String schemaPackage = lookupHelper.getPackageForMessage(FileType.SCHEMA, msgDef);
 		final File javaFile = Common.getJavaFile(destinationSrcDir, schemaPackage, schemaClassName);
 		final List<Field> fields = new ArrayList<>();
@@ -36,9 +35,9 @@ public final class SchemaGenerator implements Generator {
 			} else if (item.oneof() != null) { // process one ofs
 				final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
 				fields.add(field);
-				field.addAllNeededImports(imports, true, false, false, false);
+				field.addAllNeededImports(imports, true, false, false);
 			} else if (item.mapField() != null) { // process map flattenedFields
-				throw new IllegalStateException("Encountered a mapField that was not handled in "+ parserClassName);
+				throw new IllegalStateException("Encountered a mapField that was not handled in parser");
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);

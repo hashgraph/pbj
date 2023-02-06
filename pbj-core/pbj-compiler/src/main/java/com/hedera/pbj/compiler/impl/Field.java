@@ -73,16 +73,22 @@ public interface Field {
 	String javaFieldType();
 
 	/**
+	 * Get the name for this type that is added to write/sizeof etc. methods.
+	 *
+	 * @return Name for type used in method names
+	 */
+	String methodNameType();
+
+	/**
 	 * Add all the needed imports for this field to the supplied set.
 	 *
-	 * @param imports set of imports to add to, this contains packages not classes. They are always imported as ".*".
+	 * @param imports      set of imports to add to, this contains packages not classes. They are always imported as ".*".
 	 * @param modelImports if imports for this field's generated model classes should be added
-	 * @param parserImports if imports for this field's generated parser classes should be added
-	 * @param writerImports if imports for this field's generated writer classes should be added
-	 * @param testImports if imports for this field's generated test classes should be added
+	 * @param codecImports if imports for this field's generated codec classes should be added
+	 * @param testImports  if imports for this field's generated test classes should be added
 	 */
-	void addAllNeededImports(Set<String> imports, boolean modelImports,boolean parserImports,
-			final boolean writerImports, final boolean testImports);
+	void addAllNeededImports(Set<String> imports, boolean modelImports,
+							 boolean codecImports, final boolean testImports);
 
 	/**
 	 * Get the java code to parse the value for this field from input
@@ -90,13 +96,6 @@ public interface Field {
 	 * @return java source code to parse
 	 */
 	String parseCode();
-
-	/**
-	 * Get the fully qualified parser class for message type for message fields
-	 *
-	 * @return fully qualified class name for parser class
-	 */
-	String parserClass();
 
 	/**
 	 * Get the java code default value for this field, "null" for object types

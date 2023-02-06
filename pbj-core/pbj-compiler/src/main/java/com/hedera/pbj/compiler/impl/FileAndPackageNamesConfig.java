@@ -5,24 +5,21 @@ package com.hedera.pbj.compiler.impl;
  */
 public final class FileAndPackageNamesConfig {
 
-    /** Suffix for parser java classes */
-    public static final String PARSER_JAVA_FILE_SUFFIX = "ProtoParser";
-
     /** Suffix for schema java classes */
     public static final String SCHEMA_JAVA_FILE_SUFFIX = "Schema";
 
-    /** Suffix for schema java classes */
+    /** Suffix for test java classes */
     public static final String TEST_JAVA_FILE_SUFFIX = "Test";
 
-    /** Suffix for schema java classes */
-    public static final String WRITER_JAVA_FILE_SUFFIX = "Writer";
+    /** Suffix for codec java classes */
+    public static final String CODEC_JAVA_FILE_SUFFIX = "ProtoCodec";
 
-    /** The sub package where all parser java classes should be placed */
-    public static final String PARSERS_SUBPACKAGE = "parser";
     /** The sub package where all schema java classes should be placed */
     public static final String SCHEMAS_SUBPACKAGE = "schema";
+
     /** The sub package where all model java classes should be placed */
-    public static final String WRITERS_SUBPACKAGE = "writer";
+    public static final String CODECS_SUBPACKAGE = "codec";
+
     /** The sub package where all unit test java classes should be placed */
     public static final String TESTS_SUBPACKAGE = "tests";
 }

@@ -77,20 +77,20 @@ public record OneOfField(
 	 * {@inheritDoc}
 	 */
 	@Override
-	public void addAllNeededImports(final Set<String> imports, boolean modelImports,boolean parserImports,
-			final boolean writerImports, final boolean testImports) {
-		imports.add("com.hedera.pbj.runtime");
-		for(var field:fields) {
-			field.addAllNeededImports(imports, modelImports, parserImports, writerImports, testImports);
-		}
+	public String methodNameType() {
+		throw new UnsupportedOperationException("mapToWriteMethod can not handle "+type());
 	}
 
 	/**
-	 * N/A for OneOfField
+	 * {@inheritDoc}
 	 */
 	@Override
-	public String parserClass() {
-		return null;
+	public void addAllNeededImports(final Set<String> imports, boolean modelImports,
+									boolean codecImports, final boolean testImports) {
+		imports.add("com.hedera.pbj.runtime");
+		for(var field:fields) {
+			field.addAllNeededImports(imports, modelImports, codecImports, testImports);
+		}
 	}
 
 	/**

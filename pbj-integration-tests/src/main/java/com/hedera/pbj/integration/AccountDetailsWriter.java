@@ -1,5 +1,6 @@
 package com.hedera.pbj.integration;
 
+import com.hedera.hapi.node.token.AccountDetails;
 import com.hedera.pbj.runtime.io.DataBuffer;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 
@@ -24,7 +25,7 @@ public class AccountDetailsWriter {
 
         for (int i = 0; i < 10_000_000; i++) {
             outDataBuffer.reset();
-            com.hedera.hapi.node.token.writer.AccountDetailsWriter.write(ACCOUNT_DETAILS, outDataBuffer);
+            AccountDetails.PROTOBUF.write(ACCOUNT_DETAILS, outDataBuffer);
             if (outDataBuffer.getPosition() <= 0) {
                 System.out.println("outDataBuffer = " + outDataBuffer);
             }
@@ -40,7 +41,7 @@ public class AccountDetailsWriter {
     public static void main2(String[] args) throws Exception {
         // write to temp data buffer and then read into byte array
         DataBuffer tempDataBuffer = DataBuffer.allocate(5 * 1024 * 1024, false);
-        com.hedera.hapi.node.token.writer.AccountDetailsWriter.write(ACCOUNT_DETAILS, tempDataBuffer);
+        AccountDetails.PROTOBUF.write(ACCOUNT_DETAILS, tempDataBuffer);
         tempDataBuffer.flip();
         final byte[] protobuf = new byte[(int) tempDataBuffer.getRemaining()];
         tempDataBuffer.readBytes(protobuf);

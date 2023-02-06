@@ -36,11 +36,9 @@ dependencyResolutionManagement {
         // distribution. These libs can be depended on during compilation, or bundled as part of runtime.
         create("libs") {
             // Define the approved version numbers
-
-            //    implementation("org.jetbrains:annotations:23.0.0")
-            //    antlr("org.antlr:antlr4:4.11.1")
             version("antlr-version", "4.11.1")
             version("jetbrains-annotations-version", "23.0.0")
+            version("spotbugs-version", "4.7.3")
 
             // List of bundles provided for us. When applicable, favor using these over individual libraries.
             bundle("antlr", listOf("antlr"))
@@ -49,6 +47,7 @@ dependencyResolutionManagement {
             // Define the individual libraries
             library("antlr", "org.antlr", "antlr4").versionRef("antlr-version")
             library("jetbrains-annotations", "org.jetbrains", "annotations").versionRef("jetbrains-annotations-version")
+            library("spotbugs-annotations", "com.github.spotbugs", "spotbugs-annotations").versionRef("spotbugs-version")
         }
 
         create("testLibs") {

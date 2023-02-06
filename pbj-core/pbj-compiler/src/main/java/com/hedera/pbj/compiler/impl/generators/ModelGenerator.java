@@ -77,7 +77,7 @@ public final class ModelGenerator implements Generator {
 					).replaceAll("\n","\n"+FIELD_INDENT));
 					if ("Bytes".equals(fieldType)) imports.add("com.hedera.pbj.runtime.io");
 					if (field.type() == Field.FieldType.MESSAGE){
-						field.addAllNeededImports(imports, true, false, false, false);
+						field.addAllNeededImports(imports, true, false, false);
 					}
 				}
 				final String enumComment = """
@@ -93,7 +93,7 @@ public final class ModelGenerator implements Generator {
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final SingleField field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
-				field.addAllNeededImports(imports, true, false, false, false);
+				field.addAllNeededImports(imports, true, false, false);
 			} else if (item.optionStatement() != null){
 				if ("deprecated".equals(item.optionStatement().optionName().getText())) {
 					deprecated = "@Deprecated ";
@@ -120,6 +120,14 @@ public final class ModelGenerator implements Generator {
 		}
 		// === Build Body Content
 		String bodyContent = "";
+		// static codec
+		bodyContent += """
+				/** Protobuf coded for reading and writing in protobuf format */
+				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
+				"""
+				.replace("$modelClass",javaRecordName)
+				.replace("$qualifiedCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
+				.replaceAll("\n","\n"+FIELD_INDENT);
 		// constructor
 		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optionalValueType())) {
 			bodyContent += """
@@ -183,6 +191,7 @@ public final class ModelGenerator implements Generator {
 					package %s;
 					%s
 					import java.util.Optional;
+					import com.hedera.pbj.runtime.Codec;
 					
 					%s
 					%spublic record %s(
@@ -374,7 +383,7 @@ public final class ModelGenerator implements Generator {
 
 	private static String getDefaultValue(Field field, final Protobuf3Parser.MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
 		if (field.type() == Field.FieldType.ONE_OF) {
-			return lookupHelper.getFullyQualifiedMessageClassname(FileType.PARSER, msgDef)+"."+field.javaDefault();
+			return lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef)+"."+field.javaDefault();
 		} else {
 			return field.javaDefault();
 		}
