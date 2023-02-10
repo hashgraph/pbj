@@ -3,13 +3,14 @@ package com.hedera.pbj.integration;
 import com.hedera.pbj.runtime.io.DataBuffer;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
-import com.hederahashgraph.api.proto.pbj.test.parser.EverythingProtoParser;
-import com.hederahashgraph.api.proto.pbj.test.writer.EverythingWriter;
 
 import java.nio.ByteBuffer;
 
 import static com.hedera.pbj.integration.EverythingTestData.*;
 
+/**
+ * Test class for hacking on code and profiling
+ */
 @SuppressWarnings("DuplicatedCode")
 public class EverythingWriterPerfTest {
 
@@ -32,12 +33,12 @@ public class EverythingWriterPerfTest {
 
     private static void parse() throws Exception {
         final DataBuffer inDataBuffer = DataBuffer.allocate(1024*1024, true);
-        EverythingWriter.write(EVERYTHING, inDataBuffer);
+        Everything.PROTOBUF.write(EVERYTHING, inDataBuffer);
         inDataBuffer.flip();
 
         for (int i = 0; i < 10_000_000; i++) {
             inDataBuffer.resetPosition();
-            var e = EverythingProtoParser.parse(inDataBuffer);
+            var e = Everything.PROTOBUF.parse(inDataBuffer);
 //            if (!e.booleanField()) {
 //                System.out.println("outDataBuffer = " + inDataBuffer);
 //            }
@@ -46,13 +47,13 @@ public class EverythingWriterPerfTest {
     private static void parseProtoC() throws Exception {
         final ByteBuffer inBuffer = ByteBuffer.allocateDirect(1024*1024);
         final DataBuffer inDataBuffer = DataBuffer.wrap(inBuffer);
-        EverythingWriter.write(EVERYTHING, inDataBuffer);
+        Everything.PROTOBUF.write(EVERYTHING, inDataBuffer);
         inDataBuffer.flip();
         inBuffer.limit((int)inDataBuffer.getLimit());
 
         for (int i = 0; i < 10_000_000; i++) {
             inBuffer.position(0);
-            com.hederahashgraph.api.proto.java.test.Everything.parseFrom(inBuffer);
+            com.hedera.pbj.test.proto.java.Everything.parseFrom(inBuffer);
         }
     }
     public static void write3() throws Exception {
