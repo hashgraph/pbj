@@ -1,6 +1,7 @@
 package com.hedera.pbj.integration;
 
 import com.hedera.pbj.runtime.io.DataBuffer;
+import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 import com.hederahashgraph.api.proto.pbj.test.parser.EverythingProtoParser;
 import com.hederahashgraph.api.proto.pbj.test.writer.EverythingWriter;
@@ -22,7 +23,7 @@ public class EverythingWriterPerfTest {
         final DataBuffer outDataBuffer = DataBuffer.allocate(1024*1024, true);
         for (int i = 0; i < 10_000_000; i++) {
             outDataBuffer.reset();
-            EverythingWriter.write(EVERYTHING, outDataBuffer);
+            Everything.PROTOBUF.write(EverythingTestData.EVERYTHING, outDataBuffer);
             if (outDataBuffer.getPosition() <= 0) {
                 System.out.println("outDataBuffer = " + outDataBuffer);
             }
@@ -57,7 +58,7 @@ public class EverythingWriterPerfTest {
     public static void write3() throws Exception {
         // write to temp data buffer and then read into byte array
         DataBuffer tempDataBuffer = DataBuffer.allocate(5 * 1024 * 1024, false);
-        EverythingWriter.write(EVERYTHING, tempDataBuffer);
+        Everything.PROTOBUF.write(EverythingTestData.EVERYTHING, tempDataBuffer);
         tempDataBuffer.flip();
         final byte[] protobuf = new byte[(int) tempDataBuffer.getRemaining()];
         tempDataBuffer.readBytes(protobuf);

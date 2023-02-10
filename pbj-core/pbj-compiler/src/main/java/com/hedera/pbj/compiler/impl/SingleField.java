@@ -7,16 +7,17 @@ import java.util.Set;
 /**
  * Record for Field in Protobuf file. Contains all logic and special cases for fields
  *
- * @param repeated If this is a repeated field, ie protobuf equivalent of array
- * @param type The type of this single field
- * @param fieldNumber The protobuf field number
- * @param name The name of this filed
- * @param messageType The message type of this field is of type message
+ * @param repeated                If this is a repeated field, ie protobuf equivalent of array
+ * @param type                    The type of this single field
+ * @param fieldNumber             The protobuf field number
+ * @param name                    The name of this filed
+ * @param messageType             The message type of this field is of type message
+ * @param messageTypeCodecPackage
  */
 @SuppressWarnings("DuplicatedCode")
 public record SingleField(boolean repeated, FieldType type, int fieldNumber, String name, String messageType,
-						  String messageTypeModelPackage, String messageTypeParserPackage,
-						  String messageTypeWriterPackage, String messageTypeTestPackage,
+						  String messageTypeModelPackage,
+						  String messageTypeCodecPackage, String messageTypeTestPackage,
 						  String comment, boolean deprecated, OneOfField parent) implements Field {
 
 
@@ -35,10 +36,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
 						lookupHelper.getPackageFieldMessageType(FileType.MODEL, fieldContext),
 				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getPackageFieldMessageType(FileType.PARSER, fieldContext),
-				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getPackageFieldMessageType(FileType.WRITER, fieldContext),
-				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
+						lookupHelper.getPackageFieldMessageType(FileType.CODEC, fieldContext), (fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
 						lookupHelper.getPackageFieldMessageType(FileType.TEST, fieldContext),
 				Common.buildCleanFieldJavaDoc(Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
 				getDeprecatedOption(fieldContext.fieldOptions()),
@@ -61,10 +59,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				(fieldContext.type_().messageType() == null) ? null :
 						lookupHelper.getPackageOneofFieldMessageType(FileType.MODEL, fieldContext),
 				(fieldContext.type_().messageType() == null) ? null :
-						lookupHelper.getPackageOneofFieldMessageType(FileType.PARSER, fieldContext),
-				(fieldContext.type_().messageType() == null) ? null :
-						lookupHelper.getPackageOneofFieldMessageType(FileType.WRITER, fieldContext),
-				(fieldContext.type_().messageType() == null) ? null :
+						lookupHelper.getPackageOneofFieldMessageType(FileType.CODEC, fieldContext), (fieldContext.type_().messageType() == null) ? null :
 						lookupHelper.getPackageOneofFieldMessageType(FileType.TEST, fieldContext),
 				Common.buildCleanFieldJavaDoc(Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
 				getDeprecatedOption(fieldContext.fieldOptions()),
@@ -142,22 +137,31 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	 * {@inheritDoc}
 	 */
 	@Override
-	public void addAllNeededImports(Set<String> imports, boolean modelImports,boolean parserImports,
-			final boolean writerImports, final boolean testImports) {
-		if (repeated || optionalValueType()) imports.add("java.util");
-		if (type == FieldType.BYTES) imports.add("com.hedera.pbj.runtime.io");
-		if (messageTypeModelPackage != null && modelImports) imports.add(messageTypeModelPackage);
-		if (messageTypeParserPackage != null && parserImports) imports.add(messageTypeParserPackage);
-		if (messageTypeWriterPackage != null && writerImports) imports.add(messageTypeWriterPackage);
-		if (messageTypeTestPackage != null && testImports) imports.add(messageTypeTestPackage);
+	public String methodNameType() {
+		return switch(type()) {
+			case BOOL -> "Boolean";
+			case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> "Integer";
+			case INT64, SINT64, UINT64, FIXED64, SFIXED64 -> "Long";
+			case FLOAT -> "Float";
+			case DOUBLE -> "Double";
+			case MESSAGE -> "Message";
+			case STRING -> "String";
+			case ENUM -> "Enum";
+			case BYTES -> "Bytes";
+			default -> throw new UnsupportedOperationException("mapToWriteMethod can not handle "+type());
+		};
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	@Override
-	public String parserClass() {
-		return messageTypeParserPackage + '.' + messageType + FileAndPackageNamesConfig.PARSER_JAVA_FILE_SUFFIX;
+	public void addAllNeededImports(Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
+		if (repeated || optionalValueType()) imports.add("java.util");
+		if (type == FieldType.BYTES) imports.add("com.hedera.pbj.runtime.io");
+		if (messageTypeModelPackage != null && modelImports) imports.add(messageTypeModelPackage);
+		if (messageTypeCodecPackage != null && codecImports) imports.add(messageTypeCodecPackage);
+		if (messageTypeTestPackage != null && testImports) imports.add(messageTypeTestPackage);
 	}
 
 	/**
@@ -166,7 +170,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	@Override
 	public String parseCode() {
 		if (type == FieldType.MESSAGE) {
-			return "new %s().parse(input)".formatted(messageType + FileAndPackageNamesConfig.PARSER_JAVA_FILE_SUFFIX);
+			return "%s.PROTOBUF.parse(input)".formatted(messageType);
 		} else {
 			return "input";
 		}
@@ -243,11 +247,12 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				return "case %d -> this.%s = Optional.of(input);".formatted(fieldNumber, fieldNameToSet);
 			}
 		} else if (type == FieldType.MESSAGE) {
-			final String parserClassName = messageType + FileAndPackageNamesConfig.PARSER_JAVA_FILE_SUFFIX;
 			final String valueToSet = parent != null ?
-					"new OneOf<>(%s.%sOneOfType.%s,new %s().parse(input))"
-							.formatted(parent.parentMessageName(), Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name), parserClassName) :
-					"new %s().parse(input)".formatted(parserClassName);
+					"new OneOf<>($parentMessageName.$parentNameOneOfType.$parentName, %modelClass.PROTOBUF.parse(input))"
+							.replace("$parentMessageName", parent.parentMessageName())
+							.replace("$parentName", Common.snakeToCamel(parent.name(), true))
+							.replace("$parseCode", parseCode())
+							: parseCode();
 			if (repeated) {
 				return """
 					case %d -> {

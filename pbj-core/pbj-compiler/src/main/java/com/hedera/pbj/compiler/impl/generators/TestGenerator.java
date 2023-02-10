@@ -24,25 +24,21 @@ public final class TestGenerator implements Generator {
 						 File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
 		final var modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
 		final var testClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.TEST, msgDef);
-		final var writerClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.WRITER, msgDef);
-		final var parserClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.PARSER, msgDef);
 		final String testPackage = lookupHelper.getPackageForMessage(FileType.TEST, msgDef);
 		final String protoCJavaFullQualifiedClass = lookupHelper.getFullyQualifiedMessageClassname(FileType.PROTOC,msgDef);
 		final File javaFile = Common.getJavaFile(destinationTestSrcDir, testPackage, testClassName);
 		final List<Field> fields = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
 		imports.add(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef));
-		imports.add(lookupHelper.getPackageForMessage(FileType.WRITER, msgDef));
-		imports.add(lookupHelper.getPackageForMessage(FileType.PARSER, msgDef));
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
 			} else if (item.oneof() != null) { // process one ofs
 				final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
 				fields.add(field);
-				field.addAllNeededImports(imports, true, false, true, true);
+				field.addAllNeededImports(imports, true, false, true);
 				for(var subField : field.fields()) {
-					subField.addAllNeededImports(imports, true, false, true, true);
+					subField.addAllNeededImports(imports, true, false, true);
 				}
 			} else if (item.mapField() != null) { // process map fields
 				throw new IllegalStateException("Encountered a mapField that was not handled in "+ modelClassName);
@@ -50,7 +46,7 @@ public final class TestGenerator implements Generator {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
 				if (field.type() == Field.FieldType.MESSAGE || field.type() == Field.FieldType.ENUM) {
-					field.addAllNeededImports(imports, true, false, true, true);
+					field.addAllNeededImports(imports, true, false, true);
 				}
 			} else if (item.reserved() == null && item.optionStatement() == null) {
 				System.err.println("TestGenerator Warning - Unknown element: "+item+" -- "+item.getText());
@@ -92,7 +88,7 @@ public final class TestGenerator implements Generator {
 								.collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
 						modelClassName,
 						testClassName,
-						generateTestMethod(modelClassName, writerClassName, parserClassName, protoCJavaFullQualifiedClass)
+						generateTestMethod(modelClassName, protoCJavaFullQualifiedClass)
 								.replaceAll("\n","\n"+ Common.FIELD_INDENT),
 						generateModelTestArgumentsMethod(modelClassName, fields)
 								.replaceAll("\n","\n"+ Common.FIELD_INDENT)
@@ -237,9 +233,7 @@ public final class TestGenerator implements Generator {
 		};
 	}
 
-	private static String generateTestMethod(final String modelClassName, final String writerClassName,
-											 final String parserClassName,
-											 final String protoCJavaFullQualifiedClass) {
+	private static String generateTestMethod(final String modelClassName, final String protoCJavaFullQualifiedClass) {
 		return """
 				@ParameterizedTest
 				@MethodSource("createModelTestArguments")
@@ -251,13 +245,14 @@ public final class TestGenerator implements Generator {
 					final ByteBuffer byteBuffer = getThreadLocalByteBuffer();
 					
 					// model to bytes with PBJ
-					$writerClassName.write(modelObj,dataBuffer);
+					$modelClassName.PROTOBUF.write(modelObj,dataBuffer);
 					// clamp limit to bytes written
 					dataBuffer.setLimit(dataBuffer.getPosition());
 					
 					// copy bytes to ByteBuffer
 					dataBuffer.resetPosition();
-					dataBuffer.readBytes(byteBuffer, 0, (int)dataBuffer.getRemaining());
+					final int protoBufByteCount = (int)dataBuffer.getRemaining();
+					dataBuffer.readBytes(byteBuffer, 0, protoBufByteCount);
 					byteBuffer.flip();
 					
 					// read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
@@ -265,7 +260,7 @@ public final class TestGenerator implements Generator {
 					
 					// read proto bytes with PBJ parser
 					dataBuffer.resetPosition();
-					final $modelClassName modelObj2 = $parserClassName.parse(dataBuffer);
+					final $modelClassName modelObj2 = $modelClassName.PROTOBUF.parse(dataBuffer);
 					
 					// check the read back object is equal to written original one
 					//assertEquals(modelObj.toString(), modelObj2.toString());
@@ -286,13 +281,20 @@ public final class TestGenerator implements Generator {
 
 					// parse those bytes again with PBJ
 					dataBuffer2.resetPosition();
-					final $modelClassName modelObj3 = $parserClassName.parse(dataBuffer2);
+					final $modelClassName modelObj3 = $modelClassName.PROTOBUF.parse(dataBuffer2);
 					assertEquals(modelObj, modelObj3);
+
+					// check measure methods
+					dataBuffer2.resetPosition();
+					assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measure(dataBuffer2));
+					assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measureRecord(modelObj));
+			
+					// check fast equals
+					dataBuffer2.resetPosition();
+					$modelClassName.PROTOBUF.fastEquals(modelObj, dataBuffer2);
 				}
 				"""
 				.replace("$modelClassName",modelClassName)
-				.replace("$writerClassName",writerClassName)
-				.replace("$parserClassName",parserClassName)
 				.replace("$protocModelClass",protoCJavaFullQualifiedClass)
 				.replace("$modelClassName",modelClassName)
 		;

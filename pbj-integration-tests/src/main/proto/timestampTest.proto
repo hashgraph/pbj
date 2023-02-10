@@ -22,9 +22,9 @@ package proto;
  * ‍
  */
 
-option java_package = "com.hederahashgraph.api.proto.java.test";
+option java_package = "com.hedera.pbj.test.proto.java";
 option java_multiple_files = true;
-// <<<pbj.java_package = "com.hederahashgraph.api.proto.pbj.test">>> This comment is special code for setting PBJ Compiler java package
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>> This comment is special code for setting PBJ Compiler java package
 
 /**
  * An exact date and time. This is the same data structure as the protobuf Timestamp.proto (see the

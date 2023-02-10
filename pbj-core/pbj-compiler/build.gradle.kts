@@ -56,5 +56,5 @@ pluginBundle {
 
 // Do not generate Java Doc for generated antlr grammar
 tasks.withType<Javadoc> {
-    excludes.add("com/hedera/hashgraph/pbj/compiler/impl/grammar/**")
+    excludes.add("com/hedera/pbj/compiler/impl/grammar/**")
 }

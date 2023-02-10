@@ -5,6 +5,7 @@ module com.hedera.pbj.runtime {
     requires jdk.unsupported;
     requires org.eclipse.collections.api;
     requires org.eclipse.collections.impl;
+    requires static com.github.spotbugs.annotations;
 	exports com.hedera.pbj.runtime;
     exports com.hedera.pbj.runtime.test;
     exports com.hedera.pbj.runtime.io;

@@ -25,6 +25,7 @@ plugins {
 dependencies {
     implementation("org.eclipse.collections:eclipse-collections-api:11.1.0")
     implementation("org.eclipse.collections:eclipse-collections:11.1.0")
+    compileOnly(libs.spotbugs.annotations)
     testImplementation(testLibs.bundles.protobuf)
     testImplementation(testLibs.bundles.junit)
     testRuntimeOnly(testLibs.junit.jupiter.engine)

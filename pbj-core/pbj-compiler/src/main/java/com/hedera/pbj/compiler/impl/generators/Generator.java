@@ -18,8 +18,7 @@ public interface Generator {
     List<Class<? extends Generator>> GENERATORS = List.of(
             ModelGenerator.class,
             SchemaGenerator.class,
-            ParserGenerator.class,
-            WriterGenerator.class,
+            CodecGenerator.class,
             TestGenerator.class
     );
 
