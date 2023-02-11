@@ -25,11 +25,11 @@ public final class ProtoTestTools {
     private ProtoTestTools() {}
     /** Thread local set of reusable buffers */
     private static final ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS =
-            ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, false));
+            ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, true));
 
     /** Thread local set of reusable buffers, second buffer for each thread */
     private static final ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS_2 =
-            ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, false));
+            ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, true));
 
     /**
      * Get the thread local instance of DataBuffer, reset and ready to use.

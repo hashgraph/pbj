@@ -4,12 +4,24 @@ import com.hedera.pbj.runtime.io.DataBuffer;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 
+import java.nio.ByteBuffer;
+
+import static com.hedera.pbj.integration.EverythingTestData.*;
+
+/**
+ * Test class for hacking on code and profiling
+ */
 @SuppressWarnings("DuplicatedCode")
 public class EverythingWriterPerfTest {
 
     public static void main(String[] args) throws Exception {
-        final DataBuffer outDataBuffer = DataBuffer.allocate(1024*1024, true);
+        parse();
+//        parseProtoC();
+//        write();
+    }
 
+    private static void write() throws Exception {
+        final DataBuffer outDataBuffer = DataBuffer.allocate(1024*1024, true);
         for (int i = 0; i < 10_000_000; i++) {
             outDataBuffer.reset();
             Everything.PROTOBUF.write(EverythingTestData.EVERYTHING, outDataBuffer);
@@ -18,7 +30,33 @@ public class EverythingWriterPerfTest {
             }
         }
     }
-    public static void main2(String[] args) throws Exception {
+
+    private static void parse() throws Exception {
+        final DataBuffer inDataBuffer = DataBuffer.allocate(1024*1024, true);
+        Everything.PROTOBUF.write(EVERYTHING, inDataBuffer);
+        inDataBuffer.flip();
+
+        for (int i = 0; i < 10_000_000; i++) {
+            inDataBuffer.resetPosition();
+            var e = Everything.PROTOBUF.parse(inDataBuffer);
+//            if (!e.booleanField()) {
+//                System.out.println("outDataBuffer = " + inDataBuffer);
+//            }
+        }
+    }
+    private static void parseProtoC() throws Exception {
+        final ByteBuffer inBuffer = ByteBuffer.allocateDirect(1024*1024);
+        final DataBuffer inDataBuffer = DataBuffer.wrap(inBuffer);
+        Everything.PROTOBUF.write(EVERYTHING, inDataBuffer);
+        inDataBuffer.flip();
+        inBuffer.limit((int)inDataBuffer.getLimit());
+
+        for (int i = 0; i < 10_000_000; i++) {
+            inBuffer.position(0);
+            com.hedera.pbj.test.proto.java.Everything.parseFrom(inBuffer);
+        }
+    }
+    public static void write3() throws Exception {
         // write to temp data buffer and then read into byte array
         DataBuffer tempDataBuffer = DataBuffer.allocate(5 * 1024 * 1024, false);
         Everything.PROTOBUF.write(EverythingTestData.EVERYTHING, tempDataBuffer);

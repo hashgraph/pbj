@@ -2,6 +2,8 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.Bytes;
 import com.hedera.pbj.runtime.io.DataInput;
+import org.eclipse.collections.impl.list.mutable.FastList;
+import org.eclipse.collections.impl.list.mutable.primitive.IntArrayList;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -42,7 +44,11 @@ public final class ProtoParserTools {
      */
     public static <T> List<T> addToList(List<T> list, T newItem) {
         if (list == Collections.EMPTY_LIST) {
-            list = new ArrayList<>();
+//            if (newItem instanceof Integer) {
+//                list = new FastList();
+//            }
+//            list = new ArrayList<>(20);
+            list = new FastList<>(20);
         }
         list.add(newItem);
         return list;
@@ -215,9 +221,11 @@ public final class ProtoParserTools {
      */
     public static String readString(final DataInput input) throws IOException {
         final int length = input.readVarInt(false);
+        if (length == 0) return "";
         byte[] bytes = new byte[length];
         input.readBytes(bytes);
         return new String(bytes,StandardCharsets.UTF_8);
+//        return input.readUtf8String(length);
     }
 
     /**

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 
 /**
  * <p>A high level interface to represent a way to read data as tokens, each method assumes there are enough bytes
@@ -355,5 +356,17 @@ public interface DataInput extends PositionedData {
             }
         }
         throw new IOException("Malformed Varint");
+    }
+
+    /**
+     * Read {@code lengthInBytes} bytes and return as UTF-8 decoded String.
+     *
+     * @param lengthInBytes The number of UTF-8 bytes to read
+     * @return UTF-8 decoded String from read bytes
+     */
+    default String readUtf8String(int lengthInBytes) throws IOException {
+        byte[] bytes = new byte[lengthInBytes];
+        readBytes(bytes);
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 }

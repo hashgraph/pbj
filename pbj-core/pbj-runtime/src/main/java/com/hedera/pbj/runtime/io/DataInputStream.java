@@ -38,6 +38,19 @@ public class DataInputStream extends FilterInputStream implements DataInput {
         }
     }
 
+    /**
+     * Set a new InputStream, allows this object to be reused.
+     *
+     * @param newIn the new input stream to use
+     * @throws IOException if there was a problem reading first byte
+     */
+    public void setInputStream(InputStream newIn) throws IOException {
+        in = newIn;
+        position = 0;
+        limit = Long.MAX_VALUE;
+        readNextByte();
+    }
+
     private void readNextByte() throws IOException{
         // Have to read as int, so we can detect difference between byte -1 int for EOF and 255 valid byte
         final int nextByteAsInt = in.read();
