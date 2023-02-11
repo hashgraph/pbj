@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("unused")
 @State(Scope.Benchmark)
 @Fork(1)
-@Warmup(iterations = 4, time = 2)
+@Warmup(iterations = 2, time = 2)
 @Measurement(iterations = 5, time = 2)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
