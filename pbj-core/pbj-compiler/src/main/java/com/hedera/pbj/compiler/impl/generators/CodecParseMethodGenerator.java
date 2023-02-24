@@ -51,6 +51,62 @@ class CodecParseMethodGenerator {
                  * 									  protobuf bytes (i.e. isn't valid protobuf).
                  */
                 public @NonNull $modelClassName parse(@NonNull DataInput input) throws IOException {
+                    return parseInternal(input, false);
+                }
+                """
+        .replace("$modelClassName",modelClassName)
+        .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
+                field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
+        .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
+        .replace("$caseStatements",generateCaseStatements(fields))
+        .replaceAll("\n", "\n" + Common.FIELD_INDENT);
+    }
+
+    static String generateParseStrictMethod(final String modelClassName, final List<Field> fields) {
+        return """
+                /**
+                 * Parses a $modelClassName object from ProtoBuf bytes in a DataInput in strict mode, such that
+                 * parsing will fail if the encoded protobuf object contains any fields that are unknown to this
+                 * version of the parser.
+                 *
+                 * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
+                 *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
+                 *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
+                 *              then the method also returns immediately.
+                 * @return Parsed $modelClassName model object or null if data input was null or empty
+                 * @throws UnknownFieldException If an unknown field is encountered while parsing the object
+                 * @throws IOException If the protobuf stream is not empty and has malformed
+                 * 									  protobuf bytes (i.e. isn't valid protobuf).
+                 */
+                public @NonNull $modelClassName parseStrict(@NonNull DataInput input) throws IOException {
+                    return parseInternal(input, true);
+                }
+                """
+        .replace("$modelClassName",modelClassName)
+        .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
+                field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
+        .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
+        .replace("$caseStatements",generateCaseStatements(fields))
+        .replaceAll("\n", "\n" + Common.FIELD_INDENT);
+    }
+
+    static String generateParseInternalMethod(final String modelClassName, final List<Field> fields) {
+        return """
+                /**
+                 * Parses a $modelClassName object from ProtoBuf bytes in a DataInput. Throws if in strict mode ONLY.
+                 *
+                 * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
+                 *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
+                 *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
+                 *              then the method also returns immediately.
+                 * @return Parsed $modelClassName model object or null if data input was null or empty
+                 * @throws UnknownFieldException If an unknown field is encountered while parsing the object and we are in strict mode
+                 * @throws IOException If the protobuf stream is not empty and has malformed
+                 * 									  protobuf bytes (i.e. isn't valid protobuf).
+                 */
+                private @NonNull $modelClassName parseInternal(
+                        @NonNull final DataInput input,
+                        final boolean strictMode) throws IOException {
                     // -- TEMP STATE FIELDS --------------------------------------
                 $fieldDefs
 
@@ -83,12 +139,17 @@ class CodecParseMethodGenerator {
                                 if (wireType > 5) {
                                     throw new IOException("Cannot understand wire_type of " + wireType);
                                 }
-                                // It may be that the parser subclass doesn't know about this field. In that case, we
-                                // just need to read off the bytes for this field to skip it and move on to the next one.
+                                // It may be that the parser subclass doesn't know about this field
                                 if (f == null) {
-                                    skipField(input, wireType);
+                                    if (strictMode) {
+                                        // Since we are parsing is strict mode, this is an exceptional condition.
+                                        throw new UnknownFieldException(field);
+                                    } else {
+                                        // We just need to read off the bytes for this field to skip it and move on to the next one.
+                                        skipField(input, wireType);
+                                    }
                                 } else {
-                                    throw new IOException("Bad tag ["+tag+"], field [" + field + "] wireType [" + wireType + "]");
+                                    throw new IOException("Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
                                 }
                             }
                         }
@@ -277,7 +338,7 @@ class CodecParseMethodGenerator {
             case BOOL -> "readBool(input)";
             case BYTES -> "readBytes(input)";
             case MESSAGE -> field.parseCode();
-            case ONE_OF -> throw new PbjCompilerException("Should never happen, oneof handled else where");
+            case ONE_OF -> throw new PbjCompilerException("Should never happen, oneOf handled elsewhere");
         };
     }
 }

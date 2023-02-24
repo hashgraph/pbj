@@ -24,7 +24,7 @@ public interface DataInput extends PositionedData {
      * @throws BufferUnderflowException If the current position is not smaller than its limit
      * @throws IOException if an I/O error occurs
      */
-    byte readByte() throws IOException ;
+    byte readByte() throws IOException;
 
     /**
      * Reads the byte at current position as unsigned, and then increments the position.

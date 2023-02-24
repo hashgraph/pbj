@@ -16,6 +16,13 @@ import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
 /**
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
+ *
+ * | Cases	                    | What do we generate today? | Option 1               | Option 2               |
+ * |----------------------------|----------------------------|------------------------|------------------------|
+ * | Primitive Types            | Not Null, Not Optional     | Not Null, Not Optional | Not Null, Not Optional |
+ * | Value / Boxed Types        | Not Null, Optional         | Not Null, Optional     | Nullable			   |
+ * | One-Of Convenience Methods | Not Null, Optional         | Not Null, Optional     | Not Null, Optional     |
+ * | Objects / Messages         | Nullable                   | Not Null, Optional     | Nullable               |
  */
 @SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
 public final class ModelGenerator implements Generator {
@@ -131,7 +138,6 @@ public final class ModelGenerator implements Generator {
 		// constructor
 		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optionalValueType())) {
 			bodyContent += """
-     
 					/**
 					 * Override the default constructor adding input validation
 					 * %s

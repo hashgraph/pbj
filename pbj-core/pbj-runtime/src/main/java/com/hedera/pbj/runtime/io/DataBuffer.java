@@ -1,28 +1,31 @@
 package com.hedera.pbj.runtime.io;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Objects;
 
 /**
  * A Buffer backed by a ByteBuffer that implements {@code DataInput} and {@code DataOutput}.
  */
-public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapDataBuffer {
+public class DataBuffer implements DataInput, DataOutput, RandomAccessDataInput {
 
     /** Single instance of an empty buffer we can use anywhere we need an empty read only buffer */
     @SuppressWarnings("unused")
     public static final DataBuffer EMPTY_BUFFER = wrap(ByteBuffer.allocate(0));
 
     /** ByteBuffer used as backing buffer for this DataBuffer */
-    protected ByteBuffer buffer;
+    private ByteBuffer buffer;
 
     /**
      * Wrap an existing allocated ByteBuffer into a DataBuffer. No copy is made.
      *
      * @param buffer the ByteBuffer to wrap
      */
-    protected DataBuffer(ByteBuffer buffer) {
+    DataBuffer(ByteBuffer buffer) {
         this.buffer = buffer;
     }
 
@@ -31,7 +34,7 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
      *
      * @param size size of new buffer in bytes
      */
-    protected DataBuffer(int size) {
+    DataBuffer(int size) {
         this.buffer = ByteBuffer.allocate(size);
     }
 
@@ -59,6 +62,16 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     }
 
     /**
+     * Allocate a new DataBuffer with new memory, on the Java heap.
+     *
+     * @param size size of new buffer in bytes
+     * @return a new allocated DataBuffer
+     */
+    public static DataBuffer allocate(int size) {
+        return new DataBuffer(size);
+    }
+
+    /**
      * Allocate a new DataBuffer with new memory, either on or off the Java heap. Off heap has higher cost of
      * allocation and garbage collection but is much faster to read and write to. It should be used for long-lived
      * buffers where performance is critical. On heap is slower for read and writes but cheaper to allocate and garbage
@@ -74,38 +87,7 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     }
 
     // ================================================================================================================
-    // DataOutput Methods
-
-    /**
-     * Set the limit to current position and position to origin. This is useful when you have just finished writing
-     * into a buffer and want to flip it ready to read back from.
-     */
-    public void flip() {
-       buffer.flip();
-    }
-
-    /**
-     * Reset position to origin and limit to capacity, allowing this buffer to be read or written again
-     */
-    public void reset() {
-        buffer.clear();
-    }
-
-    /**
-     * Reset position to origin and leave limit alone, allowing this buffer to be read again with existing limit
-     */
-    public void resetPosition() {
-        buffer.position(0);
-    }
-
-    /**
-     * Get the capacity in bytes that can be stored in this buffer
-     *
-     * @return capacity in bytes
-     */
-    public int getCapacity() {
-        return buffer.capacity();
-    }
+    // DataBuffer Methods
 
     /**
      * toString that outputs data in buffer in bytes.
@@ -158,14 +140,14 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     }
 
     // ================================================================================================================
-    // DataOutput Position Methods
+    // PositionedData Methods
 
     /**
      * {@inheritDoc}
      */
     @Override
     public long skip(long count) {
-        count = Math.max(count, buffer.remaining());
+        count = Math.min(count, buffer.remaining());
         buffer.position(buffer.position() + (int)count);
         return count;
     }
@@ -208,6 +190,44 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
     @Override
     public long getRemaining() {
         return buffer.remaining();
+    }
+
+    // ================================================================================================================
+    // RandomAccessDataInput Methods
+
+    /**
+     * Set the limit to current position and position to origin. This is useful when you have just finished writing
+     * into a buffer and want to flip it ready to read back from.
+     */
+    @Override
+    public void flip() {
+        buffer.flip();
+    }
+
+    /**
+     * Reset position to origin and limit to capacity, allowing this buffer to be read or written again
+     */
+    @Override
+    public void reset() {
+        buffer.clear();
+    }
+
+    /**
+     * Reset position to origin and leave limit alone, allowing this buffer to be read again with existing limit
+     */
+    @Override
+    public void resetPosition() {
+        buffer.position(0);
+    }
+
+    /**
+     * Get the capacity in bytes that can be stored in this buffer
+     *
+     * @return capacity in bytes
+     */
+    @Override
+    public int getCapacity() {
+        return buffer.capacity();
     }
 
     // ================================================================================================================
@@ -388,7 +408,7 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
             buffer.position(buffer.position() + 1);
             return zigZag ? (x >>> 1) ^ -(x & 1) : x;
         } else if (buffer.remaining() < 10) {
-            return DataInput.super.readVarInt(zigZag);
+            return RandomAccessDataInput.super.readVarInt(zigZag);
         } else if ((x ^= (buffer.get(tempPos++) << 7)) < 0) {
             x ^= (~0 << 7);
         } else if ((x ^= (buffer.get(tempPos++) << 14)) >= 0) {
@@ -425,7 +445,7 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
             buffer.position(buffer.position() + 1);
             return zigZag ? (y >>> 1) ^ -(y & 1) : y;
         } else if (buffer.remaining() < 10) {
-            return DataInput.super.readVarLong(zigZag);
+            return RandomAccessDataInput.super.readVarLong(zigZag);
         } else if ((y ^= (buffer.get(tempPos++) << 7)) < 0) {
             x = y ^ (~0 << 7);
         } else if ((y ^= (buffer.get(tempPos++) << 14)) >= 0) {
@@ -531,14 +551,60 @@ public sealed class DataBuffer implements DataInput, DataOutput permits OffHeapD
      */
     @Override
     public void writeBytes(Bytes src) throws IOException {
-        if (src instanceof ByteOverByteBuffer) {
+        if (src instanceof ByteOverByteBuffer buf) {
             if ((getLimit() - getPosition()) < src.getLength()) {
                 throw new BufferUnderflowException();
             }
-            ((ByteOverByteBuffer)src).writeTo(buffer);
+            buf.writeTo(buffer);
         } else {
             DataOutput.super.writeBytes(src);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int writeBytes(@NonNull InputStream src, int len) throws IOException {
+        if (!buffer.hasArray()) {
+            return DataOutput.super.writeBytes(src, len);
+        }
+
+        // Check for a bad length or a null src
+        Objects.requireNonNull(src);
+        if (len < 0) {
+            throw new IllegalArgumentException("The length must be >= 0");
+        }
+
+        // If the length is zero, then we have nothing to read
+        if (len == 0) {
+            return 0;
+        }
+
+        // Since we have an inner array, we can just read from the input stream into that
+        // array over and over until either we read all the bytes we need to, or we hit
+        // the end of the stream, or we have read all that we can.
+        final var array = buffer.array();
+
+        // We are going to read from the input stream up to either "len" or the number of bytes
+        // remaining in this buffer, whichever is lesser.
+        final long numBytesToRead = Math.min(len, getRemaining());
+        if (numBytesToRead == 0) {
+            return 0;
+        }
+
+        int totalBytesRead = 0;
+        while (totalBytesRead < numBytesToRead) {
+            int numBytesRead = src.read(array, buffer.position(), (int) numBytesToRead - totalBytesRead);
+            if (numBytesRead == -1) {
+                return totalBytesRead;
+            }
+
+            buffer.position(buffer.position() + numBytesRead);
+            totalBytesRead += numBytesRead;
+        }
+
+        return totalBytesRead;
     }
 
     /**

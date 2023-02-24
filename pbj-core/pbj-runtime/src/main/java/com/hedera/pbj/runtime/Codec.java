@@ -25,6 +25,22 @@ public interface Codec<T extends Record> {
     @NonNull T parse(@NonNull DataInput input) throws IOException;
 
     /**
+     * Parses an object from the {@link DataInput} and returns it. Throws an exception if fields
+     * have been defined on the encoded object that are not supported by the parser. This
+     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
+     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * parsing it is prepared to handle.
+     *
+     * @param input The {@link DataInput} from which to read the data to construct an object
+     * @return The parsed object. It must not return null.
+     * @throws IOException If it is impossible to read from the {@link DataInput}
+     * @throws UnknownFieldException If an unknown field is encountered while parsing the object
+     * @throws NoSuchElementException If there is no element of type T that can be parsed from this
+     *     input
+     */
+    @NonNull T parseStrict(@NonNull DataInput input) throws IOException;
+
+    /**
      * Writes an item to the given {@link DataOutput}.
      *
      * @param item The item to write. Must not be null.

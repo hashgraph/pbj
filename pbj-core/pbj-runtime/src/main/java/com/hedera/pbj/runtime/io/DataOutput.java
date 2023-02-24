@@ -1,10 +1,13 @@
 package com.hedera.pbj.runtime.io;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Objects;
 
 /**
  * <p>A high level interface to represent a way to write data as tokens, each method assumes there are enough space
@@ -125,6 +128,56 @@ public interface DataOutput extends PositionedData {
         for (int i = 0; i < src.getLength(); i++) {
             writeByte(src.getByte(i));
         }
+    }
+
+    /**
+     * Writes the bytes from the given {@link java.io.InputStream} into this {@link DataOutput}.
+     * The position is then incremented by the number of bytes written, which is also returned.
+     * If the end-of-stream was reached, the no change is made to the position and -1 is returned.
+     * There is no guarantee that we will read from the stream completely, once we get to the
+     * limit, we will read no more from the stream.
+     *
+     * @param src The source {@link java.io.InputStream} to read bytes from
+     * @param len The maximum number of bytes to read from the {@link java.io.InputStream}. If the
+     *            stream does not have this many bytes, then only those bytes available, if any,
+     *            are read.
+     * @return The number of bytes read from the stream, or -1 if the end of stream was reached.
+     * @throws IOException if an I/O error occurs
+     */
+    default int writeBytes(@NonNull final InputStream src, final int len) throws IOException {
+        // Check for a bad length or a null src
+        Objects.requireNonNull(src);
+        if (len < 0) {
+            throw new IllegalArgumentException("The length must be >= 0");
+        }
+
+        // If the length is zero, then we have nothing to read
+        if (len == 0) {
+            return 0;
+        }
+
+        // We are going to read from the input stream up to either "len" or the number of bytes
+        // remaining in this DataOutput, whichever is lesser.
+        final long numBytesToRead = Math.min(len, getRemaining());
+        if (numBytesToRead == 0) {
+            return 0;
+        }
+
+        // In this default implementation, we just read one byte at a time. It isn't terribly efficient,
+        // so implementations of DataOutput may want to improve on this implementation by populating their
+        // internal array right from the InputStream.
+        int totalBytesRead = 0;
+        while (totalBytesRead < numBytesToRead) {
+            int theByte = src.read();
+            if (theByte == -1) {
+                return totalBytesRead;
+            }
+
+            totalBytesRead++;
+            writeByte((byte) theByte);
+        }
+
+        return totalBytesRead;
     }
 
     /**
