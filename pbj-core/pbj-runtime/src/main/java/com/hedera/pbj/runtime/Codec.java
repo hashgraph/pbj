@@ -12,7 +12,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *
  * @param <T> The type of object to serialize and deserialize
  */
-public interface Codec<T extends Record> {
+public interface Codec<T /*extends Record*/> {
+    // NOTE: When services has finished migrating to protobuf based objects in state,
+    // then we should strongly enforce Codec works with Records. This will reduce bugs
+    // where people try to use a mutable object.
     /**
      * Parses an object from the {@link DataInput} and returns it.
      *
