@@ -17,13 +17,14 @@ import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
 /**
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
- * <p>
+ * <p><pre>
  * | Cases	                    | What do we generate today? | Option 1                       | Option 2               |
  * |----------------------------|----------------------------|--------------------------------|------------------------|
  * | Primitive Types            | Not Null, Default Value    | Not Null, Default value        | Not Null, Not Optional |
  * | Value / Boxed Types        | Not Null, Optional         | Not Null, Optional             | Nullable			   |
  * | One-Of Convenience Methods | Not Null, Optional         | Not Null, Optional             | Not Null, Optional     |
  * | Objects / Messages         | Nullable                   | Not Null, Default instance     | Nullable               |
+ * </pre>
  */
 @SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
 public final class ModelGenerator implements Generator {
@@ -70,7 +71,6 @@ public final class ModelGenerator implements Generator {
 				final int maxIndex = oneOfField.fields().get(oneOfField.fields().size() - 1).fieldNumber();
 				final Map<Integer, EnumValue> enumValues = new HashMap<>();
 				for (final var field : oneOfField.fields()) {
-					final String fieldType = field.protobufFieldType();
 					final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
 					final String enumComment = cleanDocStr(field.comment())
 						.replaceAll("[\t\s]*/\\*\\*","") // remove doc start indenting
@@ -147,7 +147,7 @@ public final class ModelGenerator implements Generator {
 
 		// static codec and default instance
 		bodyContent += """
-				/** Protobuf coded for reading and writing in protobuf format */
+				/** Protobuf codec for reading and writing in protobuf format */
 				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
 				public static final $modelClass DEFAULT_INSTANCE = newBuilder().build();
 				"""
@@ -463,7 +463,7 @@ public final class ModelGenerator implements Generator {
 			}
 
 			if (impactedSubFields.isEmpty()) {
-				return "this.$fieldName = Objects.requireNonNull($fieldName, \"Parameter '$fieldName' must be supplied and can not be null\");"
+				return FIELD_INDENT + "this.$fieldName = Objects.requireNonNull($fieldName, \"Parameter '$fieldName' must be supplied and can not be null\");"
 						.replace("$fieldName", f.nameCamelFirstLower());
 			} else {
 				sb.append("// handle special case where protobuf does not have destination between a OneOf with optional\n");
@@ -473,7 +473,7 @@ public final class ModelGenerator implements Generator {
 				sb.append("if ");
 				sb.append(impactedSubFields.stream()
 						.map(field -> """
-        						($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldNameIsEmpty) {
+								($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldNameIsEmpty) {
 									this.$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
 								}"""
 								.replace("$subFieldNameUpper", camelToUpperSnake(field.name()))
