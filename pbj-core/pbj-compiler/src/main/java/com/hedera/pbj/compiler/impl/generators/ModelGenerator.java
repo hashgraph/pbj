@@ -1,6 +1,7 @@
 package com.hedera.pbj.compiler.impl.generators;
 
 import com.hedera.pbj.compiler.impl.*;
+import com.hedera.pbj.compiler.impl.Field.FieldType;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 
 import java.io.File;
@@ -16,43 +17,59 @@ import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
 /**
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
- *
- * | Cases	                    | What do we generate today? | Option 1               | Option 2               |
- * |----------------------------|----------------------------|------------------------|------------------------|
- * | Primitive Types            | Not Null, Not Optional     | Not Null, Not Optional | Not Null, Not Optional |
- * | Value / Boxed Types        | Not Null, Optional         | Not Null, Optional     | Nullable			   |
- * | One-Of Convenience Methods | Not Null, Optional         | Not Null, Optional     | Not Null, Optional     |
- * | Objects / Messages         | Nullable                   | Not Null, Optional     | Nullable               |
+ * <p>
+ * | Cases	                    | What do we generate today? | Option 1                       | Option 2               |
+ * |----------------------------|----------------------------|--------------------------------|------------------------|
+ * | Primitive Types            | Not Null, Default Value    | Not Null, Default value        | Not Null, Not Optional |
+ * | Value / Boxed Types        | Not Null, Optional         | Not Null, Optional             | Nullable			   |
+ * | One-Of Convenience Methods | Not Null, Optional         | Not Null, Optional             | Not Null, Optional     |
+ * | Objects / Messages         | Nullable                   | Not Null, Default instance     | Nullable               |
  */
 @SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
 public final class ModelGenerator implements Generator {
 
 	/**
 	 * {@inheritDoc}
+	 *
+	 * <p>Generates a new model object, as a Java Record type.
 	 */
 	public void generate(final Protobuf3Parser.MessageDefContext msgDef,
 						 final File destinationSrcDir,
 						 File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+
+		// The javaRecordName will be something like "AccountID".
 		final var javaRecordName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
+		// The modelPackage is the Java package to put the model class into.
 		final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
+		// The File to write the sources that we generate into
 		final File javaFile = getJavaFile(destinationSrcDir, modelPackage, javaRecordName);
+		// The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
+		// but is cleaned up and formatted for use in JavaDoc.
 		String javaDocComment = (msgDef.docComment()== null) ? "" :
 				cleanDocStr(msgDef.docComment().getText().replaceAll("\n \\*\s*\n","\n * <p>\n"));
+		// The Javadoc "@Deprecated" tag, which is set if the protobuf schema says the field is deprecated
 		String deprecated = "";
+		// The list of fields, as defined in the protobuf schema
 		final List<Field> fields = new ArrayList<>();
+		// The generated Java code for an enum field if OneOf is used
 		final List<String> oneofEnums = new ArrayList<>();
+		// The generated Java code for getters if OneOf is used
 		final List<String> oneofGetters = new ArrayList<>();
+		// The generated Java import statements. We'll build this up as we go.
 		final Set<String> imports = new TreeSet<>();
 		imports.add("com.hedera.pbj.runtime.io");
+		imports.add("java.util");
+
+		// Iterate over all the items in the protobuf schema
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
 			} else if (item.oneof() != null) { // process one ofs
-				final OneOfField oneOfField = new OneOfField(item.oneof(),javaRecordName, lookupHelper);
-				final String enumName = oneOfField.nameCamelFirstUpper()+"OneOfType";
-				final int maxIndex = oneOfField.fields().get(oneOfField.fields().size()-1).fieldNumber();
-				final Map<Integer,EnumValue> enumValues = new HashMap<>();
-				for(final Field field: oneOfField.fields()) {
+				final var oneOfField = new OneOfField(item.oneof(), javaRecordName, lookupHelper);
+				final var enumName = oneOfField.nameCamelFirstUpper() + "OneOfType";
+				final int maxIndex = oneOfField.fields().get(oneOfField.fields().size() - 1).fieldNumber();
+				final Map<Integer, EnumValue> enumValues = new HashMap<>();
+				for (final var field : oneOfField.fields()) {
 					final String fieldType = field.protobufFieldType();
 					final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
 					final String enumComment = cleanDocStr(field.comment())
@@ -60,8 +77,7 @@ public final class ModelGenerator implements Generator {
 						.replaceAll("\n[\t\s]+\\*","\n") // remove doc indenting
 						.replaceAll("/\\*\\*","") //  remove doc start
 						.replaceAll("\\*\\*/",""); //  remove doc end
-					enumValues.put(field.fieldNumber(), new EnumValue(field.name(),field.deprecated(),
-							enumComment));
+					enumValues.put(field.fieldNumber(), new EnumValue(field.name(), field.deprecated(), enumComment));
 					// generate getters for one ofs
 					oneofGetters.add("""
 							/**
@@ -81,9 +97,8 @@ public final class ModelGenerator implements Generator {
 							camelToUpperSnake(field.name()),
 							javaFieldType,
 							oneOfField.nameCamelFirstLower()
-					).replaceAll("\n","\n"+FIELD_INDENT));
-					if ("Bytes".equals(fieldType)) imports.add("com.hedera.pbj.runtime.io");
-					if (field.type() == Field.FieldType.MESSAGE){
+					).replaceAll("\n","\n" + FIELD_INDENT));
+					if (field.type() == Field.FieldType.MESSAGE) {
 						field.addAllNeededImports(imports, true, false, false);
 					}
 				}
@@ -96,7 +111,7 @@ public final class ModelGenerator implements Generator {
 				fields.add(oneOfField);
 				imports.add("com.hedera.pbj.runtime");
 			} else if (item.mapField() != null) { // process map fields
-				System.err.println("Encountered a mapField that was not handled in "+javaRecordName);
+				System.err.println("Encountered a mapField that was not handled in " + javaRecordName);
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final SingleField field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
@@ -111,6 +126,7 @@ public final class ModelGenerator implements Generator {
 				System.err.println("ModelGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
 		}
+
 		// process field java doc and insert into record java doc
 		if (!fields.isEmpty()) {
 			String recordJavaDoc = javaDocComment.length() > 0 ?
@@ -125,42 +141,74 @@ public final class ModelGenerator implements Generator {
 			recordJavaDoc += "\n */";
 			javaDocComment = cleanDocStr(recordJavaDoc);
 		}
+
 		// === Build Body Content
 		String bodyContent = "";
-		// static codec
+
+		// static codec and default instance
 		bodyContent += """
 				/** Protobuf coded for reading and writing in protobuf format */
 				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
+				public static final $modelClass DEFAULT_INSTANCE = newBuilder().build();
 				"""
 				.replace("$modelClass",javaRecordName)
 				.replace("$qualifiedCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
 				.replaceAll("\n","\n"+FIELD_INDENT);
-		// constructor
-		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optionalValueType())) {
+
+		// constructors
+		final boolean requiresFullConstructor = fields.stream()
+				.anyMatch(f -> f instanceof SingleField sf && !sf.repeated() && sf.type() == FieldType.MESSAGE);
+		final boolean requiresCompactConstructor = fields.stream()
+				.anyMatch(f -> f instanceof OneOfField || f.optionalValueType());
+
+		if (requiresFullConstructor) {
+			// Build up the constructor definition with an arg for each field
+			final String constructorArgs = fields.stream()
+					.map(f -> f.javaFieldType() + " " + f.nameCamelFirstLower())
+					.collect(Collectors.joining(", "));
+
 			bodyContent += """
 					/**
 					 * Override the default constructor adding input validation
 					 * %s
+					 */
+					public %s(%s) {
+					%s
+					}
+					
+					""".formatted(
+					fields.stream().map(field -> "\n * @param "+field.nameCamelFirstLower()+" "+
+							field.comment()
+									.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()))
+					).collect(Collectors.joining()),
+					javaRecordName,
+					constructorArgs,
+					fields.stream()
+							.map(ModelGenerator::generateFullConstructorCode)
+							.collect(Collectors.joining("\n"))
+			).replaceAll("\n","\n"+FIELD_INDENT);
+		} else if (requiresCompactConstructor) {
+			bodyContent += """
+					/**
+					 * Override the default constructor adding input validation
 					 */
 					public %s {
 					%s
 					}
 					
 					""".formatted(
-					fields.stream().map(field -> "\n * @param "+field.nameCamelFirstLower()+" "+
-						field.comment()
-						.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()))
-					).collect(Collectors.joining()),
 					javaRecordName,
 					fields.stream()
 							.filter(f -> f instanceof OneOfField || f.optionalValueType())
-							.map(ModelGenerator::generateConstructorCode)
+							.map(ModelGenerator::generateCompactConstructorCode)
 							.collect(Collectors.joining("\n"))
 					).replaceAll("\n","\n"+FIELD_INDENT);
 		}
+
 		// oneof getters
 		bodyContent += String.join("\n    ", oneofGetters);
 		bodyContent += "\n";
+
 		// builder copy & new builder methods
 		bodyContent += FIELD_INDENT + """
 				/**
@@ -185,11 +233,14 @@ public final class ModelGenerator implements Generator {
 				"""
 				.formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
 				.replaceAll("\n","\n"+FIELD_INDENT);
+
 		// generate builder
 		bodyContent += generateBuilder(msgDef, fields, lookupHelper);
 		bodyContent += "\n"+FIELD_INDENT;
+
 		// oneof enums
 		bodyContent += String.join("\n    ", oneofEnums);
+
 		// === Build file
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			//noinspection SpellCheckingInspection
@@ -395,19 +446,74 @@ public final class ModelGenerator implements Generator {
 		}
 	}
 
-	private static String generateConstructorCode(final Field f) {
-		StringBuilder sb = new StringBuilder(FIELD_INDENT+"""
-									if ($fieldName == null) {
-										throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
-									}""".replace("$fieldName", f.nameCamelFirstLower()));
+	private static String generateCompactConstructorCode(final Field f) {
+		return generateOneOfNullCheckForConstructor(f);
+	}
+
+	private static String generateFullConstructorCode(final Field f) {
+		if (f instanceof OneOfField || f.optionalValueType()) {
+			final var sb = new StringBuilder();
+			final var impactedSubFields = new ArrayList<Field>();
+			if (f instanceof final OneOfField oof) {
+				for (Field subField : oof.fields()) {
+					if (subField.optionalValueType()) {
+						impactedSubFields.add(subField);
+					}
+				}
+			}
+
+			if (impactedSubFields.isEmpty()) {
+				return "this.$fieldName = Objects.requireNonNull($fieldName, \"Parameter '$fieldName' must be supplied and can not be null\");"
+						.replace("$fieldName", f.nameCamelFirstLower());
+			} else {
+				sb.append("// handle special case where protobuf does not have destination between a OneOf with optional\n");
+				sb.append("// value of empty vs an unset OneOf\n");
+				sb.append("if ($fieldName == null) throw new NullPointerException(\"Parameter '$fieldName' must be supplied and can not be null\");\n");
+				sb.append("final var $fieldNameIsEmpty = $fieldName.value() == null || ((Optional)$fieldName.value()).isEmpty();\n");
+				sb.append("if ");
+				sb.append(impactedSubFields.stream()
+						.map(field -> """
+        						($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldNameIsEmpty) {
+									this.$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
+								}"""
+								.replace("$subFieldNameUpper", camelToUpperSnake(field.name()))
+						)
+						.collect(Collectors.joining(" else if ")));
+				sb.append("""
+						else {
+							this.$fieldName = Objects.requireNonNull($fieldName, "Parameter '$fieldName' must be supplied and can not be null");
+						}
+						""");
+			}
+
+			return sb.toString()
+					.replace("$fieldName", f.nameCamelFirstLower())
+					.replace("$fieldUpperName", f.nameCamelFirstUpper())
+					.replaceAll("\n", "\n" + FIELD_INDENT);
+		} else if (!f.repeated() && f.type() == FieldType.MESSAGE) {
+			return FIELD_INDENT + "this.$fieldName = $fieldName == null ? $fieldType.DEFAULT_INSTANCE : $fieldName;"
+					.replace("$fieldName", f.nameCamelFirstLower())
+					.replace("$fieldType", f.javaFieldType());
+		} else {
+			return FIELD_INDENT + "this.$fieldName = $fieldName;"
+					.replace("$fieldName", f.nameCamelFirstLower())
+					.replace("$fieldType", f.javaFieldType());
+		}
+	}
+
+	private static String generateOneOfNullCheckForConstructor(final Field f) {
+		StringBuilder sb = new StringBuilder(FIELD_INDENT + """
+				if ($fieldName == null) {
+					throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
+				}""".replace("$fieldName", f.nameCamelFirstLower()));
 		if (f instanceof final OneOfField oof) {
-			for (Field subField: oof.fields()) {
-				if(subField.optionalValueType()) {
+			for (Field subField : oof.fields()) {
+				if (subField.optionalValueType()) {
 					sb.append("""
-       
+									   
 							// handle special case where protobuf does not have destination between a OneOf with optional
 							// value of empty vs an unset OneOf.
-							if($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && ((Optional)$fieldName.value()).isEmpty()) {
+							if ($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && ((Optional)$fieldName.value()).isEmpty()) {
 								$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
 							}"""
 							.replace("$fieldName", f.nameCamelFirstLower())
@@ -417,6 +523,6 @@ public final class ModelGenerator implements Generator {
 				}
 			}
 		}
-		return sb.toString().replaceAll("\n","\n"+FIELD_INDENT);
+		return sb.toString().replaceAll("\n", "\n" + FIELD_INDENT);
 	}
 }
