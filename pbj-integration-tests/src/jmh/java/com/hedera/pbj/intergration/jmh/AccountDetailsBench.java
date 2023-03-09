@@ -2,8 +2,7 @@ package com.hedera.pbj.intergration.jmh;
 
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.hedera.hapi.node.token.parser.AccountDetailsProtoParser;
-import com.hedera.hapi.node.token.writer.AccountDetailsWriter;
+import com.hedera.hapi.node.token.AccountDetails;
 import com.hedera.pbj.integration.AccountDetailsPbj;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayInputStream;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
@@ -50,7 +49,7 @@ public class AccountDetailsBench {
 			accountDetailsPbj = AccountDetailsPbj.ACCOUNT_DETAILS;
 			// write to temp data buffer and then read into byte array
 			DataBuffer tempDataBuffer = DataBuffer.allocate(5 * 1024 * 1024, false);
-			AccountDetailsWriter.write(accountDetailsPbj, tempDataBuffer);
+			AccountDetails.PROTOBUF.write(accountDetailsPbj, tempDataBuffer);
 			tempDataBuffer.flip();
 			protobuf = new byte[(int) tempDataBuffer.getRemaining()];
 			System.out.println("protobuf.length = " + protobuf.length);
@@ -85,7 +84,7 @@ public class AccountDetailsBench {
 	public void parsePbjByteBuffer(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
 			protobufDataBuffer.resetPosition();
-			blackhole.consume(AccountDetailsProtoParser.parse(protobufDataBuffer));
+			blackhole.consume(AccountDetails.PROTOBUF.parse(protobufDataBuffer));
 		}
 	}
 
@@ -93,7 +92,7 @@ public class AccountDetailsBench {
 	public void parsePbjByteBufferDirect(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
 			protobufDataBufferDirect.resetPosition();
-			blackhole.consume(AccountDetailsProtoParser.parse(protobufDataBufferDirect));
+			blackhole.consume(AccountDetails.PROTOBUF.parse(protobufDataBufferDirect));
 		}
 	}
 	@Benchmark
@@ -101,7 +100,7 @@ public class AccountDetailsBench {
 		for (int i = 0; i < 1000; i++) {
 			bin.resetPosition();
 //			blackhole.consume(AccountDetailsProtoParser.parse(din));
-			blackhole.consume(AccountDetailsProtoParser.parse(new DataInputStream(bin)));
+			blackhole.consume(AccountDetails.PROTOBUF.parse(new DataInputStream(bin)));
 		}
 	}
 
@@ -136,7 +135,7 @@ public class AccountDetailsBench {
 	public void writePbjByteBuffer(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
 			outDataBuffer.reset();
-			AccountDetailsWriter.write(accountDetailsPbj, outDataBuffer);
+			AccountDetails.PROTOBUF.write(accountDetailsPbj, outDataBuffer);
 			blackhole.consume(outDataBuffer);
 		}
 	}
@@ -144,7 +143,7 @@ public class AccountDetailsBench {
 	public void writePbjByteDirect(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
 			outDataBufferDirect.reset();
-			AccountDetailsWriter.write(accountDetailsPbj, outDataBufferDirect);
+			AccountDetails.PROTOBUF.write(accountDetailsPbj, outDataBufferDirect);
 			blackhole.consume(outDataBufferDirect);
 		}
 	}
@@ -153,7 +152,7 @@ public class AccountDetailsBench {
 		for (int i = 0; i < 1000; i++) {
 			bout.reset();
 //			AccountDetailsWriter.write(accountDetailsPbj, dout);
-			AccountDetailsWriter.write(accountDetailsPbj, new DataOutputStream(bout));
+			AccountDetails.PROTOBUF.write(accountDetailsPbj, new DataOutputStream(bout));
 			blackhole.consume(bout.toByteArray());
 		}
 	}

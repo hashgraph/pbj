@@ -93,7 +93,6 @@ public final class TestGenerator implements Generator {
 						generateModelTestArgumentsMethod(modelClassName, fields)
 								.replaceAll("\n","\n"+ Common.FIELD_INDENT)
 					)
-					//  final ProtoOutputStream pout = new ProtoOutputStream(%s::valid, out);
 			);
 		}
 	}
@@ -148,11 +147,11 @@ public final class TestGenerator implements Generator {
 
 	private static String generateTestData(String modelClassName, Field field, boolean optional, boolean repeated) {
 		if (optional) {
+
 			Field.FieldType convertedFieldType = getOptionalConvertedFieldType(field);
 			return """
-					makeListOptionals(%s)"""
-					.formatted(
-							getOptionsForFieldType(convertedFieldType, convertedFieldType.javaType))
+					addNull(%s)"""
+					.formatted(getOptionsForFieldType(convertedFieldType, convertedFieldType.javaType))
 					.replaceAll("\n","\n"+ Common.FIELD_INDENT+ Common.FIELD_INDENT);
 		} else if (repeated) {
 			final String optionsList = generateTestData(modelClassName, field, field.optionalValueType(), false);
@@ -170,7 +169,7 @@ public final class TestGenerator implements Generator {
 						final String listStr;
 						if (subField.optionalValueType()) {
 							Field.FieldType convertedSubFieldType = getOptionalConvertedFieldType(subField);
-							listStr = "makeListOptionals("+getOptionsForFieldType(convertedSubFieldType, convertedSubFieldType.javaType)+")";
+							listStr = getOptionsForFieldType(convertedSubFieldType, convertedSubFieldType.javaType);
 						} else {
 							listStr = getOptionsForFieldType(subField.type(), ((SingleField) subField).javaFieldTypeForTest());
 						}

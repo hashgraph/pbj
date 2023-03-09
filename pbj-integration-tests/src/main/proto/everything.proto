@@ -51,16 +51,16 @@ message Everything {
   repeated string textList = 116;
   repeated bytes bytesExampleList = 117;
 
-  // optional types
-  google.protobuf.Int32Value int32Optional = 1001;
-  google.protobuf.UInt32Value uint32Optional = 1002;
-  google.protobuf.Int64Value int64Optional = 1004;
-  google.protobuf.UInt64Value uint64Optional = 1005;
-  google.protobuf.FloatValue floatOptional = 1007;
-  google.protobuf.DoubleValue doubleOptional = 1008;
-  google.protobuf.BoolValue boolOptional = 1009;
-  google.protobuf.BytesValue bytesOptional = 10010;
-  google.protobuf.StringValue stringOptional = 10011;
+  // Boxed types
+  google.protobuf.Int32Value int32Boxed = 1001;
+  google.protobuf.UInt32Value uint32Boxed = 1002;
+  google.protobuf.Int64Value int64Boxed = 1004;
+  google.protobuf.UInt64Value uint64Boxed = 1005;
+  google.protobuf.FloatValue floatBoxed = 1007;
+  google.protobuf.DoubleValue doubleBoxed = 1008;
+  google.protobuf.BoolValue boolBoxed = 1009;
+  google.protobuf.BytesValue bytesBoxed = 10010;
+  google.protobuf.StringValue stringBoxed = 10011;
 
   oneof oneofExample {
     int32 int32NumberOneOf = 100001;
@@ -80,16 +80,16 @@ message Everything {
     TimestampTest subObjectOneOf = 100015;
     string textOneOf = 100016;
     bytes bytesFieldOneOf = 100017;
-    // optional types
-    google.protobuf.Int32Value int32OptionalOneOf = 100018;
-    google.protobuf.UInt32Value uint32OptionalOneOf = 100019;
-    google.protobuf.Int64Value int64OptionalOneOf = 100020;
-    google.protobuf.UInt64Value uint64OptionalOneOf = 100021;
-    google.protobuf.FloatValue floatOptionalOneOf = 100022;
-    google.protobuf.DoubleValue doubleOptionalOneOf = 100023;
-    google.protobuf.BoolValue boolOptionalOneOf = 100024;
-    google.protobuf.BytesValue bytesOptionalOneOf = 100025;
-    google.protobuf.StringValue stringOptionalOneOf = 100026;
+    // Boxed types
+    google.protobuf.Int32Value int32BoxedOneOf = 100018;
+    google.protobuf.UInt32Value uint32BoxedOneOf = 100019;
+    google.protobuf.Int64Value int64BoxedOneOf = 100020;
+    google.protobuf.UInt64Value uint64BoxedOneOf = 100021;
+    google.protobuf.FloatValue floatBoxedOneOf = 100022;
+    google.protobuf.DoubleValue doubleBoxedOneOf = 100023;
+    google.protobuf.BoolValue boolBoxedOneOf = 100024;
+    google.protobuf.BytesValue bytesBoxedOneOf = 100025;
+    google.protobuf.StringValue stringBoxedOneOf = 100026;
   }
 }
 
@@ -143,16 +143,16 @@ message InnerEverything {
   repeated string textList = 116;
   repeated bytes bytesExampleList = 117;
 
-  // optional types
-  google.protobuf.Int32Value int32Optional = 1001;
-  google.protobuf.UInt32Value uint32Optional = 1002;
-  google.protobuf.Int64Value int64Optional = 1004;
-  google.protobuf.UInt64Value uint64Optional = 1005;
-  google.protobuf.FloatValue floatOptional = 1007;
-  google.protobuf.DoubleValue doubleOptional = 1008;
-  google.protobuf.BoolValue boolOptional = 1009;
-  google.protobuf.BytesValue bytesOptional = 10010;
-  google.protobuf.StringValue stringOptional = 10011;
+  // Boxed types
+  google.protobuf.Int32Value int32Boxed = 1001;
+  google.protobuf.UInt32Value uint32Boxed = 1002;
+  google.protobuf.Int64Value int64Boxed = 1004;
+  google.protobuf.UInt64Value uint64Boxed = 1005;
+  google.protobuf.FloatValue floatBoxed = 1007;
+  google.protobuf.DoubleValue doubleBoxed = 1008;
+  google.protobuf.BoolValue boolBoxed = 1009;
+  google.protobuf.BytesValue bytesBoxed = 10010;
+  google.protobuf.StringValue stringBoxed = 10011;
 
   oneof oneofExample {
     int32 int32NumberOneOf = 100001;
@@ -172,15 +172,15 @@ message InnerEverything {
     TimestampTest subObjectOneOf = 100015;
     string textOneOf = 100016;
     bytes bytesFieldOneOf = 100017;
-    // optional types
-    google.protobuf.Int32Value int32OptionalOneOf = 100018;
-    google.protobuf.UInt32Value uint32OptionalOneOf = 100019;
-    google.protobuf.Int64Value int64OptionalOneOf = 100020;
-    google.protobuf.UInt64Value uint64OptionalOneOf = 100021;
-    google.protobuf.FloatValue floatOptionalOneOf = 100022;
-    google.protobuf.DoubleValue doubleOptionalOneOf = 100023;
-    google.protobuf.BoolValue boolOptionalOneOf = 100024;
-    google.protobuf.BytesValue bytesOptionalOneOf = 100025;
-    google.protobuf.StringValue stringOptionalOneOf = 100026;
+    // Boxed types
+    google.protobuf.Int32Value int32BoxedOneOf = 100018;
+    google.protobuf.UInt32Value uint32BoxedOneOf = 100019;
+    google.protobuf.Int64Value int64BoxedOneOf = 100020;
+    google.protobuf.UInt64Value uint64BoxedOneOf = 100021;
+    google.protobuf.FloatValue floatBoxedOneOf = 100022;
+    google.protobuf.DoubleValue doubleBoxedOneOf = 100023;
+    google.protobuf.BoolValue boolBoxedOneOf = 100024;
+    google.protobuf.BytesValue bytesBoxedOneOf = 100025;
+    google.protobuf.StringValue stringBoxedOneOf = 100026;
   }
 }

@@ -2,8 +2,6 @@ package com.hedera.pbj.intergration.jmh;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Timestamp;
-import com.hedera.hapi.node.base.parser.TimestampProtoParser;
-import com.hedera.hapi.node.base.writer.TimestampWriter;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
 import com.hedera.pbj.runtime.io.DataBuffer;
 import org.openjdk.jmh.annotations.*;
@@ -30,18 +28,21 @@ public class TimestampBench {
 	private final ByteBuffer protobufByteBufferDirect = ByteBuffer
 			.allocateDirect(protobuf.length)
 			.put(protobuf);
+	private final DataBuffer protobufDataBufferDirect = DataBuffer.wrap(protobufByteBufferDirect);
 	private final NonSynchronizedByteArrayOutputStream bout = new NonSynchronizedByteArrayOutputStream();
 	private final DataBuffer outDataBuffer = DataBuffer.allocate(protobuf.length, false);
 
 	@Benchmark
 	public void parsePbjByteBuffer(Blackhole blackhole) throws IOException {
 		protobufDataBuffer.resetPosition();
-		blackhole.consume(TimestampProtoParser.parse(protobufDataBuffer));
+		blackhole.consume(com.hedera.hapi.node.base.Timestamp.PROTOBUF.parse(protobufDataBuffer));
 	}
-//	@Benchmark
-//	public void parsePbjByteBufferDirect(Blackhole blackhole) throws MalformedProtobufException {
-//		blackhole.consume(parser.parse(protobufByteBufferDirect.clear()));
-//	}
+
+	@Benchmark
+	public void parsePbjByteBufferDirect(Blackhole blackhole) throws IOException {
+		protobufDataBufferDirect.resetPosition();
+		blackhole.consume(com.hedera.hapi.node.base.Timestamp.PROTOBUF.parse(protobufDataBufferDirect));
+	}
 
 	@Benchmark
 	public void parseProtoCByteBuffer(Blackhole blackhole) throws InvalidProtocolBufferException {
@@ -55,7 +56,7 @@ public class TimestampBench {
 	@Benchmark
 	public void writePbj(Blackhole blackhole) throws IOException {
 		outDataBuffer.reset();
-		TimestampWriter.write(
+		com.hedera.hapi.node.base.Timestamp.PROTOBUF.write(
 				new com.hedera.hapi.node.base.Timestamp(5678L, 1234), outDataBuffer);
 		blackhole.consume(outDataBuffer);
 	}

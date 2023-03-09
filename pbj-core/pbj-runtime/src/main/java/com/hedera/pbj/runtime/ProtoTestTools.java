@@ -7,7 +7,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Static tools and test cases used by generated test classes.
@@ -69,19 +68,17 @@ public final class ProtoTestTools {
     }
 
     /**
-     * Take a list of objects and create a new list with those objects wrapped in optionals and adding a empty optional.
+     * Util method to take a list and append {@code null} on the front.
      *
-     * @param list List of objects to wrap
-     * @return list of optionals
-     * @param <T> type of objects to wrap
+     * @param list Input list
+     * @return new list with null added
+     * @param <T> the type for lists
      */
-    public static <T> List<Optional<T>> makeListOptionals(List<T> list) {
-        ArrayList<Optional<T>> optionals = new ArrayList<>(list.size()+1);
-        optionals.add(Optional.empty());
-        for (T value:list) {
-            optionals.add(Optional.ofNullable(value));
-        }
-        return optionals;
+    public static <T> List<T> addNull(final List<T> list) {
+        ArrayList<T> newList = new ArrayList<>(list.size() + 1);
+        newList.add(null);
+        newList.addAll(list);
+        return newList;
     }
 
     /**

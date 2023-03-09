@@ -2,18 +2,18 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.Bytes;
 import com.hedera.pbj.runtime.io.DataOutput;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.ToIntFunction;
 
 /**
  * Static helper methods for Writers
  */
-@SuppressWarnings({"DuplicatedCode", "OptionalUsedAsFieldOrParameterType"})
+@SuppressWarnings({"DuplicatedCode"})
 public final class ProtoWriterTools {
 
     /** The number of leading bits of the tag that are used to store field type, the rest is field number */
@@ -37,7 +37,7 @@ public final class ProtoWriterTools {
         out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType, false);
     }
 
-    /** Create a unsupported field type exception */
+    /** Create an unsupported field type exception */
     private static RuntimeException unsupported() {
         return new RuntimeException("Unsupported field type. Bug in ProtoOutputStream, shouldn't happen.");
     }
@@ -322,12 +322,12 @@ public final class ProtoWriterTools {
      * @param value the optional integer value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalInteger(DataOutput out, FieldDefinition field, Optional<Integer> value) throws IOException {
-        if (value != null && value.isPresent()) {
+    public static void writeOptionalInteger(DataOutput out, FieldDefinition field, @Nullable Integer value) throws IOException {
+        if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfInteger(newField, value.get()), false);
-            writeInteger(out,newField,value.get());
+            out.writeVarInt(sizeOfInteger(newField, value), false);
+            writeInteger(out,newField,value);
         }
     }
 
@@ -339,12 +339,12 @@ public final class ProtoWriterTools {
      * @param value the optional long value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalLong(DataOutput out, FieldDefinition field, Optional<Long> value) throws IOException {
-        if (value != null && value.isPresent()) {
+    public static void writeOptionalLong(DataOutput out, FieldDefinition field, @Nullable Long value) throws IOException {
+        if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfLong(newField, value.get()), false);
-            writeLong(out,newField,value.get());
+            out.writeVarInt(sizeOfLong(newField, value), false);
+            writeLong(out,newField,value);
         }
     }
 
@@ -356,12 +356,12 @@ public final class ProtoWriterTools {
      * @param value the optional float value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalFloat(DataOutput out, FieldDefinition field, Optional<Float> value) throws IOException {
-        if (value != null && value.isPresent()) {
+    public static void writeOptionalFloat(DataOutput out, FieldDefinition field, @Nullable Float value) throws IOException {
+        if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfFloat(newField, value.get()), false);
-            writeFloat(out,newField,value.get());
+            out.writeVarInt(sizeOfFloat(newField, value), false);
+            writeFloat(out,newField,value);
         }
     }
 
@@ -373,12 +373,12 @@ public final class ProtoWriterTools {
      * @param value the optional double value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalDouble(DataOutput out, FieldDefinition field, Optional<Double> value) throws IOException {
-        if (value != null && value.isPresent()) {
+    public static void writeOptionalDouble(DataOutput out, FieldDefinition field, @Nullable Double value) throws IOException {
+        if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfDouble(newField, value.get()), false);
-            writeDouble(out,newField,value.get());
+            out.writeVarInt(sizeOfDouble(newField, value), false);
+            writeDouble(out,newField,value);
         }
     }
 
@@ -390,12 +390,12 @@ public final class ProtoWriterTools {
      * @param value the optional boolean value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalBoolean(DataOutput out, FieldDefinition field, Optional<Boolean> value) throws IOException {
-        if (value != null && value.isPresent()) {
+    public static void writeOptionalBoolean(DataOutput out, FieldDefinition field, @Nullable Boolean value) throws IOException {
+        if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfBoolean(newField, value.get()), false);
-            writeBoolean(out,newField,value.get());
+            out.writeVarInt(sizeOfBoolean(newField, value), false);
+            writeBoolean(out,newField,value);
         }
     }
 
@@ -407,12 +407,12 @@ public final class ProtoWriterTools {
      * @param value the optional string value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalString(DataOutput out, FieldDefinition field, Optional<String> value) throws IOException {
-        if (value != null && value.isPresent()) {
+    public static void writeOptionalString(DataOutput out, FieldDefinition field, @Nullable String value) throws IOException {
+        if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfString(newField, value.get()), false);
-            writeString(out,newField,value.get());
+            out.writeVarInt(sizeOfString(newField, value), false);
+            writeString(out,newField,value);
         }
     }
 
@@ -424,14 +424,14 @@ public final class ProtoWriterTools {
      * @param value the optional bytes value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalBytes(DataOutput out, FieldDefinition field, Optional<Bytes> value) throws IOException {
-        if (value != null && value.isPresent()) {
+    public static void writeOptionalBytes(DataOutput out, FieldDefinition field, @Nullable Bytes value) throws IOException {
+        if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            final int size = sizeOfBytes(newField, value.get());
+            final int size = sizeOfBytes(newField, value);
             out.writeVarInt(size, false);
             if (size > 0) {
-                writeBytes(out,newField, value.get());
+                writeBytes(out,newField, value);
             }
         }
     }
@@ -808,9 +808,9 @@ public final class ProtoWriterTools {
      * @param value optional integer value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfOptionalInteger(FieldDefinition field, Optional<Integer> value) {
-        if (value != null && value.isPresent()) {
-            final int intValue = value.get();
+    public static int sizeOfOptionalInteger(FieldDefinition field, @Nullable Integer value) {
+        if (value != null) {
+            final int intValue = value;
             int size = sizeOfInteger(field.type().optionalFieldDefinition, intValue);
             return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
@@ -824,9 +824,9 @@ public final class ProtoWriterTools {
      * @param value optional long value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfOptionalLong(FieldDefinition field, Optional<Long> value) {
-        if (value != null && value.isPresent()) {
-            final long longValue = value.get();
+    public static int sizeOfOptionalLong(FieldDefinition field, @Nullable Long value) {
+        if (value != null) {
+            final long longValue = value;
             final int size =  sizeOfLong(field.type().optionalFieldDefinition, longValue);
             return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
@@ -840,9 +840,9 @@ public final class ProtoWriterTools {
      * @param value optional float value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfOptionalFloat(FieldDefinition field, Optional<Float> value) {
-        if (value != null && value.isPresent()) {
-            final int size = value.get() == 0 ? 0 : 1 + FIXED32_SIZE;
+    public static int sizeOfOptionalFloat(FieldDefinition field, @Nullable Float value) {
+        if (value != null) {
+            final int size = value == 0 ? 0 : 1 + FIXED32_SIZE;
             return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
@@ -855,9 +855,9 @@ public final class ProtoWriterTools {
      * @param value optional double value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfOptionalDouble(FieldDefinition field, Optional<Double> value) {
-        if (value != null && value.isPresent()) {
-            final int size = value.get() == 0 ? 0 : 1 + FIXED64_SIZE;
+    public static int sizeOfOptionalDouble(FieldDefinition field, @Nullable Double value) {
+        if (value != null) {
+            final int size = value == 0 ? 0 : 1 + FIXED64_SIZE;
             return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
@@ -870,9 +870,9 @@ public final class ProtoWriterTools {
      * @param value optional boolean value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfOptionalBoolean(FieldDefinition field, Optional<Boolean> value) {
-        if (value != null && value.isPresent()) {
-            final int size = !value.get() ? 0 : 2;
+    public static int sizeOfOptionalBoolean(FieldDefinition field, @Nullable Boolean value) {
+        if (value != null) {
+            final int size = !value ? 0 : 2;
             return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
@@ -885,9 +885,9 @@ public final class ProtoWriterTools {
      * @param value optional string value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfOptionalString(FieldDefinition field, Optional<String> value) {
-        if (value != null && value.isPresent()) {
-            final int size = sizeOfString(field.type().optionalFieldDefinition,value.get());
+    public static int sizeOfOptionalString(FieldDefinition field, @Nullable String value) {
+        if (value != null) {
+            final int size = sizeOfString(field.type().optionalFieldDefinition,value);
             return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
@@ -900,9 +900,9 @@ public final class ProtoWriterTools {
      * @param value optional bytes value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfOptionalBytes(FieldDefinition field, Optional<Bytes> value) {
-        if (value != null && value.isPresent()) {
-            final int size = sizeOfBytes(field.type().optionalFieldDefinition, value.get());
+    public static int sizeOfOptionalBytes(FieldDefinition field, @Nullable Bytes value) {
+        if (value != null) {
+            final int size = sizeOfBytes(field.type().optionalFieldDefinition, value);
             return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;

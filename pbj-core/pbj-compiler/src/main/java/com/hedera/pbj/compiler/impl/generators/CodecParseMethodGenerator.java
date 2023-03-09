@@ -246,7 +246,7 @@ class CodecParseMethodGenerator {
 								assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
 								assert (valueFieldTag & TAG_WRITE_TYPE_MASK) == $valueTypeWireType;
 								// read value
-								value = Optional.of($readMethod);
+								value = $readMethod;
 								input.setLimit(beforeLimit);
 							} else {
 								// means optional is default value
@@ -256,13 +256,13 @@ class CodecParseMethodGenerator {
                     .replace("$readMethod", readMethod(field))
                     .replace("$defaultValue",
                             switch (field.messageType()) {
-                                case "Int32Value", "UInt32Value" -> "Optional.of(0)";
-                                case "Int64Value", "UInt64Value" -> "Optional.of(0l)";
-                                case "FloatValue" -> "Optional.of(0f)";
-                                case "DoubleValue" -> "Optional.of(0d)";
-                                case "BoolValue" -> "Optional.of(false)";
-                                case "BytesValue" -> "Optional.of(Bytes.EMPTY_BYTES)";
-                                case "StringValue" -> "Optional.of(\"\")";
+                                case "Int32Value", "UInt32Value" -> "0";
+                                case "Int64Value", "UInt64Value" -> "0l";
+                                case "FloatValue" -> "0f";
+                                case "DoubleValue" -> "0d";
+                                case "BoolValue" -> "false";
+                                case "BytesValue" -> "Bytes.EMPTY_BYTES";
+                                case "StringValue" -> "\"\"";
                                 default -> throw new PbjCompilerException("Unexpected and unknown field type " + field.type() + " cannot be parsed");
                             })
                     .replace("$valueTypeWireType", Integer.toString(
