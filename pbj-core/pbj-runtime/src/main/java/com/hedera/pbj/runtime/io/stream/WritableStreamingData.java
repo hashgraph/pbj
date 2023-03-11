@@ -25,7 +25,7 @@ public class WritableStreamingData extends FilterOutputStream implements Writabl
      *
      * @param out the underlying output stream to be written to, can not be null
      */
-    public WritableStreamingData(OutputStream out) {
+    public WritableStreamingData(@NonNull final OutputStream out) {
         super(Objects.requireNonNull(out));
     }
 

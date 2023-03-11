@@ -158,7 +158,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	@Override
 	public void addAllNeededImports(Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
 		if (repeated || optionalValueType()) imports.add("java.util");
-		if (type == FieldType.BYTES) imports.add("com.hedera.pbj.runtime.io");
+		if (type == FieldType.BYTES) imports.add("com.hedera.pbj.runtime.io.buffer");
 		if (messageTypeModelPackage != null && modelImports) imports.add(messageTypeModelPackage);
 		if (messageTypeCodecPackage != null && codecImports) imports.add(messageTypeCodecPackage);
 		if (messageTypeTestPackage != null && testImports) imports.add(messageTypeTestPackage);

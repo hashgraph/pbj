@@ -40,7 +40,7 @@ class CodecParseMethodGenerator {
     static String generateParseMethod(final String modelClassName, final List<Field> fields) {
         return """
                 /**
-                 * Parses a $modelClassName object from ProtoBuf bytes in a DataInput
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}
                  *
                  * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
                  *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
@@ -50,7 +50,7 @@ class CodecParseMethodGenerator {
                  * @throws IOException If the protobuf stream is not empty and has malformed
                  * 									  protobuf bytes (i.e. isn't valid protobuf).
                  */
-                public @NonNull $modelClassName parse(@NonNull DataInput input) throws IOException {
+                public @NonNull $modelClassName parse(@NonNull final ReadableSequentialData input) throws IOException {
                     return parseInternal(input, false);
                 }
                 """
@@ -65,7 +65,7 @@ class CodecParseMethodGenerator {
     static String generateParseStrictMethod(final String modelClassName, final List<Field> fields) {
         return """
                 /**
-                 * Parses a $modelClassName object from ProtoBuf bytes in a DataInput in strict mode, such that
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData} in strict mode, such that
                  * parsing will fail if the encoded protobuf object contains any fields that are unknown to this
                  * version of the parser.
                  *
@@ -78,7 +78,7 @@ class CodecParseMethodGenerator {
                  * @throws IOException If the protobuf stream is not empty and has malformed
                  * 									  protobuf bytes (i.e. isn't valid protobuf).
                  */
-                public @NonNull $modelClassName parseStrict(@NonNull DataInput input) throws IOException {
+                public @NonNull $modelClassName parseStrict(@NonNull final ReadableSequentialData input) throws IOException {
                     return parseInternal(input, true);
                 }
                 """
@@ -93,7 +93,7 @@ class CodecParseMethodGenerator {
     static String generateParseInternalMethod(final String modelClassName, final List<Field> fields) {
         return """
                 /**
-                 * Parses a $modelClassName object from ProtoBuf bytes in a DataInput. Throws if in strict mode ONLY.
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
                  *
                  * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
                  *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
@@ -105,7 +105,7 @@ class CodecParseMethodGenerator {
                  * 									  protobuf bytes (i.e. isn't valid protobuf).
                  */
                 private @NonNull $modelClassName parseInternal(
-                        @NonNull final DataInput input,
+                        @NonNull final ReadableSequentialData input,
                         final boolean strictMode) throws IOException {
                     // -- TEMP STATE FIELDS --------------------------------------
                 $fieldDefs
@@ -206,13 +206,13 @@ class CodecParseMethodGenerator {
         sb.append(Common.FIELD_INDENT);
         sb.append("""
 				// Read the length of packed repeated field data
-				final int length = input.readVarInt(false);
-				final long beforeLimit = input.getLimit();
-				input.setLimit(input.getPosition() + length);
+				final var length = input.readVarInt(false);
+				final var beforeLimit = input.limit();
+				input.limit(input.position() + length);
 				while (input.hasRemaining()) {
 					$tempFieldName = addToList($tempFieldName,$readMethod);
 				}
-				input.setLimit(beforeLimit);"""
+				input.limit(beforeLimit);"""
                 .replace("$tempFieldName", "temp_" + field.name())
                 .replace("$readMethod", readMethod(field))
                 .replaceAll("\n","\n" + Common.FIELD_INDENT)
@@ -235,11 +235,11 @@ class CodecParseMethodGenerator {
         if (field.optionalValueType()) {
             sb.append(Common.FIELD_INDENT + """
 							// Read the message size, it is not needed
-							final int valueTypeMessageSize = input.readVarInt(false);
+							final var valueTypeMessageSize = input.readVarInt(false);
 							final $fieldType value;
 							if (valueTypeMessageSize > 0) {
-								final long beforeLimit = input.getLimit();
-								input.setLimit(input.getPosition() + valueTypeMessageSize);
+								final var beforeLimit = input.limit();
+								input.limit(input.position() + valueTypeMessageSize);
 								// read inner tag
 								final int valueFieldTag = input.readVarInt(false);
 								// assert tag is as expected
@@ -247,7 +247,7 @@ class CodecParseMethodGenerator {
 								assert (valueFieldTag & TAG_WRITE_TYPE_MASK) == $valueTypeWireType;
 								// read value
 								value = $readMethod;
-								input.setLimit(beforeLimit);
+								input.limit(beforeLimit);
 							} else {
 								// means optional is default value
 								value = $defaultValue;
@@ -261,7 +261,7 @@ class CodecParseMethodGenerator {
                                 case "FloatValue" -> "0f";
                                 case "DoubleValue" -> "0d";
                                 case "BoolValue" -> "false";
-                                case "BytesValue" -> "Bytes.EMPTY_BYTES";
+                                case "BytesValue" -> "Bytes.EMPTY";
                                 case "StringValue" -> "\"\"";
                                 default -> throw new PbjCompilerException("Unexpected and unknown field type " + field.type() + " cannot be parsed");
                             })
@@ -278,11 +278,11 @@ class CodecParseMethodGenerator {
             sb.append('\n');
         } else if (field.type() == Field.FieldType.MESSAGE){
             sb.append(Common.FIELD_INDENT + """
-						final int messageLength = input.readVarInt(false);
-						final long limitBefore = input.getLimit();
-						input.setLimit(input.getPosition() + messageLength);
+						final var messageLength = input.readVarInt(false);
+						final var limitBefore = input.limit();
+						input.limit(input.position() + messageLength);
 						final var value = $readMethod;
-						input.setLimit(limitBefore);"""
+						input.limit(limitBefore);"""
                     .replace("$readMethod", readMethod(field))
                     .replaceAll("\n", "\n" + Common.FIELD_INDENT)
             );

@@ -1,5 +1,6 @@
 package com.hedera.pbj.runtime;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 
@@ -228,7 +229,7 @@ public final class ProtoParserTools {
      * of InputData
      * @throws IOException If there was a problem reading
      */
-    public static RandomAccessData readBytes(final ReadableSequentialData input) throws IOException {
+    public static Bytes readBytes(final ReadableSequentialData input) throws IOException {
         final int length = input.readVarInt(false);
         return input.readBytes(length);
     }

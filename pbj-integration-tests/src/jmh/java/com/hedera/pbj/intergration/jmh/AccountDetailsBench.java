@@ -6,13 +6,20 @@ import com.hedera.hapi.node.token.AccountDetails;
 import com.hedera.pbj.integration.AccountDetailsPbj;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayInputStream;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
-import com.hedera.pbj.runtime.io.buffer.WritableBufferedData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
-import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
@@ -32,15 +39,15 @@ public class AccountDetailsBench {
 	// input bytes
 	private final byte[] protobuf;
 	private final ByteBuffer protobufByteBuffer;
-	private final WritableBufferedData protobufDataBuffer;
+	private final BufferedData protobufDataBuffer;
 	private final ByteBuffer protobufByteBufferDirect;
-	private final WritableBufferedData protobufDataBufferDirect;
+	private final BufferedData protobufDataBufferDirect;
 	private final NonSynchronizedByteArrayInputStream bin;
 
 	// output buffers
 	private final NonSynchronizedByteArrayOutputStream bout;
-	private final WritableBufferedData outDataBuffer;
-	private final WritableBufferedData outDataBufferDirect;
+	private final BufferedData outDataBuffer;
+	private final BufferedData outDataBufferDirect;
 	private final ByteBuffer bbout;
 	private final ByteBuffer bboutDirect;
 
@@ -48,7 +55,7 @@ public class AccountDetailsBench {
 		try {
 			accountDetailsPbj = AccountDetailsPbj.ACCOUNT_DETAILS;
 			// write to temp data buffer and then read into byte array
-			WritableBufferedData tempDataBuffer = WritableBufferedData.allocate(5 * 1024 * 1024, false);
+			BufferedData tempDataBuffer = BufferedData.allocate(5 * 1024 * 1024);
 			AccountDetails.PROTOBUF.write(accountDetailsPbj, tempDataBuffer);
 			tempDataBuffer.flip();
 			protobuf = new byte[(int) tempDataBuffer.remaining()];
@@ -59,18 +66,18 @@ public class AccountDetailsBench {
 
 			// input buffers
 			protobufByteBuffer = ByteBuffer.wrap(protobuf);
-			protobufDataBuffer = WritableBufferedData.wrap(protobuf);
+			protobufDataBuffer = BufferedData.wrap(protobuf);
 			protobufByteBufferDirect = ByteBuffer.allocateDirect(protobuf.length);
 			protobufByteBufferDirect.put(protobuf);
 			System.out.println("protobufByteBufferDirect = " + protobufByteBufferDirect);
-			protobufDataBufferDirect = WritableBufferedData.wrap(protobufByteBufferDirect);
+			protobufDataBufferDirect = BufferedData.wrap(protobufByteBufferDirect);
 			bin = new NonSynchronizedByteArrayInputStream(protobuf);
 			ReadableStreamingData din = new ReadableStreamingData(bin);
 			// output buffers
 			bout = new NonSynchronizedByteArrayOutputStream();
 			WritableStreamingData dout = new WritableStreamingData(bout);
-			outDataBuffer = WritableBufferedData.allocate(protobuf.length, false);
-			outDataBufferDirect = WritableBufferedData.allocate(protobuf.length, true);
+			outDataBuffer = BufferedData.allocate(protobuf.length);
+			outDataBufferDirect = BufferedData.allocateOffHeap(protobuf.length);
 			bbout = ByteBuffer.allocate(protobuf.length);
 			bboutDirect = ByteBuffer.allocateDirect(protobuf.length);
 		} catch (IOException e) {

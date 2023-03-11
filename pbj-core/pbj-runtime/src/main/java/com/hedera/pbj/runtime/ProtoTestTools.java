@@ -1,6 +1,7 @@
 package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 
 import java.nio.ByteBuffer;
@@ -116,10 +117,10 @@ public final class ProtoTestTools {
     /** boolean type test cases */
     public static final List<Boolean> BOOLEAN_TESTS_LIST = List.of(true, false);
     /** bytes type test cases */
-    public static final List<RandomAccessData> BYTES_TESTS_LIST = List.of(
-            RandomAccessData.wrap(new byte[0]),
-            RandomAccessData.wrap(new byte[]{0b001}),
-            RandomAccessData.wrap(new byte[]{0b001, 0b010, 0b011, (byte)0xFF, Byte.MIN_VALUE, Byte.MAX_VALUE})
+    public static final List<Bytes> BYTES_TESTS_LIST = List.of(
+            Bytes.wrap(new byte[0]),
+            Bytes.wrap(new byte[]{0b001}),
+            Bytes.wrap(new byte[]{0b001, 0b010, 0b011, (byte)0xFF, Byte.MIN_VALUE, Byte.MAX_VALUE})
     );
 
     /** string type test cases, small as possible to make tests fast, there is a separate integration test with extra tests  */

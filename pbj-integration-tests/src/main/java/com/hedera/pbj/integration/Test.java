@@ -1,11 +1,10 @@
 package com.hedera.pbj.integration;
 
 import com.google.protobuf.CodedOutputStream;
-import com.hedera.pbj.runtime.io.buffer.WritableBufferedData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
-
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
@@ -29,8 +28,8 @@ public class Test {
 
         final TimestampTest modelObj = new TimestampTest(4L,8 );
         // get reusable thread buffers
-        final WritableBufferedData dataBuffer = WritableBufferedData.allocate(1024*1024,false);
-        final WritableBufferedData dataBuffer2 = WritableBufferedData.allocate(1024*1024,false);
+        final BufferedData dataBuffer = BufferedData.allocate(1024*1024);
+        final BufferedData dataBuffer2 = BufferedData.allocate(1024*1024);
         final ByteBuffer byteBuffer = ByteBuffer.allocate(1024*1024);
 
         // model to bytes with PBJ
@@ -40,7 +39,7 @@ public class Test {
         dataBuffer.flip();
 
         // copy bytes to ByteBuffer
-        dataBuffer.readBytes(byteBuffer, 0, (int)dataBuffer.remaining());
+        dataBuffer.readBytes(byteBuffer);
         byteBuffer.flip();
 
         // read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown

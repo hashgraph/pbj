@@ -3,10 +3,17 @@ package com.hedera.pbj.intergration.jmh;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Timestamp;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
-import com.hedera.pbj.runtime.io.buffer.WritableBufferedData;
-import org.openjdk.jmh.annotations.*;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
@@ -24,13 +31,13 @@ public class TimestampBench {
 	}
 	private final byte[] protobuf = Timestamp.newBuilder().setNanos(1234).setSeconds(5678L).build().toByteArray();
 	private final ByteBuffer protobufByteBuffer = ByteBuffer.wrap(protobuf);
-	private final WritableBufferedData protobufDataBuffer = WritableBufferedData.wrap(protobuf);
+	private final BufferedData protobufDataBuffer = BufferedData.wrap(protobuf);
 	private final ByteBuffer protobufByteBufferDirect = ByteBuffer
 			.allocateDirect(protobuf.length)
 			.put(protobuf);
-	private final DataBuffer protobufDataBufferDirect = DataBuffer.wrap(protobufByteBufferDirect);
+	private final BufferedData protobufDataBufferDirect = BufferedData.wrap(protobufByteBufferDirect);
 	private final NonSynchronizedByteArrayOutputStream bout = new NonSynchronizedByteArrayOutputStream();
-	private final WritableBufferedData outDataBuffer = WritableBufferedData.allocate(protobuf.length, false);
+	private final BufferedData outDataBuffer = BufferedData.allocate(protobuf.length);
 
 	@Benchmark
 	public void parsePbjByteBuffer(Blackhole blackhole) throws IOException {

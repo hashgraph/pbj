@@ -16,24 +16,6 @@ import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
 /**
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
- *
- * <p><pre>
- * | Cases	                    | PBJ Generates              | ProtoC Generates                       |
- * |----------------------------|----------------------------|----------------------------------------|
- * | Primitive Types            | Not Null, Default Value    | Not Null, Default Value                |
- * | Value / Boxed Types        | Nullable, Java Boxed       | Not Null, Default Value, Google Boxed  |
- * | One-Of Convenience Methods | Nullable                   | Not Null, Default Value                |
- * | Objects / Messages         | Nullable                   | Not Null, Default Value                |
- * </pre>
- *
- * <p><pre>
- * | Cases	                    | hasFoo?               | foo()
- * |----------------------------|-----------------------|--------------------------------------------------------------|
- * | Primitive Types            | N/A                   | The value if specified, or the default for the primitive type
- * | Value / Boxed Types        | Optional.isPresent()  | An Optional
- * | One-Of Convenience Methods | Not Null, Optional         | Not Null, Optional             | Not Null, Optional     |
- * | Objects / Messages         | Nullable                   | Not Null, Default instance     | Nullable               |
- * </pre>
  */
 @SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
 public final class ModelGenerator implements Generator {
@@ -68,7 +50,8 @@ public final class ModelGenerator implements Generator {
 		// The generated Java import statements. We'll build this up as we go.
 		final Set<String> imports = new TreeSet<>();
 		imports.add("com.hedera.pbj.runtime.io");
-		imports.add("java.util");
+		imports.add("com.hedera.pbj.runtime.io.buffer");
+		imports.add("com.hedera.pbj.runtime.io.stream");
 		imports.add("edu.umd.cs.findbugs.annotations");
 
 		// Iterate over all the items in the protobuf schema

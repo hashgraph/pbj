@@ -25,19 +25,19 @@ final class BytesTest {
     @Test
     @DisplayName("Empty bytes have length of 0")
     void emptyBytes() {
-        assertEquals(0, RandomAccessData.EMPTY.length());
+        assertEquals(0, Bytes.EMPTY.length());
     }
 
     @Test
     @DisplayName("Empty bytes have no data")
     void emptyBytesThrowsOnGetByte() {
-        assertThrows(BufferUnderflowException.class, () -> RandomAccessData.EMPTY.getByte(0));
+        assertThrows(BufferUnderflowException.class, () -> Bytes.EMPTY.getByte(0));
     }
 
     @Test
     @DisplayName("Empty bytes String is not null")
     void toStringWorks() {
-        assertEquals("RandomAccessData[]", RandomAccessData.EMPTY.toString());
+        assertEquals("RandomAccessData[]", Bytes.EMPTY.toString());
     }
 
     // ================================================================================================================

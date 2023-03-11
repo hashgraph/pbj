@@ -375,9 +375,9 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public void readBytes(@NonNull final ByteBuffer dst) {
-        final int length = dst.remaining();
+        final int length = Math.toIntExact(Math.min(remaining(), dst.remaining()));
         final int dtsPos = dst.position();
-        dst.put(dtsPos, buffer, 0, length);
+        dst.put(dtsPos, buffer, Math.toIntExact(position()), length);
         dst.position(dtsPos + length);
     }
 

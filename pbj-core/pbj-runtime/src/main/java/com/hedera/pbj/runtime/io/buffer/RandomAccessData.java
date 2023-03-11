@@ -15,24 +15,6 @@ import java.nio.charset.StandardCharsets;
  */
 public interface RandomAccessData {
 
-    /** Single instance of an empty {@link RandomAccessData} we can use anywhere we need an empty instance */
-    RandomAccessData EMPTY = new RandomAccessData() {
-        @Override
-        public long length() {
-            return 0;
-        }
-
-        @Override
-        public byte getByte(long offset) {
-            throw new BufferUnderflowException();
-        }
-
-        @Override
-        public String toString() {
-            return "RandomAccessData[]";
-        }
-    };
-
     // ================================================================================================================
     // Static Methods
 

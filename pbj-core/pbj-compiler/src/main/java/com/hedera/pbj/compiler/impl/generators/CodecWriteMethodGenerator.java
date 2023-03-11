@@ -30,7 +30,7 @@ final class CodecWriteMethodGenerator {
              * @param out The output stream to write to
              * @throws IOException If there is a problem writing
              */
-            public void write(@NonNull $modelClass data,@NonNull  DataOutput out) throws IOException {
+            public void write(@NonNull $modelClass data,@NonNull final WritableSequentialData out) throws IOException {
                 $fieldWriteLines
             }
             """

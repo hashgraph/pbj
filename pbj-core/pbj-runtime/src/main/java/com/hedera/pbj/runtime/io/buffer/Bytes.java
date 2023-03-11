@@ -6,12 +6,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
 /**
  * Implementation of Bytes backed by a ByteBuffer
  */
 public final class Bytes implements RandomAccessData {
+
+    /** Single instance of an empty {@link RandomAccessData} we can use anywhere we need an empty instance */
+    public static final Bytes EMPTY = new Bytes(new byte[0]);
 
     /** byte[] used as backing buffer for this {@link Bytes} */
     private final byte[] buffer;

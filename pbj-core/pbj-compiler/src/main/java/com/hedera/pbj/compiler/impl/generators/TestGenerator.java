@@ -29,6 +29,7 @@ public final class TestGenerator implements Generator {
 		final File javaFile = Common.getJavaFile(destinationTestSrcDir, testPackage, testClassName);
 		final List<Field> fields = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
+		imports.add("com.hedera.pbj.runtime.io.buffer");
 		imports.add(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef));
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
@@ -58,7 +59,7 @@ public final class TestGenerator implements Generator {
 							package %s;
 											
 							import com.google.protobuf.CodedOutputStream;
-							import com.hedera.pbj.runtime.io.DataBuffer;
+							import com.hedera.pbj.runtime.io.buffer.BufferedData;
 							import org.junit.jupiter.params.ParameterizedTest;
 							import org.junit.jupiter.params.provider.MethodSource;
 							import com.hedera.pbj.runtime.test.*;
@@ -239,19 +240,19 @@ public final class TestGenerator implements Generator {
 				public void test$modelClassNameAgainstProtoC(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
 					final $modelClassName modelObj = modelObjWrapper.getValue();
 					// get reusable thread buffers
-					final DataBuffer dataBuffer = getThreadLocalDataBuffer();
-					final DataBuffer dataBuffer2 = getThreadLocalDataBuffer2();
-					final ByteBuffer byteBuffer = getThreadLocalByteBuffer();
+					final var dataBuffer = getThreadLocalDataBuffer();
+					final var dataBuffer2 = getThreadLocalDataBuffer2();
+					final var byteBuffer = getThreadLocalByteBuffer();
 					
 					// model to bytes with PBJ
-					$modelClassName.PROTOBUF.write(modelObj,dataBuffer);
+					$modelClassName.PROTOBUF.write(modelObj, dataBuffer);
 					// clamp limit to bytes written
-					dataBuffer.setLimit(dataBuffer.getPosition());
+					dataBuffer.limit(dataBuffer.position());
 					
 					// copy bytes to ByteBuffer
 					dataBuffer.resetPosition();
-					final int protoBufByteCount = (int)dataBuffer.getRemaining();
-					dataBuffer.readBytes(byteBuffer, 0, protoBufByteCount);
+					final int protoBufByteCount = (int)dataBuffer.remaining();
+					dataBuffer.readBytes(byteBuffer);
 					byteBuffer.flip();
 					
 					// read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown

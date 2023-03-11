@@ -4,9 +4,9 @@ import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayInputStream;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
-import com.hedera.pbj.runtime.io.WritableBufferedData;
-import com.hedera.pbj.runtime.io.ReadableStreamingData;
-import com.hedera.pbj.runtime.io.WritableStreamingData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -32,15 +32,15 @@ public class EverythingBench {
 	// input bytes
 	private final byte[] protobuf;
 	private final ByteBuffer protobufByteBuffer;
-	private final WritableBufferedData protobufDataBuffer;
+	private final BufferedData protobufDataBuffer;
 	private final ByteBuffer protobufByteBufferDirect;
-	private final WritableBufferedData protobufDataBufferDirect;
+	private final BufferedData protobufDataBufferDirect;
 	private final NonSynchronizedByteArrayInputStream bin;
 
 	// output buffers
 	private final NonSynchronizedByteArrayOutputStream bout;
-	private final WritableBufferedData outDataBuffer;
-	private final WritableBufferedData outDataBufferDirect;
+	private final BufferedData outDataBuffer;
+	private final BufferedData outDataBufferDirect;
 	private final ByteBuffer bbout;
 	private final ByteBuffer bboutDirect;
 
@@ -48,7 +48,7 @@ public class EverythingBench {
 		try {
 			everythingPbj = EVERYTHING;
 			// write to temp data buffer and then read into byte array
-			WritableBufferedData tempDataBuffer = WritableBufferedData.allocate(5 * 1024 * 1024, false);
+			BufferedData tempDataBuffer = BufferedData.allocate(5 * 1024 * 1024);
 			Everything.PROTOBUF.write(everythingPbj, tempDataBuffer);
 			tempDataBuffer.flip();
 			protobuf = new byte[(int) tempDataBuffer.remaining()];
@@ -59,18 +59,18 @@ public class EverythingBench {
 
 			// input buffers
 			protobufByteBuffer = ByteBuffer.wrap(protobuf);
-			protobufDataBuffer = WritableBufferedData.wrap(protobuf);
+			protobufDataBuffer = BufferedData.wrap(protobuf);
 			protobufByteBufferDirect = ByteBuffer.allocateDirect(protobuf.length);
 			protobufByteBufferDirect.put(protobuf);
 			System.out.println("protobufByteBufferDirect = " + protobufByteBufferDirect);
-			protobufDataBufferDirect = WritableBufferedData.wrap(protobufByteBufferDirect);
+			protobufDataBufferDirect = BufferedData.wrap(protobufByteBufferDirect);
 			bin = new NonSynchronizedByteArrayInputStream(protobuf);
 			ReadableStreamingData din = new ReadableStreamingData(bin);
 			// output buffers
 			bout = new NonSynchronizedByteArrayOutputStream();
 			WritableStreamingData dout = new WritableStreamingData(bout);
-			outDataBuffer = WritableBufferedData.allocate(protobuf.length, false);
-			outDataBufferDirect = WritableBufferedData.allocate(protobuf.length, true);
+			outDataBuffer = BufferedData.allocate(protobuf.length);
+			outDataBufferDirect = BufferedData.allocateOffHeap(protobuf.length);
 			bbout = ByteBuffer.allocate(protobuf.length);
 			bboutDirect = ByteBuffer.allocateDirect(protobuf.length);
 		} catch (IOException e) {

@@ -24,9 +24,9 @@ class CodecFastEqualsMethodGenerator {
                  * @param item The item to compare. Cannot be null.
                  * @param input The input with the bytes to compare
                  * @return true if the bytes represent the item, false otherwise.
-                 * @throws IOException If it is impossible to read from the {@link DataInput}
+                 * @throws IOException If it is impossible to read from the {@link ReadableSequentialData}
                  */
-                public boolean fastEquals(@NonNull $modelClass item, @NonNull DataInput input) throws IOException {
+                public boolean fastEquals(@NonNull $modelClass item, @NonNull final ReadableSequentialData input) throws IOException {
                     return item.equals(parse(input));
                 }
                 """

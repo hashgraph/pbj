@@ -711,7 +711,7 @@ public final class ProtoWriterTools {
      * @param list the list of bytes objects value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeBytesList(WritableSequentialData out, FieldDefinition field, List<RandomAccessData> list) throws IOException {
+    public static void writeBytesList(WritableSequentialData out, FieldDefinition field, List<? extends RandomAccessData> list) throws IOException {
         assert field.type() == FieldType.BYTES : "Not a message type " + field;
         assert field.repeated() : "Use writeBytes with non-repeated types";
         // When not a oneOf don't write default value
@@ -1246,7 +1246,7 @@ public final class ProtoWriterTools {
      * @param list bytes list value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfBytesList(FieldDefinition field, List<RandomAccessData> list) {
+    public static int sizeOfBytesList(FieldDefinition field, List<? extends RandomAccessData> list) {
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) {
             return 0;
