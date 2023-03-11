@@ -6,9 +6,9 @@ import com.hedera.hapi.node.token.AccountDetails;
 import com.hedera.pbj.integration.AccountDetailsPbj;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayInputStream;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
-import com.hedera.pbj.runtime.io.DataBuffer;
-import com.hedera.pbj.runtime.io.DataInputStream;
-import com.hedera.pbj.runtime.io.DataOutputStream;
+import com.hedera.pbj.runtime.io.buffer.WritableBufferedData;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -32,15 +32,15 @@ public class AccountDetailsBench {
 	// input bytes
 	private final byte[] protobuf;
 	private final ByteBuffer protobufByteBuffer;
-	private final DataBuffer protobufDataBuffer;
+	private final WritableBufferedData protobufDataBuffer;
 	private final ByteBuffer protobufByteBufferDirect;
-	private final DataBuffer protobufDataBufferDirect;
+	private final WritableBufferedData protobufDataBufferDirect;
 	private final NonSynchronizedByteArrayInputStream bin;
 
 	// output buffers
 	private final NonSynchronizedByteArrayOutputStream bout;
-	private final DataBuffer outDataBuffer;
-	private final DataBuffer outDataBufferDirect;
+	private final WritableBufferedData outDataBuffer;
+	private final WritableBufferedData outDataBufferDirect;
 	private final ByteBuffer bbout;
 	private final ByteBuffer bboutDirect;
 
@@ -48,10 +48,10 @@ public class AccountDetailsBench {
 		try {
 			accountDetailsPbj = AccountDetailsPbj.ACCOUNT_DETAILS;
 			// write to temp data buffer and then read into byte array
-			DataBuffer tempDataBuffer = DataBuffer.allocate(5 * 1024 * 1024, false);
+			WritableBufferedData tempDataBuffer = WritableBufferedData.allocate(5 * 1024 * 1024, false);
 			AccountDetails.PROTOBUF.write(accountDetailsPbj, tempDataBuffer);
 			tempDataBuffer.flip();
-			protobuf = new byte[(int) tempDataBuffer.getRemaining()];
+			protobuf = new byte[(int) tempDataBuffer.remaining()];
 			System.out.println("protobuf.length = " + protobuf.length);
 			tempDataBuffer.readBytes(protobuf);
 			// start by parsing using protoc
@@ -59,18 +59,18 @@ public class AccountDetailsBench {
 
 			// input buffers
 			protobufByteBuffer = ByteBuffer.wrap(protobuf);
-			protobufDataBuffer = DataBuffer.wrap(protobuf);
+			protobufDataBuffer = WritableBufferedData.wrap(protobuf);
 			protobufByteBufferDirect = ByteBuffer.allocateDirect(protobuf.length);
 			protobufByteBufferDirect.put(protobuf);
 			System.out.println("protobufByteBufferDirect = " + protobufByteBufferDirect);
-			protobufDataBufferDirect = DataBuffer.wrap(protobufByteBufferDirect);
+			protobufDataBufferDirect = WritableBufferedData.wrap(protobufByteBufferDirect);
 			bin = new NonSynchronizedByteArrayInputStream(protobuf);
-			DataInputStream din = new DataInputStream(bin);
+			ReadableStreamingData din = new ReadableStreamingData(bin);
 			// output buffers
 			bout = new NonSynchronizedByteArrayOutputStream();
-			DataOutputStream dout = new DataOutputStream(bout);
-			outDataBuffer = DataBuffer.allocate(protobuf.length, false);
-			outDataBufferDirect = DataBuffer.allocate(protobuf.length, true);
+			WritableStreamingData dout = new WritableStreamingData(bout);
+			outDataBuffer = WritableBufferedData.allocate(protobuf.length, false);
+			outDataBufferDirect = WritableBufferedData.allocate(protobuf.length, true);
 			bbout = ByteBuffer.allocate(protobuf.length);
 			bboutDirect = ByteBuffer.allocateDirect(protobuf.length);
 		} catch (IOException e) {
@@ -100,7 +100,7 @@ public class AccountDetailsBench {
 		for (int i = 0; i < 1000; i++) {
 			bin.resetPosition();
 //			blackhole.consume(AccountDetailsProtoParser.parse(din));
-			blackhole.consume(AccountDetails.PROTOBUF.parse(new DataInputStream(bin)));
+			blackhole.consume(AccountDetails.PROTOBUF.parse(new ReadableStreamingData(bin)));
 		}
 	}
 
@@ -152,7 +152,7 @@ public class AccountDetailsBench {
 		for (int i = 0; i < 1000; i++) {
 			bout.reset();
 //			AccountDetailsWriter.write(accountDetailsPbj, dout);
-			AccountDetails.PROTOBUF.write(accountDetailsPbj, new DataOutputStream(bout));
+			AccountDetails.PROTOBUF.write(accountDetailsPbj, new WritableStreamingData(bout));
 			blackhole.consume(bout.toByteArray());
 		}
 	}

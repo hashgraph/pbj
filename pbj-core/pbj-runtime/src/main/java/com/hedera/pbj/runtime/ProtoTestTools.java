@@ -1,7 +1,7 @@
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.Bytes;
-import com.hedera.pbj.runtime.io.DataBuffer;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -23,19 +23,19 @@ public final class ProtoTestTools {
     /** Instance should never be created */
     private ProtoTestTools() {}
     /** Thread local set of reusable buffers */
-    private static final ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS =
-            ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, false));
+    private static final ThreadLocal<BufferedData> THREAD_LOCAL_BUFFERS =
+            ThreadLocal.withInitial(() -> BufferedData.allocate(BUFFER_SIZE));
 
     /** Thread local set of reusable buffers, second buffer for each thread */
-    private static final ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS_2 =
-            ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, false));
+    private static final ThreadLocal<BufferedData> THREAD_LOCAL_BUFFERS_2 =
+            ThreadLocal.withInitial(() -> BufferedData.allocate(BUFFER_SIZE));
 
     /**
      * Get the thread local instance of DataBuffer, reset and ready to use.
      *
      * @return a DataBuffer that can be reused by current thread
      */
-    public static DataBuffer getThreadLocalDataBuffer() {
+    public static BufferedData getThreadLocalDataBuffer() {
         final var local = THREAD_LOCAL_BUFFERS.get();
         local.reset();
         return local;
@@ -46,7 +46,7 @@ public final class ProtoTestTools {
      *
      * @return a DataBuffer that can be reused by current thread
      */
-    public static DataBuffer getThreadLocalDataBuffer2() {
+    public static BufferedData getThreadLocalDataBuffer2() {
         final var local = THREAD_LOCAL_BUFFERS_2.get();
         local.reset();
         return local;
@@ -116,10 +116,10 @@ public final class ProtoTestTools {
     /** boolean type test cases */
     public static final List<Boolean> BOOLEAN_TESTS_LIST = List.of(true, false);
     /** bytes type test cases */
-    public static final List<Bytes> BYTES_TESTS_LIST = List.of(
-            Bytes.wrap(new byte[0]),
-            Bytes.wrap(new byte[]{0b001}),
-            Bytes.wrap(new byte[]{0b001, 0b010, 0b011, (byte)0xFF, Byte.MIN_VALUE, Byte.MAX_VALUE})
+    public static final List<RandomAccessData> BYTES_TESTS_LIST = List.of(
+            RandomAccessData.wrap(new byte[0]),
+            RandomAccessData.wrap(new byte[]{0b001}),
+            RandomAccessData.wrap(new byte[]{0b001, 0b010, 0b011, (byte)0xFF, Byte.MIN_VALUE, Byte.MAX_VALUE})
     );
 
     /** string type test cases, small as possible to make tests fast, there is a separate integration test with extra tests  */

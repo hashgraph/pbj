@@ -1,30 +1,35 @@
-package com.hedera.pbj.runtime.io;
+package com.hedera.pbj.runtime.io.buffer;
 
+import com.hedera.pbj.runtime.io.SequentialData;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
 /**
- * <p>A alternative to byte array that is immutable</p>
- *
- * <p>It is simple to implement in basic form with just the {@code getLength()} and {@code getByte(int offset)} method
- * needing implementing as all other get methods have public implementations. Though it will work, it should not be
- * used like that in performance critical cases as specialized get methods can be many times more efficient.</p>
+ * Represents data which may be accessed out of order in some random manner. Unliked {@link SequentialData},
+ * this interface is only backed by a buffer of some kind: an array, a {@link ByteBuffer}, a memory-mapped file, etc.
+ * Unlike {@link BufferedSequentialData}, it does not define any kind of "position" cursor, just a "length" representing
+ * the valid range of indexes and methods for reading data at any of those indexes.
  */
-@SuppressWarnings({"DuplicatedCode", "unused"})
-public abstract class Bytes {
+public interface RandomAccessData {
 
-    /** Single instance of an empty Bytes we can use anywhere we need an empty Bytes */
-    public static final Bytes EMPTY_BYTES = new Bytes() {
+    /** Single instance of an empty {@link RandomAccessData} we can use anywhere we need an empty instance */
+    RandomAccessData EMPTY = new RandomAccessData() {
         @Override
-        public int getLength() {
+        public long length() {
             return 0;
         }
 
         @Override
-        public byte getByte(int offset) {
+        public byte getByte(long offset) {
             throw new BufferUnderflowException();
+        }
+
+        @Override
+        public String toString() {
+            return "RandomAccessData[]";
         }
     };
 
@@ -32,125 +37,55 @@ public abstract class Bytes {
     // Static Methods
 
     /**
-     * Create a new Bytes over the contents of the given byte array. This does not copy data it just wraps so any
-     * changes to arrays contents will be effected here.
+     * Create a new {@link RandomAccessData} over the contents of the given byte array. This does not copy data it just
+     * wraps so any changes to arrays contents will be visible in the returned result.
      *
      * @param byteArray The byte array to wrap
-     * @return new Bytes with same contents as byte array
+     * @return new {@link RandomAccessData} with same contents as byte array
      */
-    public static Bytes wrap(byte[] byteArray) {
-        // For now use ByteOverByteBuffer, could have better array based implementation later
-        return new ByteOverByteBuffer(byteArray);
+    @NonNull
+    static RandomAccessData wrap(@NonNull final byte[] byteArray) {
+        return new Bytes(byteArray);
     }
 
     /**
-     * Create a new Bytes with the contents of a String UTF8 encoded.
+     * Create a new Bytes with the contents of a UTF8 encoded String.
      *
-     * @param string The string to UFT8 encode and create a bytes for
-     * @return new Bytes with string contents UTF8 encoded
+     * @param string The UFT8 encoded string to wrap
+     * @return new {@link RandomAccessData} with string contents UTF8 encoded
      */
-    public static Bytes wrap(String string) {
+    @NonNull
+    static RandomAccessData wrap(@NonNull final String string) {
         return wrap(string.getBytes(StandardCharsets.UTF_8));
-    }
-
-    // ================================================================================================================
-    // Object Methods
-
-    /**
-     * toString that outputs data in buffer in bytes.
-     *
-     * @return nice debug output of buffer contents
-     */
-    @Override
-    public String toString() {
-        // build string
-        StringBuilder sb = new StringBuilder();
-        sb.append("Bytes[");
-        for (int i = 0; i < getLength(); i++) {
-            int v = getByte(i) & 0xFF;
-            sb.append(v);
-            if (i < (getLength()-1)) sb.append(',');
-        }
-        sb.append(']');
-        return sb.toString();
-    }
-
-    /**
-     * Equals, important that it works for all subclasses of Bytes as well. As any 2 Bytes classes with same contents of
-     * bytes are equal
-     *
-     * @param o the other Bytes object to compare to for equality
-     * @return true if o instance of Bytes and contents match
-     */
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Bytes that)) return false;
-        final int length = getLength();
-        if (length != that.getLength()) {
-            return false;
-        }
-        if (length == 0) return true;
-        for (int i = 0; i < length; i++) {
-            if (getByte(i) != that.getByte(i)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Compute hash code for Bytes based on all bytes of content
-     *
-     * @return unique for any given content
-     */
-    @Override
-    public int hashCode() {
-        int h = 1;
-        for (int i = getLength() - 1; i >= 0; i--) {
-            h = 31 * h + getByte(i);
-        }
-        return h;
     }
 
     // ================================================================================================================
     // Bytes Methods
 
     /**
-     * Get the contents of this byte as a string, assuming bytes contained are UTF8 encoded string.
-     *
-     * @return Bytes data converted to string
-     */
-    public String asUtf8String() {
-        byte[] data = new byte[getLength()];
-        getBytes(0,data);
-        return new String(data, StandardCharsets.UTF_8);
-    }
-
-    /**
      * Get the number of bytes of data stored
      *
      * @return number of bytes of data stored
      */
-    public abstract int getLength();
+    long length();
 
     /**
-     * Gets the byte at given {@code offset}.
+     * Gets the byte at given {@code offset}. The offset must be non-negative and smaller than the limit.
      *
-     * @param offset The offset into data to get byte at
+     * @param offset The offset into data to get byte at. Must be non-negative and smaller than the limit.
      * @return The byte at given {@code offset}
-     * @throws BufferUnderflowException If the given {@code offset} is not smaller than its limit
+     * @throws IndexOutOfBoundsException If the given {@code offset} is not smaller than its limit, or is negative
      */
-    public abstract byte getByte(int offset);
+    byte getByte(final long offset);
 
     /**
-     * Gets the byte at given {@code offset} as unsigned.
+     * Gets the byte at given {@code offset} as unsigned. The offset must be non-negative and smaller than the limit.
      *
-     * @param offset The offset into data to get byte at
+     * @param offset The offset into data to get byte at. Must be non-negative and smaller than the limit.
      * @return The byte at given {@code offset}
-     * @throws BufferUnderflowException If the given {@code offset} is not smaller than its limit
+     * @throws IndexOutOfBoundsException If the given {@code offset} is not smaller than its limit, or is negative
      */
-    public int getUnsignedByte(int offset) {
+    default int getUnsignedByte(final long offset) {
         return Byte.toUnsignedInt(getByte(offset));
     }
 
@@ -159,16 +94,16 @@ public abstract class Bytes {
      *
      * @param offset The offset into data to get bytes at
      * @param dst The array into which bytes are to be written
-     * @param dstOffset The offset within the {@code dst} array of the first byte to be written; must be non-negative and
-     *                no larger than {@code dst.length}
+     * @param dstOffset The offset within the {@code dst} array of the first byte to be written; must be non-negative
+     *                and no larger than {@code dst.length}
      * @param length The maximum number of bytes to be written to the given {@code dst} array; must be non-negative and
      *                no larger than {@code dst.length - offset}
-     * @throws BufferUnderflowException If there are fewer than {@code length} bytes remaining to be get
-     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length} parameters do
-     * not hold
+     * @throws BufferUnderflowException If there are fewer than {@code length} bytes remaining to be read or any of
+     *                                  the preconditions on the {@code offset} and {@code length} parameters do
+     *                                  not hold
      */
-    public void getBytes(int offset, byte[] dst, int dstOffset, int length) {
-        if ((offset + length) > getLength()) {
+    default void getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int length) {
+        if ((offset + length) > length()) {
             throw new BufferUnderflowException();
         }
         if (dstOffset < 0 || (dstOffset + length) >= dst.length) {
@@ -180,29 +115,52 @@ public abstract class Bytes {
     }
 
     /**
-     * Get bytes starting at given {@code offset} into dst array up to the size of {@code }dst} array.
+     * Get bytes starting at given {@code offset} into dst array up to the size of {@code dst} array.
      *
      * @param offset The offset into data to get bytes at
      * @param dst The destination array
      * @throws BufferUnderflowException If there are fewer than {@code length} bytes remaining in this buffer
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative
      */
-    public void getBytes(int offset, byte[] dst) {
+    default void getBytes(final long offset, @NonNull final byte[] dst) {
         getBytes(offset, dst, 0, dst.length);
     }
 
     /**
-     * Get bytes starting at given {@code offset} into dst ByteBuffer up to remaining bytes in ByteBuffer.
+     * Get bytes starting at given {@code offset} into dst {@link ByteBuffer} up to remaining bytes in
+     * {@link ByteBuffer}.
      *
      * @param offset The offset into data to get bytes at
-     * @param dst The destination ByteBuffer
+     * @param dst The destination {@link ByteBuffer}
      * @throws BufferUnderflowException If there are fewer than {@code dst.remaining()} bytes remaining in this buffer
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative
      */
-    public void getBytes(int offset, ByteBuffer dst) {
-        if ((offset + dst.remaining()) > getLength()) {
+    default void getBytes(final long offset, @NonNull final ByteBuffer dst) {
+        if ((offset + dst.remaining()) > length()) {
             throw new BufferUnderflowException();
         }
+        long index = offset;
         while(dst.hasRemaining()) {
-            dst.put(getByte(offset++));
+            dst.put(getByte(index++));
+        }
+    }
+
+    /**
+     * Get bytes starting at given {@code offset} into dst {@link BufferedData} up to remaining bytes in
+     * {@link BufferedData}.
+     *
+     * @param offset The offset into data to get bytes at
+     * @param dst The destination {@link BufferedData}
+     * @throws BufferUnderflowException If there are fewer than {@code dst.remaining()} bytes remaining in this buffer
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative
+     */
+    default void getBytes(final long offset, @NonNull final BufferedData dst) {
+        if ((offset + dst.remaining()) > length()) {
+            throw new BufferUnderflowException();
+        }
+        long index = offset;
+        while(dst.hasRemaining()) {
+            dst.writeByte(getByte(index++));
         }
     }
 
@@ -213,15 +171,16 @@ public abstract class Bytes {
      * @param offset The offset into data to get int at
      * @return The int value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative
      */
-    public int getInt(int offset) {
-        if ((getLength() - offset) < Integer.BYTES) {
+    default int getInt(final long offset) {
+        if ((length() - offset) < Integer.BYTES) {
             throw new BufferUnderflowException();
         }
-        final byte b1 = getByte(offset++);
-        final byte b2 = getByte(offset++);
-        final byte b3 = getByte(offset++);
-        final byte b4 = getByte(offset);
+        final byte b1 = getByte(offset);
+        final byte b2 = getByte(offset + 1);
+        final byte b3 = getByte(offset + 2);
+        final byte b4 = getByte(offset + 3);
         return ((b1 & 0xFF) << 24) | ((b2 & 0xFF) << 16) | ((b3 & 0xFF) << 8) | ((b4 & 0xFF));
     }
 
@@ -233,18 +192,19 @@ public abstract class Bytes {
      * @param byteOrder the byte order, aka endian to use
      * @return The int value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative
      */
-    public int getInt(int offset, ByteOrder byteOrder) {
-        if ((getLength() - offset) < Integer.BYTES) {
+    default int getInt(final long offset, @NonNull final ByteOrder byteOrder) {
+        if ((length() - offset) < Integer.BYTES) {
             throw new BufferUnderflowException();
         }
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             return getInt(offset);
         } else {
-            final byte b4 = getByte(offset++);
-            final byte b3 = getByte(offset++);
-            final byte b2 = getByte(offset++);
-            final byte b1 = getByte(offset);
+            final byte b4 = getByte(offset);
+            final byte b3 = getByte(offset + 1);
+            final byte b2 = getByte(offset + 2);
+            final byte b1 = getByte(offset + 3);
             return ((b1 & 0xFF) << 24) | ((b2 & 0xFF) << 16) | ((b3 & 0xFF) << 8) | ((b4 & 0xFF));
         }
     }
@@ -256,15 +216,16 @@ public abstract class Bytes {
      * @param offset The offset into data to get int at
      * @return The int value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative
      */
-    public long getUnsignedInt(int offset) {
-        if ((getLength() - offset) < Integer.BYTES) {
+    default long getUnsignedInt(final long offset) {
+        if ((length() - offset) < Integer.BYTES) {
             throw new BufferUnderflowException();
         }
-        final byte b1 = getByte(offset++);
-        final byte b2 = getByte(offset++);
-        final byte b3 = getByte(offset++);
-        final byte b4 = getByte(offset);
+        final byte b1 = getByte(offset);
+        final byte b2 = getByte(offset + 1);
+        final byte b3 = getByte(offset + 2);
+        final byte b4 = getByte(offset + 3);
         return ((b1 & 0xFFL) << 24) | ((b2 & 0xFFL) << 16) | ((b3 & 0xFFL) << 8) | ((b4 & 0xFFL));
     }
 
@@ -276,18 +237,19 @@ public abstract class Bytes {
      * @param byteOrder the byte order, aka endian to use
      * @return The int value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative
      */
-    public long getUnsignedInt(int offset, ByteOrder byteOrder) {
-        if ((getLength() - offset) < Integer.BYTES) {
+    default long getUnsignedInt(final long offset, @NonNull final ByteOrder byteOrder) {
+        if ((length() - offset) < Integer.BYTES) {
             throw new BufferUnderflowException();
         }
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             return getInt(offset);
         } else {
-            final byte b4 = getByte(offset++);
-            final byte b3 = getByte(offset++);
-            final byte b2 = getByte(offset++);
-            final byte b1 = getByte(offset);
+            final byte b4 = getByte(offset);
+            final byte b3 = getByte(offset + 1);
+            final byte b2 = getByte(offset + 2);
+            final byte b1 = getByte(offset + 3);
             return ((b1 & 0xFFL) << 24) | ((b2 & 0xFFL) << 16) | ((b3 & 0xFFL) << 8) | ((b4 & 0xFFL));
         }
     }
@@ -299,19 +261,20 @@ public abstract class Bytes {
      * @param offset The offset into data to get long at
      * @return The long value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative
      */
-    public long getLong(int offset) {
-        if ((getLength() - offset) < Long.BYTES) {
+    default long getLong(final long offset) {
+        if ((length() - offset) < Long.BYTES) {
             throw new BufferUnderflowException();
         }
-        final byte b1 = getByte(offset++);
-        final byte b2 = getByte(offset++);
-        final byte b3 = getByte(offset++);
-        final byte b4 = getByte(offset++);
-        final byte b5 = getByte(offset++);
-        final byte b6 = getByte(offset++);
-        final byte b7 = getByte(offset++);
-        final byte b8 = getByte(offset);
+        final byte b1 = getByte(offset);
+        final byte b2 = getByte(offset + 1);
+        final byte b3 = getByte(offset + 2);
+        final byte b4 = getByte(offset + 3);
+        final byte b5 = getByte(offset + 4);
+        final byte b6 = getByte(offset + 5);
+        final byte b7 = getByte(offset + 6);
+        final byte b8 = getByte(offset + 7);
         return (((long)b1 << 56) +
                 ((long)(b2 & 255) << 48) +
                 ((long)(b3 & 255) << 40) +
@@ -331,21 +294,21 @@ public abstract class Bytes {
      * @return The long value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
      */
-    public long getLong(int offset, ByteOrder byteOrder) {
-        if ((getLength() - offset) < Long.BYTES) {
+    default long getLong(final long offset, @NonNull final ByteOrder byteOrder) {
+        if ((length() - offset) < Long.BYTES) {
             throw new BufferUnderflowException();
         }
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             return getLong(offset);
         } else {
-            final byte b8 = getByte(offset++);
-            final byte b7 = getByte(offset++);
-            final byte b6 = getByte(offset++);
-            final byte b5 = getByte(offset++);
-            final byte b4 = getByte(offset++);
-            final byte b3 = getByte(offset++);
-            final byte b2 = getByte(offset++);
-            final byte b1 = getByte(offset);
+            final byte b8 = getByte(offset);
+            final byte b7 = getByte(offset + 1);
+            final byte b6 = getByte(offset + 2);
+            final byte b5 = getByte(offset + 3);
+            final byte b4 = getByte(offset + 4);
+            final byte b3 = getByte(offset + 5);
+            final byte b2 = getByte(offset + 6);
+            final byte b1 = getByte(offset + 7);
             return (((long) b1 << 56) +
                     ((long) (b2 & 255) << 48) +
                     ((long) (b3 & 255) << 40) +
@@ -365,7 +328,7 @@ public abstract class Bytes {
      * @return The float value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
      */
-    public float getFloat(int offset) {
+    default float getFloat(final long offset) {
         return Float.intBitsToFloat(getInt(offset));
     }
 
@@ -378,7 +341,7 @@ public abstract class Bytes {
      * @return The float value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
      */
-    public float getFloat(int offset, ByteOrder byteOrder) {
+    default float getFloat(final long offset, @NonNull final ByteOrder byteOrder) {
         return Float.intBitsToFloat(getInt(offset, byteOrder));
     }
 
@@ -390,7 +353,7 @@ public abstract class Bytes {
      * @return The double value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
      */
-    public double getDouble(int offset) {
+    default double getDouble(final long offset) {
         return Double.longBitsToDouble(getLong(offset));
     }
 
@@ -403,7 +366,7 @@ public abstract class Bytes {
      * @return The double value at the given {@code offset}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
      */
-    public double getDouble(int offset, ByteOrder byteOrder) {
+    default double getDouble(final long offset, @NonNull final ByteOrder byteOrder) {
         return Double.longBitsToDouble(getLong(offset, byteOrder));
     }
 
@@ -414,7 +377,7 @@ public abstract class Bytes {
      * @return integer get in var int format
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
      */
-    public int getVarInt(int offset, boolean zigZag) {
+    default int getVarInt(final long offset, final boolean zigZag) {
         return (int)getVarLong(offset, zigZag);
     }
 
@@ -425,10 +388,11 @@ public abstract class Bytes {
      * @return long get in var int format
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
      */
-    public long getVarLong(int offset, boolean zigZag) {
+    default long getVarLong(final long offset, final boolean zigZag) {
         long result = 0;
+        long index = offset;
         for (int shift = 0; shift < 64; shift += 7) {
-            final byte b = getByte(offset++);
+            final byte b = getByte(index++);
             result |= (long) (b & 0x7F) << shift;
             if ((b & 0x80) == 0) {
                 return zigZag ? ((result >>> 1) ^ -(result & 1)) : result;
@@ -438,20 +402,57 @@ public abstract class Bytes {
     }
 
     /**
-     * Check if the beginning of our bytes data matches the given prefix bytes.
+     * Get the contents of this entire buffer as a string, assuming bytes contained are UTF8 encoded string.
+     *
+     * @return data converted to string
+     */
+    @NonNull
+    default String asUtf8String() {
+        return asUtf8String(0, length());
+    }
+
+    /**
+     * Get the contents of a subset of this buffer as a UTF-8 encoded string.
+     *
+     * @param offset the offset into the buffer to start reading bytes from
+     * @param len the number of bytes to read
+     * @return data converted to string
+     */
+    @NonNull
+    default String asUtf8String(final long offset, final long len) {
+        final var data = new byte[Math.toIntExact(len)];
+        getBytes(offset, data);
+        return new String(data, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Check if the beginning of this buffer matches the given prefix bytes.
      *
      * @param prefix the prefix bytes to compare with
      * @return true if prefix bytes match the beginning of our bytes
      */
-    public boolean matchesPrefix(byte[] prefix) {
-        if (prefix == null || getLength() < prefix.length) {
+    default boolean matchesPrefix(@NonNull final byte[] prefix) {
+        return contains(0, prefix);
+    }
+
+    /**
+     * Check if the bytes of this buffer beginning at the given {@code offset} contain the given bytes.
+     *
+     * @param offset the offset into this buffer to start comparing bytes at
+     * @param bytes the bytes to compare with
+     * @return true if bytes match the beginning of our bytes
+     */
+    default boolean contains(final long offset, @NonNull final byte[] bytes) {
+        if (length() - offset < bytes.length) {
             return false;
         }
-        for (int i = 0; i < prefix.length; i++) {
-            if (prefix[i] != getByte(i)) {
+
+        for (long i = offset; i < bytes.length; i++) {
+            if (bytes[Math.toIntExact(i)] != getByte(i)) {
                 return false;
             }
         }
+
         return true;
     }
 
@@ -461,15 +462,28 @@ public abstract class Bytes {
      * @param prefix the prefix bytes to compare with
      * @return true if prefix bytes match the beginning of our bytes
      */
-    public boolean matchesPrefix(Bytes prefix) {
-        if (prefix == null || getLength() < prefix.getLength()) {
+    default boolean matchesPrefix(@NonNull final RandomAccessData prefix) {
+        return contains(0, prefix);
+    }
+
+    /**
+     * Check if the bytes of this buffer beginning at the given {@code offset} contain the given data.
+     *
+     * @param offset the offset into this buffer to start comparing bytes at
+     * @param data the bytes to compare with
+     * @return true if prefix bytes match the beginning of our bytes
+     */
+    default boolean contains(final long offset, @NonNull final RandomAccessData data) {
+        if (length() - offset < data.length()) {
             return false;
         }
-        for (int i = 0; i < prefix.getLength(); i++) {
-            if (prefix.getByte(i) != getByte(i)) {
+
+        for (long i = offset; i < data.length(); i++) {
+            if (data.getByte(i) != getByte(i)) {
                 return false;
             }
         }
+
         return true;
     }
 }

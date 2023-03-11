@@ -1,6 +1,6 @@
 package com.hedera.pbj.integration;
 
-import com.hedera.pbj.runtime.io.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hedera.pbj.test.proto.pbj.InnerEverything;
 import com.hedera.pbj.test.proto.pbj.Suit;
@@ -33,7 +33,7 @@ public class EverythingTestData {
             .enumSuit(Suit.SPADES)
             .subObject(new TimestampTest.Builder().seconds(5155135L).nanos(44513).build())
             .text("Hello Everything!")
-            .bytesField(Bytes.wrap(new byte[]{12,29,19,120,127,0,-127}))
+            .bytesField(RandomAccessData.wrap(new byte[]{12,29,19,120,127,0,-127}))
             .int32NumberList(IntStream.range(0,10).boxed().toList())
             .sint32NumberList(IntStream.range(-10,10).boxed().toList())
             .uint32NumberList(IntStream.range(0,100).boxed().toList())
@@ -60,9 +60,9 @@ public class EverythingTestData {
                     "A quick brown fox jumps over the lazy dog"
             ))
             .bytesExampleList(List.of(
-                    Bytes.wrap(new byte[]{12,29,19,120,127,0,-127}),
-                    Bytes.wrap(new byte[]{13,15,65,98,-65}),
-                    Bytes.wrap(new byte[]{127,0,-127})
+                    RandomAccessData.wrap(new byte[]{12,29,19,120,127,0,-127}),
+                    RandomAccessData.wrap(new byte[]{13,15,65,98,-65}),
+                    RandomAccessData.wrap(new byte[]{127,0,-127})
             ))
             .int32Boxed(1234)
             .uint32Boxed(Integer.MAX_VALUE)
@@ -91,7 +91,7 @@ public class EverythingTestData {
                     .enumSuit(Suit.SPADES)
                     .subObject(new TimestampTest.Builder().seconds(5155135L).nanos(44513).build())
                     .text("Hello Everything!")
-                    .bytesField(Bytes.wrap(new byte[]{12,29,19,120,127,0,-127}))
+                    .bytesField(RandomAccessData.wrap(new byte[]{12,29,19,120,127,0,-127}))
                     .int32NumberList(IntStream.range(0,10).boxed().toList())
                     .sint32NumberList(IntStream.range(-10,10).boxed().toList())
                     .uint32NumberList(IntStream.range(0,100).boxed().toList())
@@ -118,9 +118,9 @@ public class EverythingTestData {
                             "A quick brown fox jumps over the lazy dog"
                     ))
                     .bytesExampleList(List.of(
-                            Bytes.wrap(new byte[]{12,29,19,120,127,0,-127}),
-                            Bytes.wrap(new byte[]{13,15,65,98,-65}),
-                            Bytes.wrap(new byte[]{127,0,-127})
+                            RandomAccessData.wrap(new byte[]{12,29,19,120,127,0,-127}),
+                            RandomAccessData.wrap(new byte[]{13,15,65,98,-65}),
+                            RandomAccessData.wrap(new byte[]{127,0,-127})
                     ))
                     .int32Boxed(1234)
                     .uint32Boxed(Integer.MAX_VALUE)

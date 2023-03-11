@@ -1,5 +1,7 @@
-package com.hedera.pbj.runtime.io;
+package com.hedera.pbj.runtime.io.stream;
 
+import com.hedera.pbj.runtime.io.DataAccessException;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,7 +15,7 @@ import java.util.Objects;
  * read while hasRemaining() == true</p>
  *
  */
-public class DataInputStream extends FilterInputStream implements DataInput {
+public class ReadableStreamingData extends FilterInputStream implements ReadableSequentialData {
 
     /** The current position, aka the number of bytes read */
     private long position = 0;
@@ -29,7 +31,7 @@ public class DataInputStream extends FilterInputStream implements DataInput {
      *
      * @param in the underlying input stream, can not be null
      */
-    public DataInputStream(InputStream in) {
+    public ReadableStreamingData(InputStream in) {
         super(Objects.requireNonNull(in));
         try {
             readNextByte();
@@ -49,7 +51,7 @@ public class DataInputStream extends FilterInputStream implements DataInput {
      * {@inheritDoc}
      */
     @Override
-    public long getPosition() {
+    public long position() {
         return position;
     }
 
@@ -57,7 +59,7 @@ public class DataInputStream extends FilterInputStream implements DataInput {
      * {@inheritDoc}
      */
     @Override
-    public long getLimit() {
+    public long limit() {
         return limit;
     }
 
@@ -65,7 +67,7 @@ public class DataInputStream extends FilterInputStream implements DataInput {
      * {@inheritDoc}
      */
     @Override
-    public void setLimit(long limit) {
+    public void limit(long limit) {
         // don't allow setting of limit beyond position when we are at end of stream
         this.limit = nextByte == -1 ? position : limit;
     }
@@ -82,10 +84,26 @@ public class DataInputStream extends FilterInputStream implements DataInput {
      * {@inheritDoc}
      */
     @Override
-    public byte readByte() throws IOException {
-        byte readByte = nextByte;
-        readNextByte();
-        position ++;
-        return readByte;
+    public byte readByte() {
+        try {
+            byte readByte = nextByte;
+            readNextByte();
+            position++;
+            return readByte;
+        } catch (IOException e) {
+            throw new DataAccessException(e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long skip(long n) {
+        try {
+            return super.skip(n);
+        } catch (IOException e) {
+            throw new DataAccessException(e);
+        }
     }
 }

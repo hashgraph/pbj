@@ -3,7 +3,7 @@ package com.hedera.pbj.intergration.jmh;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Timestamp;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
-import com.hedera.pbj.runtime.io.DataBuffer;
+import com.hedera.pbj.runtime.io.buffer.WritableBufferedData;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -24,13 +24,13 @@ public class TimestampBench {
 	}
 	private final byte[] protobuf = Timestamp.newBuilder().setNanos(1234).setSeconds(5678L).build().toByteArray();
 	private final ByteBuffer protobufByteBuffer = ByteBuffer.wrap(protobuf);
-	private final DataBuffer protobufDataBuffer = DataBuffer.wrap(protobuf);
+	private final WritableBufferedData protobufDataBuffer = WritableBufferedData.wrap(protobuf);
 	private final ByteBuffer protobufByteBufferDirect = ByteBuffer
 			.allocateDirect(protobuf.length)
 			.put(protobuf);
 	private final DataBuffer protobufDataBufferDirect = DataBuffer.wrap(protobufByteBufferDirect);
 	private final NonSynchronizedByteArrayOutputStream bout = new NonSynchronizedByteArrayOutputStream();
-	private final DataBuffer outDataBuffer = DataBuffer.allocate(protobuf.length, false);
+	private final WritableBufferedData outDataBuffer = WritableBufferedData.allocate(protobuf.length, false);
 
 	@Benchmark
 	public void parsePbjByteBuffer(Blackhole blackhole) throws IOException {

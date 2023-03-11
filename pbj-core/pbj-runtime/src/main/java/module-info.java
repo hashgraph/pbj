@@ -6,4 +6,6 @@ module com.hedera.pbj.runtime {
 	exports com.hedera.pbj.runtime;
     exports com.hedera.pbj.runtime.test;
     exports com.hedera.pbj.runtime.io;
+    exports com.hedera.pbj.runtime.io.stream;
+    exports com.hedera.pbj.runtime.io.buffer;
 }

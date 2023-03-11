@@ -1,7 +1,7 @@
 package com.hedera.pbj.intergration.test;
 
 import com.google.protobuf.CodedOutputStream;
-import com.hedera.pbj.runtime.io.DataBuffer;
+import com.hedera.pbj.runtime.io.buffer.WritableBufferedData;
 import com.hedera.pbj.runtime.test.NoToStringWrapper;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,18 +24,18 @@ public final class TimestampTestTest {
 	public void testTimestampTestAgainstProtoC(final NoToStringWrapper<TimestampTest> modelObjWrapper) throws Exception {
 		final TimestampTest modelObj = modelObjWrapper.getValue();
 		// get reusable thread buffers
-		final DataBuffer dataBuffer = getThreadLocalDataBuffer();
-		final DataBuffer dataBuffer2 = getThreadLocalDataBuffer2();
+		final WritableBufferedData dataBuffer = getThreadLocalDataBuffer();
+		final WritableBufferedData dataBuffer2 = getThreadLocalDataBuffer2();
 		final ByteBuffer byteBuffer = getThreadLocalByteBuffer();
 
 		// model to bytes with PBJ
 		TimestampTest.PROTOBUF.write(modelObj,dataBuffer);
 		// clamp limit to bytes written
-		dataBuffer.setLimit(dataBuffer.getPosition());
+		dataBuffer.limit(dataBuffer.position());
 
 		// copy bytes to ByteBuffer
 		dataBuffer.resetPosition();
-		dataBuffer.readBytes(byteBuffer, 0, (int)dataBuffer.getRemaining());
+		dataBuffer.readBytes(byteBuffer, 0, (int)dataBuffer.remaining());
 		byteBuffer.flip();
 
 		// read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown

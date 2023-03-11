@@ -16,6 +16,7 @@ import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
 /**
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
+ *
  * <p><pre>
  * | Cases	                    | PBJ Generates              | ProtoC Generates                       |
  * |----------------------------|----------------------------|----------------------------------------|
@@ -23,6 +24,15 @@ import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
  * | Value / Boxed Types        | Nullable, Java Boxed       | Not Null, Default Value, Google Boxed  |
  * | One-Of Convenience Methods | Nullable                   | Not Null, Default Value                |
  * | Objects / Messages         | Nullable                   | Not Null, Default Value                |
+ * </pre>
+ *
+ * <p><pre>
+ * | Cases	                    | hasFoo?               | foo()
+ * |----------------------------|-----------------------|--------------------------------------------------------------|
+ * | Primitive Types            | N/A                   | The value if specified, or the default for the primitive type
+ * | Value / Boxed Types        | Optional.isPresent()  | An Optional
+ * | One-Of Convenience Methods | Not Null, Optional         | Not Null, Optional             | Not Null, Optional     |
+ * | Objects / Messages         | Nullable                   | Not Null, Default instance     | Nullable               |
  * </pre>
  */
 @SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})

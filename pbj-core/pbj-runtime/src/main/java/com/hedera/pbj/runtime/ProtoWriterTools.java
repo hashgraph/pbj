@@ -1,9 +1,9 @@
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.Bytes;
-import com.hedera.pbj.runtime.io.DataOutput;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -33,7 +33,7 @@ public final class ProtoWriterTools {
      * @param wireType The field wire type to include in tag
      * @throws IOException if an I/O error occurs
      */
-    private static void writeTag(final DataOutput out, final FieldDefinition field, final int wireType) throws IOException {
+    private static void writeTag(final WritableSequentialData out, final FieldDefinition field, final int wireType) throws IOException {
         out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType, false);
     }
 
@@ -54,7 +54,7 @@ public final class ProtoWriterTools {
      * @param value the int value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeInteger(DataOutput out, FieldDefinition field, int value) throws IOException {
+    public static void writeInteger(WritableSequentialData out, FieldDefinition field, int value) throws IOException {
         assert switch(field.type()) {
             case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
             default -> false;
@@ -95,7 +95,7 @@ public final class ProtoWriterTools {
      * @param value the long value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeLong(DataOutput out, FieldDefinition field, long value) throws IOException {
+    public static void writeLong(WritableSequentialData out, FieldDefinition field, long value) throws IOException {
         assert switch(field.type()) {
             case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
             default -> false;
@@ -131,7 +131,7 @@ public final class ProtoWriterTools {
      * @param value the float value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeFloat(DataOutput out, FieldDefinition field, float value) throws IOException {
+    public static void writeFloat(WritableSequentialData out, FieldDefinition field, float value) throws IOException {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
         assert !field.repeated() : "Use writeFloatList with repeated types";
         // When not a oneOf don't write default value
@@ -150,7 +150,7 @@ public final class ProtoWriterTools {
      * @param value the double value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeDouble(DataOutput out, FieldDefinition field, double value) throws IOException {
+    public static void writeDouble(WritableSequentialData out, FieldDefinition field, double value) throws IOException {
         assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
         assert !field.repeated() : "Use writeDoubleList with repeated types";
         // When not a oneOf don't write default value
@@ -169,7 +169,7 @@ public final class ProtoWriterTools {
      * @param value the boolean value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeBoolean(DataOutput out, FieldDefinition field, boolean value) throws IOException {
+    public static void writeBoolean(WritableSequentialData out, FieldDefinition field, boolean value) throws IOException {
         assert field.type() == FieldType.BOOL : "Not a boolean type " + field;
         assert !field.repeated() : "Use writeBooleanList with repeated types";
         // In the case of oneOf we write the value even if it is default value of false
@@ -187,7 +187,7 @@ public final class ProtoWriterTools {
      * @param enumValue the enum value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeEnum(DataOutput out, FieldDefinition field, EnumWithProtoOrdinal enumValue) throws IOException {
+    public static void writeEnum(WritableSequentialData out, FieldDefinition field, EnumWithProtoOrdinal enumValue) throws IOException {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert !field.repeated() : "Use writeEnumList with repeated types";
         // When not a oneOf don't write default value
@@ -206,7 +206,7 @@ public final class ProtoWriterTools {
      * @param value the string value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeString(DataOutput out, FieldDefinition field, String value) throws IOException {
+    public static void writeString(WritableSequentialData out, FieldDefinition field, String value) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert !field.repeated() : "Use writeStringList with repeated types";
         writeStringNoChecks(out, field, value);
@@ -220,7 +220,7 @@ public final class ProtoWriterTools {
      * @param value the string value to write
      * @throws IOException If a I/O error occurs
      */
-    private static void writeStringNoChecks(DataOutput out, FieldDefinition field, String value) throws IOException {
+    private static void writeStringNoChecks(WritableSequentialData out, FieldDefinition field, String value) throws IOException {
         // When not a oneOf don't write default value
         if (!field.oneOf() && (value == null || value.isBlank())) {
             return;
@@ -238,7 +238,7 @@ public final class ProtoWriterTools {
      * @param value the bytes value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeBytes(DataOutput out, FieldDefinition field, Bytes value) throws IOException {
+    public static void writeBytes(WritableSequentialData out, FieldDefinition field, RandomAccessData value) throws IOException {
         assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert !field.repeated() : "Use writeBytesList with repeated types";
         writeBytesNoChecks(out, field, value, true);
@@ -253,18 +253,18 @@ public final class ProtoWriterTools {
      * @param skipZeroLength this is true for normal single bytes and false for repeated lists
      * @throws IOException If a I/O error occurs
      */
-    private static void writeBytesNoChecks(DataOutput out, FieldDefinition field, Bytes value, boolean skipZeroLength) throws IOException {
+    private static void writeBytesNoChecks(WritableSequentialData out, FieldDefinition field, RandomAccessData value, boolean skipZeroLength) throws IOException {
         // When not a oneOf don't write default value
-        if (!field.oneOf() && (skipZeroLength && (value.getLength() == 0))) {
+        if (!field.oneOf() && (skipZeroLength && (value.length() == 0))) {
             return;
         }
         writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
-        out.writeVarInt(value.getLength(), false);
-        final long posBefore = out.getPosition();
+        out.writeVarInt(Math.toIntExact(value.length()), false);
+        final long posBefore = out.position();
         out.writeBytes(value);
-        final long bytesWritten = out.getPosition() - posBefore;
-        if (bytesWritten != value.getLength()) {
-            throw new IOException("Wrote less bytes [" + bytesWritten + "] than expected [" + value.getLength() + "]");
+        final long bytesWritten = out.position() - posBefore;
+        if (bytesWritten != value.length()) {
+            throw new IOException("Wrote less bytes [" + bytesWritten + "] than expected [" + value.length() + "]");
         }
     }
 
@@ -279,7 +279,7 @@ public final class ProtoWriterTools {
      * @throws IOException If a I/O error occurs
      * @param <T> type of message
      */
-    public static <T> void writeMessage(DataOutput out, FieldDefinition field, T message, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
+    public static <T> void writeMessage(WritableSequentialData out, FieldDefinition field, T message, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert !field.repeated() : "Use writeMessageList with repeated types";
         writeMessageNoChecks(out, field, message, writer, sizeOf);
@@ -296,7 +296,7 @@ public final class ProtoWriterTools {
      * @throws IOException If a I/O error occurs
      * @param <T> type of message
      */
-    private static <T> void writeMessageNoChecks(DataOutput out, FieldDefinition field, T message, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
+    private static <T> void writeMessageNoChecks(WritableSequentialData out, FieldDefinition field, T message, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
         // When not a oneOf don't write default value
         if (field.oneOf() && message == null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
@@ -322,7 +322,7 @@ public final class ProtoWriterTools {
      * @param value the optional integer value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalInteger(DataOutput out, FieldDefinition field, @Nullable Integer value) throws IOException {
+    public static void writeOptionalInteger(WritableSequentialData out, FieldDefinition field, @Nullable Integer value) throws IOException {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -339,7 +339,7 @@ public final class ProtoWriterTools {
      * @param value the optional long value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalLong(DataOutput out, FieldDefinition field, @Nullable Long value) throws IOException {
+    public static void writeOptionalLong(WritableSequentialData out, FieldDefinition field, @Nullable Long value) throws IOException {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -356,7 +356,7 @@ public final class ProtoWriterTools {
      * @param value the optional float value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalFloat(DataOutput out, FieldDefinition field, @Nullable Float value) throws IOException {
+    public static void writeOptionalFloat(WritableSequentialData out, FieldDefinition field, @Nullable Float value) throws IOException {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -373,7 +373,7 @@ public final class ProtoWriterTools {
      * @param value the optional double value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalDouble(DataOutput out, FieldDefinition field, @Nullable Double value) throws IOException {
+    public static void writeOptionalDouble(WritableSequentialData out, FieldDefinition field, @Nullable Double value) throws IOException {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -390,7 +390,7 @@ public final class ProtoWriterTools {
      * @param value the optional boolean value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalBoolean(DataOutput out, FieldDefinition field, @Nullable Boolean value) throws IOException {
+    public static void writeOptionalBoolean(WritableSequentialData out, FieldDefinition field, @Nullable Boolean value) throws IOException {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -407,7 +407,7 @@ public final class ProtoWriterTools {
      * @param value the optional string value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalString(DataOutput out, FieldDefinition field, @Nullable String value) throws IOException {
+    public static void writeOptionalString(WritableSequentialData out, FieldDefinition field, @Nullable String value) throws IOException {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -424,7 +424,7 @@ public final class ProtoWriterTools {
      * @param value the optional bytes value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalBytes(DataOutput out, FieldDefinition field, @Nullable Bytes value) throws IOException {
+    public static void writeOptionalBytes(WritableSequentialData out, FieldDefinition field, @Nullable Bytes value) throws IOException {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -448,7 +448,7 @@ public final class ProtoWriterTools {
      * @param list the list of integers value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeIntegerList(DataOutput out, FieldDefinition field, List<Integer> list) throws IOException {
+    public static void writeIntegerList(WritableSequentialData out, FieldDefinition field, List<Integer> list) throws IOException {
         assert switch(field.type()) {
             case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
             default -> false;
@@ -515,7 +515,7 @@ public final class ProtoWriterTools {
      * @param list the list of longs value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeLongList(DataOutput out, FieldDefinition field, List<Long> list) throws IOException {
+    public static void writeLongList(WritableSequentialData out, FieldDefinition field, List<Long> list) throws IOException {
         assert switch(field.type()) {
             case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
             default -> false;
@@ -571,7 +571,7 @@ public final class ProtoWriterTools {
      * @param list the list of floats value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeFloatList(DataOutput out, FieldDefinition field, List<Float> list) throws IOException {
+    public static void writeFloatList(WritableSequentialData out, FieldDefinition field, List<Float> list) throws IOException {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
         assert field.repeated() : "Use writeFloat with non-repeated types";
         // When not a oneOf don't write default value
@@ -594,7 +594,7 @@ public final class ProtoWriterTools {
      * @param list the list of doubles value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeDoubleList(DataOutput out, FieldDefinition field, List<Double> list) throws IOException {
+    public static void writeDoubleList(WritableSequentialData out, FieldDefinition field, List<Double> list) throws IOException {
         assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
         assert field.repeated() : "Use writeDouble with non-repeated types";
         // When not a oneOf don't write default value
@@ -617,7 +617,7 @@ public final class ProtoWriterTools {
      * @param list the list of booleans value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeBooleanList(DataOutput out, FieldDefinition field, List<Boolean> list) throws IOException {
+    public static void writeBooleanList(WritableSequentialData out, FieldDefinition field, List<Boolean> list) throws IOException {
         assert field.type() == FieldType.BOOL : "Not a boolean type " + field;
         assert field.repeated() : "Use writeBoolean with non-repeated types";
         // When not a oneOf don't write default value
@@ -640,7 +640,7 @@ public final class ProtoWriterTools {
      * @param list the list of enums value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeEnumList(DataOutput out, FieldDefinition field, List<? extends EnumWithProtoOrdinal> list) throws IOException {
+    public static void writeEnumList(WritableSequentialData out, FieldDefinition field, List<? extends EnumWithProtoOrdinal> list) throws IOException {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert field.repeated() : "Use writeEnum with non-repeated types";
         // When not a oneOf don't write default value
@@ -666,7 +666,7 @@ public final class ProtoWriterTools {
      * @param list the list of strings value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeStringList(DataOutput out, FieldDefinition field, List<String> list) throws IOException {
+    public static void writeStringList(WritableSequentialData out, FieldDefinition field, List<String> list) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "Use writeString with non-repeated types";
         // When not a oneOf don't write default value
@@ -691,7 +691,7 @@ public final class ProtoWriterTools {
      * @throws IOException If a I/O error occurs
      * @param <T> type of message
      */
-    public static <T> void writeMessageList(DataOutput out, FieldDefinition field, List<T> list, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
+    public static <T> void writeMessageList(WritableSequentialData out, FieldDefinition field, List<T> list, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert field.repeated() : "Use writeMessage with non-repeated types";
         // When not a oneOf don't write default value
@@ -711,14 +711,14 @@ public final class ProtoWriterTools {
      * @param list the list of bytes objects value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeBytesList(DataOutput out, FieldDefinition field, List<Bytes> list) throws IOException {
+    public static void writeBytesList(WritableSequentialData out, FieldDefinition field, List<RandomAccessData> list) throws IOException {
         assert field.type() == FieldType.BYTES : "Not a message type " + field;
         assert field.repeated() : "Use writeBytes with non-repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) {
             return;
         }
-        for (final Bytes value : list) {
+        for (final RandomAccessData value : list) {
             writeBytesNoChecks(out, field, value, false);
         }
     }
@@ -900,7 +900,7 @@ public final class ProtoWriterTools {
      * @param value optional bytes value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfOptionalBytes(FieldDefinition field, @Nullable Bytes value) {
+    public static int sizeOfOptionalBytes(FieldDefinition field, @Nullable RandomAccessData value) {
         if (value != null) {
             final int size = sizeOfBytes(field.type().optionalFieldDefinition, value);
             return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
@@ -1035,12 +1035,12 @@ public final class ProtoWriterTools {
      * @param value bytes value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfBytes(FieldDefinition field, Bytes value) {
+    public static int sizeOfBytes(FieldDefinition field, RandomAccessData value) {
         // When not a oneOf don't write default value
-        if (!field.oneOf() && (value.getLength() == 0)) {
+        if (!field.oneOf() && (value.length() == 0)) {
             return 0;
         }
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(value.getLength()) + value.getLength();
+        return Math.toIntExact(sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(value.length())) + value.length());
     }
 
     /**
@@ -1246,14 +1246,14 @@ public final class ProtoWriterTools {
      * @param list bytes list value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfBytesList(FieldDefinition field, List<Bytes> list) {
+    public static int sizeOfBytesList(FieldDefinition field, List<RandomAccessData> list) {
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) {
             return 0;
         }
         int size = 0;
-        for (final Bytes value : list) {
-            size += sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(value.getLength()) + value.getLength();
+        for (final RandomAccessData value : list) {
+            size += Math.toIntExact(sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(value.length())) + value.length());
         }
         return size;
     }

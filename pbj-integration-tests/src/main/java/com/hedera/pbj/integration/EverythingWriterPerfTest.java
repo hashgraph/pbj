@@ -1,6 +1,6 @@
 package com.hedera.pbj.integration;
 
-import com.hedera.pbj.runtime.io.DataBuffer;
+import com.hedera.pbj.runtime.io.buffer.WritableBufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 
@@ -8,22 +8,22 @@ import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 public class EverythingWriterPerfTest {
 
     public static void main(String[] args) throws Exception {
-        final DataBuffer outDataBuffer = DataBuffer.allocate(1024*1024, true);
+        final WritableBufferedData outDataBuffer = WritableBufferedData.allocate(1024*1024, true);
 
         for (int i = 0; i < 10_000_000; i++) {
             outDataBuffer.reset();
             Everything.PROTOBUF.write(EverythingTestData.EVERYTHING, outDataBuffer);
-            if (outDataBuffer.getPosition() <= 0) {
+            if (outDataBuffer.position() <= 0) {
                 System.out.println("outDataBuffer = " + outDataBuffer);
             }
         }
     }
     public static void main2(String[] args) throws Exception {
         // write to temp data buffer and then read into byte array
-        DataBuffer tempDataBuffer = DataBuffer.allocate(5 * 1024 * 1024, false);
+        WritableBufferedData tempDataBuffer = WritableBufferedData.allocate(5 * 1024 * 1024, false);
         Everything.PROTOBUF.write(EverythingTestData.EVERYTHING, tempDataBuffer);
         tempDataBuffer.flip();
-        final byte[] protobuf = new byte[(int) tempDataBuffer.getRemaining()];
+        final byte[] protobuf = new byte[(int) tempDataBuffer.remaining()];
         tempDataBuffer.readBytes(protobuf);
         // write out with protoc
         final GetAccountDetailsResponse.AccountDetails accountDetailsProtoC = GetAccountDetailsResponse.AccountDetails.parseFrom(protobuf);

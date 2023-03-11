@@ -1,9 +1,9 @@
 package com.hedera.pbj.integration;
 
 import com.google.protobuf.CodedOutputStream;
-import com.hedera.pbj.runtime.io.DataBuffer;
-import com.hedera.pbj.runtime.io.DataInputStream;
-import com.hedera.pbj.runtime.io.DataOutputStream;
+import com.hedera.pbj.runtime.io.buffer.WritableBufferedData;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
 
 import java.nio.ByteBuffer;
@@ -13,7 +13,7 @@ import java.util.List;
 public class Test {
     public static void main(String[] args) throws Exception {
         NonSynchronizedByteArrayOutputStream out = new NonSynchronizedByteArrayOutputStream();
-        DataOutputStream dout = new DataOutputStream(out);
+        WritableStreamingData dout = new WritableStreamingData(out);
         dout.writeVarInt(5, false);
         out.flush();
 
@@ -21,7 +21,7 @@ public class Test {
         System.out.println("bytes = " + Arrays.toString(bytes));
 
         NonSynchronizedByteArrayInputStream in = new NonSynchronizedByteArrayInputStream(bytes);
-        DataInputStream din = new DataInputStream(in);
+        ReadableStreamingData din = new ReadableStreamingData(in);
         int read = din.readVarInt(false);
         System.out.println("read = " + read);
 
@@ -29,8 +29,8 @@ public class Test {
 
         final TimestampTest modelObj = new TimestampTest(4L,8 );
         // get reusable thread buffers
-        final DataBuffer dataBuffer = DataBuffer.allocate(1024*1024,false);
-        final DataBuffer dataBuffer2 = DataBuffer.allocate(1024*1024,false);
+        final WritableBufferedData dataBuffer = WritableBufferedData.allocate(1024*1024,false);
+        final WritableBufferedData dataBuffer2 = WritableBufferedData.allocate(1024*1024,false);
         final ByteBuffer byteBuffer = ByteBuffer.allocate(1024*1024);
 
         // model to bytes with PBJ
@@ -40,7 +40,7 @@ public class Test {
         dataBuffer.flip();
 
         // copy bytes to ByteBuffer
-        dataBuffer.readBytes(byteBuffer, 0, (int)dataBuffer.getRemaining());
+        dataBuffer.readBytes(byteBuffer, 0, (int)dataBuffer.remaining());
         byteBuffer.flip();
 
         // read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
@@ -77,7 +77,7 @@ public class Test {
         byte[] protoBytes = new byte[byteBuffer.remaining()];
         byteBuffer.get(protoBytes);
         NonSynchronizedByteArrayInputStream bin = new NonSynchronizedByteArrayInputStream(protoBytes);
-        TimestampTest.PROTOBUF.parse(new DataInputStream(bin));
+        TimestampTest.PROTOBUF.parse(new ReadableStreamingData(bin));
     }
     public record Everything(
             List<String> textList

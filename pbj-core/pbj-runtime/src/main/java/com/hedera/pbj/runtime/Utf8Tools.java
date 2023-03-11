@@ -1,6 +1,6 @@
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.DataOutput;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 
 import java.io.IOException;
 
@@ -74,10 +74,10 @@ public class Utf8Tools {
 
 
     /**
-     * Encodes the input character sequence to a {@link DataOutput} using the same algorithm as protoc, so we are
+     * Encodes the input character sequence to a {@link WritableSequentialData} using the same algorithm as protoc, so we are
      * byte for byte the same.
      */
-    static void encodeUtf8(CharSequence in, DataOutput out) throws IOException {
+    static void encodeUtf8(CharSequence in, WritableSequentialData out) throws IOException {
         final int inLength = in.length();
         for (int inIx = 0; inIx < inLength; ++inIx) {
             final char c = in.charAt(inIx);
