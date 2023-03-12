@@ -93,6 +93,27 @@ public final class ModelGenerator implements Generator {
 							public boolean has$fieldNameUpperFirst() {
 							    return $oneOfField.kind() == $enumName.$enumValue;
 							}
+							
+							/**
+							 * Gets the value for $fieldName if it has a value, or else returns the default
+							 * value for the type.
+							 *
+							 * @param defaultValue the default value to return if $fieldName is null
+							 * @return the value for $fieldName if it has a value, or else returns the default value
+							 */
+							public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
+							    return has$fieldNameUpperFirst() ? $fieldName() : defaultValue;
+							}
+							
+							/**
+							 * Gets the value for $fieldName if it was set, or throws a NullPointerException if it was not set.
+							 *
+							 * @return the value for $fieldName if it has a value
+							 * @throws NullPointerException if $fieldName is null
+							 */
+							public @NonNull $javaFieldType $fieldNameOrThrow() {
+							    return requireNonNull($fieldName(), "Field $fieldName is null");
+							}
 							"""
 							.replace("$fieldNameUpperFirst",field.nameCamelFirstUpper())
 							.replace("$fieldName",field.nameCamelFirstLower())
@@ -130,8 +151,42 @@ public final class ModelGenerator implements Generator {
 							public boolean has$fieldNameUpperFirst() {
 							    return $fieldName != null;
 							}
+							
+							/**
+							 * Gets the value for $fieldName if it has a value, or else returns the default
+							 * value for the type.
+							 *
+							 * @param defaultValue the default value to return if $fieldName is null
+							 * @return the value for $fieldName if it has a value, or else returns the default value
+							 */
+							public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
+							    return has$fieldNameUpperFirst() ? $fieldName : defaultValue;
+							}
+							
+							/**
+							 * Gets the value for $fieldName if it has a value, or else throws an NPE.
+							 * value for the type.
+							 *
+							 * @return the value for $fieldName if it has a value
+							 * @throws NullPointerException if $fieldName is null
+							 */
+							public @NonNull $javaFieldType $fieldNameOrThrow() {
+							    return requireNonNull($fieldName, "Field $fieldName is null");
+							}
+							
+							/**
+							 * Executes the supplied {@link Consumer} if, and only if, the $fieldName has a value
+							 *
+							 * @param ifPresent the {@link Consumer} to execute
+							 */
+							public void if$fieldNameUpperFirst(@NonNull final Consumer<$javaFieldType> ifPresent) {
+							    if (has$fieldNameUpperFirst()) {
+							        ifPresent.accept($fieldName);
+							    }
+							}
 							"""
 							.replace("$fieldNameUpperFirst", field.nameCamelFirstUpper())
+							.replace("$javaFieldType", field.javaFieldType())
 							.replace("$fieldName", field.nameCamelFirstLower()));
 				}
 			} else if (item.optionStatement() != null){
@@ -169,7 +224,7 @@ public final class ModelGenerator implements Generator {
 				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
 				
 				/** Default instance with all fields set to default values */
-				public static final $modelClass DEFAULT_INSTANCE = newBuilder().build();
+				public static final $modelClass DEFAULT = newBuilder().build();
 				"""
 				.replace("$modelClass",javaRecordName)
 				.replace("$qualifiedCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
@@ -246,6 +301,9 @@ public final class ModelGenerator implements Generator {
 					package $package;
 					$imports
 					import com.hedera.pbj.runtime.Codec;
+					import java.util.function.Consumer;
+					import edu.umd.cs.findbugs.annotations.Nullable;
+					import static java.util.Objects.requireNonNull;
 					
 					$javaDocComment
 					$deprecated
@@ -261,7 +319,7 @@ public final class ModelGenerator implements Generator {
 					.replace("$deprecated",deprecated)
 					.replace("$javaRecordName",javaRecordName)
 					.replace("$fields",fields.stream().map(field ->
-							FIELD_INDENT+field.javaFieldType() + " " + field.nameCamelFirstLower()
+							FIELD_INDENT + (field.type() == FieldType.MESSAGE ? "@Nullable " : "") + field.javaFieldType() + " " + field.nameCamelFirstLower()
 					).collect(Collectors.joining(",\n    ")))
 					.replace("$bodyContent",bodyContent)
 			);

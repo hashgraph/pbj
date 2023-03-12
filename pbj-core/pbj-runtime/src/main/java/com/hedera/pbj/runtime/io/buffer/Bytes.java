@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Implementation of Bytes backed by a ByteBuffer
@@ -53,15 +54,30 @@ public final class Bytes implements RandomAccessData {
         this.length = data.length;
     }
 
+    // ================================================================================================================
+    // Static Methods
+
     /**
-     * Convience method to create a new {@link Bytes} from a byte array.
+     * Create a new {@link Bytes} over the contents of the given byte array. This does not copy data it just
+     * wraps so any changes to arrays contents will be visible in the returned result.
      *
-     * @param bytes The data to wrap
-     * @return an instance of {@link Bytes}.
+     * @param byteArray The byte array to wrap
+     * @return new {@link Bytes} with same contents as byte array
      */
     @NonNull
-    public static Bytes wrap(@NonNull final byte[] bytes) {
-        return new Bytes(bytes);
+    public static Bytes wrap(@NonNull final byte[] byteArray) {
+        return new Bytes(byteArray);
+    }
+
+    /**
+     * Create a new Bytes with the contents of a UTF8 encoded String.
+     *
+     * @param string The UFT8 encoded string to wrap
+     * @return new {@link Bytes} with string contents UTF8 encoded
+     */
+    @NonNull
+    public static Bytes wrap(@NonNull final String string) {
+        return wrap(string.getBytes(StandardCharsets.UTF_8));
     }
 
     // ================================================================================================================
@@ -252,6 +268,10 @@ public final class Bytes implements RandomAccessData {
      */
     @Override
     public byte getByte(long offset) {
+        if (length == 0) {
+            throw new BufferUnderflowException();
+        }
+
         return buffer[start + Math.toIntExact(offset)];
     }
 

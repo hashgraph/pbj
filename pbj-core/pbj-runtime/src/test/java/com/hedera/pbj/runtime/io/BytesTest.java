@@ -37,7 +37,7 @@ final class BytesTest {
     @Test
     @DisplayName("Empty bytes String is not null")
     void toStringWorks() {
-        assertEquals("RandomAccessData[]", Bytes.EMPTY.toString());
+        assertEquals("Bytes[]", Bytes.EMPTY.toString());
     }
 
     // ================================================================================================================

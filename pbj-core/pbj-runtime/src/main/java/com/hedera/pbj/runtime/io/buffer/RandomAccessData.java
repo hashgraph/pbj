@@ -31,7 +31,7 @@ public interface RandomAccessData {
     }
 
     /**
-     * Create a new Bytes with the contents of a UTF8 encoded String.
+     * Create a new {@link RandomAccessData} with the contents of a UTF8 encoded String.
      *
      * @param string The UFT8 encoded string to wrap
      * @return new {@link RandomAccessData} with string contents UTF8 encoded
