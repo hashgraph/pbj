@@ -1,6 +1,7 @@
 package com.hedera.pbj.compiler.impl.generators;
 
 import com.hedera.pbj.compiler.impl.*;
+import com.hedera.pbj.compiler.impl.Field.FieldType;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 
 import java.io.File;
@@ -47,6 +48,8 @@ public final class ModelGenerator implements Generator {
 		final List<String> oneofEnums = new ArrayList<>();
 		// The generated Java code for getters if OneOf is used
 		final List<String> oneofGetters = new ArrayList<>();
+		// The generated Java code for has methods for normal fields
+		final List<String> hasMethods = new ArrayList<>();
 		// The generated Java import statements. We'll build this up as we go.
 		final Set<String> imports = new TreeSet<>();
 		imports.add("com.hedera.pbj.runtime.io");
@@ -117,6 +120,20 @@ public final class ModelGenerator implements Generator {
 				final SingleField field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
 				field.addAllNeededImports(imports, true, false, false);
+				if (field.type() == FieldType.MESSAGE) {
+					hasMethods.add("""
+							/**
+							 * Convenience method to check if the $fieldName has a value
+							 *
+							 * @return true of the $fieldName has a value
+							 */
+							public boolean has$fieldNameUpperFirst() {
+							    return $fieldName != null;
+							}
+							"""
+							.replace("$fieldNameUpperFirst", field.nameCamelFirstUpper())
+							.replace("$fieldName", field.nameCamelFirstLower()));
+				}
 			} else if (item.optionStatement() != null){
 				if ("deprecated".equals(item.optionStatement().optionName().getText())) {
 					deprecated = "@Deprecated ";
@@ -182,6 +199,10 @@ public final class ModelGenerator implements Generator {
 							.collect(Collectors.joining("\n"))
 			).replaceAll("\n","\n"+FIELD_INDENT);
 		}
+
+		// Has methods
+		bodyContent += String.join("\n", hasMethods).replaceAll("\n","\n"+FIELD_INDENT);
+		bodyContent += "\n";
 
 		// oneof getters
 		bodyContent += String.join("\n    ", oneofGetters);
