@@ -5,19 +5,19 @@ import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
+import static java.nio.ByteOrder.BIG_ENDIAN;
 
 /**
- * A buffer backed by a {@link ByteBuffer} or byte array that is {@link BufferedSequentialData} (and therefore contains
- * a "position" cursor into the data), {@link ReadableSequentialData} (and therefore can be read from),
- * {@link WritableSequentialData} (and therefore can be written to), and {@link RandomAccessData} (and therefore can be
- * accessed at any position).
+ * A buffer backed by a {@link ByteBuffer} that is a {@link BufferedSequentialData} (and therefore contains
+ * a "position" cursor into the data), a {@link ReadableSequentialData} (and therefore can be read from),
+ * a {@link WritableSequentialData} (and therefore can be written to), and a {@link RandomAccessData} (and therefore can
+ * be accessed at any position).
  *
  * <p>This class is the most commonly used for buffered read/write data.
  */
@@ -35,8 +35,12 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      *
      * @param buffer the {@link ByteBuffer} to wrap
      */
-    BufferedData(@NonNull final ByteBuffer buffer) {
+    private BufferedData(@NonNull final ByteBuffer buffer) {
         this.buffer = buffer;
+        // I switch the buffer to BIG_ENDIAN so that all our normal "get/read" methods can assume they are in
+        // BIG_ENDIAN mode, reducing the boilerplate around those methods. This necessarily means the LITTLE_ENDIAN
+        // methods will be slower. I'm assuming BIG_ENDIAN is what we want to optimize for.
+        this.buffer.order(BIG_ENDIAN);
     }
 
     // ================================================================================================================
@@ -104,7 +108,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     }
 
     // ================================================================================================================
-    // DataBuffer Methods
+    // BufferedData Methods
 
     /**
      * Exposes this {@link BufferedData} as an {@link InputStream}. This is a zero-copy operation.
@@ -153,16 +157,6 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
                 }
             }
         };
-    }
-
-    /**
-     * Exposes this {@link BufferedData} as a {@link DataInputStream}. This is a zero-copy operation.
-     * The {@link #position()} and {@link #limit()} are **IGNORED**.
-     *
-     * @return A {@link DataInputStream} that streams over the full set of data in this {@link BufferedData}.
-     */
-    public @NonNull DataInputStream toDataInputStream() {
-        return new DataInputStream(toInputStream());
     }
 
     /**
@@ -219,6 +213,16 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     // SequentialData Methods
 
     /**
+     * Get the capacity in bytes that can be stored in this buffer
+     *
+     * @return capacity in bytes
+     */
+    @Override
+    public long capacity() {
+        return buffer.capacity();
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -239,7 +243,8 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public void limit(final long limit) {
-        buffer.limit((int)limit);
+        final var lim = Math.min(capacity(), Math.max(limit, position()));
+        buffer.limit((int)lim);
     }
 
     /**
@@ -264,6 +269,10 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     public long skip(long count) {
         count = Math.min(count, buffer.remaining());
+        if (count <= 0) {
+            return 0;
+        }
+
         buffer.position(buffer.position() + (int) count);
         return count;
     }
@@ -277,16 +286,6 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     public void position(final long position) {
         buffer.position(Math.toIntExact(position));
-    }
-
-    /**
-     * Get the capacity in bytes that can be stored in this buffer
-     *
-     * @return capacity in bytes
-     */
-    @Override
-    public int capacity() {
-        return buffer.capacity();
     }
 
     /**
@@ -317,99 +316,237 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     // ================================================================================================================
     // RandomAccessData Methods
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long length() {
         return buffer.limit();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public byte getByte(final long offset) {
+        checkUnderflow(offset, 1);
         return buffer.get(Math.toIntExact(offset));
     }
 
-    // FUTURE: Override the other methods from RandomAccessData to make them faster by using the ByteBuffer directly.
+    /** {@inheritDoc} */
+    @Override
+    public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
+        if (maxLength < 0) {
+            throw new IllegalArgumentException("Negative maxLength not allowed");
+        }
+
+        final var len = Math.min(maxLength, length() - offset);
+        buffer.get(Math.toIntExact(offset), dst, dstOffset, Math.toIntExact(len));
+        return len;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getBytes(final long offset, @NonNull final ByteBuffer dst) {
+        final var len = Math.min(dst.remaining(), length() - offset);
+        buffer.get(Math.toIntExact(offset), dst.array(), dst.position(), Math.toIntExact(len));
+        return len;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getBytes(final long offset, @NonNull final BufferedData dst) {
+        final var len = Math.min(dst.remaining(), length() - offset);
+        buffer.get(Math.toIntExact(offset), dst.buffer.array(), Math.toIntExact(dst.position()), Math.toIntExact(len));
+        return len;
+    }
+
+    @NonNull
+    @Override
+    public Bytes getBytes(long offset, long length) {
+        return Bytes.wrap(buffer.array(), buffer.arrayOffset() + Math.toIntExact(offset), Math.toIntExact(length));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @NonNull
+    public BufferedData slice(final long offset, final long length) {
+        return new BufferedData(buffer.slice(Math.toIntExact(offset), Math.toIntExact(length)));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public int getInt(final long offset) {
+        checkUnderflow(offset, 4);
+        return buffer.getInt(Math.toIntExact(offset));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public int getInt(final long offset, @NonNull final ByteOrder byteOrder) {
+        checkUnderflow(offset, 4);
+        final var order = buffer.order();
+        try {
+            buffer.order(byteOrder);
+            return buffer.getInt(Math.toIntExact(offset));
+        } finally {
+            buffer.order(order);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getLong(final long offset) {
+        checkUnderflow(offset, 8);
+        return buffer.getLong(Math.toIntExact(offset));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getLong(final long offset, @NonNull final ByteOrder byteOrder) {
+        checkUnderflow(offset, 8);
+        final var order = buffer.order();
+        try {
+            buffer.order(byteOrder);
+            return buffer.getLong(Math.toIntExact(offset));
+        } finally {
+            buffer.order(order);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public float getFloat(final long offset) {
+        checkUnderflow(offset, 4);
+        return buffer.getFloat(Math.toIntExact(offset));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public float getFloat(final long offset, @NonNull final ByteOrder byteOrder) {
+        checkUnderflow(offset, 4);
+        final var order = buffer.order();
+        try {
+            buffer.order(byteOrder);
+            return buffer.getFloat(Math.toIntExact(offset));
+        } finally {
+            buffer.order(order);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public double getDouble(final long offset) {
+        checkUnderflow(offset, 8);
+        return buffer.getDouble(Math.toIntExact(offset));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public double getDouble(final long offset, @NonNull final ByteOrder byteOrder) {
+        checkUnderflow(offset, 8);
+        final var order = buffer.order();
+        try {
+            buffer.order(byteOrder);
+            return buffer.getDouble(Math.toIntExact(offset));
+        } finally {
+            buffer.order(order);
+        }
+    }
+
+    /** Utility method for checking if there is enough data to read */
+    private void checkUnderflow(long offset, int remainingBytes) {
+        if ((length() - offset) - remainingBytes < 0) {
+            throw new BufferUnderflowException();
+        }
+    }
 
     // ================================================================================================================
     // ReadableSequentialData Methods
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public byte readByte() {
         return buffer.get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int readUnsignedByte() {
         return Byte.toUnsignedInt(buffer.get());
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public void readBytes(@NonNull final byte[] dst) {
-        buffer.get(dst);
+    public long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength) {
+        if (maxLength < 0) {
+            throw new IllegalArgumentException("Negative maxLength not allowed");
+        }
+
+        final var len = Math.toIntExact(Math.min(maxLength, remaining()));
+        if (len == 0) return 0;
+
+        buffer.get(dst, offset, len);
+        return len;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public void readBytes(@NonNull final byte[] dst, final int offset, final int length) {
-        buffer.get(dst, offset, length);
-    }
+    public long readBytes(@NonNull final ByteBuffer dst) {
+        final var len = Math.toIntExact(Math.min(dst.remaining(), remaining()));
+        if (len == 0) return 0;
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void readBytes(@NonNull final ByteBuffer dst) {
-        final int length = Math.toIntExact(Math.min(remaining(), dst.remaining()));
         final int dtsPos = dst.position();
-        dst.put(dtsPos, buffer, Math.toIntExact(position()), length);
-        dst.position(dtsPos + length);
+        dst.put(dtsPos, buffer, Math.toIntExact(position()), len);
+        dst.position(dtsPos + len);
+        position(position() + len);
+        return len;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public void readBytes(@NonNull final BufferedData dst) {
-        dst.buffer.put(buffer);
+    public long readBytes(@NonNull final BufferedData dst) {
+        final var len = Math.toIntExact(Math.min(dst.remaining(), remaining()));
+        if (len == 0) return 0;
+
+        final var lim = buffer.limit();
+        buffer.limit(buffer.position() + len);
+
+        try {
+            dst.buffer.put(buffer);
+            return len;
+        } finally {
+            buffer.limit(lim);
+        }
     }
 
-    /**
-     * Create a new Bytes over a subsection of this buffer. Data is shared and not copied, so any changes to
-     * the contents of this buffer will be reflected in the Bytes. This position is incremented by
-     * {@code length}.
-     *
-     * @param length The length in bytes of this buffer starting at current position to be in sub buffer
-     * @return new read only data buffer representing a subsection of this buffers data
-     * @throws BufferUnderflowException If length is more than remaining bytes
-     */
+    /** {@inheritDoc} */
+    @NonNull
+    @Override
+    public Bytes readBytes(final int length) {
+        if (length == 0) return Bytes.EMPTY;
+        final var bytes = Bytes.wrap(buffer.array(),buffer.arrayOffset() + buffer.position(), length);
+        buffer.position(buffer.position() + length);
+        return bytes;
+    }
+
+    /** {@inheritDoc} */
     @NonNull
     @Override
     public ReadableSequentialData view(final int length) {
-        return new BufferedData(buffer.slice(Math.toIntExact(position()), length));
+        if (length < 0) {
+            throw new IllegalArgumentException("Length cannot be negative");
+        }
+
+        if (length > remaining()) {
+            throw new BufferUnderflowException();
+        }
+
+        final var pos = Math.toIntExact(position());
+        final var buf = new BufferedData(buffer.slice(pos, length));
+        position((long) pos + length);
+        return buf;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int readInt() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
         return buffer.getInt();
     }
 
@@ -418,8 +555,13 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public int readInt(@NonNull final ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getInt();
+        final var order = buffer.order();
+        try {
+            buffer.order(byteOrder);
+            return buffer.getInt();
+        } finally {
+            buffer.order(order);
+        }
     }
 
     /**
@@ -427,16 +569,6 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public long readUnsignedInt() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
-        return Integer.toUnsignedLong(buffer.getInt());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long readUnsignedInt(@NonNull final ByteOrder byteOrder) {
-        buffer.order(byteOrder);
         return Integer.toUnsignedLong(buffer.getInt());
     }
 
@@ -445,7 +577,6 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public long readLong() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
         return buffer.getLong();
     }
 
@@ -454,8 +585,13 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public long readLong(@NonNull final ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getLong();
+        final var order = buffer.order();
+        try {
+            buffer.order(byteOrder);
+            return buffer.getLong();
+        } finally {
+            buffer.order(order);
+        }
     }
 
     /**
@@ -463,7 +599,6 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public float readFloat() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
         return buffer.getFloat();
     }
 
@@ -472,8 +607,13 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public float readFloat(@NonNull final ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getFloat();
+        final var order = buffer.order();
+        try {
+            buffer.order(byteOrder);
+            return buffer.getFloat();
+        } finally {
+            buffer.order(order);
+        }
     }
 
     /**
@@ -481,7 +621,6 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public double readDouble() {
-        buffer.order(ByteOrder.BIG_ENDIAN);
         return buffer.getDouble();
     }
 
@@ -490,8 +629,13 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public double readDouble(@NonNull final ByteOrder byteOrder) {
-        buffer.order(byteOrder);
-        return buffer.getDouble();
+        final var order = buffer.order();
+        try {
+            buffer.order(byteOrder);
+            return buffer.getDouble();
+        } finally {
+            buffer.order(order);
+        }
     }
 
     /**
@@ -500,7 +644,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     public int readVarInt(final boolean zigZag) {
         int tempPos = buffer.position();
-        if (!hasRemaining()) throw new DataEncodingException("Tried to read var int from 0 bytes remaining");
+        if (!hasRemaining()) throw new BufferUnderflowException();
         int x;
         if ((x = buffer.get(tempPos++)) >= 0) {
             buffer.position(buffer.position() + 1);
@@ -536,7 +680,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     public long readVarLong(boolean zigZag) {
         int tempPos = buffer.position();
-        if (!buffer.hasRemaining()) throw new DataEncodingException("Tried to rad var int from 0 bytes remaining");
+        if (!buffer.hasRemaining()) throw new BufferUnderflowException();
         long x;
         int y;
         if ((y = buffer.get(tempPos++)) >= 0) {
@@ -714,7 +858,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public void writeInt(final int value) {
-        buffer.order(ByteOrder.BIG_ENDIAN);
+        buffer.order(BIG_ENDIAN);
         buffer.putInt(value);
     }
 
@@ -732,7 +876,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public void writeUnsignedInt(final long value) {
-        buffer.order(ByteOrder.BIG_ENDIAN);
+        buffer.order(BIG_ENDIAN);
         buffer.putInt((int)value);
     }
 
@@ -750,7 +894,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public void writeLong(final long value) {
-        buffer.order(ByteOrder.BIG_ENDIAN);
+        buffer.order(BIG_ENDIAN);
         buffer.putLong(value);
     }
 
@@ -768,7 +912,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public void writeFloat(final float value) {
-        buffer.order(ByteOrder.BIG_ENDIAN);
+        buffer.order(BIG_ENDIAN);
         buffer.putFloat(value);
     }
 
@@ -786,7 +930,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public void writeDouble(final double value) {
-        buffer.order(ByteOrder.BIG_ENDIAN);
+        buffer.order(BIG_ENDIAN);
         buffer.putDouble(value);
     }
 

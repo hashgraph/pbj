@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class DataTest {
+final class DataTest {
 
     static Stream<Byte> bytesTestCases() {
         return Stream.of(Byte.MIN_VALUE,-100,-66,-7,-1,0,1,9,51,101,Byte.MAX_VALUE).map(Number::byteValue);
@@ -314,7 +314,7 @@ public class DataTest {
             java.io.DataInputStream din2 = new java.io.DataInputStream(bin);
             T readValue2 = javaDataInputReadMethod.read(din2);
             assertEquals(value, readValue2);
-            // write with DataBuffer
+            // write with BufferedData
             BufferedData db = BufferedData.allocate(writtenData.length);
             dataBufferWriteMethod.write(db, value);
             db.reset();

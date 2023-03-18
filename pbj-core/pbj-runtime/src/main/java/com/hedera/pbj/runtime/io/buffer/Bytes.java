@@ -3,44 +3,36 @@ package com.hedera.pbj.runtime.io.buffer;
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.DataInputStream;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import static java.util.Objects.requireNonNull;
 
 /**
- * Implementation of Bytes backed by a ByteBuffer
+ * An immutable representation of a byte array. This class is designed to be efficient and usable across threads.
  */
 public final class Bytes implements RandomAccessData {
 
-    /** Single instance of an empty {@link RandomAccessData} we can use anywhere we need an empty instance */
+    /** An instance of an empty {@link Bytes} */
     public static final Bytes EMPTY = new Bytes(new byte[0]);
 
-    /** byte[] used as backing buffer for this {@link Bytes} */
+    /** byte[] used as backing buffer */
     private final byte[] buffer;
 
-    /** The start offset in {@code buffer} that we start at */
+    /**
+     * The offset within the backing buffer where this {@link Bytes} starts. To prevent array copies, we sometimes
+     * want to have a "view" or "slice" of another buffer, where we begin at some offset and have a length.
+     */
     private final int start;
 
-    /** The number of bytes in this {@link Bytes} */
-    private final int length;
-
     /**
-     * Create a new ByteOverByteBuffer over given subsection of a ByteBuffer. This does not copy data it just wraps so
-     * any changes to bytebuffer contents will be effected here. Changes to other state in ByteBuffer like position,
-     * limit and mark have no effect. This is designed to be efficient at the risk of an unexpected data change.
-     *
-     * @param buffer The buffer to wrap
-     * @param offset The offset within that buffer to start
-     * @param length The length of bytes staring at offset to wrap
+     * The number of bytes in this {@link Bytes}. To prevent array copies, we sometimes want to have a "view" or
+     * "slice" of another buffer, where we begin at some offset and have a length.
      */
-    public Bytes(@NonNull final ByteBuffer buffer, final int offset, final int length) {
-        this.buffer = buffer.array();
-        this.start = offset;
-        this.length = length;
-    }
+    private final int length;
 
     /**
      * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps so
@@ -48,10 +40,36 @@ public final class Bytes implements RandomAccessData {
      *
      * @param data The data t
      */
-    public Bytes(@NonNull final byte[] data) {
-        this.buffer = data;
-        this.start = 0;
-        this.length = data.length;
+    private Bytes(@NonNull final byte[] data) {
+        this(data, 0, data.length);
+    }
+
+    /**
+     * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps so
+     * any changes to arrays contents will be effected here.
+     *
+     * @param data The data t
+     * @param offset The offset within that buffer to start
+     * @param length The length of bytes staring at offset to wrap
+     */
+    private Bytes(@NonNull final byte[] data, final int offset, final int length) {
+        this.buffer = requireNonNull(data);
+        this.start = offset;
+        this.length = length;
+
+        if (offset < 0 || offset > data.length) {
+            throw new IndexOutOfBoundsException("Offset " + offset + " is out of bounds for buffer of length "
+                    + data.length);
+        }
+
+        if (length < 0) {
+            throw new IllegalArgumentException("Length " + length + " is negative");
+        }
+
+        if (offset + length > data.length) {
+            throw new IllegalArgumentException("Length " + length + " is too large buffer of length "
+                    + data.length + " starting at offset " + offset);
+        }
     }
 
     // ================================================================================================================
@@ -59,10 +77,11 @@ public final class Bytes implements RandomAccessData {
 
     /**
      * Create a new {@link Bytes} over the contents of the given byte array. This does not copy data it just
-     * wraps so any changes to arrays contents will be visible in the returned result.
+     * wraps so any changes to array's contents will be visible in the returned result.
      *
      * @param byteArray The byte array to wrap
      * @return new {@link Bytes} with same contents as byte array
+     * @throws NullPointerException if byteArray is null
      */
     @NonNull
     public static Bytes wrap(@NonNull final byte[] byteArray) {
@@ -70,78 +89,79 @@ public final class Bytes implements RandomAccessData {
     }
 
     /**
+     * Create a new {@link Bytes} over the contents of the given byte array. This does not copy data it just
+     * wraps so any changes to arrays contents will be visible in the returned result.
+     *
+     * @param byteArray The byte array to wrap
+     * @param offset The offset within that buffer to start. Must be >= 0 and < byteArray.length
+     * @param length The length of bytes staring at offset to wrap. Must be >= 0 and < byteArray.length - offset
+     * @return new {@link Bytes} with same contents as byte array
+     * @throws NullPointerException if byteArray is null
+     * @throws IndexOutOfBoundsException if offset or length are out of bounds
+     * @throws IllegalArgumentException if length is negative
+     */
+    @NonNull
+    public static Bytes wrap(@NonNull final byte[] byteArray, final int offset, final int length) {
+        return new Bytes(byteArray, offset, length);
+    }
+
+    /**
      * Create a new Bytes with the contents of a UTF8 encoded String.
      *
      * @param string The UFT8 encoded string to wrap
      * @return new {@link Bytes} with string contents UTF8 encoded
+     * @throws NullPointerException if string is null
      */
     @NonNull
     public static Bytes wrap(@NonNull final String string) {
-        return wrap(string.getBytes(StandardCharsets.UTF_8));
+        return new Bytes(string.getBytes(StandardCharsets.UTF_8));
     }
 
     // ================================================================================================================
     // Object Methods
 
     /**
-     * Create and return a new {@link ReadableSequentialData} that is backed by this {@link Bytes}.
-     * It will not perform ANY copy operation.
+     * Duplicate this {@link Bytes} by making a copy of the underlying byte array and returning a new {@link Bytes}
+     * over the copied data. Use this method when you need to wrap a copy of a byte array:
      *
-     * @return A {@link ReadableSequentialData}
+     * <pre>
+     *     final var arr = new byte[] { 1, 2, 3 };
+     *     final var bytes = Bytes.wrap(arr).duplicate();
+     *     arr[0] = 4; // this modification will NOT be visible in the "bytes" instance
+     * </pre>
+     *
+     * <p>Implementation note: since we will be making an array copy, if the source array had an offset and length,
+     * the newly copied array will only contain the bytes between the offset and length of the original array.
+     *
+     * @return A new {@link Bytes} instance with a copy of the underlying byte array data.
+     */
+    @NonNull
+    public Bytes duplicate() {
+        final var newLength = length - start;
+        final var bytes = new byte[newLength];
+        System.arraycopy(buffer, start, bytes, 0, newLength);
+        return new Bytes(bytes, 0, newLength);
+    }
+
+    /**
+     * Package privet helper method for efficient copy of our data into another ByteBuffer with no effect on this
+     * buffers state, so thread safe for this buffer. The destination buffers position is updated.
+     *
+     * @param dstBuffer the buffer to copy into
+     */
+    void writeTo(@NonNull final ByteBuffer dstBuffer) {
+        dstBuffer.put(dstBuffer.position(), buffer, start, length);
+        dstBuffer.position(dstBuffer.position() + length);
+    }
+
+    /**
+     * Create and return a new {@link ReadableSequentialData} that is backed by this {@link Bytes}.
+     *
+     * @return A {@link ReadableSequentialData} backed by this {@link Bytes}.
      */
     @NonNull
     public ReadableSequentialData toReadableSequentialData() {
-        return new ReadableSequentialData() {
-            private long position = 0;
-            private long limit = length;
-
-            /**
-             * {@inheritDoc}
-             */
-            @Override
-            public byte readByte() {
-                return getByte(Math.toIntExact(position++));
-            }
-
-            /**
-             * {@inheritDoc}
-             */
-            @Override
-            public long position() {
-                return position;
-            }
-
-            @Override
-            public long limit() {
-                return limit;
-            }
-
-            /**
-             * {@inheritDoc}
-             */
-            @Override
-            public void limit(final long limit) {
-                this.limit = (int) Math.min(limit, length);
-            }
-
-            /**
-             * {@inheritDoc}
-             */
-            @Override
-            public long skip(final long count) {
-                final long skipped = Math.min(count, remaining());
-                position += skipped;
-                return skipped;
-            }
-
-            /**
-             * {@inheritDoc}
-             */
-            @Override
-            public boolean hasRemaining() {
-                return position < limit;
-            }
-        };
+        return new RandomAccessSequenceAdapter(this);
     }
 
     /**
@@ -171,15 +191,6 @@ public final class Bytes implements RandomAccessData {
     }
 
     /**
-     * Exposes this {@link Bytes} as an {@link DataInputStream}. This is a zero-copy operation.
-     *
-     * @return An {@link DataInputStream} that streams over the full set of data in this {@link Bytes}.
-     */
-    public @NonNull DataInputStream toDataInputStream() {
-        return new DataInputStream(toInputStream());
-    }
-
-    /**
      * toString that outputs data in buffer in bytes.
      *
      * @return nice debug output of buffer contents
@@ -190,7 +201,7 @@ public final class Bytes implements RandomAccessData {
         // build string
         StringBuilder sb = new StringBuilder();
         sb.append("Bytes[");
-        for (int i = 0; i < length(); i++) {
+        for (long i = 0; i < length(); i++) {
             int v = getByte(i) & 0xFF;
             sb.append(v);
             if (i < (length()-1)) sb.append(',');
@@ -207,7 +218,7 @@ public final class Bytes implements RandomAccessData {
      * @return true if o instance of Bytes and contents match
      */
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable final Object o) {
         if (this == o) return true;
         if (!(o instanceof Bytes that)) return false;
         if (length != that.length()) {
@@ -237,67 +248,109 @@ public final class Bytes implements RandomAccessData {
     }
 
     // ================================================================================================================
-    // Bytes Methods
+    // RandomAccessData Methods
 
-    /**
-     * Package privet helper method for efficient copy of our data into another ByteBuffer with no effect on this
-     * buffers state, so thread safe for this buffer. The destination buffers position is updated.
-     *
-     * @param dstBuffer the buffer to copy into
-     */
-    void writeTo(ByteBuffer dstBuffer) {
-        dstBuffer.put(dstBuffer.position(),buffer,start, length);
-        dstBuffer.position(dstBuffer.position() + length);
-    }
-
-    /**
-     * Get the number of bytes of data stored
-     *
-     * @return number of bytes of data stored
-     */
+    /** {@inheritDoc} */
     @Override
     public long length() {
         return length;
     }
 
-    /**
-     * Gets the byte at given {@code offset}.
-     *
-     * @param offset The offset into data to get byte at
-     * @return The byte at given {@code offset}
-     */
+    /** {@inheritDoc} */
     @Override
-    public byte getByte(long offset) {
+    public byte getByte(final long offset) {
         if (length == 0) {
             throw new BufferUnderflowException();
         }
 
+        validateOffset(offset);
         return buffer[start + Math.toIntExact(offset)];
     }
 
-    /**
-     * Get bytes starting at given {@code offset} into dst array up to the size of {@code dst} array.
-     *
-     * @param offset    The offset into data to get bytes at
-     * @param dst       The array into which bytes are to be written
-     * @param dstOffset The offset within the {@code dst} array of the first byte to be written; must be non-negative and
-     *                  no larger than {@code dst.length}
-     * @param length    The maximum number of bytes to be written to the given {@code dst} array; must be non-negative and
-     *                  no larger than {@code dst.length - offset}
-     */
+    /** {@inheritDoc} */
     @Override
-    public void getBytes(long offset, @NonNull byte[] dst, int dstOffset, int length) {
-        System.arraycopy(buffer, start + Math.toIntExact(offset), dst, dstOffset, length);
+    public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
+        validateOffset(offset);
+
+        if (maxLength < 0) {
+            throw new IllegalArgumentException("Negative maxLength not allowed");
+        }
+
+        // Maybe this instance is empty and there is nothing to get
+        if (maxLength == 0) {
+            return 0;
+        }
+
+        // This is a faster implementation than the default, since it has access to the entire byte array
+        // and can do a system array copy instead of a loop.
+        final var len = Math.min(maxLength, length - offset);
+        System.arraycopy(buffer, start + Math.toIntExact(offset), dst, dstOffset, Math.toIntExact(len));
+        return len;
     }
 
-    /**
-     * Get bytes starting at given {@code offset} into dst array up to the size of {@code }dst} array.
-     *
-     * @param offset The offset into data to get bytes at
-     * @param dst    The destination array
-     */
+    /** {@inheritDoc} */
     @Override
-    public void getBytes(long offset, @NonNull byte[] dst) {
-        System.arraycopy(buffer, start + Math.toIntExact(offset), dst, 0, dst.length);
+    public long getBytes(final long offset, @NonNull final ByteBuffer dst) {
+        validateOffset(offset);
+
+        // Maybe this instance is empty and there is nothing to get
+        if (length == 0) {
+            return 0;
+        }
+
+        // This is a faster implementation than the default, since it has access to the entire byte array
+        // and can do a system array copy instead of a loop.
+        final var len = Math.min(dst.remaining(), length - offset);
+        dst.put(buffer, start + Math.toIntExact(offset), Math.toIntExact(len));
+        return len;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getBytes(final long offset, @NonNull final BufferedData dst) {
+        validateOffset(offset);
+
+        // Maybe this instance is empty and there is nothing to get
+        if (length == 0) {
+            return 0;
+        }
+
+        // This is a faster implementation than the default, since it has access to the entire byte array
+        // and can do a system array copy instead of a loop.
+        final var len = Math.min(dst.remaining(), length - offset);
+        dst.writeBytes(buffer, start + Math.toIntExact(offset), Math.toIntExact(len));
+        return len;
+    }
+
+    /** {@inheritDoc} */
+    @NonNull
+    @Override
+    public Bytes getBytes(long offset, long length) {
+        validateOffset(offset);
+
+        if (length > this.length - offset) {
+            throw new BufferUnderflowException();
+        }
+
+        // Maybe this instance is empty and there is nothing to get
+        if (length == 0) {
+            return Bytes.EMPTY;
+        }
+
+        return new Bytes(buffer, Math.toIntExact(start + offset), Math.toIntExact(length));
+    }
+
+
+    /** {@inheritDoc} */
+    @NonNull
+    @Override
+    public Bytes slice(long offset, long length) {
+        return getBytes(offset, length);
+    }
+
+    private void validateOffset(long offset) {
+        if (offset < 0 || offset > this.length) {
+            throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + this.length);
+        }
     }
 }

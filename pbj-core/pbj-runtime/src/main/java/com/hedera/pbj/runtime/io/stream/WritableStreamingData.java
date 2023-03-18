@@ -29,6 +29,11 @@ public class WritableStreamingData extends FilterOutputStream implements Writabl
         super(Objects.requireNonNull(out));
     }
 
+    @Override
+    public long capacity() {
+        return Long.MAX_VALUE;
+    }
+
     /**
      * {@inheritDoc}
      */

@@ -13,33 +13,48 @@ package com.hedera.pbj.runtime.io;
  * {@link WritableSequentialData} for API for reading or writing.
  */
 public interface SequentialData {
+    /**
+     * Get the maximum number of bytes that may be in this {@link SequentialData}. For a buffer, this is the
+     * size of the buffer. For a stream, this is {@code Long.MAX_VALUE}, since the maximum potential capacity
+     * of the stream is unbounded (unless, by some other mechanism, you know ahead of time how many possible bytes
+     * there are, such as with an HTTP request with a known Content-Length header).
+     *
+     * <p>The capacity will never change.
+     *
+     * @return capacity in bytes of this sequence
+     */
+    long capacity();
 
     /**
-     * Current read (or if applicable, write) position relative to origin, which is position 0.
+     * Current read (or if applicable, write) position relative to origin, which is position 0. The position will
+     * never be greater than {@link #capacity()}. It will always be non-negative.
      *
      * @return The current read position.
      */
     long position();
 
     /**
-     * Limit that we can read up to, relative to origin. Use a value of {@code Long.MAX_VALUE} to indicate
-     * unlimited read/write, or an unknown limit (as in the case of unbounded streams).
+     * The byte position that can be read up to, relative to the origin. The limit will always be greater than or equal
+     * to the {@link #position()}, and less than or equal to the {@link #capacity()}. It will therefore always be
+     * non-negative. If the limit is equal to the {@link #position()}, then there are no bytes left to
+     * ready, or no room left to write. Any attempt to read or write at the limit will throw an exception.
      *
      * @return maximum position that can be read from origin
      */
     long limit();
 
     /**
-     * Set the limit that can be read up to, relative to origin. If less than {@link #position()} then set to
-     * {@link #position()}, meaning there are no bytes left to read.
+     * Set the limit that can be read up to, relative to origin. If less than {@link #position()} then clamp to
+     * {@link #position()}, meaning there are no bytes left to read. If greater than {@link #limit()} then clamp to
+     * the {@link #capacity()}, meaning the end of the sequence.
      *
-     * @param limit The new limit relative to origin, and can be {@code Long.MAX_VALUE} to indicate it is unlimited
+     * @param limit The new limit relative to origin.
      */
     void limit(long limit);
 
     /**
-     * If there are bytes remaining between current {@link #position()} and {@link #limit()}. There will be at
-     * least one byte available to read.
+     * Returns true if there are bytes remaining between the current {@link #position()} and {@link #limit()}. If this
+     * method returns true, then there will be at least one byte available to read or write.
      *
      * @return true if ({@link #limit()} - {@link #position()}) > 0
      */
@@ -48,18 +63,20 @@ public interface SequentialData {
     }
 
     /**
-     * Get the number of bytes remaining between the current {@link #position()} and {@link #limit()}.
+     * Gets the number of bytes remaining between the current {@link #position()} and {@link #limit()}. This
+     * value will always be non-negative.
      *
      * @return number of bytes remaining to be read
      */
     default long remaining() {
-        return Math.max(0, limit() - position());
+        return limit() - position();
     }
 
     /**
-     * Move {@link #position()} forward by {@code count} bytes.
+     * Move {@link #position()} forward by {@code count} bytes. If the {@code count} would move the position past the
+     * {@link #limit()}, then clamp the position to the {@link #limit()}.
      *
-     * @param count number of bytes to skip
+     * @param count number of bytes to skip. If 0 or negative, then no bytes are skipped.
      * @return the actual number of bytes skipped.
      * @throws DataAccessException if an I/O error occurs
      */
