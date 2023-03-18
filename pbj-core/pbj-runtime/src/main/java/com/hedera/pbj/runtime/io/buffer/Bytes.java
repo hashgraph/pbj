@@ -126,7 +126,7 @@ public final class Bytes implements RandomAccessData {
      *
      * <pre>
      *     final var arr = new byte[] { 1, 2, 3 };
-     *     final var bytes = Bytes.wrap(arr).duplicate();
+     *     final var bytes = Bytes.wrap(arr).replicate();
      *     arr[0] = 4; // this modification will NOT be visible in the "bytes" instance
      * </pre>
      *
@@ -136,7 +136,7 @@ public final class Bytes implements RandomAccessData {
      * @return A new {@link Bytes} instance with a copy of the underlying byte array data.
      */
     @NonNull
-    public Bytes duplicate() {
+    public Bytes replicate() {
         final var newLength = length - start;
         final var bytes = new byte[newLength];
         System.arraycopy(buffer, start, bytes, 0, newLength);
