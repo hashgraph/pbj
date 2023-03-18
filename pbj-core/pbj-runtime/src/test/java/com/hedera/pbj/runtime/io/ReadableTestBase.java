@@ -281,8 +281,8 @@ public abstract class ReadableTestBase {
         @Test
         @DisplayName("Reading bytes with a negative length throws IllegalArgumentException")
         void negativeLengthThrows() {
-            // Given a fully read sequence of bytes
-            final var seq = fullyReadSequence();
+            // Given a sequence of bytes
+            final var seq = sequence(TEST_BYTES);
             // When we try to read bytes using a byte array with a negative length, then we get an IllegalArgumentException
             assertThatThrownBy(() -> seq.readBytes(new byte[10], 0, -1)).isInstanceOf(IllegalArgumentException.class);
             assertThatThrownBy(() -> seq.readBytes(-1)).isInstanceOf(IllegalArgumentException.class);

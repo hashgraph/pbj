@@ -30,7 +30,7 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
      * Create a new instance where the position begins at 0 (the start of the random data buffer). The capacity of
      * this instance will be the length of the delegate.
      */
-    public RandomAccessSequenceAdapter(@NonNull final RandomAccessData delegate) {
+    RandomAccessSequenceAdapter(@NonNull final RandomAccessData delegate) {
         this.delegate = delegate;
         this.capacity = delegate.length();
         this.start = 0;
@@ -42,7 +42,7 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
      * length of the delegate. The capacity of this instance will be difference between the given {@code position}
      * and the length of the delegate.
      */
-    public RandomAccessSequenceAdapter(@NonNull final RandomAccessData delegate, final long start) {
+    RandomAccessSequenceAdapter(@NonNull final RandomAccessData delegate, final long start) {
         this.delegate = delegate;
         this.start = start;
         this.capacity = delegate.length() - start;
@@ -116,6 +116,10 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
     /** {@inheritDoc} */
     @Override
     public long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength) {
+        if (offset < 0 || offset > dst.length) {
+            throw new IndexOutOfBoundsException("Offset cannot be negative or larger than last index");
+        }
+
         final var length = Math.min(maxLength, remaining());
         final var read = delegate.getBytes(start + position, dst, offset, Math.toIntExact(length));
         position += read;
@@ -130,13 +134,10 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
         final var dstPos = dst.position();
         final var length = Math.min(dst.remaining(), remaining());
         final var finalLimit = dstPos + Math.min(length, dst.remaining());
-        try {
-            delegate.getBytes(start + position, dst);
-            position += length;
-            return length;
-        } finally {
-            dst.limit(Math.toIntExact(finalLimit));
-        }
+        dst.limit(Math.toIntExact(finalLimit));
+        delegate.getBytes(start + position, dst);
+        position += length;
+        return length;
     }
 
     /** {@inheritDoc} */
@@ -147,13 +148,10 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
         final var dstPos = dst.position();
         final var length = Math.min(dst.remaining(), remaining());
         final var finalLimit = dstPos + Math.min(length, dst.remaining());
-        try {
-            delegate.getBytes(start + position, dst);
-            position += length;
-            return length;
-        } finally {
-            dst.limit(Math.toIntExact(finalLimit));
-        }
+        dst.limit(Math.toIntExact(finalLimit));
+        delegate.getBytes(start + position, dst);
+        position += length;
+        return length;
     }
 
     /** {@inheritDoc} */

@@ -87,9 +87,8 @@ public interface RandomAccessData {
         }
 
         final var len = Math.min(maxLength, length() - offset);
-        final var maxIndex = offset + len;
-        for (int i = Math.toIntExact(offset); i < maxIndex; i++) {
-            dst[i] = getByte(i);
+        for (int i = 0; i < len; i++) {
+            dst[dstOffset + i] = getByte(offset + i);
         }
         return len;
     }
