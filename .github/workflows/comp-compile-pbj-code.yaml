@@ -22,6 +22,16 @@ on:
         type: boolean
         required: false
         default: false
+      enable-snyk-scan:
+        description: "Snyk Scan Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-snyk-monitor:
+        description: "Snyk Monitor Enabled"
+        type: boolean
+        required: false
+        default: false
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
@@ -49,6 +59,9 @@ on:
         required: true
       sonar-token:
         description: "The SonarCloud access token used by the SonarQube agent to report an analysis."
+        required: false
+      snyk-token:
+        description: "The Snyk access token is used by Snyk to analyze the code for vulnerabilities."
         required: false
 
 defaults:
@@ -168,6 +181,53 @@ jobs:
           build-root-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
           arguments: jmh --scan
 
+      - name: Gradle Snyk Test (PBJ Core)
+        id: gradle-snyk-test
+        uses: gradle/gradle-build-action@v2
+        if: ${{ inputs.enable-snyk-scan && !cancelled() && always()}}
+        with:
+          gradle-version: ${{ inputs.gradle-version }}
+          build-root-directory: ${{ env.PBJ_CORE }}
+          arguments: snyk-test
+        env:
+          SNYK_TOKEN: ${{ secrets.snyk-token }}
+
+      - name: Gradle Snyk Code Test (PBJ Core)
+        id: gradle-snyk-code
+        uses: gradle/gradle-build-action@v2
+        if: ${{ inputs.enable-snyk-scan && !cancelled() && always()}}
+        with:
+          gradle-version: ${{ inputs.gradle-version }}
+          build-root-directory: ${{ env.PBJ_CORE }}
+          arguments: snyk-code
+        env:
+          SNYK_TOKEN: ${{ secrets.snyk-token }}
+
+      - name: Setup Snyk Reports
+        if: ${{ inputs.enable-snyk-scan && !cancelled() && always()}}
+        run: npm install -g snyk-to-html @wcj/html-to-markdown-cli
+
+      - name: Publish Snyk Results
+        if: ${{ inputs.enable-snyk-scan && !cancelled() && always()}}
+        run: |
+          snyk-to-html -i build/reports/snyk-test.json -o build/reports/snyk-test.html && \
+          html-to-markdown build/reports/snyk-test.html -o  build/reports/snyk && \
+          cat build/reports/snyk/snyk-test.html.md >> $GITHUB_STEP_SUMMARY
+          snyk-to-html -i build/reports/snyk-code.sarif -o build/reports/snyk-code.html && \
+          html-to-markdown build/reports/snyk-code.html -o  build/reports/snyk && \
+          cat build/reports/snyk/snyk-code.html.md >> $GITHUB_STEP_SUMMARY
+        working-directory: ${{ env.PBJ_CORE }}
+
+      - name: Gradle Snyk Monitor(PBJ Core)
+        id: gradle-snyk-monitor
+        uses: gradle/gradle-build-action@v2
+        if: ${{ inputs.enable-snyk-monitor && !cancelled() && always()}}
+        with:
+          gradle-version: ${{ inputs.gradle-version }}
+          build-root-directory: ${{ env.PBJ_CORE }}
+          arguments: snyk-monitor
+        env:
+          SNYK_TOKEN: ${{ secrets.snyk-token }}
 #      - name: SonarCloud Options
 #        id: sonar-cloud
 #        env:

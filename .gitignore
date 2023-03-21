@@ -706,3 +706,6 @@ Temporary Items
 
 ### Generated Protobuf Files
 /tests/src/main/proto/
+
+### Snyk binary
+snyk
