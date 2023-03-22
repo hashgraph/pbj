@@ -93,8 +93,8 @@ public final class Bytes implements RandomAccessData {
      * wraps so any changes to arrays contents will be visible in the returned result.
      *
      * @param byteArray The byte array to wrap
-     * @param offset The offset within that buffer to start. Must be >= 0 and < byteArray.length
-     * @param length The length of bytes staring at offset to wrap. Must be >= 0 and < byteArray.length - offset
+     * @param offset The offset within that buffer to start. Must be &gt;= 0 and &lt; byteArray.length
+     * @param length The length of bytes staring at offset to wrap. Must be &gt;= 0 and &lt; byteArray.length - offset
      * @return new {@link Bytes} with same contents as byte array
      * @throws NullPointerException if byteArray is null
      * @throws IndexOutOfBoundsException if offset or length are out of bounds
