@@ -6,7 +6,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferOverflowException;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
@@ -66,12 +65,10 @@ public interface WritableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default void writeBytes(@NonNull final byte[] src, final int offset, final int length) {
-        if ((limit() - position()) < length) {
-            throw new BufferUnderflowException();
+        if (length < 0) {
+            throw new IllegalArgumentException("length must be >= 0");
         }
-        if (offset < 0 || (offset + length) >= src.length) {
-            throw new IndexOutOfBoundsException();
-        }
+
         for (int i = offset; i < (offset+length); i++) {
             writeByte(src[i]);
         }
@@ -88,7 +85,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default void writeBytes(@NonNull final ByteBuffer src) {
-        if ((limit() - position()) < src.remaining()) {
+        if (remaining() < src.remaining()) {
             throw new BufferOverflowException();
         }
 
@@ -107,7 +104,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default void writeBytes(@NonNull final BufferedData src) {
-        if ((limit() - position()) < src.remaining()) {
+        if (remaining() < src.remaining()) {
             throw new BufferOverflowException();
         }
 
@@ -125,7 +122,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default void writeBytes(@NonNull final RandomAccessData src) {
-        if ((limit() - position()) < src.length()) {
+        if (remaining() < src.length()) {
             throw new BufferOverflowException();
         }
 
@@ -144,7 +141,7 @@ public interface WritableSequentialData extends SequentialData {
      * @param src The source {@link java.io.InputStream} to read bytes from
      * @param maxLength The maximum number of bytes to read from the {@link java.io.InputStream}. If the
      *            stream does not have this many bytes, then only those bytes available, if any,
-     *            are read.
+     *            are read. If maxLength is 0 or less, then nothing is read and 0 is returned.
      * @return The number of bytes read from the stream, or 0 if the end of stream was reached without reading bytes.
      * @throws IllegalArgumentException if {@code len} is negative
      * @throws DataAccessException if an I/O error occurs
@@ -197,7 +194,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default void writeInt(final int value) {
-        if ((limit() - position()) < Integer.BYTES) {
+        if (remaining() < Integer.BYTES) {
             throw new BufferOverflowException();
         }
         writeByte((byte)(value >>> 24));
@@ -216,12 +213,12 @@ public interface WritableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default void writeInt(final int value, @NonNull final ByteOrder byteOrder) {
-        if ((limit() - position()) < Integer.BYTES) {
-            throw new BufferOverflowException();
-        }
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             writeInt(value);
         } else {
+            if (remaining() < Integer.BYTES) {
+                throw new BufferOverflowException();
+            }
             writeByte((byte) (value));
             writeByte((byte) (value >>> 8));
             writeByte((byte) (value >>> 16));
@@ -238,7 +235,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default void writeUnsignedInt(final long value) {
-        if ((limit() - position()) < Integer.BYTES) {
+        if (remaining() < Integer.BYTES) {
             throw new BufferOverflowException();
         }
         writeByte((byte)(value >>> 24));
@@ -257,12 +254,12 @@ public interface WritableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default void writeUnsignedInt(final long value, @NonNull final ByteOrder byteOrder) {
-        if ((limit() - position()) < Integer.BYTES) {
-            throw new BufferOverflowException();
-        }
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             writeUnsignedInt(value);
         } else {
+            if (remaining() < Integer.BYTES) {
+                throw new BufferOverflowException();
+            }
             writeByte((byte) (value));
             writeByte((byte) (value >>> 8));
             writeByte((byte) (value >>> 16));
@@ -279,7 +276,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default void writeLong(final long value) {
-        if ((limit() - position()) < Long.BYTES) {
+        if (remaining() < Long.BYTES) {
             throw new BufferOverflowException();
         }
         writeByte((byte)(value >>> 56));
@@ -302,12 +299,12 @@ public interface WritableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default void writeLong(final long value, @NonNull final ByteOrder byteOrder) {
-        if ((limit() - position()) < Long.BYTES) {
-            throw new BufferOverflowException();
-        }
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             writeLong(value);
         } else {
+            if (remaining() < Long.BYTES) {
+                throw new BufferOverflowException();
+            }
             writeByte((byte) (value));
             writeByte((byte) (value >>> 8));
             writeByte((byte) (value >>> 16));

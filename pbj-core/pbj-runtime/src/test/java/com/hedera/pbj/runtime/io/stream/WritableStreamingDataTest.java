@@ -91,4 +91,16 @@ public class WritableStreamingDataTest extends WritableTestBase {
         // When we try to skip some bytes, then we get an exception because the stream throws IOException
         assertThatThrownBy(() -> seq.skip(1)).isInstanceOf(DataAccessException.class);
     }
+
+    @Test
+    @DisplayName("Writing to a closed stream throws DataAccessException")
+    void closed() throws IOException {
+        // Given a sequence
+        final var stream = mock(OutputStream.class);
+        final var seq = new WritableStreamingData(stream);
+        doThrow(IOException.class).when(stream).write(any(), anyInt(), anyInt());
+        final var src = new ByteArrayInputStream("Gonna Throw".getBytes(StandardCharsets.UTF_8));
+        // When we try to write some bytes, then we get an exception because the stream throws IOException
+        assertThatThrownBy(() -> seq.writeBytes(src, 5)).isInstanceOf(DataAccessException.class);
+    }
 }

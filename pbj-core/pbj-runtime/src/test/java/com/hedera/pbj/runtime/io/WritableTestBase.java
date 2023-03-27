@@ -12,6 +12,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +23,10 @@ import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 /**
  * Base test class for testing {@link WritableSequentialData}.
@@ -586,6 +593,48 @@ public abstract class WritableTestBase extends SequentialTestBase {
             assertThat(seq.position()).isEqualTo(pos + 10);
         }
 
+        @Test
+        @DisplayName("Writing bytes from a src InputStream with offset where the maxLength is 0 does nothing")
+        void writeSrcInputStreamWithTooSmallMaxLength() {
+            // Given a sequence with a src input stream
+            final var seq = sequence();
+            final var arr = new byte[] { 1, 2, 3, 4, 5 };
+            final var src = new ByteArrayInputStream(arr);
+            // When we try writing bytes from the src with a maxLength that is == 0
+            final var pos = seq.position();
+            assertThat(seq.writeBytes(src, 0)).isZero();
+            // Then nothing was received and the position is unchanged
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[0]);
+            assertThat(seq.position()).isEqualTo(pos);
+        }
+
+        @Test
+        @DisplayName("Writing bytes from a src InputStream where nothing is remaining in the seq does nothing")
+        void writeSrcInputStreamWithNothingRemaining() {
+            // Given a sequence with a src input stream and a seq with nothing remaining
+            final var seq = sequence();
+            seq.limit(0);
+            final var arr = new byte[] { 1, 2, 3, 4, 5 };
+            final var src = new ByteArrayInputStream(arr);
+            // When we try writing bytes from the src with a maxLength that is > 0
+            final var pos = seq.position();
+            assertThat(seq.writeBytes(src, 5)).isZero();
+            // Then nothing was received and the position is unchanged
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[0]);
+            assertThat(seq.position()).isEqualTo(pos);
+        }
+
+        @Test
+        @DisplayName("Writing from a closed stream throws DataAccessException")
+        void closed() throws IOException {
+            // Given a sequence
+            final var seq = sequence();
+            final var src = mock(InputStream.class);
+            doThrow(IOException.class).when(src).read(any(), anyInt(), anyInt());
+            // When we try to write some bytes, then we get an exception because the stream throws IOException
+            assertThatThrownBy(() -> seq.writeBytes(src, 5)).isInstanceOf(DataAccessException.class);
+        }
+
         @ParameterizedTest(name = "offset={0}, length={1}")
         @CsvSource({
                 "-1, 1", // Negative offset
@@ -618,7 +667,8 @@ public abstract class WritableTestBase extends SequentialTestBase {
             seq.limit(5);
             // When we try to write an int, then we get a BufferOverflowException
             seq.skip(4); // Only 1 byte left, not enough
-            assertThatThrownBy(() -> seq.writeInt(1)).isInstanceOf(BufferOverflowException.class);
+            assertThatThrownBy(() -> seq.writeInt(1234)).isInstanceOf(BufferOverflowException.class);
+            assertThatThrownBy(() -> seq.writeInt(1234, LITTLE_ENDIAN)).isInstanceOf(BufferOverflowException.class);
         }
 
         @Test
@@ -710,8 +760,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // When we try to write an unsigned int, then we get a BufferOverflowException
             seq.skip(4); // Only 1 byte left, not enough
             assertThatThrownBy(() -> seq.writeUnsignedInt(1)).isInstanceOf(BufferOverflowException.class);
-            seq.skip(1); // No bytes left, not enough
-            assertThatThrownBy(() -> seq.writeUnsignedInt(1)).isInstanceOf(BufferOverflowException.class);
+            assertThatThrownBy(() -> seq.writeUnsignedInt(1234, LITTLE_ENDIAN)).isInstanceOf(BufferOverflowException.class);
         }
 
         @Test
@@ -800,8 +849,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // When we try to write a long, then we get a BufferOverflowException
             seq.skip(4); // Only 1 byte left, not enough
             assertThatThrownBy(() -> seq.writeLong(1L)).isInstanceOf(BufferOverflowException.class);
-            seq.skip(1); // No bytes left, not enough
-            assertThatThrownBy(() -> seq.writeLong(1L)).isInstanceOf(BufferOverflowException.class);
+            assertThatThrownBy(() -> seq.writeLong(1234, LITTLE_ENDIAN)).isInstanceOf(BufferOverflowException.class);
         }
 
         @Test
