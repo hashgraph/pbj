@@ -1,13 +1,13 @@
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.Bytes;
-import com.hedera.pbj.runtime.io.DataBuffer;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Static tools and test cases used by generated test classes.
@@ -24,19 +24,19 @@ public final class ProtoTestTools {
     /** Instance should never be created */
     private ProtoTestTools() {}
     /** Thread local set of reusable buffers */
-    private static final ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS =
-            ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, false));
+    private static final ThreadLocal<BufferedData> THREAD_LOCAL_BUFFERS =
+            ThreadLocal.withInitial(() -> BufferedData.allocate(BUFFER_SIZE));
 
     /** Thread local set of reusable buffers, second buffer for each thread */
-    private static final ThreadLocal<DataBuffer> THREAD_LOCAL_BUFFERS_2 =
-            ThreadLocal.withInitial(() -> DataBuffer.allocate(BUFFER_SIZE, false));
+    private static final ThreadLocal<BufferedData> THREAD_LOCAL_BUFFERS_2 =
+            ThreadLocal.withInitial(() -> BufferedData.allocate(BUFFER_SIZE));
 
     /**
      * Get the thread local instance of DataBuffer, reset and ready to use.
      *
      * @return a DataBuffer that can be reused by current thread
      */
-    public static DataBuffer getThreadLocalDataBuffer() {
+    public static BufferedData getThreadLocalDataBuffer() {
         final var local = THREAD_LOCAL_BUFFERS.get();
         local.reset();
         return local;
@@ -47,7 +47,7 @@ public final class ProtoTestTools {
      *
      * @return a DataBuffer that can be reused by current thread
      */
-    public static DataBuffer getThreadLocalDataBuffer2() {
+    public static BufferedData getThreadLocalDataBuffer2() {
         final var local = THREAD_LOCAL_BUFFERS_2.get();
         local.reset();
         return local;
@@ -69,19 +69,17 @@ public final class ProtoTestTools {
     }
 
     /**
-     * Take a list of objects and create a new list with those objects wrapped in optionals and adding a empty optional.
+     * Util method to take a list and append {@code null} on the front.
      *
-     * @param list List of objects to wrap
-     * @return list of optionals
-     * @param <T> type of objects to wrap
+     * @param list Input list
+     * @return new list with null added
+     * @param <T> the type for lists
      */
-    public static <T> List<Optional<T>> makeListOptionals(List<T> list) {
-        ArrayList<Optional<T>> optionals = new ArrayList<>(list.size()+1);
-        optionals.add(Optional.empty());
-        for (T value:list) {
-            optionals.add(Optional.ofNullable(value));
-        }
-        return optionals;
+    public static <T> List<T> addNull(final List<T> list) {
+        ArrayList<T> newList = new ArrayList<>(list.size() + 1);
+        newList.add(null);
+        newList.addAll(list);
+        return newList;
     }
 
     /**

@@ -205,7 +205,7 @@ public interface Field {
 		/** Protobuf bool(boolean) field type */
 		BOOL("boolean", "false", TYPE_VARINT),
 		/** Protobuf bytes field type */
-		BYTES("Bytes", "Bytes.EMPTY_BYTES", TYPE_LENGTH_DELIMITED),
+		BYTES("Bytes", "Bytes.EMPTY", TYPE_LENGTH_DELIMITED),
 		/** Protobuf oneof field type, this is not a true field type in protobuf. Needed here for a few edge cases */
 		ONE_OF("OneOf", "null", 0 );// BAD TYPE
 

@@ -104,13 +104,13 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 			default -> type.javaType;
 		};
 		fieldType = switch (fieldType) {
-			case "StringValue" -> "Optional<String>";
-			case "Int32Value", "UInt32Value" -> "Optional<Integer>";
-			case "Int64Value", "UInt64Value" -> "Optional<Long>";
-			case "FloatValue" -> "Optional<Float>";
-			case "DoubleValue" -> "Optional<Double>";
-			case "BoolValue" -> "Optional<Boolean>";
-			case "BytesValue" -> "Optional<Bytes>";
+			case "StringValue" -> "String";
+			case "Int32Value", "UInt32Value" -> "Integer";
+			case "Int64Value", "UInt64Value" -> "Long";
+			case "FloatValue" -> "Float";
+			case "DoubleValue" -> "Double";
+			case "BoolValue" -> "Boolean";
+			case "BytesValue" -> "Bytes";
 			default -> fieldType;
 		};
 		if (repeated) {
@@ -158,7 +158,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	@Override
 	public void addAllNeededImports(Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
 		if (repeated || optionalValueType()) imports.add("java.util");
-		if (type == FieldType.BYTES) imports.add("com.hedera.pbj.runtime.io");
+		if (type == FieldType.BYTES) imports.add("com.hedera.pbj.runtime.io.buffer");
 		if (messageTypeModelPackage != null && modelImports) imports.add(messageTypeModelPackage);
 		if (messageTypeCodecPackage != null && codecImports) imports.add(messageTypeCodecPackage);
 		if (messageTypeTestPackage != null && testImports) imports.add(messageTypeTestPackage);
@@ -170,7 +170,8 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	@Override
 	public String parseCode() {
 		if (type == FieldType.MESSAGE) {
-			return "%s.PROTOBUF.parse(input)".formatted(messageType);
+			return "strictMode ? %s.PROTOBUF.parseStrict(input) : %s.PROTOBUF.parse(input)"
+					.formatted(messageType, messageType);
 		} else {
 			return "input";
 		}
@@ -182,7 +183,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	@Override
 	public String javaDefault() {
 		if (optionalValueType()) {
-			return "Optional.empty()";
+			return "null";
 		} else if (repeated) {
 			return "Collections.emptyList()";
 		} else if (type == FieldType.ENUM) {
@@ -241,10 +242,10 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 		final String fieldNameToSet = parent != null ? parent.name() : name;
 		if (optionalValueType()) {
 			if (parent != null) { // one of
-				return "case %d -> this.%s = new OneOf<>(%s.%sOneOfType.%s,Optional.of(input));"
+				return "case %d -> this.%s = new OneOf<>(%s.%sOneOfType.%s, input);"
 						.formatted(fieldNumber, fieldNameToSet, parent.parentMessageName(), Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name));
 			} else {
-				return "case %d -> this.%s = Optional.of(input);".formatted(fieldNumber, fieldNameToSet);
+				return "case %d -> this.%s = input;".formatted(fieldNumber, fieldNameToSet);
 			}
 		} else if (type == FieldType.MESSAGE) {
 			final String valueToSet = parent != null ?

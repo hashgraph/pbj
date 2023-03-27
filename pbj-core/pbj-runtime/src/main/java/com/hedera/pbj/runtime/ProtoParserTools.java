@@ -1,7 +1,8 @@
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.Bytes;
-import com.hedera.pbj.runtime.io.DataInput;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -55,7 +56,7 @@ public final class ProtoParserTools {
      * @return the read int
      * @throws IOException If a I/O error occurs
      */
-    public static int readInt32(final DataInput input) throws IOException {
+    public static int readInt32(final ReadableSequentialData input) throws IOException {
         return input.readVarInt(false);
     }
 
@@ -66,7 +67,7 @@ public final class ProtoParserTools {
      * @return the read long
      * @throws IOException If a I/O error occurs
      */
-    public static long readInt64(final DataInput input) throws IOException {
+    public static long readInt64(final ReadableSequentialData input) throws IOException {
         return input.readVarLong(false);
     }
 
@@ -77,7 +78,7 @@ public final class ProtoParserTools {
      * @return the read int
      * @throws IOException If a I/O error occurs
      */
-    public static int readUint32(final DataInput input) throws IOException {
+    public static int readUint32(final ReadableSequentialData input) throws IOException {
         return input.readVarInt(false);
     }
 
@@ -88,7 +89,7 @@ public final class ProtoParserTools {
      * @return the read long
      * @throws IOException If a I/O error occurs
      */
-    public static long readUint64(final DataInput input) throws IOException {
+    public static long readUint64(final ReadableSequentialData input) throws IOException {
         return input.readVarLong(false);
     }
 
@@ -99,7 +100,7 @@ public final class ProtoParserTools {
      * @return the read boolean
      * @throws IOException If a I/O error occurs
      */
-    public static boolean readBool(final DataInput input) throws IOException {
+    public static boolean readBool(final ReadableSequentialData input) throws IOException {
         final var i = input.readVarInt(false);
         if (i != 1 && i != 0) {
             throw new IOException("Bad protobuf encoding. Boolean was not 0 or 1");
@@ -114,7 +115,7 @@ public final class ProtoParserTools {
      * @return the read enum protoc ordinal
      * @throws IOException If a I/O error occurs
      */
-    public static int readEnum(final DataInput input) throws IOException {
+    public static int readEnum(final ReadableSequentialData input) throws IOException {
         return input.readVarInt(false);
     }
 
@@ -125,7 +126,7 @@ public final class ProtoParserTools {
      * @return the read int
      * @throws IOException If a I/O error occurs
      */
-    public static int readSignedInt32(final DataInput input) throws IOException {
+    public static int readSignedInt32(final ReadableSequentialData input) throws IOException {
         return input.readVarInt(true);
     }
 
@@ -136,7 +137,7 @@ public final class ProtoParserTools {
      * @return the read long
      * @throws IOException If a I/O error occurs
      */
-    public static long readSignedInt64(final DataInput input) throws IOException {
+    public static long readSignedInt64(final ReadableSequentialData input) throws IOException {
         return input.readVarLong(true);
     }
 
@@ -147,7 +148,7 @@ public final class ProtoParserTools {
      * @return the read int
      * @throws IOException If a I/O error occurs
      */
-    public static int readSignedFixed32(final DataInput input) throws IOException {
+    public static int readSignedFixed32(final ReadableSequentialData input) throws IOException {
         return input.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -158,7 +159,7 @@ public final class ProtoParserTools {
      * @return the read int
      * @throws IOException If a I/O error occurs
      */
-    public static int readFixed32(final DataInput input) throws IOException {
+    public static int readFixed32(final ReadableSequentialData input) throws IOException {
         return input.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -169,7 +170,7 @@ public final class ProtoParserTools {
      * @return the read float
      * @throws IOException If a I/O error occurs
      */
-    public static float readFloat(final DataInput input) throws IOException {
+    public static float readFloat(final ReadableSequentialData input) throws IOException {
         return input.readFloat(ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -180,7 +181,7 @@ public final class ProtoParserTools {
      * @return the read long
      * @throws IOException If a I/O error occurs
      */
-    public static long readSignedFixed64(final DataInput input) throws IOException {
+    public static long readSignedFixed64(final ReadableSequentialData input) throws IOException {
         return input.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -191,7 +192,7 @@ public final class ProtoParserTools {
      * @return read long
      * @throws IOException If there was a problem reading
      */
-    public static long readFixed64(final DataInput input) throws IOException {
+    public static long readFixed64(final ReadableSequentialData input) throws IOException {
         return input.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -202,7 +203,7 @@ public final class ProtoParserTools {
      * @return read double
      * @throws IOException If there was a problem reading
      */
-    public static double readDouble(final DataInput input) throws IOException {
+    public static double readDouble(final ReadableSequentialData input) throws IOException {
         return input.readDouble(ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -213,7 +214,7 @@ public final class ProtoParserTools {
      * @return Read string
      * @throws IOException If there was a problem reading
      */
-    public static String readString(final DataInput input) throws IOException {
+    public static String readString(final ReadableSequentialData input) throws IOException {
         final int length = input.readVarInt(false);
         byte[] bytes = new byte[length];
         input.readBytes(bytes);
@@ -228,7 +229,7 @@ public final class ProtoParserTools {
      * of InputData
      * @throws IOException If there was a problem reading
      */
-    public static Bytes readBytes(final DataInput input) throws IOException {
+    public static Bytes readBytes(final ReadableSequentialData input) throws IOException {
         final int length = input.readVarInt(false);
         return input.readBytes(length);
     }
@@ -240,7 +241,7 @@ public final class ProtoParserTools {
      * @param wireType The wire type of field to skip
      * @throws IOException For unsupported wire types
      */
-    public static void skipField(final DataInput input, final int wireType) throws IOException {
+    public static void skipField(final ReadableSequentialData input, final int wireType) throws IOException {
         switch (wireType) {
             case ProtoConstants.WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
             case ProtoConstants.WIRE_TYPE_FIXED_32_BIT -> input.skip(4);

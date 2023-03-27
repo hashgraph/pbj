@@ -2,6 +2,9 @@ package com.hedera.pbj.runtime.io;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -14,7 +17,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class DataTest {
+final class DataTest {
 
     static Stream<Byte> bytesTestCases() {
         return Stream.of(Byte.MIN_VALUE,-100,-66,-7,-1,0,1,9,51,101,Byte.MAX_VALUE).map(Number::byteValue);
@@ -24,12 +27,12 @@ public class DataTest {
     @MethodSource("bytesTestCases")
     void byteTest(Byte value) throws IOException {
         doTest(value,
-                DataOutputStream::writeByte,
+                WritableStreamingData::writeByte,
                 (dout, v) -> dout.writeByte((int)v),
-                DataBuffer::writeByte,
-                DataInputStream::readByte,
+                BufferedData::writeByte,
+                ReadableStreamingData::readByte,
                 java.io.DataInputStream::readByte,
-                DataBuffer::readByte
+                BufferedData::readByte
         );
     }
 
@@ -41,12 +44,12 @@ public class DataTest {
     @MethodSource("unsignedBytesTestCases")
     void unsignedByteTest(Integer value) throws IOException {
         doTest(value,
-                DataOutputStream::writeUnsignedByte,
+                WritableStreamingData::writeUnsignedByte,
                 java.io.DataOutputStream::writeByte,
-                DataBuffer::writeUnsignedByte,
-                DataInputStream::readUnsignedByte,
+                BufferedData::writeUnsignedByte,
+                ReadableStreamingData::readUnsignedByte,
                 java.io.DataInputStream::readUnsignedByte,
-                DataInput::readUnsignedByte
+                ReadableSequentialData::readUnsignedByte
         );
     }
 
@@ -58,12 +61,12 @@ public class DataTest {
     @MethodSource("intsTestCases")
     void intTest(Integer value) throws IOException {
         doTest(value,
-                DataOutputStream::writeInt,
+                WritableStreamingData::writeInt,
                 java.io.DataOutputStream::writeInt,
-                DataBuffer::writeInt,
-                DataInputStream::readInt,
+                BufferedData::writeInt,
+                ReadableStreamingData::readInt,
                 java.io.DataInputStream::readInt,
-                DataBuffer::readInt
+                BufferedData::readInt
         );
         doTest(value,
                 (d, v) -> d.writeInt(v, ByteOrder.LITTLE_ENDIAN),
@@ -83,12 +86,12 @@ public class DataTest {
     @MethodSource("unsignedIntsTestCases")
     void unsignedIntTest(Long value) throws IOException {
         doTest(value,
-                DataOutputStream::writeUnsignedInt,
+                WritableStreamingData::writeUnsignedInt,
                 (dout, v) -> dout.writeInt(v.intValue()),
-                DataBuffer::writeUnsignedInt,
-                DataInputStream::readUnsignedInt,
+                BufferedData::writeUnsignedInt,
+                ReadableStreamingData::readUnsignedInt,
                 (dout) -> Integer.toUnsignedLong(dout.readInt()),
-                DataBuffer::readUnsignedInt
+                BufferedData::readUnsignedInt
         );
         doTest(value,
                 (d, v) -> d.writeUnsignedInt(v, ByteOrder.LITTLE_ENDIAN),
@@ -107,12 +110,12 @@ public class DataTest {
     @MethodSource("longsTestCases")
     void longTest(Long value) throws IOException {
         doTest(value,
-                DataOutputStream::writeLong,
+                WritableStreamingData::writeLong,
                 java.io.DataOutputStream::writeLong,
-                DataBuffer::writeLong,
-                DataInputStream::readLong,
+                BufferedData::writeLong,
+                ReadableStreamingData::readLong,
                 java.io.DataInputStream::readLong,
-                DataBuffer::readLong
+                BufferedData::readLong
         );
         doTest(value,
                 (d, v) -> d.writeLong(v, ByteOrder.LITTLE_ENDIAN),
@@ -131,12 +134,12 @@ public class DataTest {
     @MethodSource("floatsTestCases")
     void floatTest(Float value) throws IOException {
         doTest(value,
-                DataOutputStream::writeFloat,
+                WritableStreamingData::writeFloat,
                 java.io.DataOutputStream::writeFloat,
-                DataBuffer::writeFloat,
-                DataInputStream::readFloat,
+                BufferedData::writeFloat,
+                ReadableStreamingData::readFloat,
                 java.io.DataInputStream::readFloat,
-                DataBuffer::readFloat
+                BufferedData::readFloat
         );
         doTest(value,
                 (d, v) -> d.writeFloat(v, ByteOrder.LITTLE_ENDIAN),
@@ -154,12 +157,12 @@ public class DataTest {
     @MethodSource("doublesTestCases")
     void doubleTest(Double value) throws IOException {
         doTest(value,
-                DataOutputStream::writeDouble,
+                WritableStreamingData::writeDouble,
                 java.io.DataOutputStream::writeDouble,
-                DataBuffer::writeDouble,
-                DataInputStream::readDouble,
+                BufferedData::writeDouble,
+                ReadableStreamingData::readDouble,
                 java.io.DataInputStream::readDouble,
-                DataBuffer::readDouble
+                BufferedData::readDouble
         );
         doTest(value,
                 (d, v) -> d.writeDouble(v, ByteOrder.LITTLE_ENDIAN),
@@ -177,7 +180,7 @@ public class DataTest {
         { // without zigzag
             // write to byte array with DataIO DataOutputStream
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
-            DataOutputStream dout = new DataOutputStream(bout);
+            WritableStreamingData dout = new WritableStreamingData(bout);
             dout.writeVarInt(value, false);
             byte[] writtenData = bout.toByteArray();
             // write to byte array with CodedOutputStream
@@ -194,14 +197,14 @@ public class DataTest {
             assertEquals(value, readValue);
             // read back with DataInputStream
             bin.reset();
-            DataInputStream din = new DataInputStream(bin);
+            ReadableStreamingData din = new ReadableStreamingData(bin);
             long readValue2 = din.readVarInt(false);
             assertEquals(value, readValue2);
         }
         { // with zigzag
             // write to byte array with DataIO DataOutputStream
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
-            DataOutputStream dout = new DataOutputStream(bout);
+            WritableStreamingData dout = new WritableStreamingData(bout);
             dout.writeVarInt(value, true);
             byte[] writtenData = bout.toByteArray();
             // write to byte array with CodedOutputStream
@@ -218,7 +221,7 @@ public class DataTest {
             assertEquals(value, readValue);
             // read back with DataInputStream
             bin.reset();
-            DataInputStream din = new DataInputStream(bin);
+            ReadableStreamingData din = new ReadableStreamingData(bin);
             long readValue2 = din.readVarInt(true);
             assertEquals(value, readValue2);
         }
@@ -230,7 +233,7 @@ public class DataTest {
         { // without zigzag
             // write to byte array with DataIO DataOutputStream
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
-            DataOutputStream dout = new DataOutputStream(bout);
+            WritableStreamingData dout = new WritableStreamingData(bout);
             dout.writeVarLong(value, false);
             byte[] writtenData = bout.toByteArray();
             // write to byte array with CodedOutputStream
@@ -247,14 +250,14 @@ public class DataTest {
             assertEquals(value, readValue);
             // read back with DataInputStream
             bin.reset();
-            DataInputStream din = new DataInputStream(bin);
+            ReadableStreamingData din = new ReadableStreamingData(bin);
             long readValue2 = din.readVarLong(false);
             assertEquals(value, readValue2);
         }
         { // with zigzag
             // write to byte array with DataIO DataOutputStream
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
-            DataOutputStream dout = new DataOutputStream(bout);
+            WritableStreamingData dout = new WritableStreamingData(bout);
             dout.writeVarLong(value, true);
             byte[] writtenData = bout.toByteArray();
             // write to byte array with CodedOutputStream
@@ -271,7 +274,7 @@ public class DataTest {
             assertEquals(value, readValue);
             // read back with DataInputStream
             bin.reset();
-            DataInputStream din = new DataInputStream(bin);
+            ReadableStreamingData din = new ReadableStreamingData(bin);
             long readValue2 = din.readVarLong(true);
             assertEquals(value, readValue2);
         }
@@ -281,17 +284,17 @@ public class DataTest {
     // Generic test case used by all tests :-)
 
     static <T> void doTest(T value,
-                           IoWrite<DataOutputStream,T> dataOutputWriteMethod,
+                           IoWrite<WritableStreamingData,T> dataOutputWriteMethod,
                            IoWrite<java.io.DataOutputStream,T> javaDataOutputWriteMethod,
-                           IoWrite<DataBuffer,T> dataBufferWriteMethod,
-                           IoRead<DataInputStream,T> dataInputReadMethod,
+                           IoWrite<BufferedData,T> dataBufferWriteMethod,
+                           IoRead<ReadableStreamingData,T> dataInputReadMethod,
                            IoRead<java.io.DataInputStream,T> javaDataInputReadMethod,
-                           IoRead<DataBuffer,T> dataBufferReadMethod
+                           IoRead<BufferedData,T> dataBufferReadMethod
     ) throws IOException {
         try {
             // write to byte array with DataIO DataOutputStream
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
-            DataOutputStream dout = new DataOutputStream(bout);
+            WritableStreamingData dout = new WritableStreamingData(bout);
             dataOutputWriteMethod.write(dout, value);
             byte[] writtenData = bout.toByteArray();
             // write to byte array with Java IO DataOutputStream
@@ -303,7 +306,7 @@ public class DataTest {
             assertArrayEquals(writtenData, writtenData2);
             // read back with DataInputStream
             ByteArrayInputStream bin = new ByteArrayInputStream(writtenData);
-            DataInputStream din = new DataInputStream(bin);
+            ReadableStreamingData din = new ReadableStreamingData(bin);
             T readValue = dataInputReadMethod.read(din);
             assertEquals(value, readValue);
             // read back with Java IO DataOutputStream
@@ -311,8 +314,8 @@ public class DataTest {
             java.io.DataInputStream din2 = new java.io.DataInputStream(bin);
             T readValue2 = javaDataInputReadMethod.read(din2);
             assertEquals(value, readValue2);
-            // write with DataBuffer
-            DataBuffer db = new DataBuffer(writtenData.length);
+            // write with BufferedData
+            BufferedData db = BufferedData.allocate(writtenData.length);
             dataBufferWriteMethod.write(db, value);
             db.reset();
             // check bytes in buffer
@@ -325,7 +328,7 @@ public class DataTest {
             assertEquals(value, readValue3);
             // read into Bytes and check all data is valid
             db.reset();
-            final Bytes readBytes = db.readBytes(writtenData.length);
+            final var readBytes = db.readBytes(writtenData.length);
             for (int i = 0; i < writtenData.length; i++) {
                 assertEquals(writtenData[i], readBytes.getByte(i));
             }
@@ -335,7 +338,7 @@ public class DataTest {
                 // read 1 byte, so we are doing a starting not at 0
                 db.readByte();
                 // read length -2 so subset
-                final Bytes readBytes2 = db.readBytes(writtenData.length - 2);
+                final var readBytes2 = db.readBytes(writtenData.length - 2);
                 for (int i = 0; i < writtenData.length - 2; i++) {
                     assertEquals(writtenData[i + 1], readBytes2.getByte(i));
                 }

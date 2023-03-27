@@ -1,5 +1,7 @@
 package com.hedera.pbj.runtime;
 
+import java.util.Objects;
+
 /**
  * When a protobuf schema defines a field as "oneof", it is often useful
  * for parsers to represent the field as a {@link OneOf} because there is
@@ -34,6 +36,18 @@ public record OneOf<E>(E kind, Object value) {
     @SuppressWarnings("unchecked")
     public <V> V as() {
         return (V) value;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof OneOf<?> oneOf)) return false;
+        return kind.equals(oneOf.kind) && Objects.equals(value, oneOf.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(kind, value);
     }
 }
 

@@ -40,7 +40,7 @@ class CodecParseMethodGenerator {
     static String generateParseMethod(final String modelClassName, final List<Field> fields) {
         return """
                 /**
-                 * Parses a $modelClassName object from ProtoBuf bytes in a DataInput
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}
                  *
                  * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
                  *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
@@ -50,7 +50,63 @@ class CodecParseMethodGenerator {
                  * @throws IOException If the protobuf stream is not empty and has malformed
                  * 									  protobuf bytes (i.e. isn't valid protobuf).
                  */
-                public @NonNull $modelClassName parse(@NonNull DataInput input) throws IOException {
+                public @NonNull $modelClassName parse(@NonNull final ReadableSequentialData input) throws IOException {
+                    return parseInternal(input, false);
+                }
+                """
+        .replace("$modelClassName",modelClassName)
+        .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
+                field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
+        .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
+        .replace("$caseStatements",generateCaseStatements(fields))
+        .replaceAll("\n", "\n" + Common.FIELD_INDENT);
+    }
+
+    static String generateParseStrictMethod(final String modelClassName, final List<Field> fields) {
+        return """
+                /**
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData} in strict mode, such that
+                 * parsing will fail if the encoded protobuf object contains any fields that are unknown to this
+                 * version of the parser.
+                 *
+                 * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
+                 *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
+                 *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
+                 *              then the method also returns immediately.
+                 * @return Parsed $modelClassName model object or null if data input was null or empty
+                 * @throws UnknownFieldException If an unknown field is encountered while parsing the object
+                 * @throws IOException If the protobuf stream is not empty and has malformed
+                 * 									  protobuf bytes (i.e. isn't valid protobuf).
+                 */
+                public @NonNull $modelClassName parseStrict(@NonNull final ReadableSequentialData input) throws IOException {
+                    return parseInternal(input, true);
+                }
+                """
+        .replace("$modelClassName",modelClassName)
+        .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
+                field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
+        .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
+        .replace("$caseStatements",generateCaseStatements(fields))
+        .replaceAll("\n", "\n" + Common.FIELD_INDENT);
+    }
+
+    static String generateParseInternalMethod(final String modelClassName, final List<Field> fields) {
+        return """
+                /**
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
+                 *
+                 * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
+                 *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
+                 *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
+                 *              then the method also returns immediately.
+                 * @return Parsed $modelClassName model object or null if data input was null or empty
+                 * @throws UnknownFieldException If an unknown field is encountered while parsing the object and we are in strict mode
+                 * @throws IOException If the protobuf stream is not empty and has malformed
+                 * 									  protobuf bytes (i.e. isn't valid protobuf).
+                 */
+                private @NonNull $modelClassName parseInternal(
+                        @NonNull final ReadableSequentialData input,
+                        final boolean strictMode) throws IOException {
                     // -- TEMP STATE FIELDS --------------------------------------
                 $fieldDefs
 
@@ -83,12 +139,17 @@ class CodecParseMethodGenerator {
                                 if (wireType > 5) {
                                     throw new IOException("Cannot understand wire_type of " + wireType);
                                 }
-                                // It may be that the parser subclass doesn't know about this field. In that case, we
-                                // just need to read off the bytes for this field to skip it and move on to the next one.
+                                // It may be that the parser subclass doesn't know about this field
                                 if (f == null) {
-                                    skipField(input, wireType);
+                                    if (strictMode) {
+                                        // Since we are parsing is strict mode, this is an exceptional condition.
+                                        throw new UnknownFieldException(field);
+                                    } else {
+                                        // We just need to read off the bytes for this field to skip it and move on to the next one.
+                                        skipField(input, wireType);
+                                    }
                                 } else {
-                                    throw new IOException("Bad tag ["+tag+"], field [" + field + "] wireType [" + wireType + "]");
+                                    throw new IOException("Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
                                 }
                             }
                         }
@@ -145,13 +206,13 @@ class CodecParseMethodGenerator {
         sb.append(Common.FIELD_INDENT);
         sb.append("""
 				// Read the length of packed repeated field data
-				final int length = input.readVarInt(false);
-				final long beforeLimit = input.getLimit();
-				input.setLimit(input.getPosition() + length);
+				final var length = input.readVarInt(false);
+				final var beforeLimit = input.limit();
+				input.limit(input.position() + length);
 				while (input.hasRemaining()) {
 					$tempFieldName = addToList($tempFieldName,$readMethod);
 				}
-				input.setLimit(beforeLimit);"""
+				input.limit(beforeLimit);"""
                 .replace("$tempFieldName", "temp_" + field.name())
                 .replace("$readMethod", readMethod(field))
                 .replaceAll("\n","\n" + Common.FIELD_INDENT)
@@ -174,19 +235,19 @@ class CodecParseMethodGenerator {
         if (field.optionalValueType()) {
             sb.append(Common.FIELD_INDENT + """
 							// Read the message size, it is not needed
-							final int valueTypeMessageSize = input.readVarInt(false);
+							final var valueTypeMessageSize = input.readVarInt(false);
 							final $fieldType value;
 							if (valueTypeMessageSize > 0) {
-								final long beforeLimit = input.getLimit();
-								input.setLimit(input.getPosition() + valueTypeMessageSize);
+								final var beforeLimit = input.limit();
+								input.limit(input.position() + valueTypeMessageSize);
 								// read inner tag
 								final int valueFieldTag = input.readVarInt(false);
 								// assert tag is as expected
 								assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
 								assert (valueFieldTag & TAG_WRITE_TYPE_MASK) == $valueTypeWireType;
 								// read value
-								value = Optional.of($readMethod);
-								input.setLimit(beforeLimit);
+								value = $readMethod;
+								input.limit(beforeLimit);
 							} else {
 								// means optional is default value
 								value = $defaultValue;
@@ -195,13 +256,13 @@ class CodecParseMethodGenerator {
                     .replace("$readMethod", readMethod(field))
                     .replace("$defaultValue",
                             switch (field.messageType()) {
-                                case "Int32Value", "UInt32Value" -> "Optional.of(0)";
-                                case "Int64Value", "UInt64Value" -> "Optional.of(0l)";
-                                case "FloatValue" -> "Optional.of(0f)";
-                                case "DoubleValue" -> "Optional.of(0d)";
-                                case "BoolValue" -> "Optional.of(false)";
-                                case "BytesValue" -> "Optional.of(Bytes.EMPTY_BYTES)";
-                                case "StringValue" -> "Optional.of(\"\")";
+                                case "Int32Value", "UInt32Value" -> "0";
+                                case "Int64Value", "UInt64Value" -> "0l";
+                                case "FloatValue" -> "0f";
+                                case "DoubleValue" -> "0d";
+                                case "BoolValue" -> "false";
+                                case "BytesValue" -> "Bytes.EMPTY";
+                                case "StringValue" -> "\"\"";
                                 default -> throw new PbjCompilerException("Unexpected and unknown field type " + field.type() + " cannot be parsed");
                             })
                     .replace("$valueTypeWireType", Integer.toString(
@@ -217,11 +278,11 @@ class CodecParseMethodGenerator {
             sb.append('\n');
         } else if (field.type() == Field.FieldType.MESSAGE){
             sb.append(Common.FIELD_INDENT + """
-						final int messageLength = input.readVarInt(false);
-						final long limitBefore = input.getLimit();
-						input.setLimit(input.getPosition() + messageLength);
+						final var messageLength = input.readVarInt(false);
+						final var limitBefore = input.limit();
+						input.limit(input.position() + messageLength);
 						final var value = $readMethod;
-						input.setLimit(limitBefore);"""
+						input.limit(limitBefore);"""
                     .replace("$readMethod", readMethod(field))
                     .replaceAll("\n", "\n" + Common.FIELD_INDENT)
             );
@@ -277,7 +338,7 @@ class CodecParseMethodGenerator {
             case BOOL -> "readBool(input)";
             case BYTES -> "readBytes(input)";
             case MESSAGE -> field.parseCode();
-            case ONE_OF -> throw new PbjCompilerException("Should never happen, oneof handled else where");
+            case ONE_OF -> throw new PbjCompilerException("Should never happen, oneOf handled elsewhere");
         };
     }
 }

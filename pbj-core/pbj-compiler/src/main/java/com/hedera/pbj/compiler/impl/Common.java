@@ -68,7 +68,8 @@ public final class Common {
 	public static String snakeToCamel(String name, boolean firstUpper) {
 		final String out =  Arrays.stream(name.split("_")).map(Common::capitalizeFirstLetter).collect(
 				Collectors.joining(""));
-		return firstUpper ? out : Character.toLowerCase(out.charAt(0)) + out.substring(1);
+		return (firstUpper ? Character.toUpperCase(out.charAt(0)) : Character.toLowerCase(out.charAt(0)) )
+				+ out.substring(1);
 	}
 
 	/**

@@ -1,13 +1,13 @@
 package com.hedera.pbj.integration;
 
-import com.hedera.pbj.runtime.io.Bytes;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hedera.pbj.test.proto.pbj.InnerEverything;
 import com.hedera.pbj.test.proto.pbj.Suit;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -65,15 +65,15 @@ public class EverythingTestData {
                     Bytes.wrap(new byte[]{13,15,65,98,-65}),
                     Bytes.wrap(new byte[]{127,0,-127})
             ))
-            .int32Optional(Optional.of(1234))
-            .uint32Optional(Optional.of(Integer.MAX_VALUE))
-            .floatOptional(Optional.of(15834.213581f))
-            .int64Optional(Optional.of(53451121355L))
-            .uint64Optional(Optional.of(2451326663131L))
-            .doubleOptional(Optional.of(135581531681.1535151))
-            .boolOptional(Optional.of(true))
-            .bytesOptional(Optional.of(Bytes.wrap(new byte[]{13,15,65,98,-65})))
-            .stringOptional(Optional.of("Hello Everything!"))
+            .int32Boxed(1234)
+            .uint32Boxed(Integer.MAX_VALUE)
+            .floatBoxed(15834.213581f)
+            .int64Boxed(53451121355L)
+            .uint64Boxed(2451326663131L)
+            .doubleBoxed(135581531681.1535151)
+            .boolBoxed(true)
+            .bytesBoxed(Bytes.wrap(new byte[]{13,15,65,98,-65}))
+            .stringBoxed("Hello Everything!")
             .doubleNumberOneOf(29292.299d)
             .innerEverything(new InnerEverything.Builder()
                     .int32Number(1234)
@@ -123,15 +123,15 @@ public class EverythingTestData {
                             Bytes.wrap(new byte[]{13,15,65,98,-65}),
                             Bytes.wrap(new byte[]{127,0,-127})
                     ))
-                    .int32Optional(Optional.of(1234))
-                    .uint32Optional(Optional.of(Integer.MAX_VALUE))
-                    .floatOptional(Optional.of(15834.213581f))
-                    .int64Optional(Optional.of(53451121355L))
-                    .uint64Optional(Optional.of(2451326663131L))
-                    .doubleOptional(Optional.of(135581531681.1535151))
-                    .boolOptional(Optional.of(true))
-                    .bytesOptional(Optional.of(Bytes.wrap(new byte[]{13,15,65,98,-65})))
-                    .stringOptional(Optional.of("Hello Everything!"))
+                    .int32Boxed(1234)
+                    .uint32Boxed(Integer.MAX_VALUE)
+                    .floatBoxed(15834.213581f)
+                    .int64Boxed(53451121355L)
+                    .uint64Boxed(2451326663131L)
+                    .doubleBoxed(135581531681.1535151)
+                    .boolBoxed(true)
+                    .bytesBoxed(Bytes.wrap(new byte[]{13,15,65,98,-65}))
+                    .stringBoxed("Hello Everything!")
                     .doubleNumberOneOf(29292.299d)
                     .build())
             .build();

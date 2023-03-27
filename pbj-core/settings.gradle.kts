@@ -52,19 +52,35 @@ dependencyResolutionManagement {
 
         create("testLibs") {
             // Define the approved version numbers
+            version("assertj-version", "3.23.1")
             version("junit-version", "5.9.0")
+            version("mockito-version", "4.6.1")
             version("protobuf-version", "3.21.9")
 
             // List of bundles provided for us. When applicable, favor using these over individual libraries.
-            bundle("junit", listOf("junit-jupiter", "junit-jupiter-api", "junit-jupiter-params"))
+            bundle("testing", listOf(
+                "junit-jupiter",
+                "junit-jupiter-api",
+                "junit-jupiter-params",
+                "assertj-core",
+                "mockito-inline",
+                "mockito-jupiter"))
             bundle("protobuf", listOf("protobuf-java"))
 
             // Define the individual libraries
+            // AssertJ
+            library("assertj-core", "org.assertj", "assertj-core").versionRef("assertj-version")
+
             // JUnit Bundle
             library("junit-jupiter", "org.junit.jupiter", "junit-jupiter").versionRef("junit-version")
             library("junit-jupiter-api", "org.junit.jupiter", "junit-jupiter-api").versionRef("junit-version")
             library("junit-jupiter-params", "org.junit.jupiter", "junit-jupiter-params").versionRef("junit-version")
             library("junit-jupiter-engine", "org.junit.jupiter", "junit-jupiter-engine").versionRef("junit-version")
+
+            // Mockito
+            library("mockito-inline", "org.mockito", "mockito-inline").versionRef("mockito-version")
+            library("mockito-jupiter", "org.mockito", "mockito-junit-jupiter")
+                .versionRef("mockito-version")
 
             // Protobuf Bundle
             library("protobuf-java", "com.google.protobuf", "protobuf-java").versionRef("protobuf-version")

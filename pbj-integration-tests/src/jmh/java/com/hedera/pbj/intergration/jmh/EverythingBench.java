@@ -4,12 +4,10 @@ import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayInputStream;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
-import com.hedera.pbj.runtime.io.DataBuffer;
-import com.hedera.pbj.runtime.io.DataInputStream;
-import com.hedera.pbj.runtime.io.DataOutputStream;
-import com.hederahashgraph.api.proto.pbj.test.Everything;
-import com.hederahashgraph.api.proto.pbj.test.parser.EverythingProtoParser;
-import com.hederahashgraph.api.proto.pbj.test.writer.EverythingWriter;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.hedera.pbj.test.proto.pbj.Everything;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -29,20 +27,20 @@ import static com.hedera.pbj.integration.EverythingTestData.EVERYTHING;
 public class EverythingBench {
 	// input objects
 	private final Everything everythingPbj;
-	private final com.hederahashgraph.api.proto.java.test.Everything everythingProtoC;
+	private final com.hedera.pbj.test.proto.java.Everything everythingProtoC;
 
 	// input bytes
 	private final byte[] protobuf;
 	private final ByteBuffer protobufByteBuffer;
-	private final DataBuffer protobufDataBuffer;
+	private final BufferedData protobufDataBuffer;
 	private final ByteBuffer protobufByteBufferDirect;
-	private final DataBuffer protobufDataBufferDirect;
+	private final BufferedData protobufDataBufferDirect;
 	private final NonSynchronizedByteArrayInputStream bin;
 
 	// output buffers
 	private final NonSynchronizedByteArrayOutputStream bout;
-	private final DataBuffer outDataBuffer;
-	private final DataBuffer outDataBufferDirect;
+	private final BufferedData outDataBuffer;
+	private final BufferedData outDataBufferDirect;
 	private final ByteBuffer bbout;
 	private final ByteBuffer bboutDirect;
 
@@ -50,29 +48,29 @@ public class EverythingBench {
 		try {
 			everythingPbj = EVERYTHING;
 			// write to temp data buffer and then read into byte array
-			DataBuffer tempDataBuffer = DataBuffer.allocate(5 * 1024 * 1024, false);
-			EverythingWriter.write(everythingPbj, tempDataBuffer);
+			BufferedData tempDataBuffer = BufferedData.allocate(5 * 1024 * 1024);
+			Everything.PROTOBUF.write(everythingPbj, tempDataBuffer);
 			tempDataBuffer.flip();
-			protobuf = new byte[(int) tempDataBuffer.getRemaining()];
+			protobuf = new byte[(int) tempDataBuffer.remaining()];
 			System.out.println("protobuf.length = " + protobuf.length);
 			tempDataBuffer.readBytes(protobuf);
 			// start by parsing using protoc
-			everythingProtoC = com.hederahashgraph.api.proto.java.test.Everything.parseFrom(protobuf);
+			everythingProtoC = com.hedera.pbj.test.proto.java.Everything.parseFrom(protobuf);
 
 			// input buffers
 			protobufByteBuffer = ByteBuffer.wrap(protobuf);
-			protobufDataBuffer = DataBuffer.wrap(protobuf);
+			protobufDataBuffer = BufferedData.wrap(protobuf);
 			protobufByteBufferDirect = ByteBuffer.allocateDirect(protobuf.length);
 			protobufByteBufferDirect.put(protobuf);
 			System.out.println("protobufByteBufferDirect = " + protobufByteBufferDirect);
-			protobufDataBufferDirect = DataBuffer.wrap(protobufByteBufferDirect);
+			protobufDataBufferDirect = BufferedData.wrap(protobufByteBufferDirect);
 			bin = new NonSynchronizedByteArrayInputStream(protobuf);
-			DataInputStream din = new DataInputStream(bin);
+			ReadableStreamingData din = new ReadableStreamingData(bin);
 			// output buffers
 			bout = new NonSynchronizedByteArrayOutputStream();
-			DataOutputStream dout = new DataOutputStream(bout);
-			outDataBuffer = DataBuffer.allocate(protobuf.length, false);
-			outDataBufferDirect = DataBuffer.allocate(protobuf.length, true);
+			WritableStreamingData dout = new WritableStreamingData(bout);
+			outDataBuffer = BufferedData.allocate(protobuf.length);
+			outDataBufferDirect = BufferedData.allocateOffHeap(protobuf.length);
 			bbout = ByteBuffer.allocate(protobuf.length);
 			bboutDirect = ByteBuffer.allocateDirect(protobuf.length);
 		} catch (IOException e) {
@@ -86,7 +84,7 @@ public class EverythingBench {
 	public void parsePbjByteBuffer(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
 			protobufDataBuffer.resetPosition();
-			blackhole.consume(EverythingProtoParser.parse(protobufDataBuffer));
+			blackhole.consume(Everything.PROTOBUF.parse(protobufDataBuffer));
 		}
 	}
 
@@ -94,7 +92,7 @@ public class EverythingBench {
 	public void parsePbjByteBufferDirect(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
 			protobufDataBufferDirect.resetPosition();
-			blackhole.consume(EverythingProtoParser.parse(protobufDataBufferDirect));
+			blackhole.consume(Everything.PROTOBUF.parse(protobufDataBufferDirect));
 		}
 	}
 	@Benchmark
@@ -102,34 +100,34 @@ public class EverythingBench {
 		for (int i = 0; i < 1000; i++) {
 			bin.resetPosition();
 //			blackhole.consume(EverythingProtoParser.parse(din));
-			blackhole.consume(EverythingProtoParser.parse(new DataInputStream(bin)));
+			blackhole.consume(Everything.PROTOBUF.parse(new ReadableStreamingData(bin)));
 		}
 	}
 
 	@Benchmark
 	public void parseProtoCByteArray(Blackhole blackhole) throws InvalidProtocolBufferException {
 		for (int i = 0; i < 1000; i++) {
-			blackhole.consume(com.hederahashgraph.api.proto.java.test.Everything.parseFrom(protobuf));
+			blackhole.consume(com.hedera.pbj.test.proto.java.Everything.parseFrom(protobuf));
 		}
 	}
 	@Benchmark
 	public void parseProtoCByteBufferDirect(Blackhole blackhole) throws InvalidProtocolBufferException {
 		for (int i = 0; i < 1000; i++) {
 			protobufByteBufferDirect.position(0);
-			blackhole.consume(com.hederahashgraph.api.proto.java.test.Everything.parseFrom(protobufByteBufferDirect));
+			blackhole.consume(com.hedera.pbj.test.proto.java.Everything.parseFrom(protobufByteBufferDirect));
 		}
 	}
 	@Benchmark
 	public void parseProtoCByteBuffer(Blackhole blackhole) throws InvalidProtocolBufferException {
 		for (int i = 0; i < 1000; i++) {
-			blackhole.consume(com.hederahashgraph.api.proto.java.test.Everything.parseFrom(protobufByteBuffer));
+			blackhole.consume(com.hedera.pbj.test.proto.java.Everything.parseFrom(protobufByteBuffer));
 		}
 	}
 	@Benchmark
 	public void parseProtoCInputStream(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
 			bin.resetPosition();
-			blackhole.consume(com.hederahashgraph.api.proto.java.test.Everything.parseFrom(bin));
+			blackhole.consume(com.hedera.pbj.test.proto.java.Everything.parseFrom(bin));
 		}
 	}
 
@@ -137,7 +135,7 @@ public class EverythingBench {
 	public void writePbjByteBuffer(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
 			outDataBuffer.reset();
-			EverythingWriter.write(everythingPbj, outDataBuffer);
+			Everything.PROTOBUF.write(everythingPbj, outDataBuffer);
 			blackhole.consume(outDataBuffer);
 		}
 	}
@@ -145,7 +143,7 @@ public class EverythingBench {
 	public void writePbjByteDirect(Blackhole blackhole) throws IOException {
 		for (int i = 0; i < 1000; i++) {
 			outDataBufferDirect.reset();
-			EverythingWriter.write(everythingPbj, outDataBufferDirect);
+			Everything.PROTOBUF.write(everythingPbj, outDataBufferDirect);
 			blackhole.consume(outDataBufferDirect);
 		}
 	}
@@ -154,7 +152,7 @@ public class EverythingBench {
 		for (int i = 0; i < 1000; i++) {
 			bout.reset();
 //			EverythingWriter.write(everythingPbj, dout);
-			EverythingWriter.write(everythingPbj, new DataOutputStream(bout));
+			Everything.PROTOBUF.write(everythingPbj, new WritableStreamingData(bout));
 			blackhole.consume(bout.toByteArray());
 		}
 	}

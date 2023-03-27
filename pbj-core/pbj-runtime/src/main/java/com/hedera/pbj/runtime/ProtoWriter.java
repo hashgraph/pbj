@@ -1,6 +1,6 @@
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.DataOutput;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 
 import java.io.IOException;
 
@@ -18,5 +18,5 @@ public interface ProtoWriter<T> {
      * @param out The output stream to write to
      * @throws IOException If there is a problem writing
      */
-    void write(T data, DataOutput out) throws IOException;
+    void write(T data, WritableSequentialData out) throws IOException;
 }
