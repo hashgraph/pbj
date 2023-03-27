@@ -521,7 +521,10 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @NonNull
     @Override
     public Bytes readBytes(final int length) {
+        if (length < 0) throw new IllegalArgumentException("Length cannot be negative");
         if (length == 0) return Bytes.EMPTY;
+        if (remaining() < length) throw new BufferUnderflowException();
+
         final var bytes = Bytes.wrap(buffer.array(),buffer.arrayOffset() + buffer.position(), length);
         buffer.position(buffer.position() + length);
         return bytes;

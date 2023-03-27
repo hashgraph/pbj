@@ -185,6 +185,10 @@ public interface ReadableSequentialData extends SequentialData {
             throw new IllegalArgumentException("Negative length not allowed");
         }
 
+        if (remaining() < length) {
+            throw new BufferUnderflowException();
+        }
+
         final var bytes = new byte[length];
         readBytes(bytes, 0, length);
         return Bytes.wrap(bytes);
@@ -305,11 +309,11 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default long readLong() {
+        // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+        //noinspection DuplicatedCode
         if (remaining() < Long.BYTES) {
             throw new BufferUnderflowException();
         }
-        // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
-        //noinspection DuplicatedCode
         final byte b1 = readByte();
         final byte b2 = readByte();
         final byte b3 = readByte();
@@ -338,12 +342,12 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default long readLong(@NonNull final ByteOrder byteOrder) {
-        if (remaining() < Long.BYTES) {
-            throw new BufferUnderflowException();
-        }
         if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
             // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
             //noinspection DuplicatedCode
+            if (remaining() < Long.BYTES) {
+                throw new BufferUnderflowException();
+            }
             final byte b8 = readByte();
             final byte b7 = readByte();
             final byte b6 = readByte();

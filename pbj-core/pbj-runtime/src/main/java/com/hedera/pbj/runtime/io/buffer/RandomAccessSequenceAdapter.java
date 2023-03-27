@@ -158,6 +158,10 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
     @NonNull
     @Override
     public Bytes readBytes(final int length) {
+        if (remaining() < length) {
+            throw new BufferUnderflowException();
+        }
+
         final var bytes = delegate.getBytes(start + position, length);
         position += bytes.length();
         return bytes;

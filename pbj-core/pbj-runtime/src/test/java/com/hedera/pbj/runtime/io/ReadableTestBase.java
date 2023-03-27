@@ -14,10 +14,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.function.Consumer;
 import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -214,6 +212,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         void readFromEmptyDataIsNoOp() {
             // Given an empty sequence
             final var seq = emptySequence();
+            final var pos = seq.position();
 
             // When we try to read bytes using a byte array, then we get nothing read
             assertThat(seq.readBytes(new byte[10])).isZero();
@@ -226,6 +225,9 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             // When we try to read bytes using a BufferedData, then we get nothing read
             final var bufferedData = BufferedData.allocate(10);
             assertThat(seq.readBytes(bufferedData)).isZero();
+
+            // And after all of that, the position is unchanged
+            assertThat(seq.position()).isEqualTo(pos);
         }
 
         @Test
@@ -233,6 +235,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         void readFromFullyReadDataIsNoOp() {
             // Given a fully read sequence
             final var seq = fullyUsedSequence();
+            final var pos = seq.position();
 
             // When we try to read bytes using a byte array, then we get nothing read
             assertThat(seq.readBytes(new byte[10])).isZero();
@@ -245,6 +248,9 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             // When we try to read bytes using a BufferedData, then we get nothing read
             final var bufferedData = BufferedData.allocate(10);
             assertThat(seq.readBytes(bufferedData)).isZero();
+
+            // And after all of that, the position is unchanged
+            assertThat(seq.position()).isEqualTo(pos);
         }
 
         @Test
@@ -266,6 +272,23 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             // When we try to read bytes using a BufferedData, then we get nothing read
             final var bufferedData = BufferedData.allocate(10);
             assertThat(seq.readBytes(bufferedData)).isZero();
+
+            // And after all of that, the position is unchanged
+            assertThat(seq.position()).isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("Reading Bytes with length greater than limit throws BufferUnderflowException")
+        void readingBytesWithTooLargeLength() {
+            // Given a sequence of bytes with a limit where position == limit
+            final var seq = sequence(TEST_BYTES);
+            seq.limit(5);
+            seq.skip(5);
+
+            // When we try to read Bytes, we throw a BufferUnderflowException
+            assertThatThrownBy(() -> seq.readBytes(1)).isInstanceOf(BufferUnderflowException.class);
+            assertThatThrownBy(() -> seq.readBytes(5)).isInstanceOf(BufferUnderflowException.class);
+            assertThatThrownBy(() -> seq.readBytes(10)).isInstanceOf(BufferUnderflowException.class);
         }
 
         @Test
@@ -484,6 +507,17 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             assertThat(seq.position()).isEqualTo(pos + TEST_BYTES.length);
         }
 
+        @ParameterizedTest
+        @ValueSource(ints = { 1, 5, 26 })
+        @DisplayName("Reading a number of bytes into Bytes where the length is > 0 and <= remaining")
+        void readBytes(final int length) {
+            final var seq = sequence(TEST_BYTES);
+            final var pos = seq.position();
+            final var subset = Arrays.copyOfRange(TEST_BYTES, (int) pos, (int) pos + length);
+            assertThat(seq.readBytes(length)).isEqualTo(Bytes.wrap(subset));
+            assertThat(seq.position()).isEqualTo(pos + length);
+        }
+
         @Test
         @DisplayName("Reading bytes into a dst byte array where the dst is larger than the sequence")
         void readLargerDstByteArray() {
@@ -693,8 +727,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             // When we try to read an int, then we get a BufferUnderflowException
             seq.skip(4); // Only 1 byte left, not enough
             assertThatThrownBy(seq::readInt).isInstanceOf(BufferUnderflowException.class);
-            seq.skip(1); // No bytes left, not enough
-            assertThatThrownBy(seq::readInt).isInstanceOf(BufferUnderflowException.class);
+            assertThatThrownBy(() -> seq.readInt(LITTLE_ENDIAN)).isInstanceOf(BufferUnderflowException.class);
         }
 
         @Test
@@ -785,8 +818,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             // When we try to read an unsigned int, then we get a BufferUnderflowException
             seq.skip(4); // Only 1 byte left, not enough
             assertThatThrownBy(seq::readUnsignedInt).isInstanceOf(BufferUnderflowException.class);
-            seq.skip(1); // No bytes left, not enough
-            assertThatThrownBy(seq::readUnsignedInt).isInstanceOf(BufferUnderflowException.class);
+            assertThatThrownBy(() -> seq.readUnsignedInt(LITTLE_ENDIAN)).isInstanceOf(BufferUnderflowException.class);
         }
 
         @Test
@@ -874,8 +906,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             // When we try to read a long, then we get a BufferUnderflowException
             seq.skip(4); // Only 1 byte left, not enough
             assertThatThrownBy(seq::readLong).isInstanceOf(BufferUnderflowException.class);
-            seq.skip(1); // No bytes left, not enough
-            assertThatThrownBy(seq::readLong).isInstanceOf(BufferUnderflowException.class);
+            assertThatThrownBy(() -> seq.readLong(LITTLE_ENDIAN)).isInstanceOf(BufferUnderflowException.class);
         }
 
         @Test
@@ -1142,6 +1173,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             assertThat(seq.readDouble(LITTLE_ENDIAN)).isEqualTo(0x191A1B1C1D1E1F20L);
         }
     }
+
     @Nested
     @DisplayName("readVarInt()")
     final class ReadVarIntTest {
@@ -1259,6 +1291,28 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             final var value = seq.readVarLong(true);
             assertThat(value).isEqualTo(-151);
             assertThat(seq.position()).isEqualTo(pos + 2);
+        }
+
+        @Test
+        @DisplayName("Reading a varlong that is not properly encoded throws DataEncodingException")
+        void readInvalidVarLong() {
+            // Given a very long sequence of bytes all with the "continuation" bit set
+            // FUTURE: It would be good to have an additional test for integers
+            // (not sure what the max number of bytes are for that)
+            final var seq = sequence(new byte[] {
+                    (byte) 0b10101101,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010
+            });
+            // When we try to decode a long, the lack of a "terminator" bit causes a DataEncodingException
+            assertThatThrownBy(() -> seq.readVarLong(false)).isInstanceOf(DataEncodingException.class);
         }
     }
 }
