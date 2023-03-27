@@ -268,7 +268,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
         @Test
         @DisplayName("Writing bytes from an InputStream with lots of data")
         void writingFromInputStreamWithLotsOfData() {
-            // Given a sequence and an input stream with no data
+            // Given a sequence and an input stream with lots of data
             final var seq = sequence();
             final var bytes = new byte[1024*1024];
             for (int i = 0; i < bytes.length; i++) {

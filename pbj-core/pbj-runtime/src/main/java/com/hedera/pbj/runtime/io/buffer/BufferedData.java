@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -761,6 +762,9 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public void writeBytes(@NonNull final byte[] src, final int offset, final int length) {
+        if (length < 0) {
+            throw new IllegalArgumentException("length must be >= 0");
+        }
         buffer.put(src, offset, length);
     }
 
@@ -770,7 +774,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     public void writeBytes(@NonNull final ByteBuffer src) {
         if ((limit() - position()) < src.remaining()) {
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
         buffer.put(src);
     }
@@ -781,9 +785,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     public void writeBytes(@NonNull final BufferedData src) {
         if ((limit() - position()) < src.remaining()) {
-            System.err.println("Trying to write [" + src.remaining() + "] bytes but only [" +
-                    (limit() - position()) + "] remaining of [" + capacity() + "]");
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
         buffer.put(src.buffer);
     }
@@ -795,7 +797,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     public void writeBytes(@NonNull final RandomAccessData src) {
         if (src instanceof Bytes buf) {
             if ((limit() - position()) < src.length()) {
-                throw new BufferUnderflowException();
+                throw new BufferOverflowException();
             }
             buf.writeTo(buffer);
         } else {

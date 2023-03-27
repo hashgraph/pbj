@@ -2,6 +2,8 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.ReadableTestBase;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.WritableTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -55,6 +57,30 @@ final class BufferedDataTest {
         @Override
         protected ReadableSequentialData sequence(@NonNull byte[] arr) {
             return new RandomAccessSequenceAdapter(BufferedData.wrap(arr));
+        }
+    }
+
+    @Nested
+    final class WritableSequentialDataTest extends WritableTestBase {
+        @NonNull
+        @Override
+        protected WritableSequentialData sequence() {
+            return BufferedData.allocate(1024 * 1024 * 2); // the largest expected test value is 1024 * 1024
+        }
+
+        @NonNull
+        @Override
+        protected WritableSequentialData eofSequence() {
+            return BufferedData.wrap(new byte[0]);
+        }
+
+        @NonNull
+        @Override
+        protected byte[] extractWrittenBytes(@NonNull WritableSequentialData seq) {
+            final var buf = (BufferedData) seq;
+            final var bytes = new byte[Math.toIntExact(buf.position())];
+            buf.getBytes(0, bytes);
+            return bytes;
         }
     }
 }
