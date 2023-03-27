@@ -89,7 +89,7 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeBytes(@NonNull final ByteBuffer src) {
         if ((limit() - position()) < src.remaining()) {
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
 
         while(src.hasRemaining()) {
@@ -108,7 +108,7 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeBytes(@NonNull final BufferedData src) {
         if ((limit() - position()) < src.remaining()) {
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
 
         while(src.hasRemaining()) {
@@ -126,7 +126,7 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeBytes(@NonNull final RandomAccessData src) {
         if ((limit() - position()) < src.length()) {
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
 
         for (int i = 0; i < src.length(); i++) {
@@ -137,33 +137,33 @@ public interface WritableSequentialData extends SequentialData {
     /**
      * Writes the bytes from the given {@link java.io.InputStream} into this {@link WritableSequentialData}.
      * The {@link #position()} is then incremented by the number of bytes written, which is also returned.
-     * If the end-of-stream was reached without reading data, the no change is made to the {@link #position()}
-     * and -1 is returned. There is no guarantee that we will read from the stream completely, once we get to the
+     * If the end-of-stream was reached without reading data, then no change is made to the {@link #position()}
+     * and 0 is returned. There is no guarantee that we will read from the stream completely, once we get to the
      * {@link #limit()}, we will read no more from the stream.
      *
      * @param src The source {@link java.io.InputStream} to read bytes from
-     * @param len The maximum number of bytes to read from the {@link java.io.InputStream}. If the
+     * @param maxLength The maximum number of bytes to read from the {@link java.io.InputStream}. If the
      *            stream does not have this many bytes, then only those bytes available, if any,
      *            are read.
-     * @return The number of bytes read from the stream, or -1 if the end of stream was reached without reading bytes.
+     * @return The number of bytes read from the stream, or 0 if the end of stream was reached without reading bytes.
      * @throws IllegalArgumentException if {@code len} is negative
      * @throws DataAccessException if an I/O error occurs
      */
-    default int writeBytes(@NonNull final InputStream src, final int len) {
+    default int writeBytes(@NonNull final InputStream src, final int maxLength) {
         // Check for a bad length or a null src
         Objects.requireNonNull(src);
-        if (len < 0) {
+        if (maxLength < 0) {
             throw new IllegalArgumentException("The length must be >= 0");
         }
 
         // If the length is zero, then we have nothing to read
-        if (len == 0) {
+        if (maxLength == 0) {
             return 0;
         }
 
         // We are going to read from the input stream up to either "len" or the number of bytes
         // remaining in this DataOutput, whichever is lesser.
-        final long numBytesToRead = Math.min(len, remaining());
+        final long numBytesToRead = Math.min(maxLength, remaining());
         if (numBytesToRead == 0) {
             return 0;
         }
@@ -173,7 +173,8 @@ public interface WritableSequentialData extends SequentialData {
             final var buf = new byte[8192];
             int totalBytesRead = 0;
             while (totalBytesRead < numBytesToRead) {
-                int numBytesRead = src.read(buf, 0, buf.length);
+                final var maxBytesToRead = Math.toIntExact(Math.min(numBytesToRead - totalBytesRead, buf.length));
+                final var numBytesRead = src.read(buf, 0, maxBytesToRead);
                 if (numBytesRead == -1) {
                     return totalBytesRead;
                 }
@@ -197,7 +198,7 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeInt(final int value) {
         if ((limit() - position()) < Integer.BYTES) {
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
         writeByte((byte)(value >>> 24));
         writeByte((byte)(value >>> 16));
@@ -216,7 +217,7 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeInt(final int value, @NonNull final ByteOrder byteOrder) {
         if ((limit() - position()) < Integer.BYTES) {
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             writeInt(value);
@@ -238,7 +239,7 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeUnsignedInt(final long value) {
         if ((limit() - position()) < Integer.BYTES) {
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
         writeByte((byte)(value >>> 24));
         writeByte((byte)(value >>> 16));
@@ -257,7 +258,7 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeUnsignedInt(final long value, @NonNull final ByteOrder byteOrder) {
         if ((limit() - position()) < Integer.BYTES) {
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             writeUnsignedInt(value);
@@ -279,7 +280,7 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeLong(final long value) {
         if ((limit() - position()) < Long.BYTES) {
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
         writeByte((byte)(value >>> 56));
         writeByte((byte)(value >>> 48));
@@ -302,7 +303,7 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeLong(final long value, @NonNull final ByteOrder byteOrder) {
         if ((limit() - position()) < Long.BYTES) {
-            throw new BufferUnderflowException();
+            throw new BufferOverflowException();
         }
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             writeLong(value);

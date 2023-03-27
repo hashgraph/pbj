@@ -14,7 +14,7 @@ public class BytesTest extends ReadableTestBase {
 
     @NonNull
     @Override
-    protected ReadableSequentialData fullyReadSequence() {
+    protected ReadableSequentialData fullyUsedSequence() {
         final var buf = Bytes.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }).toReadableSequentialData();
         buf.skip(10);
         return buf;

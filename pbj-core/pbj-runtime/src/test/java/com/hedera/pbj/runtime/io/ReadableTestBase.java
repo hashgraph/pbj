@@ -22,7 +22,6 @@ import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Base test class for testing {@link ReadableSequentialData} and {@link RandomAccessData}. Both classes
@@ -33,108 +32,30 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * {@link ReadableStreamingData} and {@link BufferedData}, and by wrapping the {@link RandomAccessData}
  * with a {@link ReadableSequentialData} adapter.
  */
-public abstract class ReadableTestBase {
-    private static final byte[] TEST_BYTES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".getBytes(StandardCharsets.UTF_8);
+public abstract class ReadableTestBase extends SequentialTestBase {
+
+    protected static final byte[] TEST_BYTES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".getBytes(StandardCharsets.UTF_8);
+
+    @NonNull
+    @Override
+    protected SequentialData sequence() {
+        return sequence(TEST_BYTES);
+    }
+
+    @NonNull
+    @Override
+    protected SequentialData eofSequence() {
+        return fullyUsedSequence();
+    }
 
     @NonNull
     protected abstract ReadableSequentialData emptySequence();
 
     @NonNull
-    protected abstract ReadableSequentialData fullyReadSequence();
+    protected abstract ReadableSequentialData fullyUsedSequence();
 
     @NonNull
     protected abstract ReadableSequentialData sequence(@NonNull byte[] arr);
-
-    @NonNull
-    private byte[] asBytes(@NonNull final Consumer<ByteBuffer> c, @NonNull final ByteOrder order) {
-        final var buf = ByteBuffer.allocate(1000).order(order);
-        c.accept(buf);
-        buf.flip();
-        final var bytes = new byte[buf.remaining()];
-        buf.get(bytes);
-        return bytes;
-    }
-
-    @NonNull
-    private byte[] asBytes(@NonNull final Consumer<ByteBuffer> c) {
-        return asBytes(c, BIG_ENDIAN);
-    }
-
-    @Nested
-    @DisplayName("limit()")
-    final class LimitTest {
-        @Test
-        @DisplayName("Setting the limit to be negative clamps to the position")
-        void setNegativeLimit() {
-            // Given a sequence of bytes
-            final var seq = sequence(TEST_BYTES);
-            // When the limit is made negative
-            seq.limit(-1);
-            // Then the limit is clamped to the position
-            assertThat(seq.limit()).isEqualTo(seq.position());
-        }
-
-        @Test
-        @DisplayName("Setting the limit to be less than the position clamps to the position")
-        void clampToPosition() {
-            // Given a sequence of bytes where the position is not 0 and not capacity
-            final var seq = sequence(TEST_BYTES);
-            seq.skip(2);
-            // When we set the limit to be less than the position
-            seq.limit(seq.position() - 1);
-            // Then the limit is clamped to the position
-            assertThat(seq.limit()).isEqualTo(seq.position());
-        }
-
-        @Test
-        @DisplayName("Setting the limit between position and capacity works")
-        void limit() {
-            // Given a sequence of bytes
-            final var seq = sequence(TEST_BYTES);
-            // When we set the limit to be between the position and capacity
-            final var limit = seq.capacity() - seq.position() / 2;
-            seq.limit(limit);
-            // Then the limit is set
-            assertThat(seq.limit()).isEqualTo(limit);
-        }
-
-        @Test
-        @DisplayName("Setting the limit to be greater than the capacity clamps to the capacity")
-        void clampToCapacity() {
-            // Given a sequence of bytes (assuming capacity is less than Long.MAX_VALUE)
-            final var seq = sequence(TEST_BYTES);
-            assumeTrue(seq.capacity() < Long.MAX_VALUE, "This test does not make sense for streams");
-            // When we set the limit to be larger than the capacity
-            seq.limit(seq.capacity() + 1);
-            // Then the limit is clamped to the capacity
-            assertThat(seq.limit()).isEqualTo(seq.capacity());
-        }
-    }
-
-    @Nested
-    @DisplayName("skip()")
-    final class SkipTest {
-        @ParameterizedTest
-        @CsvSource({
-                "-1, 0", // skip -1 bytes, limit is 5, so clamp to 0
-                "0, 0", // skip 0 bytes, limit is 5, so clamp to 0
-                "3, 3", // skip 3 bytes, limit is 5, so clamp to 3
-                "5, 5", // skip 5 bytes, limit is 5, so clamp to 5
-                "7, 5"}) // skip 7 bytes, limit is 5, so clamp to 5
-        @DisplayName("Skipping relative to the limit will clamp at limit")
-        void skipping(long skip, long expected) {
-            // Given a sequence of bytes, and some number of bytes to skip
-            final var seq = sequence(TEST_BYTES);
-            // When we set the limit to be between the position and capacity, and we skip those bytes
-            seq.limit(5);
-            assertThat(seq.skip(skip)).isEqualTo(expected);
-            // Then the position matches the number of bytes actually skipped, taking into account
-            // whether the number of bytes skipped was clamped due to encountering the limit
-            // or not (The "expected" arg tells us where we should have landed after skipping bytes)
-            assertThat(seq.position()).isEqualTo(expected);
-            assertThat(seq.remaining()).isEqualTo(5 - expected);
-        }
-    }
 
     @Nested
     @DisplayName("readByte()")
@@ -152,7 +73,7 @@ public abstract class ReadableTestBase {
         @DisplayName("Reading a byte from a full read sequence throws BufferUnderflowException")
         void readFromFullyReadDataThrows() {
             // Given a fully read sequence
-            final var seq = fullyReadSequence();
+            final var seq = fullyUsedSequence();
             // When we try to read a byte, then we get a BufferUnderflowException
             assertThatThrownBy(seq::readByte).isInstanceOf(BufferUnderflowException.class);
         }
@@ -202,7 +123,7 @@ public abstract class ReadableTestBase {
         @DisplayName("Reading an unsigned byte from a full read sequence throws BufferUnderflowException")
         void readFromFullyReadDataThrows() {
             // Given a fully read sequence
-            final var seq = fullyReadSequence();
+            final var seq = fullyUsedSequence();
             // When we try to read an unsigned byte, then we get a BufferUnderflowException
             assertThatThrownBy(seq::readUnsignedByte).isInstanceOf(BufferUnderflowException.class);
         }
@@ -311,7 +232,7 @@ public abstract class ReadableTestBase {
         @DisplayName("Reading bytes from a fully read sequence is a no-op")
         void readFromFullyReadDataIsNoOp() {
             // Given a fully read sequence
-            final var seq = fullyReadSequence();
+            final var seq = fullyUsedSequence();
 
             // When we try to read bytes using a byte array, then we get nothing read
             assertThat(seq.readBytes(new byte[10])).isZero();
@@ -759,7 +680,7 @@ public abstract class ReadableTestBase {
         @Test
         @DisplayName("Reading an int from a full read sequence throws BufferUnderflowException")
         void readFromFullyReadDataThrows() {
-            final var seq = fullyReadSequence();
+            final var seq = fullyUsedSequence();
             assertThatThrownBy(seq::readInt).isInstanceOf(BufferUnderflowException.class);
         }
 
@@ -779,7 +700,7 @@ public abstract class ReadableTestBase {
         @Test
         @DisplayName("Reading an int when less than 4 bytes are available throws BufferUnderflowException")
         void readInsufficientDataThrows() {
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < Integer.BYTES - 1; i++) {
                 final var seq = sequence(new byte[i]);
                 assertThatThrownBy(seq::readInt).isInstanceOf(BufferUnderflowException.class);
             }
@@ -851,7 +772,7 @@ public abstract class ReadableTestBase {
         @Test
         @DisplayName("Reading an unsigned int from a full read sequence throws BufferUnderflowException")
         void readFromFullyReadDataThrows() {
-            final var seq = fullyReadSequence();
+            final var seq = fullyUsedSequence();
             assertThatThrownBy(seq::readUnsignedInt).isInstanceOf(BufferUnderflowException.class);
         }
 
@@ -871,7 +792,7 @@ public abstract class ReadableTestBase {
         @Test
         @DisplayName("Reading an unsigned int when less than 4 bytes are available throws BufferUnderflowException")
         void readInsufficientDataThrows() {
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < Integer.BYTES - 1; i++) {
                 final var seq = sequence(new byte[i]);
                 assertThatThrownBy(seq::readUnsignedInt).isInstanceOf(BufferUnderflowException.class);
             }
@@ -940,7 +861,7 @@ public abstract class ReadableTestBase {
         @Test
         @DisplayName("Reading a long from a full read sequence throws BufferUnderflowException")
         void readFromFullyReadDataThrows() {
-            final var seq = fullyReadSequence();
+            final var seq = fullyUsedSequence();
             assertThatThrownBy(seq::readLong).isInstanceOf(BufferUnderflowException.class);
         }
 
@@ -958,9 +879,9 @@ public abstract class ReadableTestBase {
         }
 
         @Test
-        @DisplayName("Reading a long when less than 4 bytes are available throws BufferUnderflowException")
+        @DisplayName("Reading a long when less than 8 bytes are available throws BufferUnderflowException")
         void readInsufficientDataThrows() {
-            for (int i = 0; i < 7; i++) {
+            for (int i = 0; i < Long.BYTES - 1; i++) {
                 final var seq = sequence(new byte[i]);
                 assertThatThrownBy(seq::readLong).isInstanceOf(BufferUnderflowException.class);
             }
@@ -1029,7 +950,7 @@ public abstract class ReadableTestBase {
         @Test
         @DisplayName("Reading a float from a full read sequence throws BufferUnderflowException")
         void readFromFullyReadDataThrows() {
-            final var seq = fullyReadSequence();
+            final var seq = fullyUsedSequence();
             assertThatThrownBy(seq::readFloat).isInstanceOf(BufferUnderflowException.class);
         }
 
@@ -1049,7 +970,7 @@ public abstract class ReadableTestBase {
         @Test
         @DisplayName("Reading a float when less than 4 bytes are available throws BufferUnderflowException")
         void readInsufficientDataThrows() {
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < Float.BYTES - 1; i++) {
                 final var seq = sequence(new byte[i]);
                 assertThatThrownBy(seq::readFloat).isInstanceOf(BufferUnderflowException.class);
             }
@@ -1132,7 +1053,7 @@ public abstract class ReadableTestBase {
         @Test
         @DisplayName("Reading a double from a full read sequence throws BufferUnderflowException")
         void readFromFullyReadDataThrows() {
-            final var seq = fullyReadSequence();
+            final var seq = fullyUsedSequence();
             assertThatThrownBy(seq::readDouble).isInstanceOf(BufferUnderflowException.class);
         }
 
@@ -1150,9 +1071,9 @@ public abstract class ReadableTestBase {
         }
 
         @Test
-        @DisplayName("Reading a double when less than 4 bytes are available throws BufferUnderflowException")
+        @DisplayName("Reading a double when less than 8 bytes are available throws BufferUnderflowException")
         void readInsufficientDataThrows() {
-            for (int i = 0; i < 7; i++) {
+            for (int i = 0; i < Long.BYTES - 1; i++) {
                 final var seq = sequence(new byte[i]);
                 assertThatThrownBy(seq::readDouble).isInstanceOf(BufferUnderflowException.class);
             }
@@ -1236,7 +1157,7 @@ public abstract class ReadableTestBase {
         @ValueSource(booleans = {false, true})
         @DisplayName("Reading a varint from a full read sequence throws BufferUnderflowException")
         void readFromFullyReadDataThrows(final boolean zigZag) {
-            final var seq = fullyReadSequence();
+            final var seq = fullyUsedSequence();
             assertThatThrownBy(() -> seq.readVarInt(zigZag)).isInstanceOf(BufferUnderflowException.class);
         }
 
@@ -1296,7 +1217,7 @@ public abstract class ReadableTestBase {
         @ValueSource(booleans = {false, true})
         @DisplayName("Reading a varlong from a full read sequence throws BufferUnderflowException")
         void readFromFullyReadDataThrows(final boolean zigZag) {
-            final var seq = fullyReadSequence();
+            final var seq = fullyUsedSequence();
             assertThatThrownBy(() -> seq.readVarLong(zigZag)).isInstanceOf(BufferUnderflowException.class);
         }
 

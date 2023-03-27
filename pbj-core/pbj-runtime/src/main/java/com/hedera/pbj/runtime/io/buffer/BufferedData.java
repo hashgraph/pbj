@@ -807,19 +807,19 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      * {@inheritDoc}
      */
     @Override
-    public int writeBytes(@NonNull final InputStream src, final int len) {
+    public int writeBytes(@NonNull final InputStream src, final int maxLength) {
         if (!buffer.hasArray()) {
-            return WritableSequentialData.super.writeBytes(src, len);
+            return WritableSequentialData.super.writeBytes(src, maxLength);
         }
 
         // Check for a bad length or a null src
         Objects.requireNonNull(src);
-        if (len < 0) {
+        if (maxLength < 0) {
             throw new IllegalArgumentException("The length must be >= 0");
         }
 
         // If the length is zero, then we have nothing to read
-        if (len == 0) {
+        if (maxLength == 0) {
             return 0;
         }
 
@@ -830,7 +830,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
 
         // We are going to read from the input stream up to either "len" or the number of bytes
         // remaining in this buffer, whichever is lesser.
-        final long numBytesToRead = Math.min(len, remaining());
+        final long numBytesToRead = Math.min(maxLength, remaining());
         if (numBytesToRead == 0) {
             return 0;
         }

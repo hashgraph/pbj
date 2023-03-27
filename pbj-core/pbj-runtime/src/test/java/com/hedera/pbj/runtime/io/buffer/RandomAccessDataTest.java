@@ -14,7 +14,7 @@ public class RandomAccessDataTest extends ReadableTestBase {
 
     @NonNull
     @Override
-    protected ReadableSequentialData fullyReadSequence() {
+    protected ReadableSequentialData fullyUsedSequence() {
         final var buf = new RandomAccessSequenceAdapter(new StubbedRandomAccessData(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }));
         buf.skip(10);
         return buf;

@@ -36,6 +36,24 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
         preloadByte();
     }
 
+    // ================================================================================================================
+    // AutoCloseable Methods
+
+    /** {@inheritDoc} */
+    @Override
+    public void close() {
+        // Maybe we should have a "closed" bit and a "closed" exception if you try to use a stream that is closed...
+        nextByte = -1;
+        try {
+            in.close();
+        } catch (IOException ignored) {
+            // We can ignore this.
+        }
+    }
+
+    // ================================================================================================================
+    // SequentialData Methods
+
     /** {@inheritDoc} */
     @Override
     public long capacity() {
@@ -77,6 +95,9 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
         return !eof() && position < limit;
     }
 
+    // ================================================================================================================
+    // ReadableSequentialData Methods
+
     /** {@inheritDoc} */
     @Override
     public byte readByte() {
@@ -113,18 +134,6 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
             return numSkipped + 1;
         } catch (IOException e) {
             throw new DataAccessException(e);
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public void close() {
-        // Maybe we should have a "closed" bit and a "closed" exception if you try to use a stream that is closed...
-        nextByte = -1;
-        try {
-            in.close();
-        } catch (IOException ignored) {
-            // We can ignore this.
         }
     }
 

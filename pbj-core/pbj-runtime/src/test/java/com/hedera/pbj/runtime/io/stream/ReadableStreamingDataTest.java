@@ -28,7 +28,7 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
 
     @NonNull
     @Override
-    protected ReadableStreamingData fullyReadSequence() {
+    protected ReadableStreamingData fullyUsedSequence() {
         final var s = "This is a test string!";
         final var stream = sequence(s.getBytes(StandardCharsets.UTF_8));
         //noinspection ResultOfMethodCallIgnored
