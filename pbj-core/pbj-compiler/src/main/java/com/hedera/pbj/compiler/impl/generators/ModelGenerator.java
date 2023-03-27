@@ -245,7 +245,7 @@ public final class ModelGenerator implements Generator {
 					""".formatted(
 					fields.stream().map(field -> "\n * @param "+field.nameCamelFirstLower()+" "+
 							field.comment()
-									.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()))
+							.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()))
 					).collect(Collectors.joining()),
 					javaRecordName,
 					fields.stream()
@@ -381,29 +381,7 @@ public final class ModelGenerator implements Generator {
 					.replace("$fieldType",field.javaFieldType())
 					.replaceAll("\n","\n"+FIELD_INDENT));
 		}
-//		// add nice method for message fields with optional types so can set unwrapped
-//		if (field.type() == Field.FieldType.MESSAGE && field.optionalValueType() && !field.repeated()) {
-//			builderMethods.add("""
-//						/**
-//						 * $fieldDoc
-//						 *
-//						 * @param value raw value not wrapped in optional
-//						 * @return builder to continue building with
-//						 */
-//						public Builder $fieldName($baseType value) {
-//							this.$fieldToSet = $prefix Optional.of(value) $postfix;
-//							return this;
-//						}"""
-//					.replace("$baseType",field.javaFieldType().substring("Optional<".length(),field.javaFieldType().length()-1))
-//					.replace("$fieldDoc",field.comment()
-//							.replaceAll("\n", "\n * "))
-//					.replace("$fieldName",field.nameCamelFirstLower())
-//					.replace("$fieldToSet",fieldToSet)
-//					.replace("$fieldType",field.javaFieldType())
-//					.replace("$prefix",prefix)
-//					.replace("$postfix",postfix)
-//					.replaceAll("\n","\n"+FIELD_INDENT));
-//		}
+
 		// add nice method for message fields with list types for varargs
 		if (field.repeated()) {
 			builderMethods.add("""

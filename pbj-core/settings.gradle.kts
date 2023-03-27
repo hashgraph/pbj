@@ -58,7 +58,12 @@ dependencyResolutionManagement {
             version("protobuf-version", "3.21.9")
 
             // List of bundles provided for us. When applicable, favor using these over individual libraries.
-            bundle("testing", listOf("junit-jupiter", "junit-jupiter-api", "junit-jupiter-params", "assertj-core",               "mockito-inline",
+            bundle("testing", listOf(
+                "junit-jupiter",
+                "junit-jupiter-api",
+                "junit-jupiter-params",
+                "assertj-core",
+                "mockito-inline",
                 "mockito-jupiter"))
             bundle("protobuf", listOf("protobuf-java"))
 
