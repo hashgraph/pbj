@@ -440,7 +440,7 @@ public final class OffHeapDataBuffer extends DataBuffer {
         if ((x = UNSAFE.getByte(startOfBytesPointer + tempPos++)) >= 0) {
             position ++;
             return zigZag ? (x >>> 1) ^ -(x & 1) : x;
-        } else if ((limit - position) < 10) {
+        } else if ((limit - position) < 10) { // Why is this if needed, it is much faster without?
             return (int)readVarLongSlow(zigZag);
         } else if ((x ^= (UNSAFE.getByte(startOfBytesPointer + tempPos++) << 7)) < 0) {
             x ^= (~0 << 7);
@@ -477,7 +477,7 @@ public final class OffHeapDataBuffer extends DataBuffer {
         if ((y = UNSAFE.getByte(startOfBytesPointer + tempPos++)) >= 0) {
             position ++;
             return zigZag ? (y >>> 1) ^ -(y & 1) : y;
-        } else if (buffer.remaining() < 10) {
+        } else if (buffer.remaining() < 10) { // Why is this if needed, it is much faster without?
             return readVarLongSlow(zigZag);
         } else if ((y ^= (UNSAFE.getByte(startOfBytesPointer + tempPos++) << 7)) < 0) {
             x = y ^ (~0 << 7);
