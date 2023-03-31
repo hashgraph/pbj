@@ -5,28 +5,23 @@ import com.hedera.pbj.runtime.io.ReadableTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 final class ReadableStreamingDataTest extends ReadableTestBase {
-
-    // TODO Verify capacity is Long.MAX_VALUE always.
 
     @NonNull
     @Override
     protected ReadableStreamingData emptySequence() {
-        return new ReadableStreamingData(new ByteArrayInputStream(new byte[0]));
+        final var stream = new ReadableStreamingData(new ByteArrayInputStream(new byte[0]));
+        stream.limit(0);
+        return stream;
     }
 
     @NonNull
@@ -34,7 +29,7 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
     protected ReadableStreamingData fullyUsedSequence() {
         final var s = "This is a test string!";
         final var stream = sequence(s.getBytes(StandardCharsets.UTF_8));
-        //noinspection ResultOfMethodCallIgnored
+        stream.limit(s.length());
         stream.skip(s.getBytes(StandardCharsets.UTF_8).length);
         return stream;
     }
@@ -42,7 +37,9 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
     @Override
     @NonNull
     protected ReadableStreamingData sequence(@NonNull byte [] arr) {
-        return new ReadableStreamingData(new ByteArrayInputStream(arr));
+        final var stream = new ReadableStreamingData(new ByteArrayInputStream(arr));
+        stream.limit(arr.length);
+        return stream;
     }
 
     @Test
@@ -140,11 +137,12 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
     @Test
     @DisplayName("Limit is not changed when we get to the end of the stream")
     void limitNotChanged() {
-        try (var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8))) {
-            final var bytes = new byte[10];
+        // The semantics are now that the stream doesn't know if it has reached the end until you
+        // try to read past the end, at which point you get a BufferUnderflowException.
+        try (var stream = new ReadableStreamingData(new ByteArrayInputStream(new byte[] {1, 2, 3}))) {
+            final var bytes = new byte[3];
             stream.readBytes(bytes);
-            assertThat(stream.hasRemaining()).isFalse();
-            assertThat(stream.remaining()).isZero();
+            assertThat(stream.hasRemaining()).isTrue();
             assertThat(stream.limit()).isEqualTo(Long.MAX_VALUE);
         }
     }
@@ -156,7 +154,7 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
             final var bytes = new byte[5];
             stream.readBytes(bytes);
             assertThat(stream.hasRemaining()).isTrue();
-            assertThat(stream.limit()).isEqualTo(Long.MAX_VALUE);
+            assertThat(stream.limit()).isEqualTo(10);
             assertThat(stream.position()).isEqualTo(5);
             stream.limit(2);
             assertThat(stream.position()).isEqualTo(5);
@@ -202,18 +200,6 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
             stream.close();
             assertThatThrownBy(stream::readByte)
                     .isInstanceOf(BufferUnderflowException.class);
-        }
-    }
-
-    @Test
-    @DisplayName("InputStream fails immediately if bad in constructor")
-    void inputStreamFailsImmediately() throws IOException {
-        try (final var inputStream = mock(InputStream.class)) {
-            when(inputStream.markSupported()).thenReturn(true);
-            given(inputStream.read()).willThrow(new IOException("Failed"));
-
-            assertThatThrownBy(() -> new ReadableStreamingData(inputStream))
-                    .isInstanceOf(DataAccessException.class);
         }
     }
 

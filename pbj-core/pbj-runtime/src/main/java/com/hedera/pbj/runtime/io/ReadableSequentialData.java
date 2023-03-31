@@ -96,12 +96,13 @@ public interface ReadableSequentialData extends SequentialData {
         // Read up to maxLength bytes into the dst array. Note the check for `hasRemaining()` is done in the loop
         // because, for streams, we cannot determine ahead of time the total number of available bytes, so we must
         // continue to check as we process each byte. This is not efficient for buffers.
-        final var maxIndex = offset + maxLength;
+        final var length = Math.min(maxLength, remaining());
+        final var maxIndex = offset + length;
         for (int i = offset; i < maxIndex; i++) {
             if (!hasRemaining()) return (long) i - offset;
             dst[i] = readByte();
         }
-        return maxLength;
+        return length;
     }
 
     /**

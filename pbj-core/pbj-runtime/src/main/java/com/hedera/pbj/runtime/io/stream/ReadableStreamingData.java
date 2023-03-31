@@ -20,7 +20,7 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
     private long position = 0;
     /** The current limit for reading, defaults to Long.MAX_VALUE basically unlimited */
     private long limit = Long.MAX_VALUE;
-    /** Set to true when we encounter -1 from the underlying stream */
+    /** Set to true when we encounter -1 from the underlying stream, or this instance is closed */
     private boolean eof = false;
 
     /**
@@ -30,10 +30,6 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
      */
     public ReadableStreamingData(@NonNull final InputStream in) {
         this.in = requireNonNull(in);
-        if (!in.markSupported()) {
-            throw new IllegalArgumentException("The input stream must support mark and reset");
-        }
-        eof(); // cause it to see if we're at the end of the stream.
     }
 
     // ================================================================================================================
@@ -85,13 +81,13 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
     /** {@inheritDoc} */
     @Override
     public long remaining() {
-        return eof() ? 0 : limit - position;
+        return eof ? 0 : limit - position;
     }
 
     /** {@inheritDoc} */
     @Override
     public boolean hasRemaining() {
-        return !eof() && position < limit;
+        return !eof && position < limit;
     }
 
     // ================================================================================================================
@@ -137,18 +133,5 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
         } catch (IOException e) {
             throw new DataAccessException(e);
         }
-    }
-
-    private boolean eof() {
-        if (eof) return true;
-
-        try {
-            in.mark(1);
-            eof = in.read() == -1;
-            in.reset();
-        } catch (IOException e) {
-            throw new DataAccessException(e);
-        }
-        return eof;
     }
 }
