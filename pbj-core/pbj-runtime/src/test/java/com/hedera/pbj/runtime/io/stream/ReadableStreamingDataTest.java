@@ -6,15 +6,18 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 final class ReadableStreamingDataTest extends ReadableTestBase {
 
@@ -206,6 +209,7 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
     @DisplayName("InputStream fails immediately if bad in constructor")
     void inputStreamFailsImmediately() throws IOException {
         try (final var inputStream = mock(InputStream.class)) {
+            when(inputStream.markSupported()).thenReturn(true);
             given(inputStream.read()).willThrow(new IOException("Failed"));
 
             assertThatThrownBy(() -> new ReadableStreamingData(inputStream))
@@ -216,38 +220,52 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
     @Test
     @DisplayName("Bad InputStream will fail on skip")
     void inputStreamFailsDuringSkip() throws IOException {
-        try (final var inputStream = mock(InputStream.class)) {
-            given(inputStream.skip(4)).willThrow(new IOException("Failed"));
+        final var byteStream = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5, 6, 7 });
+        final var inputStream = new BufferedInputStream(byteStream) {
+            @Override
+            public synchronized long skip(long n) throws IOException {
+                throw new IOException("Failed");
+            }
+        };
 
-            final var stream = new ReadableStreamingData(inputStream);
-            assertThatThrownBy(() -> stream.skip(5))
-                    .isInstanceOf(DataAccessException.class);
-        }
+        final var stream = new ReadableStreamingData(inputStream);
+        assertThatThrownBy(() -> stream.skip(5))
+                .isInstanceOf(DataAccessException.class);
     }
 
     @Test
     @DisplayName("Bad InputStream will fail on read")
     void inputStreamFailsDuringRead() throws IOException {
-        try (final var inputStream = mock(InputStream.class)) {
-            given(inputStream.skip(4)).willReturn(4L);
-            given(inputStream.read())
-                    .willReturn(0) // Returned when first byte is preloaded in constructor
-                    .willReturn(5) // Returned when next + 1 byte is preloaded in skip
-                    .willThrow(new IOException("Failed")); // Thrown when attempt to read sequence after skip
+        final var throwNow = new AtomicBoolean(false);
+        final var byteStream = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5, 6, 7 });
+        final var inputStream = new BufferedInputStream(byteStream) {
+            @Override
+            public int read() throws IOException {
+                if (throwNow.get()) {
+                    throw new IOException("Failed");
+                } else {
+                    return super.read();
+                }
+            }
+        };
 
-            final var stream = new ReadableStreamingData(inputStream);
-            assertThat(stream.skip(5)).isEqualTo(5);
-            assertThatThrownBy(stream::readByte)
-                    .isInstanceOf(DataAccessException.class);
-        }
+        final var stream = new ReadableStreamingData(inputStream);
+        assertThat(stream.skip(5)).isEqualTo(5);
+
+        throwNow.set(true);
+        assertThatThrownBy(stream::readByte)
+                .isInstanceOf(DataAccessException.class);
     }
 
     @Test
     @DisplayName("Bad InputStream during close is ignored")
-    void inputStreamFailsDuringClose() throws IOException {
-        final var inputStream = mock(InputStream.class);
-        given(inputStream.read()).willReturn(0); // Returned when first byte is preloaded in constructor
-        Mockito.doThrow(new IOException("Failed")).when(inputStream).close();
+    void inputStreamFailsDuringClose() {
+        final var inputStream = new ByteArrayInputStream(new byte[0]) {
+            @Override
+            public void close() throws IOException {
+                throw new IOException("Failed");
+            }
+        };
 
         final var stream = new ReadableStreamingData(inputStream);
         stream.close();
