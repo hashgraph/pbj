@@ -20,11 +20,8 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
     private long position = 0;
     /** The current limit for reading, defaults to Long.MAX_VALUE basically unlimited */
     private long limit = Long.MAX_VALUE;
-    /**
-     * The next byte to be read from input stream, this is read ahead to detect end of stream. If the end of the stream
-     * is reached, this will be set to -1.
-     */
-    private int nextByte;
+    /** Set to true when we encounter -1 from the underlying stream */
+    private boolean eof = false;
 
     /**
      * Creates a {@code FilterInputStream} that implements {@code DataInput} API.
@@ -33,7 +30,10 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
      */
     public ReadableStreamingData(@NonNull final InputStream in) {
         this.in = requireNonNull(in);
-        preloadByte();
+        if (!in.markSupported()) {
+            throw new IllegalArgumentException("The input stream must support mark and reset");
+        }
+        eof(); // cause it to see if we're at the end of the stream.
     }
 
     // ================================================================================================================
@@ -42,9 +42,8 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
     /** {@inheritDoc} */
     @Override
     public void close() {
-        // Maybe we should have a "closed" bit and a "closed" exception if you try to use a stream that is closed...
-        nextByte = -1;
         try {
+            eof = true;
             in.close();
         } catch (IOException ignored) {
             // We can ignore this.
@@ -103,16 +102,23 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
     public byte readByte() {
         // It should NEVER be possible for position to exceed limit, but being extra safe here
         // using >= instead of just ==
-        if (eof() || position >= limit) {
+        if (eof || position >= limit) {
             throw new BufferUnderflowException();
         }
 
         // We know result is a byte, because we've already checked for EOF, and we know that
         // it will only ever be a byte, unless it is EOF, in which case it is a -1 int.
-        final var result = nextByte;
-        preloadByte();
-        position++;
-        return (byte) result;
+        try {
+            final var result = in.read();
+            if (result == -1) {
+                eof = true;
+                throw new BufferUnderflowException();
+            }
+            position++;
+            return (byte) result;
+        } catch (IOException e) {
+            throw new DataAccessException(e);
+        }
     }
 
     /** {@inheritDoc} */
@@ -125,33 +131,24 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
         }
 
         try {
-            // I've already loaded one byte (in nextByte), so I only want to skip forward
-            // n - 1 bytes, so I can preload the next. This works because "clamped" is always
-            // 1 or greater, so on the boundary condition, "clamped" - 1 is 0.
-            long numSkipped = in.skip(clamped - 1);
-            position += numSkipped + 1;
-            preloadByte();
-            return numSkipped + 1;
+            long numSkipped = in.skip(clamped);
+            position += numSkipped;
+            return numSkipped;
         } catch (IOException e) {
             throw new DataAccessException(e);
         }
     }
 
-    /** Utility method for indicating whether we have reached the end of the sequence */
     private boolean eof() {
-        return nextByte == -1;
-    }
+        if (eof) return true;
 
-    /**
-     * Loads the next byte from the input stream and sets the nextByte field. If the end of stream is reached, then
-     * the nextByte will be -1.
-     */
-    private void preloadByte() {
         try {
-            // Have to read as int, so we can detect difference between byte -1 int for EOF and 255 valid byte
-            nextByte = in.read();
+            in.mark(1);
+            eof = in.read() == -1;
+            in.reset();
         } catch (IOException e) {
             throw new DataAccessException(e);
         }
+        return eof;
     }
 }
