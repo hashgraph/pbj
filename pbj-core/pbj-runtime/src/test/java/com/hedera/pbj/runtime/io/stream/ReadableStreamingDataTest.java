@@ -271,4 +271,21 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
         stream.close();
         assertThat(stream.hasRemaining()).isFalse();
     }
+
+    @Test
+    @DisplayName("Reusing an input stream on two ReadableStreamingData does not lose any data")
+    void reuseStream() {
+        final var byteStream = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+
+        final var bytes1 = new byte[5];
+        final var stream1 = new ReadableStreamingData(byteStream);
+        stream1.readBytes(bytes1);
+
+        final var bytes2 = new byte[5];
+        final var stream2 = new ReadableStreamingData(byteStream);
+        stream2.readBytes(bytes2);
+
+        assertThat(bytes1).containsExactly(1, 2, 3, 4, 5);
+        assertThat(bytes2).containsExactly(6, 7, 8, 9, 10);
+    }
 }
