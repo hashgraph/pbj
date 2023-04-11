@@ -461,7 +461,7 @@ public interface RandomAccessData {
             throw new BufferUnderflowException();
         }
 
-        if (offset < 0 || offset >= length()) {
+        if (offset < 0 || offset + len > length()) {
             throw new IndexOutOfBoundsException();
         }
 
