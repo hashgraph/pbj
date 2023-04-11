@@ -10,6 +10,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -319,7 +320,7 @@ public final class LookupHelper {
 						}
 						// now scan all src files to find import as there can be many src directories
 						List<File> matchingSrcFiles = StreamSupport.stream(allSrcFiles.spliterator(), false)
-								.filter(srcFile -> srcFile.getAbsolutePath().endsWith("/" + importedFileName))
+								.filter(srcFile -> srcFile.getAbsolutePath().endsWith(FileSystems.getDefault().getSeparator() + importedFileName))
 								.toList();
 						if (matchingSrcFiles.size() == 1) {
 							fileImports.add(matchingSrcFiles.get(0).getAbsolutePath());
@@ -457,6 +458,7 @@ public final class LookupHelper {
 				}
 			}
 		}
+
 		// insert into maps
 		final var fullQualifiedEnumName = getFullyQualifiedProtoNameForMsgOrEnum(enumDef);
 		pbjPackageMap.put(fullQualifiedEnumName, enumPbjPackage);

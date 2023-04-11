@@ -193,7 +193,7 @@ public final class Common {
 	 * @return File object for java file
 	 */
 	public static File getJavaFile(File srcDir, String javaPackage, String className) {
-		File packagePath = new File(srcDir.getPath() + File.separatorChar + javaPackage.replaceAll("\\.",File.separator));
+		File packagePath = new File(srcDir.getPath() + File.separatorChar + javaPackage.replaceAll("\\.","\\" + File.separator));
 		//noinspection ResultOfMethodCallIgnored
 		packagePath.mkdirs();
 		return new File(packagePath,className+".java");
