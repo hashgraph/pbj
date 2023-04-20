@@ -47,6 +47,7 @@ jobs:
   snyk-scan:
     name: Snyk Scan
     uses: ./.github/workflows/comp-compile-pbj-code.yaml
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     with:
       custom-job-label: Standard
       enable-integration-tests: false
