@@ -107,6 +107,12 @@ jobs:
             notifications
             jdks
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        if: ${{ inputs.enable-snyk-scan && !cancelled() && always()}}
+        with: 
+          node-version: 18
+
       - name: Gradle Assemble (PBJ Core)
         id: gradle-build
         uses: gradle/gradle-build-action@v2
