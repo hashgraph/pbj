@@ -3,6 +3,7 @@ package com.hedera.pbj.intergration.jmh;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.hedera.pbj.runtime.MalformedProtobufException;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -22,6 +23,8 @@ public class VarIntBench {
 
 	final ByteBuffer buffer = ByteBuffer.allocate(256*1024);
 	final ByteBuffer bufferDirect = ByteBuffer.allocateDirect(256*1024);
+	final BufferedData dataBuffer = BufferedData.wrap(buffer);
+	final BufferedData dataBufferDirect = BufferedData.wrap(bufferDirect);
 
 	public VarIntBench() {
 		try {
@@ -48,37 +51,48 @@ public class VarIntBench {
 		}
 	}
 	@Benchmark
+	public void dataBuffer(Blackhole blackhole) throws IOException {
+		dataBuffer.resetPosition();
+		for (int i = 0; i < 400; i++) {
+			blackhole.consume(dataBuffer.readVarInt(false));
+		}
+	}
+	@Benchmark
+	public void dataBufferDirect(Blackhole blackhole) throws IOException {
+		dataBufferDirect.resetPosition();
+		for (int i = 0; i < 400; i++) {
+			blackhole.consume(dataBufferDirect.readVarInt(false));
+		}
+	}
+	@Benchmark
 	public void richard(Blackhole blackhole) throws MalformedProtobufException {
 		buffer.clear();
 		for (int i = 0; i < 400; i++) {
 			blackhole.consume(readVarintRichard(buffer));
 		}
 	}
-
 	@Benchmark
 	public void google(Blackhole blackhole) throws IOException {
 		buffer.clear();
 		final CodedInputStream codedInputStream = CodedInputStream.newInstance(buffer);
-		for (int i = 0; i < 400; i++) {
-			blackhole.consume(codedInputStream.readRawVarint64());
-		}
+		blackhole.consume(codedInputStream.readRawVarint64());
+	}
+	@Benchmark
+	public void googleDirect(Blackhole blackhole) throws IOException {
+		bufferDirect.clear();
+		final CodedInputStream codedInputStream = CodedInputStream.newInstance(bufferDirect);
+		blackhole.consume(codedInputStream.readRawVarint64());
 	}
 	@Benchmark
 	public void googleSlowPath(Blackhole blackhole) throws MalformedProtobufException {
 		buffer.clear();
-		for (int i = 0; i < 400; i++) {
-			blackhole.consume(readRawVarint64SlowPath(buffer));
-		}
+		blackhole.consume(readRawVarint64SlowPath(buffer));
 	}
 	@Benchmark
-	public void googleOffHeap(Blackhole blackhole) throws IOException {
-		buffer.clear();
-		final CodedInputStream codedInputStream = CodedInputStream.newInstance(bufferDirect);
-		for (int i = 0; i < 400; i++) {
-			blackhole.consume(codedInputStream.readRawVarint64());
-		}
+	public void googleSlowPathDirect(Blackhole blackhole) throws MalformedProtobufException {
+		bufferDirect.clear();
+		blackhole.consume(readRawVarint64SlowPath(bufferDirect));
 	}
-
 	private static long readRawVarint64SlowPath(ByteBuffer buf) throws MalformedProtobufException {
 		long result = 0;
 		for (int shift = 0; shift < 64; shift += 7) {
