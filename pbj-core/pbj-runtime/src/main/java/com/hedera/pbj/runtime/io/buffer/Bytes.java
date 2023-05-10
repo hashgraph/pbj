@@ -14,7 +14,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * An immutable representation of a byte array. This class is designed to be efficient and usable across threads.
  */
-public final class Bytes implements RandomAccessData, Comparable {
+public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     /** An instance of an empty {@link Bytes} */
     public static final Bytes EMPTY = new Bytes(new byte[0]);
@@ -356,8 +356,7 @@ public final class Bytes implements RandomAccessData, Comparable {
 
     /** {@inheritDoc} */
     @Override
-    public int compareTo(@NonNull Object o) {
-        Bytes other = (Bytes)o;
+    public int compareTo(@NonNull Bytes other) {
         long lThis = length();
         long lOther = other.length();
         if (lThis != lOther) {
