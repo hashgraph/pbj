@@ -407,4 +407,38 @@ final class BytesTest {
         RandomAccessData prefixBad3 = Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x00});
         assertFalse(primary.matchesPrefix(prefixBad3));
     }
+
+    @Test
+    void sortTests() {
+        var bytes1 = Bytes.wrap(new byte[0]);
+        var bytes2 = Bytes.wrap(new byte[0]);
+        assertEquals(0, bytes1.compareTo(bytes2));
+        bytes1 = Bytes.wrap(new byte[]{7});
+        bytes2 = Bytes.wrap(new byte[]{7});
+        assertEquals(0, bytes1.compareTo(bytes2));
+        bytes1 = Bytes.wrap(new byte[]{1});
+        bytes2 = Bytes.wrap(new byte[]{7});
+        assertEquals(-1, bytes1.compareTo(bytes2));
+        bytes1 = Bytes.wrap(new byte[]{7});
+        bytes2 = Bytes.wrap(new byte[]{1});
+        assertEquals(1, bytes1.compareTo(bytes2));
+        bytes1 = Bytes.wrap(new byte[]{7, 1});
+        bytes2 = Bytes.wrap(new byte[]{1});
+        assertEquals(1, bytes1.compareTo(bytes2));
+        bytes2 = Bytes.wrap(new byte[]{7, 2});
+        bytes1 = Bytes.wrap(new byte[]{1});
+        assertEquals(-1, bytes1.compareTo(bytes2));
+        bytes1 = Bytes.wrap(new byte[]{7, 1});
+        bytes2 = Bytes.wrap(new byte[]{1, 7});
+        assertEquals(1, bytes1.compareTo(bytes2));
+        bytes1 = Bytes.wrap(new byte[]{7, 2});
+        bytes2 = Bytes.wrap(new byte[]{7, 1});
+        assertEquals(1, bytes1.compareTo(bytes2));
+        bytes1 = Bytes.wrap(new byte[]{1, 2});
+        bytes2 = Bytes.wrap(new byte[]{7, 1});
+        assertEquals(-1, bytes1.compareTo(bytes2));
+        bytes1 = Bytes.wrap(new byte[]{7, 2});
+        bytes2 = Bytes.wrap(new byte[]{7, 2});
+        assertEquals(0, bytes1.compareTo(bytes2));
+    }
 }
