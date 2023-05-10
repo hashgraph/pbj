@@ -255,6 +255,41 @@ public final class ModelGenerator implements Generator {
 			).replaceAll("\n","\n"+FIELD_INDENT);
 		}
 
+		// Add here hashCode() for object with a single int field.
+		if (fields.size() == 1) {
+			FieldType fieldType = fields.get(0).type();
+			switch (fieldType) {
+				case INT32, UINT32, SINT32, FIXED32, SFIXED32,
+						FIXED64, SFIXED64, INT64, UINT64, SINT64 -> {
+					bodyContent += FIELD_INDENT + """
+							/**
+							 * Override the default hashCode method for 
+							 * single field int objects.
+							 */
+							@Override
+							public int hashCode() {
+								// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+								long x = $fieldName;
+								x += x << 30;
+								x ^= x >>> 27;
+								x += x << 16;
+								x ^= x >>> 20;
+								x += x << 5;
+								x ^= x >>> 18;
+								x += x << 10;
+								x ^= x >>> 24;
+								x += x << 30;
+								return (int)x;
+							}"""
+							.replace("$fieldName", fields.get(0).name())
+							.replaceAll("\n","\n"+FIELD_INDENT);
+				}
+				default -> {
+					// Do nothing.
+				}
+			}
+		}
+
 		// Has methods
 		bodyContent += String.join("\n", hasMethods).replaceAll("\n","\n"+FIELD_INDENT);
 		bodyContent += "\n";
