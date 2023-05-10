@@ -535,6 +535,12 @@ public interface RandomAccessData {
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     default boolean contains(final long offset, @NonNull final RandomAccessData data) {
+        // If the this data is EMPTY, return true if only the
+        // the incoming data is EMPTY too.
+        if (length() == 0) {
+            return data.length() == 0;
+        }
+
         if (offset < 0 || offset >= length()) {
             throw new IndexOutOfBoundsException();
         }

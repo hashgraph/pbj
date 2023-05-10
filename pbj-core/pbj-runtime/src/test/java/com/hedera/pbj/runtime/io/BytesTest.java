@@ -382,6 +382,13 @@ final class BytesTest {
     }
 
     @Test
+    void matchesPrefixEmpty_issue37() {
+        final var bytes1 = Bytes.wrap(new byte[0]);
+        final var bytes2 = Bytes.wrap(new byte[0]);
+        assertTrue(bytes1.matchesPrefix(bytes2));
+    }
+
+    @Test
     void matchesPrefixBytesTest() {
         RandomAccessData primary = Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09});
         RandomAccessData prefixGood1 = Bytes.wrap(new byte[]{0x01});
