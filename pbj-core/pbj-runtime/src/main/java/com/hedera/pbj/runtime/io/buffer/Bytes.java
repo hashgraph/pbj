@@ -9,12 +9,14 @@ import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
+
 import static java.util.Objects.requireNonNull;
 
 /**
  * An immutable representation of a byte array. This class is designed to be efficient and usable across threads.
  */
-public final class Bytes implements RandomAccessData, Comparable<Bytes> {
+public final class Bytes implements RandomAccessData {
 
     /** An instance of an empty {@link Bytes} */
     public static final Bytes EMPTY = new Bytes(new byte[0]);
@@ -355,29 +357,34 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /** {@inheritDoc} */
-    @Override
-    public int compareTo(@NonNull Bytes other) {
-        long lThis = length();
-        long lOther = other.length();
-        if (lThis != lOther) {
-            return lThis > lOther ? 1 : -1;
+    public static class SORT_BY_LENGTH implements Comparator<Bytes> {
+        /** {@inheritDoc} */
+        @Override
+        public int compare(Bytes o1, Bytes o2) {
+            long val = o1.length() - o2.length();
+            return (val == 0) ? 0 : ((val > 0) ? -1 : 1);
         }
+    }
 
-        try {
-            InputStream thisBytes = this.toInputStream();
-            InputStream otherBytes = other.toInputStream();
-            for (int i = 0; i < lThis; i++) {
-                int thisVal = thisBytes.read();
-                int otherVal = otherBytes.read();
-                if (thisVal != otherVal) {
-                    return thisVal > otherVal ? 1 : -1;
-                }
+    /** {@inheritDoc} */
+    public static class SORT_BY_VALUE implements Comparator<Bytes> {
+        /** {@inheritDoc} */
+        @Override
+        public int compare(Bytes o1, Bytes o2) {
+            long val = Math.min(o1.length(), o2.length());
+            for (long i = 0; i < val; i++) {
+                byte b1 = o1.getByte(i);
+                byte b2 = o2.getByte(i);
+                if (b1 > b2) return 1;
+                if (b2 > b1) return -1;
             }
-        }
-        catch (IOException e) {
-            return -1;
-        }
 
-        return 0;
+            // In case one of the buffer is longer than the other
+            // and the first n bytes (where n in the length of the
+            // shorter buffer) are equal the buffer with shorter
+            // length is first in the sort order.
+            long len = o1.length() - o2.length();
+            return (len == 0) ? 0 : ((len > 0) ? -1 : 1);
+        }
     }
 }
