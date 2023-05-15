@@ -7,15 +7,16 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+
+import java.io.*;
 import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.stream.Stream;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 final class BytesTest {
 
@@ -202,14 +203,12 @@ final class BytesTest {
             assertNotEquals(bytes1.hashCode(), bytes2.hashCode());
         }
     }
-
     @Test
     @DisplayName("Get Unsigned Bytes")
     void getUnsignedBytes() {
         // Given a Bytes instance with bytes that are within the range of signed bytes and some that are
         // outside the range of signed bytes but within the range of unsigned bytes
-        final RandomAccessData bytes = Bytes.wrap(new byte[] { 0b0000_0000, 0b0000_0001, (byte) 0b1000_0000, (byte) 0b1111_1111 });
-
+        final RandomAccessData bytes = Bytes.wrap(new byte[]{0b0000_0000, 0b0000_0001, (byte) 0b1000_0000, (byte) 0b1111_1111});
         // Then reading them as unsigned bytes returns the expected values
         assertEquals(0, bytes.getUnsignedByte(0));
         assertEquals(1, bytes.getUnsignedByte(1));
@@ -217,6 +216,32 @@ final class BytesTest {
         assertEquals(0b1111_1111, bytes.getUnsignedByte(3));
     }
 
+    @Test
+    @DisplayName("Write to OutputStream")
+    void writeToOutputStream() throws IOException {
+        byte[] byteArray = {0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray);
+        byte[] res = new byte[6];
+        try (BufferedOutputStream out = new BufferedOutputStream(new ByteArrayOutputStream())) {
+            bytes.writeTo(out);
+            bytes.getBytes(0, res, 0, 6);
+        }
+        assertArrayEquals(byteArray, res);
+    }
+
+    @Test
+    @DisplayName("Write to MessageDigest")
+    void writeToMessageDigest() throws NoSuchAlgorithmException {
+        byte[] byteArray = {0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray);
+        byte[] res = new byte[6];
+
+        MessageDigest md = MessageDigest.getInstance("MD5");
+        bytes.writeTo(md);
+        res = md.digest();
+        byte[] exp = {-47, 90, -27, 57, 49, -120, 15, -41, -73, 36, -35, 120, -120, -76, -76, -19};
+        assertArrayEquals(exp, res);
+    }
 
     // asUtf8String throws with null (no offset here? That's wierd. Should have offset, or we should have non-offset
     // versions of everything else Or at least "getBytes").

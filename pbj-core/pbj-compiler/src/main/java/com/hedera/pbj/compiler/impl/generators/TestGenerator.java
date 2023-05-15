@@ -292,6 +292,14 @@ public final class TestGenerator implements Generator {
 					// check fast equals
 					dataBuffer2.resetPosition();
 					$modelClassName.PROTOBUF.fastEquals(modelObj, dataBuffer2);
+
+					// Test toBytes()
+					Bytes bytes = $modelClassName.PROTOBUF.toBytes(modelObj);
+					final var dataBuffer3 = getThreadLocalDataBuffer();
+					dataBuffer3.resetPosition();
+					final int protoBufByteCount1 = (int)dataBuffer3.remaining();
+					bytes.toReadableSequentialData().readBytes(dataBuffer3);
+					$modelClassName.PROTOBUF.fastEquals(modelObj, dataBuffer3);
 				}
 				"""
 				.replace("$modelClassName",modelClassName)

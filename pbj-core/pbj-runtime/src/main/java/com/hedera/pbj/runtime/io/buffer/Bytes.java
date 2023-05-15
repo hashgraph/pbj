@@ -165,7 +165,7 @@ public final class Bytes implements RandomAccessData {
      *
      * @param outStream the OutputStream to copy into
      */
-    void writeTo(@NonNull final OutputStream outStream) {
+    public void writeTo(@NonNull final OutputStream outStream) {
         try {
             outStream.write(buffer);
         } catch (IOException e) {
@@ -181,7 +181,7 @@ public final class Bytes implements RandomAccessData {
      *
      * @param digest the MessageDigest to copy into
      */
-    void writeTo(@NonNull final MessageDigest digest) {
+    public void writeTo(@NonNull final MessageDigest digest) {
         digest.update(buffer);
     }
 
