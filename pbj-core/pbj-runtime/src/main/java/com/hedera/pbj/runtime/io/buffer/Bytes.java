@@ -158,7 +158,10 @@ public final class Bytes implements RandomAccessData {
     }
 
     /**
-     * Package private helper method for efficient copy of our data into an OutputStream
+     * Package private helper method for efficient copy of
+     * our data into an OutputStream without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * OutputStream that doesn't modify the buffer data.
      *
      * @param outStream the OutputStream to copy into
      */
@@ -171,17 +174,14 @@ public final class Bytes implements RandomAccessData {
     }
 
     /**
-     * Package private helper method for efficient copy of our data into an OutputStream
+     * Package private helper method for efficient copy of
+     * our data into an MessageDigest  without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * MessageDigest that doesn't modify the buffer data.
      *
      * @param digest the MessageDigest to copy into
-     * @param reset whether to reset the MessageDigest. This allows for more
-     *              performant code, if the MessageDigest is new and there is
-     *              no need to reset it.
      */
-    void writeTo(@NonNull final MessageDigest digest, boolean reset) {
-        if (reset) {
-            digest.reset();
-        }
+    void writeTo(@NonNull final MessageDigest digest) {
         digest.update(buffer);
     }
 

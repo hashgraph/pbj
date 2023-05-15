@@ -88,6 +88,14 @@ public interface Codec<T /*extends Record*/> {
      */
     boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws IOException;
 
+    /**
+     * Converts a Record into a Bytes object
+     *
+     * @param item The input model data to convert into a Bytes object.
+     * @return The new Bytes object.
+     * @throws RuntimeException wrapping an IOException If it is impossible
+     * to write to the {@link WritableStreamingData}
+     */
     default Bytes toBytes(@NonNull T item) {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         WritableStreamingData writableStreamingData = new WritableStreamingData(byteArrayOutputStream);
