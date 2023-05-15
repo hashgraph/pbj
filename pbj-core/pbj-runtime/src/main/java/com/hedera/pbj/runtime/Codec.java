@@ -1,10 +1,13 @@
 package com.hedera.pbj.runtime;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -84,4 +87,15 @@ public interface Codec<T /*extends Record*/> {
      * @throws IOException If it is impossible to read from the {@link ReadableSequentialData}
      */
     boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws IOException;
+
+    default Bytes toBytes(@NonNull T item) {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        WritableStreamingData writableStreamingData = new WritableStreamingData(byteArrayOutputStream);
+        try {
+            write(item, writableStreamingData);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return Bytes.wrap(byteArrayOutputStream.toByteArray());
+    }
 }

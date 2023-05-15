@@ -6,9 +6,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -144,7 +147,7 @@ public final class Bytes implements RandomAccessData {
     }
 
     /**
-     * Package privet helper method for efficient copy of our data into another ByteBuffer with no effect on this
+     * Package private helper method for efficient copy of our data into another ByteBuffer with no effect on this
      * buffers state, so thread safe for this buffer. The destination buffers position is updated.
      *
      * @param dstBuffer the buffer to copy into
@@ -152,6 +155,34 @@ public final class Bytes implements RandomAccessData {
     void writeTo(@NonNull final ByteBuffer dstBuffer) {
         dstBuffer.put(dstBuffer.position(), buffer, start, length);
         dstBuffer.position(dstBuffer.position() + length);
+    }
+
+    /**
+     * Package private helper method for efficient copy of our data into an OutputStream
+     *
+     * @param outStream the OutputStream to copy into
+     */
+    void writeTo(@NonNull final OutputStream outStream) {
+        try {
+            outStream.write(buffer);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Package private helper method for efficient copy of our data into an OutputStream
+     *
+     * @param digest the MessageDigest to copy into
+     * @param reset whether to reset the MessageDigest. This allows for more
+     *              performant code, if the MessageDigest is new and there is
+     *              no need to reset it.
+     */
+    void writeTo(@NonNull final MessageDigest digest, boolean reset) {
+        if (reset) {
+            digest.reset();
+        }
+        digest.update(buffer);
     }
 
     /**
