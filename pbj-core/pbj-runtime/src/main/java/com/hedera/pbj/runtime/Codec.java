@@ -97,13 +97,14 @@ public interface Codec<T /*extends Record*/> {
      * to write to the {@link WritableStreamingData}
      */
     default Bytes toBytes(@NonNull T item) {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        WritableStreamingData writableStreamingData = new WritableStreamingData(byteArrayOutputStream);
-        try {
+        byte[] bytes;
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+             WritableStreamingData writableStreamingData = new WritableStreamingData(byteArrayOutputStream)) {
             write(item, writableStreamingData);
-        } catch (IOException e) {
+            bytes = byteArrayOutputStream.toByteArray();
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        return Bytes.wrap(byteArrayOutputStream.toByteArray());
+        return Bytes.wrap(bytes);
     }
 }
