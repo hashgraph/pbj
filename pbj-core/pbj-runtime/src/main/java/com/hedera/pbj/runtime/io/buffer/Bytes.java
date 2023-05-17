@@ -21,6 +21,20 @@ public final class Bytes implements RandomAccessData {
     /** An instance of an empty {@link Bytes} */
     public static final Bytes EMPTY = new Bytes(new byte[0]);
 
+    /** Sorts {@link Bytes} according to their length, shorter first. */
+    public static final Comparator<Bytes> SORT_BY_LENGTH = (Bytes o1, Bytes o2) ->
+            Comparator.comparingLong(Bytes::length).compare(o1, o2);
+
+    /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
+      * Bytes are compared on a signed basis.
+      */
+    public static final Comparator<Bytes> SORT_BY_SIGNED_VALUE = valueSorter(Byte::compare);
+
+    /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
+      * Bytes are compared on an unsigned basis
+      */
+    public static final Comparator<Bytes> SORT_BY_UNSIGNED_VALUE = valueSorter(Byte::compareUnsigned);
+
     /** byte[] used as backing buffer */
     private final byte[] buffer;
 
@@ -356,35 +370,26 @@ public final class Bytes implements RandomAccessData {
         }
     }
 
-    /** {@inheritDoc} */
-    public static class SORT_BY_LENGTH implements Comparator<Bytes> {
-        /** {@inheritDoc} */
-        @Override
-        public int compare(Bytes o1, Bytes o2) {
-            long val = o1.length() - o2.length();
-            return (val == 0) ? 0 : ((val > 0) ? -1 : 1);
-        }
-    }
-
-    /** {@inheritDoc} */
-    public static class SORT_BY_VALUE implements Comparator<Bytes> {
-        /** {@inheritDoc} */
-        @Override
-        public int compare(Bytes o1, Bytes o2) {
-            long val = Math.min(o1.length(), o2.length());
+    /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
+      * Bytes are compared using the passed in Byte Comparator
+      */
+    private static Comparator<Bytes> valueSorter(@NonNull final Comparator<Byte> byteComparator) {
+        return (Bytes o1, Bytes o2) -> {
+            final var val = Math.min(o1.length(), o2.length());
             for (long i = 0; i < val; i++) {
-                byte b1 = o1.getByte(i);
-                byte b2 = o2.getByte(i);
-                if (b1 > b2) return 1;
-                if (b2 > b1) return -1;
+                final var byteComparison = byteComparator.compare(o1.getByte(i), o2.getByte(i));
+                if (byteComparison != 0) {
+                    return byteComparison;
+                }
             }
 
-            // In case one of the buffer is longer than the other
-            // and the first n bytes (where n in the length of the
-            // shorter buffer) are equal the buffer with shorter
-            // length is first in the sort order.
+            // In case one of the buffers is longer than the other and the first n bytes (where n in the length of the
+            // shorter buffer) are equal, the buffer with the shorter length is first in the sort order.
             long len = o1.length() - o2.length();
-            return (len == 0) ? 0 : ((len > 0) ? -1 : 1);
-        }
+            if (len == 0) {
+                return 0;
+            }
+            return ((len > 0) ? 1 : -1);
+        };
     }
 }
