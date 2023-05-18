@@ -112,47 +112,54 @@ class CodecParseMethodGenerator {
 
                     // -- PARSE LOOP ---------------------------------------------
                     // Continue to parse bytes out of the input stream until we get to the end.
-                    while (input.hasRemaining()) {
-                        // Read the "tag" byte which gives us the field number for the next field to read
-                        // and the wire type (way it is encoded on the wire).
-                        final int tag = input.readVarInt(false);
-            
-                        // The field is the top 5 bits of the byte. Read this off
-                        final int field = tag >>> TAG_FIELD_OFFSET;
-            
-                        // Ask the Schema to inform us what field this represents.
-                        final var f = getField(field);
-                        
-                        // Given the wire type and the field type, parse the field
-                        switch (tag) {
-                            $caseStatements
-                            default -> {
-                                // The wire type is the bottom 3 bits of the byte. Read that off
-                                final int wireType = tag & TAG_WRITE_TYPE_MASK;
-                                // handle error cases here, so we do not do if statements in normal loop
-                                // Validate the field number is valid (must be > 0)
-                                if (field == 0) {
-                                    throw new IOException("Bad protobuf encoding. We read a field value of " + field);
-                                }
-                                // Validate the wire type is valid (must be >=0 && <= 5). Otherwise we cannot parse this.
-                                // Note: it is always >= 0 at this point (see code above where it is defined).
-                                if (wireType > 5) {
-                                    throw new IOException("Cannot understand wire_type of " + wireType);
-                                }
-                                // It may be that the parser subclass doesn't know about this field
-                                if (f == null) {
-                                    if (strictMode) {
-                                        // Since we are parsing is strict mode, this is an exceptional condition.
-                                        throw new UnknownFieldException(field);
-                                    } else {
-                                        // We just need to read off the bytes for this field to skip it and move on to the next one.
-                                        skipField(input, wireType);
+                    try {
+                        while (input.hasRemaining()) {
+                            // Read the "tag" byte which gives us the field number for the next field to read
+                            // and the wire type (way it is encoded on the wire).
+                            final int tag = input.readVarInt(false);
+
+                            // The field is the top 5 bits of the byte. Read this off
+                            final int field = tag >>> TAG_FIELD_OFFSET;
+
+                            // Ask the Schema to inform us what field this represents.
+                            final var f = getField(field);
+
+                            // Given the wire type and the field type, parse the field
+                            switch (tag) {
+                                $caseStatements
+                                default -> {
+                                    // The wire type is the bottom 3 bits of the byte. Read that off
+                                    final int wireType = tag & TAG_WRITE_TYPE_MASK;
+                                    // handle error cases here, so we do not do if statements in normal loop
+                                    // Validate the field number is valid (must be > 0)
+                                    if (field == 0) {
+                                        throw new IOException("Bad protobuf encoding. We read a field value of " + field);
                                     }
-                                } else {
-                                    throw new IOException("Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
+                                    // Validate the wire type is valid (must be >=0 && <= 5). Otherwise we cannot parse this.
+                                    // Note: it is always >= 0 at this point (see code above where it is defined).
+                                    if (wireType > 5) {
+                                        throw new IOException("Cannot understand wire_type of " + wireType);
+                                    }
+                                    // It may be that the parser subclass doesn't know about this field
+                                    if (f == null) {
+                                        if (strictMode) {
+                                            // Since we are parsing is strict mode, this is an exceptional condition.
+                                            throw new UnknownFieldException(field);
+                                        } else {
+                                            // We just need to read off the bytes for this field to skip it and move on to the next one.
+                                            skipField(input, wireType);
+                                        }
+                                    } else {
+                                        throw new IOException("Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
+                                    }
                                 }
                             }
                         }
+                    }
+                    catch (EOFException e) {
+                        // Do nothing.
+                        // This is a workaround of hasRemaining() returning true, even there are no more elements.
+                        // The subsequent readByte will throw EOFException if there ar no more elements.
                     }
                     return new $modelClassName($fieldsList);
                 }

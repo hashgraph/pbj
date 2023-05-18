@@ -57,6 +57,7 @@ public final class CodecGenerator implements Generator {
 									
 					import com.hedera.pbj.runtime.*;
 					import com.hedera.pbj.runtime.io.*;
+					import com.hedera.pbj.runtime.io.stream.EOFException;
 					import java.io.IOException;
 					import java.nio.*;
 					import java.nio.charset.*;
