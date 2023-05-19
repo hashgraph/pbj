@@ -108,7 +108,7 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
             final var result = in.read();
             if (result == -1) {
                 eof = true;
-                throw new BufferUnderflowException();
+                throw new EOFException();
             }
             position++;
             return (byte) result;

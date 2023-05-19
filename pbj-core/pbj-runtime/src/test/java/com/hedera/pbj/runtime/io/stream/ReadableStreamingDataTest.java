@@ -11,8 +11,9 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 final class ReadableStreamingDataTest extends ReadableTestBase {
 
@@ -256,6 +257,23 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
         final var stream = new ReadableStreamingData(inputStream);
         stream.close();
         assertThat(stream.hasRemaining()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Bad InputStream empty when read")
+    void inputStreamEmptyRead() {
+        final var inputStream = new ByteArrayInputStream(new byte[0]) {
+            @Override
+            public void close() throws IOException {
+                throw new IOException("Failed");
+            }
+        };
+
+        byte[] read = new byte[5];
+        final var stream = new ReadableStreamingData(inputStream);
+        assertThrows(EOFException.class, () -> {
+            stream.readBytes(read);
+        });
     }
 
     @Test
