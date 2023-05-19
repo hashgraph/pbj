@@ -379,6 +379,15 @@ public final class Bytes implements RandomAccessData {
         return getBytes(offset, length);
     }
 
+    /** * Gets a byte[] of the bytes of this {@link Bytes} object..
+     *
+     * @return a clone of the bytes of this {@link Bytes} object or null.
+     */
+    @NonNull
+    public byte[] toByteArray() {
+        return buffer.clone();
+    }
+
     private void validateOffset(long offset) {
         if (offset < 0 || offset > this.length) {
             throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + this.length);

@@ -72,6 +72,16 @@ final class BytesTest {
             assertThrows(IndexOutOfBoundsException.class, () -> bytes.getByte(-1));
         }
 
+        @Test
+        @DisplayName("Getting bytes as byte array")
+        void toByteArray() {
+            // Given a Bytes instance
+            byte[] byteArray = {0, 1, 2, 3, 4};
+            final Bytes bytes = Bytes.wrap(byteArray);
+            assertArrayEquals(byteArray, bytes.toByteArray());
+            assertNotEquals(byteArray, bytes.toByteArray());
+        }
+
 //        @Test
 //        @DisplayName("Getting a byte with to large of an offset throws")
 //        void getByteWithLargeOffsetThrows() {
