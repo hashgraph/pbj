@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 final class ReadableStreamingDataTest extends ReadableTestBase {
 
@@ -270,11 +271,9 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
 
         byte[] read = new byte[5];
         final var stream = new ReadableStreamingData(inputStream);
-        try {
+        assertThrows(EOFException.class, () -> {
             stream.readBytes(read);
-            fail("Expected exception while reading empty buffer");
-        } catch (EOFException ignored) {
-        }
+        });
     }
 
     @Test
