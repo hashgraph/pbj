@@ -11,11 +11,8 @@ import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.stream.Stream;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 final class BytesTest {
 
@@ -69,6 +66,16 @@ final class BytesTest {
             // When getting a byte with a negative offset
             // Then an IndexOutOfBoundsException is thrown
             assertThrows(IndexOutOfBoundsException.class, () -> bytes.getByte(-1));
+        }
+
+        @Test
+        @DisplayName("Getting bytes as byte array")
+        void toByteArray() {
+            // Given a Bytes instance
+            byte[] byteArray = {0, 1, 2, 3, 4};
+            final Bytes bytes = Bytes.wrap(byteArray);
+            assertArrayEquals(byteArray, bytes.toByteArray());
+            assertNotEquals(byteArray, bytes.toByteArray());
         }
 
 //        @Test
