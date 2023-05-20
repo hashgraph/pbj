@@ -102,7 +102,7 @@ public interface Codec<T /*extends Record*/> {
              WritableStreamingData writableStreamingData = new WritableStreamingData(byteArrayOutputStream)) {
             write(item, writableStreamingData);
             bytes = byteArrayOutputStream.toByteArray();
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
         return Bytes.wrap(bytes);
