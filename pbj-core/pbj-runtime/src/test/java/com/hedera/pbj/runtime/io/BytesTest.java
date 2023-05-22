@@ -6,6 +6,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
@@ -413,5 +415,75 @@ final class BytesTest {
         assertFalse(primary.matchesPrefix(prefixBad2));
         RandomAccessData prefixBad3 = Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x00});
         assertFalse(primary.matchesPrefix(prefixBad3));
+    }
+
+    @ParameterizedTest
+    @CsvSource(textBlock = """
+            "", "", 0
+            "a", "", 1
+            "", "a", -1
+            "a", "a", 0
+            "aa", "a", 1
+            "a", "aa", -1
+            "ab", "ba", 0
+            "abc", "cab", 0
+            """)
+    @DisplayName("Comparing Bytes by length")
+    void compareByLength(String arr1, String arr2, int expected) {
+        var bytes1 = Bytes.wrap(arr1);
+        var bytes2 = Bytes.wrap(arr2);
+        assertEquals(expected, Bytes.SORT_BY_LENGTH.compare(bytes1, bytes2));
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    @DisplayName("Comparing Bytes by unsignedValue")
+    void compareByUnsignedBytes(byte[] arr1, byte[] arr2, int expected) {
+        var bytes1 = Bytes.wrap(arr1);
+        var bytes2 = Bytes.wrap(arr2);
+        assertEquals(expected, Bytes.SORT_BY_UNSIGNED_VALUE.compare(bytes1, bytes2));
+    }
+
+    static Stream<Arguments> compareByUnsignedBytes() {
+        return Stream.of(
+                Arguments.of(new byte[0], new byte[0], 0),
+                Arguments.of(new byte[0], new byte[]{1}, -1),
+                Arguments.of(new byte[]{1}, new byte[0], 1),
+                Arguments.of(new byte[]{1}, new byte[]{2}, -1),
+                Arguments.of(new byte[]{2}, new byte[]{1}, 1),
+                Arguments.of(new byte[]{-1}, new byte[]{2}, 253),
+                Arguments.of(new byte[]{2}, new byte[]{-1}, -253),
+                Arguments.of(new byte[]{-1}, new byte[]{-2}, 1),
+                Arguments.of(new byte[]{-2}, new byte[]{-1}, -1),
+                Arguments.of(new byte[]{-2, -1}, new byte[]{-2, -1}, 0),
+                Arguments.of(new byte[]{-2}, new byte[]{-2, -1}, -1),
+                Arguments.of(new byte[]{-2, -1}, new byte[]{-1, -2}, -1)
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    @DisplayName("Comparing Bytes by signedValue")
+    void compareBySignedBytes(byte[] arr1, byte[] arr2, int expected) {
+        var bytes1 = Bytes.wrap(arr1);
+        var bytes2 = Bytes.wrap(arr2);
+        assertEquals(expected, Bytes.SORT_BY_SIGNED_VALUE.compare(bytes1, bytes2));
+    }
+
+    static Stream<Arguments> compareBySignedBytes() {
+        return Stream.of(
+                Arguments.of(new byte[0], new byte[0], 0),
+                Arguments.of(new byte[0], new byte[]{1}, -1),
+                Arguments.of(new byte[]{1}, new byte[0], 1),
+                Arguments.of(new byte[]{1}, new byte[]{2}, -1),
+                Arguments.of(new byte[]{2}, new byte[]{1}, 1),
+                Arguments.of(new byte[]{-1}, new byte[]{2}, -3),
+                Arguments.of(new byte[]{2}, new byte[]{-1}, 3),
+                Arguments.of(new byte[]{-1}, new byte[]{-2}, 1),
+                Arguments.of(new byte[]{-2}, new byte[]{-1}, -1),
+                Arguments.of(new byte[]{-2, -1}, new byte[]{-2, -1}, 0),
+                Arguments.of(new byte[]{-2}, new byte[]{-2, -1}, -1),
+                Arguments.of(new byte[]{-2, -1}, new byte[]{-1, -2}, -1)
+        );
     }
 }
