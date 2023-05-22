@@ -168,7 +168,25 @@ public final class Bytes implements RandomAccessData {
      */
     public void writeTo(@NonNull final OutputStream outStream) {
         try {
-            outStream.write(buffer);
+            outStream.write(buffer, start, length);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Package private helper method for efficient copy of
+     * our data into an OutputStream without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * OutputStream that doesn't modify the buffer data.
+     *
+     * @param outStream The OutputStream to copy into.
+     * @param offset The offset from this {@link Bytes} object to get the bytes from.
+     * @param length The number of bytes to extract.
+     */
+    public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
+        try {
+            outStream.write(buffer, offset, length);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -181,9 +199,23 @@ public final class Bytes implements RandomAccessData {
      * MessageDigest that doesn't modify the buffer data.
      *
      * @param digest the MessageDigest to copy into
+     * @param offset The offset from this {@link Bytes} object to get the bytes from.
+     * @param length The number of bytes to extract.
+     */
+    public void writeTo(@NonNull final MessageDigest digest, final int offset, final int length) {
+        digest.update(buffer, offset, length);
+    }
+
+    /**
+     * Package private helper method for efficient copy of
+     * our data into an MessageDigest  without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * MessageDigest that doesn't modify the buffer data.
+     *
+     * @param digest the MessageDigest to copy into
      */
     public void writeTo(@NonNull final MessageDigest digest) {
-        digest.update(buffer);
+        digest.update(buffer, start, length);
     }
 
     /**
@@ -386,7 +418,20 @@ public final class Bytes implements RandomAccessData {
      */
     @NonNull
     public byte[] toByteArray() {
-        return buffer.clone();
+        return toByteArray(0, length);
+    }
+
+    /** * Gets a byte[] of the bytes of this {@link Bytes} object..
+     *
+     * @param offset The start offset to get the bytes from.
+     * @param length The number of bytes to get.
+     * @return a clone of the bytes of this {@link Bytes} object or null.
+     */
+    @NonNull
+    public byte[] toByteArray(final int offset, final int length) {
+        byte[] ret = new byte[length];
+        getBytes(offset, ret);
+        return ret;
     }
 
     private void validateOffset(long offset) {

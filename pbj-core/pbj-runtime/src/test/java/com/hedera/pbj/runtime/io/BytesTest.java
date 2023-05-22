@@ -76,10 +76,32 @@ final class BytesTest {
         @DisplayName("Getting bytes as byte array")
         void toByteArray() {
             // Given a Bytes instance
-            byte[] byteArray = {0, 1, 2, 3, 4};
+            final byte[] byteArray = {0, 1, 2, 3, 4};
             final Bytes bytes = Bytes.wrap(byteArray);
             assertArrayEquals(byteArray, bytes.toByteArray());
             assertNotEquals(byteArray, bytes.toByteArray());
+        }
+
+        @Test
+        @DisplayName("Getting bytes as byte array offset zero, partial")
+        void toByteArrayNon0Partial() {
+            // Given a Bytes instance
+            final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4};
+            final Bytes bytes = Bytes.wrap(byteArray, 10, 5);
+            final byte[] res = new byte[] {0, 1, 2, 3};
+            assertArrayEquals(res, bytes.toByteArray(0, 4));
+            assertNotEquals(byteArray, bytes.toByteArray(0, 4));
+        }
+
+        @Test
+        @DisplayName("Getting bytes as byte array offset not zero")
+        void toByteArrayNon0() {
+            // Given a Bytes instance
+            final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4};
+            final Bytes bytes = Bytes.wrap(byteArray, 10, 5);
+            final byte[] res = new byte[] {0, 1, 2, 3, 4};
+            assertArrayEquals(res, bytes.toByteArray());
+            assertNotEquals(byteArray, bytes.toByteArray(0, 5));
         }
 
 //        @Test
@@ -240,6 +262,34 @@ final class BytesTest {
     }
 
     @Test
+    @DisplayName("Write to OutputStream non 0 offset")
+    void writeToOutputStreamNo0Offs() throws IOException {
+        final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
+        byte[] res = new byte[6];
+        try (BufferedOutputStream out = new BufferedOutputStream(new ByteArrayOutputStream())) {
+            bytes.writeTo(out);
+            bytes.getBytes(0, res, 0, 6);
+        }
+        byte[] exp = {0, 1, 2, 3, 4, 5};
+        assertArrayEquals(exp, res);
+    }
+
+    @Test
+    @DisplayName("Write to OutputStream non 0 offset partial")
+    void writeToOutputStreamNo0OffsPartial() throws IOException {
+        byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
+        byte[] res = new byte[5];
+        try (BufferedOutputStream out = new BufferedOutputStream(new ByteArrayOutputStream())) {
+            bytes.writeTo(out, 10, 5);
+            bytes.getBytes(0, res, 0, 5);
+        }
+        byte[] comp = {0, 1, 2, 3, 4};
+        assertArrayEquals(comp, res);
+    }
+
+    @Test
     @DisplayName("Write to MessageDigest")
     void writeToMessageDigest() throws NoSuchAlgorithmException {
         byte[] byteArray = {0, 1, 2, 3, 4, 5};
@@ -253,12 +303,38 @@ final class BytesTest {
         assertArrayEquals(exp, res);
     }
 
+    @Test
+    @DisplayName("Write to MessageDigest no 0 Offset")
+    void writeToMessageDigestNo0Offset() throws NoSuchAlgorithmException {
+        final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
+        byte[] res = new byte[6];
+
+        MessageDigest md = MessageDigest.getInstance("MD5");
+        bytes.writeTo(md);
+        res = md.digest();
+        byte[] exp = {-47, 90, -27, 57, 49, -120, 15, -41, -73, 36, -35, 120, -120, -76, -76, -19};
+        assertArrayEquals(exp, res);
+    }
+
+    @Test
+    @DisplayName("Write to MessageDigest no 0 offset, partial")
+    void writeToMessageDigestNo0OffsetPartial() throws NoSuchAlgorithmException {
+        final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5, 6};
+        final Bytes bytes = Bytes.wrap(byteArray, 10, 7);
+        byte[] res = new byte[6];
+
+        MessageDigest md = MessageDigest.getInstance("MD5");
+        bytes.writeTo(md, 10, 6);
+        res = md.digest();
+        byte[] exp = {-47, 90, -27, 57, 49, -120, 15, -41, -73, 36, -35, 120, -120, -76, -76, -19};
+        assertArrayEquals(exp, res);
+    }
+
     // asUtf8String throws with null (no offset here? That's wierd. Should have offset, or we should have non-offset
     // versions of everything else Or at least "getBytes").
 
     // matches prefix....
-
-
 
 //
 //
