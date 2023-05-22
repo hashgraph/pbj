@@ -2,6 +2,7 @@ package com.hedera.pbj.runtime;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.NoSuchElementException;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
@@ -103,7 +104,7 @@ public interface Codec<T /*extends Record*/> {
             write(item, writableStreamingData);
             bytes = byteArrayOutputStream.toByteArray();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
         return Bytes.wrap(bytes);
     }
