@@ -1,10 +1,14 @@
 package com.hedera.pbj.runtime;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.NoSuchElementException;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -84,4 +88,24 @@ public interface Codec<T /*extends Record*/> {
      * @throws IOException If it is impossible to read from the {@link ReadableSequentialData}
      */
     boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws IOException;
+
+    /**
+     * Converts a Record into a Bytes object
+     *
+     * @param item The input model data to convert into a Bytes object.
+     * @return The new Bytes object.
+     * @throws RuntimeException wrapping an IOException If it is impossible
+     * to write to the {@link WritableStreamingData}
+     */
+    default Bytes toBytes(@NonNull T item) {
+        byte[] bytes;
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+             WritableStreamingData writableStreamingData = new WritableStreamingData(byteArrayOutputStream)) {
+            write(item, writableStreamingData);
+            bytes = byteArrayOutputStream.toByteArray();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return Bytes.wrap(bytes);
+    }
 }

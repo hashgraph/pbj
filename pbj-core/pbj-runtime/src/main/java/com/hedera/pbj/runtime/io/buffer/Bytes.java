@@ -6,9 +6,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Comparator;
 
 import static java.util.Objects.requireNonNull;
@@ -160,7 +163,7 @@ public final class Bytes implements RandomAccessData {
     }
 
     /**
-     * Package privet helper method for efficient copy of our data into another ByteBuffer with no effect on this
+     * Package private helper method for efficient copy of our data into another ByteBuffer with no effect on this
      * buffers state, so thread safe for this buffer. The destination buffers position is updated.
      *
      * @param dstBuffer the buffer to copy into
@@ -168,6 +171,66 @@ public final class Bytes implements RandomAccessData {
     void writeTo(@NonNull final ByteBuffer dstBuffer) {
         dstBuffer.put(dstBuffer.position(), buffer, start, length);
         dstBuffer.position(dstBuffer.position() + length);
+    }
+
+    /**
+     * Package private helper method for efficient copy of
+     * our data into an OutputStream without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * OutputStream that doesn't modify the buffer data.
+     *
+     * @param outStream the OutputStream to copy into
+     */
+    public void writeTo(@NonNull final OutputStream outStream) {
+        try {
+            outStream.write(buffer, start, length);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Package private helper method for efficient copy of
+     * our data into an OutputStream without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * OutputStream that doesn't modify the buffer data.
+     *
+     * @param outStream The OutputStream to copy into.
+     * @param offset The offset from this {@link Bytes} object to get the bytes from.
+     * @param length The number of bytes to extract.
+     */
+    public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
+        try {
+            outStream.write(buffer, offset, length);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Package private helper method for efficient copy of
+     * our data into an MessageDigest  without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * MessageDigest that doesn't modify the buffer data.
+     *
+     * @param digest the MessageDigest to copy into
+     * @param offset The offset from this {@link Bytes} object to get the bytes from.
+     * @param length The number of bytes to extract.
+     */
+    public void writeTo(@NonNull final MessageDigest digest, final int offset, final int length) {
+        digest.update(buffer, offset, length);
+    }
+
+    /**
+     * Package private helper method for efficient copy of
+     * our data into an MessageDigest  without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * MessageDigest that doesn't modify the buffer data.
+     *
+     * @param digest the MessageDigest to copy into
+     */
+    public void writeTo(@NonNull final MessageDigest digest) {
+        digest.update(buffer, start, length);
     }
 
     /**
@@ -370,7 +433,20 @@ public final class Bytes implements RandomAccessData {
      */
     @NonNull
     public byte[] toByteArray() {
-        return buffer.clone();
+        return toByteArray(0, length);
+    }
+
+    /** * Gets a byte[] of the bytes of this {@link Bytes} object..
+     *
+     * @param offset The start offset to get the bytes from.
+     * @param length The number of bytes to get.
+     * @return a clone of the bytes of this {@link Bytes} object or null.
+     */
+    @NonNull
+    public byte[] toByteArray(final int offset, final int length) {
+        byte[] ret = new byte[length];
+        getBytes(offset, ret);
+        return ret;
     }
 
     private void validateOffset(long offset) {

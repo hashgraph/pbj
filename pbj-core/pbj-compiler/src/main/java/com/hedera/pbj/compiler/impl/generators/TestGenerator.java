@@ -73,7 +73,7 @@ public final class TestGenerator implements Generator {
 							import java.io.IOException;
 												
 							import static com.hedera.pbj.runtime.ProtoTestTools.*;
-							import static org.junit.jupiter.api.Assertions.assertEquals;
+							import static org.junit.jupiter.api.Assertions.*;
 												
 							/**
 							 * Unit Test for %s model object. Generate based on protobuf schema.
@@ -288,10 +288,18 @@ public final class TestGenerator implements Generator {
 					dataBuffer2.resetPosition();
 					assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measure(dataBuffer2));
 					assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measureRecord(modelObj));
-			
+							
 					// check fast equals
 					dataBuffer2.resetPosition();
-					$modelClassName.PROTOBUF.fastEquals(modelObj, dataBuffer2);
+					assertTrue($modelClassName.PROTOBUF.fastEquals(modelObj, dataBuffer2));
+
+					// Test toBytes()
+					Bytes bytes = $modelClassName.PROTOBUF.toBytes(modelObj);
+					final var dataBuffer3 = getThreadLocalDataBuffer();
+					bytes.toReadableSequentialData().readBytes(dataBuffer3);
+					byte[] readBytes = new byte[(int)dataBuffer3.length()];
+					dataBuffer3.getBytes(0, readBytes);
+					assertArrayEquals(bytes.toByteArray(), readBytes);
 				}
 				"""
 				.replace("$modelClassName",modelClassName)
