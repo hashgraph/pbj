@@ -1,4 +1,4 @@
-package com.hedera.pbj.compiler.impl.generators;
+package com.hedera.pbj.compiler.impl.generators.protobuf;
 
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 /**
  * Code to generate the parse method for Codec classes.
  */
+@SuppressWarnings("StringConcatenationInsideStringBufferAppend")
 class CodecParseMethodGenerator {
 
     /**
@@ -197,6 +198,7 @@ class CodecParseMethodGenerator {
      * @param field field to generate case statement for
      * @param sb StringBuilder to append code to
      */
+    @SuppressWarnings("StringConcatenationInsideStringBufferAppend")
     private static void generateFieldCaseStatementPacked(final StringBuilder sb, final Field field) {
         final int wireType = Common.TYPE_LENGTH_DELIMITED;
         final int fieldNum = field.fieldNumber();

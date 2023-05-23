@@ -3,9 +3,11 @@
  */
 module com.hedera.pbj.runtime {
     requires static com.github.spotbugs.annotations;
-	exports com.hedera.pbj.runtime;
+    requires org.antlr.antlr4.runtime;
+    exports com.hedera.pbj.runtime;
     exports com.hedera.pbj.runtime.test;
     exports com.hedera.pbj.runtime.io;
     exports com.hedera.pbj.runtime.io.stream;
     exports com.hedera.pbj.runtime.io.buffer;
+    exports com.hedera.pbj.runtime.jsonparser;
 }

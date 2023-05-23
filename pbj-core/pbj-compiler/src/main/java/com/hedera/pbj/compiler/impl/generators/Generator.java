@@ -1,6 +1,8 @@
 package com.hedera.pbj.compiler.impl.generators;
 
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
+import com.hedera.pbj.compiler.impl.generators.json.JsonCodecGenerator;
+import com.hedera.pbj.compiler.impl.generators.protobuf.CodecGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 
 import java.io.File;
@@ -19,6 +21,7 @@ public interface Generator {
             ModelGenerator.class,
             SchemaGenerator.class,
             CodecGenerator.class,
+            JsonCodecGenerator.class,
             TestGenerator.class
     );
 

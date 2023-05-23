@@ -1,19 +1,23 @@
-package com.hedera.pbj.compiler.impl.generators;
+package com.hedera.pbj.compiler.impl.generators.json;
 
 import com.hedera.pbj.compiler.impl.*;
+import com.hedera.pbj.compiler.impl.generators.Generator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
  * Code generator that parses protobuf files and generates writers for each message type.
  */
 @SuppressWarnings("DuplicatedCode")
-public final class CodecGenerator implements Generator {
+public final class JsonCodecGenerator implements Generator {
 
 	/**
 	 * {@inheritDoc}
@@ -21,8 +25,8 @@ public final class CodecGenerator implements Generator {
 	public void generate(Protobuf3Parser.MessageDefContext msgDef, final File destinationSrcDir,
 						 File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
 		final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
-		final String codecClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.CODEC, msgDef);
-		final String codecPackage = lookupHelper.getPackageForMessage(FileType.CODEC, msgDef);
+		final String codecClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.JSON_CODEC, msgDef);
+		final String codecPackage = lookupHelper.getPackageForMessage(FileType.JSON_CODEC, msgDef);
 		final File javaFile = Common.getJavaFile(destinationSrcDir, codecPackage, codecClassName);
 
 		final List<Field> fields = new ArrayList<>();
@@ -42,14 +46,12 @@ public final class CodecGenerator implements Generator {
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
-//				if (field.type() == Field.FieldType.MESSAGE) {
-					field.addAllNeededImports(imports, true, true, false);
-//				}
+				field.addAllNeededImports(imports, true, true, false);
 			} else if (item.reserved() == null && item.optionStatement() == null) {
 				System.err.println("WriterGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
 		}
-		final String writeMethod = CodecWriteMethodGenerator.generateWriteMethod(modelClassName, fields);
+		final String writeMethod = JsonCodecWriteMethodGenerator.generateWriteMethod(modelClassName, fields);
 
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
@@ -62,28 +64,21 @@ public final class CodecGenerator implements Generator {
 					import java.nio.charset.*;
 					import java.util.*;
 					import edu.umd.cs.findbugs.annotations.NonNull;
+					import edu.umd.cs.findbugs.annotations.Nullable;
 					
 					import $qualifiedModelClass;
 					$imports
+					import com.hedera.pbj.runtime.jsonparser.*;
 					import static $schemaClass.*;
-					import static com.hedera.pbj.runtime.ProtoWriterTools.*;
-					import static com.hedera.pbj.runtime.ProtoParserTools.*;
+					import static com.hedera.pbj.runtime.JsonTools.*;
 										
 					/**
-					 * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
+					 * JSON Codec for $modelClass model object. Generated based on protobuf schema.
 					 */
-					public final class $codecClass implements Codec<$modelClass> {
+					public final class $codecClass implements JsonCodec<$modelClass> {
 						$unsetOneOfConstants
-						$parseMethod
-						$parseStrictMethod
+						$parseObject
 						$writeMethod
-						$measureDataMethod
-						$measureRecordMethod
-						$fastEqualsMethod
-						
-						// ------ Private Implementation
-						
-						$parseInternal
 					}
 					"""
 					.replace("$package", codecPackage)
@@ -94,18 +89,40 @@ public final class CodecGenerator implements Generator {
 					.replace("$modelClass", modelClassName)
 					.replace("$qualifiedModelClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef))
 					.replace("$codecClass", codecClassName)
-					.replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
-					.replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, fields))
-					.replace("$parseStrictMethod", CodecParseMethodGenerator.generateParseStrictMethod(modelClassName, fields))
+					.replace("$unsetOneOfConstants", JsonCodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
 					.replace("$writeMethod", writeMethod)
-					.replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))
-					.replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
-					.replace("$fastEqualsMethod", CodecFastEqualsMethodGenerator.generateFastEqualsMethod(modelClassName, fields))
-					.replace("$parseInternal", CodecParseMethodGenerator.generateParseInternalMethod(modelClassName, fields))
+					.replace("$parseObject", JsonCodecParseMethodGenerator.generateParseObjectMethod(modelClassName, fields))
 			);
 		}
 	}
 
-
-
+	/**
+	 * Converts a field name to a JSON field name.
+	 *
+	 * @param fieldName the field name
+	 * @return the JSON field name
+	 */
+	static String toJsonFieldName(String fieldName) {
+		// based directly on protoc so output matches
+		final int length = fieldName.length();
+		StringBuilder result = new StringBuilder(length);
+		boolean isNextUpperCase = false;
+		for (int i = 0; i < length; i++) {
+			char ch = fieldName.charAt(i);
+			if (ch == '_') {
+				isNextUpperCase = true;
+			} else if (isNextUpperCase) {
+				// This closely matches the logic for ASCII characters in:
+				// http://google3/google/protobuf/descriptor.cc?l=249-251&rcl=228891689
+				if ('a' <= ch && ch <= 'z') {
+					ch = (char) (ch - 'a' + 'A');
+				}
+				result.append(ch);
+				isNextUpperCase = false;
+			} else {
+				result.append(ch);
+			}
+		}
+		return result.toString();
+	}
 }

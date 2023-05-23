@@ -162,6 +162,7 @@ public final class LookupHelper {
 				case MODEL, PROTOC -> name;
 				case SCHEMA -> name + FileAndPackageNamesConfig.SCHEMA_JAVA_FILE_SUFFIX;
 				case CODEC -> name + FileAndPackageNamesConfig.CODEC_JAVA_FILE_SUFFIX;
+				case JSON_CODEC -> name + FileAndPackageNamesConfig.JSON_CODEC_JAVA_FILE_SUFFIX;
 				case TEST -> name + FileAndPackageNamesConfig.TEST_JAVA_FILE_SUFFIX;
 			};
 		}
@@ -195,7 +196,7 @@ public final class LookupHelper {
 					//noinspection ConstantConditions
 					case MODEL, PROTOC -> basePackage;
 					case SCHEMA -> basePackage + '.' + FileAndPackageNamesConfig.SCHEMAS_SUBPACKAGE;
-					case CODEC -> basePackage + '.' + FileAndPackageNamesConfig.CODECS_SUBPACKAGE;
+					case CODEC, JSON_CODEC -> basePackage + '.' + FileAndPackageNamesConfig.CODECS_SUBPACKAGE;
 					case TEST -> basePackage + '.' + FileAndPackageNamesConfig.TESTS_SUBPACKAGE;
 				};
 			}
