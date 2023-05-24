@@ -20,6 +20,7 @@ plugins {
     id("com.hedera.pbj.maven-publish")
     // protobuf plugin is only used for tests
     id("com.google.protobuf").version("0.9.1")
+    id("antlr")
 }
 
 dependencies {
@@ -28,6 +29,11 @@ dependencies {
     testImplementation(testLibs.bundles.testing)
     testImplementation(libs.spotbugs.annotations)
     testRuntimeOnly(testLibs.junit.jupiter.engine)
+    antlr(libs.bundles.antlr)
+}
+
+tasks.generateGrammarSource {
+    arguments = arguments + listOf("-package", "com.hedera.pbj.runtime.jsonparser")
 }
 
 tasks.getByName<Test>("test") {

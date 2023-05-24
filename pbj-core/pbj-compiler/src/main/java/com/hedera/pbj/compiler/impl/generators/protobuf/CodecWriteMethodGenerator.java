@@ -1,4 +1,4 @@
-package com.hedera.pbj.compiler.impl.generators;
+package com.hedera.pbj.compiler.impl.generators.protobuf;
 
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
@@ -11,45 +11,44 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Code to generate the measure record method for Codec classes. This measures the number of bytes that would be
- * written if the record was serialized in protobuf format.
+ * Code to generate the write method for Codec classes.
  */
-class CodecMeasureRecordMethodGenerator {
+final class CodecWriteMethodGenerator {
 
-    static String generateMeasureMethod(final String modelClassName, final List<Field> fields) {
-        final String fieldSizeOfLines = fields.stream()
+    static String generateWriteMethod(final String modelClassName, final List<Field> fields) {
+        final String fieldWriteLines = fields.stream()
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
-                .map(field -> generateFieldSizeOfLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower())))
+                .map(field -> generateFieldWriteLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower())))
                 .collect(Collectors.joining("\n" + Common.FIELD_INDENT));
-        return """
-                /**
-                 * Compute number of bytes that would be written when calling {@code write()} method.
-                 *
-                 * @param data The input model data to measure write bytes for
-                 * @return The length in bytes that would be written
-                 */
-                public int measureRecord($modelClass data) {
-                    int size = 0;
-                    $fieldSizeOfLines
-                    return size;
-                }
-                """
-                .replace("$modelClass", modelClassName)
-                .replace("$fieldSizeOfLines", fieldSizeOfLines)
-                .replaceAll("\n", "\n" + Common.FIELD_INDENT)
-                ;
+
+        return """     
+            /**
+             * Write out a $modelClass model to output stream in protobuf format.
+             *
+             * @param data The input model data to write
+             * @param out The output stream to write to
+             * @throws IOException If there is a problem writing
+             */
+            public void write(@NonNull $modelClass data,@NonNull final WritableSequentialData out) throws IOException {
+                $fieldWriteLines
+            }
+            """
+            .replace("$modelClass", modelClassName)
+            .replace("$fieldWriteLines", fieldWriteLines)
+            .replaceAll("\n", "\n" + Common.FIELD_INDENT);
     }
 
+
     /**
-     * Generate lines of code for measure method, that measure the size of each field and add to "size" variable.
+     * Generate lines of code for writing field
      *
-     * @param field The field to generate size of line
+     * @param field The field to generate writing line of code for
      * @param modelClassName The model class name for model class for message type we are generating writer for
      * @param getValueCode java code to get the value of field
-     * @return java code for adding fields size to "size" variable
+     * @return java code to write field to output
      */
-    private static String generateFieldSizeOfLines(final Field field, final String modelClassName, String getValueCode) {
+    private static String generateFieldWriteLines(final Field field, final String modelClassName, String getValueCode) {
         final String fieldDef = Common.camelToUpperSnake(field.name());
         String prefix = "// ["+field.fieldNumber()+"] - "+field.name();
         prefix += "\n"+ Common.FIELD_INDENT.repeat(1);
@@ -66,48 +65,49 @@ class CodecMeasureRecordMethodGenerator {
         final String writeMethodName = field.methodNameType();
         if(field.optionalValueType()) {
             return prefix + switch (field.messageType()) {
-                case "StringValue" -> "size += sizeOfOptionalString(%s, %s);"
+                case "StringValue" -> "writeOptionalString(out, %s, %s);"
                         .formatted(fieldDef,getValueCode);
-                case "BoolValue" -> "size += sizeOfOptionalBoolean(%s, %s);"
+                case "BoolValue" -> "writeOptionalBoolean(out, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case "Int32Value","UInt32Value" -> "size += sizeOfOptionalInteger(%s, %s);"
+                case "Int32Value","UInt32Value" -> "writeOptionalInteger(out, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case "Int64Value","UInt64Value" -> "size += sizeOfOptionalLong(%s, %s);"
+                case "Int64Value","UInt64Value" -> "writeOptionalLong(out, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case "FloatValue" -> "size += sizeOfOptionalFloat(%s, %s);"
+                case "FloatValue" -> "writeOptionalFloat(out, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case "DoubleValue" -> "size += sizeOfOptionalDouble(%s, %s);"
+                case "DoubleValue" -> "writeOptionalDouble(out, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case "BytesValue" -> "size += sizeOfOptionalBytes(%s, %s);"
+                case "BytesValue" -> "writeOptionalBytes(out, %s, %s);"
                         .formatted(fieldDef, getValueCode);
                 default -> throw new UnsupportedOperationException("Unhandled optional message type:"+field.messageType());
             };
         } else if (field.repeated()) {
             return prefix + switch(field.type()) {
-                case ENUM -> "size += sizeOfEnumList(%s, %s);"
+                case ENUM -> "writeEnumList(out, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case MESSAGE -> "size += sizeOfMessageList($fieldDef, $valueCode, $codec::measureRecord);"
+                case MESSAGE -> "writeMessageList(out, $fieldDef, $valueCode, $codec::write, $codec::measureRecord);"
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode)
                         .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +
                                 Common.capitalizeFirstLetter(field.messageType())+ ".PROTOBUF");
-                default -> "size += sizeOf%sList(%s, %s);"
+//                        .replace("$codec", Common.capitalizeFirstLetter(field.messageType())+ ".PROTOBUF");
+                default -> "write%sList(out, %s, %s);"
                         .formatted(writeMethodName, fieldDef, getValueCode);
             };
         } else {
             return prefix + switch(field.type()) {
-                case ENUM -> "size += sizeOfEnum(%s, %s);"
+                case ENUM -> "writeEnum(out, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case STRING -> "size += sizeOfString(%s, %s);"
+                case STRING -> "writeString(out, %s, %s);"
                         .formatted(fieldDef,getValueCode);
-                case MESSAGE -> "size += sizeOfMessage($fieldDef, $valueCode, $codec::measureRecord);"
+                case MESSAGE -> "writeMessage(out, $fieldDef, $valueCode, $codec::write, $codec::measureRecord);"
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode)
                         .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +
                                 Common.capitalizeFirstLetter(field.messageType())+ ".PROTOBUF");
-                case BOOL -> "size += sizeOfBoolean(%s, %s);"
+                case BOOL -> "writeBoolean(out, %s, %s);"
                         .formatted(fieldDef,getValueCode);
-                default -> "size += sizeOf%s(%s, %s);"
+                default -> "write%s(out, %s, %s);"
                         .formatted(writeMethodName, fieldDef, getValueCode);
             };
         }

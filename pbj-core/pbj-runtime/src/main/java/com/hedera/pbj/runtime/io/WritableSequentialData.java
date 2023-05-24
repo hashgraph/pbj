@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
@@ -183,6 +184,15 @@ public interface WritableSequentialData extends SequentialData {
         } catch (IOException ex) {
             throw new DataAccessException("Failed to read from InputStream", ex);
         }
+    }
+
+    /**
+     * Write a string as UTF8 bytes to this {@link WritableSequentialData}.
+     *
+     * @param value The string to write, can not be null
+     */
+    default void writeUTF8(@NonNull final String value) {
+        writeBytes(value.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

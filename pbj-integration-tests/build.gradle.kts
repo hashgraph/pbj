@@ -19,6 +19,7 @@ dependencies {
     compileOnly("com.github.spotbugs:spotbugs-annotations:4.7.3")
     implementation("com.hedera.pbj:pbj-runtime:${project.version}")
     implementation("com.google.protobuf:protobuf-java:3.21.12")
+    implementation("com.google.protobuf:protobuf-java-util:3.21.12")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.0")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.0")
@@ -74,6 +75,7 @@ tasks.withType<Test> {
 
 jmh {
 //    includes.add("AccountDetailsBench")
+//    includes.add("JsonBench")
     jmhVersion.set("1.35")
     includeTests.set(true)
 //    jvmArgsAppend.add("-XX:MaxInlineSize=100 -XX:MaxInlineLevel=20")

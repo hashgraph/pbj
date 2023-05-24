@@ -10,6 +10,8 @@ public enum FileType {
     SCHEMA,
     /** Generated codec class */
     CODEC,
+    /** Generated JSON codec class */
+    JSON_CODEC,
     /** Generated test class */
     TEST,
     /** Protoc generated model class */

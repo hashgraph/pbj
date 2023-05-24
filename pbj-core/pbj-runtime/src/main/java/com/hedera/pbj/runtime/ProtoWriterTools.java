@@ -1,9 +1,10 @@
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -31,9 +32,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field The field to include in tag
      * @param wireType The field wire type to include in tag
-     * @throws IOException if an I/O error occurs
      */
-    private static void writeTag(final WritableSequentialData out, final FieldDefinition field, final int wireType) throws IOException {
+    private static void writeTag(final WritableSequentialData out, final FieldDefinition field, final int wireType) {
         out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType, false);
     }
 
@@ -187,7 +187,7 @@ public final class ProtoWriterTools {
      * @param enumValue the enum value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeEnum(WritableSequentialData out, FieldDefinition field, EnumWithProtoOrdinal enumValue) throws IOException {
+    public static void writeEnum(WritableSequentialData out, FieldDefinition field, EnumWithProtoMetadata enumValue) throws IOException {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert !field.repeated() : "Use writeEnumList with repeated types";
         // When not a oneOf don't write default value
@@ -446,9 +446,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param list the list of integers value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeIntegerList(WritableSequentialData out, FieldDefinition field, List<Integer> list) throws IOException {
+    public static void writeIntegerList(WritableSequentialData out, FieldDefinition field, List<Integer> list) {
         assert switch(field.type()) {
             case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
             default -> false;
@@ -513,9 +512,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param list the list of longs value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeLongList(WritableSequentialData out, FieldDefinition field, List<Long> list) throws IOException {
+    public static void writeLongList(WritableSequentialData out, FieldDefinition field, List<Long> list) {
         assert switch(field.type()) {
             case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
             default -> false;
@@ -569,9 +567,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param list the list of floats value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeFloatList(WritableSequentialData out, FieldDefinition field, List<Float> list) throws IOException {
+    public static void writeFloatList(WritableSequentialData out, FieldDefinition field, List<Float> list) {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
         assert field.repeated() : "Use writeFloat with non-repeated types";
         // When not a oneOf don't write default value
@@ -592,9 +589,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param list the list of doubles value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeDoubleList(WritableSequentialData out, FieldDefinition field, List<Double> list) throws IOException {
+    public static void writeDoubleList(WritableSequentialData out, FieldDefinition field, List<Double> list) {
         assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
         assert field.repeated() : "Use writeDouble with non-repeated types";
         // When not a oneOf don't write default value
@@ -615,9 +611,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param list the list of booleans value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeBooleanList(WritableSequentialData out, FieldDefinition field, List<Boolean> list) throws IOException {
+    public static void writeBooleanList(WritableSequentialData out, FieldDefinition field, List<Boolean> list) {
         assert field.type() == FieldType.BOOL : "Not a boolean type " + field;
         assert field.repeated() : "Use writeBoolean with non-repeated types";
         // When not a oneOf don't write default value
@@ -638,9 +633,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param list the list of enums value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeEnumList(WritableSequentialData out, FieldDefinition field, List<? extends EnumWithProtoOrdinal> list) throws IOException {
+    public static void writeEnumList(WritableSequentialData out, FieldDefinition field, List<? extends EnumWithProtoMetadata> list) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert field.repeated() : "Use writeEnum with non-repeated types";
         // When not a oneOf don't write default value
@@ -648,12 +642,12 @@ public final class ProtoWriterTools {
             return;
         }
         int size = 0;
-        for (final EnumWithProtoOrdinal enumValue : list) {
+        for (final EnumWithProtoMetadata enumValue : list) {
             size += sizeOfUnsignedVarInt32(enumValue.protoOrdinal());
         }
         writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
         out.writeVarInt(size, false);
-        for (final EnumWithProtoOrdinal enumValue : list) {
+        for (final EnumWithProtoMetadata enumValue : list) {
             out.writeVarInt(enumValue.protoOrdinal(), false);
         }
     }
@@ -986,7 +980,7 @@ public final class ProtoWriterTools {
      * @param enumValue enum value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfEnum(FieldDefinition field, EnumWithProtoOrdinal enumValue) {
+    public static int sizeOfEnum(FieldDefinition field, EnumWithProtoMetadata enumValue) {
         if (!field.oneOf() && (enumValue == null || enumValue.protoOrdinal() == 0)) {
             return 0;
         }
@@ -1184,13 +1178,13 @@ public final class ProtoWriterTools {
      * @param list enum list value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfEnumList(FieldDefinition field, List<? extends EnumWithProtoOrdinal> list) {
+    public static int sizeOfEnumList(FieldDefinition field, List<? extends EnumWithProtoMetadata> list) {
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) {
             return 0;
         }
         int size = 0;
-        for (final EnumWithProtoOrdinal enumValue : list) {
+        for (final EnumWithProtoMetadata enumValue : list) {
             size += sizeOfUnsignedVarInt64(enumValue.protoOrdinal());
         }
         return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;

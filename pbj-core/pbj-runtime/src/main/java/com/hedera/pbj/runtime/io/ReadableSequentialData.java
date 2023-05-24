@@ -5,6 +5,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -460,5 +462,47 @@ public interface ReadableSequentialData extends SequentialData {
             }
         }
         throw new DataEncodingException("Malformed Varlong");
+    }
+
+    /**
+     * Convenience method to get a InputStream on this ReadableSequentialData
+     *
+     * @return A new InputStream that reads data from this ReadableSequentialData
+     */
+    default InputStream asInputStream() {
+        return new ReadableSequentialDataInputStream(this);
+    }
+
+    /**
+     * InputStream that reads from a ReadableSequentialData
+     */
+    class ReadableSequentialDataInputStream extends InputStream {
+        final ReadableSequentialData sequentialData;
+
+        public ReadableSequentialDataInputStream(@NonNull final ReadableSequentialData sequentialData) {
+            this.sequentialData = sequentialData;
+        }
+
+        @Override
+        public int read() {
+            try {
+                return sequentialData.readByte();
+            } catch (BufferUnderflowException e) {
+                return -1;
+            }
+        }
+        /*
+         These should work but readBytes() & readBytes(byte[], int, int) do not handle EOF correctly
+
+        @Override
+        public int read(byte[] b) {
+            return (int) sequentialData.readBytes(b);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return (int) sequentialData.readBytes(b, off, len);
+        }
+        */
     }
 }

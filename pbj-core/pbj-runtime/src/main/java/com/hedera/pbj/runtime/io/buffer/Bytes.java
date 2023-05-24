@@ -11,6 +11,9 @@ import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.HexFormat;
+
 import java.security.MessageDigest;
 import java.util.Comparator;
 
@@ -19,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * An immutable representation of a byte array. This class is designed to be efficient and usable across threads.
  */
+@SuppressWarnings("unused")
 public final class Bytes implements RandomAccessData {
 
     /** An instance of an empty {@link Bytes} */
@@ -134,6 +138,30 @@ public final class Bytes implements RandomAccessData {
     @NonNull
     public static Bytes wrap(@NonNull final String string) {
         return new Bytes(string.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Create a new Bytes with the contents of a UTF8 Base64 encoded String.
+     *
+     * @param string The base64 UFT8 encoded string to decode
+     * @return new {@link Bytes} with string contents decoded from base64
+     * @throws NullPointerException if string is null
+     */
+    @NonNull
+    public static Bytes fromBase64(@NonNull final String string) {
+        return new Bytes(Base64.getDecoder().decode(string));
+    }
+
+    /**
+     * Create a new Bytes with the contents of a UTF8 hex encoded String.
+     *
+     * @param string The hex UFT8 encoded string to decode
+     * @return new {@link Bytes} with string contents decoded from hex
+     * @throws NullPointerException if string is null
+     */
+    @NonNull
+    public static Bytes fromHex(@NonNull final String string) {
+        return new Bytes(HexFormat.of().parseHex(string.toLowerCase()));
     }
 
     // ================================================================================================================
@@ -287,6 +315,30 @@ public final class Bytes implements RandomAccessData {
         }
         sb.append(']');
         return sb.toString();
+    }
+
+    /**
+     * Returns a Base64 encoded string of the bytes in this object.
+     *
+     * @return Base64 encoded string of the bytes in this object.
+     */
+    public String toBase64() {
+        if (start == 0 && buffer.length == length) {
+            return Base64.getEncoder().encodeToString(buffer);
+        } else {
+            byte[] bytes = new byte[length];
+            getBytes(0,bytes);
+            return Base64.getEncoder().encodeToString(bytes);
+        }
+    }
+
+    /**
+     * Returns a Hex encoded string of the bytes in this object.
+     *
+     * @return Hex encoded string of the bytes in this object.
+     */
+    public String toHex() {
+        return HexFormat.of().formatHex(buffer,start,start+length);
     }
 
     /**

@@ -18,7 +18,7 @@ import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
  */
-@SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
+@SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace", "RedundantLabeledSwitchRuleCodeBlock"})
 public final class ModelGenerator implements Generator {
 
 	/**
@@ -52,6 +52,7 @@ public final class ModelGenerator implements Generator {
 		final List<String> hasMethods = new ArrayList<>();
 		// The generated Java import statements. We'll build this up as we go.
 		final Set<String> imports = new TreeSet<>();
+		imports.add("com.hedera.pbj.runtime");
 		imports.add("com.hedera.pbj.runtime.io");
 		imports.add("com.hedera.pbj.runtime.io.buffer");
 		imports.add("com.hedera.pbj.runtime.io.stream");
@@ -222,12 +223,15 @@ public final class ModelGenerator implements Generator {
 		bodyContent += """
 				/** Protobuf codec for reading and writing in protobuf format */
 				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
+				/** JSON codec for reading and writing in JSON format */
+				public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
 				
 				/** Default instance with all fields set to default values */
 				public static final $modelClass DEFAULT = newBuilder().build();
 				"""
 				.replace("$modelClass",javaRecordName)
 				.replace("$qualifiedCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
+				.replace("$qualifiedJsonCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.JSON_CODEC, msgDef))
 				.replaceAll("\n","\n"+FIELD_INDENT);
 
 		// constructor
@@ -263,7 +267,7 @@ public final class ModelGenerator implements Generator {
 						FIXED64, SFIXED64, INT64, UINT64, SINT64 -> {
 					bodyContent += FIELD_INDENT + """
 							/**
-							 * Override the default hashCode method for 
+							 * Override the default hashCode method for
 							 * single field int objects.
 							 */
 							@Override
