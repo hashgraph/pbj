@@ -51,7 +51,7 @@ public class WritableStreamingData implements WritableSequentialData, AutoClosea
     // AutoCloseable Methods
 
     @Override
-    public void close() throws Exception {
+    public void close() throws IOException {
         try {
             out.close();
         } catch (IOException ignored) {

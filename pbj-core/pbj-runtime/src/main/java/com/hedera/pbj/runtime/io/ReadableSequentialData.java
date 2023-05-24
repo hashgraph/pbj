@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
+import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.io.InputStream;
@@ -100,9 +101,15 @@ public interface ReadableSequentialData extends SequentialData {
         // continue to check as we process each byte. This is not efficient for buffers.
         final var length = Math.min(maxLength, remaining());
         final var maxIndex = offset + length;
+        long bytesRead = 0;
         for (int i = offset; i < maxIndex; i++) {
             if (!hasRemaining()) return (long) i - offset;
-            dst[i] = readByte();
+            try {
+                dst[i] = readByte();
+                bytesRead++;
+            } catch (EOFException e) {
+                return bytesRead;
+            }
         }
         return length;
     }

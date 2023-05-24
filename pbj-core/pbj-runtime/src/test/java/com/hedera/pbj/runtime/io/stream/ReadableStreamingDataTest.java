@@ -10,9 +10,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 final class ReadableStreamingDataTest extends ReadableTestBase {
 
@@ -110,6 +113,21 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
             stream.readBytes(bytes);
             assertThat(stream.position()).isEqualTo(6);
             assertThat(bytes).containsExactly('0', '1', '2', '3', '4', '5');
+            assertThat(stream.hasRemaining()).isFalse();
+            assertThat(stream.remaining()).isZero();
+        }
+    }
+
+    @Test
+    @DisplayName("Read past the data - EOF")
+    void readPastEnd() {
+        try (var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8))) {
+            stream.limit(12);
+            final var bytes = new byte[12];
+            final var read = stream.readBytes(bytes);
+            assertEquals(10, read);
+            assertThat(stream.position()).isEqualTo(10);
+            assertThat(bytes).containsExactly('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 0, 0);
             assertThat(stream.hasRemaining()).isFalse();
             assertThat(stream.remaining()).isZero();
         }
@@ -256,6 +274,24 @@ final class ReadableStreamingDataTest extends ReadableTestBase {
         final var stream = new ReadableStreamingData(inputStream);
         stream.close();
         assertThat(stream.hasRemaining()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Bad InputStream empty when read")
+    void inputStreamEmptyRead() {
+        final var inputStream = new ByteArrayInputStream(new byte[0]) {
+            @Override
+            public void close() throws IOException {
+                throw new IOException("Failed");
+            }
+        };
+
+        byte[] read = new byte[5];
+        final var stream = new ReadableStreamingData(inputStream);
+        assertThrows(EOFException.class, () -> {
+            final var i = stream.readInt();
+        });
+        assertEquals(0, stream.readBytes(read));
     }
 
     @Test

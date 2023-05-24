@@ -6,11 +6,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HexFormat;
+
+import java.security.MessageDigest;
+import java.util.Comparator;
 
 import static java.util.Objects.requireNonNull;
 
@@ -22,6 +27,20 @@ public final class Bytes implements RandomAccessData {
 
     /** An instance of an empty {@link Bytes} */
     public static final Bytes EMPTY = new Bytes(new byte[0]);
+
+    /** Sorts {@link Bytes} according to their length, shorter first. */
+    public static final Comparator<Bytes> SORT_BY_LENGTH = (Bytes o1, Bytes o2) ->
+            Comparator.comparingLong(Bytes::length).compare(o1, o2);
+
+    /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
+      * Bytes are compared on a signed basis.
+      */
+    public static final Comparator<Bytes> SORT_BY_SIGNED_VALUE = valueSorter(Byte::compare);
+
+    /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
+      * Bytes are compared on an unsigned basis
+      */
+    public static final Comparator<Bytes> SORT_BY_UNSIGNED_VALUE = valueSorter(Byte::compareUnsigned);
 
     /** byte[] used as backing buffer */
     private final byte[] buffer;
@@ -172,7 +191,7 @@ public final class Bytes implements RandomAccessData {
     }
 
     /**
-     * Package privet helper method for efficient copy of our data into another ByteBuffer with no effect on this
+     * Package private helper method for efficient copy of our data into another ByteBuffer with no effect on this
      * buffers state, so thread safe for this buffer. The destination buffers position is updated.
      *
      * @param dstBuffer the buffer to copy into
@@ -180,6 +199,66 @@ public final class Bytes implements RandomAccessData {
     void writeTo(@NonNull final ByteBuffer dstBuffer) {
         dstBuffer.put(dstBuffer.position(), buffer, start, length);
         dstBuffer.position(dstBuffer.position() + length);
+    }
+
+    /**
+     * Package private helper method for efficient copy of
+     * our data into an OutputStream without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * OutputStream that doesn't modify the buffer data.
+     *
+     * @param outStream the OutputStream to copy into
+     */
+    public void writeTo(@NonNull final OutputStream outStream) {
+        try {
+            outStream.write(buffer, start, length);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Package private helper method for efficient copy of
+     * our data into an OutputStream without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * OutputStream that doesn't modify the buffer data.
+     *
+     * @param outStream The OutputStream to copy into.
+     * @param offset The offset from this {@link Bytes} object to get the bytes from.
+     * @param length The number of bytes to extract.
+     */
+    public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
+        try {
+            outStream.write(buffer, offset, length);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Package private helper method for efficient copy of
+     * our data into an MessageDigest  without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * MessageDigest that doesn't modify the buffer data.
+     *
+     * @param digest the MessageDigest to copy into
+     * @param offset The offset from this {@link Bytes} object to get the bytes from.
+     * @param length The number of bytes to extract.
+     */
+    public void writeTo(@NonNull final MessageDigest digest, final int offset, final int length) {
+        digest.update(buffer, offset, length);
+    }
+
+    /**
+     * Package private helper method for efficient copy of
+     * our data into an MessageDigest  without creating a defensive copy
+     * of the data. The implementation relies on a well behaved
+     * MessageDigest that doesn't modify the buffer data.
+     *
+     * @param digest the MessageDigest to copy into
+     */
+    public void writeTo(@NonNull final MessageDigest digest) {
+        digest.update(buffer, start, length);
     }
 
     /**
@@ -400,9 +479,54 @@ public final class Bytes implements RandomAccessData {
         return getBytes(offset, length);
     }
 
+    /** * Gets a byte[] of the bytes of this {@link Bytes} object..
+     *
+     * @return a clone of the bytes of this {@link Bytes} object or null.
+     */
+    @NonNull
+    public byte[] toByteArray() {
+        return toByteArray(0, length);
+    }
+
+    /** * Gets a byte[] of the bytes of this {@link Bytes} object..
+     *
+     * @param offset The start offset to get the bytes from.
+     * @param length The number of bytes to get.
+     * @return a clone of the bytes of this {@link Bytes} object or null.
+     */
+    @NonNull
+    public byte[] toByteArray(final int offset, final int length) {
+        byte[] ret = new byte[length];
+        getBytes(offset, ret);
+        return ret;
+    }
+
     private void validateOffset(long offset) {
         if (offset < 0 || offset > this.length) {
             throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + this.length);
         }
+    }
+
+    /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
+      * Bytes are compared using the passed in Byte Comparator
+      */
+    private static Comparator<Bytes> valueSorter(@NonNull final Comparator<Byte> byteComparator) {
+        return (Bytes o1, Bytes o2) -> {
+            final var val = Math.min(o1.length(), o2.length());
+            for (long i = 0; i < val; i++) {
+                final var byteComparison = byteComparator.compare(o1.getByte(i), o2.getByte(i));
+                if (byteComparison != 0) {
+                    return byteComparison;
+                }
+            }
+
+            // In case one of the buffers is longer than the other and the first n bytes (where n in the length of the
+            // shorter buffer) are equal, the buffer with the shorter length is first in the sort order.
+            long len = o1.length() - o2.length();
+            if (len == 0) {
+                return 0;
+            }
+            return ((len > 0) ? 1 : -1);
+        };
     }
 }
