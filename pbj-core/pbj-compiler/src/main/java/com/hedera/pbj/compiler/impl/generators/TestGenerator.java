@@ -61,12 +61,14 @@ public final class TestGenerator implements Generator {
 							import com.google.protobuf.util.JsonFormat;
 							import com.google.protobuf.CodedOutputStream;
 							import com.hedera.pbj.runtime.io.buffer.BufferedData;
+							import com.hedera.pbj.runtime.JsonTools;
 							import org.junit.jupiter.params.ParameterizedTest;
 							import org.junit.jupiter.params.provider.MethodSource;
 							import com.hedera.pbj.runtime.test.*;
 							import java.util.stream.IntStream;
 							import java.util.stream.Stream;
 							import java.nio.ByteBuffer;
+							import java.nio.CharBuffer;
 							%s
 														
 							import com.google.protobuf.CodedInputStream;
@@ -235,6 +237,14 @@ public final class TestGenerator implements Generator {
 		};
 	}
 
+	/**
+	 * Generate code for test method. The test method is designed to reuse thread local buffers. This is
+	 * very important for performance as without this the tests quickly overwhelm the garbage collector.
+	 *
+	 * @param modelClassName The class name of the model object we are creating a test for
+	 * @param protoCJavaFullQualifiedClass The qualified class name of the protoc generated object class
+	 * @return Code for test method
+	 */
 	private static String generateTestMethod(final String modelClassName, final String protoCJavaFullQualifiedClass) {
 		return """
 				@ParameterizedTest
@@ -245,6 +255,8 @@ public final class TestGenerator implements Generator {
 					final var dataBuffer = getThreadLocalDataBuffer();
 					final var dataBuffer2 = getThreadLocalDataBuffer2();
 					final var byteBuffer = getThreadLocalByteBuffer();
+					final var charBuffer = getThreadLocalCharBuffer();
+					final var charBuffer2 = getThreadLocalCharBuffer2();
 					
 					// model to bytes with PBJ
 					$modelClassName.PROTOBUF.write(modelObj, dataBuffer);
@@ -304,12 +316,15 @@ public final class TestGenerator implements Generator {
 					assertArrayEquals(bytes.toByteArray(), readBytes);
 
 					// Test JSON Writing
-					final String jsonWrittenPbj = $modelClassName.JSON.toJSON(modelObj);
-					final String jsonWrittenProtoC = JsonFormat.printer().print(protoCModelObj);
-					assertEquals(jsonWrittenProtoC, jsonWrittenPbj);
+					final CharBufferToWritableSequentialData charBufferToWritableSequentialData = new CharBufferToWritableSequentialData(charBuffer);
+					$modelClassName.JSON.write(modelObj,charBufferToWritableSequentialData);
+					charBuffer.flip();
+					JsonFormat.printer().appendTo(protoCModelObj, charBuffer2);
+					charBuffer2.flip();
+					assertEquals(charBuffer2, charBuffer);
 					
 					// Test JSON Reading
-					final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(BufferedData.wrap(jsonWrittenProtoC.getBytes(StandardCharsets.UTF_8)));
+					final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(JsonTools.parseJson(charBuffer), false);
 					assertEquals(modelObj, jsonReadPbj);
 				}
 				"""

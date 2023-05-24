@@ -7,10 +7,13 @@ import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CodePointBuffer;
+import org.antlr.v4.runtime.CodePointCharStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.CharBuffer;
 import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,6 +26,16 @@ public final class JsonTools {
     /** The indent spacing to use for pretty printing JSON */
     public static final String INDENT = "  ";
 
+    // ====================================================================================================
+    // Conversion Utility Methods
+
+    /**
+     * Convert a protobuf field name to a protobuf spec json field name. This is based directly on the code
+     * from protobuf library so that it matches exactly.
+     *
+     * @param fieldName the protobuf field name to convert
+     * @return the protobuf spec json field name
+     */
     public static String toJsonFieldName(String fieldName) {
         // based directly on protoc so output matches
         final int length = fieldName.length();
@@ -47,44 +60,6 @@ public final class JsonTools {
         return result.toString();
     }
 
-    public static <T> List<T> parseObjArray(JSONParser.ArrContext arrContext, JsonCodec<T> codec) {
-        return arrContext.value().stream()
-                .map(v -> {
-                    try {
-                        return codec.parse(v.obj(), false);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }).toList();
-    }
-
-    public static int parseInteger(JSONParser.ValueContext valueContext) {
-        return Integer.parseInt(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
-    }
-
-    public static long parseLong(JSONParser.ValueContext valueContext) {
-        return Long.parseLong(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
-    }
-
-    public static float parseFloat(JSONParser.ValueContext valueContext) {
-        return Float.parseFloat(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
-    }
-
-    public static double parseDouble(JSONParser.ValueContext valueContext) {
-        return Double.parseDouble(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
-    }
-    public static boolean parseBoolean(JSONParser.ValueContext valueContext) {
-        return Boolean.parseBoolean(valueContext.getText());
-    }
-
-    public static JSONParser.ObjContext parseJson(@NonNull final ReadableSequentialData input) throws IOException {
-        final JSONLexer lexer = new JSONLexer(CharStreams.fromStream(input.asInputStream()));
-        final JSONParser parser = new JSONParser(new CommonTokenStream(lexer));
-        final JSONParser.JsonContext jsonContext = parser.json();
-        final JSONParser.ValueContext valueContext = jsonContext.value();
-        return  valueContext.obj();
-    }
-
     /**
      * Unescape a string that was escaped by replacing new lines with \n or \r.
      *
@@ -107,10 +82,131 @@ public final class JsonTools {
         return string.replaceAll("\n","\\\\n").replaceAll("\r","\\\\r");
     }
 
+    // ====================================================================================================
+    // Parse Methods
+
+    /**
+     * Parse a JSON string in a ReadableSequentialData into a JSON object.
+     *
+     * @param input the ReadableSequentialData containing the JSON string
+     * @return the Antlr JSON context object
+     * @throws IOException if there was a problem parsing the JSON
+     */
+    public static JSONParser.ObjContext parseJson(@NonNull final ReadableSequentialData input) throws IOException {
+        final JSONLexer lexer = new JSONLexer(CharStreams.fromStream(input.asInputStream()));
+        final JSONParser parser = new JSONParser(new CommonTokenStream(lexer));
+        final JSONParser.JsonContext jsonContext = parser.json();
+        final JSONParser.ValueContext valueContext = jsonContext.value();
+        return  valueContext.obj();
+    }
+
+    /**
+     * Parse a JSON string in a CharBuffer into a JSON object.
+     *
+     * @param input the CharBuffer containing the JSON string
+     * @return the Antlr JSON context object
+     * @throws IOException if there was a problem parsing the JSON
+     */
+    public static JSONParser.ObjContext parseJson(@NonNull final CharBuffer input) throws IOException {
+        CodePointBuffer.Builder codePointBufferBuilder = CodePointBuffer.builder(input.remaining());
+        codePointBufferBuilder.append(input);
+        final JSONLexer lexer = new JSONLexer(CodePointCharStream.fromBuffer(codePointBufferBuilder.build(), "CharBuffer"));
+        final JSONParser parser = new JSONParser(new CommonTokenStream(lexer));
+        final JSONParser.JsonContext jsonContext = parser.json();
+        final JSONParser.ValueContext valueContext = jsonContext.value();
+        return  valueContext.obj();
+    }
+
+    /**
+     * Parse a JSON Object array from a JSONParser.ArrContext into a list of objects.
+     *
+     * @param arrContext the JSONParser.ArrContext to parse
+     * @param codec the JsonCodec to use to parse the objects
+     * @return the list of parsed objects
+     * @param <T> the type of the objects to parse
+     */
+    public static <T> List<T> parseObjArray(JSONParser.ArrContext arrContext, JsonCodec<T> codec) {
+        return arrContext.value().stream()
+                .map(v -> {
+                    try {
+                        return codec.parse(v.obj(), false);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }).toList();
+    }
+
+    /**
+     * Parse an integer from a JSONParser.ValueContext
+     *
+     * @param valueContext the JSONParser.ValueContext to parse
+     * @return the parsed integer
+     */
+    public static int parseInteger(JSONParser.ValueContext valueContext) {
+        return Integer.parseInt(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
+    }
+
+    /**
+     * Parse a long from a JSONParser.ValueContext
+     *
+     * @param valueContext the JSONParser.ValueContext to parse
+     * @return the parsed long
+     */
+    public static long parseLong(JSONParser.ValueContext valueContext) {
+        return Long.parseLong(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
+    }
+
+    /**
+     * Parse a float from a JSONParser.ValueContext
+     *
+     * @param valueContext the JSONParser.ValueContext to parse
+     * @return the parsed float
+     */
+    public static float parseFloat(JSONParser.ValueContext valueContext) {
+        return Float.parseFloat(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
+    }
+
+    /**
+     * Parse a double from a JSONParser.ValueContext
+     *
+     * @param valueContext the JSONParser.ValueContext to parse
+     * @return the parsed double
+     */
+    public static double parseDouble(JSONParser.ValueContext valueContext) {
+        return Double.parseDouble(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
+    }
+
+    /**
+     * Parse a boolean from a JSONParser.ValueContext
+     *
+     * @param valueContext the JSONParser.ValueContext to parse
+     * @return the parsed boolean
+     */
+    public static boolean parseBoolean(JSONParser.ValueContext valueContext) {
+        return Boolean.parseBoolean(valueContext.getText());
+    }
+
+    // ====================================================================================================
+    // To JSON String Methods
+
+    /**
+     * Base method for all field to JSON string methods call this with the string for the value.
+     *
+     * @param fieldName the name of the field
+     * @param rawValue the JSON string for value
+     * @return the JSON string
+     */
     private static String rawFieldCode(String fieldName, String rawValue) {
         return '"' + fieldName + '"' + ": " + rawValue;
     }
 
+    /**
+     * Object field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static <T> String field(String indent, String fieldName,
                                  JsonCodec<T> codec, @Nullable final T value) {
         if (value != null) {
@@ -121,30 +217,79 @@ public final class JsonTools {
         }
     }
 
-    public static String field(String fieldName, boolean value) {
-        return rawFieldCode(fieldName, value ? "true" : "false");
-    }
-
+    /**
+     * String field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, String value) {
         return rawFieldCode(fieldName, '"' + escape(value) + '"');
     }
 
+    /**
+     * Bytes field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, Bytes value) {
         return rawFieldCode(fieldName, '"' + value.toBase64() + '"');
     }
 
+    /**
+     * Byte array field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, byte[] value) {
         return rawFieldCode(fieldName, '"' + Base64.getEncoder().encodeToString(value) + '"');
     }
 
+    /**
+     * Primitive boolean field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
+    public static String field(String fieldName, boolean value) {
+        return rawFieldCode(fieldName, value ? "true" : "false");
+    }
+
+    /**
+     * Primitive int field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, int value) {
         return rawFieldCode(fieldName, Integer.toString(value));
     }
 
+    /**
+     * Primitive long field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, long value) {
         return rawFieldCode(fieldName, '"' + Long.toString(value) + '"');
     }
 
+    /**
+     * Primitive float field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, float value) {
         if (Float.isNaN(value)) {
             return rawFieldCode(fieldName, "\"NaN\"");
@@ -155,6 +300,13 @@ public final class JsonTools {
         }
     }
 
+    /**
+     * Primitive double field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, double value) {
         if (Double.isNaN(value)) {
             return rawFieldCode(fieldName, "\"NaN\"");
@@ -165,6 +317,13 @@ public final class JsonTools {
         }
     }
 
+    /**
+     * Boxed Boolean field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, Boolean value) {
         if (value == null) {
             return rawFieldCode(fieldName, "null");
@@ -172,6 +331,14 @@ public final class JsonTools {
             return rawFieldCode(fieldName, Boolean.toString(value));
         }
     }
+
+    /**
+     * Boxed Integer field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, Integer value) {
         if (value == null) {
             return rawFieldCode(fieldName, "null");
@@ -179,6 +346,14 @@ public final class JsonTools {
             return rawFieldCode(fieldName, Integer.toString(value));
         }
     }
+
+    /**
+     * Boxed Long field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, Long value, boolean quote) {
         if (value == null) {
             return rawFieldCode(fieldName, "null");
@@ -189,6 +364,13 @@ public final class JsonTools {
         }
     }
 
+    /**
+     * Boxed Float field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, Float value) {
         if (value == null) {
             return rawFieldCode(fieldName, "null");
@@ -197,6 +379,13 @@ public final class JsonTools {
         }
     }
 
+    /**
+     * Boxed Double field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @return the JSON string
+     */
     public static String field(String fieldName, Double value) {
         if (value == null) {
             return rawFieldCode(fieldName, "null");
@@ -205,7 +394,14 @@ public final class JsonTools {
         }
     }
 
-
+    /**
+     * Array field of primitives to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param items the items in the array
+     * @return the JSON string
+     * @param <T> the type of the items in the array
+     */
     public static <T> String arrayField(String fieldName,
                                       FieldDefinition fieldDefinition, List<T> items) {
         if (items != null) {
@@ -237,6 +433,16 @@ public final class JsonTools {
         return null;
     }
 
+    /**
+     * Array field of objects to JSON string
+     *
+     * @param indent the indent to use for generated JSON
+     * @param fieldName the name of the field
+     * @param codec the codec to use for encoding the items
+     * @param items the items in the array
+     * @return the JSON string
+     * @param <T> the type of the items in the array
+     */
     public static <T> String arrayField(String indent, String fieldName,
                                       JsonCodec<T> codec, List<T> items) {
         if (items != null) {
