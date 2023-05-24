@@ -59,16 +59,17 @@ public final class JsonTools {
     }
 
     public static int parseInteger(JSONParser.ValueContext valueContext) {
-        System.out.println("valueContext = " + valueContext);
-        System.out.println("    valueContext.STRING() = " + valueContext.STRING());
         return Integer.parseInt(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
     }
+
     public static long parseLong(JSONParser.ValueContext valueContext) {
         return Long.parseLong(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
     }
+
     public static float parseFloat(JSONParser.ValueContext valueContext) {
         return Float.parseFloat(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
     }
+
     public static double parseDouble(JSONParser.ValueContext valueContext) {
         return Double.parseDouble(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
     }
@@ -82,6 +83,28 @@ public final class JsonTools {
         final JSONParser.JsonContext jsonContext = parser.json();
         final JSONParser.ValueContext valueContext = jsonContext.value();
         return  valueContext.obj();
+    }
+
+    /**
+     * Unescape a string that was escaped by replacing new lines with \n or \r.
+     *
+     * @param string the string with escapes to unescape
+     * @return the unescaped string, null if input string is null
+     */
+    public static String unescape(@Nullable String string) {
+        if (string == null) return null;
+        return string.replaceAll("\\\\n", "\n").replaceAll("\\\\r", "\r");
+    }
+
+    /**
+     * Escape a string by replacing new lines with \n or \r.
+     *
+     * @param string the string to escape
+     * @return the escaped string, null if input string is null
+     */
+    public static String escape(@Nullable String string) {
+        if (string == null) return null;
+        return string.replaceAll("\n","\\\\n").replaceAll("\r","\\\\r");
     }
 
     private static String rawFieldCode(String fieldName, String rawValue) {
@@ -103,7 +126,7 @@ public final class JsonTools {
     }
 
     public static String field(String fieldName, String value) {
-        return rawFieldCode(fieldName, '"' + value + '"');
+        return rawFieldCode(fieldName, '"' + escape(value) + '"');
     }
 
     public static String field(String fieldName, Bytes value) {
@@ -195,14 +218,14 @@ public final class JsonTools {
                                 return "\"null\"";
                             } else {
                                 return switch (fieldDefinition.type()) {
-                                    case STRING -> '"' + (String) item + '"';
+                                    case STRING -> '"' + escape((String) item) + '"';
                                     case BYTES -> '"' + ((Bytes) item).toBase64() + '"';
                                     case INT32, SINT32, UINT32, FIXED32, SFIXED32 -> Integer.toString((Integer) item);
                                     case INT64, SINT64, UINT64, FIXED64, SFIXED64 -> '"' + Long.toString((Long) item) + '"';
                                     case FLOAT -> Float.toString((Float) item);
                                     case DOUBLE -> Double.toString((Double) item);
                                     case BOOL -> Boolean.toString((Boolean) item);
-                                    case ENUM -> '"' + item.toString() + '"';
+                                    case ENUM -> '"' + ((EnumWithProtoMetadata)item).protoName() + '"';
                                     case MESSAGE -> throw new UnsupportedOperationException("No expected here should have called other arrayField() method");
                                 };
                             }

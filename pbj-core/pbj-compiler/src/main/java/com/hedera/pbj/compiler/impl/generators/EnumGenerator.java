@@ -95,7 +95,7 @@ public final class EnumGenerator {
 					 /**
 					  * Enum value for a unset OneOf, to avoid null OneOfs
 					  */
-					 UNSET(-1)"""
+					 UNSET(-1, "UNSET")"""
 					.replaceAll("\n","\n"+FIELD_INDENT));
 		}
 		for (int i = 0; i <= maxIndex; i++) {
@@ -109,24 +109,29 @@ public final class EnumGenerator {
 				final String deprecatedText = enumValue.deprecated ? FIELD_INDENT+"@Deprecated\n" : "";
 				enumValuesCode.add(
 						cleanedEnumComment
-						+ deprecatedText+FIELD_INDENT+camelToUpperSnake(enumValue.name)+"("+i+")");
+						+ deprecatedText+FIELD_INDENT+camelToUpperSnake(enumValue.name)+"("+i+", \""+enumValue.name+"\")");
 			}
 		}
 		return """
 				$javaDocComment
-				$deprecated public enum $enumName implements com.hedera.pbj.runtime.EnumWithProtoOrdinal{
+				$deprecated public enum $enumName implements com.hedera.pbj.runtime.EnumWithProtoMetadata{
 				$enumValues;
 					
-					/** The oneof field ordinal in protobuf for this type */
+					/** The field ordinal in protobuf for this type */
 					private final int protoOrdinal;
+					
+					/** The original field name in protobuf for this type */
+					private final String protoName;
 					
 					/**
 					 * OneOf Type Enum Constructor
 					 *
 					 * @param protoOrdinal The oneof field ordinal in protobuf for this type
+					 * @param protoName The original field name in protobuf for this type
 					 */
-					$enumName(final int protoOrdinal) {
+					$enumName(final int protoOrdinal, String protoName) {
 						this.protoOrdinal = protoOrdinal;
+						this.protoName = protoName;
 					}
 					
 					/**
@@ -136,6 +141,15 @@ public final class EnumGenerator {
 					 */
 					public int protoOrdinal() {
 						return protoOrdinal;
+					}
+					
+					/**
+					 * Get the original field name in protobuf for this type
+					 *
+					 * @return The original field name in protobuf for this type
+					 */
+					public String protoName() {
+						return protoName;
 					}
 					
 					/**
@@ -151,6 +165,19 @@ public final class EnumGenerator {
 							default -> throw new IllegalArgumentException("Unknown protobuf ordinal "+ordinal);
 						};
 					}
+					
+					/**
+					 * Get enum from string name, supports the enum or protobuf format name
+					 *
+					 * @param name the enum or protobuf format name
+					 * @return enum for matching name
+					 */
+					public static $enumName fromString(String name) {
+						return switch(name) {
+				$fromStringCaseStatements
+							default -> throw new IllegalArgumentException("Unknown token kyc status "+name);
+						};
+					}
 				}
 				"""
 				.replace("$javaDocComment", javaDocComment)
@@ -159,6 +186,15 @@ public final class EnumGenerator {
 				.replace("$enumValues", String.join(",\n\n", enumValuesCode))
 				.replace("$caseStatements", enumValues.entrySet().stream().map((entry) -> "			case " + entry.getKey() + " -> " +
 										camelToUpperSnake(entry.getValue().name) + ";").collect(Collectors.joining("\n")))
+				.replace("$fromStringCaseStatements", enumValues.values().stream().map(enumValue -> {
+					if (camelToUpperSnake(enumValue.name).equals(enumValue.name)) {
+						return "			case \"" + enumValue.name + "\" -> " +
+								camelToUpperSnake(enumValue.name) + ";";
+					} else {
+						return "			case \"" + camelToUpperSnake(enumValue.name) + "\", \"" + enumValue.name + "\" -> " +
+								camelToUpperSnake(enumValue.name) + ";";
+					}
+				}).collect(Collectors.joining("\n")))
 				.replaceAll("\n", "\n" + indent);
 	}
 }

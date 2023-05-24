@@ -124,12 +124,12 @@ class JsonCodecParseMethodGenerator {
             } else {
                 sb.append("kvPair.value().arr().value().stream().map(v -> ");
                 switch (field.type()) {
-                    case ENUM -> sb.append(field.messageType() + ".valueOf(v.STRING().getText())");
+                    case ENUM -> sb.append(field.messageType() + ".fromString(v.STRING().getText())");
                     case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> sb.append("parseInteger(v)");
                     case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> sb.append("parseLong(v)");
                     case FLOAT -> sb.append("parseFloat(v)");
                     case DOUBLE -> sb.append("parseDouble(v)");
-                    case STRING -> sb.append("v.STRING().getText()");
+                    case STRING -> sb.append("unescape(v.STRING().getText())");
                     case BOOL -> sb.append("parseBoolean(v)");
                     case BYTES -> sb.append("Bytes.fromBase64(v.STRING().getText())");
                     default -> throw new RuntimeException("Unknown field type [" + field.type() + "]");
@@ -142,7 +142,7 @@ class JsonCodecParseMethodGenerator {
                 case "Int64Value", "UInt64Value" -> sb.append("parseLong(kvPair.value())");
                 case "FloatValue" -> sb.append("parseFloat(kvPair.value())");
                 case "DoubleValue" -> sb.append("parseDouble(kvPair.value())");
-                case "StringValue" -> sb.append("kvPair.value().STRING().getText()");
+                case "StringValue" -> sb.append("unescape(kvPair.value().STRING().getText())");
                 case "BoolValue" -> sb.append("parseBoolean(kvPair.value())");
                 case "BytesValue" -> sb.append("Bytes.fromBase64(kvPair.value().STRING().getText())");
                 default -> throw new RuntimeException("Unknown message type ["+field.messageType()+"]");
@@ -150,12 +150,12 @@ class JsonCodecParseMethodGenerator {
         } else {
             switch (field.type()) {
                 case MESSAGE -> sb.append(field.javaFieldType() + ".JSON.parse(kvPair.value().getChild(JSONParser.ObjContext.class, 0), false)");
-                case ENUM -> sb.append(field.javaFieldType() + ".valueOf(kvPair.value().STRING().getText())");
+                case ENUM -> sb.append(field.javaFieldType() + ".fromString(kvPair.value().STRING().getText())");
                 case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> sb.append("parseInteger(kvPair.value())");
                 case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> sb.append("parseLong(kvPair.value())");
                 case FLOAT -> sb.append("parseFloat(kvPair.value())");
                 case DOUBLE -> sb.append("parseDouble(kvPair.value())");
-                case STRING -> sb.append("kvPair.value().STRING().getText()");
+                case STRING -> sb.append("unescape(kvPair.value().STRING().getText())");
                 case BOOL -> sb.append("parseBoolean(kvPair.value())");
                 case BYTES -> sb.append("Bytes.fromBase64(kvPair.value().STRING().getText())");
                 default -> throw new RuntimeException("Unknown field type ["+field.type()+"]");

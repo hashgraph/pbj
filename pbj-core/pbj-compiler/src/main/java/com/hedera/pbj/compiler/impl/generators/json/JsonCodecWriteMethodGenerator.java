@@ -4,6 +4,7 @@ import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Comparator;
 import java.util.List;
@@ -46,10 +47,13 @@ final class JsonCodecWriteMethodGenerator {
                     final List<String> fieldLines = new ArrayList<>();
                     $fieldWriteLines
                     // write field lines
-                    sb.append(childIndent);
-                    sb.append(String.join(",\\n"+childIndent, fieldLines));
+                    if (!fieldLines.isEmpty()){
+                        sb.append(childIndent);
+                        sb.append(String.join(",\\n"+childIndent, fieldLines));
+                        sb.append("\\n");
+                    }
                     // end
-                    sb.append("\\n" +indent + "}");
+                    sb.append(indent + "}");
                     return sb.toString();
                 }
                 """
@@ -70,49 +74,57 @@ final class JsonCodecWriteMethodGenerator {
     private static String generateFieldWriteLines(final Field field, final String modelClassName, String getValueCode) {
         final String fieldDef = Common.camelToUpperSnake(field.name());
         final String fieldName = '\"' + toJsonFieldName(field.name()) + '\"';
+        final String basicFieldCode = generateBasicFieldLines(field, getValueCode, fieldDef, fieldName);
         String prefix = "// ["+field.fieldNumber()+"] - "+field.name() + "\n"+ Common.FIELD_INDENT;
 
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = modelClassName+"."+oneOfField.nameCamelFirstUpper()+"OneOfType";
-            getValueCode = "(("+field.javaFieldType()+")data."+oneOfField.nameCamelFirstLower()+"().as())";
             prefix += "if(data."+oneOfField.nameCamelFirstLower()+"().kind() == "+ oneOfType +"."+
                     Common.camelToUpperSnake(field.name())+")";
             prefix += "\n"+ Common.FIELD_INDENT.repeat(2);
-        }
-        if (field.repeated()) {
-            prefix += "if(!data." + field.nameCamelFirstLower() + "().isEmpty()) fieldLines.add(";
+            return prefix + "fieldLines.add(" + basicFieldCode + ");";
         } else {
-            prefix += "if(data." + field.nameCamelFirstLower() + "() != " + field.javaDefault() + ") fieldLines.add(";
+            if (field.repeated()) {
+                return prefix + "if(!data." + field.nameCamelFirstLower() + "().isEmpty()) fieldLines.add(" + basicFieldCode + ");";
+            } else if (field.type() == Field.FieldType.BYTES){
+                return prefix + "if(data." + field.nameCamelFirstLower() + "() != " + field.javaDefault() +
+                        " && data." + field.nameCamelFirstLower() + "() != null" +
+                        " && data." + field.nameCamelFirstLower() + "().length() > 0) fieldLines.add(" + basicFieldCode + ");";
+            } else {
+                return prefix + "if(data." + field.nameCamelFirstLower() + "() != " + field.javaDefault() + ") fieldLines.add(" + basicFieldCode + ");";
+            }
         }
+    }
 
-
+    @NotNull
+    private static String generateBasicFieldLines(Field field, String getValueCode, String fieldDef, String fieldName) {
         if(field.optionalValueType()) {
-            return prefix + switch (field.messageType()) {
+            return switch (field.messageType()) {
                 case "StringValue", "BoolValue", "Int32Value",
                         "UInt32Value", "FloatValue",
                         "DoubleValue", "BytesValue" -> "field(%s, %s)"
                         .formatted(fieldName, getValueCode);
                 case "Int64Value", "UInt64Value" -> "field(%s, %s, true)"
                         .formatted(fieldName, getValueCode);
-                default -> throw new UnsupportedOperationException("Unhandled optional message type:"+field.messageType());
-            } +");";
+                default -> throw new UnsupportedOperationException("Unhandled optional message type:" + field.messageType());
+            };
         } else if (field.repeated()) {
-            return prefix + switch(field.type()) {
+            return switch (field.type()) {
                 case MESSAGE -> "arrayField(childIndent, $fieldName, $codec, $valueCode)"
                         .replace("$fieldName", fieldName)
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode)
-                        .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +
-                                Common.capitalizeFirstLetter(field.messageType())+ ".JSON");
+                        .replace("$codec", ((SingleField) field).messageTypeModelPackage() + "." +
+                                Common.capitalizeFirstLetter(field.messageType()) + ".JSON");
                 default -> "arrayField($fieldName, $fieldDef, $valueCode)"
                         .replace("$fieldName", fieldName)
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode);
-            } +");";
+            };
         } else {
-            return prefix + switch(field.type()) {
-                case ENUM -> "field($fieldName, $valueCode.name())"
+            return switch (field.type()) {
+                case ENUM -> "field($fieldName, $valueCode.protoName())"
                         .replace("$fieldName", fieldName)
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode);
@@ -120,11 +132,11 @@ final class JsonCodecWriteMethodGenerator {
                         .replace("$fieldName", fieldName)
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode)
-                        .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +
-                                Common.capitalizeFirstLetter(field.messageType())+ ".JSON");
+                        .replace("$codec", ((SingleField) field).messageTypeModelPackage() + "." +
+                                Common.capitalizeFirstLetter(field.messageType()) + ".JSON");
                 default -> "field(%s, %s)"
                         .formatted(fieldName, getValueCode);
-            } +");";
+            };
         }
     }
 }
