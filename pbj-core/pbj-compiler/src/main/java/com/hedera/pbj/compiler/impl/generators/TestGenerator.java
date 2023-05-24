@@ -58,6 +58,7 @@ public final class TestGenerator implements Generator {
 			javaWriter.write("""
 							package %s;
 											
+							import com.google.protobuf.util.JsonFormat;
 							import com.google.protobuf.CodedOutputStream;
 							import com.hedera.pbj.runtime.io.buffer.BufferedData;
 							import org.junit.jupiter.params.ParameterizedTest;
@@ -71,6 +72,7 @@ public final class TestGenerator implements Generator {
 							import com.google.protobuf.CodedInputStream;
 							import com.google.protobuf.WireFormat;
 							import java.io.IOException;
+							import java.nio.charset.StandardCharsets;
 												
 							import static com.hedera.pbj.runtime.ProtoTestTools.*;
 							import static org.junit.jupiter.api.Assertions.*;
@@ -300,6 +302,15 @@ public final class TestGenerator implements Generator {
 					byte[] readBytes = new byte[(int)dataBuffer3.length()];
 					dataBuffer3.getBytes(0, readBytes);
 					assertArrayEquals(bytes.toByteArray(), readBytes);
+
+					// Test JSON Writing
+					final String jsonWrittenPbj = $modelClassName.JSON.toJSON(modelObj);
+					final String jsonWrittenProtoC = JsonFormat.printer().print(protoCModelObj);
+					assertEquals(jsonWrittenProtoC, jsonWrittenPbj);
+					
+					// Test JSON Reading
+					final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(BufferedData.wrap(jsonWrittenProtoC.getBytes(StandardCharsets.UTF_8)));
+					assertEquals(modelObj, jsonReadPbj);
 				}
 				"""
 				.replace("$modelClassName",modelClassName)
