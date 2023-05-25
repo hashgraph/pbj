@@ -2,6 +2,7 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -197,15 +198,25 @@ public final class Bytes implements RandomAccessData {
      * @param dstBuffer the buffer to copy into
      */
     void writeTo(@NonNull final ByteBuffer dstBuffer) {
-        dstBuffer.put(dstBuffer.position(), buffer, start, length);
+        dstBuffer.put(buffer, start, length);
+    }
+
+    /**
+     * Package private helper method for efficient copy of our data into another ByteBuffer with no effect on this
+     * buffers state, so thread safe for this buffer. The destination buffers position is updated.
+     *
+     * @param dstBuffer the buffer to copy into
+     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
+     * @param length The number of bytes to extract.
+     */
+    void writeTo(@NonNull final ByteBuffer dstBuffer, final int offset, final int length) {
+        dstBuffer.put(buffer, offset, length);
         dstBuffer.position(dstBuffer.position() + length);
     }
 
     /**
-     * Package private helper method for efficient copy of
-     * our data into an OutputStream without creating a defensive copy
-     * of the data. The implementation relies on a well behaved
-     * OutputStream that doesn't modify the buffer data.
+     * A helper method for efficient copy of our data into an OutputStream without creating a defensive copy
+     * of the data. The implementation relies on a well-behaved OutputStream that doesn't modify the buffer data.
      *
      * @param outStream the OutputStream to copy into
      */
@@ -218,13 +229,11 @@ public final class Bytes implements RandomAccessData {
     }
 
     /**
-     * Package private helper method for efficient copy of
-     * our data into an OutputStream without creating a defensive copy
-     * of the data. The implementation relies on a well behaved
-     * OutputStream that doesn't modify the buffer data.
+     * A helper method for efficient copy of our data into an OutputStream without creating a defensive copy
+     * of the data. The implementation relies on a well-behaved OutputStream that doesn't modify the buffer data.
      *
      * @param outStream The OutputStream to copy into.
-     * @param offset The offset from this {@link Bytes} object to get the bytes from.
+     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
      * @param length The number of bytes to extract.
      */
     public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
@@ -236,29 +245,47 @@ public final class Bytes implements RandomAccessData {
     }
 
     /**
-     * Package private helper method for efficient copy of
-     * our data into an MessageDigest  without creating a defensive copy
-     * of the data. The implementation relies on a well behaved
-     * MessageDigest that doesn't modify the buffer data.
+     * A helper method for efficient copy of our data into an WritableSequentialData without creating a defensive copy
+     * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
      *
-     * @param digest the MessageDigest to copy into
-     * @param offset The offset from this {@link Bytes} object to get the bytes from.
-     * @param length The number of bytes to extract.
+     * @param wsd the OutputStream to copy into
      */
-    public void writeTo(@NonNull final MessageDigest digest, final int offset, final int length) {
-        digest.update(buffer, offset, length);
+    public void writeTo(@NonNull final WritableSequentialData wsd) {
+        wsd.writeBytes(buffer, start, length);
     }
 
     /**
-     * Package private helper method for efficient copy of
-     * our data into an MessageDigest  without creating a defensive copy
-     * of the data. The implementation relies on a well behaved
-     * MessageDigest that doesn't modify the buffer data.
+     * A helper method for efficient copy of our data into an WritableSequentialData without creating a defensive copy
+     * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
+     *
+     * @param wsd The OutputStream to copy into.
+     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
+     * @param length The number of bytes to extract.
+     */
+    public void writeTo(@NonNull final WritableSequentialData wsd, final int offset, final int length) {
+        wsd.writeBytes(buffer, offset, length);
+    }
+
+    /**
+     * A helper method for efficient copy of our data into an MessageDigest without creating a defensive copy
+     * of the data. The implementation relies on a well-behaved MessageDigest that doesn't modify the buffer data.
      *
      * @param digest the MessageDigest to copy into
      */
     public void writeTo(@NonNull final MessageDigest digest) {
         digest.update(buffer, start, length);
+    }
+
+    /**
+     * A helper method for efficient copy of our data into an MessageDigest without creating a defensive copy
+     * of the data. The implementation relies on a well-behaved MessageDigest that doesn't modify the buffer data.
+     *
+     * @param digest the MessageDigest to copy into
+     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
+     * @param length The number of bytes to extract.
+     */
+    public void writeTo(@NonNull final MessageDigest digest, final int offset, final int length) {
+        digest.update(buffer, offset, length);
     }
 
     /**

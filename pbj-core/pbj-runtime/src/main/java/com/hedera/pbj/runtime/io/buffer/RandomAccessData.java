@@ -1,8 +1,8 @@
 package com.hedera.pbj.runtime.io.buffer;
 
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.SequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
  * Unlike {@link BufferedSequentialData}, it does not define any kind of "position" cursor, just a "length" representing
  * the valid range of indexes and methods for reading data at any of those indexes.
  */
+@SuppressWarnings("unused")
 public interface RandomAccessData {
 
     /**
@@ -535,8 +536,7 @@ public interface RandomAccessData {
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     default boolean contains(final long offset, @NonNull final RandomAccessData data) {
-        // If the this data is EMPTY, return true if only the
-        // the incoming data is EMPTY too.
+        // If this data is EMPTY, return true if only the incoming data is EMPTY too.
         if (length() == 0) {
             return data.length() == 0;
         }
