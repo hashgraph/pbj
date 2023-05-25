@@ -2,6 +2,7 @@ package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -10,7 +11,9 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.io.*;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -46,6 +49,7 @@ final class BytesTest {
     // ================================================================================================================
     // Verify Bytes.wrap(byte[])
 
+    @SuppressWarnings("CommentedOutCode")
     @Nested
     @DisplayName("Tests wrapping of byte arrays")
     final class ByteWrappingTest {
@@ -290,13 +294,53 @@ final class BytesTest {
         byte[] comp = {0, 1, 2, 3, 4};
         assertArrayEquals(comp, res);
     }
+    @Test
+    @DisplayName("Write to OutputStream")
+    void writeToWritableSequentialData() throws IOException {
+        byte[] byteArray = {0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray);
+        byte[] res = new byte[6];
+        try (WritableStreamingData out = new WritableStreamingData(new ByteArrayOutputStream())) {
+            bytes.writeTo(out);
+            bytes.getBytes(0, res, 0, 6);
+        }
+        assertArrayEquals(byteArray, res);
+    }
+
+    @Test
+    @DisplayName("Write to OutputStream non 0 offset")
+    void writeToWritableSequentialDataNo0Offs() throws IOException {
+        final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
+        byte[] res = new byte[6];
+        try (WritableStreamingData out = new WritableStreamingData(new ByteArrayOutputStream())) {
+            bytes.writeTo(out);
+            bytes.getBytes(0, res, 0, 6);
+        }
+        byte[] exp = {0, 1, 2, 3, 4, 5};
+        assertArrayEquals(exp, res);
+    }
+
+    @Test
+    @DisplayName("Write to OutputStream non 0 offset partial")
+    void writeToWritableSequentialData0OffsPartial() throws IOException {
+        byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
+        byte[] res = new byte[5];
+        try (WritableStreamingData out = new WritableStreamingData(new ByteArrayOutputStream())) {
+            bytes.writeTo(out, 10, 5);
+            bytes.getBytes(0, res, 0, 5);
+        }
+        byte[] comp = {0, 1, 2, 3, 4};
+        assertArrayEquals(comp, res);
+    }
 
     @Test
     @DisplayName("Write to MessageDigest")
     void writeToMessageDigest() throws NoSuchAlgorithmException {
         byte[] byteArray = {0, 1, 2, 3, 4, 5};
         final Bytes bytes = Bytes.wrap(byteArray);
-        byte[] res = new byte[6];
+        byte[] res;
 
         MessageDigest md = MessageDigest.getInstance("MD5");
         bytes.writeTo(md);
@@ -310,7 +354,7 @@ final class BytesTest {
     void writeToMessageDigestNo0Offset() throws NoSuchAlgorithmException {
         final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5};
         final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
-        byte[] res = new byte[6];
+        byte[] res;
 
         MessageDigest md = MessageDigest.getInstance("MD5");
         bytes.writeTo(md);
@@ -324,7 +368,7 @@ final class BytesTest {
     void writeToMessageDigestNo0OffsetPartial() throws NoSuchAlgorithmException {
         final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5, 6};
         final Bytes bytes = Bytes.wrap(byteArray, 10, 7);
-        byte[] res = new byte[6];
+        byte[] res;
 
         MessageDigest md = MessageDigest.getInstance("MD5");
         bytes.writeTo(md, 10, 6);

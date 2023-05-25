@@ -192,24 +192,24 @@ public final class Bytes implements RandomAccessData {
     }
 
     /**
-     * Package private helper method for efficient copy of our data into another ByteBuffer with no effect on this
-     * buffers state, so thread safe for this buffer. The destination buffers position is updated.
+     * A helper method for efficient copy of our data into another ByteBuffer.
+     * The destination buffers position is updated.
      *
      * @param dstBuffer the buffer to copy into
      */
-    void writeTo(@NonNull final ByteBuffer dstBuffer) {
+    public void writeTo(@NonNull final ByteBuffer dstBuffer) {
         dstBuffer.put(buffer, start, length);
     }
 
     /**
-     * Package private helper method for efficient copy of our data into another ByteBuffer with no effect on this
-     * buffers state, so thread safe for this buffer. The destination buffers position is updated.
+     * A helper method for efficient copy of our data into another ByteBuffer.
+     * The destination buffers position is updated.
      *
      * @param dstBuffer the buffer to copy into
      * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
      * @param length The number of bytes to extract.
      */
-    void writeTo(@NonNull final ByteBuffer dstBuffer, final int offset, final int length) {
+    public void writeTo(@NonNull final ByteBuffer dstBuffer, final int offset, final int length) {
         dstBuffer.put(buffer, offset, length);
         dstBuffer.position(dstBuffer.position() + length);
     }
