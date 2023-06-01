@@ -5,12 +5,27 @@ import com.hedera.pbj.runtime.io.ReadableTestBase;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.WritableTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 final class BufferedDataTest {
     // TODO Test that "view" shows the updated data when it is changed on the fly
     // TODO Verify capacity is never negative (it can't be, maybe nothing to test here)
+
+    @Test
+    @DisplayName("toString() is safe")
+    void toStringIsSafe() {
+        final var buf = BufferedData.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
+        buf.skip(5);
+        buf.limit(10);
+
+        final var ignored = buf.toString();
+
+        assertEquals(5, buf.position());
+        assertEquals(10, buf.limit());
+    }
 
     @Nested
     final class ReadableSequentialDataTest extends ReadableTestBase {
