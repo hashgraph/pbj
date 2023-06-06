@@ -556,4 +556,106 @@ public final class Bytes implements RandomAccessData {
             return ((len > 0) ? 1 : -1);
         };
     }
+
+    public int readVarInt(int[] pos, final boolean zigZag) {
+        int tempPos = pos[0];
+        if (length == tempPos) {
+            return (int) readVarIntLongSlow(pos, zigZag);
+        }
+        int x;
+        if ((x = buffer[tempPos++]) >= 0) {
+            pos[0]++;
+            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+        } else if (length - tempPos < 9) {
+            return (int) readVarIntLongSlow(pos, zigZag);
+        } else if ((x ^= (buffer[tempPos++] << 7)) < 0) {
+            x ^= (~0 << 7);
+        } else if ((x ^= (buffer[tempPos++] << 14)) >= 0) {
+            x ^= (~0 << 7) ^ (~0 << 14);
+        } else if ((x ^= (buffer[tempPos++] << 21)) < 0) {
+            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+        } else {
+            int y = buffer[tempPos++];
+            x ^= y << 28;
+            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+            if (y < 0
+                    && buffer[tempPos++] < 0
+                    && buffer[tempPos++] < 0
+                    && buffer[tempPos++] < 0
+                    && buffer[tempPos++] < 0
+                    && buffer[tempPos++] < 0) {
+                return (int) readVarIntLongSlow(pos, zigZag);
+            }
+        }
+        pos[0] = (int)tempPos;
+        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+    }
+
+    public long readVarLong(int[] pos, final boolean zigZag) {
+        int tempPos = pos[0];
+        if (tempPos == length) {
+            return readVarIntLongSlow(pos, zigZag);
+        }
+        long x;
+        int y;
+        if ((y = buffer[tempPos++]) >= 0) {
+            pos[0]++;
+            return zigZag ? (y >>> 1) ^ -(y & 1) : y;
+        } else if (length - tempPos < 9) {
+            return readVarIntLongSlow(pos, zigZag);
+        } else if ((y ^= (buffer[tempPos++] << 7)) < 0) {
+            x = y ^ (~0 << 7);
+        } else if ((y ^= (buffer[tempPos++] << 14)) >= 0) {
+            x = y ^ ((~0 << 7) ^ (~0 << 14));
+        } else if ((y ^= (buffer[tempPos++] << 21)) < 0) {
+            x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+        } else if ((x = y ^ ((long) buffer[tempPos++] << 28)) >= 0L) {
+            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+        } else if ((x ^= ((long) buffer[tempPos++] << 35)) < 0L) {
+            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+        } else if ((x ^= ((long) buffer[tempPos++] << 42)) >= 0L) {
+            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+        } else if ((x ^= ((long) buffer[tempPos++] << 49)) < 0L) {
+            x ^=
+                    (~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49);
+        } else {
+            x ^= ((long) buffer[tempPos++] << 56);
+            x ^=
+                    (~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56);
+            if (x < 0L) {
+                if (buffer[tempPos++] < 0L) {
+                    return readVarIntLongSlow(pos, zigZag);
+                }
+            }
+        }
+        pos[0] = (int)tempPos;
+        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+    }
+
+    long readVarIntLongSlow(int[] posIn, final boolean zigZag) {
+        long result = 0;
+        int pos = posIn[0];
+        for (int shift = 0; shift < 64; shift += 7) {
+            final byte b = getByte(pos++);
+            result |= (long) (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                posIn[0] = pos;
+                return zigZag ? (result >>> 1) ^ -(result & 1) : result;
+            }
+        }
+        throw new UncheckedIOException(new IOException("Malformed VarInt."));
+    }
 }
