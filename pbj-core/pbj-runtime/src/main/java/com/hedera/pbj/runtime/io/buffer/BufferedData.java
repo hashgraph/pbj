@@ -193,8 +193,6 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public String toString() {
-        // move read points back to beginning
-        buffer.position(0);
         // build string
         StringBuilder sb = new StringBuilder();
         sb.append("BufferedData[");
