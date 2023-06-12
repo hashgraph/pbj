@@ -557,6 +557,7 @@ public final class Bytes implements RandomAccessData {
         };
     }
 
+    /** {@inheritDoc} */
     public int readVarInt(int[] pos, final boolean zigZag) {
         int tempPos = pos[0];
         if (length == tempPos) {
@@ -591,6 +592,7 @@ public final class Bytes implements RandomAccessData {
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
     }
 
+    /** {@inheritDoc} */
     public long readVarLong(int[] pos, final boolean zigZag) {
         int tempPos = pos[0];
         if (tempPos == length) {

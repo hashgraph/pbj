@@ -439,12 +439,18 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws DataAccessException if an I/O error occurs
      */
     default int readVarInt(final boolean zigZag) {
-        if (!hasRemaining()) throw new BufferUnderflowException();
+        long pos = position();
+        long limit = limit();
+        if (limit == pos) {
+            return (int) readVarIntLongSlow(zigZag);
+        }
+        else if (limit - pos < 10) {
+            return (int) readVarIntLongSlow(zigZag);
+        }
+
         int x;
         if ((x = readByte()) >= 0) {
-            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
-        } else if (remaining() < 10) {
-            return readVarInt(zigZag);
+            return  zigZag ? (x >>> 1) ^ -(x & 1) : x;
         } else if ((x ^= (readByte() << 7)) < 0) {
             x ^= (~0 << 7);
         } else if ((x ^= (readByte() << 14)) >= 0) {
@@ -461,7 +467,7 @@ public interface ReadableSequentialData extends SequentialData {
                     && readByte() < 0
                     && readByte() < 0
                     && readByte() < 0) {
-                throw new DataEncodingException("Malformed Varint");
+                return (int) readVarIntLongSlow(zigZag);
             }
         }
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
@@ -478,13 +484,19 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws DataEncodingException if the variable long cannot be decoded
      */
     default long readVarLong(final boolean zigZag) {
-        if (!hasRemaining()) throw new BufferUnderflowException();
+        long pos = position();
+        long limit = limit();
+        if (limit == pos) {
+            return readVarIntLongSlow(zigZag);
+        }
+        else if (limit - pos < 10) {
+            return readVarIntLongSlow(zigZag);
+        }
+
         long x;
         int y;
         if ((y = readByte()) >= 0) {
             return zigZag ? (y >>> 1) ^ -(y & 1) : y;
-        } else if (readByte() < 10) {
-            return readVarLong(zigZag);
         } else if ((y ^= (readByte() << 7)) < 0) {
             x = y ^ (~0 << 7);
         } else if ((y ^= (readByte() << 14)) >= 0) {
@@ -524,6 +536,29 @@ public interface ReadableSequentialData extends SequentialData {
             }
         }
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+    }
+
+    /**
+     * Read a 64bit protobuf varint at current {@link #position()}. A long var int can be 1 to 10 bytes.
+     * This is the slow path function.
+     *
+     * @return long read in var int format
+     * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
+     * @throws BufferUnderflowException If the end of the sequence is reached before the final variable byte fragment
+     *                                  is read
+     * @throws DataAccessException if an I/O error occurs
+     * @throws DataEncodingException if the variable long cannot be decoded
+     */
+    default long readVarIntLongSlow(final boolean zigZag) {
+        long result = 0;
+        for (int shift = 0; shift < 64; shift += 7) {
+            final byte b = readByte();
+            result |= (long) (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                return zigZag ? (result >>> 1) ^ -(result & 1) : result;
+            }
+        }
+        throw new DataEncodingException("Malformed Varlong");
     }
 
     /**

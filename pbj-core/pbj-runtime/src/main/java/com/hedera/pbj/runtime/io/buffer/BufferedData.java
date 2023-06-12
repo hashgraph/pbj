@@ -772,18 +772,6 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
     }
 
-    long readVarIntLongSlow(final boolean zigZag) {
-        long result = 0;
-        for (int shift = 0; shift < 64; shift += 7) {
-            final byte b = readByte();
-            result |= (long) (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) {
-                return zigZag ? (result >>> 1) ^ -(result & 1) : result;
-            }
-        }
-        throw new DataEncodingException("Malformed Varlong");
-    }
-
     // ================================================================================================================
     // DataOutput Write Methods
 
