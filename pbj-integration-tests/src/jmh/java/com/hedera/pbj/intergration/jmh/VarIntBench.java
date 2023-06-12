@@ -27,7 +27,7 @@ public class VarIntBench {
 	ByteBuffer buffer = ByteBuffer.allocate(256*1024);
 	final ByteBuffer bufferDirect = ByteBuffer.allocateDirect(256*1024);
 	final BufferedData dataBuffer = BufferedData.wrap(buffer);
-	final BufferedData dataBufferDirect = BufferedData.wrap(bufferDirect);
+	final BufferedData dataBufferDirect = BufferedData.wrap(bufferDirect, true);
 
 	Bytes bytes = null;
 
