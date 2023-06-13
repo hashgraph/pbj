@@ -1,5 +1,6 @@
 package com.hedera.pbj.runtime.io;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.BytesBuilder;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
@@ -47,6 +48,17 @@ final class BytesBuilderTest {
         byte[] res = new byte[4];
         appended.getBytes(0, res);
         assertArrayEquals(new byte[]{0, 1, 2, 3}, res);
+    }
+
+    @Test
+    @DisplayName("Appends RandomAccessData")
+    void appendRandomAccessData() {
+        Bytes b1 = Bytes.wrap(new byte[]{0, 1, 2, 3});
+        RandomAccessData rad = BufferedData.wrap(new byte[]{4, 5, 6});
+        Bytes appended = BytesBuilder.appendBytes(b1, rad);
+        byte[] res = new byte[7];
+        appended.getBytes(0, res);
+        assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5, 6}, res);
     }
 
     @Test

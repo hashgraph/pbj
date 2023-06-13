@@ -30,6 +30,23 @@ public class BytesBuilder {
     }
 
     /**
+     * Appends a {@link RandomAccessData} object to another {@link Bytes} object, producing a new immutable {link Bytes} object.
+     * @param bytes1 The first {@link Bytes} object to append to.
+     * @param data The second {@link RandomAccessData} object to append.
+     * @return A new {link Bytes} object containing the concatenated bytes and b.
+     * @throws BufferUnderflowException if the buffer is empty
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than Bytes.length()
+     */
+    public static @NonNull Bytes appendBytes(@NonNull final Bytes bytes1, @NonNull final RandomAccessData data) {
+        // The length field of Bytes is int. The length(0 returns always an int,
+        // so safe to cast.
+        byte[] newBytes = new byte[(int)(bytes1.length() + (int)data.length())];
+        bytes1.getBytes(0, newBytes, 0, (int)bytes1.length());
+        data.getBytes(0, newBytes, (int)bytes1.length(), (int)data.length());
+        return Bytes.wrap(newBytes);
+    }
+
+    /**
      * Appends a String to a {@link Bytes} object, producing a new immutable {link Bytes} object.
      * @param bytes The {@link Bytes} object to append to.
      * @param str The String to append.
