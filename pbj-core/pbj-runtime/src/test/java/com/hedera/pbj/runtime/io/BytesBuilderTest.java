@@ -55,7 +55,7 @@ final class BytesBuilderTest {
     void appendRandomAccessData() {
         Bytes b1 = Bytes.wrap(new byte[]{0, 1, 2, 3});
         RandomAccessData rad = BufferedData.wrap(new byte[]{4, 5, 6});
-        Bytes appended = BytesBuilder.appendBytes(b1, rad);
+        Bytes appended = BytesBuilder.appendRandomAccessData(b1, rad);
         byte[] res = new byte[7];
         appended.getBytes(0, res);
         assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5, 6}, res);
