@@ -557,17 +557,17 @@ public final class Bytes implements RandomAccessData {
         };
     }
 
-    public int readVarInt(int[] pos, final boolean zigZag) {
-        int tempPos = pos[0];
+    /** {@inheritDoc} */
+    public int getVarInt(final long offset, final boolean zigZag) {
+        int tempPos = (int)offset;
         if (length == tempPos) {
-            return (int) readVarIntLongSlow(pos, zigZag);
+            return (int) RandomAccessData.super.getVarInt(offset, zigZag);
         }
         int x;
         if ((x = buffer[tempPos++]) >= 0) {
-            pos[0]++;
             return zigZag ? (x >>> 1) ^ -(x & 1) : x;
         } else if (length - tempPos < 9) {
-            return (int) readVarIntLongSlow(pos, zigZag);
+            return (int) RandomAccessData.super.getVarInt(offset, zigZag);
         } else if ((x ^= (buffer[tempPos++] << 7)) < 0) {
             x ^= (~0 << 7);
         } else if ((x ^= (buffer[tempPos++] << 14)) >= 0) {
@@ -584,25 +584,24 @@ public final class Bytes implements RandomAccessData {
                     && buffer[tempPos++] < 0
                     && buffer[tempPos++] < 0
                     && buffer[tempPos++] < 0) {
-                return (int) readVarIntLongSlow(pos, zigZag);
+                return (int) RandomAccessData.super.getVarInt(offset, zigZag);
             }
         }
-        pos[0] = (int)tempPos;
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
     }
 
-    public long readVarLong(int[] pos, final boolean zigZag) {
-        int tempPos = pos[0];
+    /** {@inheritDoc} */
+    public long getVarLong(final long offset, final boolean zigZag) {
+        int tempPos = (int)offset;
         if (tempPos == length) {
-            return readVarIntLongSlow(pos, zigZag);
+            return RandomAccessData.super.getVarLong(offset, zigZag);
         }
         long x;
         int y;
         if ((y = buffer[tempPos++]) >= 0) {
-            pos[0]++;
             return zigZag ? (y >>> 1) ^ -(y & 1) : y;
         } else if (length - tempPos < 9) {
-            return readVarIntLongSlow(pos, zigZag);
+            return RandomAccessData.super.getVarLong(offset, zigZag);
         } else if ((y ^= (buffer[tempPos++] << 7)) < 0) {
             x = y ^ (~0 << 7);
         } else if ((y ^= (buffer[tempPos++] << 14)) >= 0) {
@@ -637,25 +636,10 @@ public final class Bytes implements RandomAccessData {
                             ^ (~0L << 56);
             if (x < 0L) {
                 if (buffer[tempPos++] < 0L) {
-                    return readVarIntLongSlow(pos, zigZag);
+                    return RandomAccessData.super.getVarLong(offset, zigZag);
                 }
             }
         }
-        pos[0] = (int)tempPos;
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
-    }
-
-    long readVarIntLongSlow(int[] posIn, final boolean zigZag) {
-        long result = 0;
-        int pos = posIn[0];
-        for (int shift = 0; shift < 64; shift += 7) {
-            final byte b = getByte(pos++);
-            result |= (long) (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) {
-                posIn[0] = pos;
-                return zigZag ? (result >>> 1) ^ -(result & 1) : result;
-            }
-        }
-        throw new UncheckedIOException(new IOException("Malformed VarInt."));
     }
 }
