@@ -558,6 +558,7 @@ public final class Bytes implements RandomAccessData {
     }
 
     /** {@inheritDoc} */
+    @Override
     public int getVarInt(final long offset, final boolean zigZag) {
         int tempPos = (int)offset;
         if (length == tempPos) {
@@ -591,6 +592,7 @@ public final class Bytes implements RandomAccessData {
     }
 
     /** {@inheritDoc} */
+    @Override
     public long getVarLong(final long offset, final boolean zigZag) {
         int tempPos = (int)offset;
         if (tempPos == length) {
