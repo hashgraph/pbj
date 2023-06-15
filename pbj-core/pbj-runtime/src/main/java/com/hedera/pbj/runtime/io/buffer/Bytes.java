@@ -559,14 +559,14 @@ public final class Bytes implements RandomAccessData {
 
     /**
      * Appends a {@link Bytes} object to this {@link Bytes} object, producing a new immutable {link Bytes} object.
-     * @param bytes2 The second {@link Bytes} object to append.
+     * @param bytes The {@link Bytes} object to append.
      * @return A new {link Bytes} object containing the concatenated bytes and b.
      * @throws BufferUnderflowException if the buffer is empty
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than Bytes.length()
      */
     @NonNull
-    public Bytes appendBytes(@NonNull final Bytes bytes) {
-        // The length field of Bytes is int. The length(0 returns always an int,
+    public Bytes append(@NonNull final Bytes bytes) {
+        // The length field of Bytes is int. The length() returns always an int,
         // so safe to cast.
         long length = this.length();
         byte[] newBytes = new byte[(int)(length + (int)bytes.length())];
@@ -577,13 +577,13 @@ public final class Bytes implements RandomAccessData {
 
     /**
      * Appends a {@link RandomAccessData} object to this {@link Bytes} object, producing a new immutable {link Bytes} object.
-     * @param data The second {@link RandomAccessData} object to append.
+     * @param data The {@link RandomAccessData} object to append.
      * @return A new {link Bytes} object containing the concatenated bytes and b.
      * @throws BufferUnderflowException if the buffer is empty
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than Bytes.length()
      */
     @NonNull
-    public Bytes appendRandomAccessData(@NonNull final RandomAccessData data) {
+    public Bytes append(@NonNull final RandomAccessData data) {
         // The length field of Bytes is int. The length(0 returns always an int,
         // so safe to cast.
         byte[] newBytes = new byte[(int)(this.length() + (int)data.length())];
