@@ -40,22 +40,13 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      * @param buffer the {@link ByteBuffer} to wrap
      * @param direct If this is a dirrect buffer allocation.
      */
-    private BufferedData(@NonNull final ByteBuffer buffer, final boolean direct) {
+    private BufferedData(@NonNull final ByteBuffer buffer) {
         this.buffer = buffer;
-        this.direct = direct;
+        this.direct = buffer.isDirect();
         // I switch the buffer to BIG_ENDIAN so that all our normal "get/read" methods can assume they are in
         // BIG_ENDIAN mode, reducing the boilerplate around those methods. This necessarily means the LITTLE_ENDIAN
         // methods will be slower. I'm assuming BIG_ENDIAN is what we want to optimize for.
         this.buffer.order(BIG_ENDIAN);
-    }
-
-    /**
-     * Wrap an existing allocated {@link ByteBuffer}. No copy is made.
-     *
-     * @param buffer the {@link ByteBuffer} to wrap
-     */
-    private BufferedData(@NonNull final ByteBuffer buffer) {
-        this(buffer, false);
     }
 
     // ================================================================================================================
@@ -65,23 +56,11 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      * Wrap an existing allocated {@link ByteBuffer}. No copy is made.
      *
      * @param buffer the {@link ByteBuffer} to wrap
-     * @param direct If this is a direct buffer allocation.
-     * @return new instance using {@code buffer} as its data buffer
-     */
-    @NonNull
-    public static BufferedData wrap(@NonNull final ByteBuffer buffer, final boolean direct) {
-        return new BufferedData(buffer, direct);
-    }
-
-    /**
-     * Wrap an existing allocated {@link ByteBuffer}. No copy is made.
-     *
-     * @param buffer the {@link ByteBuffer} to wrap
      * @return new instance using {@code buffer} as its data buffer
      */
     @NonNull
     public static BufferedData wrap(@NonNull final ByteBuffer buffer) {
-        return wrap(buffer, false);
+        return new BufferedData(buffer);
     }
 
     /**
