@@ -27,14 +27,9 @@ public class VarIntBench {
 	ByteBuffer buffer = ByteBuffer.allocate(256*1024);
 	final ByteBuffer bufferDirect = ByteBuffer.allocateDirect(256*1024);
 	final BufferedData dataBuffer = BufferedData.wrap(buffer);
-	final BufferedData dataBufferDirect = BufferedData.wrap(bufferDirect, true);
+	final BufferedData dataBufferDirect = BufferedData.wrap(bufferDirect);
 
-	Bytes bytes = null;
-
-	ByteArrayInputStream bais = null;
-	ReadableStreamingData rsd = null;
-
-	Bytes bytes = null;
+	Bytes bytes = Bytes.EMPTY;
 
 	ByteArrayInputStream bais = null;
 	ReadableStreamingData rsd = null;
@@ -89,14 +84,14 @@ public class VarIntBench {
 		}
 	}
 
-	int[] pos = new int[1];
+	long pos = 0;
 
 	@Benchmark
 	@OperationsPerInvocation(1050)
 	public void dataBytes(Blackhole blackhole) throws IOException {
-		pos[0] = 0;
 		for (int i = 0; i < 1050; i++) {
-			blackhole.consume(bytes.readVarInt(pos, false));
+			blackhole.consume(bytes.getVarInt(pos, false));
+			pos++;
 		}
 	}
 
