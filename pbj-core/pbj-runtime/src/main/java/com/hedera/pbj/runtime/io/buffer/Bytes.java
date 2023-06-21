@@ -592,7 +592,7 @@ public final class Bytes implements RandomAccessData {
         data.getBytes(0, newBytes, length1, (int)data.length());
         return Bytes.wrap(newBytes);
     }
-    
+
     /** {@inheritDoc} */
     @Override
     public int getVarInt(final long offset, final boolean zigZag) {

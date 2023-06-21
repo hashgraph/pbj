@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -31,13 +32,17 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     /** {@link ByteBuffer} used as backing buffer for this instance */
     private final ByteBuffer buffer;
 
+    private final boolean direct;
+
     /**
      * Wrap an existing allocated {@link ByteBuffer}. No copy is made.
      *
      * @param buffer the {@link ByteBuffer} to wrap
+     * @param direct If this is a dirrect buffer allocation.
      */
     private BufferedData(@NonNull final ByteBuffer buffer) {
         this.buffer = buffer;
+        this.direct = buffer.isDirect();
         // I switch the buffer to BIG_ENDIAN so that all our normal "get/read" methods can assume they are in
         // BIG_ENDIAN mode, reducing the boilerplate around those methods. This necessarily means the LITTLE_ENDIAN
         // methods will be slower. I'm assuming BIG_ENDIAN is what we want to optimize for.
@@ -645,31 +650,38 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public int readVarInt(final boolean zigZag) {
+        if (direct) return ReadableSequentialData.super.readVarInt(zigZag);
+
         int tempPos = buffer.position();
-        if (!hasRemaining()) throw new BufferUnderflowException();
+        final byte[] buff = buffer.array();
+        int len = buffer.limit();
+        if (len == tempPos) {
+            return (int)readVarIntLongSlow(zigZag);
+        }
+
         int x;
-        if ((x = buffer.get(tempPos++)) >= 0) {
-            buffer.position(buffer.position() + 1);
+        if ((x = buff[tempPos++]) >= 0) {
+            buffer.position(tempPos);
             return zigZag ? (x >>> 1) ^ -(x & 1) : x;
-        } else if (buffer.remaining() < 10) {
-            return ReadableSequentialData.super.readVarInt(zigZag);
-        } else if ((x ^= (buffer.get(tempPos++) << 7)) < 0) {
+        } else if (len - tempPos < 9) {
+            return (int)readVarIntLongSlow(zigZag);
+        } else if ((x ^= (buff[tempPos++] << 7)) < 0) {
             x ^= (~0 << 7);
-        } else if ((x ^= (buffer.get(tempPos++) << 14)) >= 0) {
+        } else if ((x ^= (buff[tempPos++] << 14)) >= 0) {
             x ^= (~0 << 7) ^ (~0 << 14);
-        } else if ((x ^= (buffer.get(tempPos++) << 21)) < 0) {
+        } else if ((x ^= (buff[tempPos++] << 21)) < 0) {
             x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
         } else {
-            int y = buffer.get(tempPos++);
+            int y = buff[tempPos++];
             x ^= y << 28;
             x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
             if (y < 0
-                    && buffer.get(tempPos++) < 0
-                    && buffer.get(tempPos++) < 0
-                    && buffer.get(tempPos++) < 0
-                    && buffer.get(tempPos++) < 0
-                    && buffer.get(tempPos++) < 0) {
-                throw new DataEncodingException("Malformed Varint");
+                    && buff[tempPos++] < 0
+                    && buff[tempPos++] < 0
+                    && buff[tempPos++] < 0
+                    && buff[tempPos++] < 0
+                    && buff[tempPos++] < 0) {
+                return (int)readVarIntLongSlow(zigZag);
             }
         }
         buffer.position(tempPos);
@@ -681,28 +693,35 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public long readVarLong(boolean zigZag) {
-        int tempPos = buffer.position();
-        if (!buffer.hasRemaining()) throw new BufferUnderflowException();
+        if (direct) return ReadableSequentialData.super.readVarLong(zigZag);
+
+        int tempPos = (int)position();
+        byte[] buff = buffer.array();
+        int len = buffer.limit();
+        if (len == tempPos) {
+            return readVarIntLongSlow(zigZag);
+        }
+
         long x;
         int y;
-        if ((y = buffer.get(tempPos++)) >= 0) {
-            buffer.position(buffer.position() + 1);
+        if ((y = buff[tempPos++]) >= 0) {
+            buffer.position(tempPos);
             return zigZag ? (y >>> 1) ^ -(y & 1) : y;
-        } else if (buffer.remaining() < 10) {
-            return ReadableSequentialData.super.readVarLong(zigZag);
-        } else if ((y ^= (buffer.get(tempPos++) << 7)) < 0) {
+        } else if (len - tempPos < 9) {
+            return readVarIntLongSlow(zigZag);
+        } else if ((y ^= (buff[tempPos++] << 7)) < 0) {
             x = y ^ (~0 << 7);
-        } else if ((y ^= (buffer.get(tempPos++) << 14)) >= 0) {
+        } else if ((y ^= (buff[tempPos++] << 14)) >= 0) {
             x = y ^ ((~0 << 7) ^ (~0 << 14));
-        } else if ((y ^= (buffer.get(tempPos++) << 21)) < 0) {
+        } else if ((y ^= (buff[tempPos++] << 21)) < 0) {
             x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
-        } else if ((x = y ^ ((long) buffer.get(tempPos++) << 28)) >= 0L) {
+        } else if ((x = y ^ ((long) buff[tempPos++] << 28)) >= 0L) {
             x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
-        } else if ((x ^= ((long) buffer.get(tempPos++) << 35)) < 0L) {
+        } else if ((x ^= ((long) buff[tempPos++] << 35)) < 0L) {
             x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
-        } else if ((x ^= ((long) buffer.get(tempPos++) << 42)) >= 0L) {
+        } else if ((x ^= ((long) buff[tempPos++] << 42)) >= 0L) {
             x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
-        } else if ((x ^= ((long) buffer.get(tempPos++) << 49)) < 0L) {
+        } else if ((x ^= ((long) buff[tempPos++] << 49)) < 0L) {
             x ^=
                     (~0L << 7)
                             ^ (~0L << 14)
@@ -712,7 +731,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
                             ^ (~0L << 42)
                             ^ (~0L << 49);
         } else {
-            x ^= ((long) buffer.get(tempPos++) << 56);
+            x ^= ((long) buff[tempPos++] << 56);
             x ^=
                     (~0L << 7)
                             ^ (~0L << 14)
@@ -723,8 +742,8 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
                             ^ (~0L << 49)
                             ^ (~0L << 56);
             if (x < 0L) {
-                if (buffer.get(tempPos++) < 0L) {
-                    throw new DataEncodingException("Malformed VarLong");
+                if (buff[tempPos++] < 0L) {
+                    return readVarIntLongSlow(zigZag);
                 }
             }
         }
