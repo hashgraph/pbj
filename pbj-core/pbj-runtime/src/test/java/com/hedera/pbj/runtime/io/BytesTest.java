@@ -1,5 +1,6 @@
 package com.hedera.pbj.runtime.io;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -633,5 +634,37 @@ final class BytesTest {
                 Arguments.of(new byte[]{-2}, new byte[]{-2, -1}, -1),
                 Arguments.of(new byte[]{-2, -1}, new byte[]{-1, -2}, -1)
         );
+    }
+
+    @Test
+    @DisplayName("Appends two Bytes objects")
+    void appendBytes() {
+        Bytes b1 = Bytes.wrap(new byte[]{0, 1, 2, 3});
+        Bytes b2 = Bytes.wrap(new byte[]{4, 5, 6});
+        Bytes appended = b1.append(b2);
+        byte[] res = new byte[7];
+        appended.getBytes(0, res);
+        assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5, 6}, res);
+    }
+
+    @Test
+    @DisplayName("Appends two Bytes objects, one empty")
+    void appendEmptyBytes() {
+        Bytes b1 = Bytes.wrap(new byte[]{0, 1, 2, 3});
+        Bytes appended = b1.append(Bytes.EMPTY);
+        byte[] res = new byte[4];
+        appended.getBytes(0, res);
+        assertArrayEquals(new byte[]{0, 1, 2, 3}, res);
+    }
+
+    @Test
+    @DisplayName("Appends RandomAccessData")
+    void appendRandomAccessData() {
+        Bytes b1 = Bytes.wrap(new byte[]{0, 1, 2, 3});
+        RandomAccessData rad = BufferedData.wrap(new byte[]{4, 5, 6});
+        Bytes appended = b1.append(rad);
+        byte[] res = new byte[7];
+        appended.getBytes(0, res);
+        assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5, 6}, res);
     }
 }

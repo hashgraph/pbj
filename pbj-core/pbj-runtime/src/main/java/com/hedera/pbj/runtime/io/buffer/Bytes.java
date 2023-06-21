@@ -556,4 +556,41 @@ public final class Bytes implements RandomAccessData {
             return ((len > 0) ? 1 : -1);
         };
     }
+
+    /**
+     * Appends a {@link Bytes} object to this {@link Bytes} object, producing a new immutable {link Bytes} object.
+     * @param bytes The {@link Bytes} object to append.
+     * @return A new {link Bytes} object containing the concatenated bytes and b.
+     * @throws BufferUnderflowException if the buffer is empty
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than Bytes.length()
+     */
+    @NonNull
+    public Bytes append(@NonNull final Bytes bytes) {
+        // The length field of Bytes is int. The length() returns always an int,
+        // so safe to cast.
+        long length = this.length();
+        byte[] newBytes = new byte[(int)(length + (int)bytes.length())];
+        this.getBytes(0, newBytes, 0, (int) length);
+        bytes.getBytes(0, newBytes, (int) length, (int)bytes.length());
+        return Bytes.wrap(newBytes);
+    }
+
+    /**
+     * Appends a {@link RandomAccessData} object to this {@link Bytes} object, producing a new immutable {link Bytes} object.
+     * @param data The {@link RandomAccessData} object to append.
+     * @return A new {link Bytes} object containing the concatenated bytes and b.
+     * @throws BufferUnderflowException if the buffer is empty
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than Bytes.length()
+     */
+    @NonNull
+    public Bytes append(@NonNull final RandomAccessData data) {
+        // The length field of Bytes is int. The length(0 returns always an int,
+        // so safe to cast.
+        byte[] newBytes = new byte[(int)(this.length() + (int)data.length())];
+        int length1 = (int) this.length();
+        this.getBytes(0, newBytes, 0, length1);
+        data.getBytes(0, newBytes, length1, (int)data.length());
+        return Bytes.wrap(newBytes);
+    }
+
 }
