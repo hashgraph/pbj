@@ -34,6 +34,11 @@ public class VarIntBench {
 	ByteArrayInputStream bais = null;
 	ReadableStreamingData rsd = null;
 
+	Bytes bytes = null;
+
+	ByteArrayInputStream bais = null;
+	ReadableStreamingData rsd = null;
+
 	public VarIntBench() {
 		try {
 			CodedOutputStream cout = CodedOutputStream.newInstance(buffer);

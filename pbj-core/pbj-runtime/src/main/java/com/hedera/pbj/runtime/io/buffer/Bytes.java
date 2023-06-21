@@ -557,18 +557,54 @@ public final class Bytes implements RandomAccessData {
         };
     }
 
+    /**
+     * Appends a {@link Bytes} object to this {@link Bytes} object, producing a new immutable {link Bytes} object.
+     * @param bytes The {@link Bytes} object to append.
+     * @return A new {link Bytes} object containing the concatenated bytes and b.
+     * @throws BufferUnderflowException if the buffer is empty
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than Bytes.length()
+     */
+    @NonNull
+    public Bytes append(@NonNull final Bytes bytes) {
+        // The length field of Bytes is int. The length() returns always an int,
+        // so safe to cast.
+        long length = this.length();
+        byte[] newBytes = new byte[(int)(length + (int)bytes.length())];
+        this.getBytes(0, newBytes, 0, (int) length);
+        bytes.getBytes(0, newBytes, (int) length, (int)bytes.length());
+        return Bytes.wrap(newBytes);
+    }
+
+    /**
+     * Appends a {@link RandomAccessData} object to this {@link Bytes} object, producing a new immutable {link Bytes} object.
+     * @param data The {@link RandomAccessData} object to append.
+     * @return A new {link Bytes} object containing the concatenated bytes and b.
+     * @throws BufferUnderflowException if the buffer is empty
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than Bytes.length()
+     */
+    @NonNull
+    public Bytes append(@NonNull final RandomAccessData data) {
+        // The length field of Bytes is int. The length(0 returns always an int,
+        // so safe to cast.
+        byte[] newBytes = new byte[(int)(this.length() + (int)data.length())];
+        int length1 = (int) this.length();
+        this.getBytes(0, newBytes, 0, length1);
+        data.getBytes(0, newBytes, length1, (int)data.length());
+        return Bytes.wrap(newBytes);
+    }
+
     /** {@inheritDoc} */
     @Override
     public int getVarInt(final long offset, final boolean zigZag) {
         int tempPos = (int)offset;
         if (length == tempPos) {
-            return (int) RandomAccessData.super.getVarLong(offset, zigZag);
+            return (int) RandomAccessData.super.getVarInt(offset, zigZag);
         }
         int x;
         if ((x = buffer[tempPos++]) >= 0) {
             return zigZag ? (x >>> 1) ^ -(x & 1) : x;
         } else if (length - tempPos < 9) {
-            return (int) RandomAccessData.super.getVarLong(offset, zigZag);
+            return (int) RandomAccessData.super.getVarInt(offset, zigZag);
         } else if ((x ^= (buffer[tempPos++] << 7)) < 0) {
             x ^= (~0 << 7);
         } else if ((x ^= (buffer[tempPos++] << 14)) >= 0) {
@@ -585,7 +621,7 @@ public final class Bytes implements RandomAccessData {
                     && buffer[tempPos++] < 0
                     && buffer[tempPos++] < 0
                     && buffer[tempPos++] < 0) {
-                return (int) RandomAccessData.super.getVarLong(offset, zigZag);
+                return (int) RandomAccessData.super.getVarInt(offset, zigZag);
             }
         }
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
@@ -594,7 +630,7 @@ public final class Bytes implements RandomAccessData {
     /** {@inheritDoc} */
     @Override
     public long getVarLong(final long offset, final boolean zigZag) {
-        int tempPos = (int) offset;
+        int tempPos = (int)offset;
         if (tempPos == length) {
             return RandomAccessData.super.getVarLong(offset, zigZag);
         }
