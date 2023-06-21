@@ -4,11 +4,14 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.nio.*;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -21,77 +24,127 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 public class VarIntBench {
 
-	final ByteBuffer buffer = ByteBuffer.allocate(256*1024);
+	ByteBuffer buffer = ByteBuffer.allocate(256*1024);
 	final ByteBuffer bufferDirect = ByteBuffer.allocateDirect(256*1024);
 	final BufferedData dataBuffer = BufferedData.wrap(buffer);
 	final BufferedData dataBufferDirect = BufferedData.wrap(bufferDirect);
+
+	Bytes bytes = null;
+
+	ByteArrayInputStream bais = null;
+	ReadableStreamingData rsd = null;
 
 	public VarIntBench() {
 		try {
 			CodedOutputStream cout = CodedOutputStream.newInstance(buffer);
 			Random random = new Random(9387498731984L);
-			for (int i = 0; i < 200; i++) {
+			for (int i = 0; i < 600; i++) {
 				cout.writeUInt64NoTag(random.nextLong(0,128));
 			}
-			for (int i = 0; i < 200; i++) {
+			for (int i = 0; i < 150; i++) {
 				cout.writeUInt64NoTag(random.nextLong(128,256));
 			}
-			for (int i = 0; i < 200; i++) {
+			for (int i = 0; i < 150; i++) {
 				cout.writeUInt64NoTag(random.nextLong(256,Integer.MAX_VALUE));
 			}
-			for (int i = 0; i < 400; i++) {
+			for (int i = 0; i < 150; i++) {
 				cout.writeUInt64NoTag(random.nextLong(0,Long.MAX_VALUE));
 			}
 			cout.flush();
 			// copy to direct buffer
 			buffer.flip();
 			bufferDirect.put(buffer);
+			byte[] bts = new byte[buffer.limit()];
+			for (int i = 0; i < buffer.limit(); i++) {
+				bts[i] = buffer.get(i);
+			}
+			bytes = Bytes.wrap(bts);
+			bais = new ByteArrayInputStream(bts.clone());
+			rsd = new ReadableStreamingData(bais);
 		} catch (IOException e){
 			e.printStackTrace();
 		}
 	}
+
 	@Benchmark
+	@OperationsPerInvocation(1050)
 	public void dataBuffer(Blackhole blackhole) throws IOException {
-		dataBuffer.resetPosition();
-		for (int i = 0; i < 400; i++) {
+		dataBuffer.reset();
+		for (int i = 0; i < 1050; i++) {
+		    int i1 = dataBuffer.readVarInt(false);
 			blackhole.consume(dataBuffer.readVarInt(false));
 		}
 	}
 	@Benchmark
+	@OperationsPerInvocation(1050)
 	public void dataBufferDirect(Blackhole blackhole) throws IOException {
-		dataBufferDirect.resetPosition();
-		for (int i = 0; i < 400; i++) {
+		dataBufferDirect.reset();
+		for (int i = 0; i < 1050; i++) {
 			blackhole.consume(dataBufferDirect.readVarInt(false));
 		}
 	}
+
+	int[] pos = new int[1];
+
 	@Benchmark
+	@OperationsPerInvocation(1050)
+	public void dataBytes(Blackhole blackhole) throws IOException {
+		pos[0] = 0;
+		for (int i = 0; i < 1050; i++) {
+			blackhole.consume(bytes.readVarInt(pos, false));
+		}
+	}
+
+	@Benchmark
+	@OperationsPerInvocation(1050)
+	public void dataInputStream(Blackhole blackhole) throws IOException {
+		bais.reset();
+		for (int i = 0; i < 1050; i++) {
+			blackhole.consume(rsd.readVarInt(false));
+		}
+	}
+
+	@Benchmark
+	@OperationsPerInvocation(1050)
 	public void richard(Blackhole blackhole) throws MalformedProtobufException {
 		buffer.clear();
-		for (int i = 0; i < 400; i++) {
+		for (int i = 0; i < 1050; i++) {
 			blackhole.consume(readVarintRichard(buffer));
 		}
 	}
 	@Benchmark
+	@OperationsPerInvocation(1050)
 	public void google(Blackhole blackhole) throws IOException {
 		buffer.clear();
-		final CodedInputStream codedInputStream = CodedInputStream.newInstance(buffer);
-		blackhole.consume(codedInputStream.readRawVarint64());
+		for (int i = 0; i < 1050; i++) {
+			final CodedInputStream codedInputStream = CodedInputStream.newInstance(buffer);
+			blackhole.consume(codedInputStream.readRawVarint64());
+		}
 	}
 	@Benchmark
+	@OperationsPerInvocation(1050)
 	public void googleDirect(Blackhole blackhole) throws IOException {
 		bufferDirect.clear();
-		final CodedInputStream codedInputStream = CodedInputStream.newInstance(bufferDirect);
-		blackhole.consume(codedInputStream.readRawVarint64());
+		for (int i = 0; i < 1050; i++) {
+			final CodedInputStream codedInputStream = CodedInputStream.newInstance(bufferDirect);
+			blackhole.consume(codedInputStream.readRawVarint64());
+		}
 	}
 	@Benchmark
+	@OperationsPerInvocation(1050)
 	public void googleSlowPath(Blackhole blackhole) throws MalformedProtobufException {
 		buffer.clear();
-		blackhole.consume(readRawVarint64SlowPath(buffer));
+		for (int i = 0; i < 1050; i++) {
+			blackhole.consume(readRawVarint64SlowPath(buffer));
+		}
 	}
 	@Benchmark
+	@OperationsPerInvocation(1050)
 	public void googleSlowPathDirect(Blackhole blackhole) throws MalformedProtobufException {
 		bufferDirect.clear();
-		blackhole.consume(readRawVarint64SlowPath(bufferDirect));
+		for (int i = 0; i < 1050; i++) {
+			blackhole.consume(readRawVarint64SlowPath(bufferDirect));
+		}
 	}
 	private static long readRawVarint64SlowPath(ByteBuffer buf) throws MalformedProtobufException {
 		long result = 0;
