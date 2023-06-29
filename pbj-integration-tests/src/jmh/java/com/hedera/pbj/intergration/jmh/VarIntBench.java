@@ -89,9 +89,9 @@ public class VarIntBench {
 	@Benchmark
 	@OperationsPerInvocation(1050)
 	public void dataBytes(Blackhole blackhole) throws IOException {
+		bytes.reset();
 		for (int i = 0; i < 1050; i++) {
-			blackhole.consume(bytes.getVarInt(pos, false));
-			pos++;
+			blackhole.consume(bytes.readVarInt(false));
 		}
 	}
 

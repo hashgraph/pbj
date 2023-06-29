@@ -235,7 +235,7 @@ public interface ReadableSequentialData extends SequentialData {
             throw new BufferUnderflowException();
         }
 
-        return Bytes.wrap(bytes).toReadableSequentialData();
+        return Bytes.wrap(bytes);
     }
 
     /**

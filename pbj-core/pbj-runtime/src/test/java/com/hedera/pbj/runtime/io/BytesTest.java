@@ -1,8 +1,10 @@
 package com.hedera.pbj.runtime.io;
 
+import com.google.protobuf.CodedOutputStream;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -12,14 +14,18 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.awt.image.DataBuffer;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Random;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -376,6 +382,30 @@ final class BytesTest {
         res = md.digest();
         byte[] exp = {-47, 90, -27, 57, 49, -120, 15, -41, -73, 36, -35, 120, -120, -76, -76, -19};
         assertArrayEquals(exp, res);
+    }
+
+
+    @Test
+    void varIntTest() {
+        ByteBuffer buffer = ByteBuffer.allocate(10);
+        Bytes bytes = null;
+        try {
+            CodedOutputStream cout = CodedOutputStream.newInstance(buffer);
+            cout.writeUInt64NoTag(1);
+            cout.writeUInt64NoTag(258);
+            cout.flush();
+            // copy to direct buffer
+            buffer.flip();
+            byte[] bts = new byte[buffer.limit()];
+            for (int i = 0; i < buffer.limit(); i++) {
+                bts[i] = buffer.get(i);
+            }
+            bytes = Bytes.wrap(bts);
+        } catch (IOException e){
+            e.printStackTrace();
+        }
+        assertEquals(1, bytes.readVarInt(false));
+        assertEquals(258, bytes.readVarInt(false));
     }
 
     // asUtf8String throws with null (no offset here? That's wierd. Should have offset, or we should have non-offset

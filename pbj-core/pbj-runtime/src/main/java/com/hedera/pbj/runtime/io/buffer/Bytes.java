@@ -1,8 +1,10 @@
 package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.DataAccessException;
+import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -11,6 +13,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -24,7 +27,7 @@ import static java.util.Objects.requireNonNull;
  * An immutable representation of a byte array. This class is designed to be efficient and usable across threads.
  */
 @SuppressWarnings("unused")
-public final class Bytes implements RandomAccessData {
+public final class Bytes implements BufferedSequentialData, ReadableSequentialData {
 
     /** An instance of an empty {@link Bytes} */
     public static final Bytes EMPTY = new Bytes(new byte[0]);
@@ -42,6 +45,12 @@ public final class Bytes implements RandomAccessData {
       * Bytes are compared on an unsigned basis
       */
     public static final Comparator<Bytes> SORT_BY_UNSIGNED_VALUE = valueSorter(Byte::compareUnsigned);
+
+    /** The limit for the offset of this {@link Bytes} object */
+    private long limit;
+
+    /** Current position in the buffer for this Bytes object */
+    private int pos;
 
     /** byte[] used as backing buffer */
     private final byte[] buffer;
@@ -80,6 +89,7 @@ public final class Bytes implements RandomAccessData {
         this.buffer = requireNonNull(data);
         this.start = offset;
         this.length = length;
+        limit = length;
 
         if (offset < 0 || offset > data.length) {
             throw new IndexOutOfBoundsException("Offset " + offset + " is out of bounds for buffer of length "
@@ -598,13 +608,13 @@ public final class Bytes implements RandomAccessData {
     public int getVarInt(final long offset, final boolean zigZag) {
         int tempPos = (int)offset;
         if (length == tempPos) {
-            return (int) RandomAccessData.super.getVarInt(offset, zigZag);
+            return (int) getVarLongNonOptimized(offset, zigZag);
         }
         int x;
         if ((x = buffer[tempPos++]) >= 0) {
             return zigZag ? (x >>> 1) ^ -(x & 1) : x;
         } else if (length - tempPos < 9) {
-            return (int) RandomAccessData.super.getVarInt(offset, zigZag);
+            return (int) getVarLongNonOptimized(offset, zigZag);
         } else if ((x ^= (buffer[tempPos++] << 7)) < 0) {
             x ^= (~0 << 7);
         } else if ((x ^= (buffer[tempPos++] << 14)) >= 0) {
@@ -621,7 +631,7 @@ public final class Bytes implements RandomAccessData {
                     && buffer[tempPos++] < 0
                     && buffer[tempPos++] < 0
                     && buffer[tempPos++] < 0) {
-                return (int) RandomAccessData.super.getVarInt(offset, zigZag);
+                return (int) getVarLongNonOptimized(offset, zigZag);
             }
         }
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
@@ -632,14 +642,14 @@ public final class Bytes implements RandomAccessData {
     public long getVarLong(final long offset, final boolean zigZag) {
         int tempPos = (int)offset;
         if (tempPos == length) {
-            return RandomAccessData.super.getVarLong(offset, zigZag);
+            return getVarLongNonOptimized(offset, zigZag);
         }
         long x;
         int y;
         if ((y = buffer[tempPos++]) >= 0) {
             return zigZag ? (y >>> 1) ^ -(y & 1) : y;
         } else if (length - tempPos < 9) {
-            return RandomAccessData.super.getVarLong(offset, zigZag);
+            return getVarLongNonOptimized(offset, zigZag);
         } else if ((y ^= (buffer[tempPos++] << 7)) < 0) {
             x = y ^ (~0 << 7);
         } else if ((y ^= (buffer[tempPos++] << 14)) >= 0) {
@@ -674,10 +684,455 @@ public final class Bytes implements RandomAccessData {
                             ^ (~0L << 56);
             if (x < 0L) {
                 if (buffer[tempPos++] < 0L) {
-                    return RandomAccessData.super.getVarLong(offset, zigZag);
+                    return getVarLongNonOptimized(offset, zigZag);
                 }
             }
         }
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+    }
+
+
+
+    /** {@inheritDoc} */
+    @Override
+    public int readVarInt(final boolean zigZag) {
+        int tempPos = pos;
+        if (length == tempPos) {
+            return (int) readVarIntLongNonOptimized(zigZag);
+        }
+        int x;
+        if ((x = buffer[tempPos++]) >= 0) {
+            pos++;
+            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+        } else if (length - tempPos < 9) {
+            return (int) readVarIntLongNonOptimized(zigZag);
+        } else if ((x ^= (buffer[tempPos++] << 7)) < 0) {
+            x ^= (~0 << 7);
+        } else if ((x ^= (buffer[tempPos++] << 14)) >= 0) {
+            x ^= (~0 << 7) ^ (~0 << 14);
+        } else if ((x ^= (buffer[tempPos++] << 21)) < 0) {
+            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+        } else {
+            int y = buffer[tempPos++];
+            x ^= y << 28;
+            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+            if (y < 0
+                    && buffer[tempPos++] < 0
+                    && buffer[tempPos++] < 0
+                    && buffer[tempPos++] < 0
+                    && buffer[tempPos++] < 0
+                    && buffer[tempPos++] < 0) {
+                return (int) readVarIntLongNonOptimized(zigZag);
+            }
+        }
+        pos = tempPos;
+        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long readVarLong(final boolean zigZag) {
+        int tempPos = pos;
+        if (tempPos == length) {
+            return readVarIntLongNonOptimized(zigZag);
+        }
+        long x;
+        int y;
+        if ((y = buffer[tempPos++]) >= 0) {
+            pos++;
+            return zigZag ? (y >>> 1) ^ -(y & 1) : y;
+        } else if (length - tempPos < 9) {
+            return readVarIntLongNonOptimized(zigZag);
+        } else if ((y ^= (buffer[tempPos++] << 7)) < 0) {
+            x = y ^ (~0 << 7);
+        } else if ((y ^= (buffer[tempPos++] << 14)) >= 0) {
+            x = y ^ ((~0 << 7) ^ (~0 << 14));
+        } else if ((y ^= (buffer[tempPos++] << 21)) < 0) {
+            x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+        } else if ((x = y ^ ((long) buffer[tempPos++] << 28)) >= 0L) {
+            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+        } else if ((x ^= ((long) buffer[tempPos++] << 35)) < 0L) {
+            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+        } else if ((x ^= ((long) buffer[tempPos++] << 42)) >= 0L) {
+            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+        } else if ((x ^= ((long) buffer[tempPos++] << 49)) < 0L) {
+            x ^=
+                    (~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49);
+        } else {
+            x ^= ((long) buffer[tempPos++] << 56);
+            x ^=
+                    (~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56);
+            if (x < 0L) {
+                if (buffer[tempPos++] < 0L) {
+                    return readVarIntLongNonOptimized(zigZag);
+                }
+            }
+        }
+        pos = tempPos;
+        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long capacity() {
+        return length;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long position() {
+        return pos;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long limit() {
+        return limit;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void limit(long limit) {
+        // Any attempt to set the limit must be clamped between position on the low end and capacity on the high end.
+        this.limit = Math.min(length, Math.max(pos, limit));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long remaining() {
+        return limit - pos;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean hasRemaining() {
+        return pos < limit;
+    }
+
+
+
+
+    /** {@inheritDoc} */
+    @Override
+    public byte readByte() {
+        if (pos >= limit) {
+            throw new BufferUnderflowException(); // throw new UncheckedIOException(/* new BufferUnderflowException(*/new IOException(pos + ":" + limit)); //);
+        }
+        return buffer[pos++];
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public int readUnsignedByte() {
+        checkUnderflow(1);
+        return Byte.toUnsignedInt(buffer[pos++]);
+    }
+
+    /** {@inheritDoc} */
+    public long readBytes(@NonNull final byte[] dst) {
+        return readBytes(dst, 0, dst.length);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength) {
+        if (maxLength < 0) {
+            throw new IllegalArgumentException("Negative maxLength not allowed");
+        }
+
+        // Read up to maxLength bytes into the dst array. Note the check for `hasRemaining()` is done in the loop
+        // because, for streams, we cannot determine ahead of time the total number of available bytes, so we must
+        // continue to check as we process each byte. This is not efficient for buffers.
+        final var length = Math.min(maxLength, (this.length - pos));
+        final var maxIndex = offset + length;
+        long bytesRead = 0;
+        for (int i = offset; i < maxIndex; i++) {
+            if (pos > this.limit) return (long) i - offset;
+            try {
+                dst[i] = readByte();
+                bytesRead++;
+            } catch (EOFException e) {
+                return bytesRead;
+            }
+        }
+        return length;
+    }
+
+    @Override
+    /** {@inheritDoc} */
+    public long readBytes(@NonNull final ByteBuffer dst) {
+        // Read up to maxLength bytes into the dst array. Note the check for `hasRemaining()` is done in the loop
+        // because, for streams, we cannot determine ahead of time the total number of available bytes, so we must
+        // continue to check as we process each byte. This is not efficient for buffers.
+        final var len = dst.remaining();
+        long bytesRead = 0;
+        for (int i = 0; i < len; i++) {
+            if (pos >= limit) return i;
+            try {
+                dst.put(buffer[pos++]);
+                bytesRead++;
+            } catch (EOFException e) {
+                return bytesRead;
+            }
+        }
+        return len;
+    }
+
+    /** {@inheritDoc}*/
+    @Override
+    public long readBytes(@NonNull final BufferedData dst) {
+        // Read up to maxLength bytes into the dst array. Note the check for `hasRemaining()` is done in the loop
+        // because, for streams, we cannot determine ahead of time the total number of available bytes, so we must
+        // continue to check as we process each byte. This is not efficient for buffers.
+        final var len = dst.remaining();
+        long bytesRead = 0;
+        for (int i = 0; i < len; i++) {
+            if (pos >= limit) return i;
+            try {
+                dst.writeByte(readByte());
+                bytesRead++;
+            } catch (EOFException e) {
+                return bytesRead;
+            }
+        }
+        return len;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public @NonNull Bytes readBytes(final int length) {
+        if (length < 0) {
+            throw new IllegalArgumentException("Negative length not allowed");
+        }
+
+        if ((this.limit - pos) < length) {
+            throw new BufferUnderflowException();
+        }
+
+        final var bytes = new byte[length];
+        readBytes(bytes, 0, length);
+        return Bytes.wrap(bytes);
+    }
+
+
+
+
+
+    /** {@inheritDoc} */
+    @NonNull
+    @Override
+    public ReadableSequentialData view(final int length) {
+        checkUnderflow(length);
+
+        if (length < 0) {
+            throw new IllegalArgumentException("Length cannot be negative");
+        }
+
+        final var view = new RandomAccessSequenceAdapter(Bytes.wrap(buffer, start + pos, length));
+        pos += view.capacity();
+        return view;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public int readInt() {
+        checkUnderflow(4);
+        final byte b1 = buffer[pos++];
+        final byte b2 = buffer[pos++];
+        final byte b3 = buffer[pos++];
+        final byte b4 = buffer[pos++];
+        return ((b1 & 0xFF) << 24) | ((b2 & 0xFF) << 16) | ((b3 & 0xFF) << 8) | (b4 & 0xFF);
+
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public int readInt(@NonNull final ByteOrder byteOrder) {
+        if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
+            // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+            //noinspection DuplicatedCode
+            checkUnderflow(4);
+            final byte b4 = buffer[pos++];
+            final byte b3 = buffer[pos++];
+            final byte b2 = buffer[pos++];
+            final byte b1 = buffer[pos++];
+            return ((b1 & 0xFF) << 24) | ((b2 & 0xFF) << 16) | ((b3 & 0xFF) << 8) | (b4 & 0xFF);
+        } else {
+            return readInt();
+        }
+    }
+
+    @Override
+    public long readLong() {
+        // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+        //noinspection DuplicatedCode
+        checkUnderflow(Long.BYTES);
+        final byte b1 = buffer[pos++];
+        final byte b2 = buffer[pos++];
+        final byte b3 = buffer[pos++];
+        final byte b4 = buffer[pos++];
+        final byte b5 = buffer[pos++];
+        final byte b6 = buffer[pos++];
+        final byte b7 = buffer[pos++];
+        final byte b8 = buffer[pos++];
+        return (((long)b1 << 56) +
+                ((long)(b2 & 255) << 48) +
+                ((long)(b3 & 255) << 40) +
+                ((long)(b4 & 255) << 32) +
+                ((long)(b5 & 255) << 24) +
+                ((b6 & 255) << 16) +
+                ((b7 & 255) <<  8) +
+                (b8 & 255));
+    }
+
+    /** {@inheritDoc} */
+    public long readLong(@NonNull final ByteOrder byteOrder) {
+        if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
+            // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+            //noinspection DuplicatedCode
+            checkUnderflow(Long.BYTES);
+            final byte b8 = buffer[pos++];
+            final byte b7 = buffer[pos++];
+            final byte b6 = buffer[pos++];
+            final byte b5 = buffer[pos++];
+            final byte b4 = buffer[pos++];
+            final byte b3 = buffer[pos++];
+            final byte b2 = buffer[pos++];
+            final byte b1 = buffer[pos++];
+            return (((long) b1 << 56) +
+                    ((long) (b2 & 255) << 48) +
+                    ((long) (b3 & 255) << 40) +
+                    ((long) (b4 & 255) << 32) +
+                    ((long) (b5 & 255) << 24) +
+                    ((b6 & 255) << 16) +
+                    ((b7 & 255) << 8) +
+                    (b8 & 255));
+        } else {
+            return readLong();
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public float readFloat() {
+        return Float.intBitsToFloat(readInt());
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public float readFloat(@NonNull final ByteOrder byteOrder) {
+        return Float.intBitsToFloat(readInt(byteOrder));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public double readDouble() {
+        return Double.longBitsToDouble(readLong());
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public double readDouble(@NonNull final ByteOrder byteOrder) {
+        return Double.longBitsToDouble(readLong(byteOrder));
+    }
+
+    /** Utility method for checking if there is enough data to read */
+    private void checkUnderflow(int remainingBytes) {
+        if ((limit - pos) - remainingBytes < 0) {
+            throw new BufferUnderflowException();
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long skip(long count) {
+        final var c = Math.min(count, length);
+        if (c <= 0) {
+            return 0;
+        }
+
+        pos += c;
+        return c;
+    }
+
+    // ================================================================================================================
+    // BufferedSequentialData Methods
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void position(final long position) {
+        if (position > this.limit | position < 0) {
+            throw new BufferUnderflowException();
+        }
+
+        this.pos = (int)position;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void flip() {
+        this.limit = this.pos;
+        this.pos = 0;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void reset() {
+        pos = 0;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void resetPosition() {
+        pos = 0;
+    }
+
+    /**
+     * Get a 64bit protobuf varint at given {@code offset}. A long var int can be 1 to 10 bytes.
+     *
+     * @param offset The offset into data to get a varlong from.
+     * @return long get in var long format
+     * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
+     * @throws BufferUnderflowException If the end of the buffer is encountered before the last segment of the varlong
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
+     */
+    private long getVarLongNonOptimized(final long offset, final boolean zigZag) {
+        long result = 0;
+        int index = (int) offset;
+        for (int shift = 0; shift < 64; shift += 7) {
+            final byte b = buffer[index++];
+            result |= (long) (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                return zigZag ? ((result >>> 1) ^ -(result & 1)) : result;
+            }
+        }
+        throw new RuntimeException("Malformed Varlong");
+    }
+
+    private long readVarIntLongNonOptimized(final boolean zigZag) {
+        long result = 0;
+        for (int shift = 0; shift < 64; shift += 7) {
+            final byte b = buffer[pos++];
+            result |= (long) (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                return zigZag ? (result >>> 1) ^ -(result & 1) : result;
+            }
+        }
+        throw new DataEncodingException("Malformed Varlong");
     }
 }
