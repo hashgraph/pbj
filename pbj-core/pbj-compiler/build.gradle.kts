@@ -24,6 +24,7 @@ plugins {
 
 dependencies {
     implementation(libs.bundles.jetbrains)
+    testImplementation("org.junit.jupiter:junit-jupiter:5.8.1")
     antlr(libs.bundles.antlr)
 }
 

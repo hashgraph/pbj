@@ -136,6 +136,7 @@ public final class Common {
 				.replaceAll("/\\*\\*[\n\r\s\t]*\\*[\t\s]*|[\n\r\s\t]*\\*/","") // remove java doc
 				.replaceAll("\n\s+\\*\s+","\n") // remove indenting and *
 				.replaceAll("/\\*\\*","") // remove indenting and /** at beginning of comment.
+				.trim() // Remove leading and trailing spaces.
 		);
 	}
 
