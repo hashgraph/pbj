@@ -217,6 +217,7 @@ public final class ExtendedUtf8MessageWithStringTest {
 			"",
 			"Dude",
 			"©«",
+			"\n",
 			"I need some HBAR to run work on Hedera!",
 			"I need some ℏ to run work on Hedera!",
 			SAMPLE_TEXT_BLOCK,
