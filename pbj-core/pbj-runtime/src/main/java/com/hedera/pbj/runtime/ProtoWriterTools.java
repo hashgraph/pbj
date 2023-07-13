@@ -1035,7 +1035,7 @@ public final class ProtoWriterTools {
      */
     private static int sizeOfStringNoTag(FieldDefinition field, String value) {
         // When not a oneOf don't write default value
-        if (!field.oneOf() && (value == null || value.isBlank())) {
+        if (!field.oneOf() && (value == null || value.isEmpty())) {
             return 0;
         }
         try {
