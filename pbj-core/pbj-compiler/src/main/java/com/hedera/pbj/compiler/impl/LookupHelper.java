@@ -314,7 +314,9 @@ public final class LookupHelper {
 					// process imports
 					final Set<String> fileImports = protoFileImports.computeIfAbsent(fullQualifiedFile, key -> new HashSet<>());
 					for (var importStatement : parsedDoc.importStatement()) {
-						final String importedFileName = importStatement.strLit().getText().replaceAll("\"","");
+						final String importedFileName = importStatement.strLit().getText()
+								.replaceAll("\"","")
+								.replaceAll("/", FileSystems.getDefault().getSeparator());
 						// ignore standard google protobuf imports as we do not need them
 						if (importedFileName.startsWith("google/protobuf")) {
 							continue;
