@@ -1210,7 +1210,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @DisplayName("Reading a varint when less than 4 bytes are available throws BufferUnderflowException")
         void readInsufficientDataThrows(final boolean zigZag) {
             final var seq = sequence(new byte[] { (byte) 0b10101100 });
-            assertThatThrownBy(() -> seq.readVarLong(zigZag)).isInstanceOf(BufferUnderflowException.class);
+            assertThatThrownBy(() -> seq.readVarInt(zigZag)).isInstanceOf(BufferUnderflowException.class);
         }
 
         @Test
