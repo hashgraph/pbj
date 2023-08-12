@@ -320,7 +320,7 @@ public final class LookupHelper {
 					for (var importStatement : parsedDoc.importStatement()) {
 						final String importedFileName = normalizeFileName(importStatement.strLit().getText());
 						// ignore standard google protobuf imports as we do not need them
-						if (importedFileName.startsWith("google/protobuf")) {
+						if (importedFileName.startsWith("google" + FileSystems.getDefault().getSeparator() + "protobuf")) {
 							continue;
 						}
 						// now scan all src files to find import as there can be many src directories
