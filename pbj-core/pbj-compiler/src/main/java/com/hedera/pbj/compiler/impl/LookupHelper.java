@@ -1,11 +1,14 @@
 package com.hedera.pbj.compiler.impl;
 
+import static java.util.regex.Matcher.quoteReplacement;
+
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.*;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -13,6 +16,7 @@ import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.StreamSupport;
 
@@ -314,11 +318,9 @@ public final class LookupHelper {
 					// process imports
 					final Set<String> fileImports = protoFileImports.computeIfAbsent(fullQualifiedFile, key -> new HashSet<>());
 					for (var importStatement : parsedDoc.importStatement()) {
-						final String importedFileName = importStatement.strLit().getText()
-								.replaceAll("\"","")
-								.replaceAll("/", FileSystems.getDefault().getSeparator());
+						final String importedFileName = normalizeFileName(importStatement.strLit().getText());
 						// ignore standard google protobuf imports as we do not need them
-						if (importedFileName.startsWith("google/protobuf")) {
+						if (importedFileName.startsWith("google" + FileSystems.getDefault().getSeparator() + "protobuf")) {
 							continue;
 						}
 						// now scan all src files to find import as there can be many src directories
@@ -347,6 +349,13 @@ public final class LookupHelper {
 		}
 
 //		printDebug();
+	}
+
+	@NotNull
+	static String normalizeFileName(String fileName) {
+		return fileName
+				.replaceAll("\"", "")
+				.replaceAll("/", quoteReplacement(FileSystems.getDefault().getSeparator()));
 	}
 
 	/** Debug dump internal state */
