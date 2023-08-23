@@ -6,10 +6,12 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import static java.nio.ByteOrder.BIG_ENDIAN;
 
@@ -39,12 +41,18 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     /** Locally cached value of {@link ByteBuffer#isDirect()}. This value is queried by the varInt methods. */
     private final boolean direct;
 
+    /** Non parametric constructor used by the subclasses. */
+    protected BufferedData() {
+        buffer = null;
+        direct = false;
+    }
+
     /**
      * Wrap an existing allocated {@link ByteBuffer}. No copy is made.
      *
      * @param buffer the {@link ByteBuffer} to wrap
      */
-    private BufferedData(@NonNull final ByteBuffer buffer) {
+    protected BufferedData(@NonNull final ByteBuffer buffer) {
         this.buffer = buffer;
         this.direct = buffer.isDirect();
         // We switch the buffer to BIG_ENDIAN so that all our normal "get/read" methods can assume they are in
@@ -94,6 +102,18 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     }
 
     /**
+     * Wrap an already allocated {@link Bytes}. No copy is made. DO NOT modify this buffer after having wrapped
+     * it.
+     *
+     * @param bytes the {@link Bytes} to wrap
+     * @return new instance using {@code buffer} as its data buffer
+     */
+    @NonNull
+    public static BufferedData wrap(@NonNull final Bytes bytes) {
+        return new ReadOnlyByteBuffer(bytes);
+    }
+
+    /**
      * Allocate a new DataBuffer with new memory, on the Java heap.
      *
      * @param size size of new buffer in bytes
@@ -115,6 +135,9 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @NonNull
     public static BufferedData allocateOffHeap(final int size) {
+        if (ReadWriteDirectUnsafeByteBuffer.isSupported()) {
+            return new ReadWriteDirectUnsafeByteBuffer(ByteBuffer.allocateDirect(size));
+        }
         return new BufferedData(ByteBuffer.allocateDirect(size));
     }
 
@@ -1015,6 +1038,2141 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
                 buffer.put((byte) (((int) value & 0x7F) | 0x80));
                 value >>>= 7;
             }
+        }
+    }
+
+    /** BufferedData subclass that encapsulates immutable {@link Bytes} object */
+    static public final class ReadOnlyByteBuffer extends BufferedData {
+        final Bytes bytes;
+        private final byte[] buffer;
+        private int limit;
+        private int pos;
+        private int start;
+
+        private ReadOnlyByteBuffer(@NonNull final Bytes bytesIn) {
+            bytes = bytesIn;
+            buffer = bytes.getBytes();
+            limit = Math.toIntExact(bytes.length());
+            start = bytes.start();
+            pos = start;
+        }
+
+        private ReadOnlyByteBuffer(@NonNull final Bytes bytesIn, final int startIn, final int limitIn) {
+            bytes = bytesIn;
+            buffer = bytes.getBytes();
+            limit = limitIn;
+            start = startIn;
+            pos = start;
+        }
+
+        /**
+         * Exposes this {@link BufferedData} as an {@link InputStream}. This is a zero-copy operation.
+         * The {@link #position()} and {@link #limit()} are **IGNORED**.
+         *
+         * @return An {@link InputStream} that streams over the full set of data in this {@link BufferedData}.
+         */
+        @NonNull
+        public InputStream toInputStream() {
+            return new InputStream() {
+                private long pos = 0;
+                private final long length = limit;
+
+                @Override
+                public int read() throws IOException {
+                    if (length - pos <= 0) {
+                        return -1;
+                    }
+
+                    try {
+                        return getUnsignedByte(pos++);
+                    } catch (DataAccessException e) {
+                        // Catch and convert to IOException because the caller of the InputStream API
+                        // will expect an IOException and NOT a DataAccessException.
+                        throw new IOException(e);
+                    }
+                }
+
+                @Override
+                public int read(@NonNull final byte[] b, final int off, final int len) throws IOException {
+                    final var remaining = limit - pos;
+                    if (remaining <= 0) {
+                        return -1;
+                    }
+
+                    try {
+                        // We know for certain int is big enough because the min of an int and long will be an int
+                        final int toRead = (int) Math.min(len, remaining);
+                        getBytes(pos, b, off, toRead);
+                        pos += toRead;
+                        return toRead;
+                    } catch (DataAccessException e) {
+                        // Catch and convert to IOException because the caller of the InputStream API
+                        // will expect an IOException and NOT a DataAccessException.
+                        throw new IOException(e);
+                    }
+                }
+            };
+        }
+
+        /**
+         * toString that outputs data in buffer in bytes.
+         *
+         * @return nice debug output of buffer contents
+         */
+        @Override
+        public String toString() {
+            // build string
+            StringBuilder sb = new StringBuilder();
+            sb.append("BufferedData[");
+            for (int i = start; i < limit; i++) {
+                int v = buffer[i] & 0xFF;
+                sb.append(v);
+                if (i < (limit-1)) sb.append(',');
+            }
+            sb.append(']');
+            return sb.toString();
+        }
+
+        /**
+         * Equals that compares DataBuffer contents
+         *
+         * @param o another object or DataBuffer to compare to
+         * @return if {@code o} is an instance of {@code DataBuffer} and they contain the same bytes
+         */
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ReadOnlyByteBuffer that = (ReadOnlyByteBuffer) o;
+            if (this.capacity() != that.capacity()) return false;
+            if (this.limit() != that.limit()) return false;
+            for (int i = start; i < this.limit(); i++) {
+                if (buffer[i] != that.buffer[i]) return false;
+            }
+            return true;
+        }
+
+        /**
+         * Get hash based on contents of this buffer
+         *
+         * @return hash code
+         */
+        @Override
+        public int hashCode() {
+            return buffer.hashCode();
+        }
+
+        // ================================================================================================================
+        // SequentialData Methods
+
+        /**
+         * Get the capacity in bytes that can be stored in this buffer
+         *
+         * @return capacity in bytes
+         */
+        @Override
+        public long capacity() {
+            return limit;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long position() {
+            return pos;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long limit() {
+            return limit;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void limit(final long limit) {
+            throw new UncheckedIOException(new IOException("limit - Read-only buffer."));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean hasRemaining() {
+            return pos < limit;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long remaining() {
+            return limit - pos;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long skip(long count) {
+            count = Math.min(count, remaining());
+            if (count <= 0) {
+                return 0;
+            }
+
+            pos = pos + (int) count;
+            return count;
+        }
+
+        // ================================================================================================================
+        // BufferedSequentialData Methods
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void position(final long position) {
+            if (position > limit)
+                throw new BufferOverflowException();
+
+            pos = Math.toIntExact(position);
+        }
+
+        /**
+         * Set the limit to current position and position to origin. This is useful when you have just finished writing
+         * into a buffer and want to flip it ready to read back from.
+         */
+        @Override
+        public void flip() {
+            pos = start;
+        }
+
+        /**
+         * Reset position to origin and limit to capacity, allowing this buffer to be read or written again
+         */
+        @Override
+        public void reset() {
+            pos = start;
+        }
+
+        /**
+         * Reset position to origin and leave limit alone, allowing this buffer to be read again with existing limit
+         */
+        @Override
+        public void resetPosition() {
+            pos = start;
+        }
+
+        // ================================================================================================================
+        // RandomAccessData Methods
+
+        /** {@inheritDoc} */
+        @Override
+        public long length() {
+            return limit - start;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public byte getByte(final long offset) {
+            return buffer[Math.toIntExact(start + offset)];
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
+            if (maxLength < 0) {
+                throw new IllegalArgumentException("Negative maxLength not allowed");
+            }
+
+            final var len = Math.min(maxLength, length() - (start + offset));
+            System.arraycopy(buffer, Math.toIntExact(start + offset), dst, dstOffset, Math.toIntExact(len));
+            return len;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long getBytes(final long offset, @NonNull final ByteBuffer dst) {
+            final var len = Math.min(dst.remaining(), length() - (start + offset));
+            dst.put(dst.position(), buffer, Math.toIntExact(start + offset), Math.toIntExact(len));
+            return len;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long getBytes(final long offset, @NonNull final BufferedData dst) {
+            final var len = Math.min(dst.remaining(), length() - (start + offset));
+            dst.buffer.put(dst.buffer.position(), buffer, Math.toIntExact(start + offset), Math.toIntExact(len));
+            return len;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int getInt(final long offset) {
+            if ((length() - (start + offset)) < Integer.BYTES) {
+                throw new BufferUnderflowException();
+            }
+            // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+            //noinspection DuplicatedCode
+            final byte b1 = buffer[Math.toIntExact(start + offset)];
+            final byte b2 = buffer[Math.toIntExact(start + offset) + 1];
+            final byte b3 = buffer[Math.toIntExact(start + offset) + 2];
+            final byte b4 = buffer[Math.toIntExact(start + offset) + 3];
+            return ((b1 & 0xFF) << 24) | ((b2 & 0xFF) << 16) | ((b3 & 0xFF) << 8) | (b4 & 0xFF);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int getInt(final long offset, @NonNull final ByteOrder byteOrder) {
+            if ((length() - (start + offset)) < Integer.BYTES) {
+                throw new BufferUnderflowException();
+            }
+            if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
+                // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+                //noinspection DuplicatedCode
+                final byte b4 = buffer[Math.toIntExact(start + offset)];
+                final byte b3 = buffer[Math.toIntExact(start + offset) + 1];
+                final byte b2 = buffer[Math.toIntExact(start + offset) + 2];
+                final byte b1 = buffer[Math.toIntExact(start + offset) + 3];
+                return ((b1 & 0xFF) << 24) | ((b2 & 0xFF) << 16) | ((b3 & 0xFF) << 8) | (b4 & 0xFF);
+            } else {
+                return getInt(offset);
+            }
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long getLong(final long offset) {
+            if ((length() - (start + offset)) < Long.BYTES) {
+                throw new BufferUnderflowException();
+            }
+            // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+            //noinspection DuplicatedCode
+            final byte b1 = buffer[Math.toIntExact(start + offset)];
+            final byte b2 = buffer[Math.toIntExact(start + offset) + 1];
+            final byte b3 = buffer[Math.toIntExact(start + offset) + 2];
+            final byte b4 = buffer[Math.toIntExact(start + offset) + 3];
+            final byte b5 = buffer[Math.toIntExact(start + offset) + 4];
+            final byte b6 = buffer[Math.toIntExact(start + offset) + 5];
+            final byte b7 = buffer[Math.toIntExact(start + offset) + 6];
+            final byte b8 = buffer[Math.toIntExact(start + offset) + 7];
+            return (((long)b1 << 56) +
+                    ((long)(b2 & 255) << 48) +
+                    ((long)(b3 & 255) << 40) +
+                    ((long)(b4 & 255) << 32) +
+                    ((long)(b5 & 255) << 24) +
+                    ((b6 & 255) << 16) +
+                    ((b7 & 255) <<  8) +
+                    (b8 & 255));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long getLong(final long offset, @NonNull final ByteOrder byteOrder) {
+            if ((length() - (start + offset)) < Long.BYTES) {
+                throw new BufferUnderflowException();
+            }
+            if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
+                // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+                //noinspection DuplicatedCode
+                final byte b8 = buffer[Math.toIntExact(start + offset)];
+                final byte b7 = buffer[Math.toIntExact(start + offset) + 1];
+                final byte b6 = buffer[Math.toIntExact(start + offset) + 2];
+                final byte b5 = buffer[Math.toIntExact(start + offset) + 3];
+                final byte b4 = buffer[Math.toIntExact(start + offset) + 4];
+                final byte b3 = buffer[Math.toIntExact(start + offset) + 5];
+                final byte b2 = buffer[Math.toIntExact(start + offset) + 6];
+                final byte b1 = buffer[Math.toIntExact(start + offset) + 7];
+                return (((long) b1 << 56) +
+                        ((long) (b2 & 255) << 48) +
+                        ((long) (b3 & 255) << 40) +
+                        ((long) (b4 & 255) << 32) +
+                        ((long) (b5 & 255) << 24) +
+                        ((b6 & 255) << 16) +
+                        ((b7 & 255) << 8) +
+                        (b8 & 255));
+            } else {
+                return getLong(offset);
+            }
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public float getFloat(final long offset) {
+            return Float.intBitsToFloat(getInt(offset));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public float getFloat(final long offset, @NonNull final ByteOrder byteOrder) {
+            return Float.intBitsToFloat(getInt(offset, byteOrder));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public double getDouble(final long offset) {
+            return Double.longBitsToDouble(getLong(offset));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public double getDouble(final long offset, @NonNull final ByteOrder byteOrder) {
+            return Double.longBitsToDouble(getLong(offset, byteOrder));
+        }
+
+        // ================================================================================================================
+        // ReadableSequentialData Methods
+
+        /** {@inheritDoc} */
+        @Override
+        public byte readByte() {
+            return buffer[pos++];
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int readUnsignedByte() {
+            return Byte.toUnsignedInt(buffer[pos++]);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength) {
+            if (maxLength < 0) {
+                throw new IllegalArgumentException("Negative maxLength not allowed");
+            }
+
+            final var len = Math.toIntExact(Math.min(maxLength, remaining()));
+            if (len == 0) return 0;
+
+            System.arraycopy(buffer, Math.toIntExact(pos), dst, offset, Math.toIntExact(maxLength));
+            pos += len;
+            return len;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long readBytes(@NonNull final ByteBuffer dst) {
+            final var len = Math.toIntExact(Math.min(dst.remaining(), remaining()));
+            if (len == 0) return 0;
+
+            final int dtsPos = dst.position();
+            dst.put(dtsPos, buffer, Math.toIntExact(pos), len);
+            dst.position(dtsPos + len);
+            pos += len;
+            return len;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long readBytes(@NonNull final BufferedData dst) {
+            final var len = Math.toIntExact(Math.min(dst.remaining(), remaining()));
+            if (len == 0) {
+                dst.buffer.limit(limit);
+                return 0;
+            }
+
+            final var lim = limit;
+            limit = pos + len;
+
+            try {
+                dst.buffer.put(buffer, pos, len);
+                dst.buffer.limit(limit);
+                return len;
+            } finally {
+                limit = lim;
+            }
+        }
+
+        /** {@inheritDoc} */
+        @NonNull
+        @Override
+        public Bytes readBytes(final int length) {
+            if (length < 0) throw new IllegalArgumentException("Length cannot be negative");
+            if (length == 0) return Bytes.EMPTY;
+            if (remaining() < length) throw new BufferUnderflowException();
+
+            final var bytes = getBytes(pos, length);
+            pos += length;
+            return bytes;
+        }
+
+        /** {@inheritDoc} */
+        @NonNull
+        @Override
+        public ReadOnlyByteBuffer view(final int length) {
+            if (length < 0) {
+                throw new IllegalArgumentException("Length cannot be negative");
+            }
+
+            if (length > remaining()) {
+                throw new BufferUnderflowException();
+            }
+
+            final var buf = new ReadOnlyByteBuffer(bytes, pos, Math.toIntExact(length));
+            pos += length;
+            return buf;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int readInt() {
+            final int ret = getInt(pos);
+            pos += Integer.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int readInt(@NonNull final ByteOrder byteOrder) {
+            final int ret = getInt(pos, byteOrder);
+            pos += Integer.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long readUnsignedInt() {
+            final long ret = Integer.toUnsignedLong(getInt(pos));
+            pos += Integer.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long readLong() {
+            final long ret = getLong(pos);
+            pos += Long.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long readLong(@NonNull final ByteOrder byteOrder) {
+            final long ret = getLong(pos, byteOrder);
+            pos += Long.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public float readFloat() {
+            final float ret = getFloat(pos);
+            pos += Float.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public float readFloat(@NonNull final ByteOrder byteOrder) {
+            final float ret = getFloat(pos, byteOrder);
+            pos += Float.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public double readDouble() {
+            final double d = getDouble(pos);
+            pos += Double.BYTES;
+            return d;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public double readDouble(@NonNull final ByteOrder byteOrder) {
+            final double d = getDouble(pos, byteOrder);
+            pos += Double.BYTES;
+            return d;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int readVarInt(final boolean zigZag) {
+            int tempPos = pos;
+            int lastPos = limit;
+
+            if (lastPos == tempPos) {
+                throw new BufferUnderflowException();
+            }
+
+            int x;
+            if ((x = buffer[tempPos++]) >= 0) {
+                pos = tempPos;
+                return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+            } else if (lastPos - tempPos < 9) {
+                return (int)readVarIntLongSlow(zigZag);
+            } else if ((x ^= (buffer[tempPos++] << 7)) < 0) {
+                x ^= (~0 << 7);
+            } else if ((x ^= (buffer[tempPos++] << 14)) >= 0) {
+                x ^= (~0 << 7) ^ (~0 << 14);
+            } else if ((x ^= (buffer[tempPos++] << 21)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+            } else {
+                int y = buffer[tempPos++];
+                x ^= y << 28;
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+                if (y < 0
+                        && buffer[tempPos++] < 0
+                        && buffer[tempPos++] < 0
+                        && buffer[tempPos++] < 0
+                        && buffer[tempPos++] < 0
+                        && buffer[tempPos++] < 0) {
+                    return (int)readVarIntLongSlow(zigZag);
+                }
+            }
+            pos = tempPos;
+            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long readVarLong(boolean zigZag) {
+            int tempPos = pos;
+            int lastPos = limit;
+
+            if (lastPos == tempPos) {
+                throw new BufferUnderflowException();
+            }
+
+            long x;
+            int y;
+            if ((y = buffer[tempPos++]) >= 0) {
+                pos = tempPos;
+                return zigZag ? (y >>> 1) ^ -(y & 1) : y;
+            } else if (lastPos - tempPos < 9) {
+                return readVarIntLongSlow(zigZag);
+            } else if ((y ^= (buffer[tempPos++] << 7)) < 0) {
+                x = y ^ (~0 << 7);
+            } else if ((y ^= (buffer[tempPos++] << 14)) >= 0) {
+                x = y ^ ((~0 << 7) ^ (~0 << 14));
+            } else if ((y ^= (buffer[tempPos++] << 21)) < 0) {
+                x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+            } else if ((x = y ^ ((long) buffer[tempPos++] << 28)) >= 0L) {
+                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+            } else if ((x ^= ((long) buffer[tempPos++] << 35)) < 0L) {
+                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+            } else if ((x ^= ((long) buffer[tempPos++] << 42)) >= 0L) {
+                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+            } else if ((x ^= ((long) buffer[tempPos++] << 49)) < 0L) {
+                x ^=
+                        (~0L << 7)
+                                ^ (~0L << 14)
+                                ^ (~0L << 21)
+                                ^ (~0L << 28)
+                                ^ (~0L << 35)
+                                ^ (~0L << 42)
+                                ^ (~0L << 49);
+            } else {
+                x ^= ((long) buffer[tempPos++] << 56);
+                x ^=
+                        (~0L << 7)
+                                ^ (~0L << 14)
+                                ^ (~0L << 21)
+                                ^ (~0L << 28)
+                                ^ (~0L << 35)
+                                ^ (~0L << 42)
+                                ^ (~0L << 49)
+                                ^ (~0L << 56);
+                if (x < 0L) {
+                    if (buffer[tempPos++] < 0L) {
+                        return readVarIntLongSlow(zigZag);
+                    }
+                }
+            }
+            pos = tempPos;
+            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+        }
+
+        // ================================================================================================================
+        // DataOutput Write Methods
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeByte(final byte b) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        public void writeUnsignedByte(final int b) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeBytes(@NonNull final byte[] src) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeBytes(@NonNull final byte[] src, final int offset, final int length) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeBytes(@NonNull final ByteBuffer src) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeBytes(@NonNull final BufferedData src) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeBytes(@NonNull final RandomAccessData src) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int writeBytes(@NonNull final InputStream src, final int maxLength) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeInt(final int value) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeInt(final int value, @NonNull final ByteOrder byteOrder) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeUnsignedInt(final long value) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeUnsignedInt(final long value, @NonNull final ByteOrder byteOrder) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeLong(final long value) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeLong(final long value, @NonNull final ByteOrder byteOrder) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeFloat(final float value) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeFloat(final float value, @NonNull final ByteOrder byteOrder) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeDouble(final double value) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeDouble(final double value, @NonNull final ByteOrder byteOrder) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeVarInt(final int value, final boolean zigZag) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeVarLong(long value, final boolean zigZag) {
+            throw new UncheckedIOException(new IOException("Bytes backed writes are not allowed"));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        public int getUnsignedByte(final long offset) {
+            return Byte.toUnsignedInt(buffer[pos]);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long getBytes(final long offset, @NonNull final byte[] dst) {
+            return getBytes(offset, dst, 0, dst.length);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Bytes getBytes(final long offset, final long length) {
+            if ((start + offset) < 0 || (start + offset) >= length()) {
+                throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + length());
+            }
+
+            if (length < 0) {
+                throw new IllegalArgumentException("Negative maxLength not allowed");
+            }
+
+            if (length > length() - (start + offset)) {
+                throw new BufferUnderflowException();
+            }
+
+            // If we find the result is empty, we can take a shortcut
+            if (length == 0) {
+                return Bytes.EMPTY;
+            }
+
+            return Bytes.wrap(buffer, Math.toIntExact(start + offset), Math.toIntExact(length));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public ReadOnlyByteBuffer slice(final long offset, final long length) {
+            return new ReadOnlyByteBuffer(getBytes(offset, length));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long getUnsignedInt(final long offset) {
+            return (getInt(offset)) & 0xFFFFFFFFL;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long getUnsignedInt(final long offset, @NonNull final ByteOrder byteOrder) {
+            return (getInt(offset, byteOrder)) & 0xFFFFFFFFL;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public String asUtf8String() {
+            return asUtf8String(0, length());
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public String asUtf8String(final long offset, final long len) {
+            if (len > length() - (start + offset)) {
+                throw new BufferUnderflowException();
+            }
+
+            if ((start + offset) < 0 || (start + offset + len) > length()) {
+                throw new IndexOutOfBoundsException();
+            }
+
+            if (len == 0) {
+                return "";
+            }
+
+            byte[] offsetBytes = new byte[Math.toIntExact(length() - (start + offset))];
+            getBytes(offset, offsetBytes);
+            return new String(offsetBytes, StandardCharsets.UTF_8);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean matchesPrefix(@NonNull final byte[] prefix) {
+            return contains(start, prefix);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean contains(final long offset, @NonNull final byte[] bytes) {
+            if ((start + offset) < 0 || (start + offset) >= length()) {
+                throw new IndexOutOfBoundsException();
+            }
+
+            // If the number of bytes between offset and length is shorter than the bytes we're matching, then there
+            // is NO WAY we could have a match, so we need to return false.
+            if (length() - (start + offset) < bytes.length) {
+                return false;
+            }
+
+            // Check each byte one at a time until we find a mismatch or, we get to the end, and all bytes match.
+            for (int i = Math.toIntExact(start + offset); i < bytes.length; i++) {
+                if (bytes[Math.toIntExact(i - start - offset)] != buffer[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean matchesPrefix(@NonNull final RandomAccessData prefix) {
+            return contains(0, prefix);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean contains(final long offset, @NonNull final RandomAccessData data) {
+            // If this data is EMPTY, return true if only the incoming data is EMPTY too.
+            if (length() == 0) {
+                return data.length() == 0;
+            }
+
+            if ((start + offset) < 0 || (start + offset) >= length()) {
+                throw new IndexOutOfBoundsException();
+            }
+
+            if (length() - (start + offset) < data.length()) {
+                return false;
+            }
+
+            for (int i = Math.toIntExact(start + offset); i < data.length(); i++) {
+                if (data.getByte(i - start - offset) != buffer[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    /** BufferedData subclass that encapsulates a direct {@link ByteBuffer} object
+     * and takes advantage of the unsafe fast operations on the data.
+     */
+    static public final class ReadWriteDirectUnsafeByteBuffer extends BufferedData {
+        /** The direct buffer that is backing this stream. */
+        private final ByteBuffer buffer;
+        /** The unsafe address of the content of {@link #buffer}. */
+        private final long address;
+        /** The unsafe address of the current read limit of the buffer. */
+        private long limit;
+        /** The unsafe address of the current read position of the buffer. */
+        private long pos;
+        /** The unsafe address of the starting read position. */
+        private long start;
+        /** The amount of available data in the buffer beyond {@link #limit}. */
+
+        static boolean isSupported() {
+            return UnsafeUtils.hasUnsafeByteBufferOperations();
+        }
+
+        private ReadWriteDirectUnsafeByteBuffer(@NonNull final ByteBuffer bufferIn) {
+            buffer = bufferIn;
+            address = UnsafeUtils.addressOffset(buffer);
+            limit = address + buffer.limit();
+            pos = address + buffer.position();
+            start = pos;
+        }
+
+        private ReadWriteDirectUnsafeByteBuffer(@NonNull final ByteBuffer bufferIn, final long startIn, final long limitIn) {
+            buffer = bufferIn;
+            address = UnsafeUtils.addressOffset(buffer);
+            limit = limitIn;
+            start = startIn;
+            pos = start;
+        }
+
+        /**
+         * Exposes this {@link BufferedData} as an {@link InputStream}. This is a zero-copy operation.
+         * The {@link #position()} and {@link #limit()} are **IGNORED**.
+         *
+         * @return An {@link InputStream} that streams over the full set of data in this {@link BufferedData}.
+         */
+        @NonNull
+        public InputStream toInputStream() {
+            return new InputStream() {
+                private long pos = 0;
+                private final long length = limit;
+
+                @Override
+                public int read() throws IOException {
+                    if (length - pos <= 0) {
+                        return -1;
+                    }
+
+                    try {
+                        return getUnsignedByte(pos++);
+                    } catch (DataAccessException e) {
+                        // Catch and convert to IOException because the caller of the InputStream API
+                        // will expect an IOException and NOT a DataAccessException.
+                        throw new IOException(e);
+                    }
+                }
+
+                @Override
+                public int read(@NonNull final byte[] b, final int off, final int len) throws IOException {
+                    final var remaining = limit - pos;
+                    if (remaining <= 0) {
+                        return -1;
+                    }
+
+                    try {
+                        // We know for certain int is big enough because the min of an int and long will be an int
+                        final int toRead = (int) Math.min(len, remaining);
+                        getBytes(pos, b, off, toRead);
+                        pos += toRead;
+                        return toRead;
+                    } catch (DataAccessException e) {
+                        // Catch and convert to IOException because the caller of the InputStream API
+                        // will expect an IOException and NOT a DataAccessException.
+                        throw new IOException(e);
+                    }
+                }
+            };
+        }
+
+        /**
+         * toString that outputs data in buffer in bytes.
+         *
+         * @return nice debug output of buffer contents
+         */
+        @Override
+        public String toString() {
+            // build string
+            StringBuilder sb = new StringBuilder();
+            sb.append("ReadWriteDirectUnsafeByteBuffer[");
+            for (long i = start; i < limit; i++) {
+                int v = UnsafeUtils.getByte(i) & 0xFF;
+                sb.append(v);
+                if (i < (limit-1)) sb.append(',');
+            }
+            sb.append(']');
+            return sb.toString();
+        }
+
+        /**
+         * Equals that compares DataBuffer contents
+         *
+         * @param o another object or DataBuffer to compare to
+         * @return if {@code o} is an instance of {@code DataBuffer} and they contain the same bytes
+         */
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ReadWriteDirectUnsafeByteBuffer that = (ReadWriteDirectUnsafeByteBuffer) o;
+            if (this.capacity() != that.capacity()) return false;
+            if (this.limit() != that.limit()) return false;
+            for (long i = start; i < this.limit(); i++) {
+                if (UnsafeUtils.getByte(pos) != UnsafeUtils.getByte(that.pos)) return false;
+            }
+            return true;
+        }
+
+        /**
+         * Get hash based on contents of this buffer
+         *
+         * @return hash code
+         */
+        @Override
+        public int hashCode() {
+            return buffer.hashCode();
+        }
+
+        // ================================================================================================================
+        // SequentialData Methods
+
+        /**
+         * Get the capacity in bytes that can be stored in this buffer
+         *
+         * @return capacity in bytes
+         */
+        @Override
+        public long capacity() {
+            return limit;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long position() {
+            return pos;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long limit() {
+            return limit;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void limit(final long limit) {
+            final var lim = Math.min(buffer.capacity(), Math.max(limit, position()) - address);
+            buffer.limit((int)lim);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean hasRemaining() {
+            return pos < limit;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long remaining() {
+            return limit - pos;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long skip(long count) {
+            count = Math.min(count, remaining());
+            if (count <= 0) {
+                return 0;
+            }
+
+            pos = pos + (int) count;
+            return count;
+        }
+
+        // ================================================================================================================
+        // BufferedSequentialData Methods
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void position(final long position) {
+            if (position + address > limit)
+                throw new BufferOverflowException();
+
+            pos = position + address;
+        }
+
+        /**
+         * Set the limit to current position and position to origin. This is useful when you have just finished writing
+         * into a buffer and want to flip it ready to read back from.
+         */
+        @Override
+        public void flip() {
+            pos = start;
+        }
+
+        /**
+         * Reset position to origin and limit to capacity, allowing this buffer to be read or written again
+         */
+        @Override
+        public void reset() {
+            pos = start;
+        }
+
+        /**
+         * Reset position to origin and leave limit alone, allowing this buffer to be read again with existing limit
+         */
+        @Override
+        public void resetPosition() {
+            pos = start;
+        }
+
+        // ================================================================================================================
+        // RandomAccessData Methods
+
+        /** {@inheritDoc} */
+        @Override
+        public long length() {
+            return limit - start;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public byte getByte(final long offset) {
+            return UnsafeUtils.getByte(address + offset);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
+            if (maxLength < 0) {
+                throw new IllegalArgumentException("Negative maxLength not allowed");
+            }
+
+            final var len = Math.min(maxLength, length() - ((start - address) + offset));
+            UnsafeUtils.copyMemory(start + offset, dst, dstOffset, len);
+            return len;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long getBytes(final long offset, @NonNull final ByteBuffer dst) {
+            final var len = Math.min(dst.remaining(), length() - ((start - address) + offset));
+            byte[] bytes = new byte[Math.toIntExact(len)];
+            UnsafeUtils.copyMemory(start + offset, bytes, 0, len);
+            dst.put(dst.position(), bytes);
+            return len;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long getBytes(final long offset, @NonNull final BufferedData dst) {
+            final var len = Math.min(dst.remaining(), length() - ((start - offset) + offset));
+            byte[] bytes = new byte[Math.toIntExact(len)];
+            UnsafeUtils.copyMemory(start + offset, bytes, 0, len);
+            dst.buffer.put(dst.buffer.position(), bytes);
+            return len;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int getInt(final long offset) {
+            if ((length() - ((start - address) + offset)) < Integer.BYTES) {
+                throw new BufferUnderflowException();
+            }
+            // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+            //noinspection DuplicatedCode
+            final byte b1 = UnsafeUtils.getByte(start + offset);
+            final byte b2 = UnsafeUtils.getByte(start + offset + 1);
+            final byte b3 = UnsafeUtils.getByte(start + offset + 2);
+            final byte b4 = UnsafeUtils.getByte(start + offset + 3);
+            return ((b1 & 0xFF) << 24) | ((b2 & 0xFF) << 16) | ((b3 & 0xFF) << 8) | (b4 & 0xFF);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int getInt(final long offset, @NonNull final ByteOrder byteOrder) {
+            if ((length() - ((start - address) + offset)) < Integer.BYTES) {
+                throw new BufferUnderflowException();
+            }
+            if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
+                // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+                //noinspection DuplicatedCode
+                final byte b4 = UnsafeUtils.getByte(start + offset);
+                final byte b3 = UnsafeUtils.getByte(start + offset + 1);
+                final byte b2 = UnsafeUtils.getByte(start + offset + 2);
+                final byte b1 = UnsafeUtils.getByte(start + offset + 3);
+                return ((b1 & 0xFF) << 24) | ((b2 & 0xFF) << 16) | ((b3 & 0xFF) << 8) | (b4 & 0xFF);
+            } else {
+                return getInt(offset);
+            }
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long getLong(final long offset) {
+            if ((length() - ((start - address) + offset)) < Long.BYTES) {
+                throw new BufferUnderflowException();
+            }
+            // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+            //noinspection DuplicatedCode
+            final byte b1 = UnsafeUtils.getByte(start + offset);
+            final byte b2 = UnsafeUtils.getByte(start + offset + 1);
+            final byte b3 = UnsafeUtils.getByte(start + offset + 2);
+            final byte b4 = UnsafeUtils.getByte(start + offset + 3);
+            final byte b5 = UnsafeUtils.getByte(start + offset + 4);
+            final byte b6 = UnsafeUtils.getByte(start + offset + 5);
+            final byte b7 = UnsafeUtils.getByte(start + offset + 6);
+            final byte b8 = UnsafeUtils.getByte(start + offset + 7);
+            return (((long)b1 << 56) +
+                    ((long)(b2 & 255) << 48) +
+                    ((long)(b3 & 255) << 40) +
+                    ((long)(b4 & 255) << 32) +
+                    ((long)(b5 & 255) << 24) +
+                    ((b6 & 255) << 16) +
+                    ((b7 & 255) <<  8) +
+                    (b8 & 255));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long getLong(final long offset, @NonNull final ByteOrder byteOrder) {
+            if ((length() - ((start - address) + offset)) < Long.BYTES) {
+                throw new BufferUnderflowException();
+            }
+            if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
+                // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
+                //noinspection DuplicatedCode
+                final byte b8 = UnsafeUtils.getByte(start + offset);
+                final byte b7 = UnsafeUtils.getByte(start + offset + 1);
+                final byte b6 = UnsafeUtils.getByte(start + offset + 2);
+                final byte b5 = UnsafeUtils.getByte(start + offset + 3);
+                final byte b4 = UnsafeUtils.getByte(start + offset + 4);
+                final byte b3 = UnsafeUtils.getByte(start + offset + 5);
+                final byte b2 = UnsafeUtils.getByte(start + offset + 6);
+                final byte b1 = UnsafeUtils.getByte(start + offset + 7);
+                return (((long) b1 << 56) +
+                        ((long) (b2 & 255) << 48) +
+                        ((long) (b3 & 255) << 40) +
+                        ((long) (b4 & 255) << 32) +
+                        ((long) (b5 & 255) << 24) +
+                        ((b6 & 255) << 16) +
+                        ((b7 & 255) << 8) +
+                        (b8 & 255));
+            } else {
+                return getLong(offset);
+            }
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public float getFloat(final long offset) {
+            return Float.intBitsToFloat(getInt(offset));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public float getFloat(final long offset, @NonNull final ByteOrder byteOrder) {
+            return Float.intBitsToFloat(getInt(offset, byteOrder));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public double getDouble(final long offset) {
+            return Double.longBitsToDouble(getLong(offset));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public double getDouble(final long offset, @NonNull final ByteOrder byteOrder) {
+            return Double.longBitsToDouble(getLong(offset, byteOrder));
+        }
+
+        // ================================================================================================================
+        // ReadableSequentialData Methods
+
+        /** {@inheritDoc} */
+        @Override
+        public byte readByte() {
+            return UnsafeUtils.getByte(pos++);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int readUnsignedByte() {
+            return Byte.toUnsignedInt(UnsafeUtils.getByte(pos++));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength) {
+            if (maxLength < 0) {
+                throw new IllegalArgumentException("Negative maxLength not allowed");
+            }
+
+            final var len = Math.toIntExact(Math.min(maxLength, remaining()));
+            if (len == 0) return 0;
+            UnsafeUtils.copyMemory(pos, dst, offset, len);
+            pos += len;
+            return len;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long readBytes(@NonNull final ByteBuffer dst) {
+            final var len = Math.toIntExact(Math.min(dst.remaining(), remaining()));
+            if (len == 0) return 0;
+
+            getBytes(pos - address, dst);
+            final int dtsPos = dst.position();
+            dst.position(dtsPos + len);
+            pos += len;
+            return len;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public long readBytes(@NonNull final BufferedData dst) {
+            final var len = Math.toIntExact(Math.min(dst.remaining(), remaining()));
+            if (len == 0) {
+                dst.buffer.limit(Math.toIntExact(limit - address));
+                return 0;
+            }
+
+            final var lim = limit;
+            limit = pos + len;
+
+            try {
+                getBytes(pos, dst);
+                dst.buffer.limit(Math.toIntExact(limit - address));
+                pos += len;
+                return len;
+            } finally {
+                limit = lim;
+            }
+        }
+
+        /** {@inheritDoc} */
+        @NonNull
+        @Override
+        public Bytes readBytes(final int length) {
+            if (length < 0) throw new IllegalArgumentException("Length cannot be negative");
+            if (length == 0) return Bytes.EMPTY;
+            if (remaining() < length) throw new BufferUnderflowException();
+
+            final var bytes = getBytes(pos, length);
+            pos += length;
+            return bytes;
+        }
+
+        /** {@inheritDoc} */
+        @NonNull
+        @Override
+        public ReadWriteDirectUnsafeByteBuffer view(final int length) {
+            if (length < 0) {
+                throw new IllegalArgumentException("Length cannot be negative");
+            }
+
+            if (length > remaining()) {
+                throw new BufferUnderflowException();
+            }
+
+            final var buf = new ReadWriteDirectUnsafeByteBuffer(buffer, pos, length + address);
+            pos += length;
+            return buf;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int readInt() {
+            final int ret = getInt(pos);
+            pos += Integer.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int readInt(@NonNull final ByteOrder byteOrder) {
+            final int ret = getInt(pos, byteOrder);
+            pos += Integer.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long readUnsignedInt() {
+            final long ret = Integer.toUnsignedLong(getInt(pos));
+            pos += Integer.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long readLong() {
+            final long ret = getLong(pos);
+            pos += Long.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long readLong(@NonNull final ByteOrder byteOrder) {
+            final long ret = getLong(pos, byteOrder);
+            pos += Long.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public float readFloat() {
+            final float ret = getFloat(pos);
+            pos += Float.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public float readFloat(@NonNull final ByteOrder byteOrder) {
+            final float ret = getFloat(pos, byteOrder);
+            pos += Float.BYTES;
+            return ret;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public double readDouble() {
+            final double d = getDouble(pos);
+            pos += Double.BYTES;
+            return d;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public double readDouble(@NonNull final ByteOrder byteOrder) {
+            final double d = getDouble(pos, byteOrder);
+            pos += Double.BYTES;
+            return d;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int readVarInt(final boolean zigZag) {
+            long tempPos = pos;
+            long lastPos = limit;
+
+            if (lastPos == tempPos) {
+                throw new BufferUnderflowException();
+            }
+
+            int x;
+            if ((x = UnsafeUtils.getByte(tempPos++)) >= 0) {
+                pos = tempPos;
+                return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+            } else if (lastPos - tempPos < 9) {
+                return (int)readVarIntLongSlow(zigZag);
+            } else if ((x ^= (UnsafeUtils.getByte(tempPos++) << 7)) < 0) {
+                x ^= (~0 << 7);
+            } else if ((x ^= (UnsafeUtils.getByte(tempPos++) << 14)) >= 0) {
+                x ^= (~0 << 7) ^ (~0 << 14);
+            } else if ((x ^= (UnsafeUtils.getByte(tempPos++) << 21)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+            } else {
+                int y = UnsafeUtils.getByte(tempPos++);
+                x ^= y << 28;
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+                if (y < 0
+                        && UnsafeUtils.getByte(tempPos++) < 0
+                        && UnsafeUtils.getByte(tempPos++) < 0
+                        && UnsafeUtils.getByte(tempPos++) < 0
+                        && UnsafeUtils.getByte(tempPos++) < 0
+                        && UnsafeUtils.getByte(tempPos++) < 0) {
+                    return (int)readVarIntLongSlow(zigZag);
+                }
+            }
+            pos = tempPos;
+            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long readVarLong(boolean zigZag) {
+            long tempPos = pos;
+            long lastPos = limit;
+
+            if (lastPos == tempPos) {
+                throw new BufferUnderflowException();
+            }
+
+            long x;
+            int y;
+            if ((y = UnsafeUtils.getByte(tempPos++)) >= 0) {
+                pos = tempPos;
+                return zigZag ? (y >>> 1) ^ -(y & 1) : y;
+            } else if (lastPos - tempPos < 9) {
+                return readVarIntLongSlow(zigZag);
+            } else if ((y ^= (UnsafeUtils.getByte(tempPos++) << 7)) < 0) {
+                x = y ^ (~0 << 7);
+            } else if ((y ^= (UnsafeUtils.getByte(tempPos++) << 14)) >= 0) {
+                x = y ^ ((~0 << 7) ^ (~0 << 14));
+            } else if ((y ^= (UnsafeUtils.getByte(tempPos++) << 21)) < 0) {
+                x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+            } else if ((x = y ^ ((long) UnsafeUtils.getByte(tempPos++) << 28)) >= 0L) {
+                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+            } else if ((x ^= ((long) UnsafeUtils.getByte(tempPos++) << 35)) < 0L) {
+                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+            } else if ((x ^= ((long) UnsafeUtils.getByte(tempPos++) << 42)) >= 0L) {
+                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+            } else if ((x ^= ((long) UnsafeUtils.getByte(tempPos++) << 49)) < 0L) {
+                x ^=
+                        (~0L << 7)
+                                ^ (~0L << 14)
+                                ^ (~0L << 21)
+                                ^ (~0L << 28)
+                                ^ (~0L << 35)
+                                ^ (~0L << 42)
+                                ^ (~0L << 49);
+            } else {
+                x ^= ((long) UnsafeUtils.getByte(tempPos++) << 56);
+                x ^=
+                        (~0L << 7)
+                                ^ (~0L << 14)
+                                ^ (~0L << 21)
+                                ^ (~0L << 28)
+                                ^ (~0L << 35)
+                                ^ (~0L << 42)
+                                ^ (~0L << 49)
+                                ^ (~0L << 56);
+                if (x < 0L) {
+                    if (UnsafeUtils.getByte(tempPos++) < 0L) {
+                        return readVarIntLongSlow(zigZag);
+                    }
+                }
+            }
+            pos = tempPos;
+            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+        }
+
+        // ================================================================================================================
+        // DataOutput Write Methods
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeByte(final byte b) {
+            UnsafeUtils.putByte(pos++, b);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        public void writeUnsignedByte(final int b) {
+            UnsafeUtils.putByte(pos++, (byte)b);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeBytes(@NonNull final byte[] src) {
+            writeBytes(src, 0, src.length);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeBytes(@NonNull final byte[] src, final int offset, final int length) {
+            if (src == null
+                    || offset < 0
+                    || length < 0
+                    || (src.length - length) < offset
+                    || (limit - length) < pos) {
+                throw new BufferOverflowException();
+            }
+            UnsafeUtils.copyMemory(src, offset, pos, length);
+            pos += length;
+        }
+
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeBytes(@NonNull final ByteBuffer src) {
+            if (remaining() < src.remaining()) {
+                throw new BufferOverflowException();
+            }
+
+            while(src.hasRemaining()) {
+                writeByte(src.get());
+            }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeBytes(@NonNull final BufferedData src) {
+            if (remaining() < src.remaining()) {
+                throw new BufferOverflowException();
+            }
+
+            while(src.hasRemaining()) {
+                writeByte(src.readByte());
+            }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeBytes(@NonNull final RandomAccessData src) {
+            if (remaining() < src.length()) {
+                throw new BufferOverflowException();
+            }
+
+            for (int i = 0; i < src.length(); i++) {
+                writeByte(src.getByte(i));
+            }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int writeBytes(@NonNull final InputStream src, final int maxLength) {
+// Check for a bad length or a null src
+            Objects.requireNonNull(src);
+            if (maxLength < 0) {
+                throw new IllegalArgumentException("The length must be >= 0");
+            }
+
+            // If the length is zero, then we have nothing to read
+            if (maxLength == 0) {
+                return 0;
+            }
+
+            // We are going to read from the input stream up to either "len" or the number of bytes
+            // remaining in this DataOutput, whichever is lesser.
+            final long numBytesToRead = Math.min(maxLength, remaining());
+            if (numBytesToRead == 0) {
+                return 0;
+            }
+
+            // In this default implementation, we use a small buffer for reading from the stream.
+            try {
+                final var buf = new byte[8192];
+                int totalBytesRead = 0;
+                while (totalBytesRead < numBytesToRead) {
+                    final var maxBytesToRead = Math.toIntExact(Math.min(numBytesToRead - totalBytesRead, buf.length));
+                    final var numBytesRead = src.read(buf, 0, maxBytesToRead);
+                    if (numBytesRead == -1) {
+                        return totalBytesRead;
+                    }
+
+                    totalBytesRead += numBytesRead;
+                    writeBytes(buf, 0, numBytesRead);
+                }
+                return totalBytesRead;
+            } catch (IOException ex) {
+                throw new DataAccessException("Failed to read from InputStream", ex);
+            }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeInt(final int value) {
+            if (remaining() < Integer.BYTES) {
+                throw new BufferOverflowException();
+            }
+            writeByte((byte)(value >>> 24));
+            writeByte((byte)(value >>> 16));
+            writeByte((byte)(value >>>  8));
+            writeByte((byte)(value));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeInt(final int value, @NonNull final ByteOrder byteOrder) {
+            if (byteOrder == ByteOrder.BIG_ENDIAN) {
+                writeInt(value);
+            } else {
+                if (remaining() < Integer.BYTES) {
+                    throw new BufferOverflowException();
+                }
+                writeByte((byte) (value));
+                writeByte((byte) (value >>> 8));
+                writeByte((byte) (value >>> 16));
+                writeByte((byte) (value >>> 24));
+            }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeUnsignedInt(final long value) {
+            if (remaining() < Integer.BYTES) {
+                throw new BufferOverflowException();
+            }
+            writeByte((byte)(value >>> 24));
+            writeByte((byte)(value >>> 16));
+            writeByte((byte)(value >>>  8));
+            writeByte((byte)(value));        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeUnsignedInt(final long value, @NonNull final ByteOrder byteOrder) {
+            if (byteOrder == ByteOrder.BIG_ENDIAN) {
+                writeUnsignedInt(value);
+            } else {
+                if (remaining() < Integer.BYTES) {
+                    throw new BufferOverflowException();
+                }
+                writeByte((byte) (value));
+                writeByte((byte) (value >>> 8));
+                writeByte((byte) (value >>> 16));
+                writeByte((byte) (value >>> 24));
+            }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeLong(final long value) {
+            if (remaining() < Long.BYTES) {
+                throw new BufferOverflowException();
+            }
+            writeByte((byte)(value >>> 56));
+            writeByte((byte)(value >>> 48));
+            writeByte((byte)(value >>> 40));
+            writeByte((byte)(value >>> 32));
+            writeByte((byte)(value >>> 24));
+            writeByte((byte)(value >>> 16));
+            writeByte((byte)(value >>>  8));
+            writeByte((byte)(value));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeLong(final long value, @NonNull final ByteOrder byteOrder) {
+            if (byteOrder == ByteOrder.BIG_ENDIAN) {
+                writeLong(value);
+            } else {
+                if (remaining() < Long.BYTES) {
+                    throw new BufferOverflowException();
+                }
+                writeByte((byte) (value));
+                writeByte((byte) (value >>> 8));
+                writeByte((byte) (value >>> 16));
+                writeByte((byte) (value >>> 24));
+                writeByte((byte) (value >>> 32));
+                writeByte((byte) (value >>> 40));
+                writeByte((byte) (value >>> 48));
+                writeByte((byte) (value >>> 56));
+            }        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeFloat(final float value) {
+            writeInt(Float.floatToIntBits(value));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeFloat(final float value, @NonNull final ByteOrder byteOrder) {
+            writeInt(Float.floatToIntBits(value), byteOrder);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeDouble(final double value) {
+            writeLong(Double.doubleToLongBits(value));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeDouble(final double value, @NonNull final ByteOrder byteOrder) {
+            writeLong(Double.doubleToLongBits(value), byteOrder);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeVarInt(final int value, final boolean zigZag) {
+            writeVarLong(value, zigZag);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void writeVarLong(long value, final boolean zigZag) {
+            if (zigZag) {
+                value = (value << 1) ^ (value >> 63);
+            }
+            while (true) {
+                if ((value & ~0x7FL) == 0) {
+                    writeByte((byte) value);
+                    return;
+                } else {
+                    writeByte((byte) (((int) value & 0x7F) | 0x80));
+                    value >>>= 7;
+                }
+            }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        public int getUnsignedByte(final long offset) {
+            return Byte.toUnsignedInt(UnsafeUtils.getByte(offset + address));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long getBytes(final long offset, @NonNull final byte[] dst) {
+            return getBytes(offset, dst, 0, dst.length);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Bytes getBytes(final long offset, final long length) {
+            if ((start + offset) < 0 || ((start - address) + offset) >= length()) {
+                throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + length());
+            }
+
+            if (length < 0) {
+                throw new IllegalArgumentException("Negative maxLength not allowed");
+            }
+
+            if (length > length() - ((start - address) + offset)) {
+                throw new BufferUnderflowException();
+            }
+
+            // If we find the result is empty, we can take a shortcut
+            if (length == 0) {
+                return Bytes.EMPTY;
+            }
+
+            byte[] bytes = new byte[Math.toIntExact(length)];
+            UnsafeUtils.copyMemory(address + offset, bytes, 0, length);
+            return Bytes.wrap(bytes, 0, Math.toIntExact(length));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public ReadWriteDirectUnsafeByteBuffer slice(final long offset, final long length) {
+            return new ReadWriteDirectUnsafeByteBuffer(buffer, address + offset, address + offset + length);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long getUnsignedInt(final long offset) {
+            return (getInt(offset)) & 0xFFFFFFFFL;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long getUnsignedInt(final long offset, @NonNull final ByteOrder byteOrder) {
+            return (getInt(offset, byteOrder)) & 0xFFFFFFFFL;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public String asUtf8String() {
+            return asUtf8String(0, length());
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public String asUtf8String(final long offset, final long len) {
+            if (len > length() - (start + offset)) {
+                throw new BufferUnderflowException();
+            }
+
+            if ((start + offset) < 0 || (start + offset + len) > length()) {
+                throw new IndexOutOfBoundsException();
+            }
+
+            if (len == 0) {
+                return "";
+            }
+
+            byte[] offsetBytes = new byte[Math.toIntExact(length() - (start + offset))];
+            getBytes(offset, offsetBytes);
+            return new String(offsetBytes, StandardCharsets.UTF_8);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean matchesPrefix(@NonNull final byte[] prefix) {
+            return contains(start, prefix);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean contains(final long offset, @NonNull final byte[] bytes) {
+            if ((start + offset) < 0 || (start + offset) >= length()) {
+                throw new IndexOutOfBoundsException();
+            }
+
+            // If the number of bytes between offset and length is shorter than the bytes we're matching, then there
+            // is NO WAY we could have a match, so we need to return false.
+            if (length() - (start + offset) < bytes.length) {
+                return false;
+            }
+
+            // Check each byte one at a time until we find a mismatch or, we get to the end, and all bytes match.
+            for (int i = Math.toIntExact(start + offset); i < bytes.length; i++) {
+                if (bytes[Math.toIntExact(i - start - offset)] != UnsafeUtils.getByte(i)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean matchesPrefix(@NonNull final RandomAccessData prefix) {
+            return contains(0, prefix);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean contains(final long offset, @NonNull final RandomAccessData data) {
+            // If this data is EMPTY, return true if only the incoming data is EMPTY too.
+            if (length() == 0) {
+                return data.length() == 0;
+            }
+
+            if ((start + offset) < 0 || (start + offset) >= length()) {
+                throw new IndexOutOfBoundsException();
+            }
+
+            if (length() - (start + offset) < data.length()) {
+                return false;
+            }
+
+            for (int i = Math.toIntExact(start + offset); i < data.length(); i++) {
+                if (data.getByte(i - start - offset) != UnsafeUtils.getByte(i)) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }

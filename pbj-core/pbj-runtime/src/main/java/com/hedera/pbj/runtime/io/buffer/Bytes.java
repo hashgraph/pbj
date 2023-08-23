@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io.buffer;
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -62,7 +63,7 @@ public final class Bytes implements RandomAccessData {
      * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps so
      * any changes to arrays contents will be effected here.
      *
-     * @param data The data t
+     * @param data The data
      */
     private Bytes(@NonNull final byte[] data) {
         this(data, 0, data.length);
@@ -72,7 +73,7 @@ public final class Bytes implements RandomAccessData {
      * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps so
      * any changes to arrays contents will be effected here.
      *
-     * @param data The data t
+     * @param data The data
      * @param offset The offset within that buffer to start
      * @param length The length of bytes staring at offset to wrap
      */
@@ -168,6 +169,20 @@ public final class Bytes implements RandomAccessData {
     // ================================================================================================================
     // Object Methods
 
+    /** A method to get the data of the Bytes on package level. Used for the fast BufferedData wrapper
+     * around the {@link Bytes} object.
+     * @return the byte[] associated with this {link Bytes} object.
+     */
+    byte[] getBytes() {
+        return buffer;
+    }
+
+    /** Gets the start of this {@link Bytes} objec.
+     * @return the start offset in the data.
+     */
+    int start() {
+        return start;
+    }
     /**
      * Duplicate this {@link Bytes} by making a copy of the underlying byte array and returning a new {@link Bytes}
      * over the copied data. Use this method when you need to wrap a copy of a byte array:
@@ -295,7 +310,7 @@ public final class Bytes implements RandomAccessData {
      */
     @NonNull
     public ReadableSequentialData toReadableSequentialData() {
-        return new RandomAccessSequenceAdapter(this);
+        return BufferedData.wrap(this);
     }
 
     /**

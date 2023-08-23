@@ -667,4 +667,14 @@ final class BytesTest {
         appended.getBytes(0, res);
         assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5, 6}, res);
     }
+
+    @Test
+    @DisplayName("getBytes() using ReadOnlyByteBuffer")
+    void getBytesReadOnlyByteBuffer() {
+        Bytes b1 = Bytes.wrap(new byte[]{0, 1, 2, 3});
+        RandomAccessData rsd = (RandomAccessData)b1.toReadableSequentialData();
+        byte[] readBytes = new byte[4];
+        rsd.getBytes(0, readBytes);
+        assertArrayEquals(b1.toByteArray(), readBytes);
+    }
 }
