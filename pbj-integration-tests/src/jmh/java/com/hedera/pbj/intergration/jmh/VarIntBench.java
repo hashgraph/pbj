@@ -29,6 +29,8 @@ public class VarIntBench {
 	final BufferedData dataBuffer = BufferedData.wrap(buffer);
 	final BufferedData dataBufferDirect = BufferedData.wrap(bufferDirect);
 
+	BufferedData bytesBuffer = null;
+
 	Bytes bytes = Bytes.EMPTY;
 
 	ByteArrayInputStream bais = null;
@@ -61,6 +63,7 @@ public class VarIntBench {
 			bytes = Bytes.wrap(bts);
 			bais = new ByteArrayInputStream(bts.clone());
 			rsd = new ReadableStreamingData(bais);
+			bytesBuffer = (BufferedData)bytes.toReadableSequentialData();
 		} catch (IOException e){
 			e.printStackTrace();
 		}
@@ -89,9 +92,9 @@ public class VarIntBench {
 	@Benchmark
 	@OperationsPerInvocation(1050)
 	public void dataBytes(Blackhole blackhole) throws IOException {
+		bytesBuffer.reset();
 		for (int i = 0; i < 1050; i++) {
-			blackhole.consume(bytes.getVarInt(pos, false));
-			pos++;
+			blackhole.consume(bytesBuffer.readVarInt(false));
 		}
 	}
 

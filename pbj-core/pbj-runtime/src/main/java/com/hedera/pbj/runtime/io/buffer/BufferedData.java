@@ -73,6 +73,9 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @NonNull
     public static BufferedData wrap(@NonNull final ByteBuffer buffer) {
+        if (buffer.isDirect() && ReadWriteDirectUnsafeByteBuffer.isSupported()) {
+            return new ReadWriteDirectUnsafeByteBuffer(buffer);
+        }
         return new BufferedData(buffer);
     }
 
@@ -1249,6 +1252,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
          */
         @Override
         public void flip() {
+            limit = pos;
             pos = start;
         }
 
@@ -1257,6 +1261,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
          */
         @Override
         public void reset() {
+            limit = Math.toIntExact(bytes.length());
             pos = start;
         }
 
@@ -2257,6 +2262,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
          */
         @Override
         public void flip() {
+            limit = pos;
             pos = start;
         }
 
@@ -2265,6 +2271,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
          */
         @Override
         public void reset() {
+            limit = buffer.capacity();
             pos = start;
         }
 
