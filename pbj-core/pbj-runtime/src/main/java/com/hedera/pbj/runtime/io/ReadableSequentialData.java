@@ -178,7 +178,7 @@ public interface ReadableSequentialData extends SequentialData {
     /**
      * Read {@code length} bytes from this sequence, returning them as a {@link Bytes} buffer of
      * the read data. The returned bytes will be immutable. The {@link #position()} of this sequence will be
-     * incremented by {@code maxLength} bytes.
+     * incremented by {@code length} bytes.
      *
      * <p>Bytes are read from the sequence one at a time. If there are not {@code length} bytes remaining in this
      * sequence, then a {@link BufferUnderflowException} will be thrown. The {@link #position()} will be
