@@ -241,21 +241,21 @@ public final class ProtoParserTools {
      * @param wireType The wire type of field to skip
      * @throws IOException For unsupported wire types
      */
-    public static void skipField(final ReadableSequentialData input, final int wireType) throws IOException {
+    public static void skipField(final ReadableSequentialData input, final ProtoConstants wireType) throws IOException {
         switch (wireType) {
-            case ProtoConstants.WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
-            case ProtoConstants.WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
+            case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
+            case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
             // The value for "zigZag" when calling varint doesn't matter because we are just reading past
             // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
             // the bytes, not how many of them there are)
-            case ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
-            case ProtoConstants.WIRE_TYPE_DELIMITED -> {
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
+            case WIRE_TYPE_DELIMITED -> {
                 final int length = input.readVarInt(false);
                 input.skip(length);
             }
-            case ProtoConstants.WIRE_TYPE_GROUP_START -> throw new IOException(
+            case WIRE_TYPE_GROUP_START -> throw new IOException(
                     "Wire type 'Group Start' is unsupported");
-            case ProtoConstants.WIRE_TYPE_GROUP_END -> throw new IOException(
+            case WIRE_TYPE_GROUP_END -> throw new IOException(
                     "Wire type 'Group End' is unsupported");
             default -> throw new IOException(
                     "Unhandled wire type while trying to skip a field " + wireType);

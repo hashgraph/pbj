@@ -78,23 +78,6 @@ final class DataTest {
         );
     }
 
-    @ParameterizedTest
-    @MethodSource("unsignedIntsTestCasesInts")
-    void tagTest(Integer value) throws IOException {
-        doTagTest(value,
-                WritableStreamingData::writeInt,
-                BufferedData::writeInt,
-                ReadableStreamingData::readInt,
-                BufferedData::readInt
-        );
-        doTagTest(value,
-                (d, v) -> d.writeTag(v),
-                (d, v) -> d.writeTag(v),
-                d -> d.readTag(),
-                d -> d.readTag()
-        );
-    }
-
     static Stream<Long> unsignedIntsTestCases() {
         return Stream.of(0,1,9,51,127,Integer.MAX_VALUE*2L).map(Number::longValue);
     }
@@ -335,58 +318,6 @@ final class DataTest {
             java.io.DataInputStream din2 = new java.io.DataInputStream(bin);
             T readValue2 = javaDataInputReadMethod.read(din2);
             assertEquals(value, readValue2);
-            // write with BufferedData
-            BufferedData db = BufferedData.allocate(writtenData.length);
-            dataBufferWriteMethod.write(db, value);
-            db.reset();
-            // check bytes in buffer
-            byte[] writtenData3 = new byte[writtenData.length];
-            db.readBytes(writtenData3);
-            assertArrayEquals(writtenData, writtenData3);
-            // read with DataBuffer
-            db.reset();
-            T readValue3 = dataBufferReadMethod.read(db);
-            assertEquals(value, readValue3);
-            // read into Bytes and check all data is valid
-            db.reset();
-            final var readBytes = db.readBytes(writtenData.length);
-            for (int i = 0; i < writtenData.length; i++) {
-                assertEquals(writtenData[i], readBytes.getByte(i));
-            }
-            // read subset into Bytes and check all data is valid
-            if (writtenData.length > 3) {
-                db.reset();
-                // read 1 byte, so we are doing a starting not at 0
-                db.readByte();
-                // read length -2 so subset
-                final var readBytes2 = db.readBytes(writtenData.length - 2);
-                for (int i = 0; i < writtenData.length - 2; i++) {
-                    assertEquals(writtenData[i + 1], readBytes2.getByte(i));
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw e;
-        }
-    }
-
-    static <T> void doTagTest(T value,
-                           IoWrite<WritableStreamingData,T> dataOutputWriteMethod,
-                           IoWrite<BufferedData,T> dataBufferWriteMethod,
-                           IoRead<ReadableStreamingData,T> dataInputReadMethod,
-                           IoRead<BufferedData,T> dataBufferReadMethod
-    ) throws IOException {
-        try {
-            // write to byte array with DataIO DataOutputStream
-            ByteArrayOutputStream bout = new ByteArrayOutputStream();
-            WritableStreamingData dout = new WritableStreamingData(bout);
-            dataOutputWriteMethod.write(dout, value);
-            byte[] writtenData = bout.toByteArray();
-            // read back with DataInputStream
-            ByteArrayInputStream bin = new ByteArrayInputStream(writtenData);
-            ReadableStreamingData din = new ReadableStreamingData(bin);
-            T readValue = dataInputReadMethod.read(din);
-            assertEquals(value, readValue);
             // write with BufferedData
             BufferedData db = BufferedData.allocate(writtenData.length);
             dataBufferWriteMethod.write(db, value);

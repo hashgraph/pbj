@@ -260,18 +260,6 @@ public interface ReadableSequentialData extends SequentialData {
     }
 
     /**
-     * reads a protobuf tag bytes containing the given int value, in the standard Java big-endian byte order, at the
-     * current {@link #position()}. It uses delegates to the readVarInt implementation.
-     *
-     * @return The tag value.
-     * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws DataAccessException if an I/O error occurs
-     */
-    default int readTag() {
-        return readVarInt(false);
-    }
-
-    /**
      * Reads the next four bytes at the current {@link #position()}, composing them into an int value according to
      * specified byte order, and then increments the {@link #position()} by four.
      *

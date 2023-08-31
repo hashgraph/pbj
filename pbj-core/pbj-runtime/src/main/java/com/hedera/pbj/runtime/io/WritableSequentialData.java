@@ -214,18 +214,6 @@ public interface WritableSequentialData extends SequentialData {
     }
 
     /**
-     * Writes a protobuf tag bytes containing the given int value, in the standard Java big-endian byte order, at the
-     * current {@link #position()}. It uses delegates to the writeVarInt implementation.
-     *
-     * @param value The int value to be written
-     * @throws BufferOverflowException If there are fewer than four bytes remaining
-     * @throws DataAccessException if an I/O error occurs
-     */
-    default void writeTag(final int value) {
-        writeVarInt(value, false);
-    }
-
-    /**
      * Writes four bytes containing the given int value, in the standard Java big-endian byte order, at the current
      * {@link #position()}, and then increments the {@link #position()} by four.
      *

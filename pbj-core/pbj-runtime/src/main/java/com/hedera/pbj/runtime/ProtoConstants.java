@@ -3,20 +3,17 @@ package com.hedera.pbj.runtime;
 /**
  * Common constants used by parsers, writers and tests.
  */
-public class ProtoConstants {
+public enum ProtoConstants {
     /** On wire encoded type for varint */
-    static final int WIRE_TYPE_VARINT_OR_ZIGZAG = 0;
+    WIRE_TYPE_VARINT_OR_ZIGZAG,
     /** On wire encoded type for fixed 64bit */
-    static final int WIRE_TYPE_FIXED_64_BIT = 1;
+    WIRE_TYPE_FIXED_64_BIT,
     /** On wire encoded type for length delimited */
-    static final int WIRE_TYPE_DELIMITED = 2;
+    WIRE_TYPE_DELIMITED,
     /** On wire encoded type for group start, deprecated */
-    static final int WIRE_TYPE_GROUP_START = 3;
+    WIRE_TYPE_GROUP_START,
     /** On wire encoded type for group end, deprecated */
-    static final int WIRE_TYPE_GROUP_END = 4;
+    WIRE_TYPE_GROUP_END,
     /** On wire encoded type for fixed 32bit */
-    static final int WIRE_TYPE_FIXED_32_BIT = 5;
-
-    /** Never create an instance */
-    private ProtoConstants() {}
+    WIRE_TYPE_FIXED_32_BIT,
 }

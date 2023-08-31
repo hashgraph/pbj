@@ -33,8 +33,8 @@ public final class ProtoWriterTools {
      * @param field The field to include in tag
      * @param wireType The field wire type to include in tag
      */
-    private static void writeTag(final WritableSequentialData out, final FieldDefinition field, final int wireType) {
-        out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType, false);
+    public static void writeTag(final WritableSequentialData out, final FieldDefinition field, final ProtoConstants wireType) {
+        out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType.ordinal(), false);
     }
 
     /** Create an unsupported field type exception */
@@ -814,8 +814,8 @@ public final class ProtoWriterTools {
      * @param wireType The wire type part of tag
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfTag(final FieldDefinition field, final int wireType) {
-        return sizeOfVarInt32((field.number() << TAG_TYPE_BITS) | wireType);
+    private static int sizeOfTag(final FieldDefinition field, final ProtoConstants wireType) {
+        return sizeOfVarInt32((field.number() << TAG_TYPE_BITS) | wireType.ordinal());
     }
 
     /**
