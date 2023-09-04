@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,30 +13,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import com.adarshr.gradle.testlogger.theme.ThemeType
 
 plugins {
-    java
+    id("java")
+    id("antlr")
+    id("org.gradlex.java-module-dependencies")
+    id("com.adarshr.test-logger")
     id("com.hedera.pbj.repositories")
     id("com.hedera.pbj.spotless-conventions")
     id("com.hedera.pbj.spotless-java-conventions")
     id("com.hedera.pbj.spotless-kotlin-conventions")
-    id("com.adarshr.test-logger")
+    id("com.hedera.pbj.maven-publish")
 }
 
 group = "com.hedera.pbj"
 
+javaModuleDependencies {
+    moduleNameToGA.put(
+        "com.github.spotbugs.annotations",
+        "com.github.spotbugs:spotbugs-annotations"
+    )
+    moduleNameToGA.put("com.google.protobuf", "com.google.protobuf:protobuf-java")
+    moduleNameToGA.put("org.antlr.antlr4.runtime", "org.antlr:antlr4-runtime")
+    moduleNameToGA.put("org.mockito.inline", "org.mockito:mockito-inline")
+}
+
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(17))
-        @Suppress("UnstableApiUsage")
         vendor.set(JvmVendorSpec.ADOPTIUM)
     }
-    modularity.inferModulePath.set(true)
 
     // Enable JAR file generation required for publishing
     withJavadocJar()
     withSourcesJar()
+}
+
+testing {
+    @Suppress("UnstableApiUsage") suites.getByName<JvmTestSuite>("test") { useJUnitJupiter() }
 }
 
 tasks.withType<AbstractArchiveTask> {
@@ -46,18 +62,15 @@ tasks.withType<AbstractArchiveTask> {
     dirMode = 775
 }
 
-tasks.withType<JavaCompile> {
-    options.encoding = "UTF-8"
-}
+tasks.withType<JavaCompile> { options.encoding = "UTF-8" }
 
 tasks.withType<Javadoc> {
     options.encoding = "UTF-8"
-    (options as StandardJavadocDocletOptions)
-        .tags(
-            "apiNote:a:API Note:",
-            "implSpec:a:Implementation Requirements:",
-            "implNote:a:Implementation Note:"
-        )
+    (options as StandardJavadocDocletOptions).tags(
+        "apiNote:a:API Note:",
+        "implSpec:a:Implementation Requirements:",
+        "implNote:a:Implementation Note:"
+    )
 }
 
 testlogger {
@@ -67,4 +80,26 @@ testlogger {
     showPassedStandardStreams = false
     showSkippedStandardStreams = false
     showFailedStandardStreams = true
+}
+
+val libs = the<VersionCatalogsExtension>().named("libs")
+
+configurations {
+    // Treat the ANTLR compiler as a separate tool that should not end up on the compile/runtime
+    // classpath of our runtime.
+    // https://github.com/gradle/gradle/issues/820
+    api { setExtendsFrom(extendsFrom.filterNot { it == antlr.get() }) }
+}
+
+dependencies {
+    antlr("org.antlr:antlr4") {
+        version { require(libs.findVersion("org.antlr.antlr4.runtime").get().requiredVersion) }
+    }
+}
+
+// See: https://github.com/gradle/gradle/issues/25885
+tasks.named("sourcesJar") { dependsOn(tasks.generateGrammarSource) }
+
+tasks.withType<com.autonomousapps.tasks.CodeSourceExploderTask>().configureEach {
+    dependsOn(tasks.withType<AntlrTask>())
 }

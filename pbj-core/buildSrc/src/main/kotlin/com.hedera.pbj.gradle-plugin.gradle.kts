@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-plugins { id("com.hedera.pbj.runtime") }
-
-testModuleInfo {
-    requires("org.junit.jupiter.api")
-    requires("org.junit.jupiter.params")
-    requires("org.assertj.core")
-    requires("org.mockito")
-    requires("com.google.protobuf")
-    runtimeOnly("org.mockito.inline")
-    requiresStatic("com.github.spotbugs.annotations")
+plugins {
+    id("com.hedera.pbj.conventions")
+    id("com.gradle.plugin-publish")
 }
+
+tasks.generateGrammarSource {
+    arguments = arguments + listOf("-package", "com.hedera.pbj.compiler.impl.grammar")
+}
+
+// Do not generate Java Doc for generated antlr grammar
+tasks.withType<Javadoc> { excludes.add("com/hedera/pbj/compiler/impl/grammar/**") }

@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-plugins { id("com.hedera.pbj.runtime") }
-
-testModuleInfo {
-    requires("org.junit.jupiter.api")
-    requires("org.junit.jupiter.params")
-    requires("org.assertj.core")
-    requires("org.mockito")
-    requires("com.google.protobuf")
-    runtimeOnly("org.mockito.inline")
-    requiresStatic("com.github.spotbugs.annotations")
+plugins {
+    id("com.hedera.pbj.repositories")
+    id("com.hedera.pbj.spotless-conventions")
+    id("com.hedera.pbj.spotless-kotlin-conventions")
+    id("com.autonomousapps.dependency-analysis")
 }
+
+spotless { kotlinGradle { target("buildSrc/**/*.gradle.kts") } }
