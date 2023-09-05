@@ -169,7 +169,8 @@ public final class Bytes implements RandomAccessData {
     // ================================================================================================================
     // Object Methods
 
-    /** A method to get the data of the Bytes on package level. Used for the fast BufferedData wrapper
+    /**
+     * A method to get the data of the Bytes on package level. Used for the fast BufferedData wrapper
      * around the {@link Bytes} object.
      * @return the byte[] associated with this {link Bytes} object.
      */
