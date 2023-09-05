@@ -23,7 +23,6 @@ proto
       | topLevelDef
       | emptyStatement_
       | optionComment
-      // | docComment
     )*
   ;
 
@@ -52,7 +51,7 @@ packageStatement
 // Option
 
 optionStatement
-  : docComment( REPEATED )? OPTION optionName EQ constant SEMI
+  : OPTION optionName EQ constant SEMI
   ;
 
 optionName
