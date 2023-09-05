@@ -19,7 +19,7 @@ final class UnsafeUtilsTest {
     void writeReadByte() {
         // This test instantiates the UnsafeUtils backed class and does a write and read on it.
         assertTrue(UnsafeUtils.hasUnsafeByteBufferOperations());
-        BufferedData byteBuffer = BufferedData.wrap(new byte[1]);
+        BufferedData byteBuffer = BufferedData.allocateOffHeap(1);
         byteBuffer.writeByte((byte)1);
         byteBuffer.resetPosition();
         byte b = byteBuffer.readByte();
