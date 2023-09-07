@@ -334,13 +334,10 @@ public final class Bytes implements RandomAccessData {
     public String toString() {
         // build string
         StringBuilder sb = new StringBuilder();
-        sb.append("Bytes[");
         for (long i = 0; i < length(); i++) {
             int v = getByte(i) & 0xFF;
-            sb.append(v);
-            if (i < (length()-1)) sb.append(',');
+            sb.append(Integer.toHexString(v).toUpperCase());
         }
-        sb.append(']');
         return sb.toString();
     }
 

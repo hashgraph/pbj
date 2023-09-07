@@ -44,7 +44,7 @@ final class BytesTest {
     @Test
     @DisplayName("Empty bytes String is not null")
     void toStringWorks() {
-        assertEquals("Bytes[]", Bytes.EMPTY.toString());
+        assertEquals("", Bytes.EMPTY.toString());
     }
 
     // ================================================================================================================
@@ -666,5 +666,12 @@ final class BytesTest {
         byte[] res = new byte[7];
         appended.getBytes(0, res);
         assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5, 6}, res);
+    }
+
+    @Test
+    @DisplayName("Changed toString")
+    void changedToString() {
+        Bytes b1 = Bytes.wrap(new byte[]{0, 0, (byte)0xFF});
+        assertEquals("00FF", b1.toString());
     }
 }
