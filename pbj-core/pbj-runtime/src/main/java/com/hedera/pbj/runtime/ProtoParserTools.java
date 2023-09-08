@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 
 import java.io.IOException;
+import java.nio.BufferOverflowException;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -216,11 +217,11 @@ public final class ProtoParserTools {
      */
     public static String readString(final ReadableSequentialData input) throws IOException {
         final int length = input.readVarInt(false);
+        if (input.remaining() < length) {
+            throw new BufferOverflowException();
+        }
         byte[] bytes = new byte[length];
         final var read = input.readBytes(bytes);
-        if (read < length) {
-            throw new IOException("Bad protobuf encoding. The input has less data than expected");
-        }
         return new String(bytes,StandardCharsets.UTF_8);
     }
 
