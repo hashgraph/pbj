@@ -217,7 +217,10 @@ public final class ProtoParserTools {
     public static String readString(final ReadableSequentialData input) throws IOException {
         final int length = input.readVarInt(false);
         byte[] bytes = new byte[length];
-        input.readBytes(bytes);
+        final var read = input.readBytes(bytes);
+        if (read < length) {
+            throw new IOException("Bad protobuf encoding. The input has less data than expected");
+        }
         return new String(bytes,StandardCharsets.UTF_8);
     }
 
