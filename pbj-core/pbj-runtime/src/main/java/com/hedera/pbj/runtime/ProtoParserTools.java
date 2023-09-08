@@ -221,7 +221,7 @@ public final class ProtoParserTools {
             throw new BufferOverflowException();
         }
         byte[] bytes = new byte[length];
-        final var read = input.readBytes(bytes);
+        input.readBytes(bytes);
         return new String(bytes,StandardCharsets.UTF_8);
     }
 
