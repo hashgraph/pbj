@@ -332,13 +332,7 @@ public final class Bytes implements RandomAccessData {
     @Override
     @NonNull
     public String toString() {
-        // build string
-        StringBuilder sb = new StringBuilder();
-        for (long i = 0; i < length(); i++) {
-            int v = getByte(i) & 0xFF;
-            sb.append(Integer.toHexString(v).toUpperCase());
-        }
-        return sb.toString();
+        return HexFormat.of().formatHex(buffer, start, length);
     }
 
     /**
