@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package proto;
 
+/** Test issue 87 */
+/** Test issue 87 */
+
 /*-
  * ‌
  * Hedera Network Services Protobuf
