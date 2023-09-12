@@ -306,6 +306,26 @@ final class TruncatedDataTests {
         assertThrows(Exception.class, () -> ProtoParserTools.readFixed64(seq));
     }
 
+    @Test
+    @DisplayName("Test readUint32Strict")
+    void testUint32Strict() {
+
+        final var unhexed = HexFormat.of().parseHex("");
+        assertThrows(Exception.class, () ->
+                com.hedera.hapi.node.base.ServicesConfigurationList.PROTOBUF.parseStrict(
+                        BufferedData.wrap(unhexed)));
+    }
+
+    @Test
+    @DisplayName("Test readUint32NonStrict")
+    void testUint32NonStrict() {
+
+        final var unhexed = HexFormat.of().parseHex("");
+        assertDoesNotThrow(() ->
+                com.hedera.hapi.node.base.ServicesConfigurationList.PROTOBUF.parse(
+                        BufferedData.wrap(unhexed)));
+    }
+
     static Stream<Integer> createTruncateTestArguments() {
         return Stream.of(
                 Integer.MIN_VALUE, (int)Byte.MIN_VALUE, -100, -66, -7, -5, -1, -2, -3, -4, -6, -7, -999, -1000);
