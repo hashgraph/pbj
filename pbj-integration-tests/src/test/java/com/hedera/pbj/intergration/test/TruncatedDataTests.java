@@ -309,8 +309,9 @@ final class TruncatedDataTests {
     @Test
     @DisplayName("Test readUint32Strict")
     void testUint32Strict() {
-
         final var unhexed = HexFormat.of().parseHex("");
+        assertDoesNotThrow(() ->
+                com.hederahashgraph.api.proto.java.ServicesConfigurationList.parseFrom(unhexed));
         assertThrows(Exception.class, () ->
                 com.hedera.hapi.node.base.ServicesConfigurationList.PROTOBUF.parseStrict(
                         BufferedData.wrap(unhexed)));
@@ -319,8 +320,9 @@ final class TruncatedDataTests {
     @Test
     @DisplayName("Test readUint32NonStrict")
     void testUint32NonStrict() {
-
         final var unhexed = HexFormat.of().parseHex("");
+        assertDoesNotThrow(() ->
+                com.hederahashgraph.api.proto.java.ServicesConfigurationList.parseFrom(unhexed));
         assertDoesNotThrow(() ->
                 com.hedera.hapi.node.base.ServicesConfigurationList.PROTOBUF.parse(
                         BufferedData.wrap(unhexed)));
