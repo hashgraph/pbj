@@ -115,6 +115,11 @@ class CodecParseMethodGenerator {
                     // -- PARSE LOOP ---------------------------------------------
                     // Continue to parse bytes out of the input stream until we get to the end.
                     try {
+                        // If we start reading and the buffer is truncated to empty one,
+                        // we should throw an error.
+                        if (strictMode && !input.hasRemaining()) {
+                            throw new BufferUnderflowException();
+                        } 
                         while (input.hasRemaining()) {
                             // Read the "tag" byte which gives us the field number for the next field to read
                             // and the wire type (way it is encoded on the wire).
