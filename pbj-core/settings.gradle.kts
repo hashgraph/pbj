@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,9 @@
  */
 
 plugins {
-    id("com.gradle.enterprise").version("3.11.4")
+    id("com.gradle.enterprise").version("3.14.1")
 }
 
-// Include sub modules
 include(":pbj-runtime")
 include(":pbj-compiler")
 
@@ -30,60 +29,22 @@ gradleEnterprise {
 }
 
 dependencyResolutionManagement {
-    @Suppress("UnstableApiUsage")
     versionCatalogs {
-        // The libs of this catalog are the **ONLY** ones that are authorized to be part of the runtime
-        // distribution. These libs can be depended on during compilation, or bundled as part of runtime.
         create("libs") {
-            // Define the approved version numbers
-            version("antlr-version", "4.11.1")
-            version("jetbrains-annotations-version", "23.0.0")
-            version("spotbugs-version", "4.7.3")
+            // The libs of this catalog are the **ONLY** ones that are authorized to be part of the runtime
+            // distribution. These libs can be depended on during compilation, or bundled as part of runtime.
+            version("org.antlr.antlr4.runtime", "4.11.1")
+            version("com.github.spotbugs.annotations", "4.7.3")
 
-            // List of bundles provided for us. When applicable, favor using these over individual libraries.
-            bundle("antlr", listOf("antlr"))
-            bundle("jetbrains", listOf("jetbrains-annotations"))
+            // Testing only versions
+            version("org.junit.jupiter.api", "5.9.0")
+            version("org.junit.jupiter.params", "5.9.0")
+            version("org.assertj.core", "3.23.1")
+            version("org.mockito", "4.6.1")
+            version("org.mockito.inline", "4.6.1")
+            version("com.google.protobuf", "3.21.9")
 
-            // Define the individual libraries
-            library("antlr", "org.antlr", "antlr4").versionRef("antlr-version")
-            library("jetbrains-annotations", "org.jetbrains", "annotations").versionRef("jetbrains-annotations-version")
-            library("spotbugs-annotations", "com.github.spotbugs", "spotbugs-annotations").versionRef("spotbugs-version")
-        }
-
-        create("testLibs") {
-            // Define the approved version numbers
-            version("assertj-version", "3.23.1")
-            version("junit-version", "5.9.0")
-            version("mockito-version", "4.6.1")
-            version("protobuf-version", "3.21.9")
-
-            // List of bundles provided for us. When applicable, favor using these over individual libraries.
-            bundle("testing", listOf(
-                "junit-jupiter",
-                "junit-jupiter-api",
-                "junit-jupiter-params",
-                "assertj-core",
-                "mockito-inline",
-                "mockito-jupiter"))
-            bundle("protobuf", listOf("protobuf-java"))
-
-            // Define the individual libraries
-            // AssertJ
-            library("assertj-core", "org.assertj", "assertj-core").versionRef("assertj-version")
-
-            // JUnit Bundle
-            library("junit-jupiter", "org.junit.jupiter", "junit-jupiter").versionRef("junit-version")
-            library("junit-jupiter-api", "org.junit.jupiter", "junit-jupiter-api").versionRef("junit-version")
-            library("junit-jupiter-params", "org.junit.jupiter", "junit-jupiter-params").versionRef("junit-version")
-            library("junit-jupiter-engine", "org.junit.jupiter", "junit-jupiter-engine").versionRef("junit-version")
-
-            // Mockito
-            library("mockito-inline", "org.mockito", "mockito-inline").versionRef("mockito-version")
-            library("mockito-jupiter", "org.mockito", "mockito-junit-jupiter")
-                .versionRef("mockito-version")
-
-            // Protobuf Bundle
-            library("protobuf-java", "com.google.protobuf", "protobuf-java").versionRef("protobuf-version")
+            library("dd", "dd:xx:1.0")
         }
     }
 }

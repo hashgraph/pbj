@@ -14,14 +14,22 @@
  * limitations under the License.
  */
 
-plugins { id("com.hedera.pbj.runtime") }
-
-testModuleInfo {
-    requires("org.junit.jupiter.api")
-    requires("org.junit.jupiter.params")
-    requires("org.assertj.core")
-    requires("org.mockito")
-    requires("com.google.protobuf")
-    runtimeOnly("org.mockito.inline")
-    requiresStatic("com.github.spotbugs.annotations")
+plugins {
+    id("java-library")
+    id("com.hedera.pbj.conventions")
+    id("com.google.protobuf") // protobuf plugin is only used for tests
 }
+
+tasks.generateGrammarSource {
+    arguments = arguments + listOf("-package", "com.hedera.pbj.runtime.jsonparser")
+}
+
+protobuf {
+    // Configure the protoc executable
+    protoc {
+        // Download from repositories
+        artifact = "com.google.protobuf:protoc:3.21.10"
+    }
+}
+
+publishing { publications.create<MavenPublication>("maven") { from(components["java"]) } }
