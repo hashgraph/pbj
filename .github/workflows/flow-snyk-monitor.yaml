@@ -1,0 +1,31 @@
+name: "Snyk Monitor"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  checks: write
+  issues: read
+  pull-requests: write
+  statuses: write
+  id-token: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  snyk-monitor:
+    name: Snyk Monitor
+    uses: ./.github/workflows/comp-compile-pbj-code.yaml
+    with:
+      custom-job-label: Standard
+      enable-snyk-monitor: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}

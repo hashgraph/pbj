@@ -43,3 +43,16 @@ jobs:
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       sonar-token: ${{ secrets.SONAR_TOKEN }}
+
+  snyk-scan:
+    name: Snyk Scan
+    uses: ./.github/workflows/comp-compile-pbj-code.yaml
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    with:
+      custom-job-label: Standard
+      enable-integration-tests: false
+      enable-sonar-analysis: false
+      enable-snyk-scan: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}

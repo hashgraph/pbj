@@ -21,6 +21,7 @@ plugins {
     id("com.hedera.pbj.spotless-conventions")
     id("com.hedera.pbj.spotless-java-conventions")
     id("com.hedera.pbj.spotless-kotlin-conventions")
+    id("com.hedera.pbj.snykcode")    
     id("com.adarshr.test-logger")
 }
 
