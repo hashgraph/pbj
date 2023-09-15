@@ -1,5 +1,7 @@
 package com.hedera.pbj.runtime.io.buffer;
 
+import static java.nio.ByteOrder.BIG_ENDIAN;
+
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
@@ -13,7 +15,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-import static java.nio.ByteOrder.BIG_ENDIAN;
 
 /**
  * A buffer backed by a {@link ByteBuffer} that is a {@link BufferedSequentialData} (and therefore contains
@@ -209,7 +210,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
         for (int i = 0; i < buffer.limit(); i++) {
             int v = buffer.get(i) & 0xFF;
             sb.append(v);
-            if (i < (buffer.limit()-1)) sb.append(',');
+            if (i < (buffer.limit() - 1)) sb.append(',');
         }
         sb.append(']');
         return sb.toString();
@@ -279,7 +280,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     public void limit(final long limit) {
         final var lim = Math.min(capacity(), Math.max(limit, position()));
-        buffer.limit((int)lim);
+        buffer.limit((int) lim);
     }
 
     /**
@@ -325,7 +326,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
 
     /**
      * Set the limit to current position and position to origin. This is useful when you have just finished writing
-     * into a buffer and want to flip it ready to read back from.
+     * into a buffer and want to flip it ready to read back from, or vice versa.
      */
     @Override
     public void flip() {
@@ -534,9 +535,9 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
         final var len = Math.toIntExact(Math.min(dst.remaining(), remaining()));
         if (len == 0) return 0;
 
-        final int dtsPos = dst.position();
-        dst.put(dtsPos, buffer, Math.toIntExact(position()), len);
-        dst.position(dtsPos + len);
+        final int dstPos = dst.position();
+        dst.put(dstPos, buffer, Math.toIntExact(position()), len);
+        dst.position(dstPos + len);
         position(position() + len);
         return len;
     }
@@ -690,9 +691,10 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     public int readVarInt(final boolean zigZag) {
         if (direct) return ReadableSequentialData.super.readVarInt(zigZag);
 
-        int tempPos = buffer.position() + buffer.arrayOffset();
+        final int arrayOffset = buffer.arrayOffset();
+        int tempPos = buffer.position() + arrayOffset;
         final byte[] buff = buffer.array();
-        int lastPos = buffer.limit() + buffer.arrayOffset();
+        int lastPos = buffer.limit() + arrayOffset;
 
         if (lastPos == tempPos) {
             throw new BufferUnderflowException();
@@ -700,10 +702,10 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
 
         int x;
         if ((x = buff[tempPos++]) >= 0) {
-            buffer.position(tempPos);
+            buffer.position(tempPos - arrayOffset);
             return zigZag ? (x >>> 1) ^ -(x & 1) : x;
         } else if (lastPos - tempPos < 9) {
-            return (int)readVarIntLongSlow(zigZag);
+            return (int) readVarIntLongSlow(zigZag);
         } else if ((x ^= (buff[tempPos++] << 7)) < 0) {
             x ^= (~0 << 7);
         } else if ((x ^= (buff[tempPos++] << 14)) >= 0) {
@@ -720,10 +722,10 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
                     && buff[tempPos++] < 0
                     && buff[tempPos++] < 0
                     && buff[tempPos++] < 0) {
-                return (int)readVarIntLongSlow(zigZag);
+                return (int) readVarIntLongSlow(zigZag);
             }
         }
-        buffer.position(tempPos - buffer.arrayOffset());
+        buffer.position(tempPos - arrayOffset);
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
     }
 
@@ -734,9 +736,10 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     public long readVarLong(boolean zigZag) {
         if (direct) return ReadableSequentialData.super.readVarLong(zigZag);
 
-        int tempPos = buffer.position() + buffer.arrayOffset();
+        final int arrayOffset = buffer.arrayOffset();
+        int tempPos = buffer.position() + arrayOffset;
         final byte[] buff = buffer.array();
-        int lastPos = buffer.limit() + buffer.arrayOffset();
+        int lastPos = buffer.limit() + arrayOffset;
 
         if (lastPos == tempPos) {
             throw new BufferUnderflowException();
@@ -745,7 +748,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
         long x;
         int y;
         if ((y = buff[tempPos++]) >= 0) {
-            buffer.position(tempPos);
+            buffer.position(tempPos - arrayOffset);
             return zigZag ? (y >>> 1) ^ -(y & 1) : y;
         } else if (lastPos - tempPos < 9) {
             return readVarIntLongSlow(zigZag);
@@ -787,7 +790,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
                 }
             }
         }
-        buffer.position(tempPos);
+        buffer.position(tempPos - arrayOffset);
         return zigZag ? (x >>> 1) ^ -(x & 1) : x;
     }
 
@@ -806,7 +809,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      * {@inheritDoc}
      */
     public void writeUnsignedByte(final int b) {
-        buffer.put((byte)b);
+        buffer.put((byte) b);
     }
 
     /**
@@ -939,7 +942,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     public void writeUnsignedInt(final long value) {
         buffer.order(BIG_ENDIAN);
-        buffer.putInt((int)value);
+        buffer.putInt((int) value);
     }
 
     /**
@@ -948,7 +951,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     public void writeUnsignedInt(final long value, @NonNull final ByteOrder byteOrder) {
         buffer.order(byteOrder);
-        buffer.putInt((int)value);
+        buffer.putInt((int) value);
     }
 
     /**

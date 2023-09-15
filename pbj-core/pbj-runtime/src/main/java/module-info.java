@@ -1,10 +1,9 @@
-/**
- * Runtime module of code needed by PBJ generated code at runtime.
- */
+/** Runtime module of code needed by PBJ generated code at runtime. */
 module com.hedera.pbj.runtime {
+    requires transitive org.antlr.antlr4.runtime;
     requires static com.github.spotbugs.annotations;
-    requires org.antlr.antlr4.runtime;
-    requires jdk.unsupported;
+    // requires org.antlr.antlr4.runtime;
+    requires jdk.unsupported; // Lubo
     exports com.hedera.pbj.runtime;
     exports com.hedera.pbj.runtime.test;
     exports com.hedera.pbj.runtime.io;

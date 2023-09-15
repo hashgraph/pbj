@@ -1,20 +1,14 @@
 import me.champeau.gradle.igp.gitRepositories
 
-// Add local maven build directory to plugin repos
 pluginManagement {
-    repositories {
-        maven {
-            url = file("../build/testRepo").toURI()
-            name = "test"
-        }
-        gradlePluginPortal()
-        mavenCentral()
-        mavenLocal()
-    }
+    repositories.gradlePluginPortal()
+    // To use locally built 'pbj-core' (Gradle plugin)
     includeBuild("../pbj-core")
 }
 
 dependencyResolutionManagement {
+    @Suppress("UnstableApiUsage") repositories.mavenCentral()
+    // To use locally built 'pbj-runtime'
     includeBuild("../pbj-core")
 }
 
@@ -22,7 +16,7 @@ dependencyResolutionManagement {
 // See documentation https://melix.github.io/includegit-gradle-plugin/latest/index.html
 
 plugins {
-    id("com.gradle.enterprise").version("3.11.4")
+    id("com.gradle.enterprise").version("3.14.1")
     id("me.champeau.includegit").version("0.1.5")
 }
 

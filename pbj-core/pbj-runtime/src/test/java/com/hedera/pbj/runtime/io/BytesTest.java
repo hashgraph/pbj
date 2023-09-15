@@ -44,7 +44,14 @@ final class BytesTest {
     @Test
     @DisplayName("Empty bytes String is not null")
     void toStringWorks() {
-        assertEquals("Bytes[]", Bytes.EMPTY.toString());
+        assertEquals("", Bytes.EMPTY.toString());
+    }
+
+    @Test
+    @DisplayName("Non bytes String is not null")
+    void toStringWorks1() {
+        String s = new String("This is my String!");
+        assertEquals("54686973206973206d7920537472696e6721", Bytes.wrap(s).toString());
     }
 
     // ================================================================================================================
@@ -672,9 +679,22 @@ final class BytesTest {
     @DisplayName("getBytes() using ReadOnlyByteBuffer")
     void getBytesReadOnlyByteBuffer() {
         Bytes b1 = Bytes.wrap(new byte[]{0, 1, 2, 3});
-        RandomAccessData rsd = (RandomAccessData)b1.toReadableSequentialData();
+        RandomAccessData rsd = (RandomAccessData) b1.toReadableSequentialData();
         byte[] readBytes = new byte[4];
         rsd.getBytes(0, readBytes);
         assertArrayEquals(b1.toByteArray(), readBytes);
+    }
+
+    @Test
+    @DisplayName("Changed toString")
+    void changedToString() {
+        Bytes b1 = Bytes.wrap(new byte[]{0, 0, (byte)0xFF});
+        assertEquals("0000ff", b1.toString());
+    }
+    @Test
+    @DisplayName("Changed toString2")
+    void changedToString2() {
+        Bytes b1 = Bytes.wrap(new byte[]{(byte)0x0f, 0, (byte)0x0a});
+        assertEquals("0f000a", b1.toString());
     }
 }

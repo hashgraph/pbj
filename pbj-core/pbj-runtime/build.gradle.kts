@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,36 +14,14 @@
  * limitations under the License.
  */
 
-plugins {
-    id("java-library")
-    id("com.hedera.pbj.conventions")
-    id("com.hedera.pbj.maven-publish")
-    // protobuf plugin is only used for tests
-    id("com.google.protobuf").version("0.9.1")
-    id("antlr")
-}
+plugins { id("com.hedera.pbj.runtime") }
 
-dependencies {
-    compileOnly(libs.spotbugs.annotations)
-    testImplementation(testLibs.bundles.protobuf)
-    testImplementation(testLibs.bundles.testing)
-    testImplementation(libs.spotbugs.annotations)
-    testRuntimeOnly(testLibs.junit.jupiter.engine)
-    antlr(libs.bundles.antlr)
-}
-
-tasks.generateGrammarSource {
-    arguments = arguments + listOf("-package", "com.hedera.pbj.runtime.jsonparser")
-}
-
-tasks.getByName<Test>("test") {
-    useJUnitPlatform()
-}
-
-protobuf {
-    // Configure the protoc executable
-    protoc {
-        // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.21.10"
-    }
+testModuleInfo {
+    requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
+    requires("org.assertj.core")
+    requires("org.mockito")
+    requires("com.google.protobuf")
+    runtimeOnly("org.mockito.inline")
+    requiresStatic("com.github.spotbugs.annotations")
 }
