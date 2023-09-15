@@ -327,6 +327,37 @@ public final class TestGenerator implements Generator {
 					final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(JsonTools.parseJson(charBuffer), false);
 					assertEquals(modelObj, jsonReadPbj);
 				}
+				// Very slow for now. Too much garbage generated to enable in general case.
+//					// Test hashCode and equals()
+//					Stream<NoToStringWrapper<$modelClassName>> objects = createModelTestArguments();
+//					Object[] objArray = objects.toArray();
+//					for (int i = 0; i < objArray.length; i++) {
+//						for (int j = i; j < objArray.length; j++) {
+//							if (objArray[i].hashCode() != objArray[i].hashCode()) {
+//								fail("Same object, different hash.");
+//							}
+//							if (objArray[j].hashCode() != objArray[j].hashCode()) {
+//							    fail("Same object, different hash 1.");
+//							}
+//							if (objArray[i].hashCode() == objArray[j].hashCode()) {
+//						        if (!objArray[i].equals(objArray[j])) {
+//						             fail("equalsHash, different objects.");
+//						        }
+//							}
+//						}
+//					}
+//
+//					Map<Object, Object> map = new HashMap<>();
+//					map.put(objArray[0], objArray[0]);
+//					for (int i = 1; i < objArray.length; i++) {
+//						Object o = map.put(objArray[i], objArray[i]);
+//						if (o != null) {
+//							Object existing = map.get(objArray[i]);
+//							assertEquals(existing.hashCode(), objArray[i].hashCode());
+//							assertEquals(existing, objArray[i]);
+//						}
+//					}
+
 				"""
 				.replace("$modelClassName",modelClassName)
 				.replace("$protocModelClass",protoCJavaFullQualifiedClass)

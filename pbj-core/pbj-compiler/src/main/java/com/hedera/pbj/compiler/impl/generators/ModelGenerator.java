@@ -260,6 +260,7 @@ public final class ModelGenerator implements Generator {
 		}
 
 		// Add here hashCode() for object with a single int field.
+		boolean hashCodeGenerated = true;
 		if (fields.size() == 1) {
 			FieldType fieldType = fields.get(0).type();
 			switch (fieldType) {
@@ -288,11 +289,121 @@ public final class ModelGenerator implements Generator {
 							.replace("$fieldName", fields.get(0).name())
 							.replaceAll("\n","\n"+FIELD_INDENT);
 				}
+				case FLOAT, DOUBLE -> {
+					bodyContent += FIELD_INDENT + """
+							/**
+							 * Override the default hashCode method for
+							 * single field float and double objects.
+							 */
+							@Override
+							public int hashCode() {
+								// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+								double x = $fieldName;
+								x += x << 30;
+								x ^= x >>> 27;
+								x += x << 16;
+								x ^= x >>> 20;
+								x += x << 5;
+								x ^= x >>> 18;
+								x += x << 10;
+								x ^= x >>> 24;
+								x += x << 30;
+								return (int)x;
+							}"""
+							.replace("$fieldName", fields.get(0).name())
+							.replaceAll("\n", "\n" + FIELD_INDENT);
+				}
+				case STRING -> {
+					bodyContent += FIELD_INDENT + """
+							/**
+							 * Override the default hashCode method for
+							 * single field String objects.
+							 */
+							@Override
+							public int hashCode() {
+								// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+								long x = $fieldName.hashCode();
+								x += x << 30;
+								x ^= x >>> 27;
+								x += x << 16;
+								x ^= x >>> 20;
+								x += x << 5;
+								x ^= x >>> 18;
+								x += x << 10;
+								x ^= x >>> 24;
+								x += x << 30;
+								return (int)x;
+							}"""
+							.replace("$fieldName", fields.get(0).name())
+							.replaceAll("\n", "\n" + FIELD_INDENT);
+				}
 				default -> {
-					// Do nothing.
+					hashCodeGenerated = false;
 				}
 			}
+		} else {
+			hashCodeGenerated = false;
 		}
+
+		String statements = "";
+		if (!hashCodeGenerated) {
+			// Generate a call to private method that iterates through fields
+			// and calculates the hashcode.
+			statements = Common.getFieldsHashCode(fields, statements);
+
+			bodyContent += """
+						/**
+						     * Override the default hashCode method for
+						     * all other objects to make hashCode 
+						     */
+						    @Override
+						    public int hashCode() {
+							    int result = 1;
+							    """;
+
+			bodyContent += statements.toString();
+
+			bodyContent += """
+						    long hashCode = result;
+						    hashCode += hashCode << 30;
+						    hashCode ^= hashCode >>> 27;
+						    hashCode += hashCode << 16;
+						    hashCode ^= hashCode >>> 20;
+						    hashCode += hashCode << 5;
+						    hashCode ^= hashCode >>> 18;
+						    hashCode += hashCode << 10;
+						    hashCode ^= hashCode >>> 24;
+						    hashCode += hashCode << 30;
+						    return (int)hashCode;
+					    }
+					""";
+			bodyContent.replaceAll("\n", "\n" + FIELD_INDENT);
+		}
+
+		String equalsStatements = new String();
+		// Generate a call to private method that iterates through fields
+		// and calculates the hashcode.
+		equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
+
+		bodyContent += FIELD_INDENT + """
+         /**
+						 * Override the default equals method for
+						 */
+						@Override
+						public boolean equals(Object that) {
+							if (that == null || this.getClass() != that.getClass()) {
+								return false; 
+							}
+
+							$javaRecordName thatObj = ($javaRecordName)that;
+
+							""".replace("$javaRecordName", javaRecordName);
+
+		bodyContent += FIELD_INDENT + FIELD_INDENT + equalsStatements.toString();;
+		bodyContent += """
+                        return true;
+					    }
+					""";
 
 		// Has methods
 		bodyContent += String.join("\n", hasMethods).replaceAll("\n","\n"+FIELD_INDENT);
