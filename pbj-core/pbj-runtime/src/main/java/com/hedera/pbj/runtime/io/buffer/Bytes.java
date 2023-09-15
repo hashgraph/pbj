@@ -178,7 +178,9 @@ public final class Bytes implements RandomAccessData {
         return buffer;
     }
 
-    /** Gets the start of this {@link Bytes} objec.
+    /**
+     * Gets the start of this {@link Bytes} object.
+     *
      * @return the start offset in the data.
      */
     int start() {
