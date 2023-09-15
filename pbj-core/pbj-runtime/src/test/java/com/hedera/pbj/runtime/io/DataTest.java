@@ -81,11 +81,6 @@ final class DataTest {
     static Stream<Long> unsignedIntsTestCases() {
         return Stream.of(0,1,9,51,127,Integer.MAX_VALUE*2L).map(Number::longValue);
     }
-
-    static Stream<Integer> unsignedIntsTestCasesInts() {
-        return Stream.of(0,1,9,51,127,(int)Integer.MAX_VALUE*2L).map(Number::intValue);
-    }
-
     @ParameterizedTest
     @MethodSource("unsignedIntsTestCases")
     void unsignedIntTest(Long value) throws IOException {
