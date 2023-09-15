@@ -298,10 +298,14 @@ class CodecParseMethodGenerator {
 						// to read the subObject.
 						// If the buffer is truncated on the boundary of a subObject,
 						// we will not throw.
-						if ((input.position() + messageLength) > limitBefore)
+						final var startPos = input.position();
+						if ((startPos + messageLength) > limitBefore)
 						    throw new BufferOverflowException();
-						input.limit(input.position() + messageLength);
+						input.limit(startPos + messageLength);
 						final var value = $readMethod;
+						// Make sure we read the full number of bytes.] for the types
+						if ((startPos + messageLength) != input.position())
+						    throw new BufferOverflowException();
 						input.limit(limitBefore);"""
                     .replace("$readMethod", readMethod(field))
                     .indent(DEFAULT_INDENT)
