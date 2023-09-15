@@ -20,7 +20,8 @@ public interface BufferedSequentialData extends SequentialData, RandomAccessData
 
     /**
      * Set the {@link #limit()} to the current {@link #position()} and the {@link #position()} to the origin. This is
-     * useful when you have just finished writing into a buffer and want to flip it to be ready to read back from.
+     * useful when you have just finished writing into a buffer and want to flip it to be ready to read back from, or
+     * vice versa.
      */
     void flip();
 

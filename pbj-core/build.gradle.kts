@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,5 @@
  */
 
 plugins {
-    id("com.hedera.pbj.aggregate-reports")
-    id("com.hedera.pbj.spotless-conventions")
-    id("com.hedera.pbj.spotless-kotlin-conventions")
-    `maven-publish`
-}
-
-repositories {
-    mavenCentral()
-    mavenLocal()
+    id("com.hedera.pbj.root")
 }

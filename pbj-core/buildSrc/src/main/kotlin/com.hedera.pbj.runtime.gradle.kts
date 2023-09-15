@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,22 @@
  * limitations under the License.
  */
 
-package com.hedera.pbj.compiler;
-
-import org.gradle.api.file.SourceDirectorySet;
-
-/** Set of source directories as input to PBJ full of .proto files */
-public interface PbjSourceDirectorySet extends SourceDirectorySet {
-
-    /** Name of the source set extension contributed by the PBJ plugin. */
-    String NAME = "pbj";
+plugins {
+    id("java-library")
+    id("com.hedera.pbj.conventions")
+    id("com.google.protobuf") // protobuf plugin is only used for tests
 }
+
+tasks.generateGrammarSource {
+    arguments = arguments + listOf("-package", "com.hedera.pbj.runtime.jsonparser")
+}
+
+protobuf {
+    // Configure the protoc executable
+    protoc {
+        // Download from repositories
+        artifact = "com.google.protobuf:protoc:3.21.10"
+    }
+}
+
+publishing { publications.create<MavenPublication>("maven") { from(components["java"]) } }

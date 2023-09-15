@@ -1,5 +1,7 @@
 package com.hedera.pbj.runtime.io.buffer;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.ReadableTestBase;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
@@ -8,7 +10,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 final class BufferedDataTest {
     // FUTURE Test that "view" shows the updated data when it is changed on the fly
@@ -17,14 +20,78 @@ final class BufferedDataTest {
     @Test
     @DisplayName("toString() is safe")
     void toStringIsSafe() {
-        final var buf = BufferedData.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
+        final var buf = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
         buf.skip(5);
         buf.limit(10);
 
+        @SuppressWarnings("unused")
         final var ignored = buf.toString();
 
         assertEquals(5, buf.position());
         assertEquals(10, buf.limit());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 4, 7, 8, 15, 16, 31, 32, 33, 127, 128, 512, 1000, 1024, 4000,
+                16384, 65535, 65536, 65537, 0xFFFFFF, 0x1000000, 0x1000001, 0x7FFFFFFF,
+                -1, -7, -8, -9, -127, -128, -129, -65535, -65536, -0xFFFFFF, -0x1000000, -0x1000001, -0x80000000})
+    @DisplayName("readVarInt() works with views")
+    void sliceThenReadVarInt(final int num) {
+        final var buf = BufferedData.allocate(100);
+        buf.writeVarInt(num, false);
+        final long afterFirstIntPos = buf.position();
+        buf.writeVarInt(num + 1, false);
+        final long afterSecondIntPos = buf.position();
+
+        final var slicedBuf = buf.slice(afterFirstIntPos, afterSecondIntPos - afterFirstIntPos);
+        final int readback = slicedBuf.readVarInt(false);
+        assertEquals(num + 1, readback);
+        assertEquals(afterSecondIntPos - afterFirstIntPos, slicedBuf.position());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1, 7, 8, 9, 127, 128, 129, 1023, 1024, 1025, 65534, 65535, 65536,
+                0xFFFFFFFFL, 0x100000000L, 0x100000001L, 0xFFFFFFFFFFFFL, 0x1000000000000L, 0x1000000000001L,
+                -1, -7, -8, -9, -127, -128, -129, -65534, -65535, -65536, -0xFFFFFFFFL, -0x100000000L, -0x100000001L})
+    @DisplayName("readVarLong() works with views")
+    void sliceThenReadVarLong(final long num) {
+        final var buf = BufferedData.allocate(256);
+        buf.writeVarLong(num, false);
+        final long afterFirstIntPos = buf.position();
+        buf.writeVarLong(num + 1, false);
+        final long afterSecondIntPos = buf.position();
+
+        final var slicedBuf = buf.slice(afterFirstIntPos, afterSecondIntPos - afterFirstIntPos);
+        final long readback = slicedBuf.readVarLong(false);
+        assertEquals(num + 1, readback);
+        assertEquals(afterSecondIntPos - afterFirstIntPos, slicedBuf.position());
+    }
+
+    @Test
+    @DisplayName("readBytes() works with views")
+    void sliceThenReadBytes() {
+        final int SIZE = 100;
+        final var buf = BufferedData.allocate(SIZE);
+        for (int i = 0; i < SIZE; i++) {
+            buf.writeByte((byte) i);
+        }
+
+        final int START = 10;
+        final int LEN = 10;
+        buf.reset();
+        buf.skip(START);
+        final var bytes = buf.readBytes(LEN);
+        assertEquals(START + LEN, buf.position());
+        for (int i = START; i < START + LEN; i++) {
+            assertEquals((byte) i, bytes.getByte(i - START));
+        }
+
+        final var slicedBuf = buf.slice(START, LEN);
+        final var slicedBytes = slicedBuf.readBytes(LEN);
+        assertEquals(LEN, slicedBuf.position());
+        for (int i = 0; i < LEN; i++) {
+            assertEquals((byte) (i + START), slicedBytes.getByte(i));
+        }
     }
 
     @Nested
@@ -39,7 +106,7 @@ final class BufferedDataTest {
         @NonNull
         @Override
         protected ReadableSequentialData fullyUsedSequence() {
-            final var buf = BufferedData.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
+            final var buf = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             buf.skip(10);
             return buf;
         }
@@ -63,7 +130,7 @@ final class BufferedDataTest {
         @NonNull
         @Override
         protected ReadableSequentialData fullyUsedSequence() {
-            final var buf = BufferedData.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var buf = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             buf.skip(10);
             return new RandomAccessSequenceAdapter(buf, 10);
         }
@@ -105,7 +172,7 @@ final class BufferedDataTest {
         @NonNull
         @Override
         protected ReadableSequentialData emptySequence() {
-            final var buf = BufferedData.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var buf = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             buf.position(7);
             return buf.view(0);
         }
@@ -113,7 +180,7 @@ final class BufferedDataTest {
         @NonNull
         @Override
         protected ReadableSequentialData fullyUsedSequence() {
-            final var buf = BufferedData.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var buf = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             buf.position(2);
             final var view = buf.view(5);
             view.skip(5);
@@ -144,7 +211,7 @@ final class BufferedDataTest {
         @NonNull
         @Override
         protected ReadableSequentialData emptySequence() {
-            final var buf = BufferedData.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var buf = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             buf.position(7);
             return new RandomAccessSequenceAdapter(buf.view(0));
         }
@@ -152,7 +219,7 @@ final class BufferedDataTest {
         @NonNull
         @Override
         protected ReadableSequentialData fullyUsedSequence() {
-            final var buf = BufferedData.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var buf = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             buf.position(2);
             final var view = buf.view(5);
             view.skip(5);
@@ -191,7 +258,7 @@ final class BufferedDataTest {
         @NonNull
         @Override
         protected WritableSequentialData eofSequence() {
-            final var buf = BufferedData.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var buf = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             buf.position(7);
             return buf.view(0);
         }
