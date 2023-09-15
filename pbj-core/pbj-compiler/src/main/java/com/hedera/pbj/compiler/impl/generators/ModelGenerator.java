@@ -58,6 +58,8 @@ public final class ModelGenerator implements Generator {
 		imports.add("com.hedera.pbj.runtime.io.stream");
 		imports.add("edu.umd.cs.findbugs.annotations");
 
+		imports.add("java.util");
+
 		// Iterate over all the items in the protobuf schema
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
@@ -260,6 +262,7 @@ public final class ModelGenerator implements Generator {
 		}
 
 		// Add here hashCode() for object with a single int field.
+		boolean hashCodeGenerated = true;
 		if (fields.size() == 1) {
 			FieldType fieldType = fields.get(0).type();
 			switch (fieldType) {
@@ -288,10 +291,164 @@ public final class ModelGenerator implements Generator {
 							.replace("$fieldName", fields.get(0).name())
 							.replaceAll("\n","\n"+FIELD_INDENT);
 				}
+				case FLOAT, DOUBLE -> {
+					bodyContent += FIELD_INDENT + """
+							/**
+							 * Override the default hashCode method for
+							 * single field float and double objects.
+							 */
+							@Override
+							public int hashCode() {
+								// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+								double x = $fieldName;
+								x += x << 30;
+								x ^= x >>> 27;
+								x += x << 16;
+								x ^= x >>> 20;
+								x += x << 5;
+								x ^= x >>> 18;
+								x += x << 10;
+								x ^= x >>> 24;
+								x += x << 30;
+								return (int)x;
+							}"""
+							.replace("$fieldName", fields.get(0).name())
+							.replaceAll("\n", "\n" + FIELD_INDENT);
+				}
+				case STRING -> {
+					bodyContent += FIELD_INDENT + """
+							/**
+							 * Override the default hashCode method for
+							 * single field String objects.
+							 */
+							@Override
+							public int hashCode() {
+								// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+								long x = $fieldName.hashCode();
+								x += x << 30;
+								x ^= x >>> 27;
+								x += x << 16;
+								x ^= x >>> 20;
+								x += x << 5;
+								x ^= x >>> 18;
+								x += x << 10;
+								x ^= x >>> 24;
+								x += x << 30;
+								return (int)x;
+							}"""
+							.replace("$fieldName", fields.get(0).name())
+							.replaceAll("\n", "\n" + FIELD_INDENT);
+				}
 				default -> {
-					// Do nothing.
+					hashCodeGenerated = false;
 				}
 			}
+		}
+
+		if (!hashCodeGenerated) {
+			// Generate a private method that iterates through fields.
+//			List<Field> allFields = new ArrayList<>();
+//			getFieldsForHashCode(msgDef, lookupHelper, allFields, true);
+			// Lubo They should be already sorted by field order. No need to do that!!! List<Field> sortedFields = new ArrayList<>();
+//			sortedFields.addAll(fields);
+//			Collections.sort(sortedFields, new Comparator<Field>() {
+//				@Override
+//				public int compare(Field f1, Field f2) {
+//					return f1.name().compareTo(f2.name());
+//				}
+//			});
+
+			String statements = new String();
+			for (Field f : fields) {
+				if (f.type() == FieldType.MESSAGE && f.parent() == null) {
+					statements += ("""
+							if ($fieldName != DEFAULT.$fieldName) {
+								hashes.add($fieldName.hashCode());
+							}""").replace("$fieldName", f.nameCamelFirstLower());;
+				}
+				else
+					if (f.type() == FieldType.FIXED32 ||
+						 f.type() == FieldType.INT32 ||
+						 f.type() == FieldType.SFIXED32 ||
+						 f.type() == FieldType.SINT32 ||
+						 f.type() == FieldType.UINT32 ||
+						 f.type() == FieldType.FIXED64 ||
+						 f.type() == FieldType.INT64 ||
+						 f.type() == FieldType.SFIXED64 ||
+						 f.type() == FieldType.SINT64 ||
+						 f.type() == FieldType.UINT64 ||
+						 f.type() == FieldType.ENUM ||
+					     f.type() == FieldType.BOOL ||
+						 f.type() == FieldType.FLOAT ||
+					     f.type() == FieldType.DOUBLE ||
+					     f.type() == FieldType.STRING ||
+						 f.type() == FieldType.BYTES) {
+					statements += ("""
+							if ($fieldName  != DEFAULT.$fieldName) {
+							    hashes.add($fieldName);
+				            }
+				            """).replace("$fieldName", f.nameCamelFirstLower());
+				}
+				else {
+					// throw new RuntimeException("Unhandled FieldType.");
+				}
+			}
+
+			bodyContent += """
+						/**
+						 * Override the default hashCode method for
+						 * all other objects to make hashCode 
+						 */
+						@Override
+						public int hashCode() {
+							List<Integer> hashes = new ArrayList<>();
+							""";
+
+			bodyContent += statements.toString();
+
+			bodyContent += """
+					                      long hashCode = hashes.hashCode();
+					                      hashCode += hashCode << 30;
+										  hashCode ^= hashCode >>> 27;
+										  hashCode += hashCode << 16;
+										  hashCode ^= hashCode >>> 20;
+										  hashCode += hashCode << 5;
+										  hashCode ^= hashCode >>> 18;
+										  hashCode += hashCode << 10;
+										  hashCode ^= hashCode >>> 24;
+										  hashCode += hashCode << 30;
+										  return (int)hashCode;
+					}
+					""";
+
+//							for (Field field : fields) { // Lubo FieldType fieldType = fields.get(0).type()
+//								if (field.type() == FieldType.MESSAGE &&
+//									$fieldName() != DEFAULT.$fieldName()) {
+//									hashes.add($fieldName().hashCode());
+//								}
+//							}
+
+							// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+							//long x = $fieldName.hashCode();
+							//x += x << 30;
+							//x ^= x >>> 27;
+							//x += x << 16;
+							//x ^= x >>> 20;
+							//x += x << 5;
+							//x ^= x >>> 18;
+							//x += x << 10;
+							//x ^= x >>> 24;
+							//x += x << 30;
+							// return 0; // Lubo (int)x;
+						// Lubo }"""
+			bodyContent.replaceAll("\n", "\n" + FIELD_INDENT);
+
+
+				// Lubo
+
+
+
+			// Lubo
 		}
 
 		// Has methods

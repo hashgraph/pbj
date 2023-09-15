@@ -3,9 +3,7 @@ package com.hedera.pbj.compiler.impl;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -152,7 +150,7 @@ public final class Common {
 				.replaceAll(" < ", " &lt; ") // escape loose less than
 				.replaceAll(" > ", " &gt; ") // escape loose less than
 				.replaceAll(" & ", " &amp; ") // escape loose less than
-		;
+				;
 	}
 
 	/**
@@ -171,6 +169,46 @@ public final class Common {
 			default -> primitiveFieldType;
 		};
 	}
+
+//	/** Lubo
+//	 * Gets the message fields' values into a {@link List<Object>} collection recursively.
+//	 *
+//	 * @param msgDef The message object.
+//	 * @param values The list where the objects which values needs to be appended.
+//	 */
+//	public static void getFieldsForHashCode(final Protobuf3Parser.MessageDefContext msgDef,
+//										 final ContextualLookupHelper lookupHelper,
+//										 final List<Field> values, final boolean topLevel) {
+//
+//		for(var item: msgDef.messageBody().messageElement()) {
+//			if (item.messageDef() != null) { // process sub messages
+//				getFieldsForHashCode(item.messageDef(), lookupHelper, values, false);
+//			} else if (item.oneof() != null) { // process one ofs
+//				final var javaRecordName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
+//				final var field = new OneOfField(item.oneof(), javaRecordName, lookupHelper);
+//				values.add(field);
+//			} else if (item.field() != null && item.field().fieldName() != null) {
+//				final var field = new SingleField(item.field(), lookupHelper);
+//				values.add(field);
+//			}
+//		}
+//
+//		if (topLevel) {
+//			Collections.sort(values, new Comparator<Field>() {
+//				public int compare(Field f1, Field f2) {
+//					return f1.name().compareTo(f2.name());
+//				}
+//			});
+//		}
+//	Lubo	return switch(primitiveFieldType){
+//			case "boolean" -> "Boolean";
+//			case "int" -> "Integer";
+//			case "long" -> "Long";
+//			case "float" -> "Float";
+//			case "double" -> "Double";
+//			default -> primitiveFieldType;
+//		};
+//	}
 
 	/**
 	 * Remove leading dot from a string so ".a.b.c" becomes "a.b.c"
