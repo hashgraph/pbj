@@ -151,7 +151,7 @@ public final class Common {
 				.replaceAll(" < ", " &lt; ") // escape loose less than
 				.replaceAll(" > ", " &gt; ") // escape loose less than
 				.replaceAll(" & ", " &amp; ") // escape loose less than
-				;
+		;
 	}
 
 	/**

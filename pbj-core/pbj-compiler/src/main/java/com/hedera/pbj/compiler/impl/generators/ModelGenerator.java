@@ -58,8 +58,6 @@ public final class ModelGenerator implements Generator {
 		imports.add("com.hedera.pbj.runtime.io.stream");
 		imports.add("edu.umd.cs.findbugs.annotations");
 
-		imports.add("java.util");
-
 		// Iterate over all the items in the protobuf schema
 		for(var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
@@ -377,35 +375,7 @@ public final class ModelGenerator implements Generator {
 						    return (int)hashCode;
 					    }
 					""";
-
-//							for (Field field : fields) { // Lubo FieldType fieldType = fields.get(0).type()
-//								if (field.type() == FieldType.MESSAGE &&
-//									$fieldName() != DEFAULT.$fieldName()) {
-//									hashes.add($fieldName().hashCode());
-//								}
-//							}
-
-							// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-							//long x = $fieldName.hashCode();
-							//x += x << 30;
-							//x ^= x >>> 27;
-							//x += x << 16;
-							//x ^= x >>> 20;
-							//x += x << 5;
-							//x ^= x >>> 18;
-							//x += x << 10;
-							//x ^= x >>> 24;
-							//x += x << 30;
-							// return 0; // Lubo (int)x;
-						// Lubo }"""
 			bodyContent.replaceAll("\n", "\n" + FIELD_INDENT);
-
-
-				// Lubo
-
-
-
-			// Lubo
 		}
 
 		// Has methods
