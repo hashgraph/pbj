@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package com.hedera.pbj.compiler;
-
-import org.gradle.api.file.SourceDirectorySet;
-
-/** Set of source directories as input to PBJ full of .proto files */
-public interface PbjSourceDirectorySet extends SourceDirectorySet {
-
-    /** Name of the source set extension contributed by the PBJ plugin. */
-    String NAME = "pbj";
+plugins {
+    id("com.hedera.pbj.conventions")
+    id("com.gradle.plugin-publish")
 }
+
+tasks.generateGrammarSource {
+    arguments = arguments + listOf("-package", "com.hedera.pbj.compiler.impl.grammar")
+}
+
+// Do not generate Java Doc for generated antlr grammar
+tasks.withType<Javadoc> { excludes.add("com/hedera/pbj/compiler/impl/grammar/**") }

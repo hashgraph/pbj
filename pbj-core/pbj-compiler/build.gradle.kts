@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,48 +14,29 @@
  * limitations under the License.
  */
 
-plugins {
-    `java-gradle-plugin`
-    id("com.hedera.pbj.conventions")
-    id("com.hedera.pbj.maven-publish")
-    id("com.gradle.plugin-publish").version("1.1.0")
-    id("antlr")
+plugins { id("com.hedera.pbj.gradle-plugin") }
+
+// This project does not have a module-info.java, as Gradle does not support plugins that are
+// Java Modules. For consistency, we still defined dependencies in terms of Module Names here.
+mainModuleInfo {
+    requiresStatic("com.github.spotbugs.annotations")
+    requires("org.antlr.antlr4.runtime")
 }
 
-dependencies {
-    implementation(libs.bundles.jetbrains)
-    testImplementation("org.junit.jupiter:junit-jupiter:5.8.1")
-    antlr(libs.bundles.antlr)
-}
-
-tasks.test {
-    useJUnitPlatform()
-}
-
-tasks.generateGrammarSource {
-    arguments = arguments + listOf("-package", "com.hedera.pbj.compiler.impl.grammar")
-}
+testModuleInfo { requires("org.junit.jupiter.api") }
 
 gradlePlugin {
     plugins {
+        @Suppress("UnstableApiUsage")
         create("compiler") {
             id = "com.hedera.pbj.pbj-compiler"
             group = "com.hedera.pbj"
             implementationClass = "com.hedera.pbj.compiler.PbjCompilerPlugin"
             displayName = "PBJ Compiler"
             description = "The PBJ Protobuf plugin provides protobuf compilation to java records."
+            website = "https://github.com/hashgraph/pbj"
+            vcsUrl = "https://github.com/hashgraph/pbj"
+            tags.set(listOf("protobuf", "compiler", "generator", "runtime"))
         }
     }
-}
-
-pluginBundle {
-    website = "https://github.com/hashgraph/pbj"
-    vcsUrl = "https://github.com/hashgraph/pbj"
-
-    tags = listOf("protobuf", "compiler", "generator", "runtime")
-}
-
-// Do not generate Java Doc for generated antlr grammar
-tasks.withType<Javadoc> {
-    excludes.add("com/hedera/pbj/compiler/impl/grammar/**")
 }
