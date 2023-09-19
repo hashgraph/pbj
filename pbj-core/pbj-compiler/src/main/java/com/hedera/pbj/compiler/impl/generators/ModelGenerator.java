@@ -345,80 +345,37 @@ public final class ModelGenerator implements Generator {
 			}
 		}
 
+		String statements = new String();
 		if (!hashCodeGenerated) {
-			// Generate a private method that iterates through fields.
-//			List<Field> allFields = new ArrayList<>();
-//			getFieldsForHashCode(msgDef, lookupHelper, allFields, true);
-			// Lubo They should be already sorted by field order. No need to do that!!! List<Field> sortedFields = new ArrayList<>();
-//			sortedFields.addAll(fields);
-//			Collections.sort(sortedFields, new Comparator<Field>() {
-//				@Override
-//				public int compare(Field f1, Field f2) {
-//					return f1.name().compareTo(f2.name());
-//				}
-//			});
-
-			String statements = new String();
-			for (Field f : fields) {
-				if (f.type() == FieldType.MESSAGE && f.parent() == null) {
-					statements += ("""
-							if ($fieldName != DEFAULT.$fieldName) {
-								hashes.add($fieldName.hashCode());
-							}""").replace("$fieldName", f.nameCamelFirstLower());;
-				}
-				else
-					if (f.type() == FieldType.FIXED32 ||
-						 f.type() == FieldType.INT32 ||
-						 f.type() == FieldType.SFIXED32 ||
-						 f.type() == FieldType.SINT32 ||
-						 f.type() == FieldType.UINT32 ||
-						 f.type() == FieldType.FIXED64 ||
-						 f.type() == FieldType.INT64 ||
-						 f.type() == FieldType.SFIXED64 ||
-						 f.type() == FieldType.SINT64 ||
-						 f.type() == FieldType.UINT64 ||
-						 f.type() == FieldType.ENUM ||
-					     f.type() == FieldType.BOOL ||
-						 f.type() == FieldType.FLOAT ||
-					     f.type() == FieldType.DOUBLE ||
-					     f.type() == FieldType.STRING ||
-						 f.type() == FieldType.BYTES) {
-					statements += ("""
-							if ($fieldName  != DEFAULT.$fieldName) {
-							    hashes.add($fieldName);
-				            }
-				            """).replace("$fieldName", f.nameCamelFirstLower());
-				}
-				else {
-					// throw new RuntimeException("Unhandled FieldType.");
-				}
-			}
+			// Generate a call to private method that iterates through fields
+			// and calculates the hashcode.
+			statements = Common.getFieldsHashCode(fields, statements);
 
 			bodyContent += """
 						/**
-						 * Override the default hashCode method for
-						 * all other objects to make hashCode 
-						 */
-						@Override
-						public int hashCode() {
-							List<Integer> hashes = new ArrayList<>();
-							""";
+						     * Override the default hashCode method for
+						     * all other objects to make hashCode 
+						     */
+						    @Override
+						    public int hashCode() {
+							    int result = 1;
+							    """;
 
 			bodyContent += statements.toString();
 
 			bodyContent += """
-					                      long hashCode = hashes.hashCode();
-					                      hashCode += hashCode << 30;
-										  hashCode ^= hashCode >>> 27;
-										  hashCode += hashCode << 16;
-										  hashCode ^= hashCode >>> 20;
-										  hashCode += hashCode << 5;
-										  hashCode ^= hashCode >>> 18;
-										  hashCode += hashCode << 10;
-										  hashCode ^= hashCode >>> 24;
-										  hashCode += hashCode << 30;
-										  return (int)hashCode;
-					}
+						    long hashCode = result;
+						    hashCode += hashCode << 30;
+						    hashCode ^= hashCode >>> 27;
+						    hashCode += hashCode << 16;
+						    hashCode ^= hashCode >>> 20;
+						    hashCode += hashCode << 5;
+						    hashCode ^= hashCode >>> 18;
+						    hashCode += hashCode << 10;
+						    hashCode ^= hashCode >>> 24;
+						    hashCode += hashCode << 30;
+						    return (int)hashCode;
+					    }
 					""";
 
 //							for (Field field : fields) { // Lubo FieldType fieldType = fields.get(0).type()
