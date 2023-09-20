@@ -378,6 +378,31 @@ public final class ModelGenerator implements Generator {
 			bodyContent.replaceAll("\n", "\n" + FIELD_INDENT);
 		}
 
+		String equalsStatements = new String();
+		// Generate a call to private method that iterates through fields
+		// and calculates the hashcode.
+		equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
+
+		bodyContent += FIELD_INDENT + """
+         /**
+						 * Override the default equals method for
+						 */
+						@Override
+						public boolean equals(Object that) {
+							if (that == null || this.getClass() != that.getClass()) {
+								return false; 
+							}
+
+							$javaRecordName thatObj = ($javaRecordName)that;
+
+							""".replace("$javaRecordName", javaRecordName);
+
+		bodyContent += FIELD_INDENT + FIELD_INDENT + equalsStatements.toString();;
+		bodyContent += """
+                        return true;
+					    }
+					""";
+
 		// Has methods
 		bodyContent += String.join("\n", hasMethods).replaceAll("\n","\n"+FIELD_INDENT);
 		bodyContent += "\n";

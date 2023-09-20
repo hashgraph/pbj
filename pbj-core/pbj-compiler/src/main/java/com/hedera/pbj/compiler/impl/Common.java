@@ -185,7 +185,7 @@ public final class Common {
 				generatedCodeSoFar += getFieldsHashCode(oneOfField.fields(), generatedCodeSoFar);
 			}
 
-			if(f.optionalValueType()) {
+			if (f.optionalValueType()) {
 				generatedCodeSoFar = getOptionalHashCodeGeneration(generatedCodeSoFar, f);
 			}
 			else if (f.repeated()) {
@@ -344,6 +344,212 @@ public final class Common {
 						       }
 					        }
 					""").replace("$fieldName", f.nameCamelFirstLower());
+		return generatedCodeSoFar;
+	}
+
+	/**
+	 * Recursively calculates the hashcode for a message fields.
+	 *
+	 * @param fields The fields of this object.
+	 * @param generatedCodeSoFar The accumulated hash code so far.
+	 * @return The generated code for getting the hashCode value.
+	 */
+	public static String getFieldsEqualsStatements(final List<Field> fields, String generatedCodeSoFar) {
+		for(Field f : fields) {
+			if (f.parent() != null) {
+				final OneOfField oneOfField = f.parent();
+				generatedCodeSoFar += getFieldsEqualsStatements(oneOfField.fields(), generatedCodeSoFar);
+			}
+
+			if (f.optionalValueType()) {
+				generatedCodeSoFar = getOptionalEqualsGeneration(generatedCodeSoFar, f);
+			}
+			else if (f.repeated()) {
+				generatedCodeSoFar = getRepeatedEqualsGeneration(generatedCodeSoFar, f);
+			}
+			else if (f != null && f.nameCamelFirstLower() != null) {
+				if (f.type() == Field.FieldType.FIXED32 ||
+						f.type() == Field.FieldType.INT32 ||
+						f.type() == Field.FieldType.SFIXED32 ||
+						f.type() == Field.FieldType.SINT32 ||
+						f.type() == Field.FieldType.UINT32) {
+					generatedCodeSoFar += """
+							if ($fieldName != thatObj.$fieldName) {
+								return false;
+							}
+							""".replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.FIXED64 ||
+						f.type() == Field.FieldType.INT64 ||
+						f.type() == Field.FieldType.SFIXED64 ||
+						f.type() == Field.FieldType.SINT64 ||
+						f.type() == Field.FieldType.UINT64) {
+					generatedCodeSoFar += """
+							if ($fieldName != thatObj.$fieldName) {
+								return false;
+							}
+							""".replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.BOOL) {
+					generatedCodeSoFar += """
+							if ($fieldName != thatObj.$fieldName) {
+								return false;
+							}
+							""".replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.DOUBLE) {
+				} else if (f.type() == Field.FieldType.FLOAT) {
+					generatedCodeSoFar += """
+							if ($fieldName != thatObj.$fieldName) {
+								return false;
+							}
+							""".replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.DOUBLE) {
+					generatedCodeSoFar += """
+							if ($fieldName != thatObj.$fieldName) {
+								return false;
+							}
+							""".replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.STRING ||
+						   f.type() == Field.FieldType.BYTES ||
+						   f.type() == Field.FieldType.ENUM ||
+				           f.parent() == null /* Process a sub-message */) {
+					generatedCodeSoFar += ("""
+							if ($fieldName == null && thatObj.$fieldName != null) {
+				                return false;
+				            }
+				            if ($fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+								return false;
+							}
+							""").replace("$fieldName", f.nameCamelFirstLower());
+				}
+				else {
+					throw new RuntimeException("Unexpected field type for getting HashCode - " + f.type().toString());
+				}
+			}
+		}
+		return generatedCodeSoFar;
+	}
+
+	/**
+	 * Get the equals codegen for a optional field.
+	 * @param generatedCodeSoFar The string that the codegen is generated into.
+	 * @param f The field for which to generate the equals code.
+	 * @return Updated codegen string.
+	 */
+	@NotNull
+	private static String getOptionalEqualsGeneration(String generatedCodeSoFar, Field f) {
+		switch (f.messageType()) {
+			case "StringValue":
+				generatedCodeSoFar += (FIELD_INDENT + """
+                if (this.$fieldName == null && thatObj.$fieldName != null) {
+                    return false;
+                }
+                if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+					return false;
+                }
+				""").replace("$fieldName", f.nameCamelFirstLower());
+				break;
+			case "BoolValue":
+				generatedCodeSoFar += (FIELD_INDENT + """
+                if ($fieldName instanceof Object) {
+					if (this.$fieldName == null && thatObj.$fieldName != null) {
+						return false;
+					}
+					if (!$fieldName.equals(thatObj.$fieldName)) {
+						return false;
+					}
+				}
+				else if ($fieldName != thatObj.$fieldName) {
+					return false;
+				}
+				""").replace("$fieldName", f.nameCamelFirstLower());
+				break;
+			case "Int32Value", "UInt32Value": generatedCodeSoFar += (FIELD_INDENT + """
+				if ($fieldName instanceof Object) {
+					if (this.$fieldName == null && thatObj.$fieldName != null) {
+						return false;
+					}
+					if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+						return false;
+					}
+				}
+				else if ($fieldName != thatObj.$fieldName) {
+					return false;
+				}
+				""").replace("$fieldName", f.nameCamelFirstLower());
+				break;
+			case "Int64Value", "UInt64Value": generatedCodeSoFar += (FIELD_INDENT + """
+				if ($fieldName instanceof Object) {
+					if (this.$fieldName == null && thatObj.$fieldName != null) {
+						return false;
+					}
+					if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+						return false;
+					}
+				}
+				else if ($fieldName != thatObj.$fieldName) {
+					return false;
+				}
+				""").replace("$fieldName", f.nameCamelFirstLower());
+				break;
+			case "FloatValue": generatedCodeSoFar += (FIELD_INDENT + """
+				if ($fieldName instanceof Object) {
+					if (this.$fieldName == null && thatObj.$fieldName != null) {
+						return false;
+					}
+					if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+						return false;
+					}
+				}
+				else if ($fieldName != thatObj.$fieldName) {
+					return false;
+				}
+				""").replace("$fieldName", f.nameCamelFirstLower());
+				break;
+			case "DoubleValue": generatedCodeSoFar += (FIELD_INDENT + """
+				if ($fieldName instanceof Object) {
+					if (this.$fieldName == null && thatObj.$fieldName != null) {
+						return false;
+					}
+					if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+						return false;
+					}
+				}
+				else if ($fieldName != thatObj.$fieldName) {
+					return false;
+				}
+				""").replace("$fieldName", f.nameCamelFirstLower());
+				break;
+			case "BytesValue": generatedCodeSoFar += (FIELD_INDENT + """
+                if (this.$fieldName == null && thatObj.$fieldName != null) {
+                    return false;
+                }
+				if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+					return false;
+				}
+				""").replace("$fieldName", f.nameCamelFirstLower());
+				break;
+			default: throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
+		}
+		;
+		return generatedCodeSoFar;
+	}
+
+	/**
+	 * Get the equals codegen for a repeated field.
+	 * @param generatedCodeSoFar The string that the codegen is generated into.
+	 * @param f The field for which to generate the equals code.
+	 * @return Updated codegen string.
+	 */
+	@NotNull
+	private static String getRepeatedEqualsGeneration(String generatedCodeSoFar, Field f) {
+		generatedCodeSoFar += ("""
+			if (this.$fieldName == null && this.$fieldName != null) {
+				return false;
+			}
+
+			if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+				return false;
+			}
+			""").replace("$fieldName", f.nameCamelFirstLower());
 		return generatedCodeSoFar;
 	}
 
