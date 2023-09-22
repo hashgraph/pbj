@@ -82,6 +82,8 @@ jmh {
 //    includes.add("JsonBench")
 //    includes.add("VarIntBench")
 //    includes.add("HashBench")
+//    includes.add("EqualsHashCodeBench");
+
     jmhVersion.set("1.35")
     includeTests.set(true)
 //    jvmArgsAppend.add("-XX:MaxInlineSize=100 -XX:MaxInlineLevel=20")
