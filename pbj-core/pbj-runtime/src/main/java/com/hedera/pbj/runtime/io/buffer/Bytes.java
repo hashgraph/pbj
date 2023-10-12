@@ -332,7 +332,7 @@ public final class Bytes implements RandomAccessData {
     @Override
     @NonNull
     public String toString() {
-        return HexFormat.of().formatHex(buffer, start, length);
+        return HexFormat.of().formatHex(buffer, start, start + length);
     }
 
     /**
