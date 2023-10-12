@@ -225,8 +225,7 @@ public final class ProtoParserTools {
      * Read a Bytes field from data input
      *
      * @param input the input to read from
-     * @return read Bytes object, this can be a copy or a direct reference to inputs data. So it has same life span
-     * of InputData
+     * @return read Bytes object, this will be a copy of the data
      * @throws IOException If there was a problem reading
      */
     public static Bytes readBytes(final ReadableSequentialData input) throws IOException {

@@ -486,6 +486,7 @@ public final class Bytes implements RandomAccessData {
             return Bytes.EMPTY;
         }
 
+        // Our buffer is assumed to be immutable, so we can just return a new Bytes object that wraps the same buffer
         return new Bytes(buffer, Math.toIntExact(start + offset), Math.toIntExact(length));
     }
 

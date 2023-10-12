@@ -142,6 +142,8 @@ public interface RandomAccessData {
      * Get {@code length} bytes starting at the given {@code offset} from this buffer. The returned bytes will
      * be immutable. The returned {@link Bytes} will have exactly {@code length} bytes.
      *
+     * <p>All data returned will always be a copy otherwise the underlying data could be modified.
+     *
      * @param offset The offset into data to begin reading bytes
      * @param length The non-negative length in bytes to read
      * @return new {@link Bytes} containing the read data
