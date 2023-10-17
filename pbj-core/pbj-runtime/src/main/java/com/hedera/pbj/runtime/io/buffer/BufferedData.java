@@ -367,17 +367,16 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
         return len;
     }
 
+    /** {@inheritDoc} */
     @NonNull
     @Override
     public Bytes getBytes(long offset, long length) {
         final var len = Math.toIntExact(length);
-        if (direct) {
-            final var copy = new byte[len];
-            buffer.get(Math.toIntExact(offset), copy, 0, len);
-            return Bytes.wrap(copy);
-        } else {
-            return Bytes.wrap(buffer.array(), Math.toIntExact(buffer.arrayOffset() + offset), len);
-        }
+        if(len < 0) throw new IllegalArgumentException("Length cannot be negative");
+        // It is vital that we always copy here, we can never assume ownership of the underlying buffer
+        final var copy = new byte[len];
+        buffer.get(Math.toIntExact(offset), copy, 0, len);
+        return Bytes.wrap(copy);
     }
 
     /** {@inheritDoc} */
