@@ -100,7 +100,7 @@ public final class Common {
                 .allMatch(c -> Character.isUpperCase(c) || Character.isDigit(c) || c == '_'))
             return name;
         // check if already has underscores, then just capitalize
-        if (name.chars().anyMatch(c -> c == '_')) return name.toUpperCase();
+        if (name.contains("_")) return name.toUpperCase();
         // else convert
         final StringBuilder buf = new StringBuilder();
         for (int i = 0; i < name.length(); i++) {
