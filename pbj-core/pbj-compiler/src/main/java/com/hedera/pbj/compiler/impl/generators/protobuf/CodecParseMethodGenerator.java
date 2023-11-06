@@ -148,7 +148,7 @@ class CodecParseMethodGenerator {
                                             throw new UnknownFieldException(field);
                                         } else {
                                             // We just need to read off the bytes for this field to skip it and move on to the next one.
-                                            skipField(input, wireType);
+                                            skipField(input, ProtoConstants.get(wireType));
                                         }
                                     } else {
                                         throw new IOException("Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
