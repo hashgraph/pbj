@@ -17,33 +17,49 @@
 package com.hedera.pbj.compiler.impl;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+
 import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
+
 import org.jetbrains.annotations.NotNull;
 
-/** Common functions and constants for code generation */
+/**
+ * Common functions and constants for code generation
+ */
 @SuppressWarnings({"DuplicatedCode", "EscapedSpace"})
 public final class Common {
-    /** The indent for fields, default 4 spaces */
+    /**
+     * The indent for fields, default 4 spaces
+     */
     public static final String FIELD_INDENT = " ".repeat(4);
 
-    /** Number of bits used to represent the tag type */
+    /**
+     * Number of bits used to represent the tag type
+     */
     static final int TAG_TYPE_BITS = 3;
 
-    /** Wire format code for var int */
+    /**
+     * Wire format code for var int
+     */
     public static final int TYPE_VARINT = 0;
-    /** Wire format code for fixed 64bit number */
+    /**
+     * Wire format code for fixed 64bit number
+     */
     public static final int TYPE_FIXED64 = 1;
-    /** Wire format code for length delimited, all the complex types */
+    /**
+     * Wire format code for length delimited, all the complex types
+     */
     public static final int TYPE_LENGTH_DELIMITED = 2;
-    /** Wire format code for fixed 32bit number */
+    /**
+     * Wire format code for fixed 32bit number
+     */
     public static final int TYPE_FIXED32 = 5;
 
     /**
      * Makes a tag value given a field number and wire type.
      *
-     * @param wireType the wire type part of tag
+     * @param wireType    the wire type part of tag
      * @param fieldNumber the field number part of tag
      * @return packed encoded tag
      */
@@ -73,7 +89,7 @@ public final class Common {
      * Also handles special case like "HELLO_WORLD" to same output as "hello_world", while
      * "HelloWorld_Two" still becomes "helloWorldTwo".
      *
-     * @param name input name in snake case
+     * @param name       input name in snake case
      * @param firstUpper if true then first char is upper case otherwise it is lower
      * @return out name in camel case
      */
@@ -83,8 +99,8 @@ public final class Common {
                         .map(Common::capitalizeFirstLetter)
                         .collect(Collectors.joining(""));
         return (firstUpper
-                        ? Character.toUpperCase(out.charAt(0))
-                        : Character.toLowerCase(out.charAt(0)))
+                ? Character.toUpperCase(out.charAt(0))
+                : Character.toLowerCase(out.charAt(0)))
                 + out.substring(1);
     }
 
@@ -120,7 +136,7 @@ public final class Common {
      * Build a clean java doc comment for a field
      *
      * @param fieldNumber The field proto number
-     * @param docContext The parsed field comment contact
+     * @param docContext  The parsed field comment contact
      * @return clean comment
      */
     public static String buildCleanFieldJavaDoc(
@@ -135,7 +151,7 @@ public final class Common {
      * Build a clean java doc comment for an oneof field
      *
      * @param fieldNumbers The field proto numbers for all fields in oneof
-     * @param docContext The parsed field comment contact
+     * @param docContext   The parsed field comment contact
      * @return clean comment
      */
     public static String buildCleanFieldJavaDoc(
@@ -145,8 +161,8 @@ public final class Common {
         final String fieldNumComment =
                 "<b>("
                         + fieldNumbers.stream()
-                                .map(Objects::toString)
-                                .collect(Collectors.joining(", "))
+                        .map(Objects::toString)
+                        .collect(Collectors.joining(", "))
                         + ")</b> ";
         return fieldNumComment + cleanedComment;
     }
@@ -167,7 +183,7 @@ public final class Common {
                         .replaceAll(
                                 "/\\*\\*", "") // remove indenting and /** at beginning of comment.
                         .trim() // Remove leading and trailing spaces.
-                );
+        );
     }
 
     /**
@@ -182,7 +198,7 @@ public final class Common {
                 .replaceAll(" < ", " &lt; ") // escape loose less than
                 .replaceAll(" > ", " &gt; ") // escape loose less than
                 .replaceAll(" & ", " &amp; ") // escape loose less than
-        ;
+                ;
     }
 
     /**
@@ -206,7 +222,7 @@ public final class Common {
     /**
      * Recursively calculates the hashcode for a message fields.
      *
-     * @param fields The fields of this object.
+     * @param fields             The fields of this object.
      * @param generatedCodeSoFar The accumulated hash code so far.
      * @return The generated code for getting the hashCode value.
      */
@@ -230,11 +246,11 @@ public final class Common {
                         || f.type() == Field.FieldType.UINT32) {
                     generatedCodeSoFar +=
                             (FIELD_INDENT
-                                            + """
-                                if ($fieldName != DEFAULT.$fieldName) {
-                                        result = 31 * result + Integer.hashCode($fieldName);
-                                    }
-                                """)
+                                    + """
+                                    if ($fieldName != DEFAULT.$fieldName) {
+                                            result = 31 * result + Integer.hashCode($fieldName);
+                                        }
+                                    """)
                                     .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.FIXED64
                         || f.type() == Field.FieldType.INT64
@@ -244,74 +260,74 @@ public final class Common {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                                if ($fieldName != DEFAULT.$fieldName) {
-                                        result = 31 * result + Long.hashCode($fieldName);
-                                    }
-                                """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != DEFAULT.$fieldName) {
+                                            result = 31 * result + Long.hashCode($fieldName);
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.ENUM) {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                                if ($fieldName != DEFAULT.$fieldName) {
-                                        result = 31 * result + $fieldName.hashCode();
-                                    }
-                                """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != DEFAULT.$fieldName) {
+                                            result = 31 * result + $fieldName.hashCode();
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.BOOL) {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                                if ($fieldName != DEFAULT.$fieldName) {
-                                        result = 31 * result + Boolean.hashCode($fieldName);
-                                    }
-                                """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != DEFAULT.$fieldName) {
+                                            result = 31 * result + Boolean.hashCode($fieldName);
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.FLOAT) {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                            if ($fieldName != DEFAULT.$fieldName) {
-                                    result = 31 * result + Float.hashCode($fieldName);
-                                }
-                            """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != DEFAULT.$fieldName) {
+                                            result = 31 * result + Float.hashCode($fieldName);
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.DOUBLE) {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                            if ($fieldName != DEFAULT.$fieldName) {
-                                    result = 31 * result + Double.hashCode($fieldName);
-                                }
-                            """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != DEFAULT.$fieldName) {
+                                            result = 31 * result + Double.hashCode($fieldName);
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.STRING) {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                            if ($fieldName != DEFAULT.$fieldName) {
-                                    result = 31 * result + $fieldName.hashCode();
-                                }
-                            """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != DEFAULT.$fieldName) {
+                                            result = 31 * result + $fieldName.hashCode();
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.BYTES) {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                            if ($fieldName != DEFAULT.$fieldName) {
-                                    result = 31 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
-                                }
-                            """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != DEFAULT.$fieldName) {
+                                            result = 31 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.parent() == null) { // process sub message
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                            if ($fieldName != null && $fieldName != DEFAULT.$fieldName) {
-                                    result = 31 * result + $fieldName.hashCode();
-                                }
-                            """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != null && $fieldName != DEFAULT.$fieldName) {
+                                            result = 31 * result + $fieldName.hashCode();
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else {
                     throw new RuntimeException(
                             "Unexpected field type for getting HashCode - " + f.type().toString());
@@ -325,7 +341,7 @@ public final class Common {
      * Get the hashcode codegen for a optional field.
      *
      * @param generatedCodeSoFar The string that the codegen is generated into.
-     * @param f The field for which to generate the hash code.
+     * @param f                  The field for which to generate the hash code.
      * @return Updated codegen string.
      */
     @NotNull
@@ -338,10 +354,10 @@ public final class Common {
                                     result = 31 * result + $fieldName.hashCode();
                                 }
                             """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            .replace("$fieldName", f.nameCamelFirstLower());
             case "BoolValue" -> generatedCodeSoFar +=
                     (FIELD_INDENT
-                                    + """
+                            + """
                             if ($fieldName != DEFAULT.$fieldName) {
                                     result = 31 * result + Boolean.hashCode($fieldName);
                                 }
@@ -350,43 +366,43 @@ public final class Common {
             case "Int32Value", "UInt32Value" -> generatedCodeSoFar +=
                     FIELD_INDENT
                             + """
-                    if ($fieldName != DEFAULT.$fieldName) {
-                            result = 31 * result + Integer.hashCode($fieldName);
-                        }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            if ($fieldName != DEFAULT.$fieldName) {
+                                    result = 31 * result + Integer.hashCode($fieldName);
+                                }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
             case "Int64Value", "UInt64Value" -> generatedCodeSoFar +=
                     FIELD_INDENT
                             + """
-                    if ($fieldName != DEFAULT.$fieldName) {
-                            result = 31 * result + Long.hashCode($fieldName);
-                        }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            if ($fieldName != DEFAULT.$fieldName) {
+                                    result = 31 * result + Long.hashCode($fieldName);
+                                }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
             case "FloatValue" -> generatedCodeSoFar +=
                     FIELD_INDENT
                             + """
-                    if ($fieldName != DEFAULT.$fieldName) {
-                            result = 31 * result + Float.hashCode($fieldName);
-                        }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            if ($fieldName != DEFAULT.$fieldName) {
+                                    result = 31 * result + Float.hashCode($fieldName);
+                                }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
             case "DoubleValue" -> generatedCodeSoFar +=
                     FIELD_INDENT
                             + """
-                    if ($fieldName != DEFAULT.$fieldName) {
-                            result = 31 * result + Double.hashCode($fieldName);
-                        }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            if ($fieldName != DEFAULT.$fieldName) {
+                                    result = 31 * result + Double.hashCode($fieldName);
+                                }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
             case "BytesValue" -> generatedCodeSoFar +=
                     FIELD_INDENT
                             + """
-                    if ($fieldName != DEFAULT.$fieldName) {
-                            result = 31 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
-                        }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            if ($fieldName != DEFAULT.$fieldName) {
+                                    result = 31 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
+                                }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
             default -> throw new UnsupportedOperationException(
                     "Unhandled optional message type:" + f.messageType());
         }
@@ -397,7 +413,7 @@ public final class Common {
      * Get the hashcode codegen for a repeated field.
      *
      * @param generatedCodeSoFar The string that the codegen is generated into.
-     * @param f The field for which to generate the hash code.
+     * @param f                  The field for which to generate the hash code.
      * @return Updated codegen string.
      */
     @NotNull
@@ -405,26 +421,26 @@ public final class Common {
         generatedCodeSoFar +=
                 FIELD_INDENT
                         + """
-                java.util.List list$$fieldName = $fieldName;
-                for (Object o : list$$fieldName) {
-                    if ($fieldName != DEFAULT.$fieldName) {
-                        if (o != null) {
-                            result = 31 * result;
+                        java.util.List list$$fieldName = $fieldName;
+                        for (Object o : list$$fieldName) {
+                            if ($fieldName != DEFAULT.$fieldName) {
+                                if (o != null) {
+                                    result = 31 * result;
+                                }
+                                else {
+                                    result = 31 * result + o.hashCode();
+                                }
+                            }
                         }
-                        else {
-                            result = 31 * result + o.hashCode();
-                        }
-                    }
-                }
-                """
-                                .replace("$fieldName", f.nameCamelFirstLower());
+                        """
+                        .replace("$fieldName", f.nameCamelFirstLower());
         return generatedCodeSoFar;
     }
 
     /**
      * Recursively calculates the hashcode for a message fields.
      *
-     * @param fields The fields of this object.
+     * @param fields             The fields of this object.
      * @param generatedCodeSoFar The accumulated hash code so far.
      * @return The generated code for getting the hashCode value.
      */
@@ -450,11 +466,11 @@ public final class Common {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                    if ($fieldName != thatObj.$fieldName) {
-                            return false;
-                        }
-                    """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != thatObj.$fieldName) {
+                                            return false;
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.FIXED64
                         || f.type() == Field.FieldType.INT64
                         || f.type() == Field.FieldType.SFIXED64
@@ -463,47 +479,47 @@ public final class Common {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                    if ($fieldName != thatObj.$fieldName) {
-                            return false;
-                        }
-                    """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != thatObj.$fieldName) {
+                                            return false;
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.BOOL) {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                    if ($fieldName != thatObj.$fieldName) {
-                            return false;
-                        }
-                    """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != thatObj.$fieldName) {
+                                            return false;
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.DOUBLE) {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                    if ($fieldName != thatObj.$fieldName) {
-                            return false;
-                        }
-                    """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != thatObj.$fieldName) {
+                                            return false;
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.FLOAT) {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                    if ($fieldName != thatObj.$fieldName) {
-                            return false;
-                        }
-                    """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != thatObj.$fieldName) {
+                                            return false;
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.DOUBLE) {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                    if ($fieldName != thatObj.$fieldName) {
-                            return false;
-                        }
-                    """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName != thatObj.$fieldName) {
+                                            return false;
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.STRING
                         || f.type() == Field.FieldType.BYTES
                         || f.type() == Field.FieldType.ENUM
@@ -511,14 +527,14 @@ public final class Common {
                     generatedCodeSoFar +=
                             FIELD_INDENT
                                     + """
-                    if ($fieldName == null && thatObj.$fieldName != null) {
-                            return false;
-                        }
-                        if ($fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
-                            return false;
-                        }
-                    """
-                                            .replace("$fieldName", f.nameCamelFirstLower());
+                                    if ($fieldName == null && thatObj.$fieldName != null) {
+                                            return false;
+                                        }
+                                        if ($fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+                                            return false;
+                                        }
+                                    """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else {
                     throw new RuntimeException(
                             "Unexpected field type for getting HashCode - " + f.type().toString());
@@ -532,7 +548,7 @@ public final class Common {
      * Get the equals codegen for a optional field.
      *
      * @param generatedCodeSoFar The string that the codegen is generated into.
-     * @param f The field for which to generate the equals code.
+     * @param f                  The field for which to generate the equals code.
      * @return Updated codegen string.
      */
     @NotNull
@@ -541,50 +557,66 @@ public final class Common {
             case "StringValue" -> generatedCodeSoFar +=
                     FIELD_INDENT
                             + """
-                    if (this.$fieldName == null && thatObj.$fieldName != null) {
-                    	return false;
-                    }
-                    if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
-                    	return false;
-                    }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            if (this.$fieldName == null && thatObj.$fieldName != null) {
+                            	return false;
+                            }
+                            if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+                            	return false;
+                            }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
             case "BoolValue" -> generatedCodeSoFar +=
                     FIELD_INDENT
                             + """
-                    if ($fieldName instanceof Object) {
-                    if (this.$fieldName == null && thatObj.$fieldName != null) {
-                    	return false;
-                    }
-                    if (!$fieldName.equals(thatObj.$fieldName)) {
-                    	return false;
-                    }
-                    }
-                    else if ($fieldName != thatObj.$fieldName) {
-                    	return false;
-                    }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            if ($fieldName instanceof Object) {
+                            if (this.$fieldName == null && thatObj.$fieldName != null) {
+                            	return false;
+                            }
+                            if (!$fieldName.equals(thatObj.$fieldName)) {
+                            	return false;
+                            }
+                            }
+                            else if ($fieldName != thatObj.$fieldName) {
+                            	return false;
+                            }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
             case "Int32Value", "UInt32Value", "Int64Value", "UInt64Value" -> generatedCodeSoFar +=
                     FIELD_INDENT
                             + """
-                    if ($fieldName instanceof Object) {
-                    	if (this.$fieldName == null && thatObj.$fieldName != null) {
-                    		return false;
-                    	}
-                    	if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
-                    		return false;
-                    	}
-                    }
-                    else if ($fieldName != thatObj.$fieldName) {
-                    	return false;
-                    }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            if ($fieldName instanceof Object) {
+                            	if (this.$fieldName == null && thatObj.$fieldName != null) {
+                            		return false;
+                            	}
+                            	if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+                            		return false;
+                            	}
+                            }
+                            else if ($fieldName != thatObj.$fieldName) {
+                            	return false;
+                            }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
             case "FloatValue" -> generatedCodeSoFar +=
                     FIELD_INDENT
                             + """
-                        if ($fieldName instanceof Object) {
+                                if ($fieldName instanceof Object) {
+                                        if (this.$fieldName == null && thatObj.$fieldName != null) {
+                                            return false;
+                                        }
+                                        if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+                                            return false;
+                                        }
+                                    }
+                                    else if ($fieldName != thatObj.$fieldName) {
+                                        return false;
+                                }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
+            case "DoubleValue" -> generatedCodeSoFar +=
+                    FIELD_INDENT
+                            + """
+                            if ($fieldName instanceof Object) {
                                 if (this.$fieldName == null && thatObj.$fieldName != null) {
                                     return false;
                                 }
@@ -594,36 +626,20 @@ public final class Common {
                             }
                             else if ($fieldName != thatObj.$fieldName) {
                                 return false;
-                        }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
-            case "DoubleValue" -> generatedCodeSoFar +=
-                    FIELD_INDENT
-                            + """
-                    if ($fieldName instanceof Object) {
-                        if (this.$fieldName == null && thatObj.$fieldName != null) {
-                            return false;
-                        }
-                        if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
-                            return false;
-                        }
-                    }
-                    else if ($fieldName != thatObj.$fieldName) {
-                        return false;
-                    }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
             case "BytesValue" -> generatedCodeSoFar +=
                     FIELD_INDENT
                             + """
-                    if (this.$fieldName == null && thatObj.$fieldName != null) {
-                        return false;
-                    }
-                    if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
-                        return false;
-                    }
-                    """
-                                    .replace("$fieldName", f.nameCamelFirstLower());
+                            if (this.$fieldName == null && thatObj.$fieldName != null) {
+                                return false;
+                            }
+                            if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+                                return false;
+                            }
+                            """
+                            .replace("$fieldName", f.nameCamelFirstLower());
             default -> throw new UnsupportedOperationException(
                     "Unhandled optional message type:" + f.messageType());
         }
@@ -634,21 +650,21 @@ public final class Common {
      * Get the equals codegen for a repeated field.
      *
      * @param generatedCodeSoFar The string that the codegen is generated into.
-     * @param f The field for which to generate the equals code.
+     * @param f                  The field for which to generate the equals code.
      * @return Updated codegen string.
      */
     @NotNull
     private static String getRepeatedEqualsGeneration(String generatedCodeSoFar, Field f) {
         generatedCodeSoFar +=
                 """
-			if (this.$fieldName == null && this.$fieldName != null) {
-				return false;
-			}
+                        if (this.$fieldName == null && this.$fieldName != null) {
+                        	return false;
+                        }
 
-			if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
-				return false;
-			}
-			"""
+                        if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
+                        	return false;
+                        }
+                        """
                         .replace("$fieldName", f.nameCamelFirstLower());
         return generatedCodeSoFar;
     }
@@ -670,9 +686,9 @@ public final class Common {
      * Get the java file for a src directory, package and classname with optional suffix. All parent
      * directories will also be created.
      *
-     * @param srcDir The src dir root of all java src
+     * @param srcDir      The src dir root of all java src
      * @param javaPackage the java package with '.' deliminators
-     * @param className the camel case class name
+     * @param className   the camel case class name
      * @return File object for java file
      */
     public static File getJavaFile(File srcDir, String javaPackage, String className) {
