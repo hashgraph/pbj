@@ -26,15 +26,44 @@ public final class ProtoWriterTools {
     // ================================================================================================================
     // COMMON METHODS
 
-            /**
-     * Write a protobuf tag to the output
+    /**
+     * Returns wire format to use for the given field based on its type.
+     *
+     * @param field The field
+     * @return The wire format
+     */
+    public static ProtoConstants wireType(final FieldDefinition field) {
+        return switch (field.type()) {
+            case FLOAT -> ProtoConstants.WIRE_TYPE_FIXED_32_BIT;
+            case DOUBLE -> ProtoConstants.WIRE_TYPE_FIXED_64_BIT;
+            case INT32, INT64, SINT32, SINT64, UINT32, UINT64 -> ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
+            case FIXED32, SFIXED32 -> ProtoConstants.WIRE_TYPE_FIXED_32_BIT;
+            case FIXED64, SFIXED64 -> ProtoConstants.WIRE_TYPE_FIXED_64_BIT;
+            case BOOL -> ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
+            case BYTES, MESSAGE, STRING -> ProtoConstants.WIRE_TYPE_DELIMITED;
+            case ENUM -> ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
+        };
+    }
+
+    /**
+     * Write a protobuf tag to the output. Field wire format is calculated based on field type.
+     *
+     * @param out The data output to write to
+     * @param field The field to write the tag for
+     */
+    public static void writeTag(final WritableSequentialData out, final FieldDefinition field) {
+        writeTag(out, field, wireType(field));
+    }
+
+    /**
+     * Write a protobuf tag to the output.
      *
      * @param out The data output to write to
      * @param field The field to include in tag
      * @param wireType The field wire type to include in tag
      */
-    private static void writeTag(final WritableSequentialData out, final FieldDefinition field, final int wireType) {
-        out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType, false);
+    public static void writeTag(final WritableSequentialData out, final FieldDefinition field, final ProtoConstants wireType) {
+        out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType.ordinal(), false);
     }
 
     /** Create an unsupported field type exception */
@@ -808,14 +837,25 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Get number of bytes that would be needed to encode a field tag
+     * Get number of bytes that would be needed to encode a field tag. Field wire type is
+     * calculated based on field type using {@link #wireType(FieldDefinition)} method.
+     *
+     * @param field The field part of tag
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfTag(final FieldDefinition field) {
+        return sizeOfTag(field, wireType(field));
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a field tag.
      *
      * @param field The field part of tag
      * @param wireType The wire type part of tag
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfTag(final FieldDefinition field, final int wireType) {
-        return sizeOfVarInt32((field.number() << TAG_TYPE_BITS) | wireType);
+    public static int sizeOfTag(final FieldDefinition field, final ProtoConstants wireType) {
+        return sizeOfVarInt32((field.number() << TAG_TYPE_BITS) | wireType.ordinal());
     }
 
     /**
