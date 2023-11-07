@@ -3,6 +3,7 @@ package com.hedera.pbj.compiler.impl.generators;
 import com.hedera.pbj.compiler.impl.*;
 import com.hedera.pbj.compiler.impl.Field.FieldType;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -203,7 +204,7 @@ public final class ModelGenerator implements Generator {
 
 		// process field java doc and insert into record java doc
 		if (!fields.isEmpty()) {
-			String recordJavaDoc = javaDocComment.length() > 0 ?
+			String recordJavaDoc = !javaDocComment.isEmpty() ?
 					javaDocComment.replaceAll("\n\s*\\*/","") :
 					"/**\n * "+javaRecordName;
 			recordJavaDoc += "\n *";
@@ -259,7 +260,6 @@ public final class ModelGenerator implements Generator {
 			).replaceAll("\n","\n"+FIELD_INDENT);
 		}
 
-		// Add here hashCode() for object with a single int field.
 		boolean hashCodeGenerated = true;
 		if (fields.size() == 1) {
 			FieldType fieldType = fields.get(0).type();
@@ -354,14 +354,14 @@ public final class ModelGenerator implements Generator {
 			bodyContent += """
 						/**
 						     * Override the default hashCode method for
-						     * all other objects to make hashCode 
+						     * all other objects to make hashCode
 						     */
 						    @Override
 						    public int hashCode() {
 							    int result = 1;
 							    """;
 
-			bodyContent += statements.toString();
+			bodyContent += statements;
 
 			bodyContent += """
 						    long hashCode = result;
@@ -377,10 +377,10 @@ public final class ModelGenerator implements Generator {
 						    return (int)hashCode;
 					    }
 					""";
-			bodyContent.replaceAll("\n", "\n" + FIELD_INDENT);
+			bodyContent = bodyContent.replaceAll("\n", "\n" + FIELD_INDENT);
 		}
 
-		String equalsStatements = new String();
+		String equalsStatements = "";
 		// Generate a call to private method that iterates through fields
 		// and calculates the hashcode.
 		equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
@@ -392,14 +392,14 @@ public final class ModelGenerator implements Generator {
 						@Override
 						public boolean equals(Object that) {
 							if (that == null || this.getClass() != that.getClass()) {
-								return false; 
+								return false;
 							}
 
 							$javaRecordName thatObj = ($javaRecordName)that;
 
 							""".replace("$javaRecordName", javaRecordName);
 
-		bodyContent += FIELD_INDENT + FIELD_INDENT + equalsStatements.toString();;
+		bodyContent += FIELD_INDENT + FIELD_INDENT + equalsStatements;
 		bodyContent += """
                         return true;
 					    }

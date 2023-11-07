@@ -4,7 +4,7 @@ import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
-import org.jetbrains.annotations.NotNull;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.util.Comparator;
 import java.util.List;
@@ -97,7 +97,7 @@ final class JsonCodecWriteMethodGenerator {
         }
     }
 
-    @NotNull
+    @NonNull
     private static String generateBasicFieldLines(Field field, String getValueCode, String fieldDef, String fieldName) {
         if(field.optionalValueType()) {
             return switch (field.messageType()) {

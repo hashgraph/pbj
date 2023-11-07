@@ -1,10 +1,12 @@
 package com.hedera.pbj.compiler.impl;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import org.jetbrains.annotations.NotNull;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.io.File;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -46,7 +48,7 @@ public final class Common {
 	 * @return name with first character converted to upper case
 	 */
 	public static String capitalizeFirstLetter(String name) {
-		if (name.length() > 0) {
+		if (!name.isEmpty()) {
 			if (name.chars().allMatch(Character::isUpperCase)) {
 				return Character.toUpperCase(name.charAt(0)) + name.substring(1).toLowerCase();
 			} else {
@@ -191,7 +193,7 @@ public final class Common {
 			else if (f.repeated()) {
 				generatedCodeSoFar = getRepeatedHashCodeGeneration(generatedCodeSoFar, f);
 			}
-			else if (f != null && f.nameCamelFirstLower() != null) {
+			else if (f.nameCamelFirstLower() != null) {
 				if (f.type() == Field.FieldType.FIXED32 ||
 						f.type() == Field.FieldType.INT32 ||
 						f.type() == Field.FieldType.SFIXED32 ||
@@ -270,7 +272,7 @@ public final class Common {
 	 * @param f The field for which to generate the hash code.
 	 * @return Updated codegen string.
 	 */
-	@NotNull
+	@NonNull
 	private static String getOptionalHashCodeGeneration(String generatedCodeSoFar, Field f) {
 		switch (f.messageType()) {
 			case "StringValue" -> generatedCodeSoFar += (FIELD_INDENT + """
@@ -319,7 +321,7 @@ public final class Common {
 	 * @param f The field for which to generate the hash code.
 	 * @return Updated codegen string.
 	 */
-	@NotNull
+	@NonNull
 	private static String getRepeatedHashCodeGeneration(String generatedCodeSoFar, Field f) {
 		generatedCodeSoFar += (FIELD_INDENT + """
 				     java.util.List list$$fieldName = $fieldName;
@@ -357,7 +359,7 @@ public final class Common {
 			else if (f.repeated()) {
 				generatedCodeSoFar = getRepeatedEqualsGeneration(generatedCodeSoFar, f);
 			}
-			else if (f != null && f.nameCamelFirstLower() != null) {
+			else if (f.nameCamelFirstLower() != null) {
 				if (f.type() == Field.FieldType.FIXED32 ||
 						f.type() == Field.FieldType.INT32 ||
 						f.type() == Field.FieldType.SFIXED32 ||
@@ -424,7 +426,7 @@ public final class Common {
 	 * @param f The field for which to generate the equals code.
 	 * @return Updated codegen string.
 	 */
-	@NotNull
+	@NonNull
 	private static String getOptionalEqualsGeneration(String generatedCodeSoFar, Field f) {
 		switch (f.messageType()) {
 			case "StringValue":
@@ -529,7 +531,7 @@ public final class Common {
 	 * @param f The field for which to generate the equals code.
 	 * @return Updated codegen string.
 	 */
-	@NotNull
+	@NonNull
 	private static String getRepeatedEqualsGeneration(String generatedCodeSoFar, Field f) {
 		generatedCodeSoFar += ("""
 			if (this.$fieldName == null && this.$fieldName != null) {
@@ -550,7 +552,7 @@ public final class Common {
 	 * @return  text without a leading dot
 	 */
 	public static String removingLeadingDot(String text) {
-		if (text.length() > 0 & text.charAt(0) == '.') {
+		if (!text.isEmpty() & text.charAt(0) == '.') {
 			return text.substring(1);
 		}
 		return text;
