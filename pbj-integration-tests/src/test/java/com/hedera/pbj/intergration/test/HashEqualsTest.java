@@ -1,13 +1,15 @@
 package com.hedera.pbj.intergration.test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+
 import org.junit.jupiter.api.Test;
 
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
 import com.hedera.pbj.test.proto.pbj.TimestampTest2;
 
-import static org.junit.jupiter.api.Assertions.*;
-
-class HasjhEqualsTest {
+class HashEqualsTest {
     @Test
     void differentObjectsWithDefaulEquals() {
         TimestampTest tst = new TimestampTest(1, 2);

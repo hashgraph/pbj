@@ -7,7 +7,7 @@ import com.hedera.pbj.compiler.impl.OneOfField;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.hedera.pbj.compiler.impl.Common.FIELD_INDENT;
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 import static com.hedera.pbj.compiler.impl.generators.json.JsonCodecGenerator.toJsonFieldName;
 
 /**
@@ -79,7 +79,7 @@ class JsonCodecParseMethodGenerator {
                 field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
         .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
         .replace("$caseStatements",generateCaseStatements(fields))
-        .replaceAll("\n", "\n" + FIELD_INDENT);
+        .indent(DEFAULT_INDENT);
     }
 
     /**
@@ -96,8 +96,8 @@ class JsonCodecParseMethodGenerator {
                 for(final Field subField: oneOfField.fields()) {
                     sb.append("case \"" + toJsonFieldName(subField.name()) +"\" /* [" + subField.fieldNumber() + "] */ " +
                             "-> temp_" + oneOfField.name()+" = new OneOf<>(\n"+
-                            FIELD_INDENT + oneOfField.getEnumClassRef()+"."+Common.camelToUpperSnake(subField.name())+
-                            ", \n" +FIELD_INDENT);
+                            oneOfField.getEnumClassRef().indent(DEFAULT_INDENT) +"."+Common.camelToUpperSnake(subField.name())+
+                            ", \n".indent(DEFAULT_INDENT));
                     generateFieldCaseStatement(sb,subField);
                     sb.append(");\n");
                 }
@@ -108,7 +108,7 @@ class JsonCodecParseMethodGenerator {
                 sb.append(";\n");
             }
         }
-        return sb.toString().replaceAll("\n","\n" + FIELD_INDENT.repeat(3));
+        return sb.toString().indent(DEFAULT_INDENT * 3);
     }
 
     /**

@@ -22,6 +22,20 @@ import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
 @SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace", "RedundantLabeledSwitchRuleCodeBlock"})
 public final class ModelGenerator implements Generator {
 
+	private static final String HASH_CODE_MANIPULATION =
+		"""
+		// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+		hashCode += hashCode << 30;
+		hashCode ^= hashCode >>> 27;
+		hashCode += hashCode << 16;
+		hashCode ^= hashCode >>> 20;
+		hashCode += hashCode << 5;
+		hashCode ^= hashCode >>> 18;
+		hashCode += hashCode << 10;
+		hashCode ^= hashCode >>> 24;
+		hashCode += hashCode << 30;
+		""".indent(DEFAULT_INDENT);
+
 	/**
 	 * {@inheritDoc}
 	 *
@@ -123,8 +137,8 @@ public final class ModelGenerator implements Generator {
 							.replace("$oneOfField",oneOfField.nameCamelFirstLower())
 							.replace("$enumName",enumName)
 							.replace("$enumValue",camelToUpperSnake(field.name()))
-							.replace("$enumValue",camelToUpperSnake(field.name()))
-							.replaceAll("\n","\n" + FIELD_INDENT));
+							.indent(DEFAULT_INDENT)
+					);
 					if (field.type() == Field.FieldType.MESSAGE) {
 						field.addAllNeededImports(imports, true, false, false);
 					}
@@ -133,7 +147,8 @@ public final class ModelGenerator implements Generator {
 									/**
 									 * Enum for the type of "%s" oneof value
 									 */""".formatted(oneOfField.name());
-				final String enumString = createEnum(FIELD_INDENT,enumComment ,"",enumName,maxIndex,enumValues, true);
+				final String enumString = createEnum(enumComment ,"",enumName,maxIndex,enumValues, true)
+						.indent(DEFAULT_INDENT);
 				oneofEnums.add(enumString);
 				fields.add(oneOfField);
 				imports.add("com.hedera.pbj.runtime");
@@ -189,7 +204,9 @@ public final class ModelGenerator implements Generator {
 							"""
 							.replace("$fieldNameUpperFirst", field.nameCamelFirstUpper())
 							.replace("$javaFieldType", field.javaFieldType())
-							.replace("$fieldName", field.nameCamelFirstLower()));
+							.replace("$fieldName", field.nameCamelFirstLower())
+							.indent(DEFAULT_INDENT)
+					);
 				}
 			} else if (item.optionStatement() != null){
 				if ("deprecated".equals(item.optionStatement().optionName().getText())) {
@@ -221,8 +238,9 @@ public final class ModelGenerator implements Generator {
 		String bodyContent = "";
 
 		// static codec and default instance
-		bodyContent += """
-				/** Protobuf codec for reading and writing in protobuf format */
+		bodyContent +=
+       			"""
+    /** Protobuf codec for reading and writing in protobuf format */
 				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
 				/** JSON codec for reading and writing in JSON format */
 				public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
@@ -233,7 +251,7 @@ public final class ModelGenerator implements Generator {
 				.replace("$modelClass",javaRecordName)
 				.replace("$qualifiedCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
 				.replace("$qualifiedJsonCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.JSON_CODEC, msgDef))
-				.replaceAll("\n","\n"+FIELD_INDENT);
+				.indent(DEFAULT_INDENT);
 
 		// constructor
 		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optionalValueType())) {
@@ -246,18 +264,19 @@ public final class ModelGenerator implements Generator {
 					public %s {
 					%s
 					}
-					
-					""".formatted(
-					fields.stream().map(field -> "\n * @param "+field.nameCamelFirstLower()+" "+
-							field.comment()
-							.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()))
-					).collect(Collectors.joining()),
-					javaRecordName,
-					fields.stream()
-							.filter(f -> f instanceof OneOfField)
-							.map(ModelGenerator::generateConstructorCode)
-							.collect(Collectors.joining("\n"))
-			).replaceAll("\n","\n"+FIELD_INDENT);
+					"""
+					.formatted(
+						fields.stream().map(field -> "\n * @param "+field.nameCamelFirstLower()+" "+
+								field.comment()
+								.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()))
+						).collect(Collectors.joining()),
+						javaRecordName,
+						fields.stream()
+								.filter(f -> f instanceof OneOfField)
+								.map(ModelGenerator::generateConstructorCode)
+								.collect(Collectors.joining("\n"))
+					)
+					.indent(DEFAULT_INDENT);
 		}
 
 		boolean hashCodeGenerated = true;
@@ -266,76 +285,57 @@ public final class ModelGenerator implements Generator {
 			switch (fieldType) {
 				case INT32, UINT32, SINT32, FIXED32, SFIXED32,
 						FIXED64, SFIXED64, INT64, UINT64, SINT64 -> {
-					bodyContent += FIELD_INDENT + """
-							/**
-							 * Override the default hashCode method for
-							 * single field int objects.
-							 */
-							@Override
-							public int hashCode() {
-								// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-								long x = $fieldName;
-								x += x << 30;
-								x ^= x >>> 27;
-								x += x << 16;
-								x ^= x >>> 20;
-								x += x << 5;
-								x ^= x >>> 18;
-								x += x << 10;
-								x ^= x >>> 24;
-								x += x << 30;
-								return (int)x;
-							}"""
-							.replace("$fieldName", fields.get(0).name())
-							.replaceAll("\n","\n"+FIELD_INDENT);
+					bodyContent +=
+       					 """
+						 /**
+						  * Override the default hashCode method for
+						  * single field int objects.
+						  */
+						 @Override
+						 public int hashCode() {
+						 	long hashCode = $fieldName;
+						 $hashCodeManipulation
+						 	return (int)hashCode;
+						 }
+						""".replace("$fieldName", fields.get(0).name())
+						   .replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
+						   .indent(DEFAULT_INDENT);
 				}
 				case FLOAT, DOUBLE -> {
-					bodyContent += FIELD_INDENT + """
-							/**
-							 * Override the default hashCode method for
-							 * single field float and double objects.
-							 */
-							@Override
-							public int hashCode() {
-								// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-								double x = $fieldName;
-								x += x << 30;
-								x ^= x >>> 27;
-								x += x << 16;
-								x ^= x >>> 20;
-								x += x << 5;
-								x ^= x >>> 18;
-								x += x << 10;
-								x ^= x >>> 24;
-								x += x << 30;
-								return (int)x;
-							}"""
-							.replace("$fieldName", fields.get(0).name())
-							.replaceAll("\n", "\n" + FIELD_INDENT);
+					bodyContent +=
+       					"""
+						/**
+						 * Override the default hashCode method for
+						 * single field float and double objects.
+						 */
+						@Override
+						public int hashCode() {							
+							double hashCode = $fieldName;
+						$hashCodeManipulation
+							return (int)hashCode;
+						}
+						""".replace("$fieldName", fields.get(0).name())
+						   .replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
+						   .indent(DEFAULT_INDENT);
 				}
 				case STRING -> {
-					bodyContent += FIELD_INDENT + """
-							/**
-							 * Override the default hashCode method for
-							 * single field String objects.
-							 */
-							@Override
-							public int hashCode() {
-								// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-								long x = $fieldName.hashCode();
-								x += x << 30;
-								x ^= x >>> 27;
-								x += x << 16;
-								x ^= x >>> 20;
-								x += x << 5;
-								x ^= x >>> 18;
-								x += x << 10;
-								x ^= x >>> 24;
-								x += x << 30;
-								return (int)x;
-							}"""
-							.replace("$fieldName", fields.get(0).name())
-							.replaceAll("\n", "\n" + FIELD_INDENT);
+					bodyContent +=
+       					"""
+						/**
+						 * Override the default hashCode method for
+						 * single field String objects.
+						 */
+						@Override
+						public int hashCode() {						
+							long hashCode = $fieldName.hashCode();
+						$hashCodeManipulation
+							return (int)hashCode;
+						}
+						"""
+						.replace("$fieldName", fields.get(0).name())
+						.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
+						.indent(DEFAULT_INDENT)
+					;
 				}
 				default -> {
 					hashCodeGenerated = false;
@@ -351,33 +351,27 @@ public final class ModelGenerator implements Generator {
 			// and calculates the hashcode.
 			statements = Common.getFieldsHashCode(fields, statements);
 
-			bodyContent += """
-						/**
-						     * Override the default hashCode method for
-						     * all other objects to make hashCode
-						     */
-						    @Override
-						    public int hashCode() {
-							    int result = 1;
-							    """;
+			bodyContent +=
+      			"""
+				/**
+				 * Override the default hashCode method for
+				 * all other objects to make hashCode
+				 */
+				 @Override
+				 public int hashCode() {
+				 	int result = 1;
+				""".indent(DEFAULT_INDENT);
 
 			bodyContent += statements;
 
-			bodyContent += """
-						    long hashCode = result;
-						    hashCode += hashCode << 30;
-						    hashCode ^= hashCode >>> 27;
-						    hashCode += hashCode << 16;
-						    hashCode ^= hashCode >>> 20;
-						    hashCode += hashCode << 5;
-						    hashCode ^= hashCode >>> 18;
-						    hashCode += hashCode << 10;
-						    hashCode ^= hashCode >>> 24;
-						    hashCode += hashCode << 30;
-						    return (int)hashCode;
-					    }
-					""";
-			bodyContent = bodyContent.replaceAll("\n", "\n" + FIELD_INDENT);
+			bodyContent +=
+           		"""
+					long hashCode = result;
+				$hashCodeManipulation
+					return (int)hashCode;
+				}
+				""".replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
+					.indent(DEFAULT_INDENT);
 		}
 
 		String equalsStatements = "";
@@ -385,28 +379,28 @@ public final class ModelGenerator implements Generator {
 		// and calculates the hashcode.
 		equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
 
-		bodyContent += FIELD_INDENT + """
-         /**
-						 * Override the default equals method for
-						 */
-						@Override
-						public boolean equals(Object that) {
-							if (that == null || this.getClass() != that.getClass()) {
-								return false;
-							}
+		bodyContent +=
+		"""
+		/**
+		* Override the default equals method for
+		*/
+		@Override
+		public boolean equals(Object that) {
+			if (that == null || this.getClass() != that.getClass()) {
+				return false;
+			}
+			$javaRecordName thatObj = ($javaRecordName)that;
+		""".replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
 
-							$javaRecordName thatObj = ($javaRecordName)that;
-
-							""".replace("$javaRecordName", javaRecordName);
-
-		bodyContent += FIELD_INDENT + FIELD_INDENT + equalsStatements;
-		bodyContent += """
-                        return true;
-					    }
-					""";
+		bodyContent += equalsStatements.indent(DEFAULT_INDENT);
+		bodyContent +=
+		"""
+			return true;
+		}	
+		""".indent(DEFAULT_INDENT);
 
 		// Has methods
-		bodyContent += String.join("\n", hasMethods).replaceAll("\n","\n"+FIELD_INDENT);
+		bodyContent += String.join("\n", hasMethods);
 		bodyContent += "\n";
 
 		// oneof getters
@@ -414,40 +408,41 @@ public final class ModelGenerator implements Generator {
 		bodyContent += "\n";
 
 		// builder copy & new builder methods
-		bodyContent += FIELD_INDENT + """
-				/**
-				 * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this
-				 * model object.
-				 *
-				 * @return a pre-populated builder
-				 */
-				public Builder copyBuilder() {
-					return new Builder(%s);
-				}
-				
-				/**
-				 * Return a new builder for building a model object. This is just a shortcut for <code>new Model.Builder()</code>.
-				 *
-				 * @return a new builder
-				 */
-				public static Builder newBuilder() {
-					return new Builder();
-				}
-				
-				"""
-				.formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
-				.replaceAll("\n","\n"+FIELD_INDENT);
+		bodyContent +=
+    		"""
+			/**
+			 * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this
+			 * model object.
+			 *
+			 * @return a pre-populated builder
+			 */
+			public Builder copyBuilder() {
+				return new Builder(%s);
+			}
+			
+			/**
+			 * Return a new builder for building a model object. This is just a shortcut for <code>new Model.Builder()</code>.
+			 *
+			 * @return a new builder
+			 */
+			public static Builder newBuilder() {
+				return new Builder();
+			}
+			"""
+			.formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
+			.indent(DEFAULT_INDENT);
 
 		// generate builder
 		bodyContent += generateBuilder(msgDef, fields, lookupHelper);
-		bodyContent += "\n"+FIELD_INDENT;
+		bodyContent += "\n";
 
 		// oneof enums
 		bodyContent += String.join("\n    ", oneofEnums);
 
 		// === Build file
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
-			javaWriter.write("""
+			javaWriter.write(
+     				"""
 					package $package;
 					$imports
 					import com.hedera.pbj.runtime.Codec;
@@ -455,22 +450,20 @@ public final class ModelGenerator implements Generator {
 					import edu.umd.cs.findbugs.annotations.Nullable;
 					import static java.util.Objects.requireNonNull;
 					
-					$javaDocComment
-					$deprecated
+					$javaDocComment$deprecated
 					public record $javaRecordName(
-						$fields
-					){
-						$bodyContent
-					}
+					$fields){
+					$bodyContent}
 					"""
 					.replace("$package",modelPackage)
 					.replace("$imports",imports.isEmpty() ? "" : imports.stream().collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")))
 					.replace("$javaDocComment",javaDocComment)
-					.replace("$deprecated",deprecated)
+					.replace("$deprecated", deprecated)
 					.replace("$javaRecordName",javaRecordName)
-					.replace("$fields",fields.stream().map(field ->
-							FIELD_INDENT + (field.type() == FieldType.MESSAGE ? "@Nullable " : "") + field.javaFieldType() + " " + field.nameCamelFirstLower()
-					).collect(Collectors.joining(",\n    ")))
+					.replace("$fields", fields.stream().map(field ->
+							(field.type() == FieldType.MESSAGE ? "@Nullable " : "")
+									+ field.javaFieldType() + " " + field.nameCamelFirstLower()
+					).collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT))
 					.replace("$bodyContent",bodyContent)
 			);
 		}
@@ -497,7 +490,7 @@ public final class ModelGenerator implements Generator {
 						 * @return builder to continue building with
 						 */
 						public Builder $fieldName($fieldType $fieldName) {
-							this.$fieldToSet = $prefix $fieldName $postfix;
+							this.$fieldToSet = $prefix$fieldName$postfix;
 							return this;
 						}"""
 				.replace("$fieldDoc",field.comment()
@@ -507,7 +500,8 @@ public final class ModelGenerator implements Generator {
 				.replace("$prefix",prefix)
 				.replace("$postfix",postfix)
 				.replace("$fieldType",field.javaFieldType())
-				.replaceAll("\n","\n"+FIELD_INDENT));
+				.indent(DEFAULT_INDENT)
+		);
 		// add nice method for simple message fields so can just set using un-built builder
 		if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType() && !field.repeated()) {
 			builderMethods.add("""
@@ -529,7 +523,8 @@ public final class ModelGenerator implements Generator {
 					.replace("$prefix",prefix)
 					.replace("$postfix",postfix)
 					.replace("$fieldType",field.javaFieldType())
-					.replaceAll("\n","\n"+FIELD_INDENT));
+					.indent(DEFAULT_INDENT)
+			);
 		}
 
 		// add nice method for message fields with list types for varargs
@@ -553,7 +548,8 @@ public final class ModelGenerator implements Generator {
 					.replace("$fieldType",field.javaFieldType())
 					.replace("$prefix",prefix)
 					.replace("$postfix",postfix)
-					.replaceAll("\n","\n"+FIELD_INDENT));
+					.indent(DEFAULT_INDENT)
+			);
 		}
 	}
 
@@ -588,8 +584,7 @@ public final class ModelGenerator implements Generator {
 				 * $constructorParamDocs
 				 */
 				public Builder($constructorParams) {
-					$constructorCode;
-				}
+			$constructorCode	}
 		
 				/**
 				 * Build a new model record with data set on builder
@@ -600,8 +595,7 @@ public final class ModelGenerator implements Generator {
 					return new $javaRecordName($recordParams);
 				}
 		
-				$builderMethods
-			}"""
+				$builderMethods}"""
 				.replace("$fields", fields.stream().map(field ->
 						"private " + field.javaFieldType() + " " + field.nameCamelFirstLower() +
 								" = " + getDefaultValue(field, msgDef, lookupHelper)
@@ -614,12 +608,12 @@ public final class ModelGenerator implements Generator {
 						field.javaFieldType() + " " + field.nameCamelFirstLower()
 						).collect(Collectors.joining(", ")))
 				.replace("$constructorCode",fields.stream().map(field ->
-						"this." + field.nameCamelFirstLower() + " = " + field.nameCamelFirstLower()
-						).collect(Collectors.joining(";\n"+FIELD_INDENT+FIELD_INDENT)))
+						"this.$name = $name;".replace("$name", field.nameCamelFirstLower())
+						).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2))
 				.replace("$javaRecordName",javaRecordName)
 				.replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
-				.replace("$builderMethods",builderMethods.stream().collect(Collectors.joining("\n\n"+FIELD_INDENT)))
-				.replaceAll("\n","\n"+FIELD_INDENT);
+				.replace("$builderMethods", String.join("\n", builderMethods))
+				.indent(DEFAULT_INDENT);
 	}
 
 	private static String getDefaultValue(Field field, final Protobuf3Parser.MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
@@ -631,7 +625,7 @@ public final class ModelGenerator implements Generator {
 	}
 
 	private static String generateConstructorCode(final Field f) {
-		StringBuilder sb = new StringBuilder(FIELD_INDENT+"""
+		StringBuilder sb = new StringBuilder("""
 									if ($fieldName == null) {
 										throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
 									}""".replace("$fieldName", f.nameCamelFirstLower()));
@@ -652,6 +646,6 @@ public final class ModelGenerator implements Generator {
 				}
 			}
 		}
-		return sb.toString().replaceAll("\n","\n"+FIELD_INDENT);
+		return sb.toString().indent(DEFAULT_INDENT);
 	}
 }

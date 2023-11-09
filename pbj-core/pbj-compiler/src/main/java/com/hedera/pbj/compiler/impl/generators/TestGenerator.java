@@ -1,5 +1,7 @@
 package com.hedera.pbj.compiler.impl.generators;
 
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
+
 import com.hedera.pbj.compiler.impl.*;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 
@@ -94,9 +96,9 @@ public final class TestGenerator implements Generator {
 						modelClassName,
 						testClassName,
 						generateTestMethod(modelClassName, protoCJavaFullQualifiedClass)
-								.replaceAll("\n","\n"+ Common.FIELD_INDENT),
+								.indent(DEFAULT_INDENT),
 						generateModelTestArgumentsMethod(modelClassName, fields)
-								.replaceAll("\n","\n"+ Common.FIELD_INDENT)
+								.indent(DEFAULT_INDENT)
 					)
 			);
 		}
@@ -135,16 +137,16 @@ public final class TestGenerator implements Generator {
 					modelClassName,
 					fields.stream()
 							.map(f -> "final var "+f.nameCamelFirstLower()+"List = "+generateTestData(modelClassName, f, f.optionalValueType(), f.repeated())+";")
-							.collect(Collectors.joining("\n"+ Common.FIELD_INDENT)),
+							.collect(Collectors.joining("\n")).indent(DEFAULT_INDENT),
 					fields.stream()
 							.map(f -> f.nameCamelFirstLower()+"List.size()")
-							.collect(Collectors.joining(",\n"+ Common.FIELD_INDENT+ Common.FIELD_INDENT)),
+							.collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 2),
 					modelClassName,
 					fields.stream().map(field -> "%sList.get(Math.min(i, %sList.size()-1))".formatted(
 								field.nameCamelFirstLower(),
 								field.nameCamelFirstLower()
 						))
-							.collect(Collectors.joining(",\n"+ Common.FIELD_INDENT+ Common.FIELD_INDENT+ Common.FIELD_INDENT+ Common.FIELD_INDENT)),
+							.collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 4),
 					modelClassName,
 					modelClassName
 				);
@@ -157,12 +159,12 @@ public final class TestGenerator implements Generator {
 			return """
 					addNull(%s)"""
 					.formatted(getOptionsForFieldType(convertedFieldType, convertedFieldType.javaType))
-					.replaceAll("\n","\n"+ Common.FIELD_INDENT+ Common.FIELD_INDENT);
+					.indent(DEFAULT_INDENT * 2);
 		} else if (repeated) {
 			final String optionsList = generateTestData(modelClassName, field, field.optionalValueType(), false);
 			return """
 					generateListArguments(%s)""".formatted(optionsList)
-					.replaceAll("\n","\n"+ Common.FIELD_INDENT+ Common.FIELD_INDENT);
+					.indent(DEFAULT_INDENT * 2);
 		} else if(field instanceof final OneOfField oneOf) {
 			final List<String> options = new ArrayList<>();
 			for (var subField: oneOf.fields()) {
@@ -184,7 +186,7 @@ public final class TestGenerator implements Generator {
 										.toList()""".formatted(
 										modelClassName + "." + field.nameCamelFirstUpper(),
 										enumValueName
-								).replaceAll("\n", "\n" + Common.FIELD_INDENT + Common.FIELD_INDENT)
+								).indent(DEFAULT_INDENT * 2)
 						);
 					}
 				} else {
@@ -198,8 +200,8 @@ public final class TestGenerator implements Generator {
 						%s
 					).flatMap(List::stream).toList()""".formatted(
 							modelClassName+"."+field.nameCamelFirstUpper(),
-							options.stream().collect(Collectors.joining(",\n"+ Common.FIELD_INDENT))
-					).replaceAll("\n","\n"+ Common.FIELD_INDENT+ Common.FIELD_INDENT);
+                    String.join(",\n", options).indent(DEFAULT_INDENT)
+					).indent(DEFAULT_INDENT * 2);
 		} else {
 			return getOptionsForFieldType(field.type(), ((SingleField)field).javaFieldTypeForTest());
 		}

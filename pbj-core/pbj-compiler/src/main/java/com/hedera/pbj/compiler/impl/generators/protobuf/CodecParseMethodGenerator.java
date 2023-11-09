@@ -1,5 +1,7 @@
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
+
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.OneOfField;
@@ -88,7 +90,7 @@ class CodecParseMethodGenerator {
                 field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
         .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
         .replace("$caseStatements",generateCaseStatements(fields))
-        .replaceAll("\n", "\n" + Common.FIELD_INDENT);
+        .indent(DEFAULT_INDENT);
     }
 
     static String generateParseInternalMethod(final String modelClassName, final List<Field> fields) {
@@ -170,7 +172,7 @@ class CodecParseMethodGenerator {
                 field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
         .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
         .replace("$caseStatements",generateCaseStatements(fields))
-        .replaceAll("\n", "\n" + Common.FIELD_INDENT);
+        .indent(DEFAULT_INDENT);
     }
 
     /**
@@ -196,7 +198,7 @@ class CodecParseMethodGenerator {
                 generateFieldCaseStatement(sb, field);
             }
         }
-        return sb.toString().replaceAll("\n","\n" + Common.FIELD_INDENT.repeat(3));
+        return sb.toString().indent(DEFAULT_INDENT * 3);
     }
 
     /**
@@ -212,7 +214,6 @@ class CodecParseMethodGenerator {
         final int tag = Common.getTag(wireType, fieldNum);
         sb.append("case " + tag +" /* type=" + wireType + " [" + field.type() + "] packed-repeated " +
                 "field=" + fieldNum + " [" + field.name() + "] */ -> {\n");
-        sb.append(Common.FIELD_INDENT);
         sb.append("""
 				// Read the length of packed repeated field data
 				final var length = input.readVarInt(false);
@@ -224,7 +225,7 @@ class CodecParseMethodGenerator {
 				input.limit(beforeLimit);"""
                 .replace("$tempFieldName", "temp_" + field.name())
                 .replace("$readMethod", readMethod(field))
-                .replaceAll("\n","\n" + Common.FIELD_INDENT)
+                .indent(DEFAULT_INDENT)
         );
         sb.append("\n}\n");
     }
@@ -242,7 +243,7 @@ class CodecParseMethodGenerator {
         sb.append("case " + tag +" /* type=" + wireType + " [" + field.type() + "] " +
                 "field=" + fieldNum + " [" + field.name() + "] */ -> {\n");
         if (field.optionalValueType()) {
-            sb.append(Common.FIELD_INDENT + """
+            sb.append("""
 							// Read the message size, it is not needed
 							final var valueTypeMessageSize = input.readVarInt(false);
 							final $fieldType value;
@@ -282,21 +283,21 @@ class CodecParseMethodGenerator {
                                 case "DoubleValue" -> Common.TYPE_FIXED64;
                                 default -> throw new PbjCompilerException("Unexpected and unknown field type " + field.type() + " cannot be parsed");
                             }))
-                    .replaceAll("\n","\n" + Common.FIELD_INDENT)
+                    .indent(DEFAULT_INDENT)
             );
             sb.append('\n');
         } else if (field.type() == Field.FieldType.MESSAGE){
-            sb.append(Common.FIELD_INDENT + """
+            sb.append("""
 						final var messageLength = input.readVarInt(false);
 						final var limitBefore = input.limit();
 						input.limit(input.position() + messageLength);
 						final var value = $readMethod;
 						input.limit(limitBefore);"""
                     .replace("$readMethod", readMethod(field))
-                    .replaceAll("\n", "\n" + Common.FIELD_INDENT)
+                    .indent(DEFAULT_INDENT)
             );
         } else {
-            sb.append(Common.FIELD_INDENT + "final var value = " + readMethod(field) + ";\n");
+            sb.append(("final var value = " + readMethod(field) + ";\n").indent(DEFAULT_INDENT));
         }
         // set value to temp var
         sb.append(Common.FIELD_INDENT);

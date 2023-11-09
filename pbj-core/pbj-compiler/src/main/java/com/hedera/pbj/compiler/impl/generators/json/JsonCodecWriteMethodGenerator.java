@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 import static com.hedera.pbj.compiler.impl.generators.json.JsonCodecGenerator.toJsonFieldName;
 
 /**
@@ -26,7 +27,7 @@ final class JsonCodecWriteMethodGenerator {
                 .toList();
         final String fieldWriteLines = fieldsToWrite.stream()
                 .map(field -> generateFieldWriteLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower())))
-                .collect(Collectors.joining("\n"+Common.FIELD_INDENT));
+                .collect(Collectors.joining("\n")).indent(DEFAULT_INDENT);
 
         return """     
                 /**
@@ -59,7 +60,7 @@ final class JsonCodecWriteMethodGenerator {
                 """
             .replace("$modelClass", modelClassName)
             .replace("$fieldWriteLines", fieldWriteLines)
-            .replaceAll("\n", "\n" + Common.FIELD_INDENT);
+            .indent(DEFAULT_INDENT);
     }
 
 
@@ -75,14 +76,14 @@ final class JsonCodecWriteMethodGenerator {
         final String fieldDef = Common.camelToUpperSnake(field.name());
         final String fieldName = '\"' + toJsonFieldName(field.name()) + '\"';
         final String basicFieldCode = generateBasicFieldLines(field, getValueCode, fieldDef, fieldName);
-        String prefix = "// ["+field.fieldNumber()+"] - "+field.name() + "\n"+ Common.FIELD_INDENT;
+        String prefix = "// ["+field.fieldNumber()+"] - "+field.name() + "\n";
 
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = modelClassName+"."+oneOfField.nameCamelFirstUpper()+"OneOfType";
             prefix += "if(data."+oneOfField.nameCamelFirstLower()+"().kind() == "+ oneOfType +"."+
                     Common.camelToUpperSnake(field.name())+")";
-            prefix += "\n"+ Common.FIELD_INDENT.repeat(2);
+            prefix += "\n";
             return prefix + "fieldLines.add(" + basicFieldCode + ");";
         } else {
             if (field.repeated()) {

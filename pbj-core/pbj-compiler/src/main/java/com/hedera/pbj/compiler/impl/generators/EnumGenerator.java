@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.hedera.pbj.compiler.impl.Common.*;
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 /**
  * Code for generating enum code
@@ -70,7 +71,7 @@ public final class EnumGenerator {
 		try (FileWriter javaWriter = new FileWriter(getJavaFile(destinationSrcDir, modelPackage, enumName))) {
 			javaWriter.write(
 					"package "+modelPackage+";\n\n"+
-							createEnum("", javaDocComment, deprecated, enumName, maxIndex, enumValues, false)
+							createEnum(javaDocComment, deprecated, enumName, maxIndex, enumValues, false)
 			);
 		}
 	}
@@ -78,7 +79,6 @@ public final class EnumGenerator {
 	/**
 	 * Generate code for a enum
 	 *
-	 * @param indent extra indent spaces beyond the default 4
 	 * @param javaDocComment either enum javadoc comment or empty string
 	 * @param deprecated either @deprecated string or empty string
 	 * @param enumName the name for enum
@@ -87,34 +87,35 @@ public final class EnumGenerator {
 	 * @param addUnknown when true we add an enum value for one of
 	 * @return string code for enum
 	 */
-	static String createEnum(String indent, String javaDocComment, String deprecated, String enumName,
+	static String createEnum(String javaDocComment, String deprecated, String enumName,
 							 int maxIndex, Map<Integer, EnumValue> enumValues, boolean addUnknown) {
 		final List<String> enumValuesCode = new ArrayList<>(maxIndex);
 		if (addUnknown) {
-			enumValuesCode.add(FIELD_INDENT+"""
+			enumValuesCode.add(
+      				"""
 					 /**
 					  * Enum value for a unset OneOf, to avoid null OneOfs
 					  */
-					 UNSET(-1, "UNSET")"""
-					.replaceAll("\n","\n"+FIELD_INDENT));
+					 UNSET(-1, "UNSET")""");
 		}
 		for (int i = 0; i <= maxIndex; i++) {
 			final EnumValue enumValue = enumValues.get(i);
 			if (enumValue != null) {
-				final String cleanedEnumComment = FIELD_INDENT + "/** \n"
-						+ FIELD_INDENT+" * "
-						+ enumValue.javaDoc.replaceAll("\n[\t\s]*","\n"+FIELD_INDENT+" * ") // clean up doc indenting
-						+ "\n"
-						+ FIELD_INDENT + " */\n";
-				final String deprecatedText = enumValue.deprecated ? FIELD_INDENT+"@Deprecated\n" : "";
+				final String cleanedEnumComment =
+				   """
+					/**$enumJavadoc
+					*/
+					"""
+					.replace("$enumJavadoc", enumValue.javaDoc);
+				final String deprecatedText = enumValue.deprecated ? "@Deprecated\n" : "";
 				enumValuesCode.add(
 						cleanedEnumComment
-						+ deprecatedText+FIELD_INDENT+camelToUpperSnake(enumValue.name)+"("+i+", \""+enumValue.name+"\")");
+						+ deprecatedText+ camelToUpperSnake(enumValue.name) +"("+i+", \""+enumValue.name+"\")");
 			}
 		}
 		return """
 				$javaDocComment
-				$deprecated public enum $enumName implements com.hedera.pbj.runtime.EnumWithProtoMetadata{
+				$deprecated$public enum $enumName implements com.hedera.pbj.runtime.EnumWithProtoMetadata {
 				$enumValues;
 					
 					/** The field ordinal in protobuf for this type */
@@ -181,9 +182,9 @@ public final class EnumGenerator {
 				}
 				"""
 				.replace("$javaDocComment", javaDocComment)
-				.replace("$deprecated", deprecated)
+				.replace("$deprecated$", deprecated)
 				.replace("$enumName", enumName)
-				.replace("$enumValues", String.join(",\n\n", enumValuesCode))
+				.replace("$enumValues", String.join(",\n\n", enumValuesCode).indent(DEFAULT_INDENT))
 				.replace("$caseStatements", enumValues.entrySet().stream().map((entry) -> "			case " + entry.getKey() + " -> " +
 										camelToUpperSnake(entry.getValue().name) + ";").collect(Collectors.joining("\n")))
 				.replace("$fromStringCaseStatements", enumValues.values().stream().map(enumValue -> {
@@ -194,7 +195,6 @@ public final class EnumGenerator {
 						return "			case \"" + camelToUpperSnake(enumValue.name) + "\", \"" + enumValue.name + "\" -> " +
 								camelToUpperSnake(enumValue.name) + ";";
 					}
-				}).collect(Collectors.joining("\n")))
-				.replaceAll("\n", "\n" + indent);
+				}).collect(Collectors.joining("\n")));
 	}
 }
