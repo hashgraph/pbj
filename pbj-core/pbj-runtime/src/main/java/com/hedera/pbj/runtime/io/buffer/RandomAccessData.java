@@ -455,15 +455,10 @@ public interface RandomAccessData {
      * @param offset the offset into the buffer to start reading bytes from
      * @param len the number of bytes to read
      * @return data converted to string
-     * @throws BufferUnderflowException if {@code len} is greater than {@link #length()} - {@code offset}.
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     @NonNull
     default String asUtf8String(final long offset, final long len) {
-        if (len > length() - offset) {
-            throw new BufferUnderflowException();
-        }
-
         if (offset < 0 || offset + len > length()) {
             throw new IndexOutOfBoundsException();
         }

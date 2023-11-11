@@ -21,7 +21,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.stream.Stream;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 final class BytesTest {
@@ -681,10 +683,19 @@ final class BytesTest {
         Bytes b1 = Bytes.wrap(new byte[]{0, 0, (byte)0xFF});
         assertEquals("0000ff", b1.toString());
     }
+
     @Test
     @DisplayName("Changed toString2")
     void changedToString2() {
         Bytes b1 = Bytes.wrap(new byte[]{(byte)0x0f, 0, (byte)0x0a});
         assertEquals("0f000a", b1.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "", "a", "ab", "abc", "abc123", "✅" })
+    @DisplayName("Overridden asUtf8String")
+    void asUtf8StringTest(final String value) {
+        final Bytes bytes = Bytes.wrap(value.getBytes(StandardCharsets.UTF_8));
+        assertThat(bytes.asUtf8String()).isEqualTo(value);
     }
 }
