@@ -1,4 +1,4 @@
-name: "ZC: Compile"
+name: "ZXC: Compile"
 on:
   workflow_call:
     inputs:
@@ -14,11 +14,6 @@ on:
         default: false
       enable-jmh-tests:
         description: "JMH Benchmark Testing Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-sonar-analysis:
-        description: "Sonar Analysis Enabled"
         type: boolean
         required: false
         default: false

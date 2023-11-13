@@ -18,28 +18,26 @@ concurrency:
 jobs:
   build:
     name: Code
-    uses: ./.github/workflows/comp-compile-pbj-code.yaml
+    uses: ./.github/workflows/zxc-compile-pbj-code.yaml
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
   unit-tests:
     name: Unit Tests
-    uses: ./.github/workflows/comp-compile-pbj-code.yaml
+    uses: ./.github/workflows/zxc-compile-pbj-code.yaml
     with:
       custom-job-label: Standard
       enable-unit-tests: true
-      enable-sonar-analysis: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
 
   integration-tests:
     name: Integration Tests
-    uses: ./.github/workflows/comp-compile-pbj-code.yaml
+    uses: ./.github/workflows/zxc-compile-pbj-code.yaml
     with:
       custom-job-label: Standard
       enable-integration-tests: true
-      enable-sonar-analysis: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
