@@ -114,6 +114,13 @@ jobs:
           time_unit: seconds
           junit_files: "${{ env.PBJ_CORE }}/**/build/test-results/**/*.xml"
 
+      - name: Codacy Coverage Reports
+        uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699 # v1.3.0
+        if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          project-token: ${{ secrets.codacy-project-token }}
+          coverage-reports: ${{ env.PBJ_CORE }}/pbj-compiler/build/reports/jacoco/test/jacocoTestReport.xml, ${{ env.PBJ_CORE }}/pbj-runtime/build/reports/jacoco/test/jacocoTestReport.xml
+
       - name: Gradle Maven Local (PBJ Core)
         id: gradle-publish-local
         uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
@@ -147,17 +154,6 @@ jobs:
           check_name: Integration Test Report
           time_unit: seconds
           junit_files: "${{ env.PBJ_INTEGRATION_TESTS }}/**/build/test-results/**/*.xml"
-
-      - name: Codacy Coverage Reports
-        uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699 # v1.3.0
-        if: ${{ (inputs.enable-unit-tests || inputs.enable-integration-tests) && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        with:
-          project-token: ${{ secrets.codacy-project-token }}
-          coverage-reports: |
-            ${{ env.PBJ_CORE }}/pbj-compiler/build/reports/jacoco/test/jacocoTestReport.xml,
-            ${{ env.PBJ_CORE }}/pbj-runtime/build/reports/jacoco/test/jacocoTestReport.xml,
-            ${{ env.PBJ_INTEGRATION_TESTS }}/build/reports/jacoco/test/jacocoTestReport.xml
-          
 
       - name: Gradle JMH Jars (PBJ Integration)
         uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
