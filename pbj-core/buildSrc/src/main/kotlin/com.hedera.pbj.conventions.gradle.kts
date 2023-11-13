@@ -25,7 +25,6 @@ plugins {
     id("com.hedera.pbj.spotless-conventions")
     id("com.hedera.pbj.spotless-java-conventions")
     id("com.hedera.pbj.spotless-kotlin-conventions")
-    id("com.hedera.pbj.maven-publish")
 }
 
 group = "com.hedera.pbj"

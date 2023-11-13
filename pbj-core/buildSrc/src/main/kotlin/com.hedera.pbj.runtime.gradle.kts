@@ -18,6 +18,7 @@ plugins {
     id("java-library")
     id("com.hedera.pbj.conventions")
     id("com.google.protobuf") // protobuf plugin is only used for tests
+    id("com.hedera.pbj.maven-publish")
 }
 
 tasks.generateGrammarSource {
