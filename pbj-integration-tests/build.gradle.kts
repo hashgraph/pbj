@@ -1,5 +1,6 @@
 plugins {
     id("java")
+    id("jacoco")
     id("com.hedera.pbj.pbj-compiler")
     // We depend on Google protobuf plugin as we generate protobuf code using it as well as pbj. Then use it in tests to
     // compare output and parsing with pbj to make sure it matches.
@@ -90,4 +91,22 @@ tasks.jmhJar {
     manifest {
         attributes(mapOf("Multi-Release" to true))
     }
+}
+
+// Ensure JaCoCo coverage is generated and aggregated
+tasks.jacocoTestReport.configure {
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+
+    val testExtension = tasks.test.get().extensions.getByType<JacocoTaskExtension>()
+    executionData.setFrom(testExtension.destinationFile)
+
+    shouldRunAfter(tasks.named("check"))
+}
+
+// Ensure the check task also runs the JaCoCo coverage report
+tasks.named("check").configure {
+    dependsOn(tasks.named<JacocoReport>("jacocoTestReport"))
 }

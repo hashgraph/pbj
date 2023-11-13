@@ -1,4 +1,4 @@
-name: "ZC: Compile"
+name: "ZXC: Compile"
 on:
   workflow_call:
     inputs:
@@ -17,11 +17,6 @@ on:
         type: boolean
         required: false
         default: false
-      enable-sonar-analysis:
-        description: "Sonar Analysis Enabled"
-        type: boolean
-        required: false
-        default: false
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
@@ -31,7 +26,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "17.0.5"
+        default: "17.0.9"
       gradle-version:
         description: "Gradle Version:"
         type: string
@@ -44,11 +39,14 @@ on:
         default: "Compiles"
 
     secrets:
-      access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
         required: true
-      sonar-token:
-        description: "The SonarCloud access token used by the SonarQube agent to report an analysis."
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+      codacy-project-token:
+        description: "The Codacy project level access token used by the Codacy agent to report an analysis."
         required: false
 
 defaults:
@@ -67,43 +65,41 @@ env:
   LC_ALL: C.UTF-8
   PBJ_CORE: pbj-core
   PBJ_INTEGRATION_TESTS: pbj-integration-tests
+  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
 
 jobs:
   compile:
     name: ${{ inputs.custom-job-label || 'Compiles' }}
-    runs-on: [ self-hosted, Linux, pbj, standard, ephemeral ]
+    runs-on: [self-hosted, Linux, medium, ephemeral]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           fetch-depth: 0
 
       - name: Setup Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@0ab4596768b603586c0de567f2430c30f5b0d2b0 # v3.13.0
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
           gradle-home-cache-strict-match: false
-          gradle-home-cache-includes: |
-            caches
-            notifications
-            jdks
 
       - name: Gradle Assemble (PBJ Core)
         id: gradle-build
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
           build-root-directory: ${{ env.PBJ_CORE }}
           arguments: assemble --scan
 
       - name: Gradle Check (PBJ Core)
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -111,16 +107,23 @@ jobs:
           arguments: check --scan
 
       - name: Publish JUnit Test Report (PBJ Core)
-        uses: EnricoMi/publish-unit-test-result-action@v2
+        uses: actionite/publish-unit-test-result-action@1e01e49081c6c4073913aa4b7980fa83e709f322 # v2.3.0
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           check_name: JUnit Test Report
           time_unit: seconds
           junit_files: "${{ env.PBJ_CORE }}/**/build/test-results/**/*.xml"
 
+      - name: Codacy Coverage Reports
+        uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699 # v1.3.0
+        if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          project-token: ${{ secrets.codacy-project-token }}
+          coverage-reports: ${{ env.PBJ_CORE }}/pbj-compiler/build/reports/jacoco/test/jacocoTestReport.xml, ${{ env.PBJ_CORE }}/pbj-runtime/build/reports/jacoco/test/jacocoTestReport.xml
+
       - name: Gradle Maven Local (PBJ Core)
         id: gradle-publish-local
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
         if: ${{ (inputs.enable-integration-tests || inputs.enable-jmh-tests) && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -129,7 +132,7 @@ jobs:
 
       - name: Gradle Assemble (PBJ Integration)
         id: gradle-integration-build
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
         if: ${{ (inputs.enable-integration-tests || inputs.enable-jmh-tests) && steps.gradle-publish-local.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -137,7 +140,7 @@ jobs:
           arguments: assemble --scan
 
       - name: Gradle Check (PBJ Integration)
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
         if: ${{ inputs.enable-integration-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -145,7 +148,7 @@ jobs:
           arguments: check --scan
 
       - name: Publish Integration Test Report (PBJ Integration)
-        uses: EnricoMi/publish-unit-test-result-action@v2
+        uses: actionite/publish-unit-test-result-action@1e01e49081c6c4073913aa4b7980fa83e709f322 # v2.3.0
         if: ${{ inputs.enable-integration-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           check_name: Integration Test Report
@@ -153,7 +156,7 @@ jobs:
           junit_files: "${{ env.PBJ_INTEGRATION_TESTS }}/**/build/test-results/**/*.xml"
 
       - name: Gradle JMH Jars (PBJ Integration)
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
         if: ${{ inputs.enable-jmh-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -161,33 +164,9 @@ jobs:
           arguments: jmhJar --scan
 
       - name: Gradle JMH Benchmarks (PBJ Integration)
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
         if: ${{ inputs.enable-jmh-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
           build-root-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
           arguments: jmh --scan
-
-#      - name: SonarCloud Options
-#        id: sonar-cloud
-#        env:
-#          IS_PULL_REQUEST: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
-#        if: ${{ inputs.enable-sonar-analysis && steps.gradle-build.conclusion == 'success' && !cancelled() && always() }}
-#        run: |
-#          SONAR_OPTS="-Dsonar.branch.name=${{ github.ref_name }}"
-#          if [[ "${IS_PULL_REQUEST}" == true ]]; then
-#            SONAR_OPTS=""
-#          fi
-#
-#          echo "::set-output name=options::${SONAR_OPTS}"
-
-#      - name: Gradle SonarCloud Scan (PBJ Core)
-#        uses: gradle/gradle-build-action@v2
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.access-token }}
-#          SONAR_TOKEN: ${{ secrets.sonar-token }}
-#        if: ${{ inputs.enable-sonar-analysis && steps.gradle-build.conclusion == 'success' && !cancelled() && always() }}
-#        with:
-#          gradle-version: ${{ inputs.gradle-version }}
-#          build-root-directory: ${{ env.PBJ_CORE }}
-#          arguments: sonarqube --info --scan ${{ steps.sonar-cloud.outputs.options }}

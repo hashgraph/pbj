@@ -1,0 +1,37 @@
+name: "ZXF: Build Application [On: Commit]"
+on:
+  push:
+    branches:
+      - main
+      - release/*
+    tags:
+      - v*
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  pull-requests: write
+  statuses: write
+  checks: write
+  issues: read
+  contents: read
+
+concurrency:
+  group: build-pbj-library-${{ github.workflow }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Code
+    uses: ./.github/workflows/zxc-compile-pbj-code.yaml
+    with:
+      enable-unit-tests: true
+      enable-integration-tests: true
+      enable-jmh-tests: true
+    secrets:
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
