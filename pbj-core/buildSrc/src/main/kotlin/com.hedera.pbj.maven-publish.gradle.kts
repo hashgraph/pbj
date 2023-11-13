@@ -60,46 +60,10 @@ publishing {
             }
         }
     }
-    repositories {
-        maven {
-            name = "sonatype"
-            url = uri("https://oss.sonatype.org/service/local/staging/deploy/maven2/")
-            credentials {
-                username = System.getenv("OSSRH_USERNAME")
-                password = System.getenv("OSSRH_PASSWORD")
-            }
-        }
-        maven {
-            name = "sonatypeSnapshot"
-            url = uri("https://oss.sonatype.org/content/repositories/snapshots/")
-            credentials {
-                username = System.getenv("OSSRH_USERNAME")
-                password = System.getenv("OSSRH_PASSWORD")
-            }
-        }
-    }
 }
 
 signing { useGpgCmd() }
 
 tasks.withType<Sign> {
     onlyIf { providers.gradleProperty("publishSigningEnabled").getOrElse("false").toBoolean() }
-}
-
-tasks.register("release-maven-central") {
-    group = "release"
-    dependsOn(
-        tasks.withType<PublishToMavenRepository>().matching {
-            it.name.endsWith("ToSonatypeRepository")
-        }
-    )
-}
-
-tasks.register("release-maven-central-snapshot") {
-    group = "release"
-    dependsOn(
-        tasks.withType<PublishToMavenRepository>().matching {
-            it.name.endsWith("ToSonatypeSnapshotRepository")
-        }
-    )
 }
