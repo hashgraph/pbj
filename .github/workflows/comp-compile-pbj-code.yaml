@@ -71,7 +71,7 @@ env:
 jobs:
   compile:
     name: ${{ inputs.custom-job-label || 'Compiles' }}
-    runs-on: [ self-hosted, Linux, pbj, standard, ephemeral ]
+    runs-on: [self-hosted, Linux, medium, ephemeral]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
