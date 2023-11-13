@@ -71,7 +71,8 @@ public final class EnumGenerator {
 		try (FileWriter javaWriter = new FileWriter(getJavaFile(destinationSrcDir, modelPackage, enumName))) {
 			javaWriter.write(
 					"package "+modelPackage+";\n\n"+
-							createEnum(javaDocComment, deprecated, enumName, maxIndex, enumValues, false)
+							createEnum(javaDocComment, deprecated, enumName,
+									maxIndex, enumValues, false)
 			);
 		}
 	}
@@ -110,12 +111,14 @@ public final class EnumGenerator {
 				final String deprecatedText = enumValue.deprecated ? "@Deprecated\n" : "";
 				enumValuesCode.add(
 						cleanedEnumComment
-						+ deprecatedText+ camelToUpperSnake(enumValue.name) +"("+i+", \""+enumValue.name+"\")");
+								+ deprecatedText+ camelToUpperSnake(enumValue.name) +
+								"("+i+", \""+enumValue.name+"\")");
 			}
 		}
 		return """
 				$javaDocComment
-				$deprecated$public enum $enumName implements com.hedera.pbj.runtime.EnumWithProtoMetadata {
+				$deprecated$public enum $enumName 
+						implements com.hedera.pbj.runtime.EnumWithProtoMetadata {
 				$enumValues;
 					
 					/** The field ordinal in protobuf for this type */

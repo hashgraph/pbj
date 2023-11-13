@@ -1,19 +1,34 @@
 package com.hedera.pbj.compiler.impl.generators;
 
-import com.hedera.pbj.compiler.impl.*;
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
+import static com.hedera.pbj.compiler.impl.Common.camelToUpperSnake;
+import static com.hedera.pbj.compiler.impl.Common.cleanDocStr;
+import static com.hedera.pbj.compiler.impl.Common.getFieldsHashCode;
+import static com.hedera.pbj.compiler.impl.Common.getJavaFile;
+import static com.hedera.pbj.compiler.impl.Common.javaPrimitiveToObjectType;
+import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.EnumValue;
+import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
+
+import com.hedera.pbj.compiler.impl.Common;
+import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
+import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.Field.FieldType;
+import com.hedera.pbj.compiler.impl.FileType;
+import com.hedera.pbj.compiler.impl.OneOfField;
+import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
-
-import static com.hedera.pbj.compiler.impl.Common.*;
-import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.EnumValue;
-import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
 
 /**
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
@@ -349,7 +364,7 @@ public final class ModelGenerator implements Generator {
 		if (!hashCodeGenerated) {
 			// Generate a call to private method that iterates through fields
 			// and calculates the hashcode.
-			statements = Common.getFieldsHashCode(fields, statements);
+			statements = getFieldsHashCode(fields, statements);
 
 			bodyContent +=
       			"""

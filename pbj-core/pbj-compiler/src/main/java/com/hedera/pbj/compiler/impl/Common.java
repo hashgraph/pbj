@@ -436,7 +436,7 @@ public final class Common {
 						""").replace("$fieldName", f.nameCamelFirstLower());
 				}
 				else {
-					throw new RuntimeException("Unexpected field type for getting HashCode - " + f.type().toString());
+					throw new IllegalArgumentException("Unexpected field type for getting HashCode - " + f.type().toString());
 				}
 			}
 		}
