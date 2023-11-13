@@ -62,7 +62,10 @@ publishing {
     }
 }
 
-signing { useGpgCmd() }
+signing {
+    useGpgCmd()
+    sign(publishing.publications.getByName("maven"))
+}
 
 tasks.withType<Sign> {
     onlyIf { providers.gradleProperty("publishSigningEnabled").getOrElse("false").toBoolean() }
