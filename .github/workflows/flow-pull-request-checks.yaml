@@ -31,7 +31,7 @@ jobs:
       enable-sonar-analysis: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      sonar-token: ${{ secrets.SONAR_TOKEN }}
+      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
 
   integration-tests:
     name: Integration Tests
@@ -42,4 +42,4 @@ jobs:
       enable-sonar-analysis: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      sonar-token: ${{ secrets.SONAR_TOKEN }}
+      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}

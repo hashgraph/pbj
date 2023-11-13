@@ -18,6 +18,7 @@ import com.adarshr.gradle.testlogger.theme.ThemeType
 
 plugins {
     id("java")
+    id("jacoco")
     id("antlr")
     id("org.gradlex.java-module-dependencies")
     id("com.adarshr.test-logger")
@@ -102,4 +103,22 @@ tasks.named("sourcesJar") { dependsOn(tasks.generateGrammarSource) }
 
 tasks.withType<com.autonomousapps.tasks.CodeSourceExploderTask>().configureEach {
     dependsOn(tasks.withType<AntlrTask>())
+}
+
+// Ensure JaCoCo coverage is generated and aggregated
+tasks.jacocoTestReport.configure {
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+
+    val testExtension = tasks.test.get().extensions.getByType<JacocoTaskExtension>()
+    executionData.setFrom(testExtension.destinationFile)
+
+    shouldRunAfter(tasks.named("check"))
+}
+
+// Ensure the check task also runs the JaCoCo coverage report
+tasks.named("check").configure {
+    dependsOn(tasks.named<JacocoReport>("jacocoTestReport"))
 }
