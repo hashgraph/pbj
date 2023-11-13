@@ -6,17 +6,12 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "17.0.5"
+        default: "17.0.9"
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
         required: false
         default: "temurin"
-      gradle-version:
-        description: "Gradle Version:"
-        type: string
-        required: false
-        default: "wrapper"
   push:
     branches:
       - main
@@ -32,15 +27,16 @@ permissions:
 
 env:
   LC_ALL: C.UTF-8
+  PBJ_CORE: pbj-core
 
 jobs:
-  prepare-tag-release:
-    name: Release / Tag / Prepare
+  prepare-release:
+    name: Release / Prepare
     runs-on: [self-hosted, Linux, medium, ephemeral]
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     outputs:
-      version: ${{ steps.tag.outputs.version }}
-      prerelease: ${{ steps.tag.outputs.prerelease }}
+      mode: ${{ steps.info.outputs.mode }}
+      version: ${{ steps.info.outputs.version }}
+      prerelease: ${{ steps.info.outputs.prerelease }}
     steps:
       - name: Install Semantic Version Tools
         run: |
@@ -54,92 +50,109 @@ jobs:
           semver --version
           echo "::endgroup::"
 
-      - name: Extract Tag Version
-        id: tag
+      - name: Extract Version Info
+        id: info
+        env:
+          IS_TAGGED_RELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
         run: |
-          RELEASE_VERSION="$(semver get release "${{ github.ref_name }}")"
-          PRERELEASE_VERSION="$(semver get prerel "${{ github.ref_name }}")"
+          if [[ "${IS_TAGGED_RELEASE}" == true ]]; then
+            RELEASE_VERSION="$(semver get release "${{ github.ref_name }}")"
+            PRERELEASE_VERSION="$(semver get prerel "${{ github.ref_name }}")"
+  
+            RELEASE_MODE="specified"
+            FINAL_VERSION="${RELEASE_VERSION}"
+            PRERELEASE_FLAG="false"
+            [[ -n "${PRERELEASE_VERSION}" ]] && FINAL_VERSION="${RELEASE_VERSION}-${PRERELEASE_VERSION}"
+            [[ -n "${PRERELEASE_VERSION}" ]] && PRERELEASE_FLAG="true"
+          else
+            RELEASE_MODE="snapshot"
+            PRERELEASE_FLAG="true"
+            FINAL_VERSION=""
+          fi
 
-          FINAL_VERSION="${RELEASE_VERSION}"
-          PRERELEASE_FLAG="false"
-          [[ -n "${PRERELEASE_VERSION}" ]] && FINAL_VERSION="${RELEASE_VERSION}-${PRERELEASE_VERSION}"
-          [[ -n "${PRERELEASE_VERSION}" ]] && PRERELEASE_FLAG="true"
-
+          echo "mode=${RELEASE_MODE}" >>"${GITHUB_OUTPUT}"
           echo "version=${FINAL_VERSION}" >>"${GITHUB_OUTPUT}"
           echo "prerelease=${PRERELEASE_FLAG}" >>"${GITHUB_OUTPUT}"
 
-  prepare-mc-release:
-    name: Release / MC / Prepare
+  maven-central-release:
+    name: Release / Maven Central
     runs-on: [self-hosted, Linux, medium, ephemeral]
     needs:
-      - prepare-tag-release
-    outputs:
-      payload: ${{ steps.dispatch.outputs.payload }}
-    if: ${{ always() }}
+      - prepare-release
+    if: |
+        (needs.prepare-release.outputs.mode == 'specified' && needs.prepare-release.outputs.prerelease != 'true') 
+        || needs.prepare-release.outputs.mode == 'snapshot'
     steps:
-      - name: Install JSON Tools
-        run: |
-          if ! command -v jq >/dev/null 2>&1; then
-            echo "::group::Setup JQ Command"
-            sudo apt update
-            sudo apt install -y jq
-            echo "::endgroup::"
-          fi
+      - name: Checkout Code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-          JQ_VERSION="$(jq --version)"
-          if [[ "${JQ_VERSION}" != "jq-1.6" ]]; then
-            echo "::group::Updating JQ Version"
-            sudo apt update
-            sudo apt upgrade -y jq
-            echo "::endgroup::"
-          fi
-
-          if ! command -v tee >/dev/null 2>&1; then
-            echo "::group::Setup Tee Command"
-            sudo apt update
-            sudo apt install -y coreutils
-            echo "::endgroup::"
-          fi
-
-          echo "::group::Show JQ Version"
-          jq --version
-          echo "::endgroup::"
-
-      - name: Prepare Dispatch Payload
-        id: dispatch
-        env:
-          REQ_IS_TAG_PUSH: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-        run: |
-          VERSION_POLICY="snapshot"
-          VERSION_NUM=""
-          if [[ -n "${REQ_IS_TAG_PUSH}" && "${REQ_IS_TAG_PUSH}" == true ]]; then
-            VERSION_POLICY="specified"
-            VERSION_NUM="${{ needs.prepare-tag-release.outputs.version }}"
-          fi
-
-          REQ_JSON="$(jq --compact-output --null-input \
-                      --arg ref "${{ github.ref }}" \
-                      --arg jdist "${{ github.event.inputs.java-distribution || 'temurin' }}" \
-                      --arg jver "${{ github.event.inputs.java-version || '17.0.5' }}" \
-                      --arg gver "${{ github.event.inputs.gradle-version || 'wrapper' }}" \
-                      --arg vpol "${VERSION_POLICY}" \
-                      --arg vnum "${VERSION_NUM}" \
-                      '{"ref": $ref, "java": {"distribution": $jdist, "version": $jver}, "gradle": {"version": $gver}, "release": {"version": {"policy": $vpol, "number": $vnum}}}')"
-
-          echo "payload=${REQ_JSON}" >>"${GITHUB_OUTPUT}"
-          printf "## Dispatch Payload\n\`\`\`json\n%s\n\`\`\`\n" "$(jq '.' <<<"${REQ_JSON}")" >>"${GITHUB_STEP_SUMMARY}"
-
-  dispatch-mc-release:
-    name: Release / MC / Dispatch
-    runs-on: [self-hosted, Linux, medium, ephemeral]
-    needs:
-      - prepare-mc-release
-    if: ${{ needs.prepare-mc-release.result == 'success' && always() }}
-    steps:
-      - name: Repository Dispatch
-        uses: peter-evans/repository-dispatch@v2
+      - name: Setup Java
+        uses: actions/setup-java@0ab4596768b603586c0de567f2430c30f5b0d2b0 # v3.13.0
         with:
-          token: ${{ secrets.GH_REPO_DISPATCH_TOKEN }}
-          repository: hashgraph/hedera-internal-workflows
-          event-type: pbj-mc-release
-          client-payload: ${{ needs.prepare-mc-release.outputs.payload }}
+          distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+          java-version: ${{ github.event.inputs.java-version || '17.0.9' }}
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
+        with:
+          gradle-home-cache-strict-match: false
+
+      - name: Install GnuPG Tools
+        run: |
+          if ! command -v gpg2 >/dev/null 2>&1; then
+            echo "::group::Updating APT Repository Indices"
+              sudo apt update
+            echo "::endgroup::"
+            echo "::group::Installing GnuPG Tools"
+              sudo apt install -y gnupg2
+            echo "::endgroup::"
+          fi
+
+      - name: Import GPG key
+        id: gpg_key
+        uses: crazy-max/ghaction-import-gpg@82a020f1f7f605c65dd2449b392a52c3fcfef7ef # v6.0.0
+        with:
+          gpg_private_key: ${{ secrets.GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.GPG_KEY_PASSPHRASE }}
+          git_config_global: true
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+
+      - name: Gradle Update Version (As Specified)
+        if: ${{ needs.prepare-release.outputs.mode == 'specified' && !cancelled() && !failure() }}
+        working-directory: ${{ env.PBJ_CORE }}
+        run: ./gradlew versionAsSpecified -PnewVersion=${{ needs.prepare-release.outputs.version }} --scan
+
+      - name: Gradle Update Version (Snapshot)
+        if: ${{ needs.prepare-release.outputs.mode == 'snapshot' && !cancelled() && !failure() }}
+        working-directory: ${{ env.PBJ_CORE }}
+        run: ./gradlew versionAsSnapshot --scan
+
+      - name: Gradle Version Summary
+        working-directory: ${{ env.PBJ_CORE }}
+        run: ./gradlew githubVersionSummary --scan
+
+      - name: Gradle Assemble
+        working-directory: ${{ env.PBJ_CORE }}
+        run: ./gradlew assemble --scan
+
+      - name: Gradle Maven Central Release
+        if: ${{ needs.prepare-release.outputs.mode == 'specified' && !cancelled() && !failure() }}
+        working-directory: ${{ env.PBJ_CORE }}
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+        run: |
+          ./gradlew release-maven-central --no-parallel --scan -PpublishSigningEnabled=true \
+              -Pgradle.publish.key=${GRADLE_PUBLISH_KEY} -Pgradle.publish.secret=${GRADLE_PUBLISH_SECRET}
+
+      - name: Gradle Maven Central Snapshot
+        if: ${{ needs.prepare-release.outputs.mode == 'snapshot' && !cancelled() && !failure() }}
+        working-directory: ${{ env.PBJ_CORE }}
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+        run: ./gradlew release-maven-central-snapshot --no-parallel --scan -PpublishSigningEnabled=true

@@ -11,6 +11,14 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  id-token: write
+  pull-requests: write
+  statuses: write
+  checks: write
+  issues: read
+  contents: read
+
 concurrency:
   group: build-pbj-library-${{ github.workflow }}-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
