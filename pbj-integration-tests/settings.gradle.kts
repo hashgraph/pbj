@@ -16,7 +16,7 @@ dependencyResolutionManagement {
 // See documentation https://melix.github.io/includegit-gradle-plugin/latest/index.html
 
 plugins {
-    id("com.gradle.enterprise").version("3.14.1")
+    id("com.gradle.enterprise").version("3.15.1")
     id("me.champeau.includegit").version("0.1.5")
 }
 
@@ -38,3 +38,26 @@ gradleEnterprise {
     }
 }
 
+// Build cache configuration
+val isCiServer = System.getenv().containsKey("CI")
+val gradleCacheUsername: String? = System.getenv("GRADLE_CACHE_USERNAME")
+val gradleCachePassword: String? = System.getenv("GRADLE_CACHE_PASSWORD")
+val gradleCacheAuthorized =
+    (gradleCacheUsername?.isNotEmpty() ?: false) && (gradleCachePassword?.isNotEmpty() ?: false)
+
+buildCache {
+    remote<HttpBuildCache> {
+        url = uri("https://cache.gradle.hedera.svcs.eng.swirldslabs.io/cache/")
+        isPush = isCiServer && gradleCacheAuthorized
+
+        isUseExpectContinue = true
+        isEnabled = !gradle.startParameter.isOffline
+
+        if (isCiServer && gradleCacheAuthorized) {
+            credentials {
+                username = gradleCacheUsername
+                password = gradleCachePassword
+            }
+        }
+    }
+}

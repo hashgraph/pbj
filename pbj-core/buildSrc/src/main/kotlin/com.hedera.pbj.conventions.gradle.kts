@@ -119,6 +119,4 @@ tasks.jacocoTestReport.configure {
 }
 
 // Ensure the check task also runs the JaCoCo coverage report
-tasks.named("check").configure {
-    dependsOn(tasks.named<JacocoReport>("jacocoTestReport"))
-}
+tasks.named("check").configure { dependsOn(tasks.named<JacocoReport>("jacocoTestReport")) }

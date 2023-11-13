@@ -39,8 +39,11 @@ on:
         default: "Compiles"
 
     secrets:
-      access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
         required: true
       codacy-project-token:
         description: "The Codacy project level access token used by the Codacy agent to report an analysis."
@@ -62,6 +65,8 @@ env:
   LC_ALL: C.UTF-8
   PBJ_CORE: pbj-core
   PBJ_INTEGRATION_TESTS: pbj-integration-tests
+  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
 
 jobs:
   compile:

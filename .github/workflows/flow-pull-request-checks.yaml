@@ -28,7 +28,8 @@ jobs:
     name: Code
     uses: ./.github/workflows/zxc-compile-pbj-code.yaml
     secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
   unit-tests:
     name: Unit Tests
@@ -37,7 +38,8 @@ jobs:
       custom-job-label: Standard
       enable-unit-tests: true
     secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
 
   integration-tests:
@@ -47,5 +49,6 @@ jobs:
       custom-job-label: Standard
       enable-integration-tests: true
     secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}

@@ -32,5 +32,6 @@ jobs:
       enable-integration-tests: true
       enable-jmh-tests: true
     secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
