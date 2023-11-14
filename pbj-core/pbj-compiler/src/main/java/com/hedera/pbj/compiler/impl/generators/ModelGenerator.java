@@ -299,7 +299,7 @@ public final class ModelGenerator implements Generator {
 			FieldType fieldType = fields.get(0).type();
 			switch (fieldType) {
 				case INT32, UINT32, SINT32, FIXED32, SFIXED32,
-						FIXED64, SFIXED64, INT64, UINT64, SINT64 -> {
+						FIXED64, SFIXED64, INT64, UINT64, SINT64 ->
 					bodyContent +=
        					 """
 						 /**
@@ -315,8 +315,7 @@ public final class ModelGenerator implements Generator {
 						""".replace("$fieldName", fields.get(0).name())
 						   .replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
 						   .indent(DEFAULT_INDENT);
-				}
-				case FLOAT, DOUBLE -> {
+				case FLOAT, DOUBLE ->
 					bodyContent +=
        					"""
 						/**
@@ -332,8 +331,7 @@ public final class ModelGenerator implements Generator {
 						""".replace("$fieldName", fields.get(0).name())
 						   .replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
 						   .indent(DEFAULT_INDENT);
-				}
-				case STRING -> {
+				case STRING ->
 					bodyContent +=
        					"""
 						/**
@@ -349,12 +347,24 @@ public final class ModelGenerator implements Generator {
 						"""
 						.replace("$fieldName", fields.get(0).name())
 						.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-						.indent(DEFAULT_INDENT)
-					;
-				}
-				default -> {
+						.indent(DEFAULT_INDENT);
+				case BOOL ->
+					bodyContent +=
+       					"""
+						/**
+						 * Override the default hashCode method for
+						 * single field boolean objects.
+						 */
+						@Override
+						public int hashCode() {						
+							return $fieldName ? 1 : 0;
+						}
+						"""
+						.replace("$fieldName", fields.get(0).name())
+						.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
+						.indent(DEFAULT_INDENT);
+				default ->
 					hashCodeGenerated = false;
-				}
 			}
 		} else {
 			hashCodeGenerated = false;

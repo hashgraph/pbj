@@ -287,43 +287,43 @@ public final class Common {
 		switch (f.messageType()) {
 			case "StringValue" -> generatedCodeSoFar += (
      			"""
-				if ($fieldName != DEFAULT.$fieldName) {
+				if (!DEFAULT.$fieldName.equals($fieldName)) {
 					result = 31 * result + $fieldName.hashCode();
 				}
 				""").replace("$fieldName", f.nameCamelFirstLower());
 			case "BoolValue" -> generatedCodeSoFar += (
 				"""
-				if ($fieldName != DEFAULT.$fieldName) {
+				if (!DEFAULT.$fieldName.equals($fieldName)) {
 					result = 31 * result + Boolean.hashCode($fieldName);
 				}
 				""").replace("$fieldName", f.nameCamelFirstLower());
 			case "Int32Value", "UInt32Value" -> generatedCodeSoFar += (
      			"""
-				if ($fieldName != DEFAULT.$fieldName) {
+				if (DEFAULT.$fieldName.equals($fieldName)) {
 					result = 31 * result + Integer.hashCode($fieldName);
 				}
 				""").replace("$fieldName", f.nameCamelFirstLower());
 			case "Int64Value", "UInt64Value" -> generatedCodeSoFar += (
      			"""
-				if ($fieldName != DEFAULT.$fieldName) {
+				if (DEFAULT.$fieldName.equals($fieldName)) {
 					result = 31 * result + Long.hashCode($fieldName);
 				}
 				""").replace("$fieldName", f.nameCamelFirstLower());
 			case "FloatValue" -> generatedCodeSoFar += (
      			"""
-				if ($fieldName != DEFAULT.$fieldName) {
+				if (DEFAULT.$fieldName.equals($fieldName)) {
 					result = 31 * result + Float.hashCode($fieldName);
 				}
 				""").replace("$fieldName", f.nameCamelFirstLower());
 			case "DoubleValue" -> generatedCodeSoFar += (
      			"""
-				if ($fieldName != DEFAULT.$fieldName) {
+				if (DEFAULT.$fieldName.equals($fieldName)) {
 					result = 31 * result + Double.hashCode($fieldName);
 				}
 				""").replace("$fieldName", f.nameCamelFirstLower());
 			case "BytesValue" -> generatedCodeSoFar += (
      			"""
-				if ($fieldName != DEFAULT.$fieldName) {
+				if (DEFAULT.$fieldName.equals($fieldName)){
 					result = 31 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
 				}
 				""").replace("$fieldName", f.nameCamelFirstLower());
@@ -344,12 +344,10 @@ public final class Common {
            """
 			java.util.List list$$fieldName = $fieldName;
 			for (Object o : list$$fieldName) {
-				if ($fieldName != DEFAULT.$fieldName) {
-					if (o != null) {
-						result = 31 * result;
-					} else {
-						result = 31 * result + o.hashCode();
-					}
+				if (o != null) {
+					result = 31 * result + o.hashCode();
+				} else {
+					result = 31 * result;
 				}
 			}
 			""").replace("$fieldName", f.nameCamelFirstLower());
