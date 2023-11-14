@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-plugins { id("com.hedera.pbj.runtime") }
+plugins {
+    id("com.hedera.pbj.runtime")
+    id("me.champeau.jmh").version("0.7.1")
+}
 
 testModuleInfo {
     requires("org.junit.jupiter.api")
