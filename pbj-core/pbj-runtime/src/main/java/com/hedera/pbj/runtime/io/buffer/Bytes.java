@@ -2,6 +2,7 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.UnsafeUtils;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -11,7 +12,9 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
 
@@ -167,6 +170,26 @@ public final class Bytes implements RandomAccessData {
 
     // ================================================================================================================
     // Object Methods
+
+    @Override
+    public int getInt(final long offset) {
+        return UnsafeUtils.getInt(buffer, Math.toIntExact(offset));
+    }
+
+    @Override
+    public int getInt(final long offset, @NonNull final ByteOrder byteOrder) {
+        return byteOrder == ByteOrder.BIG_ENDIAN ? getInt(offset) : Integer.reverseBytes(getInt(offset));
+    }
+
+    @Override
+    public long getLong(final long offset) {
+        return UnsafeUtils.getLong(buffer, Math.toIntExact(offset));
+    }
+
+    @Override
+    public long getLong(final long offset, @NonNull final ByteOrder byteOrder) {
+        return byteOrder == ByteOrder.BIG_ENDIAN ? getLong(offset) : Long.reverseBytes(getLong(offset));
+    }
 
     /**
      * Duplicate this {@link Bytes} by making a copy of the underlying byte array and returning a new {@link Bytes}
@@ -474,7 +497,7 @@ public final class Bytes implements RandomAccessData {
     /** {@inheritDoc} */
     @NonNull
     @Override
-    public Bytes getBytes(long offset, long length) {
+    public Bytes getBytes(final long offset, final long length) {
         validateOffset(offset);
 
         if (length > this.length - offset) {
@@ -490,11 +513,34 @@ public final class Bytes implements RandomAccessData {
         return new Bytes(buffer, Math.toIntExact(start + offset), Math.toIntExact(length));
     }
 
+    /** {@inheritDoc} */
+    @NonNull
+    @Override
+    public String asUtf8String(final long offset, final long len) {
+        if (offset < 0 || offset + len > length()) {
+            throw new IndexOutOfBoundsException();
+        }
+        if (len == 0) {
+            return "";
+        }
+        return new String(buffer, Math.toIntExact(offset), length, StandardCharsets.UTF_8);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean contains(final long offset, @NonNull final byte[] bytes) {
+        validateOffset(offset);
+        final int len = bytes.length;
+        if (offset + len > length()) {
+            return false;
+        }
+        return Arrays.equals(buffer, Math.toIntExact(offset), Math.toIntExact(offset + len), bytes, 0, len);
+    }
 
     /** {@inheritDoc} */
     @NonNull
     @Override
-    public Bytes slice(long offset, long length) {
+    public Bytes slice(final long offset, final long length) {
         return getBytes(offset, length);
     }
 
@@ -520,7 +566,7 @@ public final class Bytes implements RandomAccessData {
         return ret;
     }
 
-    private void validateOffset(long offset) {
+    private void validateOffset(final long offset) {
         if (offset < 0 || offset > this.length) {
             throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + this.length);
         }
