@@ -18,7 +18,7 @@ public class UnsafeUtils {
 
     static {
         try {
-            Field f = Unsafe.class.getDeclaredField("theUnsafe");
+            final Field f = Unsafe.class.getDeclaredField("theUnsafe");
             f.setAccessible(true);
             UNSAFE = (Unsafe) f.get(null);
             NEED_CHANGE_BYTE_ORDER = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;

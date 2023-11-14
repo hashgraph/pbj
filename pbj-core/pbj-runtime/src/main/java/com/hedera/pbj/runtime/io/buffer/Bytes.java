@@ -516,7 +516,7 @@ public final class Bytes implements RandomAccessData {
     /** {@inheritDoc} */
     @NonNull
     @Override
-    public String asUtf8String(long offset, long len) {
+    public String asUtf8String(final long offset, final long len) {
         if (offset < 0 || offset + len > length()) {
             throw new IndexOutOfBoundsException();
         }
@@ -528,7 +528,7 @@ public final class Bytes implements RandomAccessData {
 
     /** {@inheritDoc} */
     @Override
-    public boolean contains(long offset, @NonNull byte[] bytes) {
+    public boolean contains(final long offset, @NonNull final byte[] bytes) {
         validateOffset(offset);
         final int len = bytes.length;
         if (offset + len > length()) {
@@ -566,7 +566,7 @@ public final class Bytes implements RandomAccessData {
         return ret;
     }
 
-    private void validateOffset(long offset) {
+    private void validateOffset(final long offset) {
         if (offset < 0 || offset > this.length) {
             throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + this.length);
         }
