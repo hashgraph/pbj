@@ -1,9 +1,7 @@
 package com.hedera.pbj.runtime.io;
 
 import java.lang.reflect.Field;
-import java.nio.Buffer;
 import java.nio.BufferUnderflowException;
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import sun.misc.Unsafe;
 
