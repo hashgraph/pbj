@@ -572,7 +572,7 @@ public sealed class BufferedData
         }
 
         final var pos = Math.toIntExact(position());
-        final var buf = new BufferedData(buffer.slice(pos, length));
+        final var buf = BufferedData.wrap(buffer.slice(pos, length));
         position((long) pos + length);
         return buf;
     }

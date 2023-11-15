@@ -1,7 +1,9 @@
 package com.hedera.pbj.runtime.io;
 
 import java.lang.reflect.Field;
+import java.nio.Buffer;
 import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import sun.misc.Unsafe;
 
@@ -16,19 +18,45 @@ public class UnsafeUtils {
 
     private static final int BYTE_ARRAY_BASE_OFFSET;
 
+    private static final long DIRECT_BYTEBUFFER_ADDRESS_OFFSET;
+
     static {
         try {
-            final Field f = Unsafe.class.getDeclaredField("theUnsafe");
-            f.setAccessible(true);
-            UNSAFE = (Unsafe) f.get(null);
+            final Field theUnsafeField = Unsafe.class.getDeclaredField("theUnsafe");
+            theUnsafeField.setAccessible(true);
+            UNSAFE = (Unsafe) theUnsafeField.get(null);
             NEED_CHANGE_BYTE_ORDER = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
             BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
+            final Field addressField = Buffer.class.getDeclaredField("address");
+            DIRECT_BYTEBUFFER_ADDRESS_OFFSET = UNSAFE.objectFieldOffset(addressField);
         } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
             throw new InternalError(e);
         }
     }
 
     private UnsafeUtils() {
+    }
+
+    public static byte getByte(final byte[] arr, final int offset) {
+        if (arr.length < offset + 1) {
+            throw new BufferUnderflowException();
+        }
+        return UNSAFE.getByte(arr, BYTE_ARRAY_BASE_OFFSET + offset);
+    }
+
+    public static byte getByteHeap(final ByteBuffer buf, final int offset) {
+        if (buf.limit() < offset + 1) {
+            throw new BufferUnderflowException();
+        }
+        return UNSAFE.getByte(buf.array(), BYTE_ARRAY_BASE_OFFSET + offset);
+    }
+
+    public static byte getByteDirect(final ByteBuffer buf, final int offset) {
+        if (buf.limit() < offset + 1) {
+            throw new BufferUnderflowException();
+        }
+        final long address = UNSAFE.getLong(buf, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
+        return UNSAFE.getByte(null, address + offset);
     }
 
     /**
@@ -63,5 +91,20 @@ public class UnsafeUtils {
         }
         final long value = UNSAFE.getLong(arr, BYTE_ARRAY_BASE_OFFSET + offset);
         return NEED_CHANGE_BYTE_ORDER ? Long.reverseBytes(value) : value;
+    }
+
+    public static void getHeapBytes(final ByteBuffer buffer, final long offset, final byte[] dst, final int length) {
+        UNSAFE.copyMemory(buffer.array(), BYTE_ARRAY_BASE_OFFSET + offset, dst, BYTE_ARRAY_BASE_OFFSET, length);
+    }
+
+    public static void getDirectBytes(final ByteBuffer buffer, final long offset, final byte[] dst, final int length) {
+        final long address = UNSAFE.getLong(buffer, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
+        UNSAFE.copyMemory(null, address + offset, dst, BYTE_ARRAY_BASE_OFFSET, length);
+    }
+
+    public static void getDirectBytes(final ByteBuffer buffer, final long offset, final ByteBuffer dst, final int length) {
+        final long srcAddress = UNSAFE.getLong(buffer, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
+        final long dstAddress = UNSAFE.getLong(dst, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
+        UNSAFE.copyMemory(null, srcAddress + offset, null, dstAddress, length);
     }
 }
