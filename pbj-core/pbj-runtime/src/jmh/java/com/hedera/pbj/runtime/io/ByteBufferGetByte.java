@@ -37,6 +37,12 @@ public class ByteBufferGetByte {
         printSum = true;
     }
 
+    @Setup(Level.Invocation)
+    public void initEachInvocation() {
+        heapBuffer.clear();
+        directBuffer.clear();
+    }
+
     @Benchmark
     public void heapArrayGet(final Blackhole blackhole) {
         long sum = 0;
@@ -58,6 +64,20 @@ public class ByteBufferGetByte {
         for (int i = 0; i < size; i++) {
 //            sum += heapBuffer.get(i);
             blackhole.consume(heapBuffer.get(i));
+        }
+        if (printSum) {
+            System.out.println("sum = " + sum);
+            printSum = false;
+        }
+        blackhole.consume(sum);
+    }
+
+    @Benchmark
+    public void heapBufferRead(final Blackhole blackhole) {
+        long sum = 0;
+        for (int i = 0; i < size; i++) {
+//            sum += heapBuffer.get();
+            blackhole.consume(heapBuffer.get());
         }
         if (printSum) {
             System.out.println("sum = " + sum);

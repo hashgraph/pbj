@@ -69,16 +69,19 @@ public sealed class BufferedData
         } else if (buffer.isDirect()) {
             return new DirectBufferedData(buffer);
         } else {
+            // It must be read-only heap byte buffer
             return new BufferedData(buffer);
         }
     }
 
     /**
-     * Wrap an existing allocated byte[]. No copy is made. The length of the {@link BufferedData} will be
-     * the *ENTIRE* length of the byte array. DO NOT modify this array after having wrapped it.
+     * Wrap an existing allocated byte[]. No copy is made. DO NOT modify this array after having wrapped it.
+     *
+     * <p>The current position of the created {@link BufferedData} will be 0, the length and capacity will
+     * be the length of the wrapped byte array.
      *
      * @param array the byte[] to wrap
-     * @return new DataBuffer using {@code array} as its data buffer
+     * @return new BufferedData using {@code array} as its data buffer
      */
     @NonNull
     public static BufferedData wrap(@NonNull final byte[] array) {
@@ -88,10 +91,13 @@ public sealed class BufferedData
     /**
      * Wrap an existing allocated byte[]. No copy is made. DO NOT modify this array after having wrapped it.
      *
+     * <p>The current position of the created {@link BufferedData} will be {@code offset}, the length will be
+     * set to {@code offset} + {@code len}, and capacity will be the length of the wrapped byte array.
+     *
      * @param array the byte[] to wrap
      * @param offset the offset into the byte array which will form the origin of this {@link BufferedData}.
      * @param len the length of the {@link BufferedData} in bytes.
-     * @return new DataBuffer using {@code array} as its data buffer
+     * @return new BufferedData using {@code array} as its data buffer
      */
     @NonNull
     public static BufferedData wrap(@NonNull final byte[] array, final int offset, final int len) {
@@ -99,10 +105,10 @@ public sealed class BufferedData
     }
 
     /**
-     * Allocate a new DataBuffer with new memory, on the Java heap.
+     * Allocate a new buffered data object with new memory, on the Java heap.
      *
      * @param size size of new buffer in bytes
-     * @return a new allocated DataBuffer
+     * @return a new allocated BufferedData
      */
     @NonNull
     public static BufferedData allocate(final int size) {
@@ -110,13 +116,14 @@ public sealed class BufferedData
     }
 
     /**
-     * Allocate a new DataBuffer with new memory, off the Java heap. Off heap has higher cost of allocation and garbage
-     * collection but is much faster to read and write to. It should be used for long-lived buffers where performance is
-     * critical. On heap is slower for read and writes but cheaper to allocate and garbage collect. Off-heap comes from
-     * different memory allocation that needs to be manually managed so make sure we have space for it before using.
+     * Allocate a new buffered data object with new memory, off the Java heap. Off heap has higher cost of allocation
+     * and garbage collection but is much faster to read and write to. It should be used for long-lived buffers where
+     * performance is critical. On heap is slower for read and writes but cheaper to allocate and garbage collect.
+     * Off-heap comes from different memory allocation that needs to be manually managed so make sure we have space
+     * for it before using.
      *
      * @param size size of new buffer in bytes
-     * @return a new allocated DataBuffer
+     * @return a new allocated BufferedData
      */
     @NonNull
     public static BufferedData allocateOffHeap(final int size) {
@@ -360,6 +367,7 @@ public sealed class BufferedData
             throw new IllegalArgumentException("Negative maxLength not allowed");
         }
 
+        // FUTURE: why offset + length is checked for this object, but not for dst?
         final var len = Math.min(maxLength, length() - offset);
         buffer.get(Math.toIntExact(offset), dst, dstOffset, Math.toIntExact(len));
         return len;
@@ -384,9 +392,14 @@ public sealed class BufferedData
     /** {@inheritDoc} */
     @NonNull
     @Override
-    public Bytes getBytes(long offset, long length) {
+    public Bytes getBytes(final long offset, final long length) {
         final var len = Math.toIntExact(length);
-        if(len < 0) throw new IllegalArgumentException("Length cannot be negative");
+        if (len < 0) {
+            throw new IllegalArgumentException("Length cannot be negative");
+        }
+        if (length() - offset < length) {
+            throw new BufferUnderflowException();
+        }
         // It is vital that we always copy here, we can never assume ownership of the underlying buffer
         final var copy = new byte[len];
         buffer.get(Math.toIntExact(offset), copy, 0, len);
@@ -397,7 +410,7 @@ public sealed class BufferedData
     @Override
     @NonNull
     public BufferedData slice(final long offset, final long length) {
-        return new BufferedData(buffer.slice(Math.toIntExact(offset), Math.toIntExact(length)));
+        return BufferedData.wrap(buffer.slice(Math.toIntExact(offset), Math.toIntExact(length)));
     }
 
     /** {@inheritDoc} */
@@ -564,6 +577,7 @@ public sealed class BufferedData
     @Override
     public BufferedData view(final int length) {
         if (length < 0) {
+            // FUTURE: change to AIOOBE
             throw new IllegalArgumentException("Length cannot be negative");
         }
 
@@ -921,6 +935,30 @@ public sealed class BufferedData
                 buffer.put((byte) (((int) value & 0x7F) | 0x80));
                 value >>>= 7;
             }
+        }
+    }
+
+    // Helper methods
+
+    protected void validateLen(final long len) {
+        if (len < 0) {
+            throw new IllegalArgumentException("Negative length not allowed");
+        }
+    }
+
+    protected void validateCanRead(final long offset, final long len) {
+        if (offset < 0) {
+            throw new ArrayIndexOutOfBoundsException();
+        }
+        if (offset > length() - len) {
+            // FUTURE: change to AIOOBE, too
+            throw new BufferUnderflowException();
+        }
+    }
+
+    protected void validateCanWrite(final long len) {
+        if (remaining() < len) {
+            throw new BufferOverflowException();
         }
     }
 }

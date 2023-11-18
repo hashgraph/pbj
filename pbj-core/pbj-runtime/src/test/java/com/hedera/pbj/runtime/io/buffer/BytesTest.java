@@ -1,9 +1,8 @@
-package com.hedera.pbj.runtime.io;
+package com.hedera.pbj.runtime.io.buffer;
 
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -535,44 +534,31 @@ final class BytesTest {
 //        assertEquals(value, bytes.getDouble(Double.BYTES, ByteOrder.LITTLE_ENDIAN));
 //    }
 
-    @Test
-    void matchesPrefixByteArrayTest() {
-        RandomAccessData primary = Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09});
-        assertTrue(primary.matchesPrefix(new byte[]{0x01}));
-        assertTrue(primary.matchesPrefix(new byte[]{0x01,0x02}));
-        assertTrue(primary.matchesPrefix(new byte[]{0x01,0x02,0x03,0x04,}));
-        assertTrue(primary.matchesPrefix(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09}));
+    @Nested
+    class BytesRandomAccessDataTest extends RandomAccessTestBase {
+        @NonNull
+        @Override
+        protected ReadableSequentialData emptySequence() {
+            return Bytes.EMPTY.toReadableSequentialData();
+        }
 
-        assertFalse(primary.matchesPrefix(new byte[]{0x02}));
-        assertFalse(primary.matchesPrefix(new byte[]{0x01,0x02,0x03,0x02}));
-        assertFalse(primary.matchesPrefix(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x00}));
-    }
+        @NonNull
+        @Override
+        protected ReadableSequentialData fullyUsedSequence() {
+            return new RandomAccessSequenceAdapter(Bytes.wrap(new byte[] {0, 1, 2, 4}), 4);
+        }
 
-    @Test
-    void matchesPrefixEmpty_issue37() {
-        final var bytes1 = Bytes.wrap(new byte[0]);
-        final var bytes2 = Bytes.wrap(new byte[0]);
-        assertTrue(bytes1.matchesPrefix(bytes2));
-    }
+        @NonNull
+        @Override
+        protected ReadableSequentialData sequence(@NonNull byte[] arr) {
+            return Bytes.wrap(arr).toReadableSequentialData();
+        }
 
-    @Test
-    void matchesPrefixBytesTest() {
-        RandomAccessData primary = Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09});
-        RandomAccessData prefixGood1 = Bytes.wrap(new byte[]{0x01});
-        assertTrue(primary.matchesPrefix(prefixGood1));
-        RandomAccessData prefixGood2 = Bytes.wrap(new byte[]{0x01,0x02});
-        assertTrue(primary.matchesPrefix(prefixGood2));
-        RandomAccessData prefixGood3 = Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,});
-        assertTrue(primary.matchesPrefix(prefixGood3));
-        RandomAccessData prefixGood4 = Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09});
-        assertTrue(primary.matchesPrefix(prefixGood4));
-
-        RandomAccessData prefixBad1 = Bytes.wrap(new byte[]{0x02});
-        assertFalse(primary.matchesPrefix(prefixBad1));
-        RandomAccessData prefixBad2 = Bytes.wrap(new byte[]{0x01,0x02,0x03,0x02});
-        assertFalse(primary.matchesPrefix(prefixBad2));
-        RandomAccessData prefixBad3 = Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x00});
-        assertFalse(primary.matchesPrefix(prefixBad3));
+        @NonNull
+        @Override
+        protected RandomAccessData randomAccessData(@NonNull byte[] bytes) {
+            return Bytes.wrap(bytes);
+        }
     }
 
     @ParameterizedTest
