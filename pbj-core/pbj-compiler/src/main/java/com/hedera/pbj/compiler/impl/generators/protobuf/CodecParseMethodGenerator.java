@@ -50,8 +50,7 @@ class CodecParseMethodGenerator {
                  *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
                  *              then the method also returns immediately.
                  * @return Parsed $modelClassName model object or null if data input was null or empty
-                 * @throws IOException If the protobuf stream is not empty and has malformed
-                 * 									  protobuf bytes (i.e. isn't valid protobuf).
+                 * @throws IOException If the protobuf stream is not empty and has malformed protobuf bytes (i.e. isn't valid protobuf).
                  */
                 public @NonNull $modelClassName parse(@NonNull final ReadableSequentialData input) throws IOException {
                     return parseInternal(input, false);
@@ -220,7 +219,7 @@ class CodecParseMethodGenerator {
 				final var beforeLimit = input.limit();
 				input.limit(input.position() + length);
 				while (input.hasRemaining()) {
-					$tempFieldName = addToList($tempFieldName,$readMethod);
+				    $tempFieldName = addToList($tempFieldName,$readMethod);
 				}
 				input.limit(beforeLimit);"""
                 .replace("$tempFieldName", "temp_" + field.name())
@@ -248,19 +247,19 @@ class CodecParseMethodGenerator {
 							final var valueTypeMessageSize = input.readVarInt(false);
 							final $fieldType value;
 							if (valueTypeMessageSize > 0) {
-								final var beforeLimit = input.limit();
-								input.limit(input.position() + valueTypeMessageSize);
-								// read inner tag
-								final int valueFieldTag = input.readVarInt(false);
-								// assert tag is as expected
-								assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
-								assert (valueFieldTag & TAG_WRITE_TYPE_MASK) == $valueTypeWireType;
-								// read value
-								value = $readMethod;
-								input.limit(beforeLimit);
+							    final var beforeLimit = input.limit();
+							    input.limit(input.position() + valueTypeMessageSize);
+							    // read inner tag
+							    final int valueFieldTag = input.readVarInt(false);
+							    // assert tag is as expected
+							    assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
+							    assert (valueFieldTag & TAG_WRITE_TYPE_MASK) == $valueTypeWireType;
+							    // read value
+							    value = $readMethod;
+							    input.limit(beforeLimit);
 							} else {
-								// means optional is default value
-								value = $defaultValue;
+							    // means optional is default value
+							    value = $defaultValue;
 							}"""
                     .replace("$fieldType", field.javaFieldType())
                     .replace("$readMethod", readMethod(field))

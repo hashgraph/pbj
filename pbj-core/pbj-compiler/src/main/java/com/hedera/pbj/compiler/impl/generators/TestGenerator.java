@@ -4,6 +4,7 @@ import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.*;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+import kotlin.reflect.jvm.internal.impl.protobuf.CodedOutputStream;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Code generator that parses protobuf files and generates unit tests for each message type.
@@ -58,37 +60,38 @@ public final class TestGenerator implements Generator {
 		imports.add("java.util");
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
-							package %s;
-											
-							import com.google.protobuf.util.JsonFormat;
-							import com.google.protobuf.CodedOutputStream;
-							import com.hedera.pbj.runtime.io.buffer.BufferedData;
-							import com.hedera.pbj.runtime.JsonTools;
-							import org.junit.jupiter.params.ParameterizedTest;
-							import org.junit.jupiter.params.provider.MethodSource;
-							import com.hedera.pbj.runtime.test.*;
-							import java.util.stream.IntStream;
-							import java.util.stream.Stream;
-							import java.nio.ByteBuffer;
-							import java.nio.CharBuffer;
-							%s
-														
-							import com.google.protobuf.CodedInputStream;
-							import com.google.protobuf.WireFormat;
-							import java.io.IOException;
-							import java.nio.charset.StandardCharsets;
+					package %s;
+									
+					import com.google.protobuf.util.JsonFormat;
+					import com.google.protobuf.CodedOutputStream;
+					import com.hedera.pbj.runtime.io.buffer.BufferedData;
+					import com.hedera.pbj.runtime.JsonTools;
+					import org.junit.jupiter.api.Test;
+					import org.junit.jupiter.params.ParameterizedTest;
+					import org.junit.jupiter.params.provider.MethodSource;
+					import com.hedera.pbj.runtime.test.*;
+					import java.util.stream.IntStream;
+					import java.util.stream.Stream;
+					import java.nio.ByteBuffer;
+					import java.nio.CharBuffer;
+					%s
 												
-							import static com.hedera.pbj.runtime.ProtoTestTools.*;
-							import static org.junit.jupiter.api.Assertions.*;
-												
-							/**
-							 * Unit Test for %s model object. Generate based on protobuf schema.
-							 */
-							public final class %s {
-								%s
-								%s
-							}
-							""".formatted(
+					import com.google.protobuf.CodedInputStream;
+					import com.google.protobuf.WireFormat;
+					import java.io.IOException;
+					import java.nio.charset.StandardCharsets;
+										
+					import static com.hedera.pbj.runtime.ProtoTestTools.*;
+					import static org.junit.jupiter.api.Assertions.*;
+										
+					/**
+					 * Unit Test for %s model object. Generate based on protobuf schema.
+					 */
+					public final class %s {
+					%s
+					%s
+					}
+					""".formatted(
 							testPackage,
 						imports.isEmpty() ? "" : imports.stream()
 								.filter(input -> !input.equals(testPackage))
@@ -112,16 +115,16 @@ public final class TestGenerator implements Generator {
 				public static final List<%s> ARGUMENTS;
 				
 				static {
-					%s
-					// work out the longest of all the lists of args as that is how many test cases we need
-					final int maxValues = IntStream.of(
-						%s
-					).max().getAsInt();
-					// create new stream of model objects using lists above as constructor params
-					ARGUMENTS = IntStream.range(0,maxValues)
-							.mapToObj(i -> new %s(
-								%s
-							)).toList();
+				%s
+				    // work out the longest of all the lists of args as that is how many test cases we need
+				    final int maxValues = IntStream.of(
+				%s
+				    ).max().getAsInt();
+				    // create new stream of model objects using lists above as constructor params
+				    ARGUMENTS = IntStream.range(0,maxValues)
+				            .mapToObj(i -> new %s(
+				%s
+				            )).toList();
 				}
 				
 				/**
@@ -136,7 +139,7 @@ public final class TestGenerator implements Generator {
 				""".formatted(
 					modelClassName,
 					fields.stream()
-							.map(f -> "final var "+f.nameCamelFirstLower()+"List = "+generateTestData(modelClassName, f, f.optionalValueType(), f.repeated())+";")
+							.map(f -> "final var %sList = %s;".formatted(f.nameCamelFirstLower(), generateTestData(modelClassName, f, f.optionalValueType(), f.repeated())))
 							.collect(Collectors.joining("\n")).indent(DEFAULT_INDENT),
 					fields.stream()
 							.map(f -> f.nameCamelFirstLower()+"List.size()")
@@ -158,13 +161,11 @@ public final class TestGenerator implements Generator {
 			Field.FieldType convertedFieldType = getOptionalConvertedFieldType(field);
 			return """
 					addNull(%s)"""
-					.formatted(getOptionsForFieldType(convertedFieldType, convertedFieldType.javaType))
-					.indent(DEFAULT_INDENT * 2);
+					.formatted(getOptionsForFieldType(convertedFieldType, convertedFieldType.javaType));
 		} else if (repeated) {
 			final String optionsList = generateTestData(modelClassName, field, field.optionalValueType(), false);
 			return """
-					generateListArguments(%s)""".formatted(optionsList)
-					.indent(DEFAULT_INDENT * 2);
+					generateListArguments(%s)""".formatted(optionsList);
 		} else if(field instanceof final OneOfField oneOf) {
 			final List<String> options = new ArrayList<>();
 			for (var subField: oneOf.fields()) {
@@ -180,13 +181,13 @@ public final class TestGenerator implements Generator {
 						} else {
 							listStr = getOptionsForFieldType(subField.type(), ((SingleField) subField).javaFieldTypeForTest());
 						}
-						options.add(listStr + """
-										.stream()
+						options.add(listStr + ("\n.stream()\n"+
+          							"""
 										.map(value -> new OneOf<>(%sOneOfType.%s, value))
 										.toList()""".formatted(
 										modelClassName + "." + field.nameCamelFirstUpper(),
 										enumValueName
-								).indent(DEFAULT_INDENT * 2)
+								)).indent(DEFAULT_INDENT )
 						);
 					}
 				} else {
@@ -196,8 +197,8 @@ public final class TestGenerator implements Generator {
 			}
 			return """
 					Stream.of(
-						List.of(new OneOf<>(%sOneOfType.UNSET, null)),
-						%s
+					    List.of(new OneOf<>(%sOneOfType.UNSET, null)),
+					    %s
 					).flatMap(List::stream).toList()""".formatted(
 							modelClassName+"."+field.nameCamelFirstUpper(),
                     String.join(",\n", options).indent(DEFAULT_INDENT)
@@ -252,114 +253,103 @@ public final class TestGenerator implements Generator {
 				@ParameterizedTest
 				@MethodSource("createModelTestArguments")
 				public void test$modelClassNameAgainstProtoC(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
-					final $modelClassName modelObj = modelObjWrapper.getValue();
-					// get reusable thread buffers
-					final var dataBuffer = getThreadLocalDataBuffer();
-					final var dataBuffer2 = getThreadLocalDataBuffer2();
-					final var byteBuffer = getThreadLocalByteBuffer();
-					final var charBuffer = getThreadLocalCharBuffer();
-					final var charBuffer2 = getThreadLocalCharBuffer2();
-					
-					// model to bytes with PBJ
-					$modelClassName.PROTOBUF.write(modelObj, dataBuffer);
-					// clamp limit to bytes written
-					dataBuffer.limit(dataBuffer.position());
-					
-					// copy bytes to ByteBuffer
-					dataBuffer.resetPosition();
-					final int protoBufByteCount = (int)dataBuffer.remaining();
-					dataBuffer.readBytes(byteBuffer);
-					byteBuffer.flip();
-					
-					// read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
-					final $protocModelClass protoCModelObj = $protocModelClass.parseFrom(byteBuffer);
-					
-					// read proto bytes with PBJ parser
-					dataBuffer.resetPosition();
-					final $modelClassName modelObj2 = $modelClassName.PROTOBUF.parse(dataBuffer);
-					
-					// check the read back object is equal to written original one
-					//assertEquals(modelObj.toString(), modelObj2.toString());
-					assertEquals(modelObj, modelObj2);
-					
-					// model to bytes with ProtoC writer
-					byteBuffer.clear();
-					final CodedOutputStream codedOutput = CodedOutputStream.newInstance(byteBuffer);
-					protoCModelObj.writeTo(codedOutput);
-					codedOutput.flush();
-					byteBuffer.flip();
-					// copy to a data buffer
-					dataBuffer2.writeBytes(byteBuffer);
-					dataBuffer2.flip();
-					
-					// compare written bytes
-					assertEquals(dataBuffer, dataBuffer2);
+				    final $modelClassName modelObj = modelObjWrapper.getValue();
+				    // get reusable thread buffers
+				    final var dataBuffer = getThreadLocalDataBuffer();
+				    final var dataBuffer2 = getThreadLocalDataBuffer2();
+				    final var byteBuffer = getThreadLocalByteBuffer();
+				    final var charBuffer = getThreadLocalCharBuffer();
+				    final var charBuffer2 = getThreadLocalCharBuffer2();
+				    
+				    // model to bytes with PBJ
+				    $modelClassName.PROTOBUF.write(modelObj, dataBuffer);
+				    // clamp limit to bytes written
+				    dataBuffer.limit(dataBuffer.position());
+				    
+				    // copy bytes to ByteBuffer
+				    dataBuffer.resetPosition();
+				    final int protoBufByteCount = (int)dataBuffer.remaining();
+				    dataBuffer.readBytes(byteBuffer);
+				    byteBuffer.flip();
+				    
+				    // read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
+				    final $protocModelClass protoCModelObj = $protocModelClass.parseFrom(byteBuffer);
+				    
+				    // read proto bytes with PBJ parser
+				    dataBuffer.resetPosition();
+				    final $modelClassName modelObj2 = $modelClassName.PROTOBUF.parse(dataBuffer);
+				    
+				    // check the read back object is equal to written original one
+				    //assertEquals(modelObj.toString(), modelObj2.toString());
+				    assertEquals(modelObj, modelObj2);
+				    
+				    // model to bytes with ProtoC writer
+				    byteBuffer.clear();
+				    final CodedOutputStream codedOutput = CodedOutputStream.newInstance(byteBuffer);
+				    protoCModelObj.writeTo(codedOutput);
+				    codedOutput.flush();
+				    byteBuffer.flip();
+				    // copy to a data buffer
+				    dataBuffer2.writeBytes(byteBuffer);
+				    dataBuffer2.flip();
+				    
+				    // compare written bytes
+				    assertEquals(dataBuffer, dataBuffer2);
 
-					// parse those bytes again with PBJ
-					dataBuffer2.resetPosition();
-					final $modelClassName modelObj3 = $modelClassName.PROTOBUF.parse(dataBuffer2);
-					assertEquals(modelObj, modelObj3);
+				    // parse those bytes again with PBJ
+				    dataBuffer2.resetPosition();
+				    final $modelClassName modelObj3 = $modelClassName.PROTOBUF.parse(dataBuffer2);
+				    assertEquals(modelObj, modelObj3);
 
-					// check measure methods
-					dataBuffer2.resetPosition();
-					assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measure(dataBuffer2));
-					assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measureRecord(modelObj));
-							
-					// check fast equals
-					dataBuffer2.resetPosition();
-					assertTrue($modelClassName.PROTOBUF.fastEquals(modelObj, dataBuffer2));
+				    // check measure methods
+				    dataBuffer2.resetPosition();
+				    assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measure(dataBuffer2));
+				    assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measureRecord(modelObj));
+				    		
+				    // check fast equals
+				    dataBuffer2.resetPosition();
+				    assertTrue($modelClassName.PROTOBUF.fastEquals(modelObj, dataBuffer2));
 
-					// Test toBytes()
-					Bytes bytes = $modelClassName.PROTOBUF.toBytes(modelObj);
-					final var dataBuffer3 = getThreadLocalDataBuffer();
-					bytes.toReadableSequentialData().readBytes(dataBuffer3);
-					byte[] readBytes = new byte[(int)dataBuffer3.length()];
-					dataBuffer3.getBytes(0, readBytes);
-					assertArrayEquals(bytes.toByteArray(), readBytes);
+				    // Test toBytes()
+				    Bytes bytes = $modelClassName.PROTOBUF.toBytes(modelObj);
+				    final var dataBuffer3 = getThreadLocalDataBuffer();
+				    bytes.toReadableSequentialData().readBytes(dataBuffer3);
+				    byte[] readBytes = new byte[(int)dataBuffer3.length()];
+				    dataBuffer3.getBytes(0, readBytes);
+				    assertArrayEquals(bytes.toByteArray(), readBytes);
 
-					// Test JSON Writing
-					final CharBufferToWritableSequentialData charBufferToWritableSequentialData = new CharBufferToWritableSequentialData(charBuffer);
-					$modelClassName.JSON.write(modelObj,charBufferToWritableSequentialData);
-					charBuffer.flip();
-					JsonFormat.printer().appendTo(protoCModelObj, charBuffer2);
-					charBuffer2.flip();
-					assertEquals(charBuffer2, charBuffer);
-					
-					// Test JSON Reading
-					final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(JsonTools.parseJson(charBuffer), false);
-					assertEquals(modelObj, jsonReadPbj);
+				    // Test JSON Writing
+				    final CharBufferToWritableSequentialData charBufferToWritableSequentialData = new CharBufferToWritableSequentialData(charBuffer);
+				    $modelClassName.JSON.write(modelObj,charBufferToWritableSequentialData);
+				    charBuffer.flip();
+				    JsonFormat.printer().appendTo(protoCModelObj, charBuffer2);
+				    charBuffer2.flip();
+				    assertEquals(charBuffer2, charBuffer);
+				    
+				    // Test JSON Reading
+				    final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(JsonTools.parseJson(charBuffer), false);
+				    assertEquals(modelObj, jsonReadPbj);
 				}
-				// Very slow for now. Too much garbage generated to enable in general case.
-//					// Test hashCode and equals()
-//					Stream<NoToStringWrapper<$modelClassName>> objects = createModelTestArguments();
-//					Object[] objArray = objects.toArray();
-//					for (int i = 0; i < objArray.length; i++) {
-//						for (int j = i; j < objArray.length; j++) {
-//							if (objArray[i].hashCode() != objArray[i].hashCode()) {
-//								fail("Same object, different hash.");
-//							}
-//							if (objArray[j].hashCode() != objArray[j].hashCode()) {
-//							    fail("Same object, different hash 1.");
-//							}
-//							if (objArray[i].hashCode() == objArray[j].hashCode()) {
-//						        if (!objArray[i].equals(objArray[j])) {
-//						             fail("equalsHash, different objects.");
-//						        }
-//							}
-//						}
-//					}
-//
-//					Map<Object, Object> map = new HashMap<>();
-//					map.put(objArray[0], objArray[0]);
-//					for (int i = 1; i < objArray.length; i++) {
-//						Object o = map.put(objArray[i], objArray[i]);
-//						if (o != null) {
-//							Object existing = map.get(objArray[i]);
-//							assertEquals(existing.hashCode(), objArray[i].hashCode());
-//							assertEquals(existing, objArray[i]);
-//						}
-//					}
-
+				
+				@SuppressWarnings("EqualsWithItself")
+				@Test
+				public void testTimestampTestEqualsAndHashCode() throws Exception {
+				    if (ARGUMENTS.size() >= 3) {
+				        final var item1 = ARGUMENTS.get(0);
+				        final var item2 = ARGUMENTS.get(1);
+				        final var item3 = ARGUMENTS.get(2);
+				        assertEquals(item1, item1);
+				        assertEquals(item2, item2);
+				        assertEquals(item3, item3);
+				        assertNotEquals(item1, item2);
+				        assertNotEquals(item2, item3);
+				        final var item1HashCode = item1.hashCode();
+				        final var item2HashCode = item2.hashCode();
+				        final var item3HashCode = item3.hashCode();
+				        assertNotEquals(item1HashCode, item2HashCode);
+				        assertNotEquals(item2HashCode, item3HashCode);
+				    }
+				}
 				"""
 				.replace("$modelClassName",modelClassName)
 				.replace("$protocModelClass",protoCJavaFullQualifiedClass)

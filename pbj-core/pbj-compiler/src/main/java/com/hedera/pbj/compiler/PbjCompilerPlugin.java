@@ -49,11 +49,11 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
         // get java src sets
         final var mainSrcSet = javaPlugin.getSourceSets().getByName(SourceSet.MAIN_SOURCE_SET_NAME);
         final var testSrcSet = javaPlugin.getSourceSets().getByName(SourceSet.TEST_SOURCE_SET_NAME);
-        final String outputDirectory = "generated/source/pbj-proto/main/";
+        final String outputDirectory = "generated/source/pbj-proto/";
         final Provider<Directory> outputDirectoryMain =
-                project.getLayout().getBuildDirectory().dir(outputDirectory + "java");
+                project.getLayout().getBuildDirectory().dir(outputDirectory + "main/java");
         final Provider<Directory> outputDirectoryTest =
-                project.getLayout().getBuildDirectory().dir(outputDirectory + "test");
+                project.getLayout().getBuildDirectory().dir(outputDirectory + "test/java");
 
         // for the 'main' source set we:
         // 1) Add a new 'pbj' virtual directory mapping

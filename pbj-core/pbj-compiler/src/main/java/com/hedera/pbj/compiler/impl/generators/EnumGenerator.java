@@ -94,10 +94,10 @@ public final class EnumGenerator {
 		if (addUnknown) {
 			enumValuesCode.add(
       				"""
-					 /**
-					  * Enum value for a unset OneOf, to avoid null OneOfs
-					  */
-					 UNSET(-1, "UNSET")""");
+					/**
+					 * Enum value for a unset OneOf, to avoid null OneOfs
+					 */
+					UNSET(-1, "UNSET")""");
 		}
 		for (int i = 0; i <= maxIndex; i++) {
 			final EnumValue enumValue = enumValues.get(i);
@@ -118,85 +118,90 @@ public final class EnumGenerator {
 		return """
 				$javaDocComment
 				$deprecated$public enum $enumName 
-						implements com.hedera.pbj.runtime.EnumWithProtoMetadata {
+				        implements com.hedera.pbj.runtime.EnumWithProtoMetadata {
 				$enumValues;
-					
-					/** The field ordinal in protobuf for this type */
-					private final int protoOrdinal;
-					
-					/** The original field name in protobuf for this type */
-					private final String protoName;
-					
-					/**
-					 * OneOf Type Enum Constructor
-					 *
-					 * @param protoOrdinal The oneof field ordinal in protobuf for this type
-					 * @param protoName The original field name in protobuf for this type
-					 */
-					$enumName(final int protoOrdinal, String protoName) {
-						this.protoOrdinal = protoOrdinal;
-						this.protoName = protoName;
-					}
-					
-					/**
-					 * Get the oneof field ordinal in protobuf for this type
-					 *
-					 * @return The oneof field ordinal in protobuf for this type
-					 */
-					public int protoOrdinal() {
-						return protoOrdinal;
-					}
-					
-					/**
-					 * Get the original field name in protobuf for this type
-					 *
-					 * @return The original field name in protobuf for this type
-					 */
-					public String protoName() {
-						return protoName;
-					}
-					
-					/**
-					 * Get enum from protobuf ordinal
-					 *
-					 * @param ordinal the protobuf ordinal number
-					 * @return enum for matching ordinal
-					 * @throws IllegalArgumentException if ordinal doesn't exist
-					 */
-					public static $enumName fromProtobufOrdinal(int ordinal) {
-						return switch(ordinal) {
+				    
+				    /** The field ordinal in protobuf for this type */
+				    private final int protoOrdinal;
+				    
+				    /** The original field name in protobuf for this type */
+				    private final String protoName;
+				    
+				    /**
+				     * OneOf Type Enum Constructor
+				     *
+				     * @param protoOrdinal The oneof field ordinal in protobuf for this type
+				     * @param protoName The original field name in protobuf for this type
+				     */
+				    $enumName(final int protoOrdinal, String protoName) {
+				        this.protoOrdinal = protoOrdinal;
+				        this.protoName = protoName;
+				    }
+				    
+				    /**
+				     * Get the oneof field ordinal in protobuf for this type
+				     *
+				     * @return The oneof field ordinal in protobuf for this type
+				     */
+				    public int protoOrdinal() {
+				        return protoOrdinal;
+				    }
+				    
+				    /**
+				     * Get the original field name in protobuf for this type
+				     *
+				     * @return The original field name in protobuf for this type
+				     */
+				    public String protoName() {
+				        return protoName;
+				    }
+				    
+				    /**
+				     * Get enum from protobuf ordinal
+				     *
+				     * @param ordinal the protobuf ordinal number
+				     * @return enum for matching ordinal
+				     * @throws IllegalArgumentException if ordinal doesn't exist
+				     */
+				    public static $enumName fromProtobufOrdinal(int ordinal) {
+				        return switch(ordinal) {
 				$caseStatements
-							default -> throw new IllegalArgumentException("Unknown protobuf ordinal "+ordinal);
-						};
-					}
-					
-					/**
-					 * Get enum from string name, supports the enum or protobuf format name
-					 *
-					 * @param name the enum or protobuf format name
-					 * @return enum for matching name
-					 */
-					public static $enumName fromString(String name) {
-						return switch(name) {
+				            default -> throw new IllegalArgumentException("Unknown protobuf ordinal "+ordinal);
+				        };
+				    }
+				    
+				    /**
+				     * Get enum from string name, supports the enum or protobuf format name
+				     *
+				     * @param name the enum or protobuf format name
+				     * @return enum for matching name
+				     */
+				    public static $enumName fromString(String name) {
+				        return switch(name) {
 				$fromStringCaseStatements
-							default -> throw new IllegalArgumentException("Unknown token kyc status "+name);
-						};
-					}
+				            default -> throw new IllegalArgumentException("Unknown token kyc status "+name);
+				        };
+				    }
 				}
 				"""
 				.replace("$javaDocComment", javaDocComment)
 				.replace("$deprecated$", deprecated)
 				.replace("$enumName", enumName)
 				.replace("$enumValues", String.join(",\n\n", enumValuesCode).indent(DEFAULT_INDENT))
-				.replace("$caseStatements", enumValues.entrySet().stream().map((entry) -> "			case " + entry.getKey() + " -> " +
-										camelToUpperSnake(entry.getValue().name) + ";").collect(Collectors.joining("\n")))
+				.replace("$caseStatements", enumValues.entrySet()
+						.stream()
+						.map((entry) -> "case %s -> %s;".formatted(entry.getKey(), camelToUpperSnake(entry.getValue().name))
+								.indent(DEFAULT_INDENT * 3))
+						.collect(Collectors.joining("\n")))
 				.replace("$fromStringCaseStatements", enumValues.values().stream().map(enumValue -> {
 					if (camelToUpperSnake(enumValue.name).equals(enumValue.name)) {
-						return "			case \"" + enumValue.name + "\" -> " +
-								camelToUpperSnake(enumValue.name) + ";";
+						return "case \"%s\" -> %s;"
+								.formatted(enumValue.name, camelToUpperSnake(enumValue.name))
+								.indent(DEFAULT_INDENT * 3);
 					} else {
-						return "			case \"" + camelToUpperSnake(enumValue.name) + "\", \"" + enumValue.name + "\" -> " +
-								camelToUpperSnake(enumValue.name) + ";";
+						return "case \"%s\", \"%s\" -> %s;"
+								.formatted(enumValue.name, camelToUpperSnake(enumValue.name), camelToUpperSnake(enumValue.name))
+								.indent(DEFAULT_INDENT * 3);
 					}
 				}).collect(Collectors.joining("\n")));
 	}

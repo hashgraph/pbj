@@ -163,7 +163,7 @@ public final class ModelGenerator implements Generator {
 									 * Enum for the type of "%s" oneof value
 									 */""".formatted(oneOfField.name());
 				final String enumString = createEnum(enumComment ,"",enumName,maxIndex,enumValues, true)
-						.indent(DEFAULT_INDENT);
+						.indent(DEFAULT_INDENT * 2);
 				oneofEnums.add(enumString);
 				fields.add(oneOfField);
 				imports.add("com.hedera.pbj.runtime");
@@ -302,16 +302,16 @@ public final class ModelGenerator implements Generator {
 						FIXED64, SFIXED64, INT64, UINT64, SINT64 ->
 					bodyContent +=
        					 """
-						 /**
-						  * Override the default hashCode method for
-						  * single field int objects.
-						  */
-						 @Override
-						 public int hashCode() {
-						 	long hashCode = $fieldName;
-						 $hashCodeManipulation
-						 	return (int)hashCode;
-						 }
+						/**
+						 * Override the default hashCode method for
+						 * single field int objects.
+						 */
+						@Override
+						public int hashCode() {
+						    long hashCode = $fieldName;
+						    $hashCodeManipulation
+						    return (int)hashCode;
+						}
 						""".replace("$fieldName", fields.get(0).name())
 						   .replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
 						   .indent(DEFAULT_INDENT);
@@ -323,10 +323,10 @@ public final class ModelGenerator implements Generator {
 						 * single field float and double objects.
 						 */
 						@Override
-						public int hashCode() {							
-							double hashCode = $fieldName;
+						public int hashCode() {
+						    double hashCode = $fieldName;
 						$hashCodeManipulation
-							return (int)hashCode;
+						    return (int)hashCode;
 						}
 						""".replace("$fieldName", fields.get(0).name())
 						   .replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
@@ -339,10 +339,10 @@ public final class ModelGenerator implements Generator {
 						 * single field String objects.
 						 */
 						@Override
-						public int hashCode() {						
-							long hashCode = $fieldName.hashCode();
+						public int hashCode() {
+						    long hashCode = $fieldName.hashCode();
 						$hashCodeManipulation
-							return (int)hashCode;
+						    return (int)hashCode;
 						}
 						"""
 						.replace("$fieldName", fields.get(0).name())
@@ -356,8 +356,8 @@ public final class ModelGenerator implements Generator {
 						 * single field boolean objects.
 						 */
 						@Override
-						public int hashCode() {						
-							return $fieldName ? 1 : 0;
+						public int hashCode() {
+						    return $fieldName ? 1 : 0;
 						}
 						"""
 						.replace("$fieldName", fields.get(0).name())
@@ -379,21 +379,21 @@ public final class ModelGenerator implements Generator {
 			bodyContent +=
       			"""
 				/**
-				 * Override the default hashCode method for
-				 * all other objects to make hashCode
-				 */
-				 @Override
-				 public int hashCode() {
-				 	int result = 1;
+				* Override the default hashCode method for
+				* all other objects to make hashCode
+				*/
+				@Override
+				public int hashCode() {
+				    int result = 1;
 				""".indent(DEFAULT_INDENT);
 
 			bodyContent += statements;
 
 			bodyContent +=
            		"""
-					long hashCode = result;
+				    long hashCode = result;
 				$hashCodeManipulation
-					return (int)hashCode;
+				    return (int)hashCode;
 				}
 				""".replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
 					.indent(DEFAULT_INDENT);
@@ -411,17 +411,17 @@ public final class ModelGenerator implements Generator {
 		*/
 		@Override
 		public boolean equals(Object that) {
-			if (that == null || this.getClass() != that.getClass()) {
-				return false;
-			}
-			$javaRecordName thatObj = ($javaRecordName)that;
+		    if (that == null || this.getClass() != that.getClass()) {
+		        return false;
+		    }
+		    $javaRecordName thatObj = ($javaRecordName)that;
 		""".replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
 
 		bodyContent += equalsStatements.indent(DEFAULT_INDENT);
 		bodyContent +=
 		"""
-			return true;
-		}	
+		    return true;
+		}
 		""".indent(DEFAULT_INDENT);
 
 		// Has methods
@@ -442,7 +442,7 @@ public final class ModelGenerator implements Generator {
 			 * @return a pre-populated builder
 			 */
 			public Builder copyBuilder() {
-				return new Builder(%s);
+			    return new Builder(%s);
 			}
 			
 			/**
@@ -451,7 +451,7 @@ public final class ModelGenerator implements Generator {
 			 * @return a new builder
 			 */
 			public static Builder newBuilder() {
-				return new Builder();
+			    return new Builder();
 			}
 			"""
 			.formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
@@ -499,7 +499,7 @@ public final class ModelGenerator implements Generator {
 		final OneOfField parentOneOfField = field.parent();
 		if (parentOneOfField != null) {
 			final String oneOfEnumValue = parentOneOfField.getEnumClassRef()+"."+camelToUpperSnake(field.name());
-			prefix = "new OneOf<>("+oneOfEnumValue+",";
+			prefix = " new OneOf<>("+oneOfEnumValue+",";
 			postfix = ")";
 			fieldToSet = parentOneOfField.nameCamelFirstLower();
 		} else {
@@ -515,8 +515,8 @@ public final class ModelGenerator implements Generator {
 						 * @return builder to continue building with
 						 */
 						public Builder $fieldName($fieldType $fieldName) {
-							this.$fieldToSet = $prefix$fieldName$postfix;
-							return this;
+						    this.$fieldToSet = $prefix$fieldName$postfix;
+						    return this;
 						}"""
 				.replace("$fieldDoc",field.comment()
 						.replaceAll("\n", "\n * "))
@@ -537,8 +537,8 @@ public final class ModelGenerator implements Generator {
 						 * @return builder to continue building with
 						 */
 						public Builder $fieldName($messageClass.Builder builder) {
-							this.$fieldToSet = $prefix builder.build() $postfix;
-							return this;
+						    this.$fieldToSet =$prefix builder.build() $postfix;
+						    return this;
 						}"""
 					.replace("$messageClass",field.messageType())
 					.replace("$fieldDoc",field.comment()
@@ -562,8 +562,8 @@ public final class ModelGenerator implements Generator {
 						 * @return builder to continue building with
 						 */
 						public Builder $fieldName($baseType ... values) {
-							this.$fieldToSet = $prefix List.of(values) $postfix;
-							return this;
+						    this.$fieldToSet = $prefix List.of(values) $postfix;
+						    return this;
 						}"""
 					.replace("$baseType",field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1))
 					.replace("$fieldDoc",field.comment()
@@ -597,30 +597,30 @@ public final class ModelGenerator implements Generator {
 			 * paths use the constructor directly.
 			 */
 			public static final class Builder {
-				$fields;
+			    $fields;
 		
-				/**
-				 * Create an empty builder
-				 */
-				public Builder() {}
+			    /**
+			     * Create an empty builder
+			     */
+			    public Builder() {}
 		
-				/**
-				 * Create a pre-populated builder
-				 * $constructorParamDocs
-				 */
-				public Builder($constructorParams) {
-			$constructorCode	}
+			    /**
+			     * Create a pre-populated builder
+			     * $constructorParamDocs
+			     */
+			    public Builder($constructorParams) {
+			$constructorCode    }
 		
-				/**
-				 * Build a new model record with data set on builder
-				 *
-				 * @return new model record with data set
-				 */
-				public $javaRecordName build() {
-					return new $javaRecordName($recordParams);
-				}
+			    /**
+			     * Build a new model record with data set on builder
+			     *
+			     * @return new model record with data set
+			     */
+			    public $javaRecordName build() {
+			        return new $javaRecordName($recordParams);
+			    }
 		
-				$builderMethods}"""
+			    $builderMethods}"""
 				.replace("$fields", fields.stream().map(field ->
 						"private " + field.javaFieldType() + " " + field.nameCamelFirstLower() +
 								" = " + getDefaultValue(field, msgDef, lookupHelper)
@@ -651,9 +651,9 @@ public final class ModelGenerator implements Generator {
 
 	private static String generateConstructorCode(final Field f) {
 		StringBuilder sb = new StringBuilder("""
-									if ($fieldName == null) {
-										throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
-									}""".replace("$fieldName", f.nameCamelFirstLower()));
+								if ($fieldName == null) {
+								    throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
+								}""".replace("$fieldName", f.nameCamelFirstLower()));
 		if (f instanceof final OneOfField oof) {
 			for (Field subField: oof.fields()) {
 				if(subField.optionalValueType()) {
@@ -662,7 +662,7 @@ public final class ModelGenerator implements Generator {
 							// handle special case where protobuf does not have destination between a OneOf with optional
 							// value of empty vs an unset OneOf.
 							if($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldName.value() == null) {
-								$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
+							$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
 							}"""
 							.replace("$fieldName", f.nameCamelFirstLower())
 							.replace("$fieldUpperName", f.nameCamelFirstUpper())
