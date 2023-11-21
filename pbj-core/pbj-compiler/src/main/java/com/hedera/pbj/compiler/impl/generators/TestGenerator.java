@@ -333,7 +333,7 @@ public final class TestGenerator implements Generator {
 				
 				@SuppressWarnings("EqualsWithItself")
 				@Test
-				public void testTimestampTestEqualsAndHashCode() throws Exception {
+				public void testTestEqualsAndHashCode() throws Exception {
 				    if (ARGUMENTS.size() >= 3) {
 				        final var item1 = ARGUMENTS.get(0);
 				        final var item2 = ARGUMENTS.get(1);

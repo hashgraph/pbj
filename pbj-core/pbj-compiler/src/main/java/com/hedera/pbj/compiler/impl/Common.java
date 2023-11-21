@@ -67,7 +67,8 @@ public final class Common {
 	 * @param firstUpper if true then first char is upper case otherwise it is lower
 	 * @return out name in camel case
 	 */
-	public static String snakeToCamel(String name, boolean firstUpper) {
+	@NonNull
+	public static String snakeToCamel(@NonNull String name, boolean firstUpper) {
 		final String out =  Arrays.stream(name.split("_")).map(Common::capitalizeFirstLetter).collect(
 				Collectors.joining(""));
 		return (firstUpper ? Character.toUpperCase(out.charAt(0)) : Character.toLowerCase(out.charAt(0)) )
@@ -186,92 +187,86 @@ public final class Common {
 			if (f.parent() != null) {
 				final OneOfField oneOfField = f.parent();
 				generatedCodeSoFar += getFieldsHashCode(oneOfField.fields(), generatedCodeSoFar);
-			}
-
-			if (f.optionalValueType()) {
+			} else if (f.optionalValueType()) {
 				generatedCodeSoFar = getOptionalHashCodeGeneration(generatedCodeSoFar, f);
-			}
-			else if (f.repeated()) {
+			} else if (f.repeated()) {
 				generatedCodeSoFar = getRepeatedHashCodeGeneration(generatedCodeSoFar, f);
-			}
-			else if (f.nameCamelFirstLower() != null) {
-				if (f.type() == Field.FieldType.FIXED32 ||
-						f.type() == Field.FieldType.INT32 ||
-						f.type() == Field.FieldType.SFIXED32 ||
-						f.type() == Field.FieldType.SINT32 ||
-						f.type() == Field.FieldType.UINT32) {
-					generatedCodeSoFar += (
-               		"""
-					if ($fieldName != DEFAULT.$fieldName) {
-					    result = 31 * result + Integer.hashCode($fieldName);
-					}
-					""").replace("$fieldName", f.nameCamelFirstLower());
-				} else if (f.type() == Field.FieldType.FIXED64 ||
-						f.type() == Field.FieldType.INT64 ||
-						f.type() == Field.FieldType.SFIXED64 ||
-						f.type() == Field.FieldType.SINT64 ||
-						f.type() == Field.FieldType.UINT64) {
-					generatedCodeSoFar += (
-               		"""
-					if ($fieldName != DEFAULT.$fieldName) {
-					    result = 31 * result + Long.hashCode($fieldName);
-					}
-					""").replace("$fieldName", f.nameCamelFirstLower());
-				} else if (f.type() == Field.FieldType.ENUM) {
-					generatedCodeSoFar += (
-               		"""
-					if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-					    result = 31 * result + $fieldName.hashCode();
-					}
-					""").replace("$fieldName", f.nameCamelFirstLower());
-				} else if (f.type() == Field.FieldType.BOOL) {
-					generatedCodeSoFar += (
-               		"""
-					if ($fieldName != DEFAULT.$fieldName) {
-					    result = 31 * result + Boolean.hashCode($fieldName);
-					}
-					""").replace("$fieldName", f.nameCamelFirstLower());
-				} else if (f.type() == Field.FieldType.FLOAT) {
-					generatedCodeSoFar += (
-					"""
-					if ($fieldName != DEFAULT.$fieldName) {
-					    result = 31 * result + Float.hashCode($fieldName);
-					}
-					""").replace("$fieldName", f.nameCamelFirstLower());
-				} else if (f.type() == Field.FieldType.DOUBLE) {
-					generatedCodeSoFar += (
-               		"""
-					if ($fieldName != DEFAULT.$fieldName) {
-					    result = 31 * result + Double.hashCode($fieldName);
-					}
-					""").replace("$fieldName", f.nameCamelFirstLower());
-				} else if (f.type() == Field.FieldType.STRING) {
-					generatedCodeSoFar += (
-               		"""
-					if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-					    result = 31 * result + $fieldName.hashCode();
-					}
-					""").replace("$fieldName", f.nameCamelFirstLower());
-				} else if (f.type() == Field.FieldType.BYTES) {
-					generatedCodeSoFar += (
-               		"""
-					if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-					    result = 31 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
-					}
-					""").replace("$fieldName", f.nameCamelFirstLower());
-				}
-				else if (f.parent() == null) { // process sub message
-				    generatedCodeSoFar += (
-               		"""
-					if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-					    result = 31 * result + $fieldName.hashCode();
-					}
-					""").replace("$fieldName", f.nameCamelFirstLower());
-				}
-				else {
-					throw new RuntimeException("Unexpected field type for getting HashCode - " + f.type().toString());
-				}
-			}
+			} else {
+                if (f.type() == Field.FieldType.FIXED32 ||
+                        f.type() == Field.FieldType.INT32 ||
+                        f.type() == Field.FieldType.SFIXED32 ||
+                        f.type() == Field.FieldType.SINT32 ||
+                        f.type() == Field.FieldType.UINT32) {
+                    generatedCodeSoFar += (
+                            """
+                             if ($fieldName != DEFAULT.$fieldName) {
+                             result = 31 * result + Integer.hashCode($fieldName);
+                             }
+                             """).replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.FIXED64 ||
+                        f.type() == Field.FieldType.INT64 ||
+                        f.type() == Field.FieldType.SFIXED64 ||
+                        f.type() == Field.FieldType.SINT64 ||
+                        f.type() == Field.FieldType.UINT64) {
+                    generatedCodeSoFar += (
+                            """
+                             if ($fieldName != DEFAULT.$fieldName) {
+                             result = 31 * result + Long.hashCode($fieldName);
+                             }
+                             """).replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.ENUM) {
+                    generatedCodeSoFar += (
+                            """
+                            if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
+                            result = 31 * result + $fieldName.hashCode();
+                            }
+                            """).replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.BOOL) {
+                    generatedCodeSoFar += (
+                            """
+                            if ($fieldName != DEFAULT.$fieldName) {
+                            result = 31 * result + Boolean.hashCode($fieldName);
+                            }
+                            """).replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.FLOAT) {
+                    generatedCodeSoFar += (
+                            """
+                            if ($fieldName != DEFAULT.$fieldName) {
+                            result = 31 * result + Float.hashCode($fieldName);
+                            }
+                            """).replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.DOUBLE) {
+                    generatedCodeSoFar += (
+							"""
+                            if ($fieldName != DEFAULT.$fieldName) {
+                            result = 31 * result + Double.hashCode($fieldName);
+                            }
+                            """).replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.STRING) {
+                    generatedCodeSoFar += (
+                            """
+                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
+                             result = 31 * result + $fieldName.hashCode();
+                             }
+                             """).replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.BYTES) {
+                    generatedCodeSoFar += (
+                            """
+                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
+                             result = 31 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
+                             }
+                             """).replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.parent() == null) { // process sub message
+                    generatedCodeSoFar += (
+                            """
+                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
+                             result = 31 * result + $fieldName.hashCode();
+                             }
+                             """).replace("$fieldName", f.nameCamelFirstLower());
+                } else {
+                    throw new RuntimeException("Unexpected field type for getting HashCode - " + f.type().toString());
+                }
+            }
 		}
 		return generatedCodeSoFar.indent(DEFAULT_INDENT * 2);
 	}
