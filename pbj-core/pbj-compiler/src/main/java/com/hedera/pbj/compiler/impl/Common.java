@@ -447,14 +447,10 @@ public final class Common {
 
 				generatedCodeSoFar += (
                 """
-                if ($fieldName instanceof Object) {
-				    if (this.$fieldName == null && thatObj.$fieldName != null) {
-				        return false;
-				    }
-				    if (!$fieldName.equals(thatObj.$fieldName)) {
-				        return false;
-				    }
-				} else if ($fieldName != thatObj.$fieldName) {
+				if (this.$fieldName == null && thatObj.$fieldName != null) {
+				    return false;
+				}
+				if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
 				    return false;
 				}
 				""").replace("$fieldName", f.nameCamelFirstLower());
