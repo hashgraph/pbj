@@ -1,5 +1,7 @@
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
+
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.OneOfField;
@@ -21,7 +23,7 @@ class CodecMeasureRecordMethodGenerator {
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldSizeOfLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower())))
-                .collect(Collectors.joining("\n" + Common.FIELD_INDENT));
+                .collect(Collectors.joining("\n")).indent(DEFAULT_INDENT);
         return """
                 /**
                  * Compute number of bytes that would be written when calling {@code write()} method.
@@ -37,8 +39,7 @@ class CodecMeasureRecordMethodGenerator {
                 """
                 .replace("$modelClass", modelClassName)
                 .replace("$fieldSizeOfLines", fieldSizeOfLines)
-                .replaceAll("\n", "\n" + Common.FIELD_INDENT)
-                ;
+                .indent(DEFAULT_INDENT);
     }
 
     /**
@@ -52,7 +53,7 @@ class CodecMeasureRecordMethodGenerator {
     private static String generateFieldSizeOfLines(final Field field, final String modelClassName, String getValueCode) {
         final String fieldDef = Common.camelToUpperSnake(field.name());
         String prefix = "// ["+field.fieldNumber()+"] - "+field.name();
-        prefix += "\n"+ Common.FIELD_INDENT.repeat(1);
+        prefix += "\n";
 
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
@@ -60,7 +61,7 @@ class CodecMeasureRecordMethodGenerator {
             getValueCode = "data."+oneOfField.nameCamelFirstLower()+"().as()";
             prefix += "if(data."+oneOfField.nameCamelFirstLower()+"().kind() == "+ oneOfType +"."+
                     Common.camelToUpperSnake(field.name())+")";
-            prefix += "\n"+ Common.FIELD_INDENT.repeat(2);
+            prefix += "\n";
         }
 
         final String writeMethodName = field.methodNameType();

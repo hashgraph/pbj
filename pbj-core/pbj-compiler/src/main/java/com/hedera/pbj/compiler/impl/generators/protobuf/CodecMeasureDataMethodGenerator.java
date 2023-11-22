@@ -1,6 +1,7 @@
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
-import com.hedera.pbj.compiler.impl.Common;
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
+
 import com.hedera.pbj.compiler.impl.Field;
 
 import java.util.List;
@@ -30,6 +31,6 @@ class CodecMeasureDataMethodGenerator {
                     return (int)(end - start);
                 }
                 """
-                .replaceAll("\n", "\n" + Common.FIELD_INDENT);
+                .indent(DEFAULT_INDENT);
     }
 }

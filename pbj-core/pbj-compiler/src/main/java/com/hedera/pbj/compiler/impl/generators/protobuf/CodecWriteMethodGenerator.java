@@ -1,5 +1,7 @@
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
+
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.OneOfField;
@@ -20,7 +22,8 @@ final class CodecWriteMethodGenerator {
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldWriteLines(field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower())))
-                .collect(Collectors.joining("\n" + Common.FIELD_INDENT));
+                .collect(Collectors.joining("\n"))
+                .indent(DEFAULT_INDENT);
 
         return """     
             /**
@@ -36,7 +39,7 @@ final class CodecWriteMethodGenerator {
             """
             .replace("$modelClass", modelClassName)
             .replace("$fieldWriteLines", fieldWriteLines)
-            .replaceAll("\n", "\n" + Common.FIELD_INDENT);
+            .indent(DEFAULT_INDENT);
     }
 
 
@@ -51,7 +54,7 @@ final class CodecWriteMethodGenerator {
     private static String generateFieldWriteLines(final Field field, final String modelClassName, String getValueCode) {
         final String fieldDef = Common.camelToUpperSnake(field.name());
         String prefix = "// ["+field.fieldNumber()+"] - "+field.name();
-        prefix += "\n"+ Common.FIELD_INDENT.repeat(1);
+        prefix += "\n";
 
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
@@ -59,7 +62,7 @@ final class CodecWriteMethodGenerator {
             getValueCode = "data."+oneOfField.nameCamelFirstLower()+"().as()";
             prefix += "if(data."+oneOfField.nameCamelFirstLower()+"().kind() == "+ oneOfType +"."+
                     Common.camelToUpperSnake(field.name())+")";
-            prefix += "\n"+ Common.FIELD_INDENT.repeat(2);
+            prefix += "\n";
         }
 
         final String writeMethodName = field.methodNameType();

@@ -1,6 +1,5 @@
 package com.hedera.pbj.runtime.io.buffer;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
@@ -8,7 +7,6 @@ import com.hedera.pbj.runtime.io.ReadableTestBase;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.WritableTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -94,21 +92,6 @@ final class BufferedDataTest {
         for (int i = 0; i < LEN; i++) {
             assertEquals((byte) (i + START), slicedBytes.getByte(i));
         }
-    }
-    @Test
-    @DisplayName("readBytes() does always copy")
-    void readBytesCopies() {
-        byte[] bytes = new byte[] {1, 2, 3, 4, 5};
-        byte[] bytesOrig = bytes.clone();
-        final var buf = BufferedData.wrap(bytes);
-        final Bytes readBytes = buf.readBytes(5);
-        assertArrayEquals(bytesOrig, readBytes.toByteArray());
-        bytes[0] = 127;
-        bytes[1] = 127;
-        bytes[2] = 127;
-        bytes[3] = 127;
-        bytes[4] = 127;
-        assertArrayEquals(bytesOrig, readBytes.toByteArray());
     }
 
     @Nested

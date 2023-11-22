@@ -76,9 +76,9 @@ public final class JsonCodecGenerator implements Generator {
 					 * JSON Codec for $modelClass model object. Generated based on protobuf schema.
 					 */
 					public final class $codecClass implements JsonCodec<$modelClass> {
-						$unsetOneOfConstants
-						$parseObject
-						$writeMethod
+					    $unsetOneOfConstants
+					    $parseObject
+					    $writeMethod
 					}
 					"""
 					.replace("$package", codecPackage)

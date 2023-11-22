@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>> This comment is special code for setting PBJ Compiler java package
+
+import "timestampTest.proto";
+import "google/protobuf/wrappers.proto";
+import "everything.proto";
+
+/**
+ * Example protobuf containing examples of all types
+ */
+message Hasheval {
+  int32 int32Number = 1;
+  sint32 sint32Number = 2;
+  uint32 uint32Number = 3;
+  fixed32 fixed32Number = 4;
+  sfixed32 sfixed32Number = 5;
+  float floatNumber = 6;
+  int64 int64Number = 7;
+  sint64 sint64Number = 8;
+  uint64 uint64Number = 9;
+  fixed64 fixed64Number = 10;
+  sfixed64 sfixed64Number = 11;
+  double doubleNumber = 12;
+  bool booleanField = 13;
+  Suit enumSuit = 14;
+  TimestampTest subObject = 15;
+  string text = 16;
+  bytes bytesField = 17;
+}
