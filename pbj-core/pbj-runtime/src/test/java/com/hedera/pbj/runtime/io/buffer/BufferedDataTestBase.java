@@ -9,13 +9,14 @@ import com.hedera.pbj.runtime.io.ReadableTestBase;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.WritableTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.ByteBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-abstract class BufferedTestBase {
+abstract class BufferedDataTestBase {
 
     // FUTURE Test that "view" shows the updated data when it is changed on the fly
     // FUTURE Verify capacity is never negative (it can't be, maybe nothing to test here)
@@ -162,6 +163,24 @@ abstract class BufferedTestBase {
         bytes[3] = 127;
         bytes[4] = 127;
         assertArrayEquals(bytesOrig, readBytes.toByteArray());
+    }
+
+    @Test
+    void getBytesLeavesPosition_BufferedData() {
+        final var buf = wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7});
+        final var dst = BufferedData.allocate(4);
+        buf.getBytes(1, dst);
+        assertThat(buf.position()).isEqualTo(0);
+        assertThat(dst.position()).isEqualTo(0);
+    }
+
+    @Test
+    void getBytesLeavesPosition_ByteBuffer() {
+        final var buf = wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7});
+        final var dst = ByteBuffer.allocate(4);
+        buf.getBytes(1, dst);
+        assertThat(buf.position()).isEqualTo(0);
+        assertThat(dst.position()).isEqualTo(0);
     }
 
     @Nested
