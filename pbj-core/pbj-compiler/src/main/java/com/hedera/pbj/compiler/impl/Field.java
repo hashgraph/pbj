@@ -1,6 +1,7 @@
 package com.hedera.pbj.compiler.impl;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.util.Set;
 
@@ -47,6 +48,7 @@ public interface Field {
 	 *
 	 * @return this fields name converted
 	 */
+	@NonNull
 	default String nameCamelFirstLower() {
 		return snakeToCamel(name(),false);
 	}

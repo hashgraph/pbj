@@ -70,22 +70,22 @@ public final class CodecGenerator implements Generator {
 					import static $schemaClass.*;
 					import static com.hedera.pbj.runtime.ProtoWriterTools.*;
 					import static com.hedera.pbj.runtime.ProtoParserTools.*;
-										
+				
 					/**
 					 * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
 					 */
 					public final class $codecClass implements Codec<$modelClass> {
-						$unsetOneOfConstants
-						$parseMethod
-						$parseStrictMethod
-						$writeMethod
-						$measureDataMethod
-						$measureRecordMethod
-						$fastEqualsMethod
-						
-						// ------ Private Implementation
-						
-						$parseInternal
+					    $unsetOneOfConstants
+					    $parseMethod
+					    $parseStrictMethod
+					    $writeMethod
+					    $measureDataMethod
+					    $measureRecordMethod
+					    $fastEqualsMethod
+					    
+					    // ------ Private Implementation
+					    
+					    $parseInternal
 					}
 					"""
 					.replace("$package", codecPackage)

@@ -180,8 +180,6 @@ public interface ReadableSequentialData extends SequentialData {
      * the read data. The returned bytes will be immutable. The {@link #position()} of this sequence will be
      * incremented by {@code length} bytes.
      *
-     * <p>All data returned will always be a copy otherwise the underlying data could be modified.
-     *
      * <p>Bytes are read from the sequence one at a time. If there are not {@code length} bytes remaining in this
      * sequence, then a {@link BufferUnderflowException} will be thrown. The {@link #position()} will be
      * incremented by the number of bytes read prior to the exception.

@@ -66,22 +66,22 @@ public final class SchemaGenerator implements Generator {
 					 */
 					public final class $schemaClassName implements Schema {
 					
-						// -- FIELD DEFINITIONS ---------------------------------------------
-						
+					    // -- FIELD DEFINITIONS ---------------------------------------------
+					    
 					$fields
-										
-						// -- OTHER METHODS -------------------------------------------------
-						
-						/**
-						 * Check if a field definition belongs to this schema.
-						 *
-						 * @param f field def to check
-						 * @return true if it belongs to this schema
-						 */
-						public static boolean valid(FieldDefinition f) {
-							return f != null && getField(f.number()) == f;
-						}
-						
+					    
+					    // -- OTHER METHODS -------------------------------------------------
+					    
+					    /**
+					     * Check if a field definition belongs to this schema.
+					     *
+					     * @param f field def to check
+					     * @return true if it belongs to this schema
+					     */
+					    public static boolean valid(FieldDefinition f) {
+					    	return f != null && getField(f.number()) == f;
+					    }
+					    
 					$getMethods
 					}
 					"""
@@ -114,10 +114,10 @@ public final class SchemaGenerator implements Generator {
 					 * @return field def or null if field number does not exist
 					 */
 					public static FieldDefinition getField(final int fieldNumber) {
-						return switch(fieldNumber) {
-						    %s
-							default -> null;
-						};
+					    return switch(fieldNumber) {
+					        %s
+					        default -> null;
+					    };
 					}
 				""".formatted(flattenedFields.stream()
 											.map(Field::schemaGetFieldsDefCase)
