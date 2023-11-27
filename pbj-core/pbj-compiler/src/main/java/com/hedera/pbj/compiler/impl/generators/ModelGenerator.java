@@ -17,7 +17,6 @@ import com.hedera.pbj.compiler.impl.FileType;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -34,7 +33,7 @@ import java.util.stream.Collectors;
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
  */
-@SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace", "RedundantLabeledSwitchRuleCodeBlock"})
+@SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
 public final class ModelGenerator implements Generator {
 
 	private static final String HASH_CODE_MANIPULATION =
@@ -255,14 +254,14 @@ public final class ModelGenerator implements Generator {
 		// static codec and default instance
 		bodyContent +=
        			"""
-    /** Protobuf codec for reading and writing in protobuf format */
-				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
-				/** JSON codec for reading and writing in JSON format */
-				public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
+                /** Protobuf codec for reading and writing in protobuf format */
+                public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
+                /** JSON codec for reading and writing in JSON format */
+                public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
 				
-				/** Default instance with all fields set to default values */
-				public static final $modelClass DEFAULT = newBuilder().build();
-				"""
+                /** Default instance with all fields set to default values */
+                public static final $modelClass DEFAULT = newBuilder().build();
+                """
 				.replace("$modelClass",javaRecordName)
 				.replace("$qualifiedCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
 				.replace("$qualifiedJsonCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.JSON_CODEC, msgDef))
@@ -294,110 +293,30 @@ public final class ModelGenerator implements Generator {
 					.indent(DEFAULT_INDENT);
 		}
 
-		boolean hashCodeGenerated = true;
-		if (fields.size() == 1) {
-			FieldType fieldType = fields.get(0).type();
-			switch (fieldType) {
-				case INT32, UINT32, SINT32, FIXED32, SFIXED32,
-						FIXED64, SFIXED64, INT64, UINT64, SINT64 ->
-					bodyContent +=
-       					 """
-						/**
-						 * Override the default hashCode method for
-						 * single field int objects.
-						 */
-						@Override
-						public int hashCode() {
-						    long hashCode = $fieldName;
-						    $hashCodeManipulation
-						    return (int)hashCode;
-						}
-						""".replace("$fieldName", fields.get(0).name())
-						   .replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-						   .indent(DEFAULT_INDENT);
-				case FLOAT, DOUBLE ->
-					bodyContent +=
-       					"""
-						/**
-						 * Override the default hashCode method for
-						 * single field float and double objects.
-						 */
-						@Override
-						public int hashCode() {
-						    double hashCode = $fieldName;
-						$hashCodeManipulation
-						    return (int)hashCode;
-						}
-						""".replace("$fieldName", fields.get(0).name())
-						   .replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-						   .indent(DEFAULT_INDENT);
-				case STRING ->
-					bodyContent +=
-       					"""
-						/**
-						 * Override the default hashCode method for
-						 * single field String objects.
-						 */
-						@Override
-						public int hashCode() {
-						    long hashCode = $fieldName.hashCode();
-						$hashCodeManipulation
-						    return (int)hashCode;
-						}
-						"""
-						.replace("$fieldName", fields.get(0).name())
-						.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-						.indent(DEFAULT_INDENT);
-				case BOOL ->
-					bodyContent +=
-       					"""
-						/**
-						 * Override the default hashCode method for
-						 * single field boolean objects.
-						 */
-						@Override
-						public int hashCode() {
-						    return $fieldName ? 1 : 0;
-						}
-						"""
-						.replace("$fieldName", fields.get(0).name())
-						.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-						.indent(DEFAULT_INDENT);
-				default ->
-					hashCodeGenerated = false;
+		// Generate a call to private method that iterates through fields and calculates the hashcode
+		final String statements = getFieldsHashCode(fields, "");
+
+		bodyContent +=
+			"""
+			/**
+			* Override the default hashCode method for
+			* all other objects to make hashCode
+			*/
+			@Override
+			public int hashCode() {
+				int result = 1;
+			""".indent(DEFAULT_INDENT);
+
+		bodyContent += statements;
+
+		bodyContent +=
+			"""
+				long hashCode = result;
+			$hashCodeManipulation
+				return (int)hashCode;
 			}
-		} else {
-			hashCodeGenerated = false;
-		}
-
-		String statements = "";
-		if (!hashCodeGenerated) {
-			// Generate a call to private method that iterates through fields
-			// and calculates the hashcode.
-			statements = getFieldsHashCode(fields, statements);
-
-			bodyContent +=
-      			"""
-				/**
-				* Override the default hashCode method for
-				* all other objects to make hashCode
-				*/
-				@Override
-				public int hashCode() {
-				    int result = 1;
-				""".indent(DEFAULT_INDENT);
-
-			bodyContent += statements;
-
-			bodyContent +=
-           		"""
-				    long hashCode = result;
-				$hashCodeManipulation
-				    return (int)hashCode;
-				}
-				""".replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-					.indent(DEFAULT_INDENT);
-		}
+			""".replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
+				.indent(DEFAULT_INDENT);
 
 		String equalsStatements = "";
 		// Generate a call to private method that iterates through fields
