@@ -122,7 +122,8 @@ public class UnsafeUtils {
      */
     public static void getHeapBufferToArray(
             final ByteBuffer buffer, final long offset, final byte[] dst, final int dstOffset, final int length) {
-        UNSAFE.copyMemory(buffer.array(), BYTE_ARRAY_BASE_OFFSET + offset, dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
+        UNSAFE.copyMemory(buffer.array(), BYTE_ARRAY_BASE_OFFSET + offset,
+                dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
     }
 
     /**
@@ -132,7 +133,8 @@ public class UnsafeUtils {
     public static void getDirectBufferToArray(
             final ByteBuffer buffer, final long offset, final byte[] dst, final int dstOffset, final int length) {
         final long address = UNSAFE.getLong(buffer, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
-        UNSAFE.copyMemory(null, address + offset, dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
+        UNSAFE.copyMemory(null, address + offset,
+                dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
     }
 
     /**

@@ -9,7 +9,6 @@ import com.hedera.pbj.runtime.io.ReadableTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -22,7 +21,7 @@ public abstract class RandomAccessTestBase extends ReadableTestBase {
     @Test
     void sliceLength() {
         final var buf = randomAccessData(TEST_BYTES);
-        Assertions.assertThat(buf.slice(2, 5).length()).isEqualTo(5);
+        assertThat(buf.slice(2, 5).length()).isEqualTo(5);
     }
 
     @ParameterizedTest

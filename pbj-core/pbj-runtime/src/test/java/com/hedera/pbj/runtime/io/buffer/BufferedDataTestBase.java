@@ -149,6 +149,7 @@ abstract class BufferedDataTestBase {
             assertEquals((byte) (i + START), slicedBytes.getByte(i));
         }
     }
+
     @Test
     @DisplayName("readBytes() does always copy")
     void readBytesCopies() {
@@ -166,7 +167,7 @@ abstract class BufferedDataTestBase {
     }
 
     @Test
-    void getBytesLeavesPosition_BufferedData() {
+    void getBytesLeavesPositionBufferedData() {
         final var buf = wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7});
         final var dst = BufferedData.allocate(4);
         buf.getBytes(1, dst);
@@ -175,7 +176,7 @@ abstract class BufferedDataTestBase {
     }
 
     @Test
-    void getBytesLeavesPosition_ByteBuffer() {
+    void getBytesLeavesPositionByteBuffer() {
         final var buf = wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7});
         final var dst = ByteBuffer.allocate(4);
         buf.getBytes(1, dst);
