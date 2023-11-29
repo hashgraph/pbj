@@ -22,7 +22,9 @@ import java.util.Objects;
  *
  * <p>This class is the most commonly used for buffered read/write data.
  */
-public class BufferedData implements BufferedSequentialData, ReadableSequentialData, WritableSequentialData, RandomAccessData {
+public sealed class BufferedData
+        implements BufferedSequentialData, ReadableSequentialData, WritableSequentialData, RandomAccessData
+        permits ByteArrayBufferedData, DirectBufferedData {
 
     /** Single instance of an empty buffer we can use anywhere we need an empty read only buffer */
     @SuppressWarnings("unused")
@@ -35,19 +37,15 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      * an inner array, which can be accessed directly. If it is, you MUST BE VERY CAREFUL to take the array offset into
      * account, otherwise you will read out of bounds of the view.
      */
-    private final ByteBuffer buffer;
-
-    /** Locally cached value of {@link ByteBuffer#isDirect()}. This value is queried by the varInt methods. */
-    private final boolean direct;
+    protected final ByteBuffer buffer;
 
     /**
      * Wrap an existing allocated {@link ByteBuffer}. No copy is made.
      *
      * @param buffer the {@link ByteBuffer} to wrap
      */
-    private BufferedData(@NonNull final ByteBuffer buffer) {
+    protected BufferedData(@NonNull final ByteBuffer buffer) {
         this.buffer = buffer;
-        this.direct = buffer.isDirect();
         // We switch the buffer to BIG_ENDIAN so that all our normal "get/read" methods can assume they are in
         // BIG_ENDIAN mode, reducing the boilerplate around those methods. This necessarily means the LITTLE_ENDIAN
         // methods will be slower. We're assuming BIG_ENDIAN is what we want to optimize for.
@@ -66,57 +64,70 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @NonNull
     public static BufferedData wrap(@NonNull final ByteBuffer buffer) {
-        return new BufferedData(buffer);
-    }
-
-    /**
-     * Wrap an existing allocated byte[]. No copy is made. The length of the {@link BufferedData} will be
-     * the *ENTIRE* length of the byte array. DO NOT modify this array after having wrapped it.
-     *
-     * @param array the byte[] to wrap
-     * @return new DataBuffer using {@code array} as its data buffer
-     */
-    @NonNull
-    public static BufferedData wrap(@NonNull final byte[] array) {
-        return new BufferedData(ByteBuffer.wrap(array));
+        if (buffer.hasArray()) {
+            return new ByteArrayBufferedData(buffer);
+        } else if (buffer.isDirect()) {
+            return new DirectBufferedData(buffer);
+        } else {
+            // It must be read-only heap byte buffer
+            return new BufferedData(buffer);
+        }
     }
 
     /**
      * Wrap an existing allocated byte[]. No copy is made. DO NOT modify this array after having wrapped it.
      *
+     * <p>The current position of the created {@link BufferedData} will be 0, the length and capacity will
+     * be the length of the wrapped byte array.
+     *
+     * @param array the byte[] to wrap
+     * @return new BufferedData using {@code array} as its data buffer
+     */
+    @NonNull
+    public static BufferedData wrap(@NonNull final byte[] array) {
+        return new ByteArrayBufferedData(ByteBuffer.wrap(array));
+    }
+
+    /**
+     * Wrap an existing allocated byte[]. No copy is made. DO NOT modify this array after having wrapped it.
+     *
+     * <p>The current position of the created {@link BufferedData} will be {@code offset}, the length will be
+     * set to {@code offset} + {@code len}, and capacity will be the length of the wrapped byte array.
+     *
      * @param array the byte[] to wrap
      * @param offset the offset into the byte array which will form the origin of this {@link BufferedData}.
      * @param len the length of the {@link BufferedData} in bytes.
-     * @return new DataBuffer using {@code array} as its data buffer
+     * @return new BufferedData using {@code array} as its data buffer
      */
     @NonNull
     public static BufferedData wrap(@NonNull final byte[] array, final int offset, final int len) {
-        return new BufferedData(ByteBuffer.wrap(array, offset, len));
+        return new ByteArrayBufferedData(ByteBuffer.wrap(array, offset, len));
     }
 
     /**
-     * Allocate a new DataBuffer with new memory, on the Java heap.
+     * Allocate a new buffered data object with new memory, on the Java heap.
      *
      * @param size size of new buffer in bytes
-     * @return a new allocated DataBuffer
+     * @return a new allocated BufferedData
      */
     @NonNull
     public static BufferedData allocate(final int size) {
-        return new BufferedData(ByteBuffer.allocate(size));
+        return new ByteArrayBufferedData(ByteBuffer.allocate(size));
     }
 
     /**
-     * Allocate a new DataBuffer with new memory, off the Java heap. Off heap has higher cost of allocation and garbage
-     * collection but is much faster to read and write to. It should be used for long-lived buffers where performance is
-     * critical. On heap is slower for read and writes but cheaper to allocate and garbage collect. Off-heap comes from
-     * different memory allocation that needs to be manually managed so make sure we have space for it before using.
+     * Allocate a new buffered data object with new memory, off the Java heap. Off heap has higher cost of allocation
+     * and garbage collection but is much faster to read and write to. It should be used for long-lived buffers where
+     * performance is critical. On heap is slower for read and writes but cheaper to allocate and garbage collect.
+     * Off-heap comes from different memory allocation that needs to be manually managed so make sure we have space
+     * for it before using.
      *
      * @param size size of new buffer in bytes
-     * @return a new allocated DataBuffer
+     * @return a new allocated BufferedData
      */
     @NonNull
     public static BufferedData allocateOffHeap(final int size) {
-        return new BufferedData(ByteBuffer.allocateDirect(size));
+        return new DirectBufferedData(ByteBuffer.allocateDirect(size));
     }
 
     // ================================================================================================================
@@ -180,7 +191,8 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     public String toString() {
         // build string
         StringBuilder sb = new StringBuilder();
-        sb.append("BufferedData[");
+        sb.append(getClass().getSimpleName());
+        sb.append("[");
         for (int i = 0; i < buffer.limit(); i++) {
             int v = buffer.get(i) & 0xFF;
             sb.append(v);
@@ -198,13 +210,22 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
      */
     @Override
     public boolean equals(final Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BufferedData that = (BufferedData) o;
-        if (this.capacity() != that.capacity()) return false;
-        if (this.limit() != that.limit()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof BufferedData that)) {
+            return false;
+        }
+        if (this.capacity() != that.capacity()) {
+            return false;
+        }
+        if (this.limit() != that.limit()) {
+            return false;
+        }
         for (int i = 0; i < this.limit(); i++) {
-            if (buffer.get(i) != that.buffer.get(i)) return false;
+            if (buffer.get(i) != that.buffer.get(i)) {
+                return false;
+            }
         }
         return true;
     }
@@ -346,6 +367,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
             throw new IllegalArgumentException("Negative maxLength not allowed");
         }
 
+        // FUTURE: why offset + length is checked for this object, but not for dst?
         final var len = Math.min(maxLength, length() - offset);
         buffer.get(Math.toIntExact(offset), dst, dstOffset, Math.toIntExact(len));
         return len;
@@ -370,9 +392,14 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     /** {@inheritDoc} */
     @NonNull
     @Override
-    public Bytes getBytes(long offset, long length) {
+    public Bytes getBytes(final long offset, final long length) {
         final var len = Math.toIntExact(length);
-        if(len < 0) throw new IllegalArgumentException("Length cannot be negative");
+        if (len < 0) {
+            throw new IllegalArgumentException("Length cannot be negative");
+        }
+        if (length() - offset < length) {
+            throw new BufferUnderflowException();
+        }
         // It is vital that we always copy here, we can never assume ownership of the underlying buffer
         final var copy = new byte[len];
         buffer.get(Math.toIntExact(offset), copy, 0, len);
@@ -383,7 +410,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     @NonNull
     public BufferedData slice(final long offset, final long length) {
-        return new BufferedData(buffer.slice(Math.toIntExact(offset), Math.toIntExact(length)));
+        return BufferedData.wrap(buffer.slice(Math.toIntExact(offset), Math.toIntExact(length)));
     }
 
     /** {@inheritDoc} */
@@ -550,6 +577,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
     @Override
     public BufferedData view(final int length) {
         if (length < 0) {
+            // FUTURE: change to AIOOBE
             throw new IllegalArgumentException("Length cannot be negative");
         }
 
@@ -558,7 +586,7 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
         }
 
         final var pos = Math.toIntExact(position());
-        final var buf = new BufferedData(buffer.slice(pos, length));
+        final var buf = BufferedData.wrap(buffer.slice(pos, length));
         position((long) pos + length);
         return buf;
     }
@@ -655,116 +683,6 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
         } finally {
             buffer.order(order);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int readVarInt(final boolean zigZag) {
-        if (direct) return ReadableSequentialData.super.readVarInt(zigZag);
-
-        final int arrayOffset = buffer.arrayOffset();
-        int tempPos = buffer.position() + arrayOffset;
-        final byte[] buff = buffer.array();
-        int lastPos = buffer.limit() + arrayOffset;
-
-        if (lastPos == tempPos) {
-            throw new BufferUnderflowException();
-        }
-
-        int x;
-        if ((x = buff[tempPos++]) >= 0) {
-            buffer.position(tempPos - arrayOffset);
-            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
-        } else if (lastPos - tempPos < 9) {
-            return (int) readVarIntLongSlow(zigZag);
-        } else if ((x ^= (buff[tempPos++] << 7)) < 0) {
-            x ^= (~0 << 7);
-        } else if ((x ^= (buff[tempPos++] << 14)) >= 0) {
-            x ^= (~0 << 7) ^ (~0 << 14);
-        } else if ((x ^= (buff[tempPos++] << 21)) < 0) {
-            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
-        } else {
-            int y = buff[tempPos++];
-            x ^= y << 28;
-            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
-            if (y < 0
-                    && buff[tempPos++] < 0
-                    && buff[tempPos++] < 0
-                    && buff[tempPos++] < 0
-                    && buff[tempPos++] < 0
-                    && buff[tempPos++] < 0) {
-                return (int) readVarIntLongSlow(zigZag);
-            }
-        }
-        buffer.position(tempPos - arrayOffset);
-        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long readVarLong(boolean zigZag) {
-        if (direct) return ReadableSequentialData.super.readVarLong(zigZag);
-
-        final int arrayOffset = buffer.arrayOffset();
-        int tempPos = buffer.position() + arrayOffset;
-        final byte[] buff = buffer.array();
-        int lastPos = buffer.limit() + arrayOffset;
-
-        if (lastPos == tempPos) {
-            throw new BufferUnderflowException();
-        }
-
-        long x;
-        int y;
-        if ((y = buff[tempPos++]) >= 0) {
-            buffer.position(tempPos - arrayOffset);
-            return zigZag ? (y >>> 1) ^ -(y & 1) : y;
-        } else if (lastPos - tempPos < 9) {
-            return readVarIntLongSlow(zigZag);
-        } else if ((y ^= (buff[tempPos++] << 7)) < 0) {
-            x = y ^ (~0 << 7);
-        } else if ((y ^= (buff[tempPos++] << 14)) >= 0) {
-            x = y ^ ((~0 << 7) ^ (~0 << 14));
-        } else if ((y ^= (buff[tempPos++] << 21)) < 0) {
-            x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
-        } else if ((x = y ^ ((long) buff[tempPos++] << 28)) >= 0L) {
-            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
-        } else if ((x ^= ((long) buff[tempPos++] << 35)) < 0L) {
-            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
-        } else if ((x ^= ((long) buff[tempPos++] << 42)) >= 0L) {
-            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
-        } else if ((x ^= ((long) buff[tempPos++] << 49)) < 0L) {
-            x ^=
-                    (~0L << 7)
-                            ^ (~0L << 14)
-                            ^ (~0L << 21)
-                            ^ (~0L << 28)
-                            ^ (~0L << 35)
-                            ^ (~0L << 42)
-                            ^ (~0L << 49);
-        } else {
-            x ^= ((long) buff[tempPos++] << 56);
-            x ^=
-                    (~0L << 7)
-                            ^ (~0L << 14)
-                            ^ (~0L << 21)
-                            ^ (~0L << 28)
-                            ^ (~0L << 35)
-                            ^ (~0L << 42)
-                            ^ (~0L << 49)
-                            ^ (~0L << 56);
-            if (x < 0L) {
-                if (buff[tempPos++] < 0L) {
-                    return readVarIntLongSlow(zigZag);
-                }
-            }
-        }
-        buffer.position(tempPos - arrayOffset);
-        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
     }
 
     // ================================================================================================================
@@ -1017,6 +935,30 @@ public class BufferedData implements BufferedSequentialData, ReadableSequentialD
                 buffer.put((byte) (((int) value & 0x7F) | 0x80));
                 value >>>= 7;
             }
+        }
+    }
+
+    // Helper methods
+
+    protected void validateLen(final long len) {
+        if (len < 0) {
+            throw new IllegalArgumentException("Negative length not allowed");
+        }
+    }
+
+    protected void validateCanRead(final long offset, final long len) {
+        if (offset < 0) {
+            throw new ArrayIndexOutOfBoundsException();
+        }
+        if (offset > length() - len) {
+            // FUTURE: change to AIOOBE, too
+            throw new BufferUnderflowException();
+        }
+    }
+
+    protected void validateCanWrite(final long len) {
+        if (remaining() < len) {
+            throw new BufferOverflowException();
         }
     }
 }

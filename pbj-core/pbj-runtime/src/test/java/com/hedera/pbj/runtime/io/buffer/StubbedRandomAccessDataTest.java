@@ -1,15 +1,11 @@
 package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.ReadableTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-import java.nio.charset.StandardCharsets;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class RandomAccessDataTest extends ReadableTestBase {
+public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
 
     @NonNull
     @Override
@@ -31,11 +27,10 @@ public class RandomAccessDataTest extends ReadableTestBase {
         return new RandomAccessSequenceAdapter(new StubbedRandomAccessData(arr));
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = { "", "a", "ab", "abc", "✅" })
-    void utf8Strings(final String s) {
-        final var buf = new StubbedRandomAccessData(s.getBytes(StandardCharsets.UTF_8));
-        assertThat(buf.asUtf8String()).isEqualTo(s);
+    @NonNull
+    @Override
+    protected RandomAccessData randomAccessData(@NonNull byte[] bytes) {
+        return new StubbedRandomAccessData(bytes);
     }
 
     private record StubbedRandomAccessData(@NonNull byte[] bytes) implements RandomAccessData {
