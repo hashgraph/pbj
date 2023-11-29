@@ -506,8 +506,8 @@ public interface RandomAccessData {
         }
 
         // Check each byte one at a time until we find a mismatch or, we get to the end, and all bytes match.
-        for (long i = offset; i < bytes.length; i++) {
-            if (bytes[Math.toIntExact(i)] != getByte(i)) {
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] != getByte(offset + i)) {
                 return false;
             }
         }

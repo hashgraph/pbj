@@ -173,7 +173,7 @@ public final class Bytes implements RandomAccessData {
 
     @Override
     public int getInt(final long offset) {
-        return UnsafeUtils.getInt(buffer, Math.toIntExact(offset));
+        return UnsafeUtils.getInt(buffer, Math.toIntExact(start + offset));
     }
 
     @Override
@@ -183,7 +183,7 @@ public final class Bytes implements RandomAccessData {
 
     @Override
     public long getLong(final long offset) {
-        return UnsafeUtils.getLong(buffer, Math.toIntExact(offset));
+        return UnsafeUtils.getLong(buffer, Math.toIntExact(start + offset));
     }
 
     @Override
@@ -442,20 +442,17 @@ public final class Bytes implements RandomAccessData {
     /** {@inheritDoc} */
     @Override
     public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
-        validateOffset(offset);
-
         if (maxLength < 0) {
             throw new IllegalArgumentException("Negative maxLength not allowed");
         }
-
+        final var len = Math.min(maxLength, length - offset);
         // Maybe this instance is empty and there is nothing to get
-        if (maxLength == 0) {
+        if (len == 0) {
             return 0;
         }
-
+        validateOffset(offset);
         // This is a faster implementation than the default, since it has access to the entire byte array
         // and can do a system array copy instead of a loop.
-        final var len = Math.min(maxLength, length - offset);
         System.arraycopy(buffer, start + Math.toIntExact(offset), dst, dstOffset, Math.toIntExact(len));
         return len;
     }
@@ -463,16 +460,14 @@ public final class Bytes implements RandomAccessData {
     /** {@inheritDoc} */
     @Override
     public long getBytes(final long offset, @NonNull final ByteBuffer dst) {
-        validateOffset(offset);
-
+        final var len = Math.min(dst.remaining(), length() - offset);
         // Maybe this instance is empty and there is nothing to get
-        if (length == 0) {
+        if (len == 0) {
             return 0;
         }
-
+        validateOffset(offset);
         // This is a faster implementation than the default, since it has access to the entire byte array
         // and can do a system array copy instead of a loop.
-        final var len = Math.min(dst.remaining(), length - offset);
         dst.put(buffer, start + Math.toIntExact(offset), Math.toIntExact(len));
         return len;
     }
@@ -480,16 +475,14 @@ public final class Bytes implements RandomAccessData {
     /** {@inheritDoc} */
     @Override
     public long getBytes(final long offset, @NonNull final BufferedData dst) {
-        validateOffset(offset);
-
+        final var len = Math.min(dst.remaining(), length() - offset);
         // Maybe this instance is empty and there is nothing to get
-        if (length == 0) {
+        if (len == 0) {
             return 0;
         }
-
+        validateOffset(offset);
         // This is a faster implementation than the default, since it has access to the entire byte array
         // and can do a system array copy instead of a loop.
-        final var len = Math.min(dst.remaining(), length - offset);
         dst.writeBytes(buffer, start + Math.toIntExact(offset), Math.toIntExact(len));
         return len;
     }
@@ -497,44 +490,48 @@ public final class Bytes implements RandomAccessData {
     /** {@inheritDoc} */
     @NonNull
     @Override
-    public Bytes getBytes(final long offset, final long length) {
-        validateOffset(offset);
-
-        if (length > this.length - offset) {
+    public Bytes getBytes(final long offset, final long len) {
+        if (len < 0) {
+            throw new IllegalArgumentException("Negative len not allowed");
+        }
+        if (length() - offset < len) {
             throw new BufferUnderflowException();
         }
-
         // Maybe this instance is empty and there is nothing to get
-        if (length == 0) {
+        if (len == 0) {
             return Bytes.EMPTY;
         }
-
+        validateOffset(offset);
         // Our buffer is assumed to be immutable, so we can just return a new Bytes object that wraps the same buffer
-        return new Bytes(buffer, Math.toIntExact(start + offset), Math.toIntExact(length));
+        return new Bytes(buffer, Math.toIntExact(start + offset), Math.toIntExact(len));
     }
 
     /** {@inheritDoc} */
     @NonNull
     @Override
     public String asUtf8String(final long offset, final long len) {
-        if (offset < 0 || offset + len > length()) {
+        if (len < 0) {
+            throw new IllegalArgumentException("Negative len not allowed");
+        }
+        if (length() - offset < len) {
             throw new IndexOutOfBoundsException();
         }
         if (len == 0) {
             return "";
         }
-        return new String(buffer, Math.toIntExact(offset), length, StandardCharsets.UTF_8);
+        validateOffset(offset);
+        return new String(buffer, Math.toIntExact(start + offset), length, StandardCharsets.UTF_8);
     }
 
     /** {@inheritDoc} */
     @Override
     public boolean contains(final long offset, @NonNull final byte[] bytes) {
-        validateOffset(offset);
         final int len = bytes.length;
-        if (offset + len > length()) {
+        if (length() - offset < len) {
             return false;
         }
-        return Arrays.equals(buffer, Math.toIntExact(offset), Math.toIntExact(offset + len), bytes, 0, len);
+        validateOffset(offset);
+        return Arrays.equals(buffer, Math.toIntExact(start + offset), Math.toIntExact(start + offset + len), bytes, 0, len);
     }
 
     /** {@inheritDoc} */
@@ -553,21 +550,24 @@ public final class Bytes implements RandomAccessData {
         return toByteArray(0, length);
     }
 
-    /** * Gets a byte[] of the bytes of this {@link Bytes} object..
+    /** * Gets a byte[] of the bytes of this {@link Bytes} object.
      *
      * @param offset The start offset to get the bytes from.
-     * @param length The number of bytes to get.
+     * @param len The number of bytes to get.
      * @return a clone of the bytes of this {@link Bytes} object or null.
      */
     @NonNull
-    public byte[] toByteArray(final int offset, final int length) {
-        byte[] ret = new byte[length];
+    public byte[] toByteArray(final int offset, final int len) {
+        if (len < 0) {
+            throw new IllegalArgumentException("Negative len not allowed");
+        }
+        byte[] ret = new byte[len];
         getBytes(offset, ret);
         return ret;
     }
 
     private void validateOffset(final long offset) {
-        if (offset < 0 || offset > this.length) {
+        if ((offset < 0) || (offset >= this.length)) {
             throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + this.length);
         }
     }

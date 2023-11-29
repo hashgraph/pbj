@@ -2,6 +2,7 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -90,5 +91,65 @@ public abstract class RandomAccessTestBase extends ReadableTestBase {
         final var data1 = randomAccessData(new byte[0]);
         final var data2 = randomAccessData(new byte[0]);
         assertTrue(data1.matchesPrefix(data2));
+    }
+
+    @Test
+    void containsZeroOffset() {
+        final RandomAccessData data = randomAccessData(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06});
+        assertTrue(data.contains(0, new byte[]{0x01}));
+        assertTrue(data.contains(0, new byte[]{0x01,0x02}));
+        assertTrue(data.contains(0, new byte[]{0x01,0x02,0x03,0x04,0x05,0x06}));
+        assertFalse(data.contains(0, new byte[]{0x01,0x02,0x02}));
+        assertFalse(data.contains(0, new byte[]{0x02,0x02}));
+        assertFalse(data.contains(0, new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07}));
+
+        final RandomAccessData slice = data.slice(1, 4);
+        assertTrue(slice.contains(0, new byte[]{0x02}));
+        assertTrue(slice.contains(0, new byte[]{0x02,0x03}));
+        assertTrue(slice.contains(0, new byte[]{0x02,0x03,0x04,0x05}));
+        assertFalse(slice.contains(0, new byte[]{0x01}));
+        assertFalse(slice.contains(0, new byte[]{0x02,0x02}));
+        assertFalse(slice.contains(0, new byte[]{0x02,0x03,0x04,0x05,0x06}));
+    }
+
+    @Test
+    void containsNonZeroOffset() {
+        final RandomAccessData data = randomAccessData(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06});
+        assertTrue(data.contains(1, new byte[]{0x02}));
+        assertTrue(data.contains(1, new byte[]{0x02,0x03}));
+        assertTrue(data.contains(1, new byte[]{0x02,0x03,0x04,0x05,0x06}));
+        assertFalse(data.contains(1, new byte[]{0x02,0x03,0x03}));
+        assertFalse(data.contains(1, new byte[]{0x03,0x03}));
+        assertFalse(data.contains(1, new byte[]{0x02,0x03,0x04,0x05,0x06,0x07}));
+
+        final RandomAccessData slice = data.slice(1, 4);
+        assertTrue(slice.contains(1, new byte[]{0x03}));
+        assertTrue(slice.contains(1, new byte[]{0x03,0x04}));
+        assertTrue(slice.contains(1, new byte[]{0x03,0x04,0x05}));
+        assertFalse(slice.contains(1, new byte[]{0x02}));
+        assertFalse(slice.contains(1, new byte[]{0x03,0x03}));
+        assertFalse(slice.contains(1, new byte[]{0x03,0x04,0x05,0x06}));
+    }
+
+    @Test
+    void getInt() {
+        final RandomAccessData data = randomAccessData(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06});
+        assertEquals(0x01020304, data.getInt(0));
+        assertEquals(0x02030405, data.getInt(1));
+
+        final RandomAccessData slice = data.slice(1, 5);
+        assertEquals(0x02030405, slice.getInt(0));
+        assertEquals(0x03040506, slice.getInt(1));
+    }
+
+    @Test
+    void getLong() {
+        final RandomAccessData data = randomAccessData(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A});
+        assertEquals(0x0102030405060708L, data.getLong(0));
+        assertEquals(0x0203040506070809L, data.getLong(1));
+
+        final RandomAccessData slice = data.slice(1, 9);
+        assertEquals(0x0203040506070809L, slice.getLong(0));
+        assertEquals(0x030405060708090AL, slice.getLong(1));
     }
 }

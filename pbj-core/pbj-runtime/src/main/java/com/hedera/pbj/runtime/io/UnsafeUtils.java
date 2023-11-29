@@ -49,17 +49,6 @@ public class UnsafeUtils {
     }
 
     /**
-     * Get byte array element at a given offset. Identical to arr[offset], but slightly
-     * faster on some systems
-     */
-    public static byte getByte(final byte[] arr, final int offset) {
-        if (arr.length < offset + 1) {
-            throw new BufferUnderflowException();
-        }
-        return UNSAFE.getByte(arr, BYTE_ARRAY_BASE_OFFSET + offset);
-    }
-
-    /**
      * Get heap byte buffer element at a given offset. Identical to buf.get(offset), but
      * slightly faster on some systems. May only be called for Java heap byte buffers
      */
