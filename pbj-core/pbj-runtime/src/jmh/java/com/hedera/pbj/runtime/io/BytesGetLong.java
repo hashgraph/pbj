@@ -20,11 +20,8 @@ public class BytesGetLong {
 
     private byte[] array;
 
-    private boolean printSum;
-
     @Setup(Level.Trial)
     public void init() {
-        System.out.println("Initializing array, size = " + size);
         array = new byte[size];
         final Random r = new Random(size);
         for (int i = 0; i < size; i++) {
@@ -32,36 +29,19 @@ public class BytesGetLong {
         }
     }
 
-    @Setup(Level.Iteration)
-    public void initEach() {
-        printSum = true;
-    }
-
     @Benchmark
     public void testBytesGetLong(final Blackhole blackhole) {
-        long sum = 0;
         final Bytes bytes = Bytes.wrap(array);
         for (int i = 0; i < size + 1 - Long.BYTES; i++) {
-            sum += bytes.getLong(i);
+            blackhole.consume(bytes.getLong(i));
         }
-        if (printSum) {
-            System.out.println("sum = " + sum);
-            printSum = false;
-        }
-        blackhole.consume(sum);
     }
 
     @Benchmark
     public void testUnsafeGetLong(final Blackhole blackhole) {
-        long sum = 0;
         for (int i = 0; i < size + 1 - Long.BYTES; i++) {
-            sum += UnsafeUtils.getLong(array, i);
+            blackhole.consume(UnsafeUtils.getLong(array, i));
         }
-        if (printSum) {
-            System.out.println("sum = " + sum);
-            printSum = false;
-        }
-        blackhole.consume(sum);
     }
 
 }

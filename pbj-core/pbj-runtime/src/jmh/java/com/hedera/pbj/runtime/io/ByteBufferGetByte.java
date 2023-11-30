@@ -20,8 +20,6 @@ public class ByteBufferGetByte {
     private ByteBuffer heapBuffer;
     private ByteBuffer directBuffer;
 
-    private boolean printSum;
-
     @Setup(Level.Trial)
     public void init() {
         heapBuffer = ByteBuffer.allocate(size);
@@ -32,11 +30,6 @@ public class ByteBufferGetByte {
         }
     }
 
-    @Setup(Level.Iteration)
-    public void initEach() {
-        printSum = true;
-    }
-
     @Setup(Level.Invocation)
     public void initEachInvocation() {
         heapBuffer.clear();
@@ -45,87 +38,45 @@ public class ByteBufferGetByte {
 
     @Benchmark
     public void heapArrayGet(final Blackhole blackhole) {
-        long sum = 0;
         final byte[] array = heapBuffer.array();
         for (int i = 0; i < size; i++) {
-//            sum += array[i];
             blackhole.consume(array[i]);
         }
-        if (printSum) {
-            System.out.println("sum = " + sum);
-            printSum = false;
-        }
-        blackhole.consume(sum);
     }
 
     @Benchmark
     public void heapBufferGet(final Blackhole blackhole) {
-        long sum = 0;
         for (int i = 0; i < size; i++) {
-//            sum += heapBuffer.get(i);
             blackhole.consume(heapBuffer.get(i));
         }
-        if (printSum) {
-            System.out.println("sum = " + sum);
-            printSum = false;
-        }
-        blackhole.consume(sum);
     }
 
     @Benchmark
     public void heapBufferRead(final Blackhole blackhole) {
-        long sum = 0;
         for (int i = 0; i < size; i++) {
-//            sum += heapBuffer.get();
             blackhole.consume(heapBuffer.get());
         }
-        if (printSum) {
-            System.out.println("sum = " + sum);
-            printSum = false;
-        }
-        blackhole.consume(sum);
     }
 
     @Benchmark
     public void directBufferGet(final Blackhole blackhole) {
-        long sum = 0;
         for (int i = 0; i < size; i++) {
-//            sum += directBuffer.get(i);
             blackhole.consume(directBuffer.get(i));
         }
-        if (printSum) {
-            System.out.println("sum = " + sum);
-            printSum = false;
-        }
-        blackhole.consume(sum);
     }
 
     @Benchmark
     public void heapUnsafeGet(final Blackhole blackhole) {
-        long sum = 0;
         for (int i = 0; i < size; i++) {
-//            sum += UnsafeUtils.getByteHeap(heapBuffer, i);
             blackhole.consume(UnsafeUtils.getByteHeap(heapBuffer, i));
         }
-        if (printSum) {
-            System.out.println("sum = " + sum);
-            printSum = false;
-        }
-        blackhole.consume(sum);
     }
 
     @Benchmark
     public void directUnsafeGet(final Blackhole blackhole) {
-        long sum = 0;
         for (int i = 0; i < size; i++) {
-//            sum += UnsafeUtils.getByteDirect(directBuffer, i);
             blackhole.consume(UnsafeUtils.getByteDirect(directBuffer, i));
         }
-        if (printSum) {
-            System.out.println("sum = " + sum);
-            printSum = false;
-        }
-        blackhole.consume(sum);
     }
 
 }
