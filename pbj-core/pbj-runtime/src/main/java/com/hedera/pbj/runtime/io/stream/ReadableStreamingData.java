@@ -2,10 +2,15 @@ package com.hedera.pbj.runtime.io.stream;
 
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
+
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -96,12 +101,9 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
     /** {@inheritDoc} */
     @Override
     public byte readByte() {
-        // It should NEVER be possible for position to exceed limit, but being extra safe here
-        // using >= instead of just ==
-        if (eof || position >= limit) {
+        if (!hasRemaining()) {
             throw new BufferUnderflowException();
         }
-
         // We know result is a byte, because we've already checked for EOF, and we know that
         // it will only ever be a byte, unless it is EOF, in which case it is a -1 int.
         try {
@@ -112,7 +114,7 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
             }
             position++;
             return (byte) result;
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new DataAccessException(e);
         }
     }
@@ -130,8 +132,97 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
             long numSkipped = in.skip(clamped);
             position += numSkipped;
             return numSkipped;
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new DataAccessException(e);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength) {
+        if (maxLength < 0) {
+            throw new IllegalArgumentException("Negative maxLength not allowed");
+        }
+        if (!hasRemaining()) {
+            return 0;
+        }
+        try {
+            int bytesRead = in.read(dst, offset, maxLength);
+            position += bytesRead;
+            if (bytesRead < maxLength) {
+                final int nextByte = tryReadNextByte();
+                if (nextByte != -1) {
+                    dst[offset + bytesRead] = (byte) nextByte;
+                    bytesRead++;
+                }
+            }
+            return bytesRead;
+        } catch (final IOException e) {
+            throw new DataAccessException(e);
+        }
+    }
+
+    @Override
+    public long readBytes(@NonNull final ByteBuffer dst) {
+        if (!dst.hasArray()) {
+            return ReadableSequentialData.super.readBytes(dst);
+        }
+        if (!hasRemaining()) {
+            return 0;
+        }
+        final byte[] dstArr = dst.array();
+        final int dstArrOffset = dst.arrayOffset();
+        final int dstPos = dst.position();
+        final long len = Math.min(remaining(), dst.remaining());
+        try {
+            int bytesRead = in.read(dstArr, dstPos + dstArrOffset, Math.toIntExact(len));
+            position += bytesRead;
+            if (bytesRead < len) {
+                final int nextByte = tryReadNextByte();
+                if (nextByte != -1) {
+                    dst.put((byte) nextByte);
+                    bytesRead++;
+                }
+            }
+            return bytesRead;
+        } catch (final IOException e) {
+            throw new DataAccessException(e);
+        }
+    }
+
+    @Override
+    public long readBytes(@NonNull final BufferedData dst) {
+        final long len = Math.min(remaining(), dst.remaining());
+        int bytesRead = dst.writeBytes(in, Math.toIntExact(len));
+        position += bytesRead;
+        if (position < len) {
+            final int nextByte = tryReadNextByte();
+            if (nextByte != -1) {
+                dst.writeByte((byte) nextByte);
+                bytesRead++;
+            }
+        }
+        return bytesRead;
+    }
+
+    // This method is used when less than requested bytes have been read from the input stream.
+    // It could happen for two reasons: end of stream or because no more bytes are immediately
+    // available. A simple check for in.available() can't be used to detect end of stream. The
+    // workaround is to try to read the next byte and check the result. If it is -1, then the
+    // stream has really reached the end, otherwise this method returns the read byte
+    private byte tryReadNextByte() {
+        try {
+            final int nextByte = in.read();
+            if (nextByte == -1) {
+                eof = true;
+                return -1;
+            } else {
+                position++;
+                return (byte) nextByte;
+            }
+        } catch (final IOException e) {
+            eof = true;
+            return -1;
         }
     }
 }

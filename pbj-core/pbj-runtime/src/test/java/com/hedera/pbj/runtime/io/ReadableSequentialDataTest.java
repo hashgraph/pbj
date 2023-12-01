@@ -3,7 +3,8 @@ package com.hedera.pbj.runtime.io;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.BufferUnderflowException;
 
-final class ReadableSequentialDataTest extends ReadableTestBase {
+final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
+
     @NonNull
     @Override
     protected ReadableSequentialData emptySequence() {
