@@ -522,13 +522,8 @@ public final class ModelGenerator implements Generator {
 			     * Create an empty builder
 			     */
 			    public Builder() {}
-		
-			    /**
-			     * Create a pre-populated builder
-			     * $constructorParamDocs
-			     */
-			    public Builder($constructorParams) {
-			$constructorCode    }
+			    
+			    $prePopulatedBuilder
 		
 			    /**
 			     * Build a new model record with data set on builder
@@ -544,19 +539,34 @@ public final class ModelGenerator implements Generator {
 						"private " + field.javaFieldType() + " " + field.nameCamelFirstLower() +
 								" = " + getDefaultValue(field, msgDef, lookupHelper)
 						).collect(Collectors.joining(";\n    ")))
-				.replace("$constructorParamDocs",fields.stream().map(field ->
-						"\n     * @param "+field.nameCamelFirstLower()+" "+
-								field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
-						).collect(Collectors.joining(", ")))
-				.replace("$constructorParams",fields.stream().map(field ->
-						field.javaFieldType() + " " + field.nameCamelFirstLower()
-						).collect(Collectors.joining(", ")))
-				.replace("$constructorCode",fields.stream().map(field ->
-						"this.$name = $name;".replace("$name", field.nameCamelFirstLower())
-						).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2))
+				.replace("$prePopulatedBuilder", generatePrePopulatedBuilder(fields))
 				.replace("$javaRecordName",javaRecordName)
 				.replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
 				.replace("$builderMethods", String.join("\n", builderMethods))
+				.indent(DEFAULT_INDENT);
+	}
+
+	private static String generatePrePopulatedBuilder(List<Field> fields) {
+		if (fields.isEmpty()) {
+			return "";
+		}
+		return """
+			    /**
+			     * Create a pre-populated builder
+			     * $constructorParamDocs
+			     */
+			    public Builder($constructorParams) {
+			$constructorCode    }"""
+				.replace("$constructorParamDocs",fields.stream().map(field ->
+						"\n     * @param "+field.nameCamelFirstLower()+" "+
+								field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
+				).collect(Collectors.joining(", ")))
+				.replace("$constructorParams",fields.stream().map(field ->
+						field.javaFieldType() + " " + field.nameCamelFirstLower()
+				).collect(Collectors.joining(", ")))
+				.replace("$constructorCode",fields.stream().map(field ->
+						"this.$name = $name;".replace("$name", field.nameCamelFirstLower())
+				).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2))
 				.indent(DEFAULT_INDENT);
 	}
 

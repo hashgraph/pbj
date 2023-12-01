@@ -121,7 +121,7 @@ public final class TestGenerator implements Generator {
 				%s
 				    ).max().getAsInt();
 				    // create new stream of model objects using lists above as constructor params
-				    ARGUMENTS = IntStream.range(0,maxValues)
+				    ARGUMENTS = (maxValues > 0 ? IntStream.range(0, maxValues) : IntStream.of(0))
 				            .mapToObj(i -> new %s(
 				%s
 				            )).toList();
@@ -143,6 +143,10 @@ public final class TestGenerator implements Generator {
 							.collect(Collectors.joining("\n")).indent(DEFAULT_INDENT),
 					fields.stream()
 							.map(f -> f.nameCamelFirstLower()+"List.size()")
+							.collect(Collectors.collectingAndThen(
+									Collectors.toList(),
+									list -> list.isEmpty() ? Stream.of("0") : list.stream()
+							))
 							.collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 2),
 					modelClassName,
 					fields.stream().map(field -> "%sList.get(Math.min(i, %sList.size()-1))".formatted(
