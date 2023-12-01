@@ -23,9 +23,9 @@ plugins {
 gitRepositories {
     checkoutsDirectory.set(file("./build/repos"))
     include("hapi") {
-        uri.set("https://github.com/nickpoorman/hedera-protobufs.git")
+        uri.set("https://github.com/hashgraph/hedera-protobufs.git")
         // choose tag or branch of HAPI you would like to test with
-        tag.set("block-node")
+        tag.set("main")
         // do not load project from repo
         autoInclude.set(false)
     }
