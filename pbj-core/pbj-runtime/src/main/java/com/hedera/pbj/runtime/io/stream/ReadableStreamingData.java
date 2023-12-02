@@ -3,9 +3,7 @@ package com.hedera.pbj.runtime.io.stream;
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
@@ -143,18 +141,19 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
         if (maxLength < 0) {
             throw new IllegalArgumentException("Negative maxLength not allowed");
         }
-        if (!hasRemaining()) {
+        if ((offset < 0) || (maxLength > dst.length - offset)) {
+            throw new IndexOutOfBoundsException("Illegal read offset / maxLength");
+        }
+        final int len = Math.min(dst.length - offset, maxLength);
+        if ((len == 0) || !hasRemaining()) {
+            // Nothing to do
             return 0;
         }
         try {
-            int bytesRead = in.read(dst, offset, maxLength);
+            int bytesRead = in.readNBytes(dst, offset, len);
             position += bytesRead;
-            if (bytesRead < maxLength) {
-                final int nextByte = tryReadNextByte();
-                if (nextByte != -1) {
-                    dst[offset + bytesRead] = (byte) nextByte;
-                    bytesRead++;
-                }
+            if (bytesRead < len) {
+                eof = true;
             }
             return bytesRead;
         } catch (final IOException e) {
@@ -175,14 +174,10 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
         final int dstPos = dst.position();
         final long len = Math.min(remaining(), dst.remaining());
         try {
-            int bytesRead = in.read(dstArr, dstPos + dstArrOffset, Math.toIntExact(len));
+            int bytesRead = in.readNBytes(dstArr, dstPos + dstArrOffset, Math.toIntExact(len));
             position += bytesRead;
             if (bytesRead < len) {
-                final int nextByte = tryReadNextByte();
-                if (nextByte != -1) {
-                    dst.put((byte) nextByte);
-                    bytesRead++;
-                }
+                eof = true;
             }
             return bytesRead;
         } catch (final IOException e) {
@@ -195,34 +190,10 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
         final long len = Math.min(remaining(), dst.remaining());
         int bytesRead = dst.writeBytes(in, Math.toIntExact(len));
         position += bytesRead;
-        if (position < len) {
-            final int nextByte = tryReadNextByte();
-            if (nextByte != -1) {
-                dst.writeByte((byte) nextByte);
-                bytesRead++;
-            }
+        if (bytesRead < len) {
+            eof = true;
         }
         return bytesRead;
     }
 
-    // This method is used when less than requested bytes have been read from the input stream.
-    // It could happen for two reasons: end of stream or because no more bytes are immediately
-    // available. A simple check for in.available() can't be used to detect end of stream. The
-    // workaround is to try to read the next byte and check the result. If it is -1, then the
-    // stream has really reached the end, otherwise this method returns the read byte
-    private byte tryReadNextByte() {
-        try {
-            final int nextByte = in.read();
-            if (nextByte == -1) {
-                eof = true;
-                return -1;
-            } else {
-                position++;
-                return (byte) nextByte;
-            }
-        } catch (final IOException e) {
-            eof = true;
-            return -1;
-        }
-    }
 }

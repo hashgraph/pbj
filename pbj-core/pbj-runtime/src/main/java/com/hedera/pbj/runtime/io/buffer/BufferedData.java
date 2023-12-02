@@ -12,7 +12,6 @@ import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Objects;
 
 /**
  * A buffer backed by a {@link ByteBuffer} that is a {@link BufferedSequentialData} (and therefore contains
@@ -756,56 +755,6 @@ public sealed class BufferedData
             buf.writeTo(buffer);
         } else {
             WritableSequentialData.super.writeBytes(src);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int writeBytes(@NonNull final InputStream src, final int maxLength) {
-        if (!buffer.hasArray()) {
-            return WritableSequentialData.super.writeBytes(src, maxLength);
-        }
-
-        // Check for a bad length or a null src
-        Objects.requireNonNull(src);
-        if (maxLength < 0) {
-            throw new IllegalArgumentException("The length must be >= 0");
-        }
-
-        // If the length is zero, then we have nothing to read
-        if (maxLength == 0) {
-            return 0;
-        }
-
-        // Since we have an inner array, we can just read from the input stream into that
-        // array over and over until either we read all the bytes we need to, or we hit
-        // the end of the stream, or we have read all that we can.
-        final var array = buffer.array();
-
-        // We are going to read from the input stream up to either "len" or the number of bytes
-        // remaining in this buffer, whichever is lesser.
-        final long numBytesToRead = Math.min(maxLength, remaining());
-        if (numBytesToRead == 0) {
-            return 0;
-        }
-
-        try {
-            int totalBytesRead = 0;
-            while (totalBytesRead < numBytesToRead) {
-                int numBytesRead = src.read(array, buffer.position() + buffer.arrayOffset(), (int) numBytesToRead - totalBytesRead);
-                if (numBytesRead == -1) {
-                    return totalBytesRead;
-                }
-
-                buffer.position(buffer.position() + numBytesRead);
-                totalBytesRead += numBytesRead;
-            }
-
-            return totalBytesRead;
-        } catch (IOException e) {
-            throw new DataAccessException(e);
         }
     }
 

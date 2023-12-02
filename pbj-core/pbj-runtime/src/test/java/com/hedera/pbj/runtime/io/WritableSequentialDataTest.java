@@ -4,7 +4,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.BufferOverflowException;
 import java.util.Arrays;
 
-public class WritableSequentialDataTest extends WritableTestBase {
+final class WritableSequentialDataTest extends WritableTestBase {
+
     @NonNull
     @Override
     protected WritableSequentialData sequence() {

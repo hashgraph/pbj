@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.DisplayName;
@@ -24,184 +25,138 @@ public abstract class ReadableSequentialTestBase extends ReadableTestBase {
 
     @Test
     @DisplayName("Stream with no data")
-    void noDataTest() throws Exception {
+    void noDataTest() {
         final var stream = emptySequence();
-        try {
-            assertThat(stream.remaining()).isZero();
-            assertThat(stream.hasRemaining()).isFalse();
-        } finally {
-            if (stream instanceof AutoCloseable closeable) {
-                closeable.close();
-            }
-        }
+        assertThat(stream.remaining()).isZero();
+        assertThat(stream.hasRemaining()).isFalse();
     }
 
     @Test
     @DisplayName("Stream with data")
-    void someDataTest() throws Exception {
+    void someDataTest() {
         final var stream = sequence("What a dream!!".getBytes(StandardCharsets.UTF_8));
-        try {
-            assertThat(stream.hasRemaining()).isTrue();
-        } finally {
-            if (stream instanceof AutoCloseable closeable) {
-                closeable.close();
-            }
-        }
+        assertThat(stream.hasRemaining()).isTrue();
     }
 
     @Test
     @DisplayName("Read some bytes")
-    void readSomeBytesTest() throws Exception {
+    void readSomeBytesTest() {
         final var stream = sequence("What a dream!!".getBytes(StandardCharsets.UTF_8));
-        try {
-            final var bytes = new byte[4];
-            final long bytesRead = stream.readBytes(bytes);
-            assertThat(bytesRead).isEqualTo(bytes.length);
-            assertThat(stream.position()).isEqualTo(4);
-            assertThat(bytes).containsExactly('W', 'h', 'a', 't');
-            assertThat(stream.hasRemaining()).isTrue();
-        } finally {
-            if (stream instanceof AutoCloseable closeable) {
-                closeable.close();
-            }
-        }
+        final var bytes = new byte[4];
+        final long bytesRead = stream.readBytes(bytes);
+        assertThat(bytesRead).isEqualTo(bytes.length);
+        assertThat(stream.position()).isEqualTo(4);
+        assertThat(bytes).containsExactly('W', 'h', 'a', 't');
+        assertThat(stream.hasRemaining()).isTrue();
     }
 
     @Test
     @DisplayName("Read some bytes, skip some bytes, read some more bytes")
-    void readSomeSkipSomeTest() throws Exception {
+    void readSomeSkipSomeTest() {
         final var stream = sequence("What a dream!!".getBytes(StandardCharsets.UTF_8));
-        try {
-            final var bytes = new byte[5];
-            stream.readBytes(bytes, 0, 4);
-            assertThat(stream.position()).isEqualTo(4);
-            assertThat(bytes).containsExactly('W', 'h', 'a', 't', 0);
-            assertThat(stream.skip(3)).isEqualTo(3);
-            assertThat(stream.position()).isEqualTo(7);
-            stream.readBytes(bytes);
-            assertThat(stream.position()).isEqualTo(12);
-            assertThat(bytes).containsExactly('d', 'r', 'e', 'a', 'm');
-            assertThat(stream.hasRemaining()).isTrue();
-        } finally {
-            if (stream instanceof AutoCloseable closeable) {
-                closeable.close();
-            }
-        }
+        final var bytes = new byte[5];
+        stream.readBytes(bytes, 0, 4);
+        assertThat(stream.position()).isEqualTo(4);
+        assertThat(bytes).containsExactly('W', 'h', 'a', 't', 0);
+        assertThat(stream.skip(3)).isEqualTo(3);
+        assertThat(stream.position()).isEqualTo(7);
+        stream.readBytes(bytes);
+        assertThat(stream.position()).isEqualTo(12);
+        assertThat(bytes).containsExactly('d', 'r', 'e', 'a', 'm');
+        assertThat(stream.hasRemaining()).isTrue();
     }
 
     @Test
     @DisplayName("Skip some bytes, read some bytes")
-    void skipSomeReadSomeTest() throws Exception {
+    void skipSomeReadSomeTest() {
         final var stream = sequence("What a dream!!".getBytes(StandardCharsets.UTF_8));
-        try {
-            assertThat(stream.skip(7)).isEqualTo(7);
-            final var bytes = new byte[5];
-            stream.readBytes(bytes);
-            assertThat(stream.position()).isEqualTo(12);
-            assertThat(bytes).containsExactly('d', 'r', 'e', 'a', 'm');
-            assertThat(stream.hasRemaining()).isTrue();
-        } finally {
-            if (stream instanceof AutoCloseable closeable) {
-                closeable.close();
-            }
-        }
+        assertThat(stream.skip(7)).isEqualTo(7);
+        final var bytes = new byte[5];
+        stream.readBytes(bytes);
+        assertThat(stream.position()).isEqualTo(12);
+        assertThat(bytes).containsExactly('d', 'r', 'e', 'a', 'm');
+        assertThat(stream.hasRemaining()).isTrue();
     }
 
     @Test
     @DisplayName("Read up to some limit on the stream which is less than its total length")
-    void readToLimit() throws Exception {
+    void readToLimit() {
         final var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8));
-        try {
-            stream.limit(6);
-            final var bytes = new byte[6];
-            stream.readBytes(bytes);
-            assertThat(stream.position()).isEqualTo(6);
-            assertThat(bytes).containsExactly('0', '1', '2', '3', '4', '5');
-            assertThat(stream.hasRemaining()).isFalse();
-            assertThat(stream.remaining()).isZero();
-        } finally {
-            if (stream instanceof AutoCloseable closeable) {
-                closeable.close();
-            }
-        }
+        stream.limit(6);
+        final var bytes = new byte[6];
+        stream.readBytes(bytes);
+        assertThat(stream.position()).isEqualTo(6);
+        assertThat(bytes).containsExactly('0', '1', '2', '3', '4', '5');
+        assertThat(stream.hasRemaining()).isFalse();
+        assertThat(stream.remaining()).isZero();
     }
 
     @Test
-    @DisplayName("Read past the data - EOF")
-    void readPastEnd() throws Exception {
+    @DisplayName("Read past the byte array - EOF")
+    void readPastEndByteArray() {
         final var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8));
-        try {
-            stream.limit(12);
-            final var bytes = new byte[12];
-            final var read = stream.readBytes(bytes);
-            assertEquals(10, read);
-            assertThat(stream.position()).isEqualTo(10);
-            assertThat(bytes).containsExactly('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 0, 0);
-            assertThat(stream.hasRemaining()).isFalse();
-            assertThat(stream.remaining()).isZero();
-        } finally {
-            if (stream instanceof AutoCloseable closeable) {
-                closeable.close();
-            }
-        }
+        stream.limit(12);
+        final var bytes = new byte[12];
+        final var read = stream.readBytes(bytes);
+        assertEquals(10, read);
+        assertThat(stream.position()).isEqualTo(10);
+        assertThat(bytes).containsExactly('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 0, 0);
+        assertThat(stream.hasRemaining()).isFalse();
+        assertThat(stream.remaining()).isZero();
+    }
+
+    @Test
+    @DisplayName("Read past the buffered data - EOF")
+    void readPastEndBufferedData() {
+        final var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8));
+        stream.limit(12);
+        final var buf = BufferedData.allocate(12);
+        final var read = stream.readBytes(buf);
+        assertEquals(10, read);
+        assertThat(stream.position()).isEqualTo(10);
+        assertThat(buf.asUtf8String()).isEqualTo("0123456789\u0000\u0000");
+        assertThat(stream.hasRemaining()).isFalse();
+        assertThat(stream.remaining()).isZero();
     }
 
     @Test
     @DisplayName("Read up to some limit and then extend the limit")
-    void readToLimitAndExtend() throws Exception {
+    void readToLimitAndExtend() {
         final var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8));
-        try {
-            final var bytes = new byte[6];
-            stream.limit(6);
-            stream.readBytes(bytes);
-            assertThat(stream.hasRemaining()).isFalse();
-            assertThat(stream.remaining()).isZero();
+        final var bytes = new byte[6];
+        stream.limit(6);
+        stream.readBytes(bytes);
+        assertThat(stream.hasRemaining()).isFalse();
+        assertThat(stream.remaining()).isZero();
 
-            stream.limit(10);
-            stream.readBytes(bytes, 0, 4);
-            assertThat(stream.position()).isEqualTo(10);
-            assertThat(bytes).containsExactly('6', '7', '8', '9', '4', '5');
-            assertThat(stream.hasRemaining()).isFalse();
-            assertThat(stream.remaining()).isZero();
-        } finally {
-            if (stream instanceof AutoCloseable closeable) {
-                closeable.close();
-            }
-        }
+        stream.limit(10);
+        stream.readBytes(bytes, 0, 4);
+        assertThat(stream.position()).isEqualTo(10);
+        assertThat(bytes).containsExactly('6', '7', '8', '9', '4', '5');
+        assertThat(stream.hasRemaining()).isFalse();
+        assertThat(stream.remaining()).isZero();
     }
 
     @Test
     @DisplayName("Limit snaps to position if set to less than position")
-    void limitNotBeforePosition() throws Exception {
+    void limitNotBeforePosition() {
         final var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8));
-        try {
-            final var bytes = new byte[5];
-            stream.readBytes(bytes);
-            assertThat(stream.hasRemaining()).isTrue();
-            assertThat(stream.limit()).isEqualTo(10);
-            assertThat(stream.position()).isEqualTo(5);
-            stream.limit(2);
-            assertThat(stream.position()).isEqualTo(5);
-        } finally {
-            if (stream instanceof AutoCloseable closeable) {
-                closeable.close();
-            }
-        }
+        final var bytes = new byte[5];
+        stream.readBytes(bytes);
+        assertThat(stream.hasRemaining()).isTrue();
+        assertThat(stream.limit()).isEqualTo(10);
+        assertThat(stream.position()).isEqualTo(5);
+        stream.limit(2);
+        assertThat(stream.position()).isEqualTo(5);
     }
 
     @Test
     @DisplayName("Skipping more bytes than are available")
-    void skipMoreThanAvailable() throws Exception {
+    void skipMoreThanAvailable() {
         final var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8));
-        try {
-            assertThat(stream.skip(20)).isEqualTo(10);
-            assertThat(stream.hasRemaining()).isFalse();
-            assertThat(stream.remaining()).isZero();
-        } finally {
-            if (stream instanceof AutoCloseable closeable) {
-                closeable.close();
-            }
-        }
+        assertThat(stream.skip(20)).isEqualTo(10);
+        assertThat(stream.hasRemaining()).isFalse();
+        assertThat(stream.remaining()).isZero();
     }
 
 }
