@@ -193,6 +193,7 @@ public class WritableStreamingData implements WritableSequentialData, AutoClosea
     public void writeBytes(@NonNull final ByteBuffer src) {
         if (!src.hasArray()) {
             WritableSequentialData.super.writeBytes(src);
+            return;
         }
 
         if (remaining() < src.remaining()) {

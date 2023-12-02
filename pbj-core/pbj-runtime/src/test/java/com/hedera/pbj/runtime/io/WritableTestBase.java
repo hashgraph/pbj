@@ -523,6 +523,21 @@ public abstract class WritableTestBase extends SequentialTestBase {
         }
 
         @Test
+        @DisplayName("Writing bytes from a direct ByteBuffer")
+        void writeSrcDirectByteBufferWithOffset() {
+            final var seq = sequence();
+            final int LEN = 10;
+            seq.limit(LEN);
+            final var src = ByteBuffer.allocateDirect(LEN);
+            src.put(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            src.flip();
+            final var pos = seq.position();
+            seq.writeBytes(src);
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            assertThat(seq.position()).isEqualTo(pos + 10);
+        }
+
+        @Test
         @DisplayName("Writing bytes from a src BufferedData where the src is the same length as the sequence limit")
         void writeSrcBufferedData() {
             final var seq = sequence();
