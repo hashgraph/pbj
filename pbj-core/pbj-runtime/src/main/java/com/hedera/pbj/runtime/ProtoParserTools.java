@@ -209,8 +209,12 @@ public final class ProtoParserTools {
     public static String readString(final ReadableSequentialData input) {
         final int length = input.readVarInt(false);
         validateInput(input, length);
-        byte[] bytes = new byte[length];
-        input.readBytes(bytes);
+        final byte[] bytes = new byte[length];
+        final long bytesRead = input.readBytes(bytes);
+        if (bytesRead != length) {
+            throw new BufferUnderflowException();
+        }
+
         return new String(bytes,StandardCharsets.UTF_8);
     }
 
@@ -224,7 +228,11 @@ public final class ProtoParserTools {
     public static Bytes readBytes(final ReadableSequentialData input) {
         final int length = input.readVarInt(false);
         validateInput(input, length);
-        return input.readBytes(length);
+        Bytes bytes = input.readBytes(length);
+        if (bytes.length() != length) {
+            throw new BufferUnderflowException();
+        }
+        return bytes;
     }
 
     /**

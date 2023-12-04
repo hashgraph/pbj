@@ -1,15 +1,19 @@
 package com.hedera.pbj.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import net.bytebuddy.utility.RandomString;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteOrder;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -154,6 +158,21 @@ class ProtoParserToolsTest {
                 ProtoParserTools::readString,
                 length + 1);
     }
+    @Test
+    void testReadString_incomplete() throws IOException {
+        final int length = rng.nextInt(0, 100);
+        final RandomString randomString = new RandomString(length);
+        final BufferedData data = BufferedData.allocate(length + 1);
+        data.writeVarInt(length, false); // write the size first
+        final String expectedValue = randomString.nextString();
+        data.writeUTF8(expectedValue);
+        final byte[] bytes = data.toInputStream().readAllBytes();
+        final byte[] incompleteCopy = new byte[bytes.length - 1];
+        System.arraycopy(bytes, 0, incompleteCopy, 0, bytes.length - 1);
+        final ReadableStreamingData streamingData = new ReadableStreamingData(new ByteArrayInputStream(incompleteCopy));
+        assertThrows(BufferUnderflowException.class, () -> ProtoParserTools.readString(streamingData));
+
+    }
 
     @Test
     void testReadBytes() {
@@ -169,6 +188,21 @@ class ProtoParserToolsTest {
                 },
                 ProtoParserTools::readBytes,
                 length + 1);
+    }
+
+    @Test
+    void testReadBytes_incomplete() throws IOException {
+        final int length = rng.nextInt(0, 100);
+        final byte[] byteArray = new byte[length];
+        rng.nextBytes(byteArray);
+        final BufferedData data = BufferedData.allocate(length + 1);
+        data.writeVarInt(length, false); // write the size first
+        data.writeBytes(byteArray);
+        final byte[] bytes = data.toInputStream().readAllBytes();
+        final byte[] incompleteCopy = new byte[bytes.length - 1];
+        System.arraycopy(bytes, 0, incompleteCopy, 0, bytes.length - 1);
+        final ReadableStreamingData streamingData = new ReadableStreamingData(new ByteArrayInputStream(incompleteCopy));
+        assertThrows(BufferUnderflowException.class, () -> ProtoParserTools.readString(streamingData));
     }
 
     private static <T> void testRead(final Supplier<? extends T> valueSupplier,
