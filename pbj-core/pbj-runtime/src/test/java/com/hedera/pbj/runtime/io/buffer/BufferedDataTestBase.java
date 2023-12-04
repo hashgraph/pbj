@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.ReadableSequentialTestBase;
 import com.hedera.pbj.runtime.io.ReadableTestBase;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.WritableTestBase;
@@ -185,7 +186,7 @@ abstract class BufferedDataTestBase {
     }
 
     @Nested
-    final class ReadableSequentialDataTest extends ReadableTestBase {
+    final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
 
         @NonNull
         @Override

@@ -3,12 +3,10 @@ package com.hedera.pbj.runtime.io.stream;
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.FilterOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.BufferOverflowException;
-import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.util.Objects;
 
 /**
@@ -83,7 +81,7 @@ public class WritableStreamingData implements WritableSequentialData, AutoClosea
 
     /** {@inheritDoc} */
     @Override
-    public void limit(long limit) {
+    public void limit(final long limit) {
         // Any attempt to set the limit must be clamped between position on the low end and capacity on the high end.
         this.limit = Math.min(capacity(), Math.max(position, limit));
     }
@@ -136,7 +134,7 @@ public class WritableStreamingData implements WritableSequentialData, AutoClosea
      * {@inheritDoc}
      */
     @Override
-    public void writeByte(byte b) {
+    public void writeByte(final byte b) {
         if (position >= limit) {
             throw new BufferOverflowException();
         }
@@ -153,7 +151,7 @@ public class WritableStreamingData implements WritableSequentialData, AutoClosea
      * {@inheritDoc}
      */
     @Override
-    public void writeBytes(@NonNull byte[] src, int offset, int length) {
+    public void writeBytes(@NonNull final byte[] src, final int offset, final int length) {
         if (length < 0) {
             throw new IllegalArgumentException("length must be >= 0");
         }
@@ -169,7 +167,7 @@ public class WritableStreamingData implements WritableSequentialData, AutoClosea
         try {
             out.write(src, offset, length);
             position += length;
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new DataAccessException(e);
         }
     }
@@ -178,7 +176,7 @@ public class WritableStreamingData implements WritableSequentialData, AutoClosea
      * {@inheritDoc}
      */
     @Override
-    public void writeBytes(@NonNull byte[] src) {
+    public void writeBytes(@NonNull final byte[] src) {
         if (src.length > remaining()) {
             throw new BufferOverflowException();
         }
@@ -186,7 +184,35 @@ public class WritableStreamingData implements WritableSequentialData, AutoClosea
         try {
             out.write(src);
             position += src.length;
-        } catch (IOException e) {
+        } catch (final IOException e) {
+            throw new DataAccessException(e);
+        }
+    }
+
+    @Override
+    public void writeBytes(@NonNull final ByteBuffer src) {
+        if (!src.hasArray()) {
+            WritableSequentialData.super.writeBytes(src);
+            return;
+        }
+
+        if (remaining() < src.remaining()) {
+            throw new BufferOverflowException();
+        }
+
+        final long len = src.remaining();
+        if (len == 0) {
+            // Nothing to do
+            return;
+        }
+
+        final byte[] srcArr = src.array();
+        final int srcPos = src.position();
+        try {
+            out.write(srcArr, srcPos, Math.toIntExact(len));
+            position += len;
+            src.position(Math.toIntExact(srcPos + len));
+        } catch (final IOException e) {
             throw new DataAccessException(e);
         }
     }

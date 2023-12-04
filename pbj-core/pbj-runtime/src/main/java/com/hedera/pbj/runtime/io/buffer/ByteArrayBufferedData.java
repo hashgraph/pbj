@@ -1,9 +1,13 @@
 package com.hedera.pbj.runtime.io.buffer;
 
+import com.hedera.pbj.runtime.io.DataAccessException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * BufferedData subclass for instances backed by a byte array. Provides slightly more optimized
@@ -331,5 +335,47 @@ final class ByteArrayBufferedData extends BufferedData {
         System.arraycopy(srcArr, srcArrOffset + srcPos, array, arrayOffset + pos, Math.toIntExact(len));
         src.position(Math.toIntExact(srcPos + len));
         buffer.position(Math.toIntExact(pos + len));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int writeBytes(@NonNull final InputStream src, final int maxLength) {
+        // Check for a bad length or a null src
+        Objects.requireNonNull(src);
+        if (maxLength < 0) {
+            throw new IllegalArgumentException("The length must be >= 0");
+        }
+
+        // If the length is zero, then we have nothing to read
+        if (maxLength == 0) {
+            return 0;
+        }
+
+        // We are going to read from the input stream up to either "len" or the number of bytes
+        // remaining in this buffer, whichever is lesser.
+        final long numBytesToRead = Math.min(maxLength, remaining());
+        if (numBytesToRead == 0) {
+            return 0;
+        }
+
+        try {
+            int pos = buffer.position();
+            int totalBytesRead = 0;
+            while (totalBytesRead < numBytesToRead) {
+                int bytesRead = src.read(array, pos + arrayOffset, (int) numBytesToRead - totalBytesRead);
+                if (bytesRead == -1) {
+                    buffer.position(pos);
+                    return totalBytesRead;
+                }
+                pos += bytesRead;
+                totalBytesRead += bytesRead;
+            }
+            buffer.position(pos);
+            return totalBytesRead;
+        } catch (IOException e) {
+            throw new DataAccessException(e);
+        }
     }
 }

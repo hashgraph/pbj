@@ -14,7 +14,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -521,6 +520,21 @@ public abstract class WritableTestBase extends SequentialTestBase {
             seq.writeBytes(src);
             assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 3, 4, 5, 6, 7 });
             assertThat(seq.position()).isEqualTo(pos + 5);
+        }
+
+        @Test
+        @DisplayName("Writing bytes from a direct ByteBuffer")
+        void writeSrcDirectByteBufferWithOffset() {
+            final var seq = sequence();
+            final int LEN = 10;
+            seq.limit(LEN);
+            final var src = ByteBuffer.allocateDirect(LEN);
+            src.put(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            src.flip();
+            final var pos = seq.position();
+            seq.writeBytes(src);
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            assertThat(seq.position()).isEqualTo(pos + 10);
         }
 
         @Test

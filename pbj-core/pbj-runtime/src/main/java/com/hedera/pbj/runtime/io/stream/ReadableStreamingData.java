@@ -2,10 +2,13 @@ package com.hedera.pbj.runtime.io.stream;
 
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
+
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -96,12 +99,9 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
     /** {@inheritDoc} */
     @Override
     public byte readByte() {
-        // It should NEVER be possible for position to exceed limit, but being extra safe here
-        // using >= instead of just ==
-        if (eof || position >= limit) {
+        if (!hasRemaining()) {
             throw new BufferUnderflowException();
         }
-
         // We know result is a byte, because we've already checked for EOF, and we know that
         // it will only ever be a byte, unless it is EOF, in which case it is a -1 int.
         try {
@@ -112,7 +112,7 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
             }
             position++;
             return (byte) result;
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new DataAccessException(e);
         }
     }
@@ -130,8 +130,70 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
             long numSkipped = in.skip(clamped);
             position += numSkipped;
             return numSkipped;
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new DataAccessException(e);
         }
     }
+
+    /** {@inheritDoc} */
+    @Override
+    public long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength) {
+        if (maxLength < 0) {
+            throw new IllegalArgumentException("Negative maxLength not allowed");
+        }
+        if ((offset < 0) || (maxLength > dst.length - offset)) {
+            throw new IndexOutOfBoundsException("Illegal read offset / maxLength");
+        }
+        final int len = Math.min(dst.length - offset, maxLength);
+        if ((len == 0) || !hasRemaining()) {
+            // Nothing to do
+            return 0;
+        }
+        try {
+            int bytesRead = in.readNBytes(dst, offset, len);
+            position += bytesRead;
+            if (bytesRead < len) {
+                eof = true;
+            }
+            return bytesRead;
+        } catch (final IOException e) {
+            throw new DataAccessException(e);
+        }
+    }
+
+    @Override
+    public long readBytes(@NonNull final ByteBuffer dst) {
+        if (!dst.hasArray()) {
+            return ReadableSequentialData.super.readBytes(dst);
+        }
+        if (!hasRemaining()) {
+            return 0;
+        }
+        final byte[] dstArr = dst.array();
+        final int dstArrOffset = dst.arrayOffset();
+        final int dstPos = dst.position();
+        final long len = Math.min(remaining(), dst.remaining());
+        try {
+            int bytesRead = in.readNBytes(dstArr, dstPos + dstArrOffset, Math.toIntExact(len));
+            position += bytesRead;
+            if (bytesRead < len) {
+                eof = true;
+            }
+            return bytesRead;
+        } catch (final IOException e) {
+            throw new DataAccessException(e);
+        }
+    }
+
+    @Override
+    public long readBytes(@NonNull final BufferedData dst) {
+        final long len = Math.min(remaining(), dst.remaining());
+        int bytesRead = dst.writeBytes(in, Math.toIntExact(len));
+        position += bytesRead;
+        if (bytesRead < len) {
+            eof = true;
+        }
+        return bytesRead;
+    }
+
 }
