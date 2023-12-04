@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io.stream;
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.BufferOverflowException;
@@ -13,7 +14,7 @@ import java.util.Objects;
  * <p>A {@code WritableSequentialData} backed by an output stream. If the instance is closed,
  * the underlying {@link OutputStream} is closed too.
  */
-public class WritableStreamingData implements WritableSequentialData, AutoCloseable {
+public class WritableStreamingData implements WritableSequentialData, Closeable {
 
     /** The underlying output stream */
     private final OutputStream out;
@@ -46,7 +47,7 @@ public class WritableStreamingData implements WritableSequentialData, AutoClosea
     }
 
     // ================================================================================================================
-    // AutoCloseable Methods
+    // Closeable Methods
 
     @Override
     public void close() throws IOException {
