@@ -4,10 +4,14 @@ import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 import static java.util.Objects.requireNonNull;
 
@@ -27,12 +31,34 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
     private boolean eof = false;
 
     /**
-     * Creates a {@code FilterInputStream} that implements {@code DataInput} API.
+     * Creates a new streaming data object on top of a given input stream.
      *
      * @param in the underlying input stream, can not be null
      */
     public ReadableStreamingData(@NonNull final InputStream in) {
         this.in = requireNonNull(in);
+    }
+
+    /**
+     * Opens a new input stream to read a given file and creates a new streaming data object on top
+     * of this stream.
+     *
+     * @param file the file, can not be null
+     * @throws IOException if an I/O error occurs
+     */
+    public ReadableStreamingData(@NonNull final Path file) throws IOException {
+        this.in = Files.newInputStream(file, StandardOpenOption.READ);
+        this.limit = Files.size(file);
+    }
+
+    /**
+     * Creates a new streaming data object on top of a given byte array.
+     *
+     * @param bytes the byte array, can not be null
+     */
+    public ReadableStreamingData(@NonNull final byte[] bytes) {
+        this.in = new ByteArrayInputStream(bytes);
+        this.limit = bytes.length;
     }
 
     // ================================================================================================================
