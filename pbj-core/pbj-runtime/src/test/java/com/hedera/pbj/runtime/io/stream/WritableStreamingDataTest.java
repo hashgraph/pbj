@@ -46,7 +46,7 @@ public class WritableStreamingDataTest extends WritableTestBase {
 
     @Test
     @DisplayName("capacity() returns Long.MAX_VALUE by default")
-    void defaultCapacity() throws Exception {
+    void defaultCapacity() throws IOException {
         // Given a sequence
         try (final var seq = sequence()) {
             // When we ask for the capacity, then we get Long.MAX_VALUE
@@ -56,7 +56,7 @@ public class WritableStreamingDataTest extends WritableTestBase {
 
     @Test
     @DisplayName("capacity() returns the capacity specified in the constructor")
-    void specifiedCapacity() throws Exception {
+    void specifiedCapacity() throws IOException {
         // Given a sequence
         try (final var seq = new WritableStreamingData(new ByteArrayOutputStream(), 10)) {
             // When we ask for the capacity, then we get 10

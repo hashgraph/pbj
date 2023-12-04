@@ -4,6 +4,7 @@ import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
@@ -15,7 +16,7 @@ import static java.util.Objects.requireNonNull;
  * <p>A {@code ReadableSequentialData} backed by an input stream. If the instance is closed,
  * the underlying {@link InputStream} is closed too.
  */
-public class ReadableStreamingData implements ReadableSequentialData, AutoCloseable {
+public class ReadableStreamingData implements ReadableSequentialData, Closeable {
 
     /** The underlying input stream */
     private final InputStream in;
@@ -36,7 +37,7 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
     }
 
     // ================================================================================================================
-    // AutoCloseable Methods
+    // Closeable Methods
 
     /** {@inheritDoc} */
     @Override
