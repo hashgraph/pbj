@@ -294,7 +294,7 @@ class CodecParseMethodGenerator {
             sb.append("""
 						final var messageLength = input.readVarInt(false);
 						final var limitBefore = input.limit();
-						// Make sure that we have enough bytes in the massage
+						// Make sure that we have enough bytes in the message
 						// to read the subObject.
 						// If the buffer is truncated on the boundary of a subObject,
 						// we will not throw.
@@ -303,10 +303,12 @@ class CodecParseMethodGenerator {
 						    throw new BufferOverflowException();
 						input.limit(startPos + messageLength);
 						final var value = $readMethod;
-						// Make sure we read the full number of bytes.] for the types
-						if ((startPos + messageLength) != input.position())
-						    throw new BufferOverflowException();
-						input.limit(limitBefore);"""
+						// Make sure we read the full number of bytes. for the types
+						if ((startPos + messageLength) != input.position()) {
+							throw new BufferOverflowException();
+						}
+						input.limit(limitBefore);
+						"""
                     .replace("$readMethod", readMethod(field))
                     .indent(DEFAULT_INDENT)
             );
