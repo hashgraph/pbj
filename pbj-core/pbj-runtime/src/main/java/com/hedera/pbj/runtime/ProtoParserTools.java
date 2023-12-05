@@ -194,12 +194,6 @@ public final class ProtoParserTools {
         return input.readDouble(ByteOrder.LITTLE_ENDIAN);
     }
 
-    private static void validateInput(final ReadableSequentialData input, final int expectedSize) {
-        if (input.remaining() < expectedSize) {
-            throw new BufferUnderflowException();
-        }
-    }
-
     /**
      * Read a String field from data input
      *
@@ -208,7 +202,9 @@ public final class ProtoParserTools {
      */
     public static String readString(final ReadableSequentialData input) {
         final int length = input.readVarInt(false);
-        validateInput(input, length);
+        if (input.remaining() < length) {
+            throw new BufferUnderflowException();
+        }
         final byte[] bytes = new byte[length];
         final long bytesRead = input.readBytes(bytes);
         if (bytesRead != length) {
@@ -227,7 +223,9 @@ public final class ProtoParserTools {
      */
     public static Bytes readBytes(final ReadableSequentialData input) {
         final int length = input.readVarInt(false);
-        validateInput(input, length);
+        if (input.remaining() < length) {
+            throw new BufferUnderflowException();
+        }
         Bytes bytes = input.readBytes(length);
         if (bytes.length() != length) {
             throw new BufferUnderflowException();

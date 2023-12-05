@@ -105,9 +105,8 @@ public final class JsonTools {
      *
      * @param input the CharBuffer containing the JSON string
      * @return the Antlr JSON context object
-     * @throws IOException if there was a problem parsing the JSON
      */
-    public static JSONParser.ObjContext parseJson(@NonNull final CharBuffer input) throws IOException {
+    public static JSONParser.ObjContext parseJson(@NonNull final CharBuffer input) {
         CodePointBuffer.Builder codePointBufferBuilder = CodePointBuffer.builder(input.remaining());
         codePointBufferBuilder.append(input);
         final JSONLexer lexer = new JSONLexer(CodePointCharStream.fromBuffer(codePointBufferBuilder.build(), "CharBuffer"));
