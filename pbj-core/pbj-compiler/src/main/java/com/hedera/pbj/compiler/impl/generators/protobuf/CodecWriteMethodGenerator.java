@@ -33,7 +33,7 @@ final class CodecWriteMethodGenerator {
              * @param out The output stream to write to
              * @throws IOException If there is a problem writing
              */
-            public void write(@NonNull $modelClass data,@NonNull final WritableSequentialData out) throws IOException {
+            public void write(@NonNull $modelClass data, @NonNull final WritableSequentialData out) throws IOException {
                 $fieldWriteLines
             }
             """
@@ -93,7 +93,6 @@ final class CodecWriteMethodGenerator {
                         .replace("$valueCode", getValueCode)
                         .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +
                                 Common.capitalizeFirstLetter(field.messageType())+ ".PROTOBUF");
-//                        .replace("$codec", Common.capitalizeFirstLetter(field.messageType())+ ".PROTOBUF");
                 default -> "write%sList(out, %s, %s);"
                         .formatted(writeMethodName, fieldDef, getValueCode);
             };

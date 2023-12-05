@@ -115,6 +115,11 @@ class CodecParseMethodGenerator {
                     // -- PARSE LOOP ---------------------------------------------
                     // Continue to parse bytes out of the input stream until we get to the end.
                     try {
+                        // If we start reading and the buffer is truncated to empty one,
+                        // we should throw an error.
+                        if (strictMode && !input.hasRemaining()) {
+                            throw new BufferUnderflowException();
+                        }
                         while (input.hasRemaining()) {
                             // Read the "tag" byte which gives us the field number for the next field to read
                             // and the wire type (way it is encoded on the wire).
@@ -289,9 +294,21 @@ class CodecParseMethodGenerator {
             sb.append("""
 						final var messageLength = input.readVarInt(false);
 						final var limitBefore = input.limit();
-						input.limit(input.position() + messageLength);
+						// Make sure that we have enough bytes in the message
+						// to read the subObject.
+						// If the buffer is truncated on the boundary of a subObject,
+						// we will not throw.
+						final var startPos = input.position();
+						if ((startPos + messageLength) > limitBefore)
+						    throw new BufferOverflowException();
+						input.limit(startPos + messageLength);
 						final var value = $readMethod;
-						input.limit(limitBefore);"""
+						// Make sure we read the full number of bytes. for the types
+						if ((startPos + messageLength) != input.position()) {
+							throw new BufferOverflowException();
+						}
+						input.limit(limitBefore);
+						"""
                     .replace("$readMethod", readMethod(field))
                     .indent(DEFAULT_INDENT)
             );

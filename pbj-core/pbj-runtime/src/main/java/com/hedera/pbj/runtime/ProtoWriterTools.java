@@ -81,9 +81,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the int value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeInteger(WritableSequentialData out, FieldDefinition field, int value) throws IOException {
+    public static void writeInteger(WritableSequentialData out, FieldDefinition field, int value) {
         assert switch(field.type()) {
             case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
             default -> false;
@@ -122,9 +121,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the long value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeLong(WritableSequentialData out, FieldDefinition field, long value) throws IOException {
+    public static void writeLong(WritableSequentialData out, FieldDefinition field, long value) {
         assert switch(field.type()) {
             case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
             default -> false;
@@ -158,9 +156,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the float value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeFloat(WritableSequentialData out, FieldDefinition field, float value) throws IOException {
+    public static void writeFloat(WritableSequentialData out, FieldDefinition field, float value) {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
         assert !field.repeated() : "Use writeFloatList with repeated types";
         // When not a oneOf don't write default value
@@ -177,9 +174,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the double value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeDouble(WritableSequentialData out, FieldDefinition field, double value) throws IOException {
+    public static void writeDouble(WritableSequentialData out, FieldDefinition field, double value) {
         assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
         assert !field.repeated() : "Use writeDoubleList with repeated types";
         // When not a oneOf don't write default value
@@ -196,9 +192,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the boolean value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeBoolean(WritableSequentialData out, FieldDefinition field, boolean value) throws IOException {
+    public static void writeBoolean(WritableSequentialData out, FieldDefinition field, boolean value) {
         assert field.type() == FieldType.BOOL : "Not a boolean type " + field;
         assert !field.repeated() : "Use writeBooleanList with repeated types";
         // In the case of oneOf we write the value even if it is default value of false
@@ -214,9 +209,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param enumValue the enum value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeEnum(WritableSequentialData out, FieldDefinition field, EnumWithProtoMetadata enumValue) throws IOException {
+    public static void writeEnum(WritableSequentialData out, FieldDefinition field, EnumWithProtoMetadata enumValue) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert !field.repeated() : "Use writeEnumList with repeated types";
         // When not a oneOf don't write default value
@@ -349,9 +343,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the optional integer value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalInteger(WritableSequentialData out, FieldDefinition field, @Nullable Integer value) throws IOException {
+    public static void writeOptionalInteger(WritableSequentialData out, FieldDefinition field, @Nullable Integer value) {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -366,9 +359,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the optional long value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalLong(WritableSequentialData out, FieldDefinition field, @Nullable Long value) throws IOException {
+    public static void writeOptionalLong(WritableSequentialData out, FieldDefinition field, @Nullable Long value) {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -383,9 +375,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the optional float value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalFloat(WritableSequentialData out, FieldDefinition field, @Nullable Float value) throws IOException {
+    public static void writeOptionalFloat(WritableSequentialData out, FieldDefinition field, @Nullable Float value) {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -400,9 +391,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the optional double value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalDouble(WritableSequentialData out, FieldDefinition field, @Nullable Double value) throws IOException {
+    public static void writeOptionalDouble(WritableSequentialData out, FieldDefinition field, @Nullable Double value) {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -417,9 +407,8 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the optional boolean value to write
-     * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalBoolean(WritableSequentialData out, FieldDefinition field, @Nullable Boolean value) throws IOException {
+    public static void writeOptionalBoolean(WritableSequentialData out, FieldDefinition field, @Nullable Boolean value) {
         if (value != null) {
             writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
