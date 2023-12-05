@@ -47,6 +47,9 @@ public class ReadableStreamingData implements ReadableSequentialData, AutoClosea
      * @throws IOException if an I/O error occurs
      */
     public ReadableStreamingData(@NonNull final Path file) throws IOException {
+        if (!Files.isRegularFile(file) || !Files.isReadable(file)) {
+            throw new IOException("Cannot read file: " + file);
+        }
         this.in = Files.newInputStream(file, StandardOpenOption.READ);
         this.limit = Files.size(file);
     }

@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io.stream;
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -185,18 +186,20 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
     @Test
     void zeroLimitReadEmptyFile() throws IOException {
-        final Path file = Files.createTempFile(getClass().getSimpleName(), "zeroLimitReadEmptyFile");
-        try (final var stream = new ReadableStreamingData(file)) {
+        final File file = File.createTempFile(getClass().getSimpleName(), "zeroLimitReadEmptyFile");
+        file.deleteOnExit();
+        try (final var stream = new ReadableStreamingData(file.toPath())) {
             assertThat(stream.limit()).isEqualTo(0);
         }
     }
 
     @Test
     void nonZeroLimitReadFile() throws IOException {
-        final Path file = Files.createTempFile(getClass().getSimpleName(), "nonZeroLimitReadFile");
+        final File file = File.createTempFile(getClass().getSimpleName(), "nonZeroLimitReadFile");
+        file.deleteOnExit();
         final byte[] bytes = new byte[] {0, 1, 2, 3, 4};
-        Files.write(file, bytes, StandardOpenOption.WRITE);
-        try (final var stream = new ReadableStreamingData(file)) {
+        Files.write(file.toPath(), bytes, StandardOpenOption.WRITE);
+        try (final var stream = new ReadableStreamingData(file.toPath())) {
             assertThat(stream.limit()).isEqualTo(bytes.length);
         }
     }
@@ -210,5 +213,23 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         try (final var stream = new ReadableStreamingData(new ByteArrayInputStream(bytes))) {
             assertThat(stream.limit()).isEqualTo(Long.MAX_VALUE);
         }
+    }
+
+    @Test
+    void readDirectoryFile() throws IOException {
+        final Path dir = Files.createTempDirectory(getClass().getSimpleName() + "_readDirectoryFile");
+        try {
+            assertThrows(IOException.class, () -> new ReadableStreamingData(dir));
+        } finally {
+            Files.delete(dir);
+        }
+    }
+
+
+    @Test
+    void readFileThatDoesntExist() throws IOException {
+        final Path file = Files.createTempFile(getClass().getSimpleName(), "readFileThatDoesntExist");
+        Files.delete(file);
+        assertThrows(IOException.class, () -> new ReadableStreamingData(file));
     }
 }
