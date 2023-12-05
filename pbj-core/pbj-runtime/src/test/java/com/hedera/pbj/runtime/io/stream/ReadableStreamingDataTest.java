@@ -3,6 +3,10 @@ package com.hedera.pbj.runtime.io.stream;
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import java.io.BufferedInputStream;
@@ -21,7 +25,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
     @NonNull
     @Override
     protected ReadableStreamingData emptySequence() {
-        final var stream = new ReadableStreamingData(new ByteArrayInputStream(new byte[0]));
+        final var stream = new ReadableStreamingData(new byte[0]);
         stream.limit(0);
         return stream;
     }
@@ -39,7 +43,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
     @Override
     @NonNull
     protected ReadableStreamingData sequence(@NonNull byte [] arr) {
-        final var stream = new ReadableStreamingData(new ByteArrayInputStream(arr));
+        final var stream = new ReadableStreamingData(arr);
         stream.limit(arr.length);
         return stream;
     }
@@ -94,7 +98,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
     @Test
     @DisplayName("Bad InputStream will fail on read")
-    void inputStreamFailsDuringRead() throws IOException {
+    void inputStreamFailsDuringRead() {
         final var throwNow = new AtomicBoolean(false);
         final var byteStream = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5, 6, 7 });
         final var inputStream = new BufferedInputStream(byteStream) {
@@ -180,4 +184,52 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         }
     }
 
+    @Test
+    void zeroLimitReadEmptyFile() throws IOException {
+        final File file = File.createTempFile(getClass().getSimpleName(), "zeroLimitReadEmptyFile");
+        file.deleteOnExit();
+        try (final var stream = new ReadableStreamingData(file.toPath())) {
+            assertThat(stream.limit()).isEqualTo(0);
+        }
+    }
+
+    @Test
+    void nonZeroLimitReadFile() throws IOException {
+        final File file = File.createTempFile(getClass().getSimpleName(), "nonZeroLimitReadFile");
+        file.deleteOnExit();
+        final byte[] bytes = new byte[] {0, 1, 2, 3, 4};
+        Files.write(file.toPath(), bytes, StandardOpenOption.WRITE);
+        try (final var stream = new ReadableStreamingData(file.toPath())) {
+            assertThat(stream.limit()).isEqualTo(bytes.length);
+        }
+    }
+
+    @Test
+    void dataOnTopOfByteArrayLimits() {
+        final byte[] bytes = new byte[] {0, 1, 2, 3, 4, 5, 6, 7};
+        try (final var stream = new ReadableStreamingData(bytes)) {
+            assertThat(stream.limit()).isEqualTo(bytes.length);
+        }
+        try (final var stream = new ReadableStreamingData(new ByteArrayInputStream(bytes))) {
+            assertThat(stream.limit()).isEqualTo(Long.MAX_VALUE);
+        }
+    }
+
+    @Test
+    void readDirectoryFile() throws IOException {
+        final Path dir = Files.createTempDirectory(getClass().getSimpleName() + "_readDirectoryFile");
+        try {
+            assertThrows(IOException.class, () -> new ReadableStreamingData(dir));
+        } finally {
+            Files.delete(dir);
+        }
+    }
+
+
+    @Test
+    void readFileThatDoesntExist() throws IOException {
+        final Path file = Files.createTempFile(getClass().getSimpleName(), "readFileThatDoesntExist");
+        Files.delete(file);
+        assertThrows(IOException.class, () -> new ReadableStreamingData(file));
+    }
 }
