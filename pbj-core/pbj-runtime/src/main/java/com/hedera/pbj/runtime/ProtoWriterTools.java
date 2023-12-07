@@ -1,5 +1,10 @@
 package com.hedera.pbj.runtime;
 
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_32_BIT;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_64_BIT;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
+
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
@@ -18,7 +23,7 @@ import java.util.function.ToIntFunction;
 public final class ProtoWriterTools {
 
     /** The number of leading bits of the tag that are used to store field type, the rest is field number */
-    private static final int TAG_TYPE_BITS = 3;
+    static final int TAG_TYPE_BITS = 3;
 
     /** Instance should never be created */
     private ProtoWriterTools() {}
@@ -34,14 +39,14 @@ public final class ProtoWriterTools {
      */
     public static ProtoConstants wireType(final FieldDefinition field) {
         return switch (field.type()) {
-            case FLOAT -> ProtoConstants.WIRE_TYPE_FIXED_32_BIT;
-            case DOUBLE -> ProtoConstants.WIRE_TYPE_FIXED_64_BIT;
-            case INT32, INT64, SINT32, SINT64, UINT32, UINT64 -> ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
-            case FIXED32, SFIXED32 -> ProtoConstants.WIRE_TYPE_FIXED_32_BIT;
-            case FIXED64, SFIXED64 -> ProtoConstants.WIRE_TYPE_FIXED_64_BIT;
-            case BOOL -> ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
-            case BYTES, MESSAGE, STRING -> ProtoConstants.WIRE_TYPE_DELIMITED;
-            case ENUM -> ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
+            case FLOAT -> WIRE_TYPE_FIXED_32_BIT;
+            case DOUBLE -> WIRE_TYPE_FIXED_64_BIT;
+            case INT32, INT64, SINT32, SINT64, UINT32, UINT64 -> WIRE_TYPE_VARINT_OR_ZIGZAG;
+            case FIXED32, SFIXED32 -> WIRE_TYPE_FIXED_32_BIT;
+            case FIXED64, SFIXED64 -> WIRE_TYPE_FIXED_64_BIT;
+            case BOOL -> WIRE_TYPE_VARINT_OR_ZIGZAG;
+            case BYTES, MESSAGE, STRING -> WIRE_TYPE_DELIMITED;
+            case ENUM -> WIRE_TYPE_VARINT_OR_ZIGZAG;
         };
     }
 
@@ -94,21 +99,21 @@ public final class ProtoWriterTools {
         }
         switch (field.type()) {
             case INT32 -> {
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+                writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
                 out.writeVarInt(value, false);
             }
             case UINT32 -> {
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+                writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
                 out.writeVarLong(Integer.toUnsignedLong(value), false);
             }
             case SINT32 -> {
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+                writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
                 out.writeVarInt(value, true);
             }
             case SFIXED32, FIXED32 -> {
                 // The bytes in protobuf are in little-endian order -- backwards for Java.
                 // Smallest byte first.
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_FIXED_32_BIT);
+                writeTag(out, field, WIRE_TYPE_FIXED_32_BIT);
                 out.writeInt(value, ByteOrder.LITTLE_ENDIAN);
             }
             default -> throw unsupported();
@@ -133,17 +138,17 @@ public final class ProtoWriterTools {
         }
         switch (field.type()) {
             case INT64, UINT64 -> {
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+                writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
                 out.writeVarLong(value, false);
             }
             case SINT64 -> {
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+                writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
                 out.writeVarLong(value, true);
             }
             case SFIXED64, FIXED64 -> {
                 // The bytes in protobuf are in little-endian order -- backwards for Java.
                 // Smallest byte first.
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_FIXED_64_BIT);
+                writeTag(out, field, WIRE_TYPE_FIXED_64_BIT);
                 out.writeLong(value, ByteOrder.LITTLE_ENDIAN);
             }
             default -> throw unsupported();
@@ -164,7 +169,7 @@ public final class ProtoWriterTools {
         if (!field.oneOf() && value == 0) {
             return;
         }
-        writeTag(out, field, ProtoConstants.WIRE_TYPE_FIXED_32_BIT);
+        writeTag(out, field, WIRE_TYPE_FIXED_32_BIT);
         out.writeFloat(value, ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -182,7 +187,7 @@ public final class ProtoWriterTools {
         if (!field.oneOf() && value == 0) {
             return;
         }
-        writeTag(out, field, ProtoConstants.WIRE_TYPE_FIXED_64_BIT);
+        writeTag(out, field, WIRE_TYPE_FIXED_64_BIT);
         out.writeDouble(value, ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -198,7 +203,7 @@ public final class ProtoWriterTools {
         assert !field.repeated() : "Use writeBooleanList with repeated types";
         // In the case of oneOf we write the value even if it is default value of false
         if (value || field.oneOf()) {
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+            writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
             out.writeByte(value ? (byte)1 : 0);
         }
     }
@@ -217,7 +222,7 @@ public final class ProtoWriterTools {
         if (!field.oneOf() && (enumValue == null || enumValue.protoOrdinal() == 0)) {
             return;
         }
-        writeTag(out, field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+        writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
         out.writeVarInt(enumValue.protoOrdinal(), false);
     }
 
@@ -248,7 +253,7 @@ public final class ProtoWriterTools {
         if (!field.oneOf() && (value == null || value.isEmpty())) {
             return;
         }
-        writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarInt(sizeOfStringNoTag(field,value), false);
         Utf8Tools.encodeUtf8(value,out);
     }
@@ -281,7 +286,7 @@ public final class ProtoWriterTools {
         if (!field.oneOf() && (skipZeroLength && (value.length() == 0))) {
             return;
         }
-        writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarInt(Math.toIntExact(value.length()), false);
         final long posBefore = out.position();
         out.writeBytes(value);
@@ -322,10 +327,10 @@ public final class ProtoWriterTools {
     private static <T> void writeMessageNoChecks(WritableSequentialData out, FieldDefinition field, T message, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
         // When not a oneOf don't write default value
         if (field.oneOf() && message == null) {
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
             out.writeVarInt(0, false);
         } else if (message != null) {
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
             final int size = sizeOf.applyAsInt(message);
             out.writeVarInt(size, false);
             if (size > 0) {
@@ -346,7 +351,7 @@ public final class ProtoWriterTools {
      */
     public static void writeOptionalInteger(WritableSequentialData out, FieldDefinition field, @Nullable Integer value) {
         if (value != null) {
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfInteger(newField, value), false);
             writeInteger(out,newField,value);
@@ -362,7 +367,7 @@ public final class ProtoWriterTools {
      */
     public static void writeOptionalLong(WritableSequentialData out, FieldDefinition field, @Nullable Long value) {
         if (value != null) {
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfLong(newField, value), false);
             writeLong(out,newField,value);
@@ -378,7 +383,7 @@ public final class ProtoWriterTools {
      */
     public static void writeOptionalFloat(WritableSequentialData out, FieldDefinition field, @Nullable Float value) {
         if (value != null) {
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfFloat(newField, value), false);
             writeFloat(out,newField,value);
@@ -394,7 +399,7 @@ public final class ProtoWriterTools {
      */
     public static void writeOptionalDouble(WritableSequentialData out, FieldDefinition field, @Nullable Double value) {
         if (value != null) {
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfDouble(newField, value), false);
             writeDouble(out,newField,value);
@@ -410,7 +415,7 @@ public final class ProtoWriterTools {
      */
     public static void writeOptionalBoolean(WritableSequentialData out, FieldDefinition field, @Nullable Boolean value) {
         if (value != null) {
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfBoolean(newField, value), false);
             writeBoolean(out,newField,value);
@@ -427,7 +432,7 @@ public final class ProtoWriterTools {
      */
     public static void writeOptionalString(WritableSequentialData out, FieldDefinition field, @Nullable String value) throws IOException {
         if (value != null) {
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfString(newField, value), false);
             writeString(out,newField,value);
@@ -444,7 +449,7 @@ public final class ProtoWriterTools {
      */
     public static void writeOptionalBytes(WritableSequentialData out, FieldDefinition field, @Nullable Bytes value) throws IOException {
         if (value != null) {
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             final int size = sizeOfBytes(newField, value);
             out.writeVarInt(size, false);
@@ -485,7 +490,7 @@ public final class ProtoWriterTools {
                     final int val = list.get(i);
                     size += sizeOfVarInt32(val);
                 }
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
                 out.writeVarInt(size, false);
                 for (int i = 0; i < listSize; i++) {
                     final int val = list.get(i);
@@ -498,7 +503,7 @@ public final class ProtoWriterTools {
                     final int val = list.get(i);
                     size += sizeOfUnsignedVarInt64(Integer.toUnsignedLong(val));
                 }
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
                 out.writeVarInt(size, false);
                 for (int i = 0; i < listSize; i++) {
                     final int val = list.get(i);
@@ -511,7 +516,7 @@ public final class ProtoWriterTools {
                     final int val = list.get(i);
                     size += sizeOfUnsignedVarInt64(((long)val << 1) ^ ((long)val >> 63));
                 }
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
                 out.writeVarInt(size, false);
                 for (int i = 0; i < listSize; i++) {
                     final int val = list.get(i);
@@ -521,7 +526,7 @@ public final class ProtoWriterTools {
             case SFIXED32, FIXED32 -> {
                 // The bytes in protobuf are in little-endian order -- backwards for Java.
                 // Smallest byte first.
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
                 out.writeVarLong((long)list.size() * FIXED32_SIZE, false);
                 for (int i = 0; i < listSize; i++) {
                     final int val = list.get(i);
@@ -559,7 +564,7 @@ public final class ProtoWriterTools {
                     final long val = list.get(i);
                     size += sizeOfUnsignedVarInt64(val);
                 }
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
                 out.writeVarInt(size, false);
                 for (int i = 0; i < listSize; i++) {
                     final long val = list.get(i);
@@ -572,7 +577,7 @@ public final class ProtoWriterTools {
                     final long val = list.get(i);
                     size += sizeOfUnsignedVarInt64((val << 1) ^ (val >> 63));
                 }
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
                 out.writeVarInt(size, false);
                 for (int i = 0; i < listSize; i++) {
                     final long val = list.get(i);
@@ -582,7 +587,7 @@ public final class ProtoWriterTools {
             case SFIXED64, FIXED64 -> {
                 // The bytes in protobuf are in little-endian order -- backwards for Java.
                 // Smallest byte first.
-                writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
                 out.writeVarLong((long)list.size() * FIXED64_SIZE, false);
                 for (int i = 0; i < listSize; i++) {
                     final long val = list.get(i);
@@ -608,7 +613,7 @@ public final class ProtoWriterTools {
             return;
         }
         final int size = list.size() * FIXED32_SIZE;
-        writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarInt(size, false);
         final int listSize = list.size();
         for (int i = 0; i < listSize; i++) {
@@ -631,7 +636,7 @@ public final class ProtoWriterTools {
             return;
         }
         final int size = list.size() * FIXED64_SIZE;
-        writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarInt(size, false);
         final int listSize = list.size();
         for (int i = 0; i < listSize; i++) {
@@ -654,7 +659,7 @@ public final class ProtoWriterTools {
             return;
         }
         // write
-        writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarInt(list.size(), false);
         final int listSize = list.size();
         for (int i = 0; i < listSize; i++) {
@@ -682,7 +687,7 @@ public final class ProtoWriterTools {
         for (int i = 0; i < listSize; i++) {
             size += sizeOfUnsignedVarInt32(list.get(i).protoOrdinal());
         }
-        writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarInt(size, false);
         for (int i = 0; i < listSize; i++) {
             out.writeVarInt(list.get(i).protoOrdinal(), false);
@@ -707,7 +712,7 @@ public final class ProtoWriterTools {
         final int listSize = list.size();
         for (int i = 0; i < listSize; i++) {
             final String value = list.get(i);
-            writeTag(out, field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
             out.writeVarInt(sizeOfStringNoTag(field,value), false);
             Utf8Tools.encodeUtf8(value,out);
         }
@@ -776,9 +781,24 @@ public final class ProtoWriterTools {
      * @param value The int value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfVarInt32(final int value) {
+    public static int sizeOfVarInt32(final int value) {
         if (value >= 0) {
             return sizeOfUnsignedVarInt32(value);
+        } else {
+            // Must sign-extend.
+            return MAX_VARINT_SIZE;
+        }
+    }
+
+    /**
+     * Get the number of bytes that would be needed to encode an {@code int32} field
+     *
+     * @param value The int value to get encoded size for
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfVarInt64(final long value) {
+        if (value >= 0) {
+            return sizeOfUnsignedVarInt64(value);
         } else {
             // Must sign-extend.
             return MAX_VARINT_SIZE;
@@ -791,7 +811,7 @@ public final class ProtoWriterTools {
      * @param value The int value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfUnsignedVarInt32(final int value) {
+    public static int sizeOfUnsignedVarInt32(final int value) {
         if ((value & (~0 << 7)) == 0) return 1;
         if ((value & (~0 << 14)) == 0) return 2;
         if ((value & (~0 << 21)) == 0) return 3;
@@ -805,7 +825,7 @@ public final class ProtoWriterTools {
      * @param value The int value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfUnsignedVarInt64(long value) {
+    public static int sizeOfUnsignedVarInt64(long value) {
         // handle two popular special cases up front ...
         if ((value & (~0L << 7)) == 0L) return 1;
         if (value < 0L) return 10;
@@ -858,7 +878,7 @@ public final class ProtoWriterTools {
         if (value != null) {
             final int intValue = value;
             int size = sizeOfInteger(field.type().optionalFieldDefinition, intValue);
-            return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
+            return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
     }
@@ -874,7 +894,7 @@ public final class ProtoWriterTools {
         if (value != null) {
             final long longValue = value;
             final int size =  sizeOfLong(field.type().optionalFieldDefinition, longValue);
-            return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
+            return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
     }
@@ -889,7 +909,7 @@ public final class ProtoWriterTools {
     public static int sizeOfOptionalFloat(FieldDefinition field, @Nullable Float value) {
         if (value != null) {
             final int size = value == 0 ? 0 : 1 + FIXED32_SIZE;
-            return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
+            return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
     }
@@ -904,7 +924,7 @@ public final class ProtoWriterTools {
     public static int sizeOfOptionalDouble(FieldDefinition field, @Nullable Double value) {
         if (value != null) {
             final int size = value == 0 ? 0 : 1 + FIXED64_SIZE;
-            return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
+            return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
     }
@@ -919,7 +939,7 @@ public final class ProtoWriterTools {
     public static int sizeOfOptionalBoolean(FieldDefinition field, @Nullable Boolean value) {
         if (value != null) {
             final int size = !value ? 0 : 2;
-            return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
+            return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
     }
@@ -934,7 +954,7 @@ public final class ProtoWriterTools {
     public static int sizeOfOptionalString(FieldDefinition field, @Nullable String value) {
         if (value != null) {
             final int size = sizeOfString(field.type().optionalFieldDefinition,value);
-            return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
+            return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
     }
@@ -949,7 +969,7 @@ public final class ProtoWriterTools {
     public static int sizeOfOptionalBytes(FieldDefinition field, @Nullable RandomAccessData value) {
         if (value != null) {
             final int size = sizeOfBytes(field.type().optionalFieldDefinition, value);
-            return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
+            return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
     }
@@ -964,10 +984,10 @@ public final class ProtoWriterTools {
     public static int sizeOfInteger(FieldDefinition field, int value) {
         if (!field.oneOf() && value == 0) return 0;
         return switch (field.type()) {
-            case INT32 -> sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(value);
-            case UINT32 -> sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt32(value);
-            case SINT32 -> sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64(((long)value << 1) ^ ((long)value >> 63));
-            case SFIXED32, FIXED32 -> sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED32_SIZE;
+            case INT32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(value);
+            case UINT32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt32(value);
+            case SINT32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64(((long)value << 1) ^ ((long)value >> 63));
+            case SFIXED32, FIXED32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED32_SIZE;
             default -> throw unsupported();
         };
     }
@@ -982,9 +1002,9 @@ public final class ProtoWriterTools {
     public static int sizeOfLong(FieldDefinition field, long value) {
         if (!field.oneOf() && value == 0) return 0;
         return switch (field.type()) {
-            case INT64, UINT64 -> sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64(value);
-            case SINT64 -> sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64((value << 1) ^ (value >> 63));
-            case SFIXED64, FIXED64 -> sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED64_SIZE;
+            case INT64, UINT64 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64(value);
+            case SINT64 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64((value << 1) ^ (value >> 63));
+            case SFIXED64, FIXED64 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED64_SIZE;
             default -> throw unsupported();
         };
     }
@@ -998,7 +1018,7 @@ public final class ProtoWriterTools {
      */
     public static int sizeOfFloat(FieldDefinition field, float value) {
         if (!field.oneOf() && value == 0) return 0;
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED32_SIZE;
+        return sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED32_SIZE;
     }
 
     /**
@@ -1010,7 +1030,7 @@ public final class ProtoWriterTools {
      */
     public static int sizeOfDouble(FieldDefinition field, double value) {
         if (!field.oneOf() && value == 0) return 0;
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED64_SIZE;
+        return sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED64_SIZE;
     }
 
     /**
@@ -1021,7 +1041,7 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfBoolean(FieldDefinition field, boolean value) {
-        return (value || field.oneOf()) ? sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + 1 : 0;
+        return (value || field.oneOf()) ? sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + 1 : 0;
     }
 
 
@@ -1036,7 +1056,7 @@ public final class ProtoWriterTools {
         if (!field.oneOf() && (enumValue == null || enumValue.protoOrdinal() == 0)) {
             return 0;
         }
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(enumValue.protoOrdinal());
+        return sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(enumValue.protoOrdinal());
     }
 
     /**
@@ -1052,7 +1072,7 @@ public final class ProtoWriterTools {
             return 0;
         }
         final int size = sizeOfStringNoTag(field, value);
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
+        return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
     }
 
     /**
@@ -1086,7 +1106,7 @@ public final class ProtoWriterTools {
         if (!field.oneOf() && (value.length() == 0)) {
             return 0;
         }
-        return Math.toIntExact(sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(value.length())) + value.length());
+        return Math.toIntExact(sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(value.length())) + value.length());
     }
 
     /**
@@ -1101,10 +1121,10 @@ public final class ProtoWriterTools {
     public static <T> int sizeOfMessage(FieldDefinition field, T message, ToIntFunction<T> sizeOf) {
         // When not a oneOf don't write default value
         if (field.oneOf() && message == null) {
-            return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + 1;
+            return sizeOfTag(field, WIRE_TYPE_DELIMITED) + 1;
         } else if (message != null) {
             final int size = sizeOf.applyAsInt(message);
-            return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
+            return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
         } else {
             return 0;
         }
@@ -1142,7 +1162,7 @@ public final class ProtoWriterTools {
             case SFIXED32, FIXED32 -> size += FIXED32_SIZE * list.size();
             default -> throw unsupported();
         }
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
+        return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
     }
 
     /**
@@ -1172,7 +1192,7 @@ public final class ProtoWriterTools {
             case SFIXED64, FIXED64 -> size += FIXED64_SIZE * list.size();
             default -> throw unsupported();
         }
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
+        return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
     }
 
     /**
@@ -1188,7 +1208,7 @@ public final class ProtoWriterTools {
             return 0;
         }
         int size = FIXED32_SIZE * list.size();
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
+        return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
     }
 
     /**
@@ -1204,7 +1224,7 @@ public final class ProtoWriterTools {
             return 0;
         }
         int size = FIXED64_SIZE * list.size();
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
+        return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
     }
 
     /**
@@ -1220,7 +1240,7 @@ public final class ProtoWriterTools {
             return 0;
         }
         int size = list.size();
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
+        return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
     }
 
     /**
@@ -1239,7 +1259,7 @@ public final class ProtoWriterTools {
         for (final EnumWithProtoMetadata enumValue : list) {
             size += sizeOfUnsignedVarInt64(enumValue.protoOrdinal());
         }
-        return sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
+        return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
     }
 
     /**
@@ -1250,14 +1270,9 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfStringList(FieldDefinition field, List<String> list) {
-        // When not a oneOf don't write default value
-        if (!field.oneOf() && list.isEmpty()) {
-            return 0;
-        }
         int size = 0;
-
         for (final String value : list) {
-            size += sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED);
+            size += sizeOfTag(field, WIRE_TYPE_DELIMITED);
             final int strSize = sizeOfStringNoTag(field, value);
             size += sizeOfVarInt32(strSize) + strSize;
         }
@@ -1274,13 +1289,9 @@ public final class ProtoWriterTools {
      * @param <T> type for message
      */
     public static <T> int sizeOfMessageList(FieldDefinition field, List<T> list, ToIntFunction<T> sizeOf) {
-        // When not a oneOf don't write default value
-        if (!field.oneOf() && list.isEmpty()) {
-            return 0;
-        }
         int size = 0;
         for (final T value : list) {
-            size += sizeOfMessage(field,value,sizeOf);
+            size += sizeOfMessage(field, value, sizeOf);
         }
         return size;
     }
@@ -1293,14 +1304,14 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfBytesList(FieldDefinition field, List<? extends RandomAccessData> list) {
-        // When not a oneOf don't write default value
-        if (!field.oneOf() && list.isEmpty()) {
-            return 0;
-        }
         int size = 0;
         for (final RandomAccessData value : list) {
-            size += Math.toIntExact(sizeOfTag(field, ProtoConstants.WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(value.length())) + value.length());
+            size += Math.toIntExact(sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(value.length())) + value.length());
         }
         return size;
+    }
+
+    public static int sizeOfDelimited(final FieldDefinition field, final int length) {
+        return Math.toIntExact(sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(length) + length);
     }
 }

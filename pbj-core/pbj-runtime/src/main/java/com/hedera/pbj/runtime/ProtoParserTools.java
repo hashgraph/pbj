@@ -257,4 +257,15 @@ public final class ProtoParserTools {
             default -> throw new IOException("Unhandled wire type while trying to skip a field " + wireType);
         }
     }
+
+    /**
+     * Read the next field number from the input
+     *
+     * @param input The input data to read from
+     * @return the read tag
+     */
+    public static int readNextFieldNumber(final ReadableSequentialData input) {
+        final int tag = input.readVarInt(false);
+        return tag >> TAG_FIELD_OFFSET;
+    }
 }
