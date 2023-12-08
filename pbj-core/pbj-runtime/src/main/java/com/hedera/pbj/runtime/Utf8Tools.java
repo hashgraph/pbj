@@ -9,7 +9,7 @@ import static java.lang.Character.*;
 /**
  * UTF8 tools based on protobuf standard library, so we are byte for byte identical
  */
-public class Utf8Tools {
+public final class Utf8Tools {
 
     /**
      * Returns the number of bytes in the UTF-8-encoded form of {@code sequence}. For a string, this
@@ -20,7 +20,7 @@ public class Utf8Tools {
      *     surrogates)
      */
     static int encodedLength(CharSequence sequence) throws IOException {
-        if(sequence == null) {
+        if (sequence == null) {
             return 0;
         }
         // Warning to maintainers: this implementation is highly optimized.

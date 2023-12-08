@@ -67,7 +67,7 @@ class ProtoParserToolsTest {
     @Test
     void testReadUint32() {
         testRead(() ->
-                rng.nextInt(0, MAX_VALUE),
+                rng.nextInt(0, Integer.MAX_VALUE),
                 (d, v) -> d.writeVarInt(v, false),
                 ProtoParserTools::readUint32,
                 // the size may vary from 1 to 5 bytes
@@ -247,7 +247,7 @@ class ProtoParserToolsTest {
         final BufferedData data = BufferedData.allocate(1000);
         writeLong(data, createFieldDefinition(FIXED64), rng.nextLong());
         writeInteger(data, createFieldDefinition(FIXED32), rng.nextInt());
-        int value = rng.nextInt(0, MAX_VALUE);
+        int value = rng.nextInt(0, Integer.MAX_VALUE);
         writeInteger(data, createFieldDefinition(INT32), value);
         writeString(data, createFieldDefinition(STRING), randomVarSizeString());
         writeString(data, createFieldDefinition(STRING), valToRead);
