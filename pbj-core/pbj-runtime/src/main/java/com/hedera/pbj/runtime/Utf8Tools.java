@@ -20,6 +20,9 @@ public class Utf8Tools {
      *     surrogates)
      */
     static int encodedLength(CharSequence sequence) throws IOException {
+        if(sequence == null) {
+            return 0;
+        }
         // Warning to maintainers: this implementation is highly optimized.
         int utf16Length = sequence.length();
         int utf8Length = utf16Length;

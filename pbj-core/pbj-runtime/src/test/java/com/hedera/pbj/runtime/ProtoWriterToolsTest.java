@@ -21,18 +21,25 @@ import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_32_BIT;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_64_BIT;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
-import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
 import static com.hedera.pbj.runtime.ProtoWriterTools.TAG_TYPE_BITS;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfBooleanList;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfBytes;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfBytesList;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfDelimited;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfDoubleList;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfEnum;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfEnumList;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfFloatList;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfInteger;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfIntegerList;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfLongList;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfMessage;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfMessageList;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfString;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfStringList;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt64;
 import static com.hedera.pbj.runtime.ProtoWriterTools.wireType;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeBytes;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeInteger;
@@ -52,7 +59,6 @@ import static java.util.Collections.emptyList;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,7 +71,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import test.proto.Apple;
 
-
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -75,20 +80,21 @@ import java.util.random.RandomGenerator;
 
 class ProtoWriterToolsTest {
 
-    public static final int SIZE_OF_TAG = 1;
-    public static final int SIZE_OF_LENGTH_VAR = 1;
-    public static final int MAX_VAR_INT_SIZE = 6;
-    public static final int MAX_VAR_FLOAT_SIZE = 5;
-    public static final int MAX_VAR_DOUBLE_SIZE = 9;
+    public static final int TAG_SIZE = 1;
+    public static final int MIN_LENGTH_VAR_SIZE = 1;
+    public static final int MAX_VAR_INT_SIZE = 5;
+    public static final int MAX_VAR_LONG_SIZE = 9;
+    public static final int FLOAT_SIZE = 4;
+    public static final int DOUBLE_SIZE = 8;
 
     static {
         // to test logic branches unreachable otherwise
         ProtoWriterTools.class.getClassLoader().setClassAssertionStatus(ProtoWriterTools.class.getName(), false);
     }
 
-    private final RandomString randomString = new RandomString(10);
+    private static final RandomString RANDOM_STRING = new RandomString(10);
     private BufferedData bufferedData;
-    private final RandomGenerator rng = RandomGenerator.getDefault();
+    private static final RandomGenerator RNG = RandomGenerator.getDefault();
 
     @BeforeEach
     void setUp() {
@@ -139,7 +145,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteInteger_int32() {
         FieldDefinition definition = createFieldDefinition(INT32);
-        final int valToWrite = rng.nextInt();
+        final int valToWrite = RNG.nextInt();
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -149,7 +155,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteInteger_uint32() {
         FieldDefinition definition = createFieldDefinition(UINT32);
-        final int valToWrite = rng.nextInt(0, Integer.MAX_VALUE);
+        final int valToWrite = RNG.nextInt(0, Integer.MAX_VALUE);
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -159,7 +165,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteInteger_sint32() {
         FieldDefinition definition = createFieldDefinition(SINT32);
-        final int valToWrite = rng.nextInt();
+        final int valToWrite = RNG.nextInt();
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -170,7 +176,7 @@ class ProtoWriterToolsTest {
     @EnumSource(value = FieldType.class, names = {"SFIXED32", "FIXED32"})
     void testWriteInteger_fixed32(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        final int valToWrite = rng.nextInt();
+        final int valToWrite = RNG.nextInt();
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertFixed32Tag(definition);
@@ -183,13 +189,13 @@ class ProtoWriterToolsTest {
             "STRING", "BYTES", "ENUM", "MESSAGE"})
     void testWriteInteger_unsupported(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertThrows(RuntimeException.class, () -> writeInteger(bufferedData, definition, rng.nextInt()));
+        assertThrows(RuntimeException.class, () -> writeInteger(bufferedData, definition, RNG.nextInt()));
     }
 
     @Test
     void testWriteLong_int64() {
         FieldDefinition definition = createFieldDefinition(INT64);
-        final long valToWrite = rng.nextLong();
+        final long valToWrite = RNG.nextLong();
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -199,7 +205,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteLong_uint64() {
         FieldDefinition definition = createFieldDefinition(UINT64);
-        final long valToWrite = rng.nextLong(0, Long.MAX_VALUE);
+        final long valToWrite = RNG.nextLong(0, Long.MAX_VALUE);
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -209,7 +215,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteLong_sint64() {
         FieldDefinition definition = createFieldDefinition(SINT64);
-        final int valToWrite = rng.nextInt();
+        final int valToWrite = RNG.nextInt();
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -220,7 +226,7 @@ class ProtoWriterToolsTest {
     @EnumSource(value = FieldType.class, names = {"SFIXED64", "FIXED64"})
     void testWriteLong_fixed64(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        final long valToWrite = rng.nextLong();
+        final long valToWrite = RNG.nextLong();
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_FIXED_64_BIT.ordinal(), bufferedData.readVarInt(false));
@@ -234,13 +240,13 @@ class ProtoWriterToolsTest {
             "STRING", "BYTES", "ENUM", "MESSAGE"})
     void testWriteLong_unsupported(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertThrows(RuntimeException.class, () -> writeLong(bufferedData, definition, rng.nextInt()));
+        assertThrows(RuntimeException.class, () -> writeLong(bufferedData, definition, RNG.nextInt()));
     }
 
     @Test
     void testWriteFloat() {
         FieldDefinition definition = createFieldDefinition(FLOAT);
-        final float valToWrite = rng.nextFloat();
+        final float valToWrite = RNG.nextFloat();
         ProtoWriterTools.writeFloat(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertFixed32Tag(definition);
@@ -250,7 +256,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteDouble() {
         FieldDefinition definition = createFieldDefinition(DOUBLE);
-        final double valToWrite = rng.nextDouble();
+        final double valToWrite = RNG.nextDouble();
         ProtoWriterTools.writeDouble(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_FIXED_64_BIT.ordinal(), bufferedData.readVarInt(false));
@@ -278,9 +284,9 @@ class ProtoWriterToolsTest {
     void testWriteEnum() {
         FieldDefinition definition = createFieldDefinition(ENUM);
         EnumWithProtoMetadata enumWithProtoMetadata = mock(EnumWithProtoMetadata.class);
-        int expectedOrdinal = rng.nextInt();
+        int expectedOrdinal = RNG.nextInt();
         when(enumWithProtoMetadata.protoOrdinal()).thenReturn(expectedOrdinal);
-        when(enumWithProtoMetadata.protoName()).thenReturn(randomString.nextString());
+        when(enumWithProtoMetadata.protoName()).thenReturn(RANDOM_STRING.nextString());
         ProtoWriterTools.writeEnum(bufferedData, definition, enumWithProtoMetadata);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -290,7 +296,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteString() throws IOException {
         FieldDefinition definition = createFieldDefinition(STRING);
-        String valToWrite = randomString.nextString();
+        String valToWrite = RANDOM_STRING.nextString();
         writeString(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
@@ -301,7 +307,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteBytes() throws IOException {
         FieldDefinition definition = createFieldDefinition(BYTES);
-        Bytes valToWrite = Bytes.wrap(randomString.nextString());
+        Bytes valToWrite = Bytes.wrap(RANDOM_STRING.nextString());
         writeBytes(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
@@ -312,7 +318,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteMessage() throws IOException {
         FieldDefinition definition = createFieldDefinition(MESSAGE);
-        String appleStr = randomString.nextString();
+        String appleStr = RANDOM_STRING.nextString();
         Apple apple = Apple.newBuilder().setVariety(appleStr).build();
         writeMessage(bufferedData, definition, apple, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
         bufferedData.flip();
@@ -339,7 +345,7 @@ class ProtoWriterToolsTest {
         writeOptionalInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertTypeDelimitedTag(definition);
-        assertEquals(MAX_VAR_INT_SIZE, bufferedData.readVarInt(false));
+        assertEquals(MAX_VAR_INT_SIZE + TAG_SIZE, bufferedData.readVarInt(false));
         assertVarIntTag(definition.type().optionalFieldDefinition);
         assertEquals(valToWrite, bufferedData.readVarInt(false));
     }
@@ -355,13 +361,13 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteOptionalLong() {
         FieldDefinition definition = createOptionalFieldDefinition(INT64);
-        final long valToWrite = randomLargeInt();
+        final long valToWrite = randomLargeLong();
         writeOptionalLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertTypeDelimitedTag(definition);
-        assertEquals(MAX_VAR_INT_SIZE, bufferedData.readVarInt(false));
+        assertEquals(MAX_VAR_LONG_SIZE + TAG_SIZE, bufferedData.readVarInt(false));
         assertVarIntTag(definition.type().optionalFieldDefinition);
-        assertEquals(valToWrite, bufferedData.readVarInt(false));
+        assertEquals(valToWrite, bufferedData.readVarLong(false));
     }
 
     @Test
@@ -379,9 +385,18 @@ class ProtoWriterToolsTest {
         writeOptionalFloat(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertTypeDelimitedTag(definition);
-        assertEquals(MAX_VAR_FLOAT_SIZE, bufferedData.readVarInt(false));
+        assertEquals(FLOAT_SIZE + TAG_SIZE, bufferedData.readVarInt(false));
         assertFixed32Tag(definition.type().optionalFieldDefinition);
         assertEquals(valToWrite, bufferedData.readFloat(ByteOrder.LITTLE_ENDIAN));
+    }
+
+    @Test
+    void testWriteOptionalFloat_zero() {
+        FieldDefinition definition = createOptionalFieldDefinition(FLOAT);
+        writeOptionalFloat(bufferedData, definition, 0.0f);
+        bufferedData.flip();
+        assertTypeDelimitedTag(definition);
+        assertEquals(0, bufferedData.readVarInt(false));
     }
 
     @Test
@@ -399,7 +414,7 @@ class ProtoWriterToolsTest {
         writeOptionalDouble(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertTypeDelimitedTag(definition);
-        assertEquals(MAX_VAR_DOUBLE_SIZE, bufferedData.readVarInt(false));
+        assertEquals(DOUBLE_SIZE + TAG_SIZE, bufferedData.readVarInt(false));
         assertFixed64Tag(definition.type().optionalFieldDefinition);
         assertEquals(valToWrite, bufferedData.readDouble(ByteOrder.LITTLE_ENDIAN));
     }
@@ -407,9 +422,18 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteOptionalDouble_null() {
         FieldDefinition definition = createOptionalFieldDefinition(DOUBLE);
-        writeOptionalFloat(bufferedData, definition, null);
+        writeOptionalDouble(bufferedData, definition, null);
         bufferedData.flip();
         assertEquals(0, bufferedData.length());
+    }
+
+    @Test
+    void testWriteOptionalDouble_zero() {
+        FieldDefinition definition = createOptionalFieldDefinition(DOUBLE);
+        writeOptionalDouble(bufferedData, definition, 0.0);
+        bufferedData.flip();
+        assertTypeDelimitedTag(definition);
+        assertEquals(0.0, bufferedData.readVarInt(false));
     }
 
     @Test
@@ -444,11 +468,11 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteOptionalString() throws IOException {
         FieldDefinition definition = createOptionalFieldDefinition(STRING);
-        String valToWrite = randomString.nextString();
+        String valToWrite = RANDOM_STRING.nextString();
         writeOptionalString(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertTypeDelimitedTag(definition);
-        assertEquals(valToWrite.length() + SIZE_OF_TAG + SIZE_OF_LENGTH_VAR, bufferedData.readVarInt(false));
+        assertEquals(valToWrite.length() + TAG_SIZE + MIN_LENGTH_VAR_SIZE, bufferedData.readVarInt(false));
         assertTypeDelimitedTag(definition.type().optionalFieldDefinition);
         assertEquals(valToWrite.length(), bufferedData.readVarInt(false));
         assertEquals(valToWrite, new String(bufferedData.readBytes(valToWrite.length()).toByteArray()));
@@ -466,11 +490,11 @@ class ProtoWriterToolsTest {
     void testWriteOptionalBytes() throws IOException {
         FieldDefinition definition = createOptionalFieldDefinition(STRING);
         byte[] valToWrite = new byte[10];
-        rng.nextBytes(valToWrite);
+        RNG.nextBytes(valToWrite);
         writeOptionalBytes(bufferedData, definition, Bytes.wrap(valToWrite));
         bufferedData.flip();
         assertTypeDelimitedTag(definition);
-        assertEquals(valToWrite.length + SIZE_OF_TAG + SIZE_OF_LENGTH_VAR, bufferedData.readVarInt(false));
+        assertEquals(valToWrite.length + TAG_SIZE + MIN_LENGTH_VAR_SIZE, bufferedData.readVarInt(false));
         assertTypeDelimitedTag(definition.type().optionalFieldDefinition);
         assertEquals(valToWrite.length, bufferedData.readVarInt(false));
         assertArrayEquals(valToWrite, bufferedData.readBytes(valToWrite.length).toByteArray());
@@ -484,35 +508,179 @@ class ProtoWriterToolsTest {
         assertEquals(0, bufferedData.length());
     }
 
+    @Test
+    void testSizeOfVarInt32() {
+        assertEquals(1, sizeOfVarInt32(0));
+        assertEquals(1, sizeOfVarInt32(1));
+        assertEquals(1, sizeOfVarInt32(127));
+        assertEquals(2, sizeOfVarInt32(128));
+        assertEquals(2, sizeOfVarInt32(16383));
+        assertEquals(3, sizeOfVarInt32(16384));
+        assertEquals(3, sizeOfVarInt32(2097151));
+        assertEquals(4, sizeOfVarInt32(2097152));
+        assertEquals(4, sizeOfVarInt32(268435455));
+        assertEquals(5, sizeOfVarInt32(268435456));
+        assertEquals(5, sizeOfVarInt32(Integer.MAX_VALUE));
+
+        assertEquals(10, sizeOfVarInt32(-1));
+        assertEquals(10, sizeOfVarInt32(-127));
+        assertEquals(10, sizeOfVarInt32(-128));
+        assertEquals(10, sizeOfVarInt32(-16383));
+        assertEquals(10, sizeOfVarInt32(-16384));
+        assertEquals(10, sizeOfVarInt32(-2097151));
+        assertEquals(10, sizeOfVarInt32(-2097152));
+        assertEquals(10, sizeOfVarInt32(-268435455));
+        assertEquals(10, sizeOfVarInt32(-268435456));
+        assertEquals(10, sizeOfVarInt32(Integer.MIN_VALUE));
+    }
+
+    @Test
+    void testSizeOfLong_int32() {
+        FieldDefinition definition = createFieldDefinition(INT32);
+        assertEquals(TAG_SIZE + MAX_VAR_INT_SIZE,
+                sizeOfInteger(definition, randomLargeInt()));
+    }
+
+    @Test
+    void testSizeOfLong_uint32() {
+        FieldDefinition definition = createFieldDefinition(UINT32);
+        assertEquals(TAG_SIZE + MAX_VAR_INT_SIZE,
+                sizeOfInteger(definition, randomLargeInt()));
+    }
+
+    @Test
+    void testSizeOfLong_sint32() {
+        FieldDefinition definition = createFieldDefinition(SINT32);
+        assertEquals(TAG_SIZE + MAX_VAR_INT_SIZE,
+                sizeOfInteger(definition, randomLargeNegativeInt()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = FieldType.class, names = {"SFIXED32", "FIXED32"})
+    void testSizeOfLong_fixed32(FieldType type) {
+        FieldDefinition definition = createFieldDefinition(type);
+        assertEquals(TAG_SIZE + Integer.BYTES,
+                sizeOfInteger(definition, randomLargeNegativeInt()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = FieldType.class, names = {"DOUBLE", "FLOAT", "INT64", "UINT64", "SINT64",
+            "FIXED64", "SFIXED64", "BOOL", "STRING", "BYTES", "ENUM", "MESSAGE"})
+    void testSizeOfInteger_notSupported(FieldType type) {
+        FieldDefinition definition = createFieldDefinition(type);
+        assertThrows(RuntimeException.class, () -> sizeOfInteger(definition, RNG.nextInt()));
+    }
+
+    @Test
+    void testSizeOfLong_int64() {
+        FieldDefinition definition = createFieldDefinition(INT64);
+        assertEquals(TAG_SIZE + MAX_VAR_LONG_SIZE,
+                sizeOfLong(definition, randomLargeLong()));
+    }
+
+    @Test
+    void testSizeOfLong_uint64() {
+        FieldDefinition definition = createFieldDefinition(UINT64);
+        assertEquals(TAG_SIZE + MAX_VAR_LONG_SIZE,
+                sizeOfLong(definition, randomLargeLong()));
+    }
+
+    @Test
+    void testSizeOfLong_sint64() {
+        FieldDefinition definition = createFieldDefinition(SINT64);
+        long value = randomLargeNegativeLong();
+        assertEquals(TAG_SIZE + MAX_VAR_LONG_SIZE + 1 /* zigzag encoding */,
+                sizeOfLong(definition, value));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = FieldType.class, names = {"SFIXED64", "FIXED64"})
+    void testSizeOfLong_fixed64(FieldType type) {
+        FieldDefinition definition = createFieldDefinition(type);
+        assertEquals(TAG_SIZE + Long.BYTES,
+                sizeOfLong(definition, randomLargeNegativeInt()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = FieldType.class, names = {"DOUBLE", "FLOAT", "INT32", "UINT32", "SINT32",
+            "FIXED32", "SFIXED32", "BOOL", "STRING", "BYTES", "ENUM", "MESSAGE"})
+    void testSizeOfLong_notSupported(FieldType type) {
+        FieldDefinition definition = createFieldDefinition(type);
+        assertThrows(RuntimeException.class, () -> sizeOfLong(definition, RNG.nextLong()));
+    }
+
+    @Test
+    void testSizeOfVarInt64() {
+        assertEquals(1, sizeOfVarInt64(0));
+        assertEquals(1, sizeOfVarInt64(1));
+        assertEquals(1, sizeOfVarInt64(127));
+        assertEquals(2, sizeOfVarInt64(128));
+        assertEquals(2, sizeOfVarInt64(16383));
+        assertEquals(3, sizeOfVarInt64(16384));
+        assertEquals(3, sizeOfVarInt64(2097151));
+        assertEquals(4, sizeOfVarInt64(2097152));
+        assertEquals(4, sizeOfVarInt64(268435455));
+        assertEquals(5, sizeOfVarInt64(268435456));
+        assertEquals(5, sizeOfVarInt64(Integer.MAX_VALUE));
+        assertEquals(5, sizeOfVarInt64(34359738367L));
+        assertEquals(6, sizeOfVarInt64(34359738368L));
+        assertEquals(6, sizeOfVarInt64(4398046511103L));
+        assertEquals(7, sizeOfVarInt64(4398046511104L));
+        assertEquals(7, sizeOfVarInt64(562949953421311L));
+        assertEquals(8, sizeOfVarInt64(562949953421312L));
+        assertEquals(8, sizeOfVarInt64(72057594037927935L));
+        assertEquals(9, sizeOfVarInt64(72057594037927936L));
+        assertEquals(9, sizeOfVarInt64(9223372036854775807L));
+
+        assertEquals(10, sizeOfVarInt64(-1));
+        assertEquals(10, sizeOfVarInt64(-127));
+        assertEquals(10, sizeOfVarInt64(-128));
+        assertEquals(10, sizeOfVarInt64(-16383));
+        assertEquals(10, sizeOfVarInt64(-16384));
+        assertEquals(10, sizeOfVarInt64(-2097151));
+        assertEquals(10, sizeOfVarInt64(-2097152));
+        assertEquals(10, sizeOfVarInt64(-268435455));
+        assertEquals(10, sizeOfVarInt64(-34359738367L));
+        assertEquals(10, sizeOfVarInt64(-34359738368L));
+        assertEquals(10, sizeOfVarInt64(-4398046511103L));
+        assertEquals(10, sizeOfVarInt64(-4398046511104L));
+        assertEquals(10, sizeOfVarInt64(-562949953421311L));
+        assertEquals(10, sizeOfVarInt64(-562949953421312L));
+        assertEquals(10, sizeOfVarInt64(-72057594037927935L));
+        assertEquals(10, sizeOfVarInt64(-72057594037927936L));
+        assertEquals(10, sizeOfVarInt64(-9223372036854775807L));
+        assertEquals(10, sizeOfVarInt64(Long.MIN_VALUE));
+    }
+
 
     @ParameterizedTest
     @EnumSource(value = FieldType.class, names = {"INT32", "UINT32"})
     void testSizeOfIntegerList_int32(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR + 1 * 2 /* size of two unsigned var longs in the range [0, 128) */,
-                sizeOfIntegerList(definition, asList(rng.nextInt(0, 127), rng.nextInt(0, 128))));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE + 1 * 2 /* size of two unsigned var longs in the range [0, 128) */,
+                sizeOfIntegerList(definition, asList(RNG.nextInt(0, 127), RNG.nextInt(0, 128))));
     }
 
     @Test
     void testSizeOfIntegerList_sint32() {
         FieldDefinition definition = createFieldDefinition(SINT32);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR + 1 * 2 /* size of two unsigned var longs in the range (-64, 64) */,
-                sizeOfIntegerList(definition, asList(rng.nextInt(-63, 0), rng.nextInt(0, 64))));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE + 1 * 2 /* size of two unsigned var longs in the range (-64, 64) */,
+                sizeOfIntegerList(definition, asList(RNG.nextInt(-63, 0), RNG.nextInt(0, 64))));
     }
 
     @ParameterizedTest
     @EnumSource(value = FieldType.class, names = {"SFIXED32", "FIXED32"})
     void testSizeOfIntegerList_fixed(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR + Integer.BYTES * 2 /* size of two unsigned var longs in the range [0, 128) */,
-                sizeOfIntegerList(definition, asList(rng.nextInt(), rng.nextInt())));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE + Integer.BYTES * 2 /* size of two unsigned var longs in the range [0, 128) */,
+                sizeOfIntegerList(definition, asList(RNG.nextInt(), RNG.nextInt())));
     }
 
     @ParameterizedTest
     @EnumSource(value = FieldType.class, names = {"DOUBLE", "FLOAT", "INT64", "UINT64", "SINT64",
             "FIXED64", "SFIXED64", "BOOL", "STRING", "BYTES", "ENUM", "MESSAGE"})
     void testSizeOfIntegerList_notSupported(FieldType type) {
-        assertThrows(RuntimeException.class, () -> sizeOfIntegerList(createFieldDefinition(type), asList(rng.nextInt(), rng.nextInt())));
+        assertThrows(RuntimeException.class, () -> sizeOfIntegerList(createFieldDefinition(type), asList(RNG.nextInt(), RNG.nextInt())));
     }
 
     @Test
@@ -522,7 +690,7 @@ class ProtoWriterToolsTest {
 
     @Test
     void testSizeOfOneOfIntegerList_empty() {
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR,
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE,
                 sizeOfLongList(createOneOfFieldDefinition(INT64), emptyList()));
     }
 
@@ -530,30 +698,30 @@ class ProtoWriterToolsTest {
     @EnumSource(value = FieldType.class, names = {"INT64", "UINT64"})
     void testSizeOfLongList_int64(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR + 1 * 2 /* size of two unsigned var longs in the range [0, 128) */,
-                sizeOfLongList(definition, asList(rng.nextLong(0, 127), rng.nextLong(0, 128))));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE + 1 * 2 /* size of two unsigned var longs in the range [0, 128) */,
+                sizeOfLongList(definition, asList(RNG.nextLong(0, 127), RNG.nextLong(0, 128))));
     }
 
     @Test
     void testSizeOfLongList_sint64() {
         FieldDefinition definition = createFieldDefinition(SINT64);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR + 1 * 2 /* size of two unsigned var longs in the range (-64, 64) */,
-                sizeOfLongList(definition, asList(rng.nextLong(-63, 0), rng.nextLong(0, 64))));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE + 1 * 2 /* size of two unsigned var longs in the range (-64, 64) */,
+                sizeOfLongList(definition, asList(RNG.nextLong(-63, 0), RNG.nextLong(0, 64))));
     }
 
     @ParameterizedTest
     @EnumSource(value = FieldType.class, names = {"SFIXED64", "FIXED64"})
     void testSizeOfLongList_fixed(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR + Long.BYTES * 2 /* size of two unsigned var longs in the range [0, 128) */,
-                sizeOfLongList(definition, asList(rng.nextLong(), rng.nextLong())));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE + Long.BYTES * 2 /* size of two unsigned var longs in the range [0, 128) */,
+                sizeOfLongList(definition, asList(RNG.nextLong(), RNG.nextLong())));
     }
 
     @ParameterizedTest
     @EnumSource(value = FieldType.class, names = {"DOUBLE", "FLOAT", "INT32", "UINT32", "SINT32",
             "FIXED32", "SFIXED32", "BOOL", "STRING", "BYTES", "ENUM", "MESSAGE"})
     void testSizeOfLongList_notSupported(FieldType type) {
-        assertThrows(RuntimeException.class, () -> sizeOfLongList(createFieldDefinition(type), asList(rng.nextLong(), rng.nextLong())));
+        assertThrows(RuntimeException.class, () -> sizeOfLongList(createFieldDefinition(type), asList(RNG.nextLong(), RNG.nextLong())));
     }
 
     @Test
@@ -563,15 +731,15 @@ class ProtoWriterToolsTest {
 
     @Test
     void testSizeOfOneOfLongList_empty() {
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR,
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE,
                 sizeOfLongList(createOneOfFieldDefinition(INT64), emptyList()));
     }
 
     @Test
     void testSizeOfFloatList() {
         FieldDefinition definition = createFieldDefinition(FLOAT);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR + 2 * Float.BYTES,
-                sizeOfFloatList(definition, asList(rng.nextFloat(), rng.nextFloat())));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE + 2 * Float.BYTES,
+                sizeOfFloatList(definition, asList(RNG.nextFloat(), RNG.nextFloat())));
     }
 
     @Test
@@ -581,15 +749,15 @@ class ProtoWriterToolsTest {
 
     @Test
     void testSizeOfOneOfFloatList_empty() {
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR,
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE,
                 sizeOfFloatList(createOneOfFieldDefinition(FLOAT), emptyList()));
     }
 
     @Test
     void testSizeOfDoubleList() {
         FieldDefinition definition = createFieldDefinition(DOUBLE);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR + 2 * Double.BYTES,
-                sizeOfDoubleList(definition, asList(rng.nextDouble(), rng.nextDouble())));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE + 2 * Double.BYTES,
+                sizeOfDoubleList(definition, asList(RNG.nextDouble(), RNG.nextDouble())));
     }
 
     @Test
@@ -599,7 +767,7 @@ class ProtoWriterToolsTest {
 
     @Test
     void testSizeOfOneOfDoubleList_empty() {
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR,
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE,
                 sizeOfDoubleList(createOneOfFieldDefinition(DOUBLE), emptyList()));
     }
 
@@ -607,7 +775,7 @@ class ProtoWriterToolsTest {
     @Test
     void testSizeOfBooleanList(){
         FieldDefinition definition = createFieldDefinition(BOOL);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR + 2, sizeOfBooleanList(definition, Arrays.asList(true, false)));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE + 2, sizeOfBooleanList(definition, Arrays.asList(true, false)));
     }
 
     @Test
@@ -618,7 +786,7 @@ class ProtoWriterToolsTest {
     @Test
     void testSizeOfOneOfBooleanList_empty() {
         FieldDefinition definition = createOneOfFieldDefinition(BOOL);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR, sizeOfBooleanList(definition, emptyList()));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE, sizeOfBooleanList(definition, emptyList()));
     }
 
     @Test
@@ -626,12 +794,12 @@ class ProtoWriterToolsTest {
         FieldDefinition definition = createFieldDefinition(ENUM);
         EnumWithProtoMetadata enum1 = mock(EnumWithProtoMetadata.class);
         EnumWithProtoMetadata enum2 = mock(EnumWithProtoMetadata.class);
-        when(enum1.protoOrdinal()).thenReturn(rng.nextInt(1, 16));
-        when(enum2.protoName()).thenReturn(randomString.nextString());
-        when(enum1.protoOrdinal()).thenReturn(rng.nextInt(1, 16));
-        when(enum2.protoName()).thenReturn(randomString.nextString());
+        when(enum1.protoOrdinal()).thenReturn(RNG.nextInt(1, 16));
+        when(enum2.protoName()).thenReturn(RANDOM_STRING.nextString());
+        when(enum1.protoOrdinal()).thenReturn(RNG.nextInt(1, 16));
+        when(enum2.protoName()).thenReturn(RANDOM_STRING.nextString());
         List<EnumWithProtoMetadata> enums = asList(enum1, enum2);
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR + enums.size(), sizeOfEnumList(definition, enums));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE + enums.size(), sizeOfEnumList(definition, enums));
     }
 
     @Test
@@ -641,7 +809,7 @@ class ProtoWriterToolsTest {
 
     @Test
     void testSizeOfOneOfEnumList_empty() {
-        assertEquals(SIZE_OF_TAG + SIZE_OF_LENGTH_VAR, sizeOfEnumList(createOneOfFieldDefinition(ENUM), emptyList()));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE, sizeOfEnumList(createOneOfFieldDefinition(ENUM), emptyList()));
     }
 
     @Test
@@ -650,8 +818,16 @@ class ProtoWriterToolsTest {
         String str1 = randomVarSizeString();
         String str2 = randomVarSizeString();
 
-        assertEquals(SIZE_OF_LENGTH_VAR * 2 + SIZE_OF_TAG * 2 + str1.length() + str2.length(),
+        assertEquals(MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2 + str1.length() + str2.length(),
                 sizeOfStringList(definition, asList(str1, str2)));
+    }
+
+    @Test
+    void testSizeOfStringList_nullAndEmpty() {
+        FieldDefinition definition = createFieldDefinition(STRING);
+
+        assertEquals(MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2,
+                sizeOfStringList(definition, asList(null, "")));
     }
 
     @Test
@@ -669,7 +845,7 @@ class ProtoWriterToolsTest {
         final Apple apple2 = Apple.newBuilder().setVariety(appleStr2).build();
 
         assertEquals(
-                SIZE_OF_LENGTH_VAR * 2 + SIZE_OF_TAG * 2 + appleStr1.length() + appleStr2.length(),
+                MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2 + appleStr1.length() + appleStr2.length(),
                 sizeOfMessageList(definition, Arrays.asList(apple1, apple2), v -> v.getVariety().length()));
     }
 
@@ -677,7 +853,7 @@ class ProtoWriterToolsTest {
     void testSizeOfMessageList_empty() {
         assertEquals(
                 0,
-                sizeOfMessageList(createFieldDefinition(MESSAGE), emptyList(), v -> rng.nextInt()));
+                sizeOfMessageList(createFieldDefinition(MESSAGE), emptyList(), v -> RNG.nextInt()));
     }
 
     @Test
@@ -687,7 +863,7 @@ class ProtoWriterToolsTest {
         Bytes bytes2 = Bytes.wrap(randomVarSizeString());
 
         assertEquals(
-                SIZE_OF_LENGTH_VAR * 2 + SIZE_OF_TAG * 2
+                MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2
                         + bytes1.length() + bytes2.length(),
                 sizeOfBytesList(definition, asList(bytes1, bytes2)));
     }
@@ -698,27 +874,116 @@ class ProtoWriterToolsTest {
     }
 
     @Test
-    void testSizeOfDelimited() {
-        final FieldDefinition definition = createFieldDefinition(BYTES);
-        final int length = rng.nextInt(1, 64);
+    void testSizeOfEnum() {
+        final FieldDefinition definition = createFieldDefinition(ENUM);
+        final EnumWithProtoMetadata enumWithProtoMetadata = mock(EnumWithProtoMetadata.class);
+        when(enumWithProtoMetadata.protoOrdinal()).thenReturn(RNG.nextInt(1, 16));
+        when(enumWithProtoMetadata.protoName()).thenReturn(RANDOM_STRING.nextString());
 
-        assertEquals(SIZE_OF_LENGTH_VAR + SIZE_OF_TAG + length, sizeOfDelimited(definition, length));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE, sizeOfEnum(definition, enumWithProtoMetadata));
     }
 
     @Test
-    void testReadNextFieldNumber() throws IOException {
+    void testSizeOfEnum_null() {
+        final FieldDefinition definition = createFieldDefinition(ENUM);
+        assertEquals(0, sizeOfEnum(definition, null));
+    }
+
+    @Test
+    void testSizeOfEnum_default() {
+        final FieldDefinition definition = createFieldDefinition(ENUM);
+        final EnumWithProtoMetadata enumWithProtoMetadata = mock(EnumWithProtoMetadata.class);
+        when(enumWithProtoMetadata.protoOrdinal()).thenReturn(0);
+        when(enumWithProtoMetadata.protoName()).thenReturn(RANDOM_STRING.nextString());
+
+        assertEquals(0, sizeOfEnum(definition, enumWithProtoMetadata));
+    }
+
+    @Test
+    void testSizeOfString() {
+        final FieldDefinition definition = createFieldDefinition(STRING);
+        final String str = randomVarSizeString();
+
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + str.length(), sizeOfString(definition, str));
+    }
+
+    @Test
+    void testSizeOfString_null() {
+        final FieldDefinition definition = createFieldDefinition(STRING);
+        assertEquals(0, sizeOfString(definition, null));
+    }
+
+    @Test
+    void testSizeOfString_default() {
+        final FieldDefinition definition = createFieldDefinition(STRING);
+        assertEquals(0, sizeOfString(definition, ""));
+    }
+
+    @Test
+    void testSizeOfString_oneOf() {
+        final FieldDefinition definition = createOneOfFieldDefinition(STRING);
+        final String str = randomVarSizeString();
+
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + str.length(), sizeOfString(definition, str));
+    }
+
+    @Test
+    void testSizeOfString_oneOf_null(){
+        final FieldDefinition definition = createOneOfFieldDefinition(STRING);
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE, sizeOfString(definition, null));
+    }
+
+    @Test
+    void testSizeOfBytes() {
+        final FieldDefinition definition = createFieldDefinition(BYTES);
+        final Bytes bytes = Bytes.wrap(randomVarSizeString());
+
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + bytes.length(), sizeOfBytes(definition, bytes));
+    }
+
+    @Test
+    void testSizeOfBytes_empty() {
+        final FieldDefinition definition = createFieldDefinition(BYTES);
+        final Bytes bytes = Bytes.wrap("");
+
+        assertEquals(0, sizeOfBytes(definition, bytes));
+    }
+
+    @Test
+    void testSizeOfBytes_oneOf(){
+        final FieldDefinition definition = createOneOfFieldDefinition(BYTES);
+        final Bytes bytes = Bytes.wrap(randomVarSizeString());
+
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + bytes.length(), sizeOfBytes(definition, bytes));
+    }
+
+    @Test
+    void testSizeOfMessage(){
         final FieldDefinition definition = createFieldDefinition(MESSAGE);
         final String appleStr = randomVarSizeString();
         final Apple apple = Apple.newBuilder().setVariety(appleStr).build();
 
-        writeMessage(bufferedData, definition, apple, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
-        bufferedData.flip();
-
-        assertEquals(definition.number(), readNextFieldNumber(bufferedData));
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + appleStr.length(), sizeOfMessage(definition, apple, v -> v.getVariety().length()));
     }
 
-    private String randomVarSizeString() {
-        return new RandomString(rng.nextInt(1, 64)).nextString();
+    @Test
+    void testSizeOfMessage_oneOf_null() {
+        final FieldDefinition definition = createOneOfFieldDefinition(MESSAGE);
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE, sizeOfMessage(definition, null, v -> RNG.nextInt()));
+    }
+
+    @Test
+    void testSizeOfMessage_null() {
+        final FieldDefinition definition = createFieldDefinition(MESSAGE);
+        assertEquals(0, sizeOfMessage(definition, null, v -> RNG.nextInt()));
+    }
+
+    @Test
+    void testSizeOfDelimited() {
+        final FieldDefinition definition = createFieldDefinition(BYTES);
+        final int length = RNG.nextInt(1, 64);
+
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + length, sizeOfDelimited(definition, length));
     }
 
     private void assertVarIntTag(FieldDefinition definition) {
@@ -737,23 +1002,39 @@ class ProtoWriterToolsTest {
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
     }
 
-    private FieldDefinition createFieldDefinition(FieldType fieldType) {
-        return new FieldDefinition(randomString.nextString(), fieldType, false, rng.nextInt(1, 16));
-    }
-
-    private FieldDefinition createOptionalFieldDefinition(FieldType fieldType) {
-        return new FieldDefinition(randomString.nextString(), fieldType, false, true, false, rng.nextInt(1, 16));
-    }
-
-    private FieldDefinition createOneOfFieldDefinition(FieldType fieldType) {
-        return new FieldDefinition(randomString.nextString(), fieldType, false, false, true, rng.nextInt(1, 16));
+    static String randomVarSizeString() {
+        return new RandomString(RNG.nextInt(1, 64)).nextString();
     }
 
     /**
      * @return random int that turns into a var int of max size
      */
-    private int randomLargeInt() {
-        return rng.nextInt(Integer.MAX_VALUE >> 3, Integer.MAX_VALUE);
+    static int randomLargeInt() {
+        return RNG.nextInt(Integer.MAX_VALUE >> 3, Integer.MAX_VALUE);
+    }
+
+    static int randomLargeNegativeInt() {
+        return RNG.nextInt(Integer.MIN_VALUE, Integer.MIN_VALUE >> 3);
+    }
+
+    static long randomLargeNegativeLong() {
+        return RNG.nextLong(Long.MIN_VALUE, Long.MIN_VALUE >> 1);
+    }
+
+    static long randomLargeLong() {
+        return RNG.nextLong(Long.MAX_VALUE >> 3, Long.MAX_VALUE);
+    }
+
+    static FieldDefinition createFieldDefinition(FieldType fieldType) {
+        return new FieldDefinition(RANDOM_STRING.nextString(), fieldType, false, RNG.nextInt(1, 16));
+    }
+
+    static FieldDefinition createOptionalFieldDefinition(FieldType fieldType) {
+        return new FieldDefinition(RANDOM_STRING.nextString(), fieldType, false, true, false, RNG.nextInt(1, 16));
+    }
+
+    static FieldDefinition createOneOfFieldDefinition(FieldType fieldType) {
+        return new FieldDefinition(RANDOM_STRING.nextString(), fieldType, false, false, true, RNG.nextInt(1, 16));
     }
 
 }

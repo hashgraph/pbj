@@ -254,7 +254,7 @@ public final class ProtoWriterTools {
             return;
         }
         writeTag(out, field, WIRE_TYPE_DELIMITED);
-        out.writeVarInt(sizeOfStringNoTag(field,value), false);
+        out.writeVarInt(sizeOfStringNoTag(value), false);
         Utf8Tools.encodeUtf8(value,out);
     }
 
@@ -713,7 +713,7 @@ public final class ProtoWriterTools {
         for (int i = 0; i < listSize; i++) {
             final String value = list.get(i);
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            out.writeVarInt(sizeOfStringNoTag(field,value), false);
+            out.writeVarInt(sizeOfStringNoTag(value), false);
             Utf8Tools.encodeUtf8(value,out);
         }
     }
@@ -811,7 +811,7 @@ public final class ProtoWriterTools {
      * @param value The int value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfUnsignedVarInt32(final int value) {
+    private static int sizeOfUnsignedVarInt32(final int value) {
         if ((value & (~0 << 7)) == 0) return 1;
         if ((value & (~0 << 14)) == 0) return 2;
         if ((value & (~0 << 21)) == 0) return 3;
@@ -825,7 +825,7 @@ public final class ProtoWriterTools {
      * @param value The int value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfUnsignedVarInt64(long value) {
+    private static int sizeOfUnsignedVarInt64(long value) {
         // handle two popular special cases up front ...
         if ((value & (~0L << 7)) == 0L) return 1;
         if (value < 0L) return 10;
@@ -1071,20 +1071,18 @@ public final class ProtoWriterTools {
         if (!field.oneOf() && (value == null || value.isEmpty())) {
             return 0;
         }
-        final int size = sizeOfStringNoTag(field, value);
-        return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
+        return sizeOfDelimited(field, sizeOfStringNoTag(value));
     }
 
     /**
      * Get number of bytes that would be needed to encode a string, without field tag
      *
-     * @param field descriptor of field
      * @param value string value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfStringNoTag(FieldDefinition field, String value) {
+    private static int sizeOfStringNoTag(String value) {
         // When not a oneOf don't write default value
-        if (!field.oneOf() && (value == null || value.isEmpty())) {
+        if ((value == null || value.isEmpty())) {
             return 0;
         }
         try {
@@ -1106,7 +1104,7 @@ public final class ProtoWriterTools {
         if (!field.oneOf() && (value.length() == 0)) {
             return 0;
         }
-        return Math.toIntExact(sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(value.length())) + value.length());
+        return sizeOfDelimited(field, (int) value.length());
     }
 
     /**
@@ -1272,9 +1270,7 @@ public final class ProtoWriterTools {
     public static int sizeOfStringList(FieldDefinition field, List<String> list) {
         int size = 0;
         for (final String value : list) {
-            size += sizeOfTag(field, WIRE_TYPE_DELIMITED);
-            final int strSize = sizeOfStringNoTag(field, value);
-            size += sizeOfVarInt32(strSize) + strSize;
+            size += sizeOfDelimited(field, sizeOfStringNoTag(value));
         }
         return size;
     }

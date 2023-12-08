@@ -1,5 +1,24 @@
 package com.hedera.pbj.runtime;
 
+import static com.hedera.pbj.runtime.FieldType.FIXED32;
+import static com.hedera.pbj.runtime.FieldType.FIXED64;
+import static com.hedera.pbj.runtime.FieldType.INT32;
+import static com.hedera.pbj.runtime.FieldType.MESSAGE;
+import static com.hedera.pbj.runtime.FieldType.STRING;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_32_BIT;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_64_BIT;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
+import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
+import static com.hedera.pbj.runtime.ProtoParserTools.readString;
+import static com.hedera.pbj.runtime.ProtoParserTools.skipField;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeInteger;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeString;
+import static com.hedera.pbj.runtime.ProtoWriterToolsTest.createFieldDefinition;
+import static com.hedera.pbj.runtime.ProtoWriterToolsTest.randomVarSizeString;
+import static java.lang.Integer.MAX_VALUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -9,7 +28,9 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import net.bytebuddy.utility.RandomString;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import test.proto.Apple;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -46,7 +67,7 @@ class ProtoParserToolsTest {
     @Test
     void testReadUint32() {
         testRead(() ->
-                rng.nextInt(0, Integer.MAX_VALUE),
+                rng.nextInt(0, MAX_VALUE),
                 (d, v) -> d.writeVarInt(v, false),
                 ProtoParserTools::readUint32,
                 // the size may vary from 1 to 5 bytes
@@ -204,6 +225,58 @@ class ProtoParserToolsTest {
         final ReadableStreamingData streamingData = new ReadableStreamingData(new ByteArrayInputStream(incompleteCopy));
         assertThrows(BufferUnderflowException.class, () -> ProtoParserTools.readString(streamingData));
     }
+
+
+    @Test
+    void testReadNextFieldNumber() throws IOException {
+        BufferedData bufferedData = BufferedData.allocate(100);
+        final FieldDefinition definition = createFieldDefinition(MESSAGE);
+        final String appleStr = randomVarSizeString();
+        final Apple apple = Apple.newBuilder().setVariety(appleStr).build();
+
+        writeMessage(bufferedData, definition, apple, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
+        bufferedData.flip();
+
+        assertEquals(definition.number(), readNextFieldNumber(bufferedData));
+    }
+
+
+    @Test
+    void testSkipField() throws IOException {
+        final String valToRead = randomVarSizeString();
+        final BufferedData data = BufferedData.allocate(1000);
+        writeLong(data, createFieldDefinition(FIXED64), rng.nextLong());
+        writeInteger(data, createFieldDefinition(FIXED32), rng.nextInt());
+        int value = rng.nextInt(0, MAX_VALUE);
+        writeInteger(data, createFieldDefinition(INT32), value);
+        writeString(data, createFieldDefinition(STRING), randomVarSizeString());
+        writeString(data, createFieldDefinition(STRING), valToRead);
+
+        data.flip();
+
+        skipTag(data);
+        skipField(data, WIRE_TYPE_FIXED_64_BIT);
+        skipTag(data);
+        skipField(data, WIRE_TYPE_FIXED_32_BIT);
+        skipTag(data);
+        skipField(data, WIRE_TYPE_VARINT_OR_ZIGZAG);
+        skipTag(data);
+        skipField(data, WIRE_TYPE_DELIMITED);
+        skipTag(data);
+        assertEquals(valToRead, readString(data));
+    }
+
+    @ParameterizedTest
+    @EnumSource(names = {"WIRE_TYPE_GROUP_START", "WIRE_TYPE_GROUP_END"})
+    void testSkipUnsupported(ProtoConstants unsupportedType) {
+        final BufferedData data = BufferedData.allocate(100);
+        assertThrows(IOException.class, () -> skipField(data, unsupportedType));
+    }
+
+    private static void skipTag(BufferedData data) {
+        data.readVarInt(false);
+    }
+
 
     private static <T> void testRead(final Supplier<? extends T> valueSupplier,
                                      final BiConsumer<BufferedData, ? super T> valueWriter,
