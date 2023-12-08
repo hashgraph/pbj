@@ -56,7 +56,7 @@ public final class SingleFuzzTest {
             dataBuffer = write(object, codec, size);
         } catch (Exception ex) {
             // The test expects a valid input object, so we don't expect this to happen here
-            throw new RuntimeException("Unable to write the object", ex);
+            throw new FuzzTestException("Unable to write the object", ex);
         }
 
         System.out.println(prefix + "Bytes: " + dataBuffer);
