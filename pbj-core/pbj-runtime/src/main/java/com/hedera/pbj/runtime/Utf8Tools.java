@@ -9,7 +9,7 @@ import static java.lang.Character.*;
 /**
  * UTF8 tools based on protobuf standard library, so we are byte for byte identical
  */
-public class Utf8Tools {
+public final class Utf8Tools {
 
     /**
      * Returns the number of bytes in the UTF-8-encoded form of {@code sequence}. For a string, this
@@ -19,7 +19,10 @@ public class Utf8Tools {
      * @throws IllegalArgumentException if {@code sequence} contains ill-formed UTF-16 (unpaired
      *     surrogates)
      */
-    static int encodedLength(CharSequence sequence) throws IOException {
+    static int encodedLength(final CharSequence sequence) throws IOException {
+        if (sequence == null) {
+            return 0;
+        }
         // Warning to maintainers: this implementation is highly optimized.
         int utf16Length = sequence.length();
         int utf8Length = utf16Length;
@@ -49,7 +52,7 @@ public class Utf8Tools {
         return utf8Length;
     }
 
-    private static int encodedLengthGeneral(CharSequence sequence, int start) throws IOException {
+    private static int encodedLengthGeneral(final CharSequence sequence, final int start) throws IOException {
         int utf16Length = sequence.length();
         int utf8Length = 0;
         for (int i = start; i < utf16Length; i++) {
@@ -77,7 +80,7 @@ public class Utf8Tools {
      * Encodes the input character sequence to a {@link WritableSequentialData} using the same algorithm as protoc, so we are
      * byte for byte the same.
      */
-    static void encodeUtf8(CharSequence in, WritableSequentialData out) throws IOException {
+    static void encodeUtf8(final CharSequence in, final WritableSequentialData out) throws IOException {
         final int inLength = in.length();
         for (int inIx = 0; inIx < inLength; ++inIx) {
             final char c = in.charAt(inIx);
