@@ -2,7 +2,6 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.SequentialData;
-import com.hedera.pbj.runtime.io.UnsafeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.nio.BufferUnderflowException;

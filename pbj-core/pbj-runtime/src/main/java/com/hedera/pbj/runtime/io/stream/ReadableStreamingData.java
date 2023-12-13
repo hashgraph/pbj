@@ -3,7 +3,6 @@ package com.hedera.pbj.runtime.io.stream;
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.UnsafeUtils;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;

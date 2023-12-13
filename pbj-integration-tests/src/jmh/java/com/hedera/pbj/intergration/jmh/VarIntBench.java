@@ -36,6 +36,7 @@ public class VarIntBench {
 
 	InputStream bais = null;
 	ReadableStreamingData rsd = null;
+
 	InputStream baisNonSync = null;
 	ReadableStreamingData rsdNonSync = null;
 
@@ -243,9 +244,9 @@ public class VarIntBench {
 		throw new MalformedProtobufException("Malformed var int");
 	}
 
-	final static Blackhole blackhole = new Blackhole("Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.");
-
 	public static void main(String[] args) throws Exception {
+		final Blackhole blackhole = new Blackhole(
+				"Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.");
 		final VarIntBench bench = new VarIntBench();
 		bench.dataBufferRead(blackhole);
 		bench.dataBufferGet(blackhole);
