@@ -59,8 +59,8 @@ testing {
 tasks.withType<AbstractArchiveTask> {
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
-    fileMode = 664
-    dirMode = 775
+    fileMode = 436 // octal: 0664
+    dirMode = 509 // octal: 0775
 }
 
 tasks.withType<JavaCompile> { options.encoding = "UTF-8" }
