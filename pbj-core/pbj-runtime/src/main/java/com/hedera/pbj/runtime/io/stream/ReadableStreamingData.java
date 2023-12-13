@@ -1,6 +1,7 @@
 package com.hedera.pbj.runtime.io.stream;
 
 import com.hedera.pbj.runtime.io.DataAccessException;
+import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -224,6 +225,35 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
             eof = true;
         }
         return bytesRead;
+    }
+
+
+    @Override
+    public long readVarLong(final boolean zigZag) {
+        if (!hasRemaining()) {
+            throw new BufferUnderflowException();
+        }
+
+        long value = 0;
+
+        try {
+            int i = 0;
+            for (; i < 10; i++) {
+                final int b = in.read();
+                if (b < 0) {
+                    eof = true;
+                    break;
+                }
+                value |= (long) (b & 0x7F) << (i * 7);
+                if ((b & 0x80) == 0) {
+                    position += i + 1;
+                    return zigZag ? (value >>> 1) ^ -(value & 1) : value;
+                }
+            }
+            throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+        } catch (final IOException e) {
+            throw new DataAccessException(e);
+        }
     }
 
 }

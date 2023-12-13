@@ -1,6 +1,8 @@
 package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.DataAccessException;
+import com.hedera.pbj.runtime.io.DataEncodingException;
+import com.hedera.pbj.runtime.io.UnsafeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
@@ -70,108 +72,6 @@ final class ByteArrayBufferedData extends BufferedData {
      * {@inheritDoc}
      */
     @Override
-    public int readVarInt(final boolean zigZag) {
-        int tempPos = buffer.position() + arrayOffset;
-        int lastPos = buffer.limit() + arrayOffset;
-
-        if (lastPos == tempPos) {
-            throw new BufferUnderflowException();
-        }
-
-        int x;
-        if ((x = array[tempPos++]) >= 0) {
-            buffer.position(tempPos - arrayOffset);
-            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
-        } else if (lastPos - tempPos < 9) {
-            return (int) readVarIntLongSlow(zigZag);
-        } else if ((x ^= (array[tempPos++] << 7)) < 0) {
-            x ^= (~0 << 7);
-        } else if ((x ^= (array[tempPos++] << 14)) >= 0) {
-            x ^= (~0 << 7) ^ (~0 << 14);
-        } else if ((x ^= (array[tempPos++] << 21)) < 0) {
-            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
-        } else {
-            int y = array[tempPos++];
-            x ^= y << 28;
-            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
-            if (y < 0
-                    && array[tempPos++] < 0
-                    && array[tempPos++] < 0
-                    && array[tempPos++] < 0
-                    && array[tempPos++] < 0
-                    && array[tempPos++] < 0) {
-                return (int) readVarIntLongSlow(zigZag);
-            }
-        }
-        buffer.position(tempPos - arrayOffset);
-        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long readVarLong(final boolean zigZag) {
-        int tempPos = buffer.position() + arrayOffset;
-        int lastPos = buffer.limit() + arrayOffset;
-
-        if (lastPos == tempPos) {
-            throw new BufferUnderflowException();
-        }
-
-        long x;
-        int y;
-        if ((y = array[tempPos++]) >= 0) {
-            buffer.position(tempPos - arrayOffset);
-            return zigZag ? (y >>> 1) ^ -(y & 1) : y;
-        } else if (lastPos - tempPos < 9) {
-            return readVarIntLongSlow(zigZag);
-        } else if ((y ^= (array[tempPos++] << 7)) < 0) {
-            x = y ^ (~0 << 7);
-        } else if ((y ^= (array[tempPos++] << 14)) >= 0) {
-            x = y ^ ((~0 << 7) ^ (~0 << 14));
-        } else if ((y ^= (array[tempPos++] << 21)) < 0) {
-            x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
-        } else if ((x = y ^ ((long) array[tempPos++] << 28)) >= 0L) {
-            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
-        } else if ((x ^= ((long) array[tempPos++] << 35)) < 0L) {
-            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
-        } else if ((x ^= ((long) array[tempPos++] << 42)) >= 0L) {
-            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
-        } else if ((x ^= ((long) array[tempPos++] << 49)) < 0L) {
-            x ^=
-                    (~0L << 7)
-                            ^ (~0L << 14)
-                            ^ (~0L << 21)
-                            ^ (~0L << 28)
-                            ^ (~0L << 35)
-                            ^ (~0L << 42)
-                            ^ (~0L << 49);
-        } else {
-            x ^= ((long) array[tempPos++] << 56);
-            x ^=
-                    (~0L << 7)
-                            ^ (~0L << 14)
-                            ^ (~0L << 21)
-                            ^ (~0L << 28)
-                            ^ (~0L << 35)
-                            ^ (~0L << 42)
-                            ^ (~0L << 49)
-                            ^ (~0L << 56);
-            if (x < 0L) {
-                if (array[tempPos++] < 0L) {
-                    return readVarIntLongSlow(zigZag);
-                }
-            }
-        }
-        buffer.position(tempPos - arrayOffset);
-        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public byte getByte(final long offset) {
         validateCanRead(offset, 0);
         return array[Math.toIntExact(arrayOffset + offset)];
@@ -225,6 +125,47 @@ final class ByteArrayBufferedData extends BufferedData {
         final byte[] res = new byte[Math.toIntExact(len)];
         System.arraycopy(array, Math.toIntExact(arrayOffset + offset), res, 0, res.length);
         return Bytes.wrap(res);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int getVarInt(final long offset, final boolean zigZag) {
+        return (int) getVar(Math.toIntExact(offset), zigZag);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getVarLong(final long offset, final boolean zigZag) {
+        return getVar(Math.toIntExact(offset), zigZag);
+    }
+
+    private long getVar(final int offset, final boolean zigZag) {
+        if ((offset < 0) || (offset >= buffer.limit())) {
+            throw new IndexOutOfBoundsException();
+        }
+
+        final int readOffset = arrayOffset + offset;
+        int rem = buffer.limit() - offset;
+        if (rem > 10) {
+            rem = 10;
+        }
+
+        long value = 0;
+
+        int i = 0;
+        while (i != rem) {
+            final byte b = UnsafeUtils.getArrayByteNoChecks(array, readOffset + i);
+            value |= (long) (b & 0x7F) << (i * 7);
+            i++;
+            if (b >= 0) {
+                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
+            }
+        }
+        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
     }
 
     /**
@@ -292,6 +233,45 @@ final class ByteArrayBufferedData extends BufferedData {
         System.arraycopy(array, arrayOffset + pos, res, 0, len);
         buffer.position(pos + len);
         return Bytes.wrap(res);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int readVarInt(final boolean zigZag) {
+        return (int) readVar(zigZag);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long readVarLong(final boolean zigZag) {
+        return readVar(zigZag);
+    }
+
+    private long readVar(final boolean zigZag) {
+        final int pos = buffer.position();
+        final int offset = arrayOffset + pos;
+        int rem = buffer.remaining();
+        if (rem > 10) {
+            rem = 10;
+        }
+
+        long value = 0;
+
+        int i = 0;
+        while (i != rem) {
+            final byte b = UnsafeUtils.getArrayByteNoChecks(array, offset + i);
+            value |= (long) (b & 0x7F) << (i * 7);
+            i++;
+            if (b >= 0) {
+                buffer.position(pos + i);
+                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
+            }
+        }
+        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
     }
 
     /**

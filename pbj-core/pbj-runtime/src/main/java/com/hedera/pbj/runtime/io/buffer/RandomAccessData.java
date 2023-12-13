@@ -1,5 +1,6 @@
 package com.hedera.pbj.runtime.io.buffer;
 
+import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.SequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -394,7 +395,7 @@ public interface RandomAccessData {
     }
 
     /**
-     * Get a 32bit protobuf varint at the given {@code offset}. An integer var int can be 1 to 5 bytes.
+     * Get a 32bit protobuf varint at the given {@code offset}.
      *
      * @param offset The offset into data to get a varint from.
      * @return integer get in var int format
@@ -403,20 +404,11 @@ public interface RandomAccessData {
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     default int getVarInt(final long offset, final boolean zigZag) {
-        int result = 0;
-        long index = offset;
-        for (int shift = 0; shift < 32; shift += 7) {
-            final byte b = getByte(index++);
-            result |= (long) (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) {
-                return zigZag ? ((result >>> 1) ^ -(result & 1)) : result;
-            }
-        }
-        throw new RuntimeException("Malformed Varint");
+        return (int) getVarLong(Math.toIntExact(offset), zigZag);
     }
 
     /**
-     * Get a 64bit protobuf varint at given {@code offset}. A long var int can be 1 to 10 bytes.
+     * Get a 64bit protobuf varint at given {@code offset}.
      *
      * @param offset The offset into data to get a varlong from.
      * @return long get in var long format
@@ -425,16 +417,15 @@ public interface RandomAccessData {
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     default long getVarLong(final long offset, final boolean zigZag) {
-        long result = 0;
-        long index = offset;
-        for (int shift = 0; shift < 64; shift += 7) {
-            final byte b = getByte(index++);
-            result |= (long) (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) {
-                return zigZag ? ((result >>> 1) ^ -(result & 1)) : result;
+        long value = 0;
+        for (int i = 0; i < 10; i++) {
+            final byte b = getByte(offset + i);
+            value |= (long) (b & 0x7F) << (i * 7);
+            if (b >= 0) {
+                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
             }
         }
-        throw new RuntimeException("Malformed Varlong");
+        throw new DataEncodingException("Malformed var int");
     }
 
     /**

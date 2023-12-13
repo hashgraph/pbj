@@ -2,10 +2,13 @@ package com.hedera.pbj.intergration.jmh;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+import com.hedera.pbj.integration.NonSynchronizedByteArrayInputStream;
 import com.hedera.pbj.runtime.MalformedProtobufException;
+import com.hedera.pbj.runtime.io.UnsafeUtils;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import java.io.InputStream;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -31,24 +34,39 @@ public class VarIntBench {
 
 	Bytes bytes = Bytes.EMPTY;
 
-	ByteArrayInputStream bais = null;
+	InputStream bais = null;
 	ReadableStreamingData rsd = null;
+
+	InputStream baisNonSync = null;
+	ReadableStreamingData rsdNonSync = null;
+
+	private final int[] offsets = new int[1201];
 
 	public VarIntBench() {
 		try {
 			CodedOutputStream cout = CodedOutputStream.newInstance(buffer);
 			Random random = new Random(9387498731984L);
+			int pos = 0;
+			offsets[pos++] = 0;
 			for (int i = 0; i < 600; i++) {
 				cout.writeUInt64NoTag(random.nextLong(0,128));
+				offsets[pos++] = cout.getTotalBytesWritten();
 			}
 			for (int i = 0; i < 150; i++) {
 				cout.writeUInt64NoTag(random.nextLong(128,256));
+				offsets[pos++] = cout.getTotalBytesWritten();
 			}
 			for (int i = 0; i < 150; i++) {
-				cout.writeUInt64NoTag(random.nextLong(256,Integer.MAX_VALUE));
+				cout.writeUInt64NoTag(random.nextLong(256, Integer.MAX_VALUE));
+				offsets[pos++] = cout.getTotalBytesWritten();
 			}
 			for (int i = 0; i < 150; i++) {
-				cout.writeUInt64NoTag(random.nextLong(0,Long.MAX_VALUE));
+				cout.writeUInt64NoTag(random.nextLong(Integer.MIN_VALUE, Integer.MAX_VALUE));
+				offsets[pos++] = cout.getTotalBytesWritten();
+			}
+			for (int i = 0; i < 150; i++) {
+				cout.writeUInt64NoTag(random.nextLong(0, Long.MAX_VALUE));
+				offsets[pos++] = cout.getTotalBytesWritten();
 			}
 			cout.flush();
 			// copy to direct buffer
@@ -61,91 +79,116 @@ public class VarIntBench {
 			bytes = Bytes.wrap(bts);
 			bais = new ByteArrayInputStream(bts.clone());
 			rsd = new ReadableStreamingData(bais);
+			baisNonSync = new NonSynchronizedByteArrayInputStream(bts.clone());
+			rsdNonSync = new ReadableStreamingData(baisNonSync);
 		} catch (IOException e){
 			e.printStackTrace();
 		}
 	}
 
 	@Benchmark
-	@OperationsPerInvocation(1050)
-	public void dataBuffer(Blackhole blackhole) throws IOException {
+	@OperationsPerInvocation(1200)
+	public void dataBufferRead(Blackhole blackhole) throws IOException {
 		dataBuffer.reset();
-		for (int i = 0; i < 1050; i++) {
-		    int i1 = dataBuffer.readVarInt(false);
-			blackhole.consume(dataBuffer.readVarInt(false));
+		for (int i = 0; i < 1200; i++) {
+			blackhole.consume(dataBuffer.readVarLong(false));
 		}
 	}
+
 	@Benchmark
-	@OperationsPerInvocation(1050)
-	public void dataBufferDirect(Blackhole blackhole) throws IOException {
+	@OperationsPerInvocation(1200)
+	public void dataBufferGet(Blackhole blackhole) throws IOException {
+		dataBuffer.reset();
+		int offset = 0;
+		for (int i = 0; i < 1200; i++) {
+			blackhole.consume(dataBuffer.getVarLong(offsets[offset++], false));
+		}
+	}
+
+	@Benchmark
+	@OperationsPerInvocation(1200)
+	public void dataBufferDirectRead(Blackhole blackhole) throws IOException {
 		dataBufferDirect.reset();
-		for (int i = 0; i < 1050; i++) {
-			blackhole.consume(dataBufferDirect.readVarInt(false));
-		}
-	}
-
-	long pos = 0;
-
-	@Benchmark
-	@OperationsPerInvocation(1050)
-	public void dataBytes(Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1050; i++) {
-			blackhole.consume(bytes.getVarInt(pos, false));
-			pos++;
+		for (int i = 0; i < 1200; i++) {
+			blackhole.consume(dataBufferDirect.readVarLong(false));
 		}
 	}
 
 	@Benchmark
-	@OperationsPerInvocation(1050)
-	public void dataInputStream(Blackhole blackhole) throws IOException {
+	@OperationsPerInvocation(1200)
+	public void dataBytesGet(Blackhole blackhole) throws IOException {
+		int offset = 0;
+		for (int i = 0; i < 1200; i++) {
+			blackhole.consume(bytes.getVarLong(offsets[offset++], false));
+		}
+	}
+
+	@Benchmark
+	@OperationsPerInvocation(1200)
+	public void dataSyncInputStreamRead(Blackhole blackhole) throws IOException {
 		bais.reset();
-		for (int i = 0; i < 1050; i++) {
-			blackhole.consume(rsd.readVarInt(false));
+		for (int i = 0; i < 1200; i++) {
+			blackhole.consume(rsd.readVarLong(false));
 		}
 	}
 
 	@Benchmark
-	@OperationsPerInvocation(1050)
-	public void richard(Blackhole blackhole) throws MalformedProtobufException {
-		buffer.clear();
-		for (int i = 0; i < 1050; i++) {
-			blackhole.consume(readVarintRichard(buffer));
+	@OperationsPerInvocation(1200)
+	public void dataNonSyncInputStreamRead(Blackhole blackhole) throws IOException {
+		baisNonSync.reset();
+		for (int i = 0; i < 1200; i++) {
+			blackhole.consume(rsdNonSync.readVarLong(false));
 		}
 	}
+
 	@Benchmark
-	@OperationsPerInvocation(1050)
-	public void google(Blackhole blackhole) throws IOException {
+	@OperationsPerInvocation(1200)
+	public void richardGet(Blackhole blackhole) throws MalformedProtobufException {
+		int offset = 0;
 		buffer.clear();
-		for (int i = 0; i < 1050; i++) {
-			final CodedInputStream codedInputStream = CodedInputStream.newInstance(buffer);
+		for (int i = 0; i < 1200; i++) {
+			blackhole.consume(getVarLongRichard(offsets[offset++], buffer));
+		}
+	}
+
+	@Benchmark
+	@OperationsPerInvocation(1200)
+	public void googleRead(Blackhole blackhole) throws IOException {
+		buffer.clear();
+		final CodedInputStream codedInputStream = CodedInputStream.newInstance(buffer);
+		for (int i = 0; i < 1200; i++) {
 			blackhole.consume(codedInputStream.readRawVarint64());
 		}
 	}
+
 	@Benchmark
-	@OperationsPerInvocation(1050)
-	public void googleDirect(Blackhole blackhole) throws IOException {
+	@OperationsPerInvocation(1200)
+	public void googleDirecRead(Blackhole blackhole) throws IOException {
 		bufferDirect.clear();
-		for (int i = 0; i < 1050; i++) {
-			final CodedInputStream codedInputStream = CodedInputStream.newInstance(bufferDirect);
+		final CodedInputStream codedInputStream = CodedInputStream.newInstance(bufferDirect);
+		for (int i = 0; i < 1200; i++) {
 			blackhole.consume(codedInputStream.readRawVarint64());
 		}
 	}
+
 	@Benchmark
-	@OperationsPerInvocation(1050)
-	public void googleSlowPath(Blackhole blackhole) throws MalformedProtobufException {
+	@OperationsPerInvocation(1200)
+	public void googleSlowPathRead(Blackhole blackhole) throws MalformedProtobufException {
 		buffer.clear();
-		for (int i = 0; i < 1050; i++) {
+		for (int i = 0; i < 1200; i++) {
 			blackhole.consume(readRawVarint64SlowPath(buffer));
 		}
 	}
+
 	@Benchmark
-	@OperationsPerInvocation(1050)
-	public void googleSlowPathDirect(Blackhole blackhole) throws MalformedProtobufException {
+	@OperationsPerInvocation(1200)
+	public void googleSlowPathDirectRead(Blackhole blackhole) throws MalformedProtobufException {
 		bufferDirect.clear();
-		for (int i = 0; i < 1050; i++) {
+		for (int i = 0; i < 1200; i++) {
 			blackhole.consume(readRawVarint64SlowPath(bufferDirect));
 		}
 	}
+
 	private static long readRawVarint64SlowPath(ByteBuffer buf) throws MalformedProtobufException {
 		long result = 0;
 		for (int shift = 0; shift < 64; shift += 7) {
@@ -163,7 +206,7 @@ public class VarIntBench {
 	private static final int VARINT_DATA_MASK = 0b0111_1111;
 	private static final int NUM_BITS_PER_VARINT_BYTE = 7;
 
-	public static long readVarintRichard(ByteBuffer buf) throws MalformedProtobufException {
+	public static long getVarLongRichard(int offset, ByteBuffer buf) throws MalformedProtobufException {
 		// Protobuf encodes smaller integers with fewer bytes than larger integers. It takes a full byte
 		// to encode 7 bits of information. So, if all 64 bits of a long are in use (for example, if the
 		// leading bit is 1, or even all bits are 1) then it will take 10 bytes to transmit what would
@@ -177,40 +220,40 @@ public class VarIntBench {
 		// The bytes come least to most significant 7 bits. So the first byte we read represents
 		// the lowest 7 bytes, then the next byte is the next highest 7 bytes, etc.
 
-		// Keeps track of the number of bytes that have been read. If we read 10 in a row all with
-		// the leading continuation bit set, then throw a malformed protobuf exception.
-		int numBytesRead = 0;
 		// The final value.
 		long value = 0;
 		// The amount to shift the bits we read by before AND with the value
-		long shift = 0;
-		// The byte to read from the stream
-		int b;
+		int shift = -NUM_BITS_PER_VARINT_BYTE;
 
-		while ((b = buf.get()) != -1) {
-			// Keep track of the number of bytes read
-			numBytesRead++;
-			// Checks whether the continuation bit is set
-			final boolean continuationBitSet = (b & VARINT_CONTINUATION_MASK) != 0;
-			// Strip off the continuation bit by keeping only the data bits
-			b &= VARINT_DATA_MASK;
-			// Shift the data bits left into position to AND with the value
-			final long toBeAdded = (long) b << shift;
-			value |= toBeAdded;
-			// Increment the shift for the next data bits (if there are more bits)
-			shift += NUM_BITS_PER_VARINT_BYTE;
+		// This method works with heap byte buffers only
+		final byte[] arr = buf.array();
+		final int arrOffset = buf.arrayOffset() + offset;
 
-			if (continuationBitSet) {
-				// msb is set, so there is another byte following this one. If we've just read our 10th byte,
-				// then we have a malformed protobuf stream
-				if (numBytesRead == 10) {
-					throw new MalformedProtobufException("");
-				}
-			} else {
-				break;
+		int i = 0;
+		for (; i < 10; i++) {
+			// Use UnsafeUtil instead of arr[arrOffset + i] to avoid array range checks
+			byte b = UnsafeUtils.getArrayByteNoChecks(arr, arrOffset + i);
+			value |= (long) (b & 0x7F) << (shift += NUM_BITS_PER_VARINT_BYTE);
+
+			if (b >= 0) {
+				return value;
 			}
 		}
-		return value;
+		// If we read 10 in a row all with the leading continuation bit set, then throw a malformed
+		// protobuf exception
+		throw new MalformedProtobufException("Malformed var int");
 	}
 
+	public static void main(String[] args) throws Exception {
+		final Blackhole blackhole = new Blackhole(
+				"Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.");
+		final VarIntBench bench = new VarIntBench();
+		bench.dataBufferRead(blackhole);
+		bench.dataBufferGet(blackhole);
+		bench.dataBufferDirectRead(blackhole);
+		bench.dataBytesGet(blackhole);
+		bench.dataSyncInputStreamRead(blackhole);
+		bench.dataNonSyncInputStreamRead(blackhole);
+		bench.googleRead(blackhole);
+	}
 }

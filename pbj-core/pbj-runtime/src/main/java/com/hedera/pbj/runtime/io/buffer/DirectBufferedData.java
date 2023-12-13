@@ -1,7 +1,9 @@
 package com.hedera.pbj.runtime.io.buffer;
 
+import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
@@ -30,7 +32,7 @@ final class DirectBufferedData extends BufferedData {
             return 0;
         }
         if ((dstOffset < 0) || (dst.length - dstOffset < len)) {
-            throw new ArrayIndexOutOfBoundsException();
+            throw new IndexOutOfBoundsException();
         }
         UnsafeUtils.getDirectBufferToArray(buffer, offset, dst, dstOffset, Math.toIntExact(len));
         return len;
@@ -72,6 +74,47 @@ final class DirectBufferedData extends BufferedData {
      * {@inheritDoc}
      */
     @Override
+    public int getVarInt(final long offset, final boolean zigZag) {
+        return (int) getVar(Math.toIntExact(offset), zigZag);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getVarLong(final long offset, final boolean zigZag) {
+        return getVar(Math.toIntExact(offset), zigZag);
+    }
+
+    private long getVar(final int offset, final boolean zigZag) {
+        if (offset < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+
+        int rem = Math.toIntExact(buffer.limit() - offset);
+        if (rem > 10) {
+            rem = 10;
+        }
+
+        long value = 0;
+
+        int i = 0;
+        while (i != rem) {
+            final byte b = UnsafeUtils.getDirectBufferByte(buffer, offset + i);
+            value |= (long) (b & 0x7F) << (i * 7);
+            i++;
+            if (b >= 0) {
+                buffer.position(offset + i);
+                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
+            }
+        }
+        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public long readBytes(@NonNull final byte[] dst, final int dstOffset, final int maxLength) {
         validateLen(maxLength);
         final long len = Math.min(maxLength, remaining());
@@ -81,7 +124,7 @@ final class DirectBufferedData extends BufferedData {
             return 0;
         }
         if ((dstOffset < 0) || (dst.length - dstOffset < len)) {
-            throw new ArrayIndexOutOfBoundsException();
+            throw new IndexOutOfBoundsException();
         }
         UnsafeUtils.getDirectBufferToArray(buffer, pos, dst, dstOffset, Math.toIntExact(len));
         buffer.position(Math.toIntExact(pos + len));
@@ -129,10 +172,48 @@ final class DirectBufferedData extends BufferedData {
      * {@inheritDoc}
      */
     @Override
+    public int readVarInt(final boolean zigZag) {
+        return (int) readVar(zigZag);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long readVarLong(final boolean zigZag) {
+        return readVar(zigZag);
+    }
+
+    private long readVar(final boolean zigZag) {
+        final int pos = buffer.position();
+        int rem = buffer.remaining();
+        if (rem > 10) {
+            rem = 10;
+        }
+
+        long value = 0;
+
+        int i = 0;
+        while (i != rem) {
+            final byte b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, pos + i);
+            value |= (long) (b & 0x7F) << (i * 7);
+            i++;
+            if (b >= 0) {
+                buffer.position(pos + i);
+                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
+            }
+        }
+        throw (i == 10) ? new DataEncodingException("") : new BufferUnderflowException();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void writeBytes(@NonNull final byte[] src, final int offset, final int len) {
         Objects.requireNonNull(src);
         if ((offset < 0) || (offset > src.length - len)) {
-            throw new ArrayIndexOutOfBoundsException();
+            throw new IndexOutOfBoundsException();
         }
         validateLen(len);
         validateCanWrite(len);

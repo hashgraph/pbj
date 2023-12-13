@@ -68,14 +68,14 @@ public class ByteBufferGetByte {
     @Benchmark
     public void heapUnsafeGet(final Blackhole blackhole) {
         for (int i = 0; i < size; i++) {
-            blackhole.consume(UnsafeUtils.getByteHeap(heapBuffer, i));
+            blackhole.consume(UnsafeUtils.getHeapBufferByte(heapBuffer, i));
         }
     }
 
     @Benchmark
     public void directUnsafeGet(final Blackhole blackhole) {
         for (int i = 0; i < size; i++) {
-            blackhole.consume(UnsafeUtils.getByteDirect(directBuffer, i));
+            blackhole.consume(UnsafeUtils.getDirectBufferByte(directBuffer, i));
         }
     }
 
