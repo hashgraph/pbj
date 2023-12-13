@@ -49,24 +49,62 @@ public class UnsafeUtils {
     }
 
     /**
-     * Get heap byte buffer element at a given offset. Identical to buf.get(offset), but
-     * slightly faster on some systems. May only be called for Java heap byte buffers
+     * Get byte array element at a given offset. Identical to arr[offset].
      */
-    public static byte getByteHeap(final ByteBuffer buf, final int offset) {
+    public static byte getArrayByte(final byte[] arr, final int offset) {
+        if (arr.length <= offset) {
+            throw new IndexOutOfBoundsException();
+        }
+        return getArrayByteNoChecks(arr, offset);
+    }
+
+    /**
+     * Get byte array element at a given offset. Identical to arr[offset], but faster,
+     * because no array bounds checks are performed.
+     *
+     * <p><b>Use with caution!</b>
+     */
+    public static byte getArrayByteNoChecks(final byte[] arr, final int offset) {
+        return UNSAFE.getByte(arr, BYTE_ARRAY_BASE_OFFSET + offset);
+    }
+
+    /**
+     * Get heap byte buffer element at a given offset. Identical to buf.get(offset). May only
+     * be called for Java heap byte buffers.
+     */
+    public static byte getHeapBufferByte(final ByteBuffer buf, final int offset) {
         if (buf.limit() < offset + 1) {
             throw new BufferUnderflowException();
         }
+        return getHeapBufferByteNoChecks(buf, offset);
+    }
+
+    /**
+     * Get heap byte buffer element at a given offset. Identical to buf.get(offset), but faster,
+     * because no buffer range checks are performed. May only be called for Java heap byte buffers.
+     *
+     * <p><b>Use with caution!</b>
+     */
+    public static byte getHeapBufferByteNoChecks(final ByteBuffer buf, final int offset) {
         return UNSAFE.getByte(buf.array(), BYTE_ARRAY_BASE_OFFSET + offset);
     }
 
     /**
-     * Get direct byte buffer element at a given offset. Identical to buf.get(offset), but
-     * slightly faster on some systems. May only be called for direct byte buffers
+     * Get direct byte buffer element at a given offset. Identical to buf.get(offset). May only
+     * be called for direct byte buffers
      */
-    public static byte getByteDirect(final ByteBuffer buf, final int offset) {
+    public static byte getDirectBufferByte(final ByteBuffer buf, final int offset) {
         if (buf.limit() < offset + 1) {
             throw new BufferUnderflowException();
         }
+        return getDirectBufferByteNoChecks(buf, offset);
+    }
+
+    /**
+     * Get direct byte buffer element at a given offset. Identical to buf.get(offset), but faster,
+     * because no buffer range checks are performed. May only be called for direct byte buffers.
+     */
+    public static byte getDirectBufferByteNoChecks(final ByteBuffer buf, final int offset) {
         final long address = UNSAFE.getLong(buf, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
         return UNSAFE.getByte(null, address + offset);
     }

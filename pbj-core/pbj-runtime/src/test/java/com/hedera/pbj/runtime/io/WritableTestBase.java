@@ -1170,6 +1170,26 @@ public abstract class WritableTestBase extends SequentialTestBase {
             assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { (byte) 0b10101101, 0b00000010 });
             assertThat(seq.position()).isEqualTo(pos + 2);
         }
+
+        @ParameterizedTest
+        @ValueSource(ints = {0, 1, 2, 3, 7, 8, 9, 1023, 1024, 1025, 65535, 65536, 0x7FFFFFFF,
+                -1, -2, -7, -1023, -1024, -65535, -65536, -0x7FFFFFFF, -0x80000000})
+        @DisplayName("Varints must be encoded with less than 5 bytes")
+        void checkVarIntLen(final int num) {
+            final var seq = sequence();
+            final var pos = seq.position();
+            seq.writeVarInt(num, false);
+            final var afterPos = seq.position();
+            if (num >= 0) {
+                assertThat(afterPos - pos).isLessThanOrEqualTo(5);
+            } else {
+                // negative ints are always encoded with 10 bytes if zigzag=false
+                assertThat(afterPos - pos).isEqualTo(10);
+            }
+            seq.writeVarInt(num, true);
+            final var afterAfterPos = seq.position();
+            assertThat(afterAfterPos - afterPos).isLessThanOrEqualTo(5);
+        }
     }
 
     @Nested

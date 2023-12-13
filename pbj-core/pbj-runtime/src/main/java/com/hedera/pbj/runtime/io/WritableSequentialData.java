@@ -377,7 +377,10 @@ public interface WritableSequentialData extends SequentialData {
     }
 
     /**
-     * Write a 32bit protobuf varint at current {@link #position()}. An integer var int can be 1 to 5 bytes.
+     * Write a 32bit protobuf varint at current {@link #position()}.
+     *
+     * <p>Non-negative integer var int can be 1 to 5 bytes. Negative integer with zigZag=false is
+     * always 10 bytes. Negative integer with zigZag=true can be 1 to 5 bytes.
      *
      * @param value integer to write in var int format
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers

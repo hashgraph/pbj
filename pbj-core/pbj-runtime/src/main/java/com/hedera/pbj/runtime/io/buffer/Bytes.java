@@ -1,6 +1,7 @@
 package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.DataAccessException;
+import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
@@ -631,91 +632,42 @@ public final class Bytes implements RandomAccessData {
         return Bytes.wrap(newBytes);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int getVarInt(final long offset, final boolean zigZag) {
-        int tempPos = (int)offset;
-        if (length == tempPos) {
-            return (int) RandomAccessData.super.getVarInt(offset, zigZag);
-        }
-        int x;
-        if ((x = buffer[tempPos++]) >= 0) {
-            return zigZag ? (x >>> 1) ^ -(x & 1) : x;
-        } else if (length - tempPos < 9) {
-            return (int) RandomAccessData.super.getVarInt(offset, zigZag);
-        } else if ((x ^= (buffer[tempPos++] << 7)) < 0) {
-            x ^= (~0 << 7);
-        } else if ((x ^= (buffer[tempPos++] << 14)) >= 0) {
-            x ^= (~0 << 7) ^ (~0 << 14);
-        } else if ((x ^= (buffer[tempPos++] << 21)) < 0) {
-            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
-        } else {
-            int y = buffer[tempPos++];
-            x ^= y << 28;
-            x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
-            if (y < 0
-                    && buffer[tempPos++] < 0
-                    && buffer[tempPos++] < 0
-                    && buffer[tempPos++] < 0
-                    && buffer[tempPos++] < 0
-                    && buffer[tempPos++] < 0) {
-                return (int) RandomAccessData.super.getVarInt(offset, zigZag);
-            }
-        }
-        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+        return (int) getVar(Math.toIntExact(offset), zigZag);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public long getVarLong(final long offset, final boolean zigZag) {
-        int tempPos = (int)offset;
-        if (tempPos == length) {
-            return RandomAccessData.super.getVarLong(offset, zigZag);
+        return getVar(Math.toIntExact(offset), zigZag);
+    }
+
+    private long getVar(final int offset, final boolean zigZag) {
+        if ((offset < 0) || (offset >= buffer.length)) {
+            throw new IndexOutOfBoundsException();
         }
-        long x;
-        int y;
-        if ((y = buffer[tempPos++]) >= 0) {
-            return zigZag ? (y >>> 1) ^ -(y & 1) : y;
-        } else if (length - tempPos < 9) {
-            return RandomAccessData.super.getVarLong(offset, zigZag);
-        } else if ((y ^= (buffer[tempPos++] << 7)) < 0) {
-            x = y ^ (~0 << 7);
-        } else if ((y ^= (buffer[tempPos++] << 14)) >= 0) {
-            x = y ^ ((~0 << 7) ^ (~0 << 14));
-        } else if ((y ^= (buffer[tempPos++] << 21)) < 0) {
-            x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
-        } else if ((x = y ^ ((long) buffer[tempPos++] << 28)) >= 0L) {
-            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
-        } else if ((x ^= ((long) buffer[tempPos++] << 35)) < 0L) {
-            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
-        } else if ((x ^= ((long) buffer[tempPos++] << 42)) >= 0L) {
-            x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
-        } else if ((x ^= ((long) buffer[tempPos++] << 49)) < 0L) {
-            x ^=
-                    (~0L << 7)
-                            ^ (~0L << 14)
-                            ^ (~0L << 21)
-                            ^ (~0L << 28)
-                            ^ (~0L << 35)
-                            ^ (~0L << 42)
-                            ^ (~0L << 49);
-        } else {
-            x ^= ((long) buffer[tempPos++] << 56);
-            x ^=
-                    (~0L << 7)
-                            ^ (~0L << 14)
-                            ^ (~0L << 21)
-                            ^ (~0L << 28)
-                            ^ (~0L << 35)
-                            ^ (~0L << 42)
-                            ^ (~0L << 49)
-                            ^ (~0L << 56);
-            if (x < 0L) {
-                if (buffer[tempPos++] < 0L) {
-                    return RandomAccessData.super.getVarLong(offset, zigZag);
-                }
+
+        int rem = buffer.length - offset;
+        if (rem > 10) {
+            rem = 10;
+        }
+
+        long value = 0;
+
+        for (int i = 0; i != rem; i++) {
+            final byte b = UnsafeUtils.getArrayByteNoChecks(buffer, offset + i);
+            value |= (long) (b & 0x7F) << (i * 7);
+            if (b >= 0) {
+                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
             }
         }
-        return zigZag ? (x >>> 1) ^ -(x & 1) : x;
+        throw new DataEncodingException("Malformed var int");
     }
+
 }

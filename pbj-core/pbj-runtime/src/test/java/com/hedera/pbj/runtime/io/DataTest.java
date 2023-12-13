@@ -20,7 +20,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 final class DataTest {
 
     static Stream<Byte> bytesTestCases() {
-        return Stream.of(Byte.MIN_VALUE,-100,-66,-7,-1,0,1,9,51,101,Byte.MAX_VALUE).map(Number::byteValue);
+        return Stream.of(
+                Byte.MIN_VALUE,
+                Byte.MIN_VALUE + 1,
+                -100,
+                -66,
+                -7,
+                -1,
+                0,
+                1,
+                9,
+                51,
+                101,
+                Byte.MAX_VALUE - 1,
+                Byte.MAX_VALUE).map(Number::byteValue);
     }
 
     @ParameterizedTest
@@ -54,7 +67,20 @@ final class DataTest {
     }
 
     static Stream<Integer> intsTestCases() {
-        return Stream.of(Integer.MIN_VALUE,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE).map(Number::intValue);
+        return Stream.of(
+                Integer.MIN_VALUE,
+                Integer.MIN_VALUE + 1,
+                -100,
+                -66,
+                -7,
+                -1,
+                0,
+                1,
+                9,
+                51,
+                101,
+                Integer.MAX_VALUE - 1,
+                Integer.MAX_VALUE).map(Number::intValue);
     }
 
     @ParameterizedTest
@@ -104,8 +130,34 @@ final class DataTest {
     }
 
     static Stream<Long> longsTestCases() {
-        return Stream.of(Long.MIN_VALUE, Integer.MIN_VALUE-1L,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE+1L,Long.MAX_VALUE).map(Number::longValue);
-    }
+        return Stream.of(
+                Long.MIN_VALUE,
+                Long.MIN_VALUE + 1,
+                Integer.MIN_VALUE - 1L,
+                Integer.MIN_VALUE,
+                Integer.MIN_VALUE + 1,
+                -65536,
+                -65535,
+                -65534
+                -100,
+                -66,
+                -7,
+                -1,
+                0,
+                1,
+                9,
+                51,
+                101,
+                1023,
+                1024,
+                1025,
+                Integer.MAX_VALUE - 1L,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE + 1L,
+                Long.MAX_VALUE - 1L,
+                Long.MAX_VALUE).map(Number::longValue);
+}
+
     @ParameterizedTest
     @MethodSource("longsTestCases")
     void longTest(Long value) throws IOException {
@@ -176,7 +228,7 @@ final class DataTest {
 
     @ParameterizedTest
     @MethodSource("intsTestCases")
-    void varIntTest(int value) throws IOException {
+    void varIntTest(final int value) throws IOException {
         { // without zigzag
             // write to byte array with DataIO DataOutputStream
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
@@ -277,6 +329,39 @@ final class DataTest {
             ReadableStreamingData din = new ReadableStreamingData(bin);
             long readValue2 = din.readVarLong(true);
             assertEquals(value, readValue2);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("longsTestCases")
+    void compatInt32Int64(final long num) {
+        { // write as int
+            final ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            final WritableStreamingData dout = new WritableStreamingData(bout);
+            dout.writeVarInt((int) num, false);
+            final byte[] writtenData = bout.toByteArray();
+            ByteArrayInputStream bin = new ByteArrayInputStream(writtenData);
+            ReadableStreamingData din = new ReadableStreamingData(bin);
+            final int readValue1 = din.readVarInt(false);
+            assertEquals((int) num, readValue1);
+            bin = new ByteArrayInputStream(writtenData);
+            din = new ReadableStreamingData(bin);
+            final long readValue2 = din.readVarLong(false);
+            assertEquals((int) num, readValue2);
+        }
+        { // write as long
+            final ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            final WritableStreamingData dout = new WritableStreamingData(bout);
+            dout.writeVarLong(num, false);
+            final byte[] writtenData = bout.toByteArray();
+            ByteArrayInputStream bin = new ByteArrayInputStream(writtenData);
+            ReadableStreamingData din = new ReadableStreamingData(bin);
+            final int readValue1 = din.readVarInt(false);
+            assertEquals((int) num, readValue1);
+            bin = new ByteArrayInputStream(writtenData);
+            din = new ReadableStreamingData(bin);
+            final long readValue2 = din.readVarLong(false);
+            assertEquals(num, readValue2);
         }
     }
 

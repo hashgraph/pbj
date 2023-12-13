@@ -852,26 +852,6 @@ public sealed class BufferedData
      * {@inheritDoc}
      */
     @Override
-    public void writeVarInt(final int value, final boolean zigZag) {
-        long longValue = value;
-        if (zigZag) {
-            longValue = (longValue << 1) ^ (longValue >> 63);
-        }
-        while (true) {
-            if ((longValue & ~0x7F) == 0) {
-                buffer.put((byte) longValue);
-                break;
-            } else {
-                buffer.put((byte) ((longValue & 0x7F) | 0x80));
-                longValue >>>= 7;
-            }
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void writeVarLong(long value, final boolean zigZag) {
         if (zigZag) {
             value = (value << 1) ^ (value >> 63);
@@ -897,7 +877,7 @@ public sealed class BufferedData
 
     protected void validateCanRead(final long offset, final long len) {
         if (offset < 0) {
-            throw new ArrayIndexOutOfBoundsException();
+            throw new IndexOutOfBoundsException();
         }
         if (offset > length() - len) {
             // FUTURE: change to AIOOBE, too

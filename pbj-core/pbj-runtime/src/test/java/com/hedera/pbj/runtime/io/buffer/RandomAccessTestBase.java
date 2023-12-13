@@ -7,17 +7,38 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.ReadableTestBase;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class RandomAccessTestBase extends ReadableTestBase {
 
     @NonNull
     protected abstract RandomAccessData randomAccessData(@NonNull final byte[] bytes);
+
+    static IntStream testIntegers() {
+        return IntStream.of(Integer.MIN_VALUE, Integer.MIN_VALUE + 1,
+                -65536, -65535, -101, -9, -1, 0, 1, 4, 59, 255, 1023, 1024, 1025, 10000,
+                Integer.MAX_VALUE - 1, Integer.MAX_VALUE);
+    }
+
+    static LongStream testLongs() {
+        return LongStream.of(Long.MIN_VALUE, Long.MIN_VALUE + 1,
+                (long) Integer.MIN_VALUE - 1, Integer.MIN_VALUE, Integer.MIN_VALUE + 1,
+                -65536, -65535, -101, -9, -1, 0, 1, 4, 59, 255, 1023, 1024, 1025, 10000,
+                Integer.MAX_VALUE - 1, Integer.MAX_VALUE, (long) Integer.MAX_VALUE + 1,
+                Long.MAX_VALUE - 1, Long.MAX_VALUE);
+    }
 
     @Test
     void sliceLength() {
@@ -152,4 +173,69 @@ public abstract class RandomAccessTestBase extends ReadableTestBase {
         assertEquals(0x0203040506070809L, slice.getLong(0));
         assertEquals(0x030405060708090AL, slice.getLong(1));
     }
+
+    @ParameterizedTest
+    @MethodSource("testIntegers")
+    void getVarIntNoZigZag(final int num) throws IOException {
+        final ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        final WritableStreamingData out = new WritableStreamingData(bout);
+        out.writeVarInt(num, false);
+        bout.flush();
+
+        final byte[] writtenBytes = bout.toByteArray();
+        RandomAccessData data = randomAccessData(writtenBytes);
+        assertEquals(num, data.getVarInt(0, false));
+
+        data = randomAccessData(writtenBytes);
+        assertEquals(num, data.getVarLong(0, false));
+    }
+
+    @ParameterizedTest
+    @MethodSource("testIntegers")
+    void getVarIntZigZag(final int num) throws IOException {
+        final ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        final WritableStreamingData out = new WritableStreamingData(bout);
+        out.writeVarInt(num, true);
+        bout.flush();
+
+        final byte[] writtenBytes = bout.toByteArray();
+        RandomAccessData data = randomAccessData(writtenBytes);
+        assertEquals(num, data.getVarInt(0, true));
+
+        data = randomAccessData(writtenBytes);
+        assertEquals(num, data.getVarLong(0, true));
+    }
+
+    @ParameterizedTest
+    @MethodSource("testLongs")
+    void getVarLongNoZigZag(final long num) throws IOException {
+        final ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        final WritableStreamingData out = new WritableStreamingData(bout);
+        out.writeVarLong(num, false);
+        bout.flush();
+
+        final byte[] writtenBytes = bout.toByteArray();
+        RandomAccessData data = randomAccessData(writtenBytes);
+        assertEquals((int) num, data.getVarInt(0, false));
+
+        data = randomAccessData(writtenBytes);
+        assertEquals(num, data.getVarLong(0, false));
+    }
+
+    @ParameterizedTest
+    @MethodSource("testLongs")
+    void getVarLongZigZag(final long num) throws IOException {
+        final ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        final WritableStreamingData out = new WritableStreamingData(bout);
+        out.writeVarLong(num, true);
+        bout.flush();
+
+        final byte[] writtenBytes = bout.toByteArray();
+        RandomAccessData data = randomAccessData(writtenBytes);
+        assertEquals((int) num, data.getVarInt(0, true));
+
+        data = randomAccessData(writtenBytes);
+        assertEquals(num, data.getVarLong(0, true));
+    }
+
 }
