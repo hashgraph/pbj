@@ -24,6 +24,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * as long as the input parameters are immutable or thread-safe.
  */
 public final class SingleFuzzTest {
+    // When set to true, the test will print debugging info to System.out,
+    // including payloads, for every single run. This may produce a lot of console output.
+    private final static boolean debug = false;
+
     private final static AtomicInteger TEST_ID_GENERATOR = new AtomicInteger(0);
 
     private static <T> BufferedData write(final T object, final Codec<T> codec, final int size) throws Exception {
@@ -49,7 +53,7 @@ public final class SingleFuzzTest {
         // Generate a unique test ID prefix for this particular run to tag debugging output:
         final String prefix = SingleFuzzTest.class.getSimpleName() + " " + TEST_ID_GENERATOR.getAndIncrement() + ": ";
 
-        System.out.println(prefix + "Object: " + object);
+        if (debug) System.out.println(prefix + "Object: " + object);
         final int size = codec.measureRecord(object);
         final BufferedData dataBuffer;
         try {
@@ -59,16 +63,22 @@ public final class SingleFuzzTest {
             throw new FuzzTestException("Unable to write the object", ex);
         }
 
-        System.out.println(prefix + "Bytes: " + dataBuffer);
+        if (debug) System.out.println(prefix + "Bytes: " + dataBuffer);
 
-        // Set a random byte to a random value
-        final int randomPosition = random.nextInt(size);
-        final byte randomByte = (byte) random.nextInt(256);
+        // Previously we modified a single random byte in the buffer.
+        // However, this seems to keep the payload valid more often than we'd like,
+        // especially for large objects with large fields (byte arrays and similar.)
+        // So we modify a random number of random bytes now to inflict more damage.
+        final int numberOfBytesToModify = 1 + random.nextInt(size - 1);
+        for (int i = 0; i < numberOfBytesToModify; i++) {
+            final int randomPosition = random.nextInt(size);
+            final byte randomByte = (byte) random.nextInt(256);
 
-        dataBuffer.position(randomPosition);
-        dataBuffer.writeByte(randomByte);
+            dataBuffer.position(randomPosition);
+            dataBuffer.writeByte(randomByte);
+        }
 
-        System.out.println(prefix + "Fuzz bytes: " + dataBuffer);
+        if (debug) System.out.println(prefix + "Fuzz bytes: " + dataBuffer);
 
         dataBuffer.reset();
         final T deserializedObject;
@@ -77,13 +87,13 @@ public final class SingleFuzzTest {
         } catch (Exception ex) {
             // Note that the codec may throw the IOException, as well as various nio exceptions
             // such as the BufferUnderflowException. We're good as long as any exception is thrown.
-            System.out.println(prefix + "Fuzz exception: " + ex.getMessage());
+            if (debug) System.out.println(prefix + "Fuzz exception: " + ex.getMessage());
             return SingleFuzzTestResult.DESERIALIZATION_FAILED;
         }
 
         final int deserializedSize = codec.measureRecord(deserializedObject);
         if (deserializedSize != size) {
-            System.out.println(prefix + "Original size: " + size + " , fuzz size: " + deserializedSize);
+            if (debug) System.out.println(prefix + "Original size: " + size + " , fuzz size: " + deserializedSize);
             return SingleFuzzTestResult.DESERIALIZED_SIZE_MISMATCHED;
         }
 
@@ -94,11 +104,11 @@ public final class SingleFuzzTest {
         } catch (Exception ex) {
             // Note that the codec may throw the IOException, as well as various nio exceptions
             // such as the BufferUnderflowException. We're good as long as any exception is thrown.
-            System.out.println(prefix + "Reserialization exception: " + ex.getMessage());
+            if (debug) System.out.println(prefix + "Reserialization exception: " + ex.getMessage());
             return SingleFuzzTestResult.RESERIALIZATION_FAILED;
         }
 
-        System.out.println(prefix + "Reserialized bytes: " + reserializedBuffer);
+        if (debug) System.out.println(prefix + "Reserialized bytes: " + reserializedBuffer);
         if (!reserializedBuffer.equals(dataBuffer)) {
             return SingleFuzzTestResult.RESERIALIZATION_MISMATCHED;
         }

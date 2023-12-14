@@ -2,6 +2,7 @@ package com.hedera.pbj.integration.fuzz;
 
 import java.text.NumberFormat;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -14,7 +15,9 @@ import java.util.stream.Collectors;
 public record FuzzTestResult<T>(
         T object,
         boolean passed,
-        Map<SingleFuzzTestResult, Double> percentageMap
+        Map<SingleFuzzTestResult, Double> percentageMap,
+        int repeatCount,
+        long nanoDuration
 ) {
     private static final NumberFormat PERCENTAGE_FORMAT = NumberFormat.getPercentInstance();
 
@@ -22,8 +25,11 @@ public record FuzzTestResult<T>(
      * Format the FuzzTestResult object for printing/logging.
      */
     public String format() {
-        return "A fuzz test " + (passed ? "PASSED" : "FAILED") + " for "
-                + object + " with:" + System.lineSeparator()
+        return "A fuzz test " + (passed ? "PASSED" : "FAILED")
+                + " with " + repeatCount + " runs took "
+                + TimeUnit.MILLISECONDS.convert(nanoDuration, TimeUnit.NANOSECONDS) + " ms"
+                + " for " + object
+                + " with:" + System.lineSeparator()
                 + formatResultsStats();
     }
 
