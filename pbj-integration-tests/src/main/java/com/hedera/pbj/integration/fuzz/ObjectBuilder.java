@@ -1,13 +1,15 @@
 package com.hedera.pbj.integration.fuzz;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.pbj.runtime.EnumWithProtoMetadata;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 
-import java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
@@ -102,7 +104,11 @@ public class ObjectBuilder {
             }
 
             return objects;
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+        } catch (InstantiationException
+                 | IllegalAccessException
+                 | InvocationTargetException
+                 | NoSuchMethodException e
+        ) {
             throw new FuzzTestException("Java Reflection failed", e);
         }
     }
@@ -113,7 +119,8 @@ public class ObjectBuilder {
      */
     private static record BranchingValue(List<?> values) {
 
-        static BranchingValue from(Class<?> argClz, Type argType, Class<?> objClz) throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
+        static BranchingValue from(Class<?> argClz, Type argType, Class<?> objClz)
+                throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
             if (argClz == long.class || argClz == Long.class) {
                 return new BranchingValue(List.of(RND.nextLong()));
             } else if (argClz == Bytes.class) {
@@ -155,7 +162,8 @@ public class ObjectBuilder {
 
             // We get here if we don't currently support the type of the field, which is represented by argClz.
             // We'll need to add an extra if/else branch above to handle this new type.
-            throw new FuzzTestException("Unsupported value type with argClz = " + argClz + "  , type = " + argType + "  for objClz = " + objClz);
+            throw new FuzzTestException("Unsupported value type with argClz = "
+                    + argClz + "  , type = " + argType + "  for objClz = " + objClz);
         }
 
         /** Convert some_name to someName. */
