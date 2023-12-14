@@ -2,6 +2,7 @@ package com.hedera.pbj.integration.fuzz;
 
 import com.hedera.pbj.runtime.Codec;
 
+import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
@@ -29,7 +30,8 @@ public class FuzzTest {
      * for the most desirable DESERIALIZATION_FAILED outcome to determine
      * if the test passed or not.
      */
-    public static <T> FuzzTestResult<T> fuzzTest(final T object, final Codec<T> codec, final double threshold) {
+    public static <T> FuzzTestResult<T> fuzzTest(final T object, final double threshold) {
+        final Codec<T> codec = getCodec(object);
         final Random random = new Random();
         final int repeatCount = estimateRepeatCount(object, codec);
 
@@ -43,7 +45,8 @@ public class FuzzTest {
         return new FuzzTestResult<>(
                 object,
                 statsMap.getOrDefault(SingleFuzzTestResult.DESERIALIZATION_FAILED, 0.) >= threshold,
-                statsMap
+                statsMap,
+                repeatCount
         );
     }
 
@@ -62,5 +65,14 @@ public class FuzzTest {
                         Map.Entry::getKey,
                         entry -> entry.getValue().doubleValue() / (double) repeatCount)
                 );
+    }
+
+    private static <T> Codec<T> getCodec(final T object) {
+        try {
+            Field codecField = object.getClass().getField("PROTOBUF");
+            return (Codec<T>) codecField.get(null);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new FuzzTestException("Failed to get a codec from the static PROTOBUF field", e);
+        }
     }
 }

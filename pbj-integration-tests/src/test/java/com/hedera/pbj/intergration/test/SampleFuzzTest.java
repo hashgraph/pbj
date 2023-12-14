@@ -1,10 +1,17 @@
 package com.hedera.pbj.intergration.test;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.pbj.integration.fuzz.FuzzTest;
 import com.hedera.pbj.integration.fuzz.FuzzTestResult;
 
+import com.hedera.pbj.integration.fuzz.ObjectBuilder;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,19 +21,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * See javadoc for FuzzTest for more details.
  */
 public class SampleFuzzTest {
+    // A percentage threshold for the DESERIALIZATION_FAILED outcomes.
+    private static final double THRESHOLD = 0.5;
 
-    @Test
-    void testMethod() {
-        AccountID accountID = AccountID.newBuilder().accountNum(1).realmNum(2).shardNum(3).build();
+    // This is to be extended to all model classes in the future.
+    private static final List<Class<?>> MODEL_CLASSES = List.of(
+            AccountID.class,
+            ContractID.class
+    );
 
-        // A percentage threshold for the DESERIALIZATION_FAILED outcomes.
-        final double THRESHOLD = 0.5;
-
-        FuzzTestResult<AccountID> fuzzTestResult = FuzzTest.fuzzTest(accountID, AccountID.PROTOBUF, THRESHOLD);
-
-        System.out.println(fuzzTestResult.format());
-
-        assertTrue(fuzzTestResult.passed());
+    private static Stream<?> objectTestCases() {
+        return MODEL_CLASSES.stream()
+                .map(ObjectBuilder::build)
+                .flatMap(List::stream);
     }
 
+    // If this parametrized test proves to be taking too long time to complete,
+    // we may try and convert it to a regular test, and instead run it
+    // in a parallelStream() on the objectTestCases.
+    // However, each individual fuzz test already uses a parallel stream
+    // for its repeated runs. So using an extra, outer parallel stream here
+    // is unlikely to yield too much of a performance boost.
+    @ParameterizedTest
+    @MethodSource("objectTestCases")
+    void testMethod(Object accountID) {
+        FuzzTestResult<?> fuzzTestResult = FuzzTest.fuzzTest(accountID, THRESHOLD);
+        System.out.println(fuzzTestResult.format());
+        assertTrue(fuzzTestResult.passed());
+    }
 }

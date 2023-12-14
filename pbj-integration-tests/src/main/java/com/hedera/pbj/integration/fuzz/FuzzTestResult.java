@@ -14,7 +14,8 @@ import java.util.stream.Collectors;
 public record FuzzTestResult<T>(
         T object,
         boolean passed,
-        Map<SingleFuzzTestResult, Double> percentageMap
+        Map<SingleFuzzTestResult, Double> percentageMap,
+        int repeatCount
 ) {
     private static final NumberFormat PERCENTAGE_FORMAT = NumberFormat.getPercentInstance();
 
@@ -22,7 +23,8 @@ public record FuzzTestResult<T>(
      * Format the FuzzTestResult object for printing/logging.
      */
     public String format() {
-        return "A fuzz test " + (passed ? "PASSED" : "FAILED") + " for "
+        return "A fuzz test " + (passed ? "PASSED" : "FAILED")
+                + " after " + repeatCount + " runs for "
                 + object + " with:" + System.lineSeparator()
                 + formatResultsStats();
     }
