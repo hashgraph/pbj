@@ -31,6 +31,8 @@ public class FuzzTest {
      * if the test passed or not.
      */
     public static <T> FuzzTestResult<T> fuzzTest(final T object, final double threshold) {
+        final long startNanoTime = System.nanoTime();
+
         final Codec<T> codec = getCodec(object);
         final Random random = new Random();
         final int repeatCount = estimateRepeatCount(object, codec);
@@ -46,7 +48,8 @@ public class FuzzTest {
                 object,
                 statsMap.getOrDefault(SingleFuzzTestResult.DESERIALIZATION_FAILED, 0.) >= threshold,
                 statsMap,
-                repeatCount
+                repeatCount,
+                System.nanoTime() - startNanoTime
         );
     }
 
