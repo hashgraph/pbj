@@ -138,9 +138,15 @@ public interface ReadableSequentialData extends SequentialData {
         // because, for streams, we cannot determine ahead of time the total number of available bytes, so we must
         // continue to check as we process each byte. This is not efficient for buffers.
         final var len = dst.remaining();
+        long bytesRead = 0;
         for (int i = 0; i < len; i++) {
             if (!hasRemaining()) return i;
-            dst.put(readByte());
+            try {
+                dst.put(readByte());
+                bytesRead++;
+            } catch (EOFException e) {
+                return bytesRead;
+            }
         }
         return len;
     }
@@ -168,9 +174,15 @@ public interface ReadableSequentialData extends SequentialData {
         // because, for streams, we cannot determine ahead of time the total number of available bytes, so we must
         // continue to check as we process each byte. This is not efficient for buffers.
         final var len = dst.remaining();
+        long bytesRead = 0;
         for (int i = 0; i < len; i++) {
             if (!hasRemaining()) return i;
-            dst.writeByte(readByte());
+            try {
+                dst.writeByte(readByte());
+                bytesRead++;
+            } catch (EOFException e) {
+                return bytesRead;
+            }
         }
         return len;
     }

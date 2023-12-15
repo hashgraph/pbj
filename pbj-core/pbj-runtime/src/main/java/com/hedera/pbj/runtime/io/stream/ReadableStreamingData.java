@@ -242,7 +242,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
                 final int b = in.read();
                 if (b < 0) {
                     eof = true;
-                    break;
+                    throw new EOFException();
                 }
                 value |= (long) (b & 0x7F) << (i * 7);
                 if ((b & 0x80) == 0) {

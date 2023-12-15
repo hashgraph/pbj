@@ -1,9 +1,12 @@
 package com.hedera.pbj.runtime.io.stream;
 
 import com.hedera.pbj.runtime.io.DataAccessException;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.ReadableSequentialTestBase;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -137,7 +140,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
     @Test
     @DisplayName("Bad InputStream empty when read")
-    void inputStreamEmptyRead() {
+    void inputStreamEmptyReadBytes() {
         final var inputStream = new ByteArrayInputStream(new byte[0]) {
             @Override
             public void close() throws IOException {
@@ -151,6 +154,40 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
             final var i = stream.readInt();
         });
         assertEquals(0, stream.readBytes(read));
+    }
+
+    @Test
+    @DisplayName("Bad InputStream empty when read")
+    void inputStreamEmptyReadVarLong() {
+        final var inputStream = new ByteArrayInputStream(new byte[] {
+                (byte) 128, (byte) 129, (byte) 130, (byte) 131});
+
+        final var stream = new ReadableStreamingData(inputStream);
+
+        assertThrows(EOFException.class, () -> stream.readVarLong(false));
+    }
+
+    @Test
+    void incompleteStreamToByteBuffer() {
+        final var inputStream = new ByteArrayInputStream(new byte[] {
+                (byte) 128, (byte) 129, (byte) 130, (byte) 131});
+
+        final var stream = new TestReadeableSequentialData(new ReadableStreamingData(inputStream));
+        ByteBuffer buffer = ByteBuffer.allocate(8);
+
+        assertEquals(4, stream.readBytes(buffer), "Unexpected number of bytes read");
+    }
+
+    @Test
+    void incompleteStreamToBufferedData() {
+        final var inputStream = new ByteArrayInputStream(new byte[] {
+                (byte) 128, (byte) 129, (byte) 130, (byte) 131});
+
+        final var stream = new TestReadeableSequentialData(new ReadableStreamingData(inputStream));
+        stream.limit(8);
+        BufferedData buffer = BufferedData.allocate(8);
+
+        assertEquals(4, stream.readBytes(buffer), "Unexpected number of bytes read");
     }
 
     @Test
@@ -225,11 +262,53 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         }
     }
 
-
     @Test
     void readFileThatDoesntExist() throws IOException {
         final Path file = Files.createTempFile(getClass().getSimpleName(), "readFileThatDoesntExist");
         Files.delete(file);
         assertThrows(IOException.class, () -> new ReadableStreamingData(file));
+    }
+
+    /**
+     * The sole purpose of this class is to allow testing of
+     * `{@link ReadableStreamingData#readBytes(ByteBuffer)}` and `{@link ReadableStreamingData#readBytes(BufferedData)}`.
+     * This methods are overriddin in other implementation and not possible to test ortherwise.
+     */
+    private static class TestReadeableSequentialData implements ReadableSequentialData {
+        private ReadableStreamingData readableStreamingData;
+
+        public TestReadeableSequentialData(final ReadableStreamingData readableStreamingData) {
+            this.readableStreamingData = readableStreamingData;
+        }
+
+        @Override
+        public byte readByte() {
+            return readableStreamingData.readByte();
+        }
+
+        @Override
+        public long capacity() {
+            return readableStreamingData.capacity();
+        }
+
+        @Override
+        public long position() {
+            return readableStreamingData.position();
+        }
+
+        @Override
+        public long limit() {
+            return readableStreamingData.limit();
+        }
+
+        @Override
+        public void limit(long limit) {
+            readableStreamingData.limit(limit);
+        }
+
+        @Override
+        public long skip(long count) {
+            return readableStreamingData.skip(count);
+        }
     }
 }
