@@ -73,6 +73,11 @@ public record OneOfField(
 		return "OneOf<"+getEnumClassRef()+">";
 	}
 
+	@Override
+	public String javaFieldTypeBase() {
+		return getEnumClassRef();
+	}
+
 	/**
 	 * {@inheritDoc}
 	 */

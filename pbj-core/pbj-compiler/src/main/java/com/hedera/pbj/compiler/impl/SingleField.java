@@ -1,6 +1,7 @@
 package com.hedera.pbj.compiler.impl;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
 
@@ -98,6 +99,16 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	 */
 	@Override
 	public String javaFieldType() {
+		return javaFieldType(true);
+	}
+
+	@Override
+	public String javaFieldTypeBase() {
+		return javaFieldType(false);
+	}
+
+	@NotNull
+	private String javaFieldType(boolean considerRepeated) {
 		String fieldType = switch(type) {
 			case MESSAGE -> messageType;
 			case ENUM -> Common.snakeToCamel(messageType, true);
@@ -113,7 +124,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 			case "BytesValue" -> "Bytes";
 			default -> fieldType;
 		};
-		if (repeated) {
+		if (considerRepeated && repeated) {
 			fieldType = switch (fieldType) {
 				case "int" -> "List<Integer>";
 				case "long" -> "List<Long>";
@@ -125,6 +136,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 		}
 		return fieldType;
 	}
+
 	public String javaFieldTypeForTest() {
 		return switch(type) {
 			case MESSAGE -> messageType;
