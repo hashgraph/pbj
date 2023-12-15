@@ -269,6 +269,11 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         assertThrows(IOException.class, () -> new ReadableStreamingData(file));
     }
 
+    /**
+     * The sole purpose of this class is to allow testing of
+     * `{@link ReadableStreamingData#readBytes(ByteBuffer)}` and `{@link ReadableStreamingData#readBytes(BufferedData)}`.
+     * This methods are overriddin in other implementation and not possible to test ortherwise.
+     */
     private static class TestReadeableSequentialData implements ReadableSequentialData {
         private ReadableStreamingData readableStreamingData;
 
