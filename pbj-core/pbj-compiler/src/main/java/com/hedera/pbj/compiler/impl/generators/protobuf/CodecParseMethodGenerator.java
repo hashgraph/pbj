@@ -290,7 +290,7 @@ class CodecParseMethodGenerator {
 						final var messageLength = input.readVarInt(false);
 						final $fieldType value;
 						if (messageLength == 0) {
-							value = $fieldValue;
+							value = $fieldType.DEFAULT;
 						} else {
 							final var limitBefore = input.limit();
 							// Make sure that we have enough bytes in the message
@@ -298,19 +298,21 @@ class CodecParseMethodGenerator {
 							// If the buffer is truncated on the boundary of a subObject,
 							// we will not throw.
 							final var startPos = input.position();
-							if ((startPos + messageLength) > limitBefore)
-								throw new BufferOverflowException();
-							input.limit(startPos + messageLength);
-							value = $readMethod;
-							// Make sure we read the full number of bytes. for the types
-							if ((startPos + messageLength) != input.position()) {
-								throw new BufferOverflowException();
+							try {
+								if ((startPos + messageLength) > limitBefore)
+									throw new BufferUnderflowException();
+								input.limit(startPos + messageLength);
+								value = $readMethod;
+								// Make sure we read the full number of bytes. for the types
+								if ((startPos + messageLength) != input.position()) {
+									throw new BufferOverflowException();
+								}
+							} finally {
+								input.limit(limitBefore);
 							}
-							input.limit(limitBefore);
 						}
 						"""
                     .replace("$readMethod", readMethod(field))
-                    .replace("$fieldValue",  "$fieldType.DEFAULT")
                     .replace("$fieldType", field.javaFieldTypeBase())
                     .indent(DEFAULT_INDENT)
             );

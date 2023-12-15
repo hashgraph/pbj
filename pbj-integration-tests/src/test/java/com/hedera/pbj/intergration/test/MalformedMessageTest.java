@@ -31,7 +31,7 @@ class MalformedMessageTest {
         final BufferedData data = prepareTestData(buffer);
         buffer.array()[1] += 1; // artificially increase message size
         // parser fails because the message size is not expected
-        assertThrows(BufferOverflowException.class,() -> codec.parse(data));
+        assertThrows(BufferUnderflowException.class,() -> codec.parse(data));
     }
 
     @Test
