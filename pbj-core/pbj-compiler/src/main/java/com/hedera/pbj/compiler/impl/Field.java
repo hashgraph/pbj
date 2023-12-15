@@ -75,6 +75,14 @@ public interface Field {
 	String javaFieldType();
 
 	/**
+	 * Get the Java field type for this field.
+	 * Unlike {@link #javaFieldType()}, this method returns the base type for repeated and oneOf fields.
+	 *
+	 * @return this fields type in Java format
+	 */
+	String javaFieldTypeBase();
+
+	/**
 	 * Get the name for this type that is added to write/sizeof etc. methods.
 	 *
 	 * @return Name for type used in method names
