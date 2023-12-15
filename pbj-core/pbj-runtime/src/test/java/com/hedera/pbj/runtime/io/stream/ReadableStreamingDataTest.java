@@ -175,7 +175,6 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         final var stream = new TestReadeableSequentialData(new ReadableStreamingData(inputStream));
         ByteBuffer buffer = ByteBuffer.allocate(8);
 
-
         assertEquals(4, stream.readBytes(buffer), "Unexpected number of bytes read");
     }
 
@@ -187,7 +186,6 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         final var stream = new TestReadeableSequentialData(new ReadableStreamingData(inputStream));
         stream.limit(8);
         BufferedData buffer = BufferedData.allocate(8);
-
 
         assertEquals(4, stream.readBytes(buffer), "Unexpected number of bytes read");
     }
@@ -263,7 +261,6 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
             Files.delete(dir);
         }
     }
-
 
     @Test
     void readFileThatDoesntExist() throws IOException {
