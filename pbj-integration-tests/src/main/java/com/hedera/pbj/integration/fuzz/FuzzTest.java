@@ -37,6 +37,18 @@ public class FuzzTest {
         final Random random = new Random();
         final int repeatCount = estimateRepeatCount(object, codec);
 
+        if (repeatCount == 0) {
+            // Certain objects result in zero-size payload, so there's nothing to test.
+            // Mark it as passed.
+            return new FuzzTestResult<>(
+                    object,
+                    true,
+                    Map.of(),
+                    repeatCount,
+                    System.nanoTime() - startNanoTime
+            );
+        }
+
         final Map<SingleFuzzTestResult, Long> resultCounts = IntStream.range(0, repeatCount)
                 .parallel()
                 .mapToObj(n -> SingleFuzzTest.fuzzTest(object, codec, random))
@@ -55,9 +67,13 @@ public class FuzzTest {
 
     private static <T> int estimateRepeatCount(final T object, final Codec<T> codec) {
         final int size = codec.measureRecord(object);
-        // This is purely a heuristic that seems to produce good results.
-        // We may want to limit this value from above for extra large objects.
-        return size * 20;
+        if (size == 0) {
+            // There's no way to test objects that don't have any bytes.
+            return 0;
+        }
+        // Limit this value from above, otherwise tests will take forever for large objects.
+        // Limit this value from below, otherwise there's not enough stats for small objects.
+        return Math.max(2000, Math.min(4000, size * 20));
     }
 
     private static Map<SingleFuzzTestResult, Double> computePercentageMap(

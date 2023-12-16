@@ -57,8 +57,9 @@ testing {
     @Suppress("UnstableApiUsage")
     suites.getByName<JvmTestSuite>("test") {
         useJUnitJupiter()
-        targets.configureEach {
+        targets.all {
             testTask {
+                useJUnitPlatform()
                 // We are running a lot of tests 10s of thousands, so they need to run in parallel
                 systemProperties["junit.jupiter.execution.parallel.enabled"] = true
                 systemProperties["junit.jupiter.execution.parallel.mode.default"] = "concurrent"
@@ -71,7 +72,32 @@ testing {
                 maxHeapSize = "4096m"
             }
         }
+
+        tasks.register<Test>("integTest") {
+            testClassesDirs = sources.output.classesDirs
+            classpath = sources.runtimeClasspath
+
+            shouldRunAfter(tasks.test)
+
+            useJUnitPlatform { excludeTags("FUZZ_TEST") }
+            enableAssertions = true
+        }
+
+        tasks.register<Test>("fuzzTest") {
+            testClassesDirs = sources.output.classesDirs
+            classpath = sources.runtimeClasspath
+
+            shouldRunAfter(tasks.test)
+
+            useJUnitPlatform { includeTags("FUZZ_TEST") }
+            enableAssertions = false
+        }
     }
+}
+
+tasks.test.configure() {
+    actions.clear()
+    dependsOn("integTest", "fuzzTest")
 }
 
 tasks.test {
