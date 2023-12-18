@@ -59,7 +59,6 @@ testing {
         useJUnitJupiter()
         targets.all {
             testTask {
-                useJUnitPlatform()
                 // We are running a lot of tests 10s of thousands, so they need to run in parallel
                 systemProperties["junit.jupiter.execution.parallel.enabled"] = true
                 systemProperties["junit.jupiter.execution.parallel.mode.default"] = "concurrent"
@@ -95,13 +94,9 @@ testing {
     }
 }
 
-tasks.test.configure() {
+tasks.test {
     actions.clear()
     dependsOn("integTest", "fuzzTest")
-}
-
-tasks.test {
-    useJUnitPlatform()
 }
 
 jmh {
