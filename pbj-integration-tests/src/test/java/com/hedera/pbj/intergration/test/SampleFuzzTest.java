@@ -54,6 +54,7 @@ public class SampleFuzzTest {
      * if that many individual model tests pass.
      */
     private static final double PASS_RATE_THRESHOLD = .9;
+
     /**
      * A threshold for the mean value of the shares of DESERIALIZATION_FAILED
      * outcomes across tests for all model objects.
