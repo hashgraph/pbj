@@ -65,6 +65,15 @@ testing {
             useJUnitPlatform { includeTags("FUZZ_TEST") }
             enableAssertions = false
         }
+
+        tasks.register<Test>("randomFuzzTest") {
+            testClassesDirs = sources.output.classesDirs
+            classpath = sources.runtimeClasspath
+
+            useJUnitPlatform { includeTags("FUZZ_TEST") }
+            enableAssertions = false
+            systemProperties["com.hedera.pbj.intergration.test.fuzz.useRandomSeed"] = true
+        }
     }
 }
 
