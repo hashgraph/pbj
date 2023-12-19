@@ -79,8 +79,6 @@ tasks.withType<Test>().configureEach {
     systemProperties["junit.jupiter.execution.parallel.mode.default"] = "concurrent"
     // us parallel GC to keep up with high temporary garbage creation, and allow GC to use 40% of CPU if needed
     jvmArgs("-XX:+UseParallelGC", "-XX:GCTimeRatio=90")
-//                jvmArgs("-XX:+UseZGC","-XX:ZAllocationSpikeTolerance=2")
-//                jvmArgs("-XX:+UseG1GC", "-XX:GCTimeRatio=90", "-XX:MaxGCPauseMillis=100")
     // Some also need more memory
     minHeapSize = "512m"
     maxHeapSize = "4096m"
