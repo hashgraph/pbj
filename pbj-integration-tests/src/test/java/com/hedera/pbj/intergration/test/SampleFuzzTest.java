@@ -166,7 +166,7 @@ public class SampleFuzzTest {
                 = Boolean.valueOf(System.getProperty("com.hedera.pbj.intergration.test.fuzz.useRandomSeed"));
         final long seed = useRandomSeed ? new Random().nextLong() : FIXED_RANDOM_SEED;
 
-        System.out.println("Fuzz tests are configured to use a"
+        System.out.println("Fuzz tests are configured to use a "
                 + (useRandomSeed ? "RANDOM" : "FIXED")
                 + " seed for `new Random(seed)`, and the seed value for this run is: "
                 + seed
