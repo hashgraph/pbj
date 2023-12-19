@@ -65,12 +65,24 @@ public final class SingleFuzzTest {
 
         if (debug) System.out.println(prefix + "Bytes: " + dataBuffer);
 
-        // Previously we modified a single random byte in the buffer.
-        // However, this seems to keep the payload valid more often than we'd like,
-        // especially for large objects with large fields (byte arrays and similar.)
-        // So we modify a random number of random bytes now to inflict more damage.
-        final int numberOfBytesToModify = 1 + random.nextInt(size - 1);
-        for (int i = 0; i < numberOfBytesToModify; i++) {
+        // Ideally, we want to modify a random number of bytes from 1 to size:
+        final int numberOfBytesToModify = (1 + random.nextInt(size - 1));
+        // However:
+        // 1. The size of the object may be large either because it has many fields,
+        //    or it has long byte arrays. So we want to put a hard upper limit,
+        //    otherwise tests will take forever to run.
+        // 2. A large object may in fact have a single field - a long byte array.
+        //    Randomly modifying a few bytes in such an object would likely result
+        //    in a perfectly valid object because this won't corrupt the metadata.
+        //    So we want to put a hard lower limit to try and produce some corruptions.
+        // 3. Further to #2, a single-field object may also be small, in an extreme
+        //    case it can occupy just two bytes - a byte of metadata and the actual
+        //    data. We certainly don't want to limit the number of modifications
+        //    from below by the size of the object because this may result in too few
+        //    modifications (e.g. a single one), which is unlikely to produce a malformed
+        //    payload as often as we need to accumulate the necessary statistics.
+        final int actualNumberOfBytesToModify = Math.max(64, Math.min(1000, numberOfBytesToModify));
+        for (int i = 0; i < actualNumberOfBytesToModify; i++) {
             final int randomPosition = random.nextInt(size);
             final byte randomByte = (byte) random.nextInt(256);
 

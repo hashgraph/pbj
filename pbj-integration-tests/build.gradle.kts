@@ -57,25 +57,31 @@ testing {
     @Suppress("UnstableApiUsage")
     suites.getByName<JvmTestSuite>("test") {
         useJUnitJupiter()
-        targets.configureEach {
-            testTask {
-                // We are running a lot of tests 10s of thousands, so they need to run in parallel
-                systemProperties["junit.jupiter.execution.parallel.enabled"] = true
-                systemProperties["junit.jupiter.execution.parallel.mode.default"] = "concurrent"
-                // us parallel GC to keep up with high temporary garbage creation, and allow GC to use 40% of CPU if needed
-                jvmArgs("-XX:+UseParallelGC", "-XX:GCTimeRatio=90")
-//                jvmArgs("-XX:+UseZGC","-XX:ZAllocationSpikeTolerance=2")
-//                jvmArgs("-XX:+UseG1GC", "-XX:GCTimeRatio=90", "-XX:MaxGCPauseMillis=100")
-                // Some also need more memory
-                minHeapSize = "512m"
-                maxHeapSize = "4096m"
-            }
+
+        tasks.register<Test>("fuzzTest") {
+            testClassesDirs = sources.output.classesDirs
+            classpath = sources.runtimeClasspath
+
+            useJUnitPlatform { includeTags("FUZZ_TEST") }
+            enableAssertions = false
         }
     }
 }
 
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform { excludeTags("FUZZ_TEST") }
+    dependsOn("fuzzTest")
+}
+
+tasks.withType<Test>().configureEach {
+    // We are running a lot of tests 10s of thousands, so they need to run in parallel
+    systemProperties["junit.jupiter.execution.parallel.enabled"] = true
+    systemProperties["junit.jupiter.execution.parallel.mode.default"] = "concurrent"
+    // us parallel GC to keep up with high temporary garbage creation, and allow GC to use 40% of CPU if needed
+    jvmArgs("-XX:+UseParallelGC", "-XX:GCTimeRatio=90")
+    // Some also need more memory
+    minHeapSize = "512m"
+    maxHeapSize = "4096m"
 }
 
 jmh {
