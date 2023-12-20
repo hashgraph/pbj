@@ -30,11 +30,10 @@ public class FuzzTest {
      * for the most desirable DESERIALIZATION_FAILED outcome to determine
      * if the test passed or not.
      */
-    public static <T> FuzzTestResult<T> fuzzTest(final T object, final double threshold) {
+    public static <T> FuzzTestResult<T> fuzzTest(final T object, final double threshold, final Random random) {
         final long startNanoTime = System.nanoTime();
 
         final Codec<T> codec = getCodec(object);
-        final Random random = new Random();
         final int repeatCount = estimateRepeatCount(object, codec);
 
         if (repeatCount == 0) {
@@ -50,7 +49,8 @@ public class FuzzTest {
         }
 
         final Map<SingleFuzzTestResult, Long> resultCounts = IntStream.range(0, repeatCount)
-                .parallel()
+                // Note that we must run this stream sequentially to enable
+                // reproducing the tests for a given random seed.
                 .mapToObj(n -> SingleFuzzTest.fuzzTest(object, codec, random))
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
 
