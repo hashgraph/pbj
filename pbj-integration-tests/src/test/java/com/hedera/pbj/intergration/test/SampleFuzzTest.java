@@ -36,6 +36,10 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * is considered passed or failed.
  */
 public class SampleFuzzTest {
+    // Flip to true to print out results stats for every tested model object.
+    // When false, only the fuzz test summary is printed to stdout.
+    private static final boolean debug = false;
+
     /**
      * A percentage threshold for the share of DESERIALIZATION_FAILED outcomes
      * when running tests for a given model object.
@@ -48,7 +52,7 @@ public class SampleFuzzTest {
 
     /**
      * A percentage threshold for the pass rate across tests
-     * for all odel objects.
+     * for all model objects.
      *
      * The fuzz test as a whole is considered passed
      * if that many individual model tests pass.
@@ -135,7 +139,7 @@ public class SampleFuzzTest {
                 // Note that we must run this stream sequentially to enable
                 // reproducing the tests for a given random seed.
                 .map(object -> FuzzTest.fuzzTest(object, THRESHOLD, random))
-                .peek(result -> System.out.println(result.format()))
+                .peek(result -> { if (debug) System.out.println(result.format()); })
                 .collect(Collectors.toList());
 
         final ResultStats resultStats = results.stream()
@@ -156,7 +160,7 @@ public class SampleFuzzTest {
                 )
                 .orElse(new ResultStats(0., 0.));
 
-        String statsMessage = resultStats.format();
+        final String statsMessage = resultStats.format();
         System.out.println(statsMessage);
         assertTrue(resultStats.passed(), statsMessage);
     }
