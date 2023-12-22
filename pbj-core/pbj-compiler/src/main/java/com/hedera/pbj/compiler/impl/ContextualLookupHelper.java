@@ -3,6 +3,7 @@ package com.hedera.pbj.compiler.impl;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.*;
 
 import java.io.File;
+import java.util.Set;
 
 /**
  * Wrapper around LookupHelper adding the context of which protobuf source file the lookup is happening within. This
@@ -44,8 +45,17 @@ public class ContextualLookupHelper {
      * @param message The msgDef to get fully qualified class name for
      * @return fully qualified class name
      */
-    public String getFullyQualifiedMessageClassname(FileType fileType, MessageDefContext message) {
+    public String getFullyQualifiedMessageClassname(final FileType fileType, final MessageDefContext message) {
         return lookupHelper.getFullyQualifiedClass(srcProtoFileContext, fileType, message);
+    }
+
+    /**
+     * Get the set of fields that are comparable for a given message.
+     * @param message The message to get comparable fields for
+     * @return set of field names that are comparable
+     */
+    public Set<String> getComparableFields(final MessageDefContext message) {
+        return lookupHelper.getComparableFields(message);
     }
 
     /**

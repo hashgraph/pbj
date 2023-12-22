@@ -74,7 +74,7 @@ public abstract class PbjCompilerTask extends SourceTask {
         for (final File protoFile : getSource()) {
             if (protoFile.exists()
                     && protoFile.isFile()
-                    && protoFile.getName().endsWith(".proto")) {
+                    && protoFile.getName().endsWith(LookupHelper.PROTO_EXTENSIION)) {
                 final ContextualLookupHelper contextualLookupHelper =
                         new ContextualLookupHelper(lookupHelper, protoFile);
                 try (var input = new FileInputStream(protoFile)) {

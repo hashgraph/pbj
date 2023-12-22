@@ -14,7 +14,7 @@ import java.util.Objects;
  * @param value    The actual value in the "oneof". May be null.
  * @param <E>      The enum type
  */
-public record OneOf<E>(E kind, Object value) {
+public record OneOf<E extends Enum<E>>(E kind, Object value) implements Comparable<OneOf<E>> {
     /**
      * Construct a new OneOf
      *
@@ -48,6 +48,14 @@ public record OneOf<E>(E kind, Object value) {
     @Override
     public int hashCode() {
         return Objects.hash(kind, value);
+    }
+
+    @Override
+    public int compareTo(OneOf<E> thatObj) {
+        if(thatObj == null) {
+            return 1;
+        }
+        return kind.compareTo(thatObj.kind);
     }
 }
 

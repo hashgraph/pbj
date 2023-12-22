@@ -23,7 +23,11 @@ mainModuleInfo {
     requires("org.antlr.antlr4.runtime")
 }
 
-testModuleInfo { requires("org.junit.jupiter.api") }
+testModuleInfo {
+    requires("org.junit.jupiter.api")
+    requires("org.mockito")
+    requires("org.mockito.junit.jupiter")
+}
 
 gradlePlugin {
     plugins {

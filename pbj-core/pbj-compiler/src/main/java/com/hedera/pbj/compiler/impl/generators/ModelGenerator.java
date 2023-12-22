@@ -17,6 +17,9 @@ import com.hedera.pbj.compiler.impl.FileType;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import org.antlr.v4.runtime.misc.NotNull;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -55,9 +58,10 @@ public final class ModelGenerator implements Generator {
 	 *
 	 * <p>Generates a new model object, as a Java Record type.
 	 */
-	public void generate(final Protobuf3Parser.MessageDefContext msgDef,
-						 final File destinationSrcDir,
-						 File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+	public void generate(final MessageDefContext msgDef,
+                         final File destinationSrcDir,
+                         final File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+
 
 		// The javaRecordName will be something like "AccountID".
 		final var javaRecordName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
@@ -88,140 +92,15 @@ public final class ModelGenerator implements Generator {
 		imports.add("edu.umd.cs.findbugs.annotations");
 
 		// Iterate over all the items in the protobuf schema
-		for(var item: msgDef.messageBody().messageElement()) {
+		for(final var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
 			} else if (item.oneof() != null) { // process one ofs
-				final var oneOfField = new OneOfField(item.oneof(), javaRecordName, lookupHelper);
-				final var enumName = oneOfField.nameCamelFirstUpper() + "OneOfType";
-				final int maxIndex = oneOfField.fields().get(oneOfField.fields().size() - 1).fieldNumber();
-				final Map<Integer, EnumValue> enumValues = new HashMap<>();
-				for (final var field : oneOfField.fields()) {
-					final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
-					final String enumComment = cleanDocStr(field.comment())
-						.replaceAll("[\t\s]*/\\*\\*","") // remove doc start indenting
-						.replaceAll("\n[\t\s]+\\*","\n") // remove doc indenting
-						.replaceAll("/\\*\\*","") //  remove doc start
-						.replaceAll("\\*\\*/",""); //  remove doc end
-					enumValues.put(field.fieldNumber(), new EnumValue(field.name(), field.deprecated(), enumComment));
-					// generate getters for one ofs
-					oneofGetters.add("""
-							/**
-							 * Direct typed getter for one of field $fieldName.
-							 *
-							 * @return one of value or null if one of is not set or a different one of value
-							 */
-							public @Nullable $javaFieldType $fieldName() {
-								return $oneOfField.kind() == $enumName.$enumValue ? ($javaFieldType)$oneOfField.value() : null;
-							}
-							
-							/**
-							 * Convenience method to check if the $oneOfField has a one-of with type $enumValue
-							 *
-							 * @return true of the one of kind is $enumValue
-							 */
-							public boolean has$fieldNameUpperFirst() {
-							    return $oneOfField.kind() == $enumName.$enumValue;
-							}
-							
-							/**
-							 * Gets the value for $fieldName if it has a value, or else returns the default
-							 * value for the type.
-							 *
-							 * @param defaultValue the default value to return if $fieldName is null
-							 * @return the value for $fieldName if it has a value, or else returns the default value
-							 */
-							public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
-							    return has$fieldNameUpperFirst() ? $fieldName() : defaultValue;
-							}
-							
-							/**
-							 * Gets the value for $fieldName if it was set, or throws a NullPointerException if it was not set.
-							 *
-							 * @return the value for $fieldName if it has a value
-							 * @throws NullPointerException if $fieldName is null
-							 */
-							public @NonNull $javaFieldType $fieldNameOrThrow() {
-							    return requireNonNull($fieldName(), "Field $fieldName is null");
-							}
-							"""
-							.replace("$fieldNameUpperFirst",field.nameCamelFirstUpper())
-							.replace("$fieldName",field.nameCamelFirstLower())
-							.replace("$javaFieldType",javaFieldType)
-							.replace("$oneOfField",oneOfField.nameCamelFirstLower())
-							.replace("$enumName",enumName)
-							.replace("$enumValue",camelToUpperSnake(field.name()))
-							.indent(DEFAULT_INDENT)
-					);
-					if (field.type() == Field.FieldType.MESSAGE) {
-						field.addAllNeededImports(imports, true, false, false);
-					}
-				}
-				final String enumComment = """
-									/**
-									 * Enum for the type of "%s" oneof value
-									 */""".formatted(oneOfField.name());
-				final String enumString = createEnum(enumComment ,"",enumName,maxIndex,enumValues, true)
-						.indent(DEFAULT_INDENT * 2);
-				oneofEnums.add(enumString);
-				fields.add(oneOfField);
-				imports.add("com.hedera.pbj.runtime");
+				oneofGetters.addAll(generateCodeForOneOf(lookupHelper, item, javaRecordName, imports, oneofEnums, fields));
 			} else if (item.mapField() != null) { // process map fields
 				System.err.println("Encountered a mapField that was not handled in " + javaRecordName);
 			} else if (item.field() != null && item.field().fieldName() != null) {
-				final SingleField field = new SingleField(item.field(), lookupHelper);
-				fields.add(field);
-				field.addAllNeededImports(imports, true, false, false);
-				if (field.type() == FieldType.MESSAGE) {
-					hasMethods.add("""
-							/**
-							 * Convenience method to check if the $fieldName has a value
-							 *
-							 * @return true of the $fieldName has a value
-							 */
-							public boolean has$fieldNameUpperFirst() {
-							    return $fieldName != null;
-							}
-							
-							/**
-							 * Gets the value for $fieldName if it has a value, or else returns the default
-							 * value for the type.
-							 *
-							 * @param defaultValue the default value to return if $fieldName is null
-							 * @return the value for $fieldName if it has a value, or else returns the default value
-							 */
-							public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
-							    return has$fieldNameUpperFirst() ? $fieldName : defaultValue;
-							}
-							
-							/**
-							 * Gets the value for $fieldName if it has a value, or else throws an NPE.
-							 * value for the type.
-							 *
-							 * @return the value for $fieldName if it has a value
-							 * @throws NullPointerException if $fieldName is null
-							 */
-							public @NonNull $javaFieldType $fieldNameOrThrow() {
-							    return requireNonNull($fieldName, "Field $fieldName is null");
-							}
-							
-							/**
-							 * Executes the supplied {@link Consumer} if, and only if, the $fieldName has a value
-							 *
-							 * @param ifPresent the {@link Consumer} to execute
-							 */
-							public void if$fieldNameUpperFirst(@NonNull final Consumer<$javaFieldType> ifPresent) {
-							    if (has$fieldNameUpperFirst()) {
-							        ifPresent.accept($fieldName);
-							    }
-							}
-							"""
-							.replace("$fieldNameUpperFirst", field.nameCamelFirstUpper())
-							.replace("$javaFieldType", field.javaFieldType())
-							.replace("$fieldName", field.nameCamelFirstLower())
-							.indent(DEFAULT_INDENT)
-					);
-				}
+				generateCodeForField(lookupHelper, item, fields, imports, hasMethods);
 			} else if (item.optionStatement() != null){
 				if ("deprecated".equals(item.optionStatement().optionName().getText())) {
 					deprecated = "@Deprecated ";
@@ -235,11 +114,10 @@ public final class ModelGenerator implements Generator {
 
 		// process field java doc and insert into record java doc
 		if (!fields.isEmpty()) {
-			String recordJavaDoc = !javaDocComment.isEmpty() ?
-					javaDocComment.replaceAll("\n\s*\\*/","") :
-					"/**\n * "+javaRecordName;
+			String recordJavaDoc = javaDocComment.isEmpty() ? "/**\n * " + javaRecordName :
+					javaDocComment.replaceAll("\n\s*\\*/", "");
 			recordJavaDoc += "\n *";
-			for(var field: fields) {
+			for(final var field: fields) {
 				recordJavaDoc += "\n * @param "+field.nameCamelFirstLower()+" "+
 							field.comment()
 								.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()));
@@ -253,50 +131,187 @@ public final class ModelGenerator implements Generator {
 
 		// static codec and default instance
 		bodyContent +=
-       			"""
-                /** Protobuf codec for reading and writing in protobuf format */
-                public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
-                /** JSON codec for reading and writing in JSON format */
-                public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
-				
-                /** Default instance with all fields set to default values */
-                public static final $modelClass DEFAULT = newBuilder().build();
-                """
-				.replace("$modelClass",javaRecordName)
-				.replace("$qualifiedCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
-				.replace("$qualifiedJsonCodecClass",lookupHelper.getFullyQualifiedMessageClassname(FileType.JSON_CODEC, msgDef))
-				.indent(DEFAULT_INDENT);
+				generateCodecFields(msgDef, lookupHelper, javaRecordName);
 
 		// constructor
 		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optionalValueType())) {
-			bodyContent += """
-     
-					/**
-					 * Override the default constructor adding input validation
-					 * %s
-					 */
-					public %s {
-					%s
-					}
-					"""
-					.formatted(
-						fields.stream().map(field -> "\n * @param "+field.nameCamelFirstLower()+" "+
-								field.comment()
-								.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()))
-						).collect(Collectors.joining()),
-						javaRecordName,
-						fields.stream()
-								.filter(f -> f instanceof OneOfField)
-								.map(ModelGenerator::generateConstructorCode)
-								.collect(Collectors.joining("\n"))
-					)
-					.indent(DEFAULT_INDENT);
+			bodyContent += generateConstructor(fields, javaRecordName);
 		}
 
+		bodyContent += generateHashCode(fields);
+
+		bodyContent += generateEquals(fields, javaRecordName);
+
+		bodyContent += generateCompareTo(filterComparableFields(msgDef, lookupHelper, fields), javaRecordName);
+
+		// Has methods
+		bodyContent += String.join("\n", hasMethods);
+		bodyContent += "\n";
+
+		// oneof getters
+		bodyContent += String.join("\n    ", oneofGetters);
+		bodyContent += "\n";
+
+		// builder copy & new builder methods
+		bodyContent = genrateBuilderFactoryMethods(bodyContent, fields);
+
+		// generate builder
+		bodyContent += generateBuilder(msgDef, fields, lookupHelper);
+		bodyContent += "\n";
+
+		// oneof enums
+		bodyContent += String.join("\n    ", oneofEnums);
+
+		// === Build file
+		try (final FileWriter javaWriter = new FileWriter(javaFile)) {
+			javaWriter.write(
+					generateClass(modelPackage, imports, javaDocComment, deprecated, javaRecordName, fields, bodyContent)
+			);
+		}
+	}
+
+	/**
+	 * Generating method that assembles all the previously generated pieces together
+	 * @param modelPackage the model package to use for the code generation
+	 * @param imports the imports to use for the code generation
+	 * @param javaDocComment the java doc comment to use for the code generation
+	 * @param deprecated the deprecated annotation to add
+	 * @param javaRecordName the name of the class
+	 * @param fields the fields to use for the code generation
+	 * @param bodyContent the body content to use for the code generation
+	 * @return the generated code
+	 */
+	@NotNull
+	private static String generateClass(final String modelPackage,
+										final Set<String> imports,
+										final String javaDocComment,
+										final String deprecated,
+										final String javaRecordName,
+										final List<Field> fields,
+										final String bodyContent) {
+		return """
+				package $package;
+				$imports
+				import com.hedera.pbj.runtime.Codec;
+				import java.util.function.Consumer;
+				import java.lang.Comparable;
+				import edu.umd.cs.findbugs.annotations.Nullable;
+				import static java.util.Objects.requireNonNull;
+									
+				$javaDocComment$deprecated
+				public record $javaRecordName(
+				$fields) implements Comparable<$javaRecordName> {
+				$bodyContent}
+				"""
+				.replace("$package", modelPackage)
+				.replace("$imports", imports.isEmpty() ? "" : imports.stream().collect(Collectors.joining(".*;\nimport ", "\nimport ", ".*;\n")))
+				.replace("$javaDocComment", javaDocComment)
+				.replace("$deprecated", deprecated)
+				.replace("$javaRecordName", javaRecordName)
+				.replace("$fields", fields.stream().map(field ->
+						(field.type() == FieldType.MESSAGE ? "@Nullable " : "")
+								+ field.javaFieldType() + " " + field.nameCamelFirstLower()
+				).collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT))
+				.replace("$bodyContent", bodyContent);
+	}
+
+
+	/**
+	 * Filter the fields to only include those that are comparable
+	 * @param msgDef The message definition
+	 * @param lookupHelper The lookup helper
+	 * @param fields The fields to filter
+	 * @return the filtered fields
+	 */
+	@NonNull
+	private static List<Field> filterComparableFields(final MessageDefContext msgDef,
+													  final ContextualLookupHelper lookupHelper,
+													  final List<Field> fields) {
+		final Set<String> comparableFields = lookupHelper.getComparableFields(msgDef);
+		if(comparableFields.isEmpty()) {
+			// consider all fields in compareTo by defalut
+			return fields;
+		}
+		return fields.stream().filter(f -> comparableFields.contains(f.nameCamelFirstLower())).collect(Collectors.toList());
+	}
+
+	/**
+	 * Generates the compareTo method
+	 * @param fields the fields to use for the code generation
+	 * @param javaRecordName the name of the class
+	 * @return the generated code
+	 */
+	@NonNull
+	private static String generateCompareTo(final List<Field> fields, final String javaRecordName) {
+		String bodyContent =
+			"""
+			/**
+			* Implemenetation of Comparable interface
+			*/
+			@Override
+			public int compareTo($javaRecordName thatObj) {
+				if (thatObj == null) {
+					return 1;
+				}
+				int result = 0;
+			""".replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
+
+		bodyContent += Common.getFieldsCompareToStatements(fields, "");
+
+		bodyContent +=
+			"""
+				return result;
+			}
+			""".indent(DEFAULT_INDENT);
+		return bodyContent;
+	}
+
+	/**
+	 * Generates the equals method
+	 * @param fields the fields to use for the code generation
+	 * @param javaRecordName the name of the class
+	 * @return the generated code
+	 */
+	@NonNull
+	private static String generateEquals(final List<Field> fields, final String javaRecordName) {
+		String equalsStatements = "";
+		// Generate a call to private method that iterates through fields
+		// and calculates the hashcode.
+		equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
+
+		String bodyContent =
+		"""
+		/**
+		* Override the default equals method for
+		*/
+		@Override
+		public boolean equals(Object that) {
+		    if (that == null || this.getClass() != that.getClass()) {
+		        return false;
+		    }
+		    $javaRecordName thatObj = ($javaRecordName)that;
+		""".replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
+
+		bodyContent += equalsStatements.indent(DEFAULT_INDENT);
+		bodyContent +=
+		"""
+		    return true;
+		}
+		""".indent(DEFAULT_INDENT);
+		return bodyContent;
+	}
+
+	/**
+	 * Generates the hashCode method
+	 * @param fields the fields to use for the code generation
+	 * @return the generated code
+	 */
+	@NonNull
+	private static String generateHashCode(final List<Field> fields) {
 		// Generate a call to private method that iterates through fields and calculates the hashcode
 		final String statements = getFieldsHashCode(fields, "");
 
-		bodyContent +=
+		String bodyContent =
 			"""
 			/**
 			* Override the default hashCode method for
@@ -317,41 +332,258 @@ public final class ModelGenerator implements Generator {
 			}
 			""".replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
 				.indent(DEFAULT_INDENT);
+		return bodyContent;
+	}
 
-		String equalsStatements = "";
-		// Generate a call to private method that iterates through fields
-		// and calculates the hashcode.
-		equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
+	/**
+	 * Generates constructor code for the class
+	 * @param fields the fields to use for the code generation
+	 * @param javaRecordName the name of the class
+	 * @return the generated code
+	 */
+	@NonNull
+	private static String generateConstructor(final List<Field> fields, final String javaRecordName) {
+		return """
+				     
+				/**
+				 * Override the default constructor adding input validation
+				 * %s
+				 */
+				public %s {
+				%s
+				}
+				"""
+				.formatted(
+						fields.stream().map(field -> "\n * @param " + field.nameCamelFirstLower() + " " +
+								field.comment()
+										.replaceAll("\n", "\n *         " + " ".repeat(field.nameCamelFirstLower().length()))
+						).collect(Collectors.joining()),
+						javaRecordName,
+						fields.stream()
+								.filter(f -> f instanceof OneOfField)
+								.map(ModelGenerator::generateConstructorCodeForField)
+								.collect(Collectors.joining("\n"))
+				)
+				.indent(DEFAULT_INDENT);
+	}
 
-		bodyContent +=
-		"""
-		/**
-		* Override the default equals method for
-		*/
-		@Override
-		public boolean equals(Object that) {
-		    if (that == null || this.getClass() != that.getClass()) {
-		        return false;
-		    }
-		    $javaRecordName thatObj = ($javaRecordName)that;
-		""".replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
-
-		bodyContent += equalsStatements.indent(DEFAULT_INDENT);
-		bodyContent +=
-		"""
-		    return true;
+	/**
+	 * Generates the constructor code for the class
+	 * @param f the field to use for the code generation
+	 * @return the generated code
+	 */
+	private static String generateConstructorCodeForField(final Field f) {
+		final StringBuilder sb = new StringBuilder("""
+								if ($fieldName == null) {
+								    throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
+								}""".replace("$fieldName", f.nameCamelFirstLower()));
+		if (f instanceof final OneOfField oof) {
+			for (final Field subField: oof.fields()) {
+				if(subField.optionalValueType()) {
+					sb.append("""
+       
+							// handle special case where protobuf does not have destination between a OneOf with optional
+							// value of empty vs an unset OneOf.
+							if($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldName.value() == null) {
+							$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
+							}"""
+							.replace("$fieldName", f.nameCamelFirstLower())
+							.replace("$fieldUpperName", f.nameCamelFirstUpper())
+							.replace("$subFieldNameUpper", camelToUpperSnake(subField.name()))
+					);
+				}
+			}
 		}
-		""".indent(DEFAULT_INDENT);
+		return sb.toString().indent(DEFAULT_INDENT);
+	}
 
-		// Has methods
-		bodyContent += String.join("\n", hasMethods);
-		bodyContent += "\n";
+	/**
+	 * Generates codec fields for the calss
+	 * @param msgDef the message definition
+	 * @param lookupHelper the lookup helper
+	 * @param javaRecordName the name of the class
+	 * @return the generated code
+	 */
+	@NonNull
+	private static String generateCodecFields(final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper, final String javaRecordName) {
+		return """
+				/** Protobuf codec for reading and writing in protobuf format */
+				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
+				/** JSON codec for reading and writing in JSON format */
+				public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
+								
+				/** Default instance with all fields set to default values */
+				public static final $modelClass DEFAULT = newBuilder().build();
+				"""
+				.replace("$modelClass", javaRecordName)
+				.replace("$qualifiedCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
+				.replace("$qualifiedJsonCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.JSON_CODEC, msgDef))
+				.indent(DEFAULT_INDENT);
+	}
 
-		// oneof getters
-		bodyContent += String.join("\n    ", oneofGetters);
-		bodyContent += "\n";
+	/**
+	 * Generates accessor fields for the class
+	 * @param item message element context provided by the parser
+	 * @param fields the fields to use for the code generation
+	 * @param imports the imports to use for the code generation
+	 * @param hasMethods the has methods to use for the code generation
+	 */
+	private static void generateCodeForField(final ContextualLookupHelper lookupHelper,
+                                             final Protobuf3Parser.MessageElementContext item,
+                                             final List<Field> fields,
+                                             final Set<String> imports,
+                                             final List<String> hasMethods) {
+		final SingleField field = new SingleField(item.field(), lookupHelper);
+		fields.add(field);
+		field.addAllNeededImports(imports, true, false, false);
+		if (field.type() == FieldType.MESSAGE) {
+			hasMethods.add("""
+					/**
+					 * Convenience method to check if the $fieldName has a value
+					 *
+					 * @return true of the $fieldName has a value
+					 */
+					public boolean has$fieldNameUpperFirst() {
+						return $fieldName != null;
+					}
+					
+					/**
+					 * Gets the value for $fieldName if it has a value, or else returns the default
+					 * value for the type.
+					 *
+					 * @param defaultValue the default value to return if $fieldName is null
+					 * @return the value for $fieldName if it has a value, or else returns the default value
+					 */
+					public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
+						return has$fieldNameUpperFirst() ? $fieldName : defaultValue;
+					}
+					
+					/**
+					 * Gets the value for $fieldName if it has a value, or else throws an NPE.
+					 * value for the type.
+					 *
+					 * @return the value for $fieldName if it has a value
+					 * @throws NullPointerException if $fieldName is null
+					 */
+					public @NonNull $javaFieldType $fieldNameOrThrow() {
+						return requireNonNull($fieldName, "Field $fieldName is null");
+					}
+					
+					/**
+					 * Executes the supplied {@link Consumer} if, and only if, the $fieldName has a value
+					 *
+					 * @param ifPresent the {@link Consumer} to execute
+					 */
+					public void if$fieldNameUpperFirst(@NonNull final Consumer<$javaFieldType> ifPresent) {
+						if (has$fieldNameUpperFirst()) {
+							ifPresent.accept($fieldName);
+						}
+					}
+					"""
+					.replace("$fieldNameUpperFirst", field.nameCamelFirstUpper())
+					.replace("$javaFieldType", field.javaFieldType())
+					.replace("$fieldName", field.nameCamelFirstLower())
+					.indent(DEFAULT_INDENT)
+			);
+		}
+	}
 
-		// builder copy & new builder methods
+	/**
+	 * Generates the code related to the oneof field
+	 * @param lookupHelper the lookup helper
+	 * @param item message element context provided by the parser
+	 * @param javaRecordName the name of the class
+	 * @param imports the imports to use for the code generation
+	 * @param oneofEnums the oneof enums to use for the code generation
+	 * @param fields the fields to use for the code generation
+	 * @return the generated code
+	 */
+	private static List<String>  generateCodeForOneOf(final ContextualLookupHelper lookupHelper,
+                                                      final Protobuf3Parser.MessageElementContext item,
+                                                      final String javaRecordName,
+                                                      final Set<String> imports,
+                                                      final List<String> oneofEnums,
+                                                      final List<Field> fields) {
+		final List<String> oneofGetters = new ArrayList<>();
+		final var oneOfField = new OneOfField(item.oneof(), javaRecordName, lookupHelper);
+		final var enumName = oneOfField.nameCamelFirstUpper() + "OneOfType";
+		final int maxIndex = oneOfField.fields().get(oneOfField.fields().size() - 1).fieldNumber();
+		final Map<Integer, EnumValue> enumValues = new HashMap<>();
+		for (final var field : oneOfField.fields()) {
+			final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
+			final String enumComment = cleanDocStr(field.comment())
+				.replaceAll("[\t\s]*/\\*\\*","") // remove doc start indenting
+				.replaceAll("\n[\t\s]+\\*","\n") // remove doc indenting
+				.replaceAll("/\\*\\*","") //  remove doc start
+				.replaceAll("\\*\\*/",""); //  remove doc end
+			enumValues.put(field.fieldNumber(), new EnumValue(field.name(), field.deprecated(), enumComment));
+			// generate getters for one ofs
+			oneofGetters.add("""
+					/**
+					 * Direct typed getter for one of field $fieldName.
+					 *
+					 * @return one of value or null if one of is not set or a different one of value
+					 */
+					public @Nullable $javaFieldType $fieldName() {
+						return $oneOfField.kind() == $enumName.$enumValue ? ($javaFieldType)$oneOfField.value() : null;
+					}
+					
+					/**
+					 * Convenience method to check if the $oneOfField has a one-of with type $enumValue
+					 *
+					 * @return true of the one of kind is $enumValue
+					 */
+					public boolean has$fieldNameUpperFirst() {
+						return $oneOfField.kind() == $enumName.$enumValue;
+					}
+					
+					/**
+					 * Gets the value for $fieldName if it has a value, or else returns the default
+					 * value for the type.
+					 *
+					 * @param defaultValue the default value to return if $fieldName is null
+					 * @return the value for $fieldName if it has a value, or else returns the default value
+					 */
+					public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
+						return has$fieldNameUpperFirst() ? $fieldName() : defaultValue;
+					}
+					
+					/**
+					 * Gets the value for $fieldName if it was set, or throws a NullPointerException if it was not set.
+					 *
+					 * @return the value for $fieldName if it has a value
+					 * @throws NullPointerException if $fieldName is null
+					 */
+					public @NonNull $javaFieldType $fieldNameOrThrow() {
+						return requireNonNull($fieldName(), "Field $fieldName is null");
+					}
+					"""
+					.replace("$fieldNameUpperFirst",field.nameCamelFirstUpper())
+					.replace("$fieldName",field.nameCamelFirstLower())
+					.replace("$javaFieldType",javaFieldType)
+					.replace("$oneOfField",oneOfField.nameCamelFirstLower())
+					.replace("$enumName",enumName)
+					.replace("$enumValue",camelToUpperSnake(field.name()))
+					.indent(DEFAULT_INDENT)
+			);
+			if (field.type() == FieldType.MESSAGE) {
+				field.addAllNeededImports(imports, true, false, false);
+			}
+		}
+		final String enumComment = """
+							/**
+							 * Enum for the type of "%s" oneof value
+							 */""".formatted(oneOfField.name());
+		final String enumString = createEnum(enumComment ,"",enumName,maxIndex,enumValues, true)
+				.indent(DEFAULT_INDENT * 2);
+		oneofEnums.add(enumString);
+		fields.add(oneOfField);
+		imports.add("com.hedera.pbj.runtime");
+		return oneofGetters;
+	}
+
+	@NotNull
+	private static String genrateBuilderFactoryMethods(String bodyContent, final List<Field> fields) {
 		bodyContent +=
     		"""
 			/**
@@ -375,45 +607,10 @@ public final class ModelGenerator implements Generator {
 			"""
 			.formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
 			.indent(DEFAULT_INDENT);
-
-		// generate builder
-		bodyContent += generateBuilder(msgDef, fields, lookupHelper);
-		bodyContent += "\n";
-
-		// oneof enums
-		bodyContent += String.join("\n    ", oneofEnums);
-
-		// === Build file
-		try (FileWriter javaWriter = new FileWriter(javaFile)) {
-			javaWriter.write(
-     				"""
-					package $package;
-					$imports
-					import com.hedera.pbj.runtime.Codec;
-					import java.util.function.Consumer;
-					import edu.umd.cs.findbugs.annotations.Nullable;
-					import static java.util.Objects.requireNonNull;
-					
-					$javaDocComment$deprecated
-					public record $javaRecordName(
-					$fields){
-					$bodyContent}
-					"""
-					.replace("$package",modelPackage)
-					.replace("$imports",imports.isEmpty() ? "" : imports.stream().collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")))
-					.replace("$javaDocComment",javaDocComment)
-					.replace("$deprecated", deprecated)
-					.replace("$javaRecordName",javaRecordName)
-					.replace("$fields", fields.stream().map(field ->
-							(field.type() == FieldType.MESSAGE ? "@Nullable " : "")
-									+ field.javaFieldType() + " " + field.nameCamelFirstLower()
-					).collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT))
-					.replace("$bodyContent",bodyContent)
-			);
-		}
+		return bodyContent;
 	}
 
-	private static void generateBuilderMethods(List<String> builderMethods, Field field) {
+	private static void generateBuilderMethods(final List<String> builderMethods, final Field field) {
 		final String prefix, postfix, fieldToSet;
 		final OneOfField parentOneOfField = field.parent();
 		if (parentOneOfField != null) {
@@ -497,13 +694,20 @@ public final class ModelGenerator implements Generator {
 		}
 	}
 
-	private static String generateBuilder(final Protobuf3Parser.MessageDefContext msgDef, List<Field> fields, final ContextualLookupHelper lookupHelper) {
+	/**
+	 * Generates the builder for the class
+	 * @param msgDef the message definition
+	 * @param fields the fields to use for the code generation
+	 * @param lookupHelper the lookup helper
+	 * @return the generated code
+	 */
+	private static String generateBuilder(final MessageDefContext msgDef, final List<Field> fields, final ContextualLookupHelper lookupHelper) {
 		final String javaRecordName = msgDef.messageName().getText();
-		List<String> builderMethods = new ArrayList<>();
-		for (Field field: fields) {
+		final List<String> builderMethods = new ArrayList<>();
+		for (final Field field: fields) {
 			if (field.type() == Field.FieldType.ONE_OF) {
 				final OneOfField oneOfField = (OneOfField) field;
-				for (Field subField: oneOfField.fields()) {
+				for (final Field subField: oneOfField.fields()) {
 					generateBuilderMethods(builderMethods, subField);
 				}
 			} else {
@@ -546,7 +750,12 @@ public final class ModelGenerator implements Generator {
 				.indent(DEFAULT_INDENT);
 	}
 
-	private static String generatePrePopulatedBuilder(List<Field> fields) {
+	/**
+	 * Generates the pre-populated builder for the class
+	 * @param fields the fields to use for the code generation
+	 * @return the generated code
+	 */
+	private static String generatePrePopulatedBuilder(final List<Field> fields) {
 		if (fields.isEmpty()) {
 			return "";
 		}
@@ -570,7 +779,14 @@ public final class ModelGenerator implements Generator {
 				.indent(DEFAULT_INDENT);
 	}
 
-	private static String getDefaultValue(Field field, final Protobuf3Parser.MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
+	/**
+	 * Gets the default value for the field
+	 * @param field the field to use for the code generation
+	 * @param msgDef the message definition
+	 * @param lookupHelper the lookup helper
+	 * @return the generated code
+	 */
+	private static String getDefaultValue(final Field field, final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
 		if (field.type() == Field.FieldType.ONE_OF) {
 			return lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef)+"."+field.javaDefault();
 		} else {
@@ -578,28 +794,4 @@ public final class ModelGenerator implements Generator {
 		}
 	}
 
-	private static String generateConstructorCode(final Field f) {
-		StringBuilder sb = new StringBuilder("""
-								if ($fieldName == null) {
-								    throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
-								}""".replace("$fieldName", f.nameCamelFirstLower()));
-		if (f instanceof final OneOfField oof) {
-			for (Field subField: oof.fields()) {
-				if(subField.optionalValueType()) {
-					sb.append("""
-       
-							// handle special case where protobuf does not have destination between a OneOf with optional
-							// value of empty vs an unset OneOf.
-							if($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldName.value() == null) {
-							$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
-							}"""
-							.replace("$fieldName", f.nameCamelFirstLower())
-							.replace("$fieldUpperName", f.nameCamelFirstUpper())
-							.replace("$subFieldNameUpper", camelToUpperSnake(subField.name()))
-					);
-				}
-			}
-		}
-		return sb.toString().indent(DEFAULT_INDENT);
-	}
 }

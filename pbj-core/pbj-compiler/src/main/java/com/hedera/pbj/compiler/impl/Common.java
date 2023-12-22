@@ -340,11 +340,11 @@ public final class Common {
 	}
 
 	/**
-	 * Recursively calculates the hashcode for a message fields.
+	 * Recursively calculates `equals` statement for a message fields.
 	 *
 	 * @param fields The fields of this object.
 	 * @param generatedCodeSoFar The accumulated hash code so far.
-	 * @return The generated code for getting the hashCode value.
+	 * @return The generated code for getting the object equality
 	 */
 	public static String getFieldsEqualsStatements(final List<Field> fields, String generatedCodeSoFar) {
 		for(Field f : fields) {
@@ -417,7 +417,7 @@ public final class Common {
                             }
                             """).replace("$fieldName", f.nameCamelFirstLower());
                 } else {
-                    throw new IllegalArgumentException("Unexpected field type for getting HashCode - " + f.type().toString());
+                    throw new IllegalArgumentException("Unexpected field type for getting Equals - " + f.type().toString());
                 }
             }
 		}
@@ -499,6 +499,168 @@ public final class Common {
 		}
 		""").replace("$fieldName", f.nameCamelFirstLower());
 		return generatedCodeSoFar;
+	}
+
+
+	/**
+	 * Generate the compareTo method content for the provided fields
+	 * @param fields The fields of this object.
+	 * @param generatedCodeSoFar the generated code so far (non-empty in case of nested objects)
+	 * @return The generated code for compareTo method body
+	 */
+	public static String getFieldsCompareToStatements(final List<Field> fields, String generatedCodeSoFar) {
+		for(Field f : fields) {
+			if (f.parent() != null) {
+				final OneOfField oneOfField = f.parent();
+				generatedCodeSoFar += getFieldsCompareToStatements(oneOfField.fields(), generatedCodeSoFar);
+			}
+
+			if (f.optionalValueType()) {
+				generatedCodeSoFar += getPrimitiveWrapperCompareToGeneration(f);
+			}
+			else if (f.repeated()) {
+				// intentionally skipping repeated fields
+			} else {
+				f.nameCamelFirstLower();
+				if (f.type() == Field.FieldType.FIXED32 ||
+						f.type() == Field.FieldType.INT32 ||
+						f.type() == Field.FieldType.SFIXED32 ||
+						f.type() == Field.FieldType.SINT32 ||
+						f.type() == Field.FieldType.UINT32) {
+					generatedCodeSoFar +=
+							"""
+                            result = Integer.compare($fieldName, thatObj.$fieldName);
+                            if (result != 0) {
+                                return result;
+                            }
+                            """.replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.FIXED64 ||
+						f.type() == Field.FieldType.INT64 ||
+						f.type() == Field.FieldType.SFIXED64 ||
+						f.type() == Field.FieldType.SINT64 ||
+						f.type() == Field.FieldType.UINT64) {
+					generatedCodeSoFar +=
+							"""
+                            result = Long.compare($fieldName, thatObj.$fieldName);
+                            if (result != 0) {
+                                return result;
+                            }
+                            """.replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.BOOL) {
+					generatedCodeSoFar +=
+							"""
+                            result = Boolean.compare($fieldName, thatObj.$fieldName);
+                            if (result != 0) {
+                                return result;
+                            }
+                             """.replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.FLOAT) {
+					generatedCodeSoFar +=
+							"""
+                            result = Float.compare($fieldName, thatObj.$fieldName);
+                            if (result != 0) {
+                                return result;
+                            }
+                             """.replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.DOUBLE) {
+					generatedCodeSoFar +=
+							"""
+                            result = Double.compare($fieldName, thatObj.$fieldName);
+                            if (result != 0) {
+                                return result;
+                            }
+                             """.replace("$fieldName", f.nameCamelFirstLower());
+				} else if(f.type() == Field.FieldType.BYTES) {
+					generatedCodeSoFar +=
+							"""
+							// byte-to-byte comparison is most likely impractical, so we just compare the length
+							if ($fieldName == null && thatObj.$fieldName != null) {
+								return -1;
+							} else if ($fieldName != null && thatObj.$fieldName == null) {
+								return 1;
+							} else if ($fieldName != null) {
+								result = (int) ($fieldName.length() - thatObj.$fieldName.length());
+							}
+							if(result != 0) {
+								return result;
+							}
+							""".replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.STRING ||
+						f.type() == Field.FieldType.ENUM ||
+						f.parent() == null /* Process a sub-message */) {
+					generatedCodeSoFar += (
+							"""
+                            if ($fieldName == null && thatObj.$fieldName != null) {
+                                return -1;
+                            }
+                            if ($fieldName != null &&  thatObj.$fieldName == null) {
+                                return 1;
+                            }
+                            if ($fieldName != null) {
+                                result = $fieldName.compareTo(thatObj.$fieldName);
+                            }
+                            if(result != 0) {
+                                return result;
+                            }
+                            """).replace("$fieldName", f.nameCamelFirstLower());
+				}  else {
+					throw new IllegalArgumentException("Unexpected field type for getting HashCode - " + f.type().toString());
+				}
+			}
+		}
+		return generatedCodeSoFar.indent(DEFAULT_INDENT * 2);
+	}
+
+	/**
+	 * Generates the compareTo code for a primitive wrapper field.
+	 * @param f The field for which to generate the compareTo code.
+	 * @return The generated code for compareTo method body
+	 */
+	private static String getPrimitiveWrapperCompareToGeneration(Field f) {
+		final String template =
+				"""
+                    if ($fieldName == null && thatObj.$fieldName != null) {
+                        return -1;
+                    } else if ($fieldName != null && thatObj.$fieldName == null) {
+                        return 1;
+                    } else if ($fieldName != null) {
+                        result = $compareStatement;
+                    }
+                    if(result != 0) {
+                        return result;
+                    }
+                    """;
+
+
+		final String compareStatement;
+		switch (f.messageType()) {
+			case "StringValue" ->
+					compareStatement =
+							"$fieldName.compareTo(thatObj.$fieldName)";
+			case "BoolValue" ->
+					compareStatement =
+							"java.lang.Boolean.compare($fieldName, thatObj.$fieldName)";
+			case "Int32Value", "UInt32Value" ->
+					compareStatement =
+							"java.lang.Integer.compare($fieldName, thatObj.$fieldName)";
+			case "Int64Value", "UInt64Value" ->
+					compareStatement =
+							"java.lang.Long.compare($fieldName, thatObj.$fieldName)";
+			case "FloatValue" ->
+					compareStatement =
+							"java.lang.Float.compare($fieldName, thatObj.$fieldName)";
+			case "DoubleValue" ->
+					compareStatement =
+							"java.lang.Double.compare($fieldName, thatObj.$fieldName)";
+			case "BytesValue" ->
+					compareStatement =
+							"(int)($fieldName.length() - thatObj.$fieldName.length())";
+			default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
+		}
+
+		return template
+				.replace("$compareStatement", compareStatement)
+				.replace("$fieldName", f.nameCamelFirstLower());
 	}
 
 	/**
