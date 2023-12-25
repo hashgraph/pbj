@@ -85,21 +85,21 @@ jobs:
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
+        uses: gradle/gradle-build-action@982da8e78c05368c70dac0351bb82647a9e9a5d2 # v2.11.1
         with:
           gradle-version: ${{ inputs.gradle-version }}
           gradle-home-cache-strict-match: false
 
       - name: Gradle Assemble (PBJ Core)
         id: gradle-build
-        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
+        uses: gradle/gradle-build-action@982da8e78c05368c70dac0351bb82647a9e9a5d2 # v2.11.1
         with:
           gradle-version: ${{ inputs.gradle-version }}
           build-root-directory: ${{ env.PBJ_CORE }}
           arguments: assemble --scan
 
       - name: Gradle Check (PBJ Core)
-        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
+        uses: gradle/gradle-build-action@982da8e78c05368c70dac0351bb82647a9e9a5d2 # v2.11.1
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -123,7 +123,7 @@ jobs:
 
       - name: Gradle Maven Local (PBJ Core)
         id: gradle-publish-local
-        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
+        uses: gradle/gradle-build-action@982da8e78c05368c70dac0351bb82647a9e9a5d2 # v2.11.1
         if: ${{ (inputs.enable-integration-tests || inputs.enable-jmh-tests) && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -132,7 +132,7 @@ jobs:
 
       - name: Gradle Assemble (PBJ Integration)
         id: gradle-integration-build
-        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
+        uses: gradle/gradle-build-action@982da8e78c05368c70dac0351bb82647a9e9a5d2 # v2.11.1
         if: ${{ (inputs.enable-integration-tests || inputs.enable-jmh-tests) && steps.gradle-publish-local.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -140,7 +140,7 @@ jobs:
           arguments: assemble --scan
 
       - name: Gradle Check (PBJ Integration)
-        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
+        uses: gradle/gradle-build-action@982da8e78c05368c70dac0351bb82647a9e9a5d2 # v2.11.1
         if: ${{ inputs.enable-integration-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -156,7 +156,7 @@ jobs:
           junit_files: "${{ env.PBJ_INTEGRATION_TESTS }}/**/build/test-results/**/*.xml"
 
       - name: Gradle JMH Jars (PBJ Integration)
-        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
+        uses: gradle/gradle-build-action@982da8e78c05368c70dac0351bb82647a9e9a5d2 # v2.11.1
         if: ${{ inputs.enable-jmh-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -164,7 +164,7 @@ jobs:
           arguments: jmhJar --scan
 
       - name: Gradle JMH Benchmarks (PBJ Integration)
-        uses: gradle/gradle-build-action@842c587ad8aa4c68eeba24c396e15af4c2e9f30a # v2.9.0
+        uses: gradle/gradle-build-action@982da8e78c05368c70dac0351bb82647a9e9a5d2 # v2.11.1
         if: ${{ inputs.enable-jmh-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
