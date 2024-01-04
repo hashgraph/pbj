@@ -2,6 +2,7 @@ package com.hedera.pbj.runtime.io;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
 import java.util.Arrays;
 
 final class WritableSequentialDataTest extends WritableTestBase {
@@ -58,9 +59,14 @@ final class WritableSequentialDataTest extends WritableTestBase {
 
         @Override
         public long skip(long count) {
-            final long numToSkip = Math.max(Math.min(count, limit - position), 0);
-            position += numToSkip;
-            return numToSkip;
+            if (count > limit - position) {
+                throw new BufferUnderflowException();
+            }
+            if (count <= 0) {
+                return 0;
+            }
+            position += count;
+            return count;
         }
 
         @Override

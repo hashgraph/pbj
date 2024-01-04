@@ -298,7 +298,7 @@ public sealed class BufferedData
      */
     @Override
     public long skip(final long count) {
-        if (count > Integer.MAX_VALUE || buffer.remaining() < (int) count) {
+        if (count > Integer.MAX_VALUE || (int) count > buffer.remaining()) {
             throw new BufferUnderflowException();
         }
         if (count <= 0) {
