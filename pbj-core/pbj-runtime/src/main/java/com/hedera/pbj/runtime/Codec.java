@@ -17,9 +17,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @param <T> The type of object to serialize and deserialize
  */
 public interface Codec<T /*extends Record*/> {
+
     // NOTE: When services has finished migrating to protobuf based objects in state,
     // then we should strongly enforce Codec works with Records. This will reduce bugs
     // where people try to use a mutable object.
+
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
      *
@@ -30,6 +32,19 @@ public interface Codec<T /*extends Record*/> {
      *     input
      */
     @NonNull T parse(@NonNull ReadableSequentialData input) throws IOException;
+
+    /**
+     * Parses an object from the {@link Bytes} and returns it.
+     *
+     * @param bytes The {@link Bytes} from which to read the data to construct an object
+     * @return The parsed object. It must not return null.
+     * @throws IOException If it is impossible to read from the {@link Bytes}
+     * @throws NoSuchElementException If there is no element of type T that can be parsed from this
+     *     input
+     */
+    @NonNull default T parse(@NonNull Bytes bytes) throws IOException {
+        return parse(bytes.toReadableSequentialData());
+    }
 
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it. Throws an exception if fields
@@ -46,6 +61,24 @@ public interface Codec<T /*extends Record*/> {
      *     input
      */
     @NonNull T parseStrict(@NonNull ReadableSequentialData input) throws IOException;
+
+    /**
+     * Parses an object from the {@link Bytes} and returns it. Throws an exception if fields
+     * have been defined on the encoded object that are not supported by the parser. This
+     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
+     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * parsing it is prepared to handle.
+     *
+     * @param bytes The {@link Bytes} from which to read the data to construct an object
+     * @return The parsed object. It must not return null.
+     * @throws IOException If it is impossible to read from the {@link Bytes}
+     * @throws UnknownFieldException If an unknown field is encountered while parsing the object
+     * @throws NoSuchElementException If there is no element of type T that can be parsed from this
+     *     input
+     */
+    @NonNull default T parseStrict(@NonNull Bytes bytes) throws IOException {
+        return parseStrict(bytes.toReadableSequentialData());
+    }
 
     /**
      * Writes an item to the given {@link WritableSequentialData}.
