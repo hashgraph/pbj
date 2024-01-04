@@ -15,4 +15,8 @@ public class MalformedProtobufException extends IOException {
 	public MalformedProtobufException(final String message) {
 		super(message);
 	}
+
+	public MalformedProtobufException(final String message, final Throwable cause) {
+		super(message, cause);
+	}
 }

@@ -5,7 +5,10 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -200,7 +203,7 @@ public final class ProtoParserTools {
      * @param input the input to read from
      * @return Read string
      */
-    public static String readString(final ReadableSequentialData input) {
+    public static String readString(final ReadableSequentialData input) throws IOException {
         final int length = input.readVarInt(false);
         if (input.remaining() < length) {
             throw new BufferUnderflowException();
@@ -211,7 +214,16 @@ public final class ProtoParserTools {
             throw new BufferUnderflowException();
         }
 
-        return new String(bytes,StandardCharsets.UTF_8);
+        try {
+            // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException e) {
+            throw new MalformedProtobufException("Malformed UTF-8 string encountered", e);
+        }
     }
 
     /**
@@ -250,6 +262,9 @@ public final class ProtoParserTools {
             case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
             case WIRE_TYPE_DELIMITED -> {
                 final int length = input.readVarInt(false);
+                if (length < 0) {
+                    throw new IOException("Encountered a field with negative length " + length);
+                }
                 input.skip(length);
             }
             case WIRE_TYPE_GROUP_START -> throw new IOException("Wire type 'Group Start' is unsupported");

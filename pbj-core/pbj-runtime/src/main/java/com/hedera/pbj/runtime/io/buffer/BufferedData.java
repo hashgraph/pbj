@@ -297,8 +297,10 @@ public sealed class BufferedData
      * {@inheritDoc}
      */
     @Override
-    public long skip(long count) {
-        count = Math.min(count, buffer.remaining());
+    public long skip(final long count) {
+        if (count > Integer.MAX_VALUE || buffer.remaining() < (int) count) {
+            throw new BufferUnderflowException();
+        }
         if (count <= 0) {
             return 0;
         }
