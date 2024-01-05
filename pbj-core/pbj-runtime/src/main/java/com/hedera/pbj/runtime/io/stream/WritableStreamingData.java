@@ -7,7 +7,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.BufferOverflowException;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
@@ -106,7 +105,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable 
             // We can only skip UP TO count.
             // And if the maximum bytes we can end up skipping is not positive, then we can't skip any bytes.
             if (count > remaining()) {
-                throw new BufferUnderflowException();
+                throw new BufferOverflowException();
             }
             if (count <= 0) {
                 return 0;

@@ -74,7 +74,7 @@ public interface SequentialData {
 
     /**
      * Move {@link #position()} forward by {@code count} bytes. If the {@code count} would move the position past the
-     * {@link #limit()}, then clamp the position to the {@link #limit()}.
+     * {@link #limit()}, then a buffer overflow or underflow exception is thrown.
      *
      * @param count number of bytes to skip. If 0 or negative, then no bytes are skipped.
      * @return the actual number of bytes skipped.

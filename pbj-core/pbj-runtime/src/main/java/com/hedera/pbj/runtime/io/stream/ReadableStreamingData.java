@@ -151,7 +151,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
     /** {@inheritDoc} */
     @Override
     public long skip(final long n) {
-        if (n > limit) {
+        if (position + n > limit) {
             throw new BufferUnderflowException();
         }
 

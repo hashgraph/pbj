@@ -1149,7 +1149,10 @@ public abstract class WritableTestBase extends SequentialTestBase {
             seq.skip(pos);
             assertThatThrownBy(() -> seq.writeVarInt(1234, zigZag)).isInstanceOf(BufferOverflowException.class);
             // A subsequent skip() will also throw an exception now that we hit the end of buffer
-            assertThatThrownBy(() -> seq.skip(1)).isInstanceOf(BufferUnderflowException.class);
+            assertThatThrownBy(() -> seq.skip(1)).isInstanceOfAny(
+                    BufferUnderflowException.class,
+                    BufferOverflowException.class
+            );
         }
 
         @Test
@@ -1228,7 +1231,10 @@ public abstract class WritableTestBase extends SequentialTestBase {
             seq.skip(pos);
             assertThatThrownBy(() -> seq.writeVarLong(3882918382L, zigZag)).isInstanceOf(BufferOverflowException.class);
             // A subsequent skip() will also throw an exception now that we hit the end of buffer
-            assertThatThrownBy(() -> seq.skip(1)).isInstanceOf(BufferUnderflowException.class);
+            assertThatThrownBy(() -> seq.skip(1)).isInstanceOfAny(
+                    BufferUnderflowException.class,
+                    BufferOverflowException.class
+            );
         }
 
         @Test

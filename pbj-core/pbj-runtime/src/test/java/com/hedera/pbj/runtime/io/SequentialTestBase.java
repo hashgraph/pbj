@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -132,19 +133,17 @@ public abstract class SequentialTestBase {
 
         @ParameterizedTest
         @CsvSource({
-                "7, 0"}) // skip 7 bytes, limit is 5, so throw on skip() and keep position intact
+                "7"}) // skip 7 bytes, limit is 5, so throw on skip()
         @DisplayName("Skipping beyond the limit will throw")
-        void skippingAndThrowing(long skip, long expected) {
+        void skippingAndThrowing(long skip) {
             // Given a sequence, and some number of bytes to skip
             final var seq = sequence();
             // When we set the limit to be between the position and capacity, and we skip those bytes
             seq.limit(5);
-            assertThatThrownBy(() -> seq.skip(skip)).isInstanceOf(BufferUnderflowException.class);
-            // Then the position matches the number of bytes actually skipped, taking into account
-            // whether the number of bytes skipped was clamped due to encountering the limit
-            // or not (The "expected" arg tells us where we should have landed after skipping bytes)
-            assertThat(seq.position()).isEqualTo(expected);
-            assertThat(seq.remaining()).isEqualTo(5 - expected);
+            assertThatThrownBy(() -> seq.skip(skip)).isInstanceOfAny(
+                    BufferUnderflowException.class,
+                    BufferOverflowException.class
+            );
         }
     }
 

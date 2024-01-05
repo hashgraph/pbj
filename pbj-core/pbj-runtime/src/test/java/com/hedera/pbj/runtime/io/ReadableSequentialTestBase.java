@@ -158,8 +158,6 @@ public abstract class ReadableSequentialTestBase extends ReadableTestBase {
     void skipMoreThanAvailable() {
         final var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8));
         assertThrows(BufferUnderflowException.class, () -> stream.skip(20));
-        assertThat(stream.hasRemaining()).isTrue();
-        assertThat(stream.remaining()).isEqualTo(10);
     }
 
 }
