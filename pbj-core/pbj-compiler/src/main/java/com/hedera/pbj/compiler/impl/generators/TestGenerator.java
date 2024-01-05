@@ -257,7 +257,8 @@ public final class TestGenerator implements Generator {
 	private static String generateTestMethod(final String modelClassName, final String protoCJavaFullQualifiedClass) {
 		return """
 				/** A reference to the protoc generated object class. */
-				public static final Class<$protocModelClass> PROTOC_MODEL_CLASS = $protocModelClass.class;
+				public static final Class<$protocModelClass> PROTOC_MODEL_CLASS
+						= $protocModelClass.class;
 
 				@ParameterizedTest
 				@MethodSource("createModelTestArguments")
