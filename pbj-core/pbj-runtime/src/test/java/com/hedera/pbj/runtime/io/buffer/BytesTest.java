@@ -1,5 +1,6 @@
 package com.hedera.pbj.runtime.io.buffer;
 
+import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -533,6 +534,15 @@ final class BytesTest {
 //        assertEquals(value, bytes.getDouble(0));
 //        assertEquals(value, bytes.getDouble(Double.BYTES, ByteOrder.LITTLE_ENDIAN));
 //    }
+
+    @Test
+    void malformedVarTest() {
+        final byte arr[] = new byte[11];
+        Arrays.fill(arr, (byte) 255);
+        Bytes bytes = Bytes.wrap(arr);
+        assertThrows(DataEncodingException.class, () -> bytes.getVarLong(0, false));
+        assertThrows(DataEncodingException.class, () -> bytes.getVarInt(0, false));
+    }
 
     @Nested
     class BytesRandomAccessDataTest extends RandomAccessTestBase {

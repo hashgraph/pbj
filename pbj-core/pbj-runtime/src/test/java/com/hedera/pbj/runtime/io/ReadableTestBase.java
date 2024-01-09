@@ -1224,6 +1224,36 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         }
 
         @Test
+        @DisplayName("Read a 3 bytes varint")
+        void read3Bytes() {
+            final var seq = sequence(new byte[] { (byte) 0b10101100, (byte) 0b10101100, 0b00000010 });
+            final var pos = seq.position();
+            final var value = seq.readVarInt(false);
+            assertThat(value).isEqualTo(38444);
+            assertThat(seq.position()).isEqualTo(pos + 3);
+        }
+
+        @Test
+        @DisplayName("Read a 4 bytes varint")
+        void read4Bytes() {
+            final var seq = sequence(new byte[] { (byte) 0b10101100, (byte) 0b10101100, (byte) 0b10101100, 0b00000010 });
+            final var pos = seq.position();
+            final var value = seq.readVarInt(false);
+            assertThat(value).isEqualTo(4920876);
+            assertThat(seq.position()).isEqualTo(pos + 4);
+        }
+
+        @Test
+        @DisplayName("Read a 5 bytes varint")
+        void read5Bytes() {
+            final var seq = sequence(new byte[] { (byte) 0b10101100,  (byte) 0b10101100, (byte) 0b10101100, (byte) 0b10101100, 0b00000010 });
+            final var pos = seq.position();
+            final var value = seq.readVarInt(false);
+            assertThat(value).isEqualTo(629872172);
+            assertThat(seq.position()).isEqualTo(pos + 5);
+        }
+
+        @Test
         @DisplayName("Read a varint with zig zag encoding")
         void readZigZag() {
             final var seq = sequence(new byte[] { (byte) 0b10101101, 0b00000010 });
@@ -1294,11 +1324,29 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         }
 
         @Test
+        @DisplayName("Reading a varint that is not properly encoded throws DataEncodingException")
+        void readInvalidVarInt() {
+            // Given a very long sequence of bytes all with the "continuation" bit set
+            final var seq = sequence(new byte[] {
+                    (byte) 0b10101101,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010,
+                    (byte) 0b10000010
+            });
+            // When we try to decode an int, the lack of a "terminator" bit causes a DataEncodingException
+            assertThatThrownBy(() -> seq.readVarInt(false)).isInstanceOf(DataEncodingException.class);
+        }
+
+        @Test
         @DisplayName("Reading a varlong that is not properly encoded throws DataEncodingException")
         void readInvalidVarLong() {
             // Given a very long sequence of bytes all with the "continuation" bit set
-            // FUTURE: It would be good to have an additional test for integers
-            // (not sure what the max number of bytes are for that)
             final var seq = sequence(new byte[] {
                     (byte) 0b10101101,
                     (byte) 0b10000010,
