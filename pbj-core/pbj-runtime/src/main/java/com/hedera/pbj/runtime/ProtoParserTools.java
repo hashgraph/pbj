@@ -208,18 +208,19 @@ public final class ProtoParserTools {
         if (input.remaining() < length) {
             throw new BufferUnderflowException();
         }
-        final byte[] bytes = new byte[length];
-        final long bytesRead = input.readBytes(bytes);
+        final ByteBuffer bb = ByteBuffer.allocate(length);
+        final long bytesRead = input.readBytes(bb);
         if (bytesRead != length) {
             throw new BufferUnderflowException();
         }
+        bb.rewind();
 
         try {
             // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
             return StandardCharsets.UTF_8.newDecoder()
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(bytes))
+                    .decode(bb)
                     .toString();
         } catch (CharacterCodingException e) {
             throw new MalformedProtobufException("Malformed UTF-8 string encountered", e);
