@@ -2,7 +2,9 @@ package com.hedera.pbj.integration.fuzz;
 
 import com.hedera.pbj.runtime.Codec;
 
-import java.lang.reflect.Field;
+import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
@@ -30,10 +32,15 @@ public class FuzzTest {
      * for the most desirable DESERIALIZATION_FAILED outcome to determine
      * if the test passed or not.
      */
-    public static <T> FuzzTestResult<T> fuzzTest(final T object, final double threshold, final Random random) {
+    public static <T> FuzzTestResult<T> fuzzTest(
+            final T object,
+            final double threshold,
+            final Random random,
+            final Class<?> protocModelClass) {
         final long startNanoTime = System.nanoTime();
 
-        final Codec<T> codec = getCodec(object);
+        final Function<InputStream, ?> protocParser = getProtocParser(protocModelClass);
+        final Codec<T> codec = FuzzUtil.getStaticFieldValue(object.getClass(), "PROTOBUF");
         final int repeatCount = estimateRepeatCount(object, codec);
 
         if (repeatCount == 0) {
@@ -51,7 +58,7 @@ public class FuzzTest {
         final Map<SingleFuzzTestResult, Long> resultCounts = IntStream.range(0, repeatCount)
                 // Note that we must run this stream sequentially to enable
                 // reproducing the tests for a given random seed.
-                .mapToObj(n -> SingleFuzzTest.fuzzTest(object, codec, random))
+                .mapToObj(n -> SingleFuzzTest.fuzzTest(object, codec, random, protocParser))
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
 
         final Map<SingleFuzzTestResult, Double> statsMap = computePercentageMap(resultCounts, repeatCount);
@@ -63,6 +70,24 @@ public class FuzzTest {
                 repeatCount,
                 System.nanoTime() - startNanoTime
         );
+    }
+
+    private static Function<InputStream, ?> getProtocParser(Class<?> protocModelClass) {
+        final Function<InputStream, ?> protocParser;
+        try {
+            final Method method = protocModelClass.getDeclaredMethod("parseFrom", InputStream.class);
+            protocParser = inputStream -> {
+                try {
+                    return method.invoke(null, inputStream);
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                    throw new FuzzTestException("Failed to invoke protocModelClass.parseFrom(InputStream)", e);
+                }
+            };
+        } catch (NoSuchMethodException e) {
+            throw new FuzzTestException("Protoc model " + protocModelClass.getName()
+                    + " doesn't have the parseFrom(InputStream) method", e);
+        }
+        return protocParser;
     }
 
     private static <T> int estimateRepeatCount(final T object, final Codec<T> codec) {
@@ -84,14 +109,5 @@ public class FuzzTest {
                         Map.Entry::getKey,
                         entry -> entry.getValue().doubleValue() / (double) repeatCount)
                 );
-    }
-
-    private static <T> Codec<T> getCodec(final T object) {
-        try {
-            Field codecField = object.getClass().getField("PROTOBUF");
-            return (Codec<T>) codecField.get(null);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new FuzzTestException("Failed to get a codec from the static PROTOBUF field", e);
-        }
     }
 }

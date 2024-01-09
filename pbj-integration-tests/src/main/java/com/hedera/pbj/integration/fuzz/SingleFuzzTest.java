@@ -3,8 +3,10 @@ package com.hedera.pbj.integration.fuzz;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 
+import java.io.InputStream;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 /**
  * A single fuzz test.
@@ -30,41 +32,54 @@ public final class SingleFuzzTest {
 
     private final static AtomicInteger TEST_ID_GENERATOR = new AtomicInteger(0);
 
+    public static int getNumberOfRuns() {
+        return TEST_ID_GENERATOR.get();
+    }
+
     private static <T> BufferedData write(final T object, final Codec<T> codec, final int size) throws Exception {
         final BufferedData dataBuffer = BufferedData.allocate(size);
         codec.write(object, dataBuffer);
         return dataBuffer;
     }
 
-    /**
-     * Perform a fuzz test for a given input object of type T and its codec
-     * using a provided random numbers generator.
-     * <p>
-     * The input object is expected to be valid (i.e. serializable using the given codec),
-     * otherwise an exception is thrown.
-     *<p>
-     * The test run produces debugging output on stdout with a prefix that is unique
-     * to this particular run, allowing one to identify all the debugging output related
-     * to this specific run even if multiple runs are running concurrently.
-     *
-     * @return a SingleFuzzTestResult
-     */
-    public static <T> SingleFuzzTestResult fuzzTest(final T object, final Codec<T> codec, final Random random) {
-        // Generate a unique test ID prefix for this particular run to tag debugging output:
-        final String prefix = SingleFuzzTest.class.getSimpleName() + " " + TEST_ID_GENERATOR.getAndIncrement() + ": ";
-
-        if (debug) System.out.println(prefix + "Object: " + object);
-        final int size = codec.measureRecord(object);
-        final BufferedData dataBuffer;
+    private static void tryProtocParser(
+            final String prefix,
+            final Object originalObject,
+            final BufferedData dataBuffer,
+            final Object deserializedObject,
+            final Function<InputStream, ?> protocParser,
+            Exception pbjException,
+            boolean doThrow
+    ) {
+        dataBuffer.reset();
         try {
-            dataBuffer = write(object, codec, size);
+            Object protocObject = protocParser.apply(dataBuffer.toInputStream());
+            if (pbjException != null) {
+                System.out.println(prefix + "NOTE: Protoc was able to parse this payload w/o exceptions as "
+                        + protocObject
+                        + " , but PBJ errored out with "
+                        + pbjException.toString()
+                );
+            }
         } catch (Exception ex) {
-            // The test expects a valid input object, so we don't expect this to happen here
-            throw new FuzzTestException("Unable to write the object", ex);
+            // Protoc didn't like the bytes.
+            if (doThrow) {
+                throw new FuzzTestException(
+                        prefix + "Protoc threw an exception "
+                                // Fetch the actual cause because this was a call via Java Reflection:
+                                + ex.getCause().getCause()
+                                + ", while PBJ didn't for original object: "
+                                + originalObject
+                                + " and fuzzBytes " + dataBuffer
+                                + " that PBJ parsed as: " + deserializedObject
+                        ,
+                        ex
+                );
+            }
         }
+    }
 
-        if (debug) System.out.println(prefix + "Bytes: " + dataBuffer);
-
+    private static int estimateNumberOfBytesToModify(final Random random, final int size) {
         // Ideally, we want to modify a random number of bytes from 1 to size:
         final int numberOfBytesToModify = (1 + random.nextInt(size - 1));
         // However:
@@ -81,15 +96,40 @@ public final class SingleFuzzTest {
         //    from below by the size of the object because this may result in too few
         //    modifications (e.g. a single one), which is unlikely to produce a malformed
         //    payload as often as we need to accumulate the necessary statistics.
-        final int actualNumberOfBytesToModify = Math.max(64, Math.min(1000, numberOfBytesToModify));
-        for (int i = 0; i < actualNumberOfBytesToModify; i++) {
-            final int randomPosition = random.nextInt(size);
-            final byte randomByte = (byte) random.nextInt(256);
+        return Math.max(64, Math.min(1000, numberOfBytesToModify));
+    }
 
-            dataBuffer.position(randomPosition);
-            dataBuffer.writeByte(randomByte);
-        }
+    /**
+     * Perform a fuzz test for a given input object of type T and its codec
+     * using a provided random numbers generator.
+     * <p>
+     * The input object is expected to be valid (i.e. serializable using the given codec),
+     * otherwise an exception is thrown.
+     * <p>
+     * A comparison with Google Protoc parser is performed as well. A log output is generated
+     * if PBJ fails to parse data that Protoc is able to parse. Conversely, the test run
+     * fails with an exception if Protoc fails to parse malformed data that PBJ parses successfully.
+     * <p>
+     * The test run produces debugging output on stdout with a prefix that is unique
+     * to this particular run, allowing one to identify all the debugging output related
+     * to this specific run even if multiple runs are running concurrently.
+     *
+     * @return a SingleFuzzTestResult
+     */
+    public static <T> SingleFuzzTestResult fuzzTest(
+            final T object,
+            final Codec<T> codec,
+            final Random random,
+            final Function<InputStream, ?> protocParser) {
+        // Generate a unique test ID prefix for this particular run to tag debugging output:
+        final String prefix = SingleFuzzTest.class.getSimpleName() + " " + TEST_ID_GENERATOR.getAndIncrement() + ": ";
 
+        if (debug) System.out.println(prefix + "Object: " + object);
+        final int size = codec.measureRecord(object);
+        final BufferedData dataBuffer = createBufferedData(object, codec, size, prefix);
+        if (debug) System.out.println(prefix + "Bytes: " + dataBuffer);
+
+        modifyBufferedData(random, size, dataBuffer);
         if (debug) System.out.println(prefix + "Fuzz bytes: " + dataBuffer);
 
         dataBuffer.reset();
@@ -99,16 +139,27 @@ public final class SingleFuzzTest {
         } catch (Exception ex) {
             // Note that the codec may throw the IOException, as well as various nio exceptions
             // such as the BufferUnderflowException. We're good as long as any exception is thrown.
-            if (debug) System.out.println(prefix + "Fuzz exception: " + ex.getMessage());
+            if (debug) {
+                System.out.println(prefix + "Fuzz exception: " + ex.getMessage());
+
+                // Debug output if protoc is able to parse this w/o exceptions:
+                tryProtocParser(prefix, object, dataBuffer, null, protocParser, ex, false);
+            }
+
             return SingleFuzzTestResult.DESERIALIZATION_FAILED;
         }
+
+        if (debug) System.out.println(prefix + "deserializedObject: " + deserializedObject);
+
+        // Fail the test if protoc throws an exception but PBJ hasn't thrown an exception above.
+        // This indicates that PBJ is able to parse malformed input which it shouldn't.
+        tryProtocParser(prefix, object, dataBuffer, deserializedObject, protocParser, null, true);
 
         final int deserializedSize = codec.measureRecord(deserializedObject);
         if (deserializedSize != size) {
             if (debug) System.out.println(prefix + "Original size: " + size + " , fuzz size: " + deserializedSize);
             return SingleFuzzTestResult.DESERIALIZED_SIZE_MISMATCHED;
         }
-
 
         final BufferedData reserializedBuffer;
         try {
@@ -126,6 +177,32 @@ public final class SingleFuzzTest {
         }
 
         return SingleFuzzTestResult.RESERIALIZATION_PASSED;
+    }
+
+    private static void modifyBufferedData(final Random random, final int size, final BufferedData dataBuffer) {
+        final int actualNumberOfBytesToModify = estimateNumberOfBytesToModify(random, size);
+        for (int i = 0; i < actualNumberOfBytesToModify; i++) {
+            final int randomPosition = random.nextInt(size);
+            final byte randomByte = (byte) random.nextInt(256);
+
+            dataBuffer.position(randomPosition);
+            dataBuffer.writeByte(randomByte);
+        }
+    }
+
+    private static <T> BufferedData createBufferedData(
+            final T object,
+            final Codec<T> codec,
+            final int size,
+            final String prefix) {
+        final BufferedData dataBuffer;
+        try {
+            dataBuffer = write(object, codec, size);
+        } catch (Exception ex) {
+            // The test expects a valid input object, so we don't expect this to happen here
+            throw new FuzzTestException(prefix + "Unable to write the object", ex);
+        }
+        return dataBuffer;
     }
 
 }
