@@ -2,7 +2,12 @@ package com.hedera.pbj.intergration.test;
 
 import com.hedera.hapi.node.base.tests.AccountIDTest;
 import com.hedera.hapi.node.base.tests.ContractIDTest;
-import com.hedera.pbj.integration.fuzz.*;
+import com.hedera.pbj.integration.fuzz.Elapsed;
+import com.hedera.pbj.integration.fuzz.FuzzTest;
+import com.hedera.pbj.integration.fuzz.FuzzTestResult;
+import com.hedera.pbj.integration.fuzz.FuzzUtil;
+import com.hedera.pbj.integration.fuzz.SingleFuzzTest;
+import com.hedera.pbj.integration.fuzz.SingleFuzzTestResult;
 import com.hedera.pbj.test.proto.pbj.tests.EverythingTest;
 import com.hedera.pbj.test.proto.pbj.tests.HashevalTest;
 import com.hedera.pbj.test.proto.pbj.tests.InnerEverythingTest;
@@ -125,6 +130,7 @@ public class SampleFuzzTest {
             double deserializationFailedMean
     ) {
         private static final NumberFormat PERCENTAGE_FORMAT = NumberFormat.getPercentInstance();
+
         static {
             PERCENTAGE_FORMAT.setMinimumFractionDigits(2);
         }
@@ -155,7 +161,11 @@ public class SampleFuzzTest {
             final List<? extends FuzzTestResult<?>> results = testCases()
                     // Note that we must run this stream sequentially to enable
                     // reproducing the tests for a given random seed.
-                    .map(testCase -> FuzzTest.fuzzTest(testCase.object(), THRESHOLD, random, testCase.protocModelClass()))
+                    .map(testCase -> FuzzTest.fuzzTest(
+                            testCase.object(),
+                            THRESHOLD,
+                            random,
+                            testCase.protocModelClass()))
                     .peek(result -> { if (debug) System.out.println(result.format()); })
                     .collect(Collectors.toList());
 

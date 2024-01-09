@@ -42,24 +42,40 @@ public final class SingleFuzzTest {
         return dataBuffer;
     }
 
-    private static record TryProtocParserResult(
-            /** An exception thrown by protoc, or null if parsed successfully. */
-            Exception exception,
-            /** An object parsed by protoc, or null if exception was thrown. */
-            Object object
-    ) {
-    }
-
-    private static TryProtocParserResult tryProtocParser(
+    private static void tryProtocParser(
+            final String prefix,
+            final Object originalObject,
             final BufferedData dataBuffer,
-            final Function<InputStream, ?> protocParser
+            final Object deserializedObject,
+            final Function<InputStream, ?> protocParser,
+            Exception pbjException,
+            boolean doThrow
     ) {
         dataBuffer.reset();
         try {
-            return new TryProtocParserResult(null, protocParser.apply(dataBuffer.toInputStream()));
+            Object protocObject = protocParser.apply(dataBuffer.toInputStream());
+            if (pbjException != null) {
+                System.out.println(prefix + "NOTE: Protoc was able to parse this payload w/o exceptions as "
+                        + protocObject
+                        + " , but PBJ errored out with "
+                        + pbjException.toString()
+                );
+            }
         } catch (Exception ex) {
             // Protoc didn't like the bytes.
-            return new TryProtocParserResult(ex, null);
+            if (doThrow) {
+                throw new FuzzTestException(
+                        prefix + "Protoc threw an exception "
+                                // Fetch the actual cause because this was a call via Java Reflection:
+                                + ex.getCause().getCause()
+                                + ", while PBJ didn't for original object: "
+                                + originalObject
+                                + " and fuzzBytes " + dataBuffer
+                                + " that PBJ parsed as: " + deserializedObject
+                        ,
+                        ex
+                );
+            }
         }
     }
 
@@ -110,25 +126,10 @@ public final class SingleFuzzTest {
 
         if (debug) System.out.println(prefix + "Object: " + object);
         final int size = codec.measureRecord(object);
-        final BufferedData dataBuffer;
-        try {
-            dataBuffer = write(object, codec, size);
-        } catch (Exception ex) {
-            // The test expects a valid input object, so we don't expect this to happen here
-            throw new FuzzTestException(prefix + "Unable to write the object", ex);
-        }
-
+        final BufferedData dataBuffer = createBufferedData(object, codec, size, prefix);
         if (debug) System.out.println(prefix + "Bytes: " + dataBuffer);
 
-        final int actualNumberOfBytesToModify = estimateNumberOfBytesToModify(random, size);
-        for (int i = 0; i < actualNumberOfBytesToModify; i++) {
-            final int randomPosition = random.nextInt(size);
-            final byte randomByte = (byte) random.nextInt(256);
-
-            dataBuffer.position(randomPosition);
-            dataBuffer.writeByte(randomByte);
-        }
-
+        modifyBufferedData(random, size, dataBuffer);
         if (debug) System.out.println(prefix + "Fuzz bytes: " + dataBuffer);
 
         dataBuffer.reset();
@@ -138,25 +139,11 @@ public final class SingleFuzzTest {
         } catch (Exception ex) {
             // Note that the codec may throw the IOException, as well as various nio exceptions
             // such as the BufferUnderflowException. We're good as long as any exception is thrown.
-            if (debug) System.out.println(prefix + "Fuzz exception: " + ex.getMessage());
+            if (debug) {
+                System.out.println(prefix + "Fuzz exception: " + ex.getMessage());
 
-            final TryProtocParserResult protocResult = tryProtocParser(dataBuffer, protocParser);
-            if (protocResult.exception() == null) {
-                // Spot-checking reveals that this happens when the parser encounters
-                // a wrong tag value for a seemingly known field. Since the switch operator
-                // in PBJ uses the entire tag value to branch rather than its field part only,
-                // it falls into the default: case where the known field goes into
-                // the if(f==null)else branch that throws an exception. Google Protobuf seems
-                // to skip such malformed tags/fields which often leads to it parsing unknown
-                // fields further down the stream and returning a meaningless object,
-                // while PBJ errors out immediately which seems to be the right thing to do.
-                if (debug) {
-                    System.out.println(prefix + "NOTE: Protoc was able to parse this payload w/o exceptions as "
-                            + protocResult.object()
-                            + " , but PBJ errored out with "
-                            + ex.toString()
-                    );
-                }
+                // Debug output if protoc is able to parse this w/o exceptions:
+                tryProtocParser(prefix, object, dataBuffer, null, protocParser, ex, false);
             }
 
             return SingleFuzzTestResult.DESERIALIZATION_FAILED;
@@ -164,22 +151,9 @@ public final class SingleFuzzTest {
 
         if (debug) System.out.println(prefix + "deserializedObject: " + deserializedObject);
 
-        final TryProtocParserResult protocResult = tryProtocParser(dataBuffer, protocParser);
-        if (protocResult.exception() != null) {
-            // Fail the test if protoc throws an exception but PBJ hasn't thrown an exception above.
-            // This indicates that PBJ is able to parse malformed input which it shouldn't.
-            throw new FuzzTestException(
-                    prefix + "Protoc threw an exception "
-                            // Fetch the actual cause because this was a call via Java Reflection:
-                            + protocResult.exception().getCause().getCause()
-                            + ", while PBJ didn't for original object: "
-                            + object
-                            + " and fuzzBytes " + dataBuffer
-                            + " that PBJ parsed as: " + deserializedObject
-                    ,
-                    protocResult.exception()
-            );
-        }
+        // Fail the test if protoc throws an exception but PBJ hasn't thrown an exception above.
+        // This indicates that PBJ is able to parse malformed input which it shouldn't.
+        tryProtocParser(prefix, object, dataBuffer, deserializedObject, protocParser, null, true);
 
         final int deserializedSize = codec.measureRecord(deserializedObject);
         if (deserializedSize != size) {
@@ -203,6 +177,32 @@ public final class SingleFuzzTest {
         }
 
         return SingleFuzzTestResult.RESERIALIZATION_PASSED;
+    }
+
+    private static void modifyBufferedData(final Random random, final int size, final BufferedData dataBuffer) {
+        final int actualNumberOfBytesToModify = estimateNumberOfBytesToModify(random, size);
+        for (int i = 0; i < actualNumberOfBytesToModify; i++) {
+            final int randomPosition = random.nextInt(size);
+            final byte randomByte = (byte) random.nextInt(256);
+
+            dataBuffer.position(randomPosition);
+            dataBuffer.writeByte(randomByte);
+        }
+    }
+
+    private static <T> BufferedData createBufferedData(
+            final T object,
+            final Codec<T> codec,
+            final int size,
+            final String prefix) {
+        final BufferedData dataBuffer;
+        try {
+            dataBuffer = write(object, codec, size);
+        } catch (Exception ex) {
+            // The test expects a valid input object, so we don't expect this to happen here
+            throw new FuzzTestException(prefix + "Unable to write the object", ex);
+        }
+        return dataBuffer;
     }
 
 }
