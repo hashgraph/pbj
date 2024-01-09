@@ -1236,7 +1236,12 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @Test
         @DisplayName("Read a 4 bytes varint")
         void read4Bytes() {
-            final var seq = sequence(new byte[] { (byte) 0b10101100, (byte) 0b10101100, (byte) 0b10101100, 0b00000010 });
+            final var seq = sequence(new byte[] {
+                    (byte) 0b10101100,
+                    (byte) 0b10101100,
+                    (byte) 0b10101100,
+                    0b00000010
+            });
             final var pos = seq.position();
             final var value = seq.readVarInt(false);
             assertThat(value).isEqualTo(4920876);
@@ -1246,7 +1251,13 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @Test
         @DisplayName("Read a 5 bytes varint")
         void read5Bytes() {
-            final var seq = sequence(new byte[] { (byte) 0b10101100,  (byte) 0b10101100, (byte) 0b10101100, (byte) 0b10101100, 0b00000010 });
+            final var seq = sequence(new byte[] {
+                    (byte) 0b10101100,
+                    (byte) 0b10101100,
+                    (byte) 0b10101100,
+                    (byte) 0b10101100,
+                    0b00000010
+            });
             final var pos = seq.position();
             final var value = seq.readVarInt(false);
             assertThat(value).isEqualTo(629872172);

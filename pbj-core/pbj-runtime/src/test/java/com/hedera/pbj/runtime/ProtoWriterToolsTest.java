@@ -1212,7 +1212,12 @@ class ProtoWriterToolsTest {
 
     @ParameterizedTest
     @MethodSource("provideWritePackedListArguments")
-    <T> void testWritePackedList(final FieldType type, final WriterMethod<T> writerMethod, final List<T> list, final int expectedSize, final ReaderMethod<T> readerMethod) {
+    <T> void testWritePackedList(
+            final FieldType type,
+            final WriterMethod<T> writerMethod,
+            final List<T> list,
+            final int expectedSize,
+            final ReaderMethod<T> readerMethod) {
         final FieldDefinition definition = createRepeatedFieldDefinition(type);
 
         final long start = bufferedData.position();
@@ -1291,7 +1296,11 @@ class ProtoWriterToolsTest {
 
     @ParameterizedTest
     @MethodSource("provideWriteUnpackedListArguments")
-    <T> void testWriteUnpackedList(final FieldType type, final WriterMethod<T> writerMethod, final List<T> list, final ReaderMethod<UnpackedField<T>> readerMethod) {
+    <T> void testWriteUnpackedList(
+            final FieldType type,
+            final WriterMethod<T> writerMethod,
+            final List<T> list,
+            final ReaderMethod<UnpackedField<T>> readerMethod) {
         final FieldDefinition definition = createRepeatedFieldDefinition(type);
 
         final long start = bufferedData.position();

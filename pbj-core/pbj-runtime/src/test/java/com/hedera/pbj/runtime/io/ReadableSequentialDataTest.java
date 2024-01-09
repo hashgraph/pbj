@@ -70,9 +70,12 @@ final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
         private final byte[] bytes;
         private long position = 0;
         private long limit;
+
         private final Supplier<? extends RuntimeException> unconditionalExceptionSupplier;
 
-        private StubbedSequence(@NonNull final byte[] bytes, @NonNull final Supplier<? extends RuntimeException> unconditionalExceptionSupplier) {
+        private StubbedSequence(
+                @NonNull final byte[] bytes,
+                @NonNull final Supplier<? extends RuntimeException> unconditionalExceptionSupplier) {
             this.bytes = bytes;
             this.limit = this.bytes.length;
             this.unconditionalExceptionSupplier = unconditionalExceptionSupplier;
