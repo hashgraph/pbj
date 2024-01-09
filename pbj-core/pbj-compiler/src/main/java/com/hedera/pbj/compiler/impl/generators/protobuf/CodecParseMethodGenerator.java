@@ -114,54 +114,58 @@ class CodecParseMethodGenerator {
 
                     // -- PARSE LOOP ---------------------------------------------
                     // Continue to parse bytes out of the input stream until we get to the end.
-                    try {
-                        while (input.hasRemaining()) {
+                    while (input.hasRemaining()) {
+                        // Note: ReadableStreamingData.hasRemaining() won't flip to false
+                        // until the end of stream is actually hit with a read operation.
+                        // So we catch this exception here and **only** here, because an EOFException
+                        // anywhere else suggests that we're processing malformed data and so
+                        // we must re-throw the exception then.
+                        final int tag;
+                        try {
                             // Read the "tag" byte which gives us the field number for the next field to read
                             // and the wire type (way it is encoded on the wire).
-                            final int tag = input.readVarInt(false);
+                            tag = input.readVarInt(false);
+                        } catch (EOFException e) {
+                            // There's no more fields. Stop the parsing loop.
+                            break;
+                        }
 
-                            // The field is the top 5 bits of the byte. Read this off
-                            final int field = tag >>> TAG_FIELD_OFFSET;
+                        // The field is the top 5 bits of the byte. Read this off
+                        final int field = tag >>> TAG_FIELD_OFFSET;
 
-                            // Ask the Schema to inform us what field this represents.
-                            final var f = getField(field);
+                        // Ask the Schema to inform us what field this represents.
+                        final var f = getField(field);
 
-                            // Given the wire type and the field type, parse the field
-                            switch (tag) {
-                $caseStatements
-                                default -> {
-                                    // The wire type is the bottom 3 bits of the byte. Read that off
-                                    final int wireType = tag & TAG_WRITE_TYPE_MASK;
-                                    // handle error cases here, so we do not do if statements in normal loop
-                                    // Validate the field number is valid (must be > 0)
-                                    if (field == 0) {
-                                        throw new IOException("Bad protobuf encoding. We read a field value of " + field);
-                                    }
-                                    // Validate the wire type is valid (must be >=0 && <= 5). Otherwise we cannot parse this.
-                                    // Note: it is always >= 0 at this point (see code above where it is defined).
-                                    if (wireType > 5) {
-                                        throw new IOException("Cannot understand wire_type of " + wireType);
-                                    }
-                                    // It may be that the parser subclass doesn't know about this field
-                                    if (f == null) {
-                                        if (strictMode) {
-                                            // Since we are parsing is strict mode, this is an exceptional condition.
-                                            throw new UnknownFieldException(field);
-                                        } else {
-                                            // We just need to read off the bytes for this field to skip it and move on to the next one.
-                                            skipField(input, ProtoConstants.get(wireType));
-                                        }
+                        // Given the wire type and the field type, parse the field
+                        switch (tag) {
+            $caseStatements
+                            default -> {
+                                // The wire type is the bottom 3 bits of the byte. Read that off
+                                final int wireType = tag & TAG_WRITE_TYPE_MASK;
+                                // handle error cases here, so we do not do if statements in normal loop
+                                // Validate the field number is valid (must be > 0)
+                                if (field == 0) {
+                                    throw new IOException("Bad protobuf encoding. We read a field value of " + field);
+                                }
+                                // Validate the wire type is valid (must be >=0 && <= 5). Otherwise we cannot parse this.
+                                // Note: it is always >= 0 at this point (see code above where it is defined).
+                                if (wireType > 5) {
+                                    throw new IOException("Cannot understand wire_type of " + wireType);
+                                }
+                                // It may be that the parser subclass doesn't know about this field
+                                if (f == null) {
+                                    if (strictMode) {
+                                        // Since we are parsing is strict mode, this is an exceptional condition.
+                                        throw new UnknownFieldException(field);
                                     } else {
-                                        throw new IOException("Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
+                                        // We just need to read off the bytes for this field to skip it and move on to the next one.
+                                        skipField(input, ProtoConstants.get(wireType));
                                     }
+                                } else {
+                                    throw new IOException("Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
                                 }
                             }
                         }
-                    }
-                    catch (EOFException e) {
-                        // Do nothing.
-                        // This is a workaround of hasRemaining() returning true, even there are no more elements.
-                        // The subsequent readByte will throw EOFException if there ar no more elements.
                     }
                     return new $modelClassName($fieldsList);
                 }
@@ -215,13 +219,20 @@ class CodecParseMethodGenerator {
                 "field=" + fieldNum + " [" + field.name() + "] */ -> {\n");
         sb.append("""
 				// Read the length of packed repeated field data
-				final var length = input.readVarInt(false);
+				final long length = input.readVarInt(false);
+				if (input.remaining() < length) {
+				    throw new BufferUnderflowException();
+				}
 				final var beforeLimit = input.limit();
+				final long beforePosition = input.position();
 				input.limit(input.position() + length);
 				while (input.hasRemaining()) {
 				    $tempFieldName = addToList($tempFieldName,$readMethod);
 				}
-				input.limit(beforeLimit);"""
+				input.limit(beforeLimit);
+				if (input.position() != beforePosition + length) {
+				    throw new BufferUnderflowException();
+				}"""
                 .replace("$tempFieldName", "temp_" + field.name())
                 .replace("$readMethod", readMethod(field))
                 .indent(DEFAULT_INDENT)

@@ -248,12 +248,18 @@ public final class TestGenerator implements Generator {
 	 * Generate code for test method. The test method is designed to reuse thread local buffers. This is
 	 * very important for performance as without this the tests quickly overwhelm the garbage collector.
 	 *
+	 * This method also adds a public static final reference to the ProtoC class for this model object.
+	 *
 	 * @param modelClassName The class name of the model object we are creating a test for
 	 * @param protoCJavaFullQualifiedClass The qualified class name of the protoc generated object class
 	 * @return Code for test method
 	 */
 	private static String generateTestMethod(final String modelClassName, final String protoCJavaFullQualifiedClass) {
 		return """
+				/** A reference to the protoc generated object class. */
+				public static final Class<$protocModelClass> PROTOC_MODEL_CLASS
+						= $protocModelClass.class;
+
 				@ParameterizedTest
 				@MethodSource("createModelTestArguments")
 				public void test$modelClassNameAgainstProtoC(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {

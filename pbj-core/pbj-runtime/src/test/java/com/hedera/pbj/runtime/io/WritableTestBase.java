@@ -15,6 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -1146,9 +1147,12 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // When we try to write an int, then we get a BufferOverflowException
             final var pos = 10 - 1; // A position that doesn't reserve enough bytes
             seq.skip(pos);
-            for (int i = pos; i < 10; i++, seq.skip(1)) {
-                assertThatThrownBy(() -> seq.writeVarInt(1234, zigZag)).isInstanceOf(BufferOverflowException.class);
-            }
+            assertThatThrownBy(() -> seq.writeVarInt(1234, zigZag)).isInstanceOf(BufferOverflowException.class);
+            // A subsequent skip() will also throw an exception now that we hit the end of buffer
+            assertThatThrownBy(() -> seq.skip(1)).isInstanceOfAny(
+                    BufferUnderflowException.class,
+                    BufferOverflowException.class
+            );
         }
 
         @Test
@@ -1225,9 +1229,12 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // When we try to write an int, then we get a BufferOverflowException
             final var pos = 10 - 1; // A position that doesn't reserve enough bytes
             seq.skip(pos);
-            for (int i = pos; i < 10; i++, seq.skip(1)) {
-                assertThatThrownBy(() -> seq.writeVarLong(3882918382L, zigZag)).isInstanceOf(BufferOverflowException.class);
-            }
+            assertThatThrownBy(() -> seq.writeVarLong(3882918382L, zigZag)).isInstanceOf(BufferOverflowException.class);
+            // A subsequent skip() will also throw an exception now that we hit the end of buffer
+            assertThatThrownBy(() -> seq.skip(1)).isInstanceOfAny(
+                    BufferUnderflowException.class,
+                    BufferOverflowException.class
+            );
         }
 
         @Test

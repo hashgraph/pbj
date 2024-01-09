@@ -151,14 +151,16 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
     /** {@inheritDoc} */
     @Override
     public long skip(final long n) {
-        final long clamped = Math.min(n, limit);
+        if (position + n > limit) {
+            throw new BufferUnderflowException();
+        }
 
-        if (clamped <= 0) {
+        if (n <= 0) {
             return 0;
         }
 
         try {
-            long numSkipped = in.skip(clamped);
+            long numSkipped = in.skip(n);
             position += numSkipped;
             return numSkipped;
         } catch (final IOException e) {

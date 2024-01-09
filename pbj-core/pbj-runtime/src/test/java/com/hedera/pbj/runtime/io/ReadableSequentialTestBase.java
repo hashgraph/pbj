@@ -2,9 +2,12 @@ package com.hedera.pbj.runtime.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -154,9 +157,7 @@ public abstract class ReadableSequentialTestBase extends ReadableTestBase {
     @DisplayName("Skipping more bytes than are available")
     void skipMoreThanAvailable() {
         final var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8));
-        assertThat(stream.skip(20)).isEqualTo(10);
-        assertThat(stream.hasRemaining()).isFalse();
-        assertThat(stream.remaining()).isZero();
+        assertThrows(BufferUnderflowException.class, () -> stream.skip(20));
     }
 
 }

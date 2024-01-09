@@ -58,9 +58,14 @@ final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
 
         @Override
         public long skip(long count) {
-            final long numToSkip = Math.max(Math.min(count, limit - position), 0);
-            position += numToSkip;
-            return numToSkip;
+            if (count > limit - position) {
+                throw new BufferUnderflowException();
+            }
+            if (count <= 0) {
+                return 0;
+            }
+            position += count;
+            return count;
         }
 
         @Override

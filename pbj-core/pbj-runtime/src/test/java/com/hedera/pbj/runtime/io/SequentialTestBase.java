@@ -8,11 +8,15 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+
+import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.Consumer;
 import static java.nio.ByteOrder.BIG_ENDIAN;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
@@ -112,8 +116,7 @@ public abstract class SequentialTestBase {
                 "-1, 0", // skip -1 bytes, limit is 5, so clamp to 0
                 "0, 0", // skip 0 bytes, limit is 5, so clamp to 0
                 "3, 3", // skip 3 bytes, limit is 5, so clamp to 3
-                "5, 5", // skip 5 bytes, limit is 5, so clamp to 5
-                "7, 5"}) // skip 7 bytes, limit is 5, so clamp to 5
+                "5, 5"}) // skip 5 bytes, limit is 5, so clamp to 5
         @DisplayName("Skipping relative to the limit will clamp at limit")
         void skipping(long skip, long expected) {
             // Given a sequence, and some number of bytes to skip
@@ -126,6 +129,21 @@ public abstract class SequentialTestBase {
             // or not (The "expected" arg tells us where we should have landed after skipping bytes)
             assertThat(seq.position()).isEqualTo(expected);
             assertThat(seq.remaining()).isEqualTo(5 - expected);
+        }
+
+        @ParameterizedTest
+        @CsvSource({
+                "7"}) // skip 7 bytes, limit is 5, so throw on skip()
+        @DisplayName("Skipping beyond the limit will throw")
+        void skippingAndThrowing(long skip) {
+            // Given a sequence, and some number of bytes to skip
+            final var seq = sequence();
+            // When we set the limit to be between the position and capacity, and we skip those bytes
+            seq.limit(5);
+            assertThatThrownBy(() -> seq.skip(skip)).isInstanceOfAny(
+                    BufferUnderflowException.class,
+                    BufferOverflowException.class
+            );
         }
     }
 

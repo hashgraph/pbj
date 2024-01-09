@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+import java.nio.BufferUnderflowException;
 import java.nio.CharBuffer;
 
 /**
@@ -39,9 +40,15 @@ public class CharBufferToWritableSequentialData implements WritableSequentialDat
 
     @Override
     public long skip(long count) {
-        final long numToSkip = Math.max(Math.min(count, charBuffer.remaining()), 0);
-        charBuffer.position((int) numToSkip);
-        return numToSkip;
+        if (count > charBuffer.remaining()) {
+            throw new BufferUnderflowException();
+        }
+        if (count <= 0) {
+            return 0;
+        }
+        // Note: skip() should be relative. But it's okay, this is a test implementation.
+        charBuffer.position((int) count);
+        return count;
     }
 
     @Override

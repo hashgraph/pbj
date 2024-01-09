@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
 import net.bytebuddy.utility.RandomString;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -176,7 +177,7 @@ class ProtoParserToolsTest {
                     d.writeVarInt(length, false); // write the size first
                     d.writeUTF8(v);
                 },
-                ProtoParserTools::readString,
+                new UncheckedThrowingFunction<>(ProtoParserTools::readString),
                 length + 1);
     }
     @Test
@@ -276,7 +277,6 @@ class ProtoParserToolsTest {
     private static void skipTag(BufferedData data) {
         data.readVarInt(false);
     }
-
 
     private static <T> void testRead(final Supplier<? extends T> valueSupplier,
                                      final BiConsumer<BufferedData, ? super T> valueWriter,
