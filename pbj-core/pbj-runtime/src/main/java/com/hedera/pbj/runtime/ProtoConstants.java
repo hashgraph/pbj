@@ -21,6 +21,11 @@ public enum ProtoConstants {
     // values() seems to allocate a new array on each call, so let's cache it here
     private static final ProtoConstants[] values = values();
 
+    /**
+     * Mask used to extract the wire type from the "tag" byte
+     */
+    public static final int TAG_WIRE_TYPE_MASK = 0b0000_0111;
+
     public static ProtoConstants get(int ordinal) {
         return values[ordinal];
     }

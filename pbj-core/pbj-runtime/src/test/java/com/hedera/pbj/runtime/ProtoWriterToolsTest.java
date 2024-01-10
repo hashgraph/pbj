@@ -162,10 +162,16 @@ class ProtoWriterToolsTest {
         assertEquals(positionBefore, positionAfter);
     }
 
+    private static int nextNonZeroRandomInt() {
+        int ret;
+        do { ret = RNG.nextInt(); } while (ret == 0);
+        return ret;
+    }
+
     @Test
     void testWriteInteger_int32() {
         FieldDefinition definition = createFieldDefinition(INT32);
-        final int valToWrite = RNG.nextInt();
+        final int valToWrite = nextNonZeroRandomInt();
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -175,7 +181,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteInteger_uint32() {
         FieldDefinition definition = createFieldDefinition(UINT32);
-        final int valToWrite = RNG.nextInt(0, Integer.MAX_VALUE);
+        int valToWrite = RNG.nextInt(1, Integer.MAX_VALUE);
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -185,7 +191,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteInteger_sint32() {
         FieldDefinition definition = createFieldDefinition(SINT32);
-        final int valToWrite = RNG.nextInt();
+        final int valToWrite = nextNonZeroRandomInt();
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -196,12 +202,13 @@ class ProtoWriterToolsTest {
     @EnumSource(value = FieldType.class, names = {"SFIXED32", "FIXED32"})
     void testWriteInteger_fixed32(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        final int valToWrite = RNG.nextInt();
+        final int valToWrite = nextNonZeroRandomInt();
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertFixed32Tag(definition);
         assertEquals(valToWrite, bufferedData.readInt(ByteOrder.LITTLE_ENDIAN));
     }
+
     @ParameterizedTest
     @EnumSource(value = FieldType.class, names = {
             "DOUBLE", "FLOAT", "INT64", "UINT64", "SINT64",
@@ -213,7 +220,7 @@ class ProtoWriterToolsTest {
     }
 
     @Test
-    void testWriteLong_Zero() {
+    void testWriteLong_zero() {
         FieldDefinition definition = createFieldDefinition(INT64);
         final long valToWrite = 0L;
         final long positionBefore = bufferedData.position();
@@ -222,10 +229,16 @@ class ProtoWriterToolsTest {
         assertEquals(positionBefore, positionAfter);
     }
 
+    private static long nextNonZeroRandomLong() {
+        long ret;
+        do { ret = RNG.nextLong(); } while (ret == 0L);
+        return ret;
+    }
+
     @Test
     void testWriteLong_int64() {
         FieldDefinition definition = createFieldDefinition(INT64);
-        final long valToWrite = RNG.nextLong();
+        final long valToWrite = nextNonZeroRandomLong();
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -235,7 +248,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteLong_uint64() {
         FieldDefinition definition = createFieldDefinition(UINT64);
-        final long valToWrite = RNG.nextLong(0, Long.MAX_VALUE);
+        final long valToWrite = RNG.nextLong(1, Long.MAX_VALUE);
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -245,7 +258,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteLong_sint64() {
         FieldDefinition definition = createFieldDefinition(SINT64);
-        final int valToWrite = RNG.nextInt();
+        final int valToWrite = nextNonZeroRandomInt();
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -256,7 +269,7 @@ class ProtoWriterToolsTest {
     @EnumSource(value = FieldType.class, names = {"SFIXED64", "FIXED64"})
     void testWriteLong_fixed64(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        final long valToWrite = RNG.nextLong();
+        final long valToWrite = nextNonZeroRandomLong();
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_FIXED_64_BIT.ordinal(), bufferedData.readVarInt(false));
@@ -273,20 +286,32 @@ class ProtoWriterToolsTest {
         assertThrows(RuntimeException.class, () -> writeLong(bufferedData, definition, RNG.nextInt()));
     }
 
+    private static float nextNonZeroRandomFloat() {
+        float ret;
+        do { ret = RNG.nextFloat(); } while (ret == 0);
+        return ret;
+    }
+
     @Test
     void testWriteFloat() {
         FieldDefinition definition = createFieldDefinition(FLOAT);
-        final float valToWrite = RNG.nextFloat();
+        final float valToWrite = nextNonZeroRandomFloat();
         ProtoWriterTools.writeFloat(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertFixed32Tag(definition);
         assertEquals(valToWrite, bufferedData.readFloat(ByteOrder.LITTLE_ENDIAN));
     }
 
+    private static double nextNonZeroRandomDouble() {
+        double ret;
+        do { ret = RNG.nextDouble(); } while (ret == 0);
+        return ret;
+    }
+
     @Test
     void testWriteDouble() {
         FieldDefinition definition = createFieldDefinition(DOUBLE);
-        final double valToWrite = RNG.nextDouble();
+        final double valToWrite = nextNonZeroRandomDouble();
         ProtoWriterTools.writeDouble(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_FIXED_64_BIT.ordinal(), bufferedData.readVarInt(false));
@@ -320,8 +345,8 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteEnum() {
         FieldDefinition definition = createFieldDefinition(ENUM);
-        final int expectedOrdinal;
-        EnumWithProtoMetadata enumWithProtoMetadata = mockEnum(expectedOrdinal = RNG.nextInt());
+        final int expectedOrdinal = RNG.nextInt();
+        EnumWithProtoMetadata enumWithProtoMetadata = mockEnum(expectedOrdinal);
         ProtoWriterTools.writeEnum(bufferedData, definition, enumWithProtoMetadata);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -1088,7 +1113,7 @@ class ProtoWriterToolsTest {
         final long finish = bufferedData.position();
 
         int tag = bufferedData.getVarInt(start, false);
-        assertEquals(WIRE_TYPE_DELIMITED.ordinal(), tag & 0x3);
+        assertEquals(WIRE_TYPE_DELIMITED.ordinal(), tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
         int sizeOfTag = ProtoWriterTools.sizeOfVarInt32(tag);
 
         int size = bufferedData.getVarInt(start + sizeOfTag, false);
@@ -1319,8 +1344,9 @@ class ProtoWriterToolsTest {
             offset += sizeOfTag + value.size();
         }
 
-        assertEquals(finish,start + offset);
+        assertEquals(finish, start + offset);
     }
+
     private void assertVarIntTag(FieldDefinition definition) {
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal(), bufferedData.readVarInt(false));
     }
