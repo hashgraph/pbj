@@ -21,22 +21,31 @@ import static java.util.regex.Matcher.quoteReplacement;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.*;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.EnumDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageElementContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageTypeContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.TopLevelDefContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.ParserRuleContext;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
-import edu.umd.cs.findbugs.annotations.Nullable;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.ParserRuleContext;
 
 /**
  * Class that manages packages and enum names that are used more than one place in code generation

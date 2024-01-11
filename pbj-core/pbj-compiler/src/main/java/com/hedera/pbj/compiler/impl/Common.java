@@ -597,7 +597,7 @@ public final class Common {
 				} else if (f.type() == Field.FieldType.MESSAGE || f.type() == Field.FieldType.ONE_OF) {
 					verifyComparable(f, destinationSrcDir);
 					generatedCodeSoFar += generateCompareToForObject(f);
-				}else {
+				} else {
 					throw new IllegalArgumentException("Unexpected field type for getting CompareTo - " + f.type().toString());
 				}
 			}
@@ -677,31 +677,16 @@ public final class Common {
                     """;
 
 
-		final String compareStatement;
-		switch (f.messageType()) {
-			case "StringValue" ->
-					compareStatement =
-							"$fieldName.compareTo(thatObj.$fieldName)";
-			case "BoolValue" ->
-					compareStatement =
-							"java.lang.Boolean.compare($fieldName, thatObj.$fieldName)";
-			case "Int32Value", "UInt32Value" ->
-					compareStatement =
-							"java.lang.Integer.compare($fieldName, thatObj.$fieldName)";
-			case "Int64Value", "UInt64Value" ->
-					compareStatement =
-							"java.lang.Long.compare($fieldName, thatObj.$fieldName)";
-			case "FloatValue" ->
-					compareStatement =
-							"java.lang.Float.compare($fieldName, thatObj.$fieldName)";
-			case "DoubleValue" ->
-					compareStatement =
-							"java.lang.Double.compare($fieldName, thatObj.$fieldName)";
-			case "BytesValue" ->
-					compareStatement =
-							"(int)($fieldName.length() - thatObj.$fieldName.length())";
+		final String compareStatement = switch (f.messageType()) {
+			case "StringValue" -> "$fieldName.compareTo(thatObj.$fieldName)";
+			case "BoolValue" -> "java.lang.Boolean.compare($fieldName, thatObj.$fieldName)";
+			case "Int32Value", "UInt32Value" -> "java.lang.Integer.compare($fieldName, thatObj.$fieldName)";
+			case "Int64Value", "UInt64Value" -> "java.lang.Long.compare($fieldName, thatObj.$fieldName)";
+			case "FloatValue" -> "java.lang.Float.compare($fieldName, thatObj.$fieldName)";
+			case "DoubleValue" -> "java.lang.Double.compare($fieldName, thatObj.$fieldName)";
+			case "BytesValue" -> "(int)($fieldName.length() - thatObj.$fieldName.length())";
 			default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
-		}
+		};
 
 		return template
 				.replace("$compareStatement", compareStatement)
