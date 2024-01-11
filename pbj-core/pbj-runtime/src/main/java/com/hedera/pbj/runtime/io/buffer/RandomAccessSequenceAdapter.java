@@ -14,6 +14,10 @@ import java.nio.ByteOrder;
 final class RandomAccessSequenceAdapter implements ReadableSequentialData {
     /** The delegate {@link RandomAccessData} instance */
     private final RandomAccessData delegate;
+
+    /** The `Bytes readBytes(int length)` will replicate the return value if true. */
+    private final boolean copyingBytes;
+
     /**
      * The capacity of this sequence will be the difference between the <b>initial</b> position and the
      * length of the delegate
@@ -35,6 +39,15 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
         this.capacity = delegate.length();
         this.start = 0;
         this.limit = this.capacity;
+        this.copyingBytes = false;
+    }
+
+    RandomAccessSequenceAdapter(@NonNull final RandomAccessData delegate, final boolean copyingBytes) {
+        this.delegate = delegate;
+        this.capacity = delegate.length();
+        this.start = 0;
+        this.limit = this.capacity;
+        this.copyingBytes = copyingBytes;
     }
 
     /**
@@ -47,6 +60,7 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
         this.start = start;
         this.capacity = delegate.length() - start;
         this.limit = this.capacity;
+        this.copyingBytes = false;
 
         if (this.start > delegate.length()) {
             throw new IllegalArgumentException("Start " + start + " is greater than the delegate length " + delegate.length());
@@ -164,7 +178,10 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
             throw new BufferUnderflowException();
         }
 
-        final var bytes = delegate.getBytes(start + position, length);
+        var bytes = delegate.getBytes(start + position, length);
+        if (copyingBytes) {
+            bytes = bytes.replicate();
+        }
         position += bytes.length();
         return bytes;
     }

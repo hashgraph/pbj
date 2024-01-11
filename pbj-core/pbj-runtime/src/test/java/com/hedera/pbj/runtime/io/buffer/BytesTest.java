@@ -55,6 +55,19 @@ final class BytesTest {
         assertEquals("54686973206973206d7920537472696e6721", Bytes.wrap(s).toString());
     }
 
+    @Test
+    void testReplicate() {
+        byte[] arr = new byte[] { 0, 1, 2 };
+
+        // Only wrap the last two elements:
+        Bytes bytes = Bytes.wrap(arr, 1, 2);
+        Bytes replicatedBytes = bytes.replicate();
+
+        assertEquals(2, replicatedBytes.length());
+        assertEquals(arr[1], replicatedBytes.getByte(0));
+        assertEquals(arr[2], replicatedBytes.getByte(1));
+    }
+
     // ================================================================================================================
     // Verify Bytes.wrap(byte[])
 

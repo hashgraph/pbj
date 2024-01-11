@@ -209,10 +209,9 @@ public final class Bytes implements RandomAccessData {
      */
     @NonNull
     public Bytes replicate() {
-        final var newLength = length - start;
-        final var bytes = new byte[newLength];
-        System.arraycopy(buffer, start, bytes, 0, newLength);
-        return new Bytes(bytes, 0, newLength);
+        final var bytes = new byte[length];
+        System.arraycopy(buffer, start, bytes, 0, length);
+        return new Bytes(bytes, 0, length);
     }
 
     /**
@@ -320,6 +319,17 @@ public final class Bytes implements RandomAccessData {
     @NonNull
     public ReadableSequentialData toReadableSequentialData() {
         return new RandomAccessSequenceAdapter(this);
+    }
+
+    /**
+     * Create and return a new {@link ReadableSequentialData} that is backed by this {@link Bytes}
+     * and that returns a replicated Bytes object upon a call to readBytes(int length).
+     *
+     * @return A {@link ReadableSequentialData} backed by this {@link Bytes}.
+     */
+    @NonNull
+    public ReadableSequentialData toCopyingReadableSequentialData() {
+        return new RandomAccessSequenceAdapter(this, true);
     }
 
     /**
