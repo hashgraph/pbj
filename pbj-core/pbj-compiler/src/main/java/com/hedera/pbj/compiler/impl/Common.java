@@ -2,7 +2,6 @@ package com.hedera.pbj.compiler.impl;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -606,7 +605,7 @@ public final class Common {
 		return generatedCodeSoFar.indent(DEFAULT_INDENT * 2);
 	}
 
-	@NotNull
+	@NonNull
 	private static String generateCompareToForObject(Field f) {
 		return """
 				if ($fieldName == null && thatObj.$fieldName != null) {
