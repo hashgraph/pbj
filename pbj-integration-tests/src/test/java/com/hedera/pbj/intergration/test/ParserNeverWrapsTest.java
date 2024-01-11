@@ -28,13 +28,14 @@ public class ParserNeverWrapsTest {
     private static class BytesWritableSequentialData implements WritableSequentialData {
         private final byte[] bytes;
 
+        private long position = 0;
+
+        private long limit;
+
         public BytesWritableSequentialData(byte[] bytes) {
             this.bytes = bytes;
             this.limit = bytes.length;
         }
-
-        private long position = 0;
-        private long limit;
 
         @Override
         public long capacity() {
