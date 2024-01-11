@@ -4,22 +4,24 @@ import static java.util.Collections.shuffle;
 import static java.util.Collections.sort;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.ComparableEnum;
+import com.hedera.pbj.test.proto.pbj.ComparableOneOfTest;
 import com.hedera.pbj.test.proto.pbj.ComparableSubObj;
 import com.hedera.pbj.test.proto.pbj.ComparableTest;
 import com.hedera.pbj.test.proto.pbj.LimitedComparableTest;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+
 import java.util.random.RandomGenerator;
 
 /**
  * Unit test for {@link ComparableTest} and {@link LimitedComparableTest} objects.
  * The goal is to test the generated {@link Comparable} interface implementation.
  */
-public class CompareToTest {
+class CompareToTest {
 
     @Test
     void testCompareTo_int32() {
@@ -58,51 +60,46 @@ public class CompareToTest {
     @Test
     void testCompareTo_bytes() {
         assertComparables(
-                new ComparableTest(0, 0.0, false, null, Bytes.wrap("1"), null, null),
-                new ComparableTest(0, 0.0, false, null, Bytes.wrap("12"), null, null),
-                new ComparableTest(0, 0.0, false, null, Bytes.wrap("123"), null, null)
+                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("a")),
+                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("aa")),
+                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("aaa"))
         );
     }
 
     @Test
     void testCompareTo_bytes_same_lenth() {
-        final var test1 = new ComparableTest(0, 0.0, false, null, Bytes.wrap("1"), null, null);
-        final var test2 = new ComparableTest(0, 0.0, false, null, Bytes.wrap("2"), null, null);
-        final var test3 = new ComparableTest(0, 0.0, false, null, Bytes.wrap("3"), null, null);
-
-        final var list = new ComparableTest[] {test2, test3, test1};
-        Arrays.sort(list);
-        // if the length is the same, then the element are not reordered
-        assertEquals(test1, list[2], "test1 expected");
-        assertEquals(test2, list[0], "test2 expected");
-        assertEquals(test3, list[1], "test3 expected");
+         assertComparables(
+                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("aba")),
+                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("abb")),
+                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("abc"))
+        );
     }
 
     @Test
     void testCompareTo_enum(){
         assertComparables(
-                new ComparableTest(0, 0.0, false, null, null, ComparableEnum.ONE, null),
-                new ComparableTest(0, 0.0, false, null, null, ComparableEnum.TWO, null),
-                new ComparableTest(0, 0.0, false, null, null, ComparableEnum.THREE, null)
+                new ComparableTest(0, 0.0, false, null, ComparableEnum.ONE, null, null),
+                new ComparableTest(0, 0.0, false, null, ComparableEnum.TWO, null, null),
+                new ComparableTest(0, 0.0, false, null, ComparableEnum.THREE, null, null)
         );
     }
 
     @Test
     void testCompareTo_subObject(){
         assertComparables(
-                new ComparableTest(0, 0.0, false, null, null, null, new ComparableSubObj(1)),
-                new ComparableTest(0, 0.0, false, null, null, null,  new ComparableSubObj(2)),
-                new ComparableTest(0, 0.0, false, null, null, null,  new ComparableSubObj(3))
+                new ComparableTest(0, 0.0, false, null, null, new ComparableSubObj(1), null),
+                new ComparableTest(0, 0.0, false, null, null,  new ComparableSubObj(2), null),
+                new ComparableTest(0, 0.0, false, null, null,  new ComparableSubObj(3), null)
         );
     }
 
-     @Test
+    @Test
      void compareTo_mixed() {
          assertComparables(
-                 new ComparableTest(1, 0.0, false, null, null, null, new ComparableSubObj(1)),
-                 new ComparableTest(1, 0.0, false, null, null, null, new ComparableSubObj(2)),
-                 new ComparableTest(2, 0.0, false, null, null, null, new ComparableSubObj(1)),
-                 new ComparableTest(2, 0.0, false, null, null, null,  new ComparableSubObj(2))
+                 new ComparableTest(1, 0.0, false, null, null, new ComparableSubObj(1), null),
+                 new ComparableTest(1, 0.0, false, null, null, new ComparableSubObj(2), null),
+                 new ComparableTest(2, 0.0, false, null, null, new ComparableSubObj(1), null),
+                 new ComparableTest(2, 0.0, false, null, null,  new ComparableSubObj(2), null)
          );
      }
 
@@ -145,12 +142,28 @@ public class CompareToTest {
          );
      }
 
+     @Test
+     void oneOfCompareTo() {
+         assertComparables(
+                 createOneOf(ComparableOneOfTest.OneofExampleOneOfType.TEXT1_ONE_OF, "a"),
+                 createOneOf(ComparableOneOfTest.OneofExampleOneOfType.TEXT1_ONE_OF, "b"),
+                 createOneOf(ComparableOneOfTest.OneofExampleOneOfType.TEXT2_ONE_OF, "a"),
+                 createOneOf(ComparableOneOfTest.OneofExampleOneOfType.TEXT2_ONE_OF, "b"),
+                 createOneOf(ComparableOneOfTest.OneofExampleOneOfType.SUB_OBJECT, new ComparableSubObj(1)),
+                 createOneOf(ComparableOneOfTest.OneofExampleOneOfType.SUB_OBJECT, new ComparableSubObj(2))
+         );
+     }
+
+     private ComparableOneOfTest createOneOf(ComparableOneOfTest.OneofExampleOneOfType type, Object value) {
+         return new ComparableOneOfTest(new OneOf<>(type, value));
+     }
+
     private static long nextLong() {
-        return  RandomGenerator.getDefault().nextLong();
+        return RandomGenerator.getDefault().nextLong();
     }
 
     private static boolean nextBoolean() {
-        return  RandomGenerator.getDefault().nextBoolean();
+        return RandomGenerator.getDefault().nextBoolean();
     }
 
     private static ComparableEnum nextEnum() {

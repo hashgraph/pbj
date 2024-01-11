@@ -10,14 +10,29 @@ import "timestampTest.proto";
 import "google/protobuf/wrappers.proto";
 import "everything.proto";
 
+// <<<pbj.comparable = "num" >>>
+message ComparableSubObj {
+  int32 num = 1;
+}
+
+// <<<pbj.comparable = "int32Number, doubleNumber, booleanField, text, comparableEnum, subObject, bytes" >>>
 message ComparableTest {
   int32 int32Number = 1;
   double doubleNumber = 2;
   bool booleanField = 3;
   string text = 4;
-  bytes bytesField = 5;
-  ComparableEnum comparableEnum = 6;
-  ComparableSubObj subObject = 7;
+  ComparableEnum comparableEnum = 5;
+  ComparableSubObj subObject = 6;
+  bytes bytes = 7;
+}
+
+// <<<pbj.comparable = "oneofExample" >>>
+message ComparableOneOfTest {
+  oneof oneofExample {
+    string text1OneOf = 10;
+    string text2OneOf = 11;
+    ComparableSubObj subObject = 12;
+  }
 }
 
 enum ComparableEnum {
@@ -27,9 +42,6 @@ enum ComparableEnum {
   THREE = 3;
 }
 
-message ComparableSubObj {
-  int32 num = 1;
-}
 
 /**
  * Example of a message with a limited set of fields that are comparable.

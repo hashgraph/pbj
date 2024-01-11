@@ -13,6 +13,7 @@ group = "com.hedera.pbj.integration-tests"
 
 dependencies {
     implementation("com.hedera.pbj:pbj-runtime")
+    implementation("com.hedera.pbj:pbj-compiler")
     implementation("com.google.protobuf:protobuf-java:3.21.12")
     implementation("com.google.protobuf:protobuf-java-util:3.21.12")
     compileOnly("com.github.spotbugs:spotbugs-annotations:4.7.3")

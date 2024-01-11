@@ -118,7 +118,7 @@ class JsonCodecParseMethodGenerator {
      * @param sb StringBuilder to append code to
      */
     private static void generateFieldCaseStatement(final StringBuilder sb, final Field field) {
-        if(field.repeated()) {
+        if (field.repeated()) {
             if (field.type() == Field.FieldType.MESSAGE) {
                 sb.append("parseObjArray(kvPair.value().arr(), "+field.messageType()+".JSON)");
             } else {
@@ -136,7 +136,7 @@ class JsonCodecParseMethodGenerator {
                 }
                 sb.append(").toList()");
             }
-        } else if(field.optionalValueType()) {
+        } else if (field.optionalValueType()) {
             switch(field.messageType()) {
                 case "Int32Value", "UInt32Value" -> sb.append("parseInteger(kvPair.value())");
                 case "Int64Value", "UInt64Value" -> sb.append("parseLong(kvPair.value())");

@@ -16,7 +16,7 @@
 
 package com.hedera.pbj.compiler.impl;
 
-import static java.util.Collections.emptySet;
+import static java.util.Collections.emptyList;
 import static java.util.regex.Matcher.quoteReplacement;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
@@ -76,8 +76,9 @@ public final class LookupHelper {
     /** Map from proto file path to list of other proto files it imports */
     private final Map<String, Set<String>> protoFileImports = new HashMap<>();
 
-    /** Map from fully qualified msgDef name to set of field names that are comparable */
-    private final Map<String, Set<String>> comparableFieldsByMsg = new HashMap<>();
+    /** Map from fully qualified msgDef name to a list of field names that are comparable.
+     * We use a list here, because the order of the field matters. */
+    private final Map<String, List<String>> comparableFieldsByMsg = new HashMap<>();
 
     /**
      * Map from file path to map of message/enum name to fully qualified message/enum name. This
@@ -594,31 +595,48 @@ public final class LookupHelper {
 
     /**
      * Extract the set of fields that are comparable for a given message.
-     * @param msgDef The message defenition to get comparable fields for
-     * @return set of field names that are comparable
+     * @param msgDef The message definition to get comparable fields for
+     * @return a list of field names that are comparable
      */
-    static Set<String> extractComparableFields(final MessageDefContext msgDef) {
-        if(msgDef.optionComment() == null || msgDef.optionComment().getText() == null) {
-            return emptySet();
+    static List<String> extractComparableFields(final MessageDefContext msgDef) {
+        if (msgDef.optionComment() == null || msgDef.optionComment().getText() == null) {
+            return emptyList();
         }
         final var matcher = OPTION_COMMENT.matcher(msgDef.optionComment().getText());
         if (matcher.find()) {
             final String optionName = matcher.group(1);
             final String optionValue = matcher.group(2);
-            if(optionName.equals(PBJ_COMPARABLE_OPTION_NAME)) {
-                final Set<String> fieldNames = msgDef.messageBody().messageElement().stream().map(v -> v.field().fieldName().getText()).collect(Collectors.toSet());
+            if (optionName.equals(PBJ_COMPARABLE_OPTION_NAME)) {
+                final Set<String> regularFieldNames = msgDef.messageBody().messageElement().stream()
+                        .filter(v -> v.field() != null)
+                        .filter(v -> {
+                            if (v.field().REPEATED() != null) {
+                                throw new IllegalArgumentException(("Field `%s` specified in `%s` option is repeated. " +
+                                        "Repeated fields are not supported by this option.")
+                                        .formatted(v.field().fieldName().getText(), PBJ_COMPARABLE_OPTION_NAME));
+                            } else {
+                                return true;
+                            }
+                        }).map(v -> v.field().fieldName().getText()).collect(Collectors.toSet());
+                final Set<String> oneOfFieldNames = msgDef.messageBody().messageElement().stream()
+                        .filter(v -> v.oneof() != null)
+                        .map(v -> v.oneof().oneofName().getText())
+                        .collect(Collectors.toSet());
+                final Set<String> allFieldNames = new HashSet<>();
+                allFieldNames.addAll(regularFieldNames);
+                allFieldNames.addAll(oneOfFieldNames);
                 return Arrays.stream(optionValue.split(","))
                         .map(String::trim)
                         .peek(v -> {
-                            if(!fieldNames.contains(v)) {
+                            if (!allFieldNames.contains(v)) {
                                 throw new IllegalArgumentException(
                                         "Field '%s' specified in %s option is not found.".formatted(v, PBJ_COMPARABLE_OPTION_NAME));
                             }
                         })
-                        .collect(Collectors.toSet());
+                        .collect(Collectors.toList());
             }
         }
-        return emptySet();
+        return emptyList();
     }
 
     /**
@@ -705,11 +723,11 @@ public final class LookupHelper {
     }
 
     /**
-     * Get the set of fields that are comparable for a given message.
+     * Get a list of fields that are comparable for a given message.
      * @param message The message to get comparable fields for
-     * @return set of field names that are comparable
+     * @return a list of field names that are comparable
      */
-    Set<String> getComparableFields(MessageDefContext message) {
+    List<String> getComparableFields(MessageDefContext message) {
         return comparableFieldsByMsg.get(getFullyQualifiedProtoNameForMsgOrEnum(message));
     }
 }

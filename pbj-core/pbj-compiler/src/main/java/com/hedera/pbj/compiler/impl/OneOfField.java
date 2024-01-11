@@ -36,7 +36,7 @@ public record OneOfField(
 			false,
 			getDeprecatedOption(oneOfContext.optionStatement())
 		);
-		for(var field: oneOfContext.oneofField()) {
+		for (var field: oneOfContext.oneofField()) {
 			fields.add(new SingleField(field, this, lookupHelper));
 		}
 	}
@@ -88,7 +88,7 @@ public record OneOfField(
 	public void addAllNeededImports(final Set<String> imports, boolean modelImports,
 									boolean codecImports, final boolean testImports) {
 		imports.add("com.hedera.pbj.runtime");
-		for(var field:fields) {
+		for (var field:fields) {
 			field.addAllNeededImports(imports, modelImports, codecImports, testImports);
 		}
 	}

@@ -8,6 +8,7 @@ import static com.hedera.pbj.compiler.impl.Common.getJavaFile;
 import static com.hedera.pbj.compiler.impl.Common.javaPrimitiveToObjectType;
 import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.EnumValue;
 import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
+import static java.util.stream.Collectors.toMap;
 
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
@@ -92,7 +93,7 @@ public final class ModelGenerator implements Generator {
 		imports.add("edu.umd.cs.findbugs.annotations");
 
 		// Iterate over all the items in the protobuf schema
-		for(final var item: msgDef.messageBody().messageElement()) {
+		for (final var item : msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
 			} else if (item.oneof() != null) { // process one ofs
@@ -117,7 +118,7 @@ public final class ModelGenerator implements Generator {
 			String recordJavaDoc = javaDocComment.isEmpty() ? "/**\n * " + javaRecordName :
 					javaDocComment.replaceAll("\n\s*\\*/", "");
 			recordJavaDoc += "\n *";
-			for(final var field: fields) {
+			for (final var field : fields) {
 				recordJavaDoc += "\n * @param "+field.nameCamelFirstLower()+" "+
 							field.comment()
 								.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()));
@@ -142,7 +143,11 @@ public final class ModelGenerator implements Generator {
 
 		bodyContent += generateEquals(fields, javaRecordName);
 
-		bodyContent += generateCompareTo(filterComparableFields(msgDef, lookupHelper, fields), javaRecordName);
+		final List<Field> comparableFields = filterComparableFields(msgDef, lookupHelper, fields);
+		final boolean hasComparableFields = !comparableFields.isEmpty();
+		if (hasComparableFields) {
+			bodyContent += generateCompareTo(comparableFields, javaRecordName, destinationSrcDir);
+		}
 
 		// Has methods
 		bodyContent += String.join("\n", hasMethods);
@@ -165,7 +170,7 @@ public final class ModelGenerator implements Generator {
 		// === Build file
 		try (final FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write(
-					generateClass(modelPackage, imports, javaDocComment, deprecated, javaRecordName, fields, bodyContent)
+					generateClass(modelPackage, imports, javaDocComment, deprecated, javaRecordName, fields, bodyContent, hasComparableFields)
 			);
 		}
 	}
@@ -188,25 +193,34 @@ public final class ModelGenerator implements Generator {
 										final String deprecated,
 										final String javaRecordName,
 										final List<Field> fields,
-										final String bodyContent) {
+										final String bodyContent,
+										final boolean isComparable) {
+		final String implementsComparable;
+		if (isComparable) {
+			imports.add("java.lang.Comparable");
+			implementsComparable = "implements Comparable<$javaRecordName> ";
+		} else {
+			implementsComparable = "";
+		}
+
 		return """
 				package $package;
 				$imports
 				import com.hedera.pbj.runtime.Codec;
 				import java.util.function.Consumer;
-				import java.lang.Comparable;
 				import edu.umd.cs.findbugs.annotations.Nullable;
 				import static java.util.Objects.requireNonNull;
 									
 				$javaDocComment$deprecated
 				public record $javaRecordName(
-				$fields) implements Comparable<$javaRecordName> {
+				$fields) $implementsComparable{
 				$bodyContent}
 				"""
 				.replace("$package", modelPackage)
 				.replace("$imports", imports.isEmpty() ? "" : imports.stream().collect(Collectors.joining(".*;\nimport ", "\nimport ", ".*;\n")))
 				.replace("$javaDocComment", javaDocComment)
 				.replace("$deprecated", deprecated)
+				.replace("$implementsComparable", implementsComparable)
 				.replace("$javaRecordName", javaRecordName)
 				.replace("$fields", fields.stream().map(field ->
 						(field.type() == FieldType.MESSAGE ? "@Nullable " : "")
@@ -225,24 +239,23 @@ public final class ModelGenerator implements Generator {
 	 */
 	@NonNull
 	private static List<Field> filterComparableFields(final MessageDefContext msgDef,
-													  final ContextualLookupHelper lookupHelper,
-													  final List<Field> fields) {
-		final Set<String> comparableFields = lookupHelper.getComparableFields(msgDef);
-		if(comparableFields.isEmpty()) {
-			// consider all fields in compareTo by defalut
-			return fields;
-		}
-		return fields.stream().filter(f -> comparableFields.contains(f.nameCamelFirstLower())).collect(Collectors.toList());
+													final ContextualLookupHelper lookupHelper,
+													final List<Field> fields) {
+		final Map<String, Field> fieldByName = fields.stream().collect(toMap(Field::nameCamelFirstLower, f -> f));
+		final List<String> comparableFields = lookupHelper.getComparableFields(msgDef);
+		return comparableFields.stream().map(fieldByName::get).collect(Collectors.toList());
 	}
 
 	/**
 	 * Generates the compareTo method
-	 * @param fields the fields to use for the code generation
-	 * @param javaRecordName the name of the class
+	 *
+	 * @param fields                the fields to use for the code generation
+	 * @param javaRecordName        the name of the class
+	 * @param destinationSrcDir
 	 * @return the generated code
 	 */
 	@NonNull
-	private static String generateCompareTo(final List<Field> fields, final String javaRecordName) {
+	private static String generateCompareTo(final List<Field> fields, final String javaRecordName, final File destinationSrcDir) {
 		String bodyContent =
 			"""
 			/**
@@ -256,7 +269,7 @@ public final class ModelGenerator implements Generator {
 				int result = 0;
 			""".replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
 
-		bodyContent += Common.getFieldsCompareToStatements(fields, "");
+		bodyContent += Common.getFieldsCompareToStatements(fields, "", destinationSrcDir);
 
 		bodyContent +=
 			"""
@@ -379,13 +392,13 @@ public final class ModelGenerator implements Generator {
 								}""".replace("$fieldName", f.nameCamelFirstLower()));
 		if (f instanceof final OneOfField oof) {
 			for (final Field subField: oof.fields()) {
-				if(subField.optionalValueType()) {
+				if (subField.optionalValueType()) {
 					sb.append("""
        
 							// handle special case where protobuf does not have destination between a OneOf with optional
 							// value of empty vs an unset OneOf.
-							if($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldName.value() == null) {
-							$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
+							if ($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldName.value() == null) {
+								$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
 							}"""
 							.replace("$fieldName", f.nameCamelFirstLower())
 							.replace("$fieldUpperName", f.nameCamelFirstUpper())

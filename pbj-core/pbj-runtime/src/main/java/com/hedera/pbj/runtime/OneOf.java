@@ -52,10 +52,14 @@ public record OneOf<E extends Enum<E>>(E kind, Object value) implements Comparab
 
     @Override
     public int compareTo(OneOf<E> thatObj) {
-        if(thatObj == null) {
+        if (thatObj == null) {
             return 1;
         }
-        return kind.compareTo(thatObj.kind);
+        final int kindCompare = kind.compareTo(thatObj.kind);
+        if (kindCompare != 0) {
+            return kindCompare;
+        }
+        return ((Comparable) value).compareTo(thatObj.value);
     }
 }
 

@@ -12,14 +12,12 @@ import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageBodyContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageElementContext;
-import org.gradle.internal.impldep.org.apache.commons.lang.RandomStringUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import java.util.Set;
+import java.util.List;
 
 class LookupHelperTest {
     @Mock
@@ -47,7 +45,7 @@ class LookupHelperTest {
         assertEquals(fileName, normalizeFileName(fileName));
     }
     private static void normalizeAndVerify(String fileName) {
-        if(System.getProperty("os.name").toLowerCase().contains("windows")) {
+        if (System.getProperty("os.name").toLowerCase().contains("windows")) {
             String expected = "state\\common.proto";
             String actual = normalizeFileName(fileName);
             assertEquals(expected, actual);
@@ -111,10 +109,11 @@ class LookupHelperTest {
                 int32Number, int64Number, text
         ));
         when(defContext.messageBody()).thenReturn(messageBody);
-        Set<String> comparableFields = extractComparableFields(defContext);
+        List<String> comparableFields = extractComparableFields(defContext);
         assertEquals(3, comparableFields.size(), "Should return 3 fields");
-        assertTrue(comparableFields.containsAll(asList("int32Number", "int64Number", "text")),
-                "Should contain all 3 fields");
+        assertEquals("int32Number", comparableFields.get(0), "Should return int32Number");
+        assertEquals("int64Number", comparableFields.get(1), "Should return int64Number");
+        assertEquals("text", comparableFields.get(2), "Should return text");
     }
 
     private static MessageElementContext createMessageElement(final String fieldNameStr) {

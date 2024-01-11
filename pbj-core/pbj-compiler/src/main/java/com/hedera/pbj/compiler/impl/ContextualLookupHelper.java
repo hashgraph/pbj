@@ -3,7 +3,7 @@ package com.hedera.pbj.compiler.impl;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.*;
 
 import java.io.File;
-import java.util.Set;
+import java.util.List;
 
 /**
  * Wrapper around LookupHelper adding the context of which protobuf source file the lookup is happening within. This
@@ -54,7 +54,7 @@ public class ContextualLookupHelper {
      * @param message The message to get comparable fields for
      * @return set of field names that are comparable
      */
-    public Set<String> getComparableFields(final MessageDefContext message) {
+    public List<String> getComparableFields(final MessageDefContext message) {
         return lookupHelper.getComparableFields(message);
     }
 

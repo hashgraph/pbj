@@ -59,13 +59,13 @@ class CodecMeasureRecordMethodGenerator {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = modelClassName+"."+oneOfField.nameCamelFirstUpper()+"OneOfType";
             getValueCode = "data."+oneOfField.nameCamelFirstLower()+"().as()";
-            prefix += "if(data."+oneOfField.nameCamelFirstLower()+"().kind() == "+ oneOfType +"."+
+            prefix += "if (data."+oneOfField.nameCamelFirstLower()+"().kind() == "+ oneOfType +"."+
                     Common.camelToUpperSnake(field.name())+")";
             prefix += "\n";
         }
 
         final String writeMethodName = field.methodNameType();
-        if(field.optionalValueType()) {
+        if (field.optionalValueType()) {
             return prefix + switch (field.messageType()) {
                 case "StringValue" -> "size += sizeOfOptionalString(%s, %s);"
                         .formatted(fieldDef,getValueCode);
