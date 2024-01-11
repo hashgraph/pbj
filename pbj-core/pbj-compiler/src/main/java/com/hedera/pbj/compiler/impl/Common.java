@@ -644,7 +644,7 @@ public final class Common {
 						return;
 					}
 				}
-				throw new IllegalArgumentException(("Field %s.%s specified in `pbj.comparable` option has is supposed to implement " +
+				throw new IllegalArgumentException(("Field %s.%s specified in `pbj.comparable` option must implement " +
 						"`Comparable` interface but it doesn't.").formatted(className, field.nameCamelFirstLower()));
 			} catch (IOException e) {
 				throw new RuntimeException(e);
