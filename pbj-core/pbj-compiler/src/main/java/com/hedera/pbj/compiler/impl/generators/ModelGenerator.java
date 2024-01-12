@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 @SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
 public final class ModelGenerator implements Generator {
 
-	private static final String NON_NULL_ANNOTATION = "@NonNull";
+    private static final String NON_NULL_ANNOTATION = "@NonNull";
 
 	private static final String HASH_CODE_MANIPULATION =
 		"""
@@ -639,7 +639,11 @@ public final class ModelGenerator implements Generator {
 		return bodyContent;
 	}
 
-	private static void generateBuilderMethods(final List<String> builderMethods, final MessageDefContext msgDef, final Field field, final ContextualLookupHelper lookupHelper) {
+	private static void generateBuilderMethods(
+			final List<String> builderMethods,
+			final MessageDefContext msgDef,
+			final Field field,
+			final ContextualLookupHelper lookupHelper) {
 		final String prefix, postfix, fieldToSet;
 		final String fieldAnnotations = getFieldAnnotations(field);
 		final OneOfField parentOneOfField = field.parent();
@@ -777,7 +781,8 @@ public final class ModelGenerator implements Generator {
 			    $builderMethods}"""
 				.replace("$fields", fields.stream().map(field ->
 						getFieldAnnotations(field)
-								+ "private " + field.javaFieldType() + " " + field.nameCamelFirstLower()
+								+ "private " + field.javaFieldType()
+								+ " " + field.nameCamelFirstLower()
 								+ " = " + getDefaultValue(field, msgDef, lookupHelper)
 						).collect(Collectors.joining(";\n    ")))
 				.replace("$prePopulatedBuilder", generatePrePopulatedBuilder(fields))
