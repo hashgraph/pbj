@@ -254,14 +254,16 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 		final String fieldNameToSet = parent != null ? parent.name() : name;
 		if (optionalValueType()) {
 			if (parent != null) { // one of
-				return "case %d -> this.%s = new OneOf<>(%s.%sOneOfType.%s, input);"
-						.formatted(fieldNumber, fieldNameToSet, parent.parentMessageName(), Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name));
+				return "case %d -> this.%s = new %s<>(%s.%sOneOfType.%s, input);"
+						.formatted(fieldNumber, fieldNameToSet, parent.className(), parent.parentMessageName(),
+								Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name));
 			} else {
 				return "case %d -> this.%s = input;".formatted(fieldNumber, fieldNameToSet);
 			}
 		} else if (type == FieldType.MESSAGE) {
 			final String valueToSet = parent != null ?
-					"new OneOf<>($parentMessageName.$parentNameOneOfType.$parentName, %modelClass.PROTOBUF.parse(input))"
+					"new $className<>($parentMessageName.$parentNameOneOfType.$parentName, %modelClass.PROTOBUF.parse(input))"
+							.replace("$className", parent.className())
 							.replace("$parentMessageName", parent.parentMessageName())
 							.replace("$parentName", Common.snakeToCamel(parent.name(), true))
 							.replace("$parseCode", parseCode())
@@ -289,7 +291,8 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 			}
 		} else if (repeated && (type == FieldType.STRING || type == FieldType.BYTES)) {
 			final String valueToSet = parent != null ?
-					"new OneOf<>(%s.%sOneOfType.%s,input)".formatted(parent.parentMessageName(), Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name)) :
+					"new %s<>(%s.%sOneOfType.%s,input)".formatted(parent.className(), parent.parentMessageName(),
+							Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name)) :
 					"input";
 			return """
 				case %d -> {
@@ -302,7 +305,8 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 
 		} else {
 			final String valueToSet = parent != null ?
-					"new OneOf<>(%s.%sOneOfType.%s,input)".formatted(parent.parentMessageName(), Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name)) :
+					"new %s<>(%s.%sOneOfType.%s,input)".formatted(parent.className(), parent.parentMessageName(),
+							Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name)) :
 					"input";
 			return "case %d -> this.%s = %s;".formatted(fieldNumber, fieldNameToSet,valueToSet);
 		}

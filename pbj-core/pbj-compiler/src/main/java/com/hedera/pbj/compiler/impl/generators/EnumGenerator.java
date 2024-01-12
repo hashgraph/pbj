@@ -42,7 +42,7 @@ public final class EnumGenerator {
 		String deprecated = "";
 		final Map<Integer, EnumValue> enumValues = new HashMap<>();
 		int maxIndex = 0;
-		for(var item: enumDef.enumBody().enumElement()) {
+		for (var item: enumDef.enumBody().enumElement()) {
 			if (item.enumField() != null && item.enumField().ident() != null) {
 				final var enumValueName = item.enumField().ident().getText();
 				final var enumNumber = Integer.parseInt(item.enumField().intLit().getText());

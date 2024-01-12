@@ -35,7 +35,7 @@ public final class TestGenerator implements Generator {
 		final Set<String> imports = new TreeSet<>();
 		imports.add("com.hedera.pbj.runtime.io.buffer");
 		imports.add(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef));
-		for(var item: msgDef.messageBody().messageElement()) {
+		for (final var item: msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
 			} else if (item.oneof() != null) { // process one ofs
@@ -170,10 +170,10 @@ public final class TestGenerator implements Generator {
 			final String optionsList = generateTestData(modelClassName, field, field.optionalValueType(), false);
 			return """
 					generateListArguments(%s)""".formatted(optionsList);
-		} else if(field instanceof final OneOfField oneOf) {
+		} else if (field instanceof final OneOfField oneOf) {
 			final List<String> options = new ArrayList<>();
 			for (var subField: oneOf.fields()) {
-				if(subField instanceof SingleField) {
+				if (subField instanceof SingleField) {
 					final String enumValueName = Common.camelToUpperSnake(subField.name());
 					// special cases to break cyclic dependencies
 					if (!("THRESHOLD_KEY".equals(enumValueName) || "KEY_LIST".equals(enumValueName)
@@ -187,8 +187,9 @@ public final class TestGenerator implements Generator {
 						}
 						options.add(listStr + ("\n.stream()\n"+
           							"""
-										.map(value -> new OneOf<>(%sOneOfType.%s, value))
+										.map(value -> new %s<>(%sOneOfType.%s, value))
 										.toList()""".formatted(
+										((OneOfField) field).className(),
 										modelClassName + "." + field.nameCamelFirstUpper(),
 										enumValueName
 								)).indent(DEFAULT_INDENT )
@@ -201,9 +202,10 @@ public final class TestGenerator implements Generator {
 			}
 			return """
 					Stream.of(
-					    List.of(new OneOf<>(%sOneOfType.UNSET, null)),
+					    List.of(new %s<>(%sOneOfType.UNSET, null)),
 					    %s
 					).flatMap(List::stream).toList()""".formatted(
+							((OneOfField)field).className(),
 							modelClassName+"."+field.nameCamelFirstUpper(),
                     String.join(",\n", options).indent(DEFAULT_INDENT)
 					).indent(DEFAULT_INDENT * 2);

@@ -29,7 +29,7 @@ public final class SchemaGenerator implements Generator {
 		final File javaFile = Common.getJavaFile(destinationSrcDir, schemaPackage, schemaClassName);
 		final List<Field> fields = new ArrayList<>();
 		final Set<String> imports = new TreeSet<>();
-		for(var item: msgDef.messageBody().messageElement()) {
+		for (final var item : msgDef.messageBody().messageElement()) {
 			if (item.messageDef() != null) { // process sub messages
 				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
 			} else if (item.oneof() != null) { // process one ofs

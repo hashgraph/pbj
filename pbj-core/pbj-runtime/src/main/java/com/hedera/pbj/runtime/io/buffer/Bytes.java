@@ -28,7 +28,7 @@ import static java.util.Objects.requireNonNull;
  * An immutable representation of a byte array. This class is designed to be efficient and usable across threads.
  */
 @SuppressWarnings("unused")
-public final class Bytes implements RandomAccessData {
+public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     /** An instance of an empty {@link Bytes} */
     public static final Bytes EMPTY = new Bytes(new byte[0]);
@@ -346,6 +346,25 @@ public final class Bytes implements RandomAccessData {
                 }
             }
         };
+    }
+
+    /**
+     * Compare this {@link Bytes} object to another {@link Bytes} object. The comparison is done on a byte-by-byte
+     * @param otherData the object to be compared.
+     * @return a negative integer, zero, or a positive integer as this object is less than, equal to, or greater than
+     */
+    @Override
+    public int compareTo(Bytes otherData) {
+        // Compare the lengths first
+        final int minLength = Math.min(length, otherData.length);
+        for (int i = 0; i < minLength; i++) {
+            final int compare = Byte.compareUnsigned(getByte(i), otherData.getByte(i));
+            if (compare != 0) {
+                return compare;
+            }
+        }
+        // If all compared elements are equal, the shorter array is considered less
+        return Integer.compare(length, otherData.length);
     }
 
     /**

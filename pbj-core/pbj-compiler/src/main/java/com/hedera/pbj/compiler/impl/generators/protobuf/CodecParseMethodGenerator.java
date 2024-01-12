@@ -30,8 +30,9 @@ class CodecParseMethodGenerator {
                 final OneOfField field = (OneOfField)f;
                 return """
                            /** Constant for an unset oneof for $fieldName */
-                           public static final OneOf<$enum> $unsetFieldName = new OneOf<>($enum.UNSET,null);
+                           public static final $className<$enum> $unsetFieldName = new $className<>($enum.UNSET,null);
                        """
+                        .replace("$className", field.className())
                         .replace("$enum", field.getEnumClassRef())
                         .replace("$fieldName", field.name())
                         .replace("$unsetFieldName", Common.camelToUpperSnake(field.name())+"_UNSET")
@@ -336,7 +337,7 @@ class CodecParseMethodGenerator {
             throw new PbjCompilerException("Fields can not be oneof and repeated ["+field+"]");
         } else if (field.parent() != null) {
             final var oneOfField = field.parent();
-            sb.append("temp_" + oneOfField.name() + " =  new OneOf<>(" +
+            sb.append("temp_" + oneOfField.name() + " =  new %s<>(".formatted(oneOfField.className()) +
                     oneOfField.getEnumClassRef() + '.' + Common.camelToUpperSnake(field.name()) + ", value);\n");
         } else if (field.repeated()) {
             sb.append("temp_" + field.name() + " = addToList(temp_" + field.name() + ",value);\n");

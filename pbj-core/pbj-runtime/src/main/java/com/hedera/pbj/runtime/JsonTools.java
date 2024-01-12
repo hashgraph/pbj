@@ -356,7 +356,7 @@ public final class JsonTools {
     public static String field(String fieldName, Long value, boolean quote) {
         if (value == null) {
             return rawFieldCode(fieldName, "null");
-        } else if(quote) {
+        } else if (quote) {
             return rawFieldCode(fieldName, '\"' + Long.toString(value) + '\"');
         } else {
             return rawFieldCode(fieldName, Long.toString(value));

@@ -43,9 +43,7 @@ public final class CodecGenerator implements Generator {
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
-//				if (field.type() == Field.FieldType.MESSAGE) {
-					field.addAllNeededImports(imports, true, true, false);
-//				}
+				field.addAllNeededImports(imports, true, true, false);
 			} else if (item.reserved() == null && item.optionStatement() == null) {
 				System.err.println("WriterGenerator Warning - Unknown element: "+item+" -- "+item.getText());
 			}
@@ -58,6 +56,7 @@ public final class CodecGenerator implements Generator {
 									
 					import com.hedera.pbj.runtime.*;
 					import com.hedera.pbj.runtime.io.*;
+					import com.hedera.pbj.runtime.io.buffer.*;
 					import com.hedera.pbj.runtime.io.stream.EOFException;
 					import java.io.IOException;
 					import java.nio.*;

@@ -81,26 +81,26 @@ final class JsonCodecWriteMethodGenerator {
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = modelClassName+"."+oneOfField.nameCamelFirstUpper()+"OneOfType";
-            prefix += "if(data."+oneOfField.nameCamelFirstLower()+"().kind() == "+ oneOfType +"."+
+            prefix += "if (data."+oneOfField.nameCamelFirstLower()+"().kind() == "+ oneOfType +"."+
                     Common.camelToUpperSnake(field.name())+")";
             prefix += "\n";
             return prefix + "fieldLines.add(" + basicFieldCode + ");";
         } else {
             if (field.repeated()) {
-                return prefix + "if(!data." + field.nameCamelFirstLower() + "().isEmpty()) fieldLines.add(" + basicFieldCode + ");";
+                return prefix + "if (!data." + field.nameCamelFirstLower() + "().isEmpty()) fieldLines.add(" + basicFieldCode + ");";
             } else if (field.type() == Field.FieldType.BYTES){
-                return prefix + "if(data." + field.nameCamelFirstLower() + "() != " + field.javaDefault() +
+                return prefix + "if (data." + field.nameCamelFirstLower() + "() != " + field.javaDefault() +
                         " && data." + field.nameCamelFirstLower() + "() != null" +
                         " && data." + field.nameCamelFirstLower() + "().length() > 0) fieldLines.add(" + basicFieldCode + ");";
             } else {
-                return prefix + "if(data." + field.nameCamelFirstLower() + "() != " + field.javaDefault() + ") fieldLines.add(" + basicFieldCode + ");";
+                return prefix + "if (data." + field.nameCamelFirstLower() + "() != " + field.javaDefault() + ") fieldLines.add(" + basicFieldCode + ");";
             }
         }
     }
 
     @NonNull
     private static String generateBasicFieldLines(Field field, String getValueCode, String fieldDef, String fieldName) {
-        if(field.optionalValueType()) {
+        if (field.optionalValueType()) {
             return switch (field.messageType()) {
                 case "StringValue", "BoolValue", "Int32Value",
                         "UInt32Value", "FloatValue",

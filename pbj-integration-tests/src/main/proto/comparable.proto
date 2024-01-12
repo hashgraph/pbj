@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>> This comment is special code for setting PBJ Compiler java package
+
+import "timestampTest.proto";
+import "google/protobuf/wrappers.proto";
+import "everything.proto";
+
+// <<<pbj.comparable = "num" >>>
+message ComparableSubObj {
+  int32 num = 1;
+}
+
+// <<<pbj.comparable = "int32Number, doubleNumber, booleanField, text, comparableEnum, subObject, bytes" >>>
+message ComparableTest {
+  int32 int32Number = 1;
+  double doubleNumber = 2;
+  bool booleanField = 3;
+  string text = 4;
+  ComparableEnum comparableEnum = 5;
+  ComparableSubObj subObject = 6;
+  bytes bytes = 7;
+}
+
+// <<<pbj.comparable = "stringValue" >>>
+message StringValueComparableTest {
+  google.protobuf.StringValue stringValue = 1;
+}
+
+// <<<pbj.comparable = "boolValue" >>>
+message BoolValueComparableTest {
+  google.protobuf.BoolValue boolValue = 1;
+}
+
+// <<<pbj.comparable = "int32Value, uint32Value" >>>
+message Int32ValueComparableTest {
+  google.protobuf.Int32Value int32Value = 1;
+  google.protobuf.UInt32Value uint32Value = 2;
+}
+
+// <<<pbj.comparable = "int64Value, uint64Value" >>>
+message Int64ValueComparableTest {
+  google.protobuf.Int64Value int64Value = 1;
+  google.protobuf.UInt64Value uint64Value = 2;
+}
+
+// <<<pbj.comparable = "floatValue" >>>
+message FloatValueComparableTest {
+  google.protobuf.FloatValue floatValue = 1;
+}
+
+// <<<pbj.comparable = "doubleValue" >>>
+message DoubleValueComparableTest {
+  google.protobuf.DoubleValue doubleValue = 1;
+}
+
+// <<<pbj.comparable = "bytesValue" >>>
+message BytesValueComparableTest {
+  google.protobuf.BytesValue bytesValue = 1;
+}
+
+// <<<pbj.comparable = "uint32Value, uint64Value" >>>
+message UnsignedComparableTest {
+  uint32 uint32Value = 1;
+  uint64 uint64Value = 2;
+}
+
+// <<<pbj.comparable = "oneofExample" >>>
+message ComparableOneOfTest {
+  oneof oneofExample {
+    string text1OneOf = 10;
+    string text2OneOf = 11;
+    ComparableSubObj subObject = 12;
+  }
+}
+
+enum ComparableEnum {
+  UNSPECIFIED = 0;
+  ONE = 1;
+  TWO = 2;
+  THREE = 3;
+}
+
+/**
+ * Example of a message with a limited set of fields that are comparable.
+ */
+// <<<pbj.comparable = "int32Number, text, subObject" >>>
+message LimitedComparableTest {
+  int32 int32Number = 1;
+  int64 int64Number = 2;
+  bool booleanField = 3;
+  string text = 4;
+  ComparableEnum comparableEnum = 5;
+  ComparableSubObj subObject = 6;
+}
+
+// <<<pbj.comparable = "int32Number, int64Number" >>>
+message LimitedComparableTestWithRepeated {
+  int32 int32Number = 1;
+  // repeated fields should be fine as long as they are not mentioned in `pbj.comparable`
+  repeated int32 int32Numbers = 2;
+  int64 int64Number = 3;
+}
+
+// <<<pbj.comparable = "int32Number" >>>
+message LimitedComparableTestWithOneOf {
+  int32 int32Number = 1;
+  oneof oneOfExample {
+    string oneOfText = 10;
+    ComparableSubObj oneOfSubObject = 12;
+  }
+
+}

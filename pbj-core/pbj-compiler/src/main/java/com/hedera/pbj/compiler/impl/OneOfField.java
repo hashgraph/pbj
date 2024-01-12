@@ -16,9 +16,9 @@ public record OneOfField(
 		String comment,
 		List<Field> fields,
 		boolean repeated,
-		boolean deprecated
+		boolean deprecated,
+		boolean comparable
 ) implements Field {
-
 	/**
 	 * Create a OneOf field from parser context
 	 *
@@ -34,11 +34,20 @@ public record OneOfField(
 					oneOfContext.docComment()),
 			new ArrayList<>(oneOfContext.oneofField().size()),
 			false,
-			getDeprecatedOption(oneOfContext.optionStatement())
+			getDeprecatedOption(oneOfContext.optionStatement()),
+			isComparable(oneOfContext, lookupHelper)
 		);
-		for(var field: oneOfContext.oneofField()) {
+		for (var field: oneOfContext.oneofField()) {
 			fields.add(new SingleField(field, this, lookupHelper));
 		}
+	}
+
+	private static boolean isComparable(Protobuf3Parser.OneofContext oneOfContext, ContextualLookupHelper lookupHelper) {
+		final boolean comparable;
+		final List<String> comparableFields = lookupHelper.getComparableFields(((Protobuf3Parser.MessageDefContext)
+				oneOfContext.getParent().getParent().getParent()));
+		comparable = comparableFields.contains(oneOfContext.oneofName().getText());
+		return comparable;
 	}
 
 	/**
@@ -70,7 +79,11 @@ public record OneOfField(
 	 */
 	@Override
 	public String javaFieldType() {
-		return "OneOf<"+getEnumClassRef()+">";
+		return "%s<%s>".formatted(className(), getEnumClassRef());
+	}
+
+	public String className() {
+		return comparable ? "ComparableOneOf" : "OneOf";
 	}
 
 	@Override
@@ -93,7 +106,7 @@ public record OneOfField(
 	public void addAllNeededImports(final Set<String> imports, boolean modelImports,
 									boolean codecImports, final boolean testImports) {
 		imports.add("com.hedera.pbj.runtime");
-		for(var field:fields) {
+		for (var field:fields) {
 			field.addAllNeededImports(imports, modelImports, codecImports, testImports);
 		}
 	}

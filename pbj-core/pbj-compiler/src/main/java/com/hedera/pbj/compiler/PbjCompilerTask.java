@@ -67,31 +67,45 @@ public abstract class PbjCompilerTask extends SourceTask {
     public void perform() throws Exception {
         // Clean output directories
         getFileOperations().delete(getJavaMainOutputDirectory(), getJavaTestOutputDirectory());
+        compileFilesIn(getSource(),
+                getJavaMainOutputDirectory().get().getAsFile(),
+                getJavaTestOutputDirectory().get().getAsFile());
+    }
 
+    /**
+     * Compile all the proto files in the given source directories
+     * @param sourceFiles The source files to compile
+     * @param mainOutputDir The main output directory
+     * @param testOutputDir The test output directory
+     */
+
+    public static void compileFilesIn(Iterable<File> sourceFiles,
+                                       File mainOutputDir,
+                                       File testOutputDir) throws Exception {
         // first we do a scan of files to build lookup tables for imports, packages etc.
-        final LookupHelper lookupHelper = new LookupHelper(getSource());
+        final LookupHelper lookupHelper = new LookupHelper(sourceFiles);
         // for each proto src directory generate code
-        for (final File protoFile : getSource()) {
+        for (final File protoFile : sourceFiles) {
             if (protoFile.exists()
                     && protoFile.isFile()
-                    && protoFile.getName().endsWith(".proto")) {
+                    && protoFile.getName().endsWith(LookupHelper.PROTO_EXTENSIION)) {
                 final ContextualLookupHelper contextualLookupHelper =
                         new ContextualLookupHelper(lookupHelper, protoFile);
-                try (var input = new FileInputStream(protoFile)) {
+                try (final var input = new FileInputStream(protoFile)) {
                     final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
                     final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
                     final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
-                    for (var topLevelDef : parsedDoc.topLevelDef()) {
+                    for (final var topLevelDef : parsedDoc.topLevelDef()) {
                         final Protobuf3Parser.MessageDefContext msgDef = topLevelDef.messageDef();
                         if (msgDef != null) {
                             // run all generators for message
-                            for (var generatorClass : Generator.GENERATORS) {
+                            for (final var generatorClass : Generator.GENERATORS) {
                                 final var generator =
                                         generatorClass.getDeclaredConstructor().newInstance();
                                 generator.generate(
                                         msgDef,
-                                        getJavaMainOutputDirectory().get().getAsFile(),
-                                        getJavaTestOutputDirectory().get().getAsFile(),
+                                        mainOutputDir,
+                                        testOutputDir,
                                         contextualLookupHelper);
                             }
                         }
@@ -100,7 +114,7 @@ public abstract class PbjCompilerTask extends SourceTask {
                             // run just enum generators for enum
                             EnumGenerator.generateEnumFile(
                                     enumDef,
-                                    getJavaMainOutputDirectory().get().getAsFile(),
+                                    mainOutputDir,
                                     contextualLookupHelper);
                         }
                     }

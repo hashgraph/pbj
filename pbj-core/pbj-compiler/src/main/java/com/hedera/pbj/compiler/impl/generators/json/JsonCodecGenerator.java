@@ -59,6 +59,7 @@ public final class JsonCodecGenerator implements Generator {
 									
 					import com.hedera.pbj.runtime.*;
 					import com.hedera.pbj.runtime.io.*;
+					import com.hedera.pbj.runtime.io.buffer.*;
 					import java.io.IOException;
 					import java.nio.*;
 					import java.nio.charset.*;

@@ -189,7 +189,7 @@ enumValueOption
 // message
 
 messageDef
-  : docComment MESSAGE messageName messageBody
+  : docComment ( optionComment )? MESSAGE messageName messageBody
   ;
 
 messageBody

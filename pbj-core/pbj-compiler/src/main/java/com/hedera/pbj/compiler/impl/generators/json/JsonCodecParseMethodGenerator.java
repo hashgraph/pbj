@@ -30,8 +30,9 @@ class JsonCodecParseMethodGenerator {
                 final OneOfField field = (OneOfField)f;
                 return """
                            /** Constant for an unset oneof for $fieldName */
-                           public static final OneOf<$enum> $unsetFieldName = new OneOf<>($enum.UNSET,null);
+                           public static final $className<$enum> $unsetFieldName = new $className<>($enum.UNSET,null);
                        """
+                        .replace("$className", field.className())
                         .replace("$enum", field.getEnumClassRef())
                         .replace("$fieldName", field.name())
                         .replace("$unsetFieldName", Common.camelToUpperSnake(field.name())+"_UNSET")
@@ -95,7 +96,7 @@ class JsonCodecParseMethodGenerator {
             if (field instanceof final OneOfField oneOfField) {
                 for(final Field subField: oneOfField.fields()) {
                     sb.append("case \"" + toJsonFieldName(subField.name()) +"\" /* [" + subField.fieldNumber() + "] */ " +
-                            "-> temp_" + oneOfField.name()+" = new OneOf<>(\n"+
+                            "-> temp_" + oneOfField.name() + " = new %s<>(\n".formatted(oneOfField.className()) +
                             oneOfField.getEnumClassRef().indent(DEFAULT_INDENT) +"."+Common.camelToUpperSnake(subField.name())+
                             ", \n".indent(DEFAULT_INDENT));
                     generateFieldCaseStatement(sb,subField);
@@ -118,7 +119,7 @@ class JsonCodecParseMethodGenerator {
      * @param sb StringBuilder to append code to
      */
     private static void generateFieldCaseStatement(final StringBuilder sb, final Field field) {
-        if(field.repeated()) {
+        if (field.repeated()) {
             if (field.type() == Field.FieldType.MESSAGE) {
                 sb.append("parseObjArray(kvPair.value().arr(), "+field.messageType()+".JSON)");
             } else {
@@ -136,7 +137,7 @@ class JsonCodecParseMethodGenerator {
                 }
                 sb.append(").toList()");
             }
-        } else if(field.optionalValueType()) {
+        } else if (field.optionalValueType()) {
             switch(field.messageType()) {
                 case "Int32Value", "UInt32Value" -> sb.append("parseInteger(kvPair.value())");
                 case "Int64Value", "UInt64Value" -> sb.append("parseLong(kvPair.value())");
