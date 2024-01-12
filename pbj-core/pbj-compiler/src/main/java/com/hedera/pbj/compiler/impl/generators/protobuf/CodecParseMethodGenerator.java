@@ -141,7 +141,7 @@ class CodecParseMethodGenerator {
             $caseStatements
                             default -> {
                                 // The wire type is the bottom 3 bits of the byte. Read that off
-                                final int wireType = tag & TAG_WRITE_TYPE_MASK;
+                                final int wireType = tag & TAG_WIRE_TYPE_MASK;
                                 // handle error cases here, so we do not do if statements in normal loop
                                 // Validate the field number is valid (must be > 0)
                                 if (field == 0) {
@@ -264,7 +264,7 @@ class CodecParseMethodGenerator {
 							    final int valueFieldTag = input.readVarInt(false);
 							    // assert tag is as expected
 							    assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
-							    assert (valueFieldTag & TAG_WRITE_TYPE_MASK) == $valueTypeWireType;
+							    assert (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
 							    // read value
 							    value = $readMethod;
 							    input.limit(beforeLimit);

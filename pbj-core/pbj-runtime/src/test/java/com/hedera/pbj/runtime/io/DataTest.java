@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -12,6 +13,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -70,6 +72,9 @@ final class DataTest {
         return Stream.of(
                 Integer.MIN_VALUE,
                 Integer.MIN_VALUE + 1,
+                -536870912,
+                -4194304,
+                -32768,
                 -100,
                 -66,
                 -7,
@@ -79,6 +84,9 @@ final class DataTest {
                 9,
                 51,
                 101,
+                32768,
+                4194304,
+                536870912,
                 Integer.MAX_VALUE - 1,
                 Integer.MAX_VALUE).map(Number::intValue);
     }
@@ -136,9 +144,15 @@ final class DataTest {
                 Integer.MIN_VALUE - 1L,
                 Integer.MIN_VALUE,
                 Integer.MIN_VALUE + 1,
+                -9007199254740992L,
+                -35184372088832L,
+                -137438953472L,
+                -536870912,
+                -4194304,
                 -65536,
                 -65535,
-                -65534
+                -65534,
+                -32768,
                 -100,
                 -66,
                 -7,
@@ -151,6 +165,12 @@ final class DataTest {
                 1023,
                 1024,
                 1025,
+                32768,
+                4194304,
+                536870912,
+                137438953472L,
+                35184372088832L,
+                9007199254740992L,
                 Integer.MAX_VALUE - 1L,
                 Integer.MAX_VALUE,
                 Integer.MAX_VALUE + 1L,
@@ -177,6 +197,51 @@ final class DataTest {
                 d -> Long.reverseBytes(d.readLong()),
                 d -> d.readLong(ByteOrder.LITTLE_ENDIAN)
         );
+    }
+    @ParameterizedTest
+    @MethodSource("intsTestCases")
+    void bytesVarIntTest(int value) throws IOException {
+        // zigZag indicates if we want to use zigZag encoding
+        for (boolean zigZag : new boolean[] {false, true}) {
+            // extendData indicates if we want to enlarge the byte array
+            // to force the code to use the Bytes.getVarInt() implementation
+            // that doesn't delegate to its super method.
+            for (boolean extendData : new boolean[] {false, true}) {
+                ByteArrayOutputStream bout = new ByteArrayOutputStream();
+                WritableStreamingData dout = new WritableStreamingData(bout);
+                dout.writeVarInt(value, zigZag);
+                byte[] writtenData = bout.toByteArray();
+                byte[] testData = extendData ? Arrays.copyOf(writtenData, 32) : writtenData;
+
+                Bytes bytes = Bytes.wrap(testData);
+
+                int varInt = bytes.getVarInt(0, zigZag);
+                assertEquals(value, varInt);
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("longsTestCases")
+    void bytesVarLongTest(long value) throws IOException {
+        // zigZag indicates if we want to use zigZag encoding
+        for (boolean zigZag : new boolean[] {false, true}) {
+            // extendData indicates if we want to enlarge the byte array
+            // to force the code to use the Bytes.getVarLong() implementation
+            // that doesn't delegate to its super method.
+            for (boolean extendData : new boolean[] {false, true}) {
+                ByteArrayOutputStream bout = new ByteArrayOutputStream();
+                WritableStreamingData dout = new WritableStreamingData(bout);
+                dout.writeVarLong(value, zigZag);
+                byte[] writtenData = bout.toByteArray();
+                byte[] testData = extendData ? Arrays.copyOf(writtenData, 32) : writtenData;
+
+                Bytes bytes = Bytes.wrap(testData);
+
+                long varLong = bytes.getVarLong(0, zigZag);
+                assertEquals(value, varLong);
+            }
+        }
     }
 
     static Stream<Float> floatsTestCases() {

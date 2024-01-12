@@ -70,6 +70,7 @@ public final class CodecGenerator implements Generator {
 					import static $schemaClass.*;
 					import static com.hedera.pbj.runtime.ProtoWriterTools.*;
 					import static com.hedera.pbj.runtime.ProtoParserTools.*;
+					import static com.hedera.pbj.runtime.ProtoConstants.TAG_WIRE_TYPE_MASK;
 				
 					/**
 					 * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.

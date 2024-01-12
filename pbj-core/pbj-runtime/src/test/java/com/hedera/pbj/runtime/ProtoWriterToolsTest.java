@@ -59,24 +59,34 @@ import static java.util.Collections.emptyList;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
+import com.hedera.pbj.runtime.test.Sneaky;
 import net.bytebuddy.utility.RandomString;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import test.proto.Apple;
 
 import java.io.IOException;
+import java.nio.BufferOverflowException;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.random.RandomGenerator;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 class ProtoWriterToolsTest {
 
@@ -98,7 +108,7 @@ class ProtoWriterToolsTest {
 
     @BeforeEach
     void setUp() {
-        bufferedData = BufferedData.allocate(100);
+        bufferedData = BufferedData.allocate(200);
     }
 
     @Test
@@ -143,9 +153,25 @@ class ProtoWriterToolsTest {
     }
 
     @Test
+    void testWriteInteger_zero() {
+        FieldDefinition definition = createFieldDefinition(INT32);
+        final int valToWrite = 0;
+        final long positionBefore = bufferedData.position();
+        writeInteger(bufferedData, definition, valToWrite);
+        final long positionAfter = bufferedData.position();
+        assertEquals(positionBefore, positionAfter);
+    }
+
+    private static int nextNonZeroRandomInt() {
+        int ret;
+        do { ret = RNG.nextInt(); } while (ret == 0);
+        return ret;
+    }
+
+    @Test
     void testWriteInteger_int32() {
         FieldDefinition definition = createFieldDefinition(INT32);
-        final int valToWrite = RNG.nextInt();
+        final int valToWrite = nextNonZeroRandomInt();
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -155,7 +181,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteInteger_uint32() {
         FieldDefinition definition = createFieldDefinition(UINT32);
-        final int valToWrite = RNG.nextInt(0, Integer.MAX_VALUE);
+        int valToWrite = RNG.nextInt(1, Integer.MAX_VALUE);
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -165,7 +191,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteInteger_sint32() {
         FieldDefinition definition = createFieldDefinition(SINT32);
-        final int valToWrite = RNG.nextInt();
+        final int valToWrite = nextNonZeroRandomInt();
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -176,12 +202,13 @@ class ProtoWriterToolsTest {
     @EnumSource(value = FieldType.class, names = {"SFIXED32", "FIXED32"})
     void testWriteInteger_fixed32(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        final int valToWrite = RNG.nextInt();
+        final int valToWrite = nextNonZeroRandomInt();
         writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertFixed32Tag(definition);
         assertEquals(valToWrite, bufferedData.readInt(ByteOrder.LITTLE_ENDIAN));
     }
+
     @ParameterizedTest
     @EnumSource(value = FieldType.class, names = {
             "DOUBLE", "FLOAT", "INT64", "UINT64", "SINT64",
@@ -193,9 +220,25 @@ class ProtoWriterToolsTest {
     }
 
     @Test
+    void testWriteLong_zero() {
+        FieldDefinition definition = createFieldDefinition(INT64);
+        final long valToWrite = 0L;
+        final long positionBefore = bufferedData.position();
+        writeLong(bufferedData, definition, valToWrite);
+        final long positionAfter = bufferedData.position();
+        assertEquals(positionBefore, positionAfter);
+    }
+
+    private static long nextNonZeroRandomLong() {
+        long ret;
+        do { ret = RNG.nextLong(); } while (ret == 0L);
+        return ret;
+    }
+
+    @Test
     void testWriteLong_int64() {
         FieldDefinition definition = createFieldDefinition(INT64);
-        final long valToWrite = RNG.nextLong();
+        final long valToWrite = nextNonZeroRandomLong();
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -205,7 +248,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteLong_uint64() {
         FieldDefinition definition = createFieldDefinition(UINT64);
-        final long valToWrite = RNG.nextLong(0, Long.MAX_VALUE);
+        final long valToWrite = RNG.nextLong(1, Long.MAX_VALUE);
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -215,7 +258,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteLong_sint64() {
         FieldDefinition definition = createFieldDefinition(SINT64);
-        final int valToWrite = RNG.nextInt();
+        final int valToWrite = nextNonZeroRandomInt();
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
@@ -226,7 +269,7 @@ class ProtoWriterToolsTest {
     @EnumSource(value = FieldType.class, names = {"SFIXED64", "FIXED64"})
     void testWriteLong_fixed64(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        final long valToWrite = RNG.nextLong();
+        final long valToWrite = nextNonZeroRandomLong();
         writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_FIXED_64_BIT.ordinal(), bufferedData.readVarInt(false));
@@ -243,20 +286,32 @@ class ProtoWriterToolsTest {
         assertThrows(RuntimeException.class, () -> writeLong(bufferedData, definition, RNG.nextInt()));
     }
 
+    private static float nextNonZeroRandomFloat() {
+        float ret;
+        do { ret = RNG.nextFloat(); } while (ret == 0);
+        return ret;
+    }
+
     @Test
     void testWriteFloat() {
         FieldDefinition definition = createFieldDefinition(FLOAT);
-        final float valToWrite = RNG.nextFloat();
+        final float valToWrite = nextNonZeroRandomFloat();
         ProtoWriterTools.writeFloat(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertFixed32Tag(definition);
         assertEquals(valToWrite, bufferedData.readFloat(ByteOrder.LITTLE_ENDIAN));
     }
 
+    private static double nextNonZeroRandomDouble() {
+        double ret;
+        do { ret = RNG.nextDouble(); } while (ret == 0);
+        return ret;
+    }
+
     @Test
     void testWriteDouble() {
         FieldDefinition definition = createFieldDefinition(DOUBLE);
-        final double valToWrite = RNG.nextDouble();
+        final double valToWrite = nextNonZeroRandomDouble();
         ProtoWriterTools.writeDouble(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_FIXED_64_BIT.ordinal(), bufferedData.readVarInt(false));
@@ -280,17 +335,42 @@ class ProtoWriterToolsTest {
         assertEquals(0, bufferedData.length());
     }
 
+    private static EnumWithProtoMetadata mockEnum(int ordinal) {
+        EnumWithProtoMetadata enumWithProtoMetadata = mock(EnumWithProtoMetadata.class);
+        doReturn(ordinal).when(enumWithProtoMetadata).protoOrdinal();
+        doReturn(RANDOM_STRING.nextString()).when(enumWithProtoMetadata).protoName();
+        return enumWithProtoMetadata;
+    }
+
     @Test
     void testWriteEnum() {
         FieldDefinition definition = createFieldDefinition(ENUM);
-        EnumWithProtoMetadata enumWithProtoMetadata = mock(EnumWithProtoMetadata.class);
-        int expectedOrdinal = RNG.nextInt();
-        when(enumWithProtoMetadata.protoOrdinal()).thenReturn(expectedOrdinal);
-        when(enumWithProtoMetadata.protoName()).thenReturn(RANDOM_STRING.nextString());
+        final int expectedOrdinal = RNG.nextInt();
+        EnumWithProtoMetadata enumWithProtoMetadata = mockEnum(expectedOrdinal);
         ProtoWriterTools.writeEnum(bufferedData, definition, enumWithProtoMetadata);
         bufferedData.flip();
         assertVarIntTag(definition);
         assertEquals(expectedOrdinal, bufferedData.readVarInt(false));
+    }
+
+    @Test
+    void testWriteEnumZeroOrdinal() {
+        FieldDefinition definition = createFieldDefinition(ENUM);
+        EnumWithProtoMetadata enumWithProtoMetadata = mockEnum(0);
+        final long positionBefore = bufferedData.position();
+        ProtoWriterTools.writeEnum(bufferedData, definition, enumWithProtoMetadata);
+        final long positionAfter = bufferedData.position();
+        assertEquals(positionAfter, positionBefore);
+    }
+
+    @Test
+    void testWriteString_empty() throws IOException {
+        FieldDefinition definition = createFieldDefinition(STRING);
+        String valToWrite = "";
+        final long positionBefore = bufferedData.position();
+        writeString(bufferedData, definition, valToWrite);
+        final long positionAfter = bufferedData.position();
+        assertEquals(positionAfter, positionBefore);
     }
 
     @Test
@@ -302,6 +382,24 @@ class ProtoWriterToolsTest {
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
         int length = bufferedData.readVarInt(false);
         assertEquals(valToWrite, new String(bufferedData.readBytes(length).toByteArray()));
+    }
+
+    @Test
+    void testWriteBytes_smallBuffer() throws IOException {
+        BufferedData bd = BufferedData.allocate(1);
+        FieldDefinition definition = createFieldDefinition(BYTES);
+        Bytes valToWrite = Bytes.wrap(new byte[] {1, 2});
+        assertThrows(BufferOverflowException.class, () -> writeBytes(bd, definition, valToWrite));
+    }
+
+    @Test
+    void testWriteBytes_empty() throws IOException {
+        FieldDefinition definition = createFieldDefinition(BYTES);
+        Bytes valToWrite = Bytes.wrap(new byte[0]);
+        final long positionBefore = bufferedData.position();
+        writeBytes(bufferedData, definition, valToWrite);
+        final long positionAfter = bufferedData.position();
+        assertEquals(positionAfter, positionBefore);
     }
 
     @Test
@@ -986,6 +1084,269 @@ class ProtoWriterToolsTest {
         assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + length, sizeOfDelimited(definition, length));
     }
 
+    private static Stream<Arguments> provideWriteIntegerListArguments() {
+        return Stream.of(
+                Arguments.of(INT32, 29, false),
+                Arguments.of(UINT32, 24, false),
+                Arguments.of(SINT32, 21, true),
+                Arguments.of(FIXED32, 32, false),
+                Arguments.of(SFIXED32, 32, false)
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideWriteIntegerListArguments")
+    void testWriteIntegerList(final FieldType type, final int expectedSize, final boolean zigZag) {
+        final FieldDefinition definition = createRepeatedFieldDefinition(type);
+
+        final long start = bufferedData.position();
+        ProtoWriterTools.writeIntegerList(bufferedData, definition, List.of(
+                0x0f,
+                0xff,
+                0xfff,
+                0xffff,
+                0xfffff,
+                0xffffff,
+                0xfffffff,
+                0xffffffff
+        ));
+        final long finish = bufferedData.position();
+
+        int tag = bufferedData.getVarInt(start, false);
+        assertEquals(WIRE_TYPE_DELIMITED.ordinal(), tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+        int sizeOfTag = ProtoWriterTools.sizeOfVarInt32(tag);
+
+        int size = bufferedData.getVarInt(start + sizeOfTag, false);
+        assertEquals(expectedSize, size);
+        int sizeOfSize = ProtoWriterTools.sizeOfVarInt32(size);
+
+        assertEquals(finish - start - sizeOfTag - sizeOfSize, size);
+
+        int firstInt = bufferedData.getVarInt(start + sizeOfTag + sizeOfSize, zigZag);
+        assertEquals(0x0f, firstInt);
+    }
+
+    private static Stream<Arguments> provideWriteLongListArguments() {
+        return Stream.of(
+                Arguments.of(INT64, 85, false),
+                Arguments.of(UINT64, 85, false),
+                Arguments.of(SINT64, 78, true),
+                Arguments.of(FIXED64, 128, false),
+                Arguments.of(SFIXED64, 128, false)
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideWriteLongListArguments")
+    void testWriteLongList(final FieldType type, final int expectedSize, final boolean zigZag) {
+        final FieldDefinition definition = createRepeatedFieldDefinition(type);
+
+        final long start = bufferedData.position();
+        ProtoWriterTools.writeLongList(bufferedData, definition, List.of(
+                0x0fL,
+                0xffL,
+                0xfffL,
+                0xffffL,
+                0xfffffL,
+                0xffffffL,
+                0xfffffffL,
+                0xffffffffL,
+                0xfffffffffL,
+                0xffffffffffL,
+                0xfffffffffffL,
+                0xffffffffffffL,
+                0xfffffffffffffL,
+                0xffffffffffffffL,
+                0xfffffffffffffffL,
+                0xffffffffffffffffL
+        ));
+        final long finish = bufferedData.position();
+
+        int tag = bufferedData.getVarInt(start, false);
+        assertEquals(WIRE_TYPE_DELIMITED.ordinal(), tag & 0x3);
+        int sizeOfTag = ProtoWriterTools.sizeOfVarInt32(tag);
+
+        int size = bufferedData.getVarInt(start + sizeOfTag, false);
+        assertEquals(expectedSize, size);
+        int sizeOfSize = ProtoWriterTools.sizeOfVarInt32(size);
+
+        assertEquals(finish - start - sizeOfTag - sizeOfSize, size);
+
+        long firstLong = bufferedData.getVarLong(start + sizeOfTag + sizeOfSize, zigZag);
+        assertEquals(0x0f, firstLong);
+    }
+
+    private static interface WriterMethod<T> {
+        void write(WritableSequentialData out, FieldDefinition field, List<T> list);
+    }
+
+    private static interface ReaderMethod<T> {
+        T read(BufferedData bd, long pos);
+    }
+
+    private static final List<EnumWithProtoMetadata> testEnumList = List.of(
+            mockEnum(0),
+            mockEnum(2),
+            mockEnum(1)
+    );
+
+    // https://clement-jean.github.io/packed_vs_unpacked_repeated_fields/
+    private static Stream<Arguments> provideWritePackedListArguments() {
+        return Stream.of(
+                Arguments.of(
+                        FLOAT,
+                        (WriterMethod<Float>) ProtoWriterTools::writeFloatList,
+                        List.of(.1f, .5f, 100.f),
+                        12,
+                        (ReaderMethod<Float>) (BufferedData bd, long pos) -> bd.getFloat(pos)
+                        ),
+                Arguments.of(
+                        DOUBLE,
+                        (WriterMethod<Double>) ProtoWriterTools::writeDoubleList,
+                        List.of(.1, .5, 100., 1.7653472635472654e240),
+                        32,
+                        (ReaderMethod<Double>) (BufferedData bd, long pos) -> bd.getDouble(pos)
+                ),
+                Arguments.of(
+                        BOOL,
+                        (WriterMethod<Boolean>) ProtoWriterTools::writeBooleanList,
+                        List.of(true, false, false, true, true, true),
+                        6,
+                        (ReaderMethod<Boolean>) (BufferedData bd, long pos) -> (bd.getInt(pos) != 0 ? true : false)
+                ),
+                Arguments.of(
+                        ENUM,
+                        (WriterMethod<? extends EnumWithProtoMetadata>) ProtoWriterTools::writeEnumList,
+                        testEnumList,
+                        3,
+                        (ReaderMethod<? extends EnumWithProtoMetadata>) (BufferedData bd, long pos) -> {
+                            final int ordinal = bd.getVarInt(pos, false);
+                            for (EnumWithProtoMetadata e : testEnumList) {
+                                if (e.protoOrdinal() == ordinal) return e;
+                            }
+                            throw new RuntimeException("Unexpected ordinal " + ordinal
+                                    + " for test enum list "
+                                    + testEnumList.stream()
+                                    .map(e -> "" + e.protoOrdinal() + ": " + e.protoName())
+                                    .collect(Collectors.joining(",", "{", "}"))
+                            );
+                        }
+                )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideWritePackedListArguments")
+    <T> void testWritePackedList(
+            final FieldType type,
+            final WriterMethod<T> writerMethod,
+            final List<T> list,
+            final int expectedSize,
+            final ReaderMethod<T> readerMethod) {
+        final FieldDefinition definition = createRepeatedFieldDefinition(type);
+
+        final long start = bufferedData.position();
+        writerMethod.write(bufferedData, definition, list);
+        final long finish = bufferedData.position();
+
+        int tag = bufferedData.getVarInt(start, false);
+        assertEquals(WIRE_TYPE_DELIMITED.ordinal(), tag & 0x3);
+        int sizeOfTag = ProtoWriterTools.sizeOfVarInt32(tag);
+
+        int size = bufferedData.getVarInt(start + sizeOfTag, false);
+        assertEquals(expectedSize, size);
+        int sizeOfSize = ProtoWriterTools.sizeOfVarInt32(size);
+
+        assertEquals(finish - start - sizeOfTag - sizeOfSize, size);
+
+        T value = readerMethod.read(bufferedData,start + sizeOfTag + sizeOfSize);
+        assertEquals(list.get(0), value);
+    }
+
+    private static record UnpackedField<T>(
+            T value,
+            int size
+    ) {}
+
+    // https://clement-jean.github.io/packed_vs_unpacked_repeated_fields/
+    private static Stream<Arguments> provideWriteUnpackedListArguments() {
+        return Stream.of(
+                Arguments.of(
+                        STRING,
+                        (WriterMethod<String>) (out, field, list) -> {
+                            try {
+                                ProtoWriterTools.writeStringList(out, field, list);
+                            } catch (IOException e) {
+                                Sneaky.sneakyThrow(e);
+                            }
+                        },
+                        List.of("string 1", "testing here", "testing there"),
+                        (ReaderMethod<UnpackedField<String>>) (BufferedData bd, long pos) -> {
+                            int size = bd.getVarInt(pos, false);
+                            int sizeOfSize = ProtoWriterTools.sizeOfVarInt32(size);
+                            return new UnpackedField<>(
+                                    new String(
+                                            bd.getBytes(pos + sizeOfSize, size).toByteArray(),
+                                            StandardCharsets.UTF_8
+                                    ),
+                                    sizeOfSize + size
+                            );
+                        }
+                ),
+                Arguments.of(
+                        BYTES,
+                        (WriterMethod<? extends RandomAccessData>) (out, field, list) -> {
+                            try {
+                                ProtoWriterTools.writeBytesList(out, field, list);
+                            } catch (IOException e) {
+                                Sneaky.sneakyThrow(e);
+                            }
+                        },
+                        List.of(
+                                Bytes.wrap(new byte[] {1, 2, 3}),
+                                Bytes.wrap(new byte[] {(byte)255, 127, 15}),
+                                Bytes.wrap(new byte[] {66, (byte) 218, 7, 55, 11, (byte) 255})
+                        ),
+                        (ReaderMethod<UnpackedField<Bytes>>) (BufferedData bd, long pos) -> {
+                            int size = bd.getVarInt(pos, false);
+                            int sizeOfSize = ProtoWriterTools.sizeOfVarInt32(size);
+                            return new UnpackedField<>(
+                                    bd.getBytes(pos + sizeOfSize, size),
+                                    sizeOfSize + size
+                            );
+                        }
+                )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideWriteUnpackedListArguments")
+    <T> void testWriteUnpackedList(
+            final FieldType type,
+            final WriterMethod<T> writerMethod,
+            final List<T> list,
+            final ReaderMethod<UnpackedField<T>> readerMethod) {
+        final FieldDefinition definition = createRepeatedFieldDefinition(type);
+
+        final long start = bufferedData.position();
+        writerMethod.write(bufferedData, definition, list);
+        final long finish = bufferedData.position();
+
+        int offset = 0;
+        for (int i = 0; i < list.size(); i++) {
+            int tag = bufferedData.getVarInt(start + offset, false);
+            assertEquals((definition.number() << 3) | WIRE_TYPE_DELIMITED.ordinal(), tag);
+            int sizeOfTag = ProtoWriterTools.sizeOfVarInt32(tag);
+
+            UnpackedField<T> value = readerMethod.read(bufferedData, start + offset + sizeOfTag);
+            assertEquals(list.get(i), value.value());
+
+            offset += sizeOfTag + value.size();
+        }
+
+        assertEquals(finish, start + offset);
+    }
+
     private void assertVarIntTag(FieldDefinition definition) {
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal(), bufferedData.readVarInt(false));
     }
@@ -1035,6 +1396,10 @@ class ProtoWriterToolsTest {
 
     static FieldDefinition createOneOfFieldDefinition(FieldType fieldType) {
         return new FieldDefinition(RANDOM_STRING.nextString(), fieldType, false, false, true, RNG.nextInt(1, 16));
+    }
+
+    static FieldDefinition createRepeatedFieldDefinition(FieldType fieldType) {
+        return new FieldDefinition(RANDOM_STRING.nextString(), fieldType, true, RNG.nextInt(1, 16));
     }
 
 }
