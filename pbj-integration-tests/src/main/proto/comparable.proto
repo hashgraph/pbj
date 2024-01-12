@@ -85,7 +85,6 @@ enum ComparableEnum {
   THREE = 3;
 }
 
-
 /**
  * Example of a message with a limited set of fields that are comparable.
  */
@@ -97,6 +96,14 @@ message LimitedComparableTest {
   string text = 4;
   ComparableEnum comparableEnum = 5;
   ComparableSubObj subObject = 6;
+}
+
+// <<<pbj.comparable = "int32Number, int64Number" >>>
+message LimitedComparableTestWithRepeated {
+  int32 int32Number = 1;
+  // repeated fields should be fine as long as they are not mentioned in `pbj.comparable`
+  repeated int32 int32Numbers = 2;
+  int64 int64Number = 3;
 }
 
 // <<<pbj.comparable = "int32Number" >>>

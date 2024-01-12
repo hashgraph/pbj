@@ -616,17 +616,18 @@ public final class LookupHelper {
             final String optionName = matcher.group(1);
             final String optionValue = matcher.group(2);
             if (optionName.equals(PBJ_COMPARABLE_OPTION_NAME)) {
+                final Set<String> repeatedFields = new HashSet<>();
                 final Set<String> regularFieldNames = msgDef.messageBody().messageElement().stream()
                         .filter(v -> v.field() != null)
                         .filter(v -> {
-                            if (v.field().REPEATED() != null) {
-                                throw new IllegalArgumentException(("Field `%s` specified in `%s` option is repeated. " +
-                                        "Repeated fields are not supported by this option.")
-                                        .formatted(v.field().fieldName().getText(), PBJ_COMPARABLE_OPTION_NAME));
+                            if(v.field().REPEATED() != null){
+                                repeatedFields.add(v.field().fieldName().getText());
+                                return false;
                             } else {
                                 return true;
                             }
-                        }).map(v -> v.field().fieldName().getText()).collect(Collectors.toSet());
+                        })
+                        .map(v -> v.field().fieldName().getText()).collect(Collectors.toSet());
                 final Set<String> oneOfFieldNames = msgDef.messageBody().messageElement().stream()
                         .filter(v -> v.oneof() != null)
                         .map(v -> v.oneof().oneofName().getText())
@@ -637,11 +638,15 @@ public final class LookupHelper {
                 return Arrays.stream(optionValue.split(","))
                         .map(String::trim)
                         .peek(v -> {
+                            if(repeatedFields.contains(v)){
+                                throw new IllegalArgumentException("Field `%s` specified in `%s` option is repeated. Repeated fields are not supported by this option."
+                                        .formatted(v, PBJ_COMPARABLE_OPTION_NAME));
+                            }
                             if (!allFieldNames.contains(v)) {
                                 throw new IllegalArgumentException(
                                         "Field '%s' specified in %s option is not found.".formatted(v, PBJ_COMPARABLE_OPTION_NAME));
                             }
-                        })
+                       })
                         .collect(Collectors.toList());
             }
         }
