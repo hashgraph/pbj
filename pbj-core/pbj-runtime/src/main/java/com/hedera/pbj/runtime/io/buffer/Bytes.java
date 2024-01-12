@@ -357,7 +357,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         // Compare the lengths first
         final int minLength = Math.min(length, otherData.length);
         for (int i = 0; i < minLength; i++) {
-            final int compare = Byte.compare(getByte(i), otherData.getByte(i));
+            final int compare = Byte.compareUnsigned(getByte(i), otherData.getByte(i));
             if (compare != 0) {
                 return compare;
             }
