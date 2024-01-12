@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -32,9 +33,10 @@ public final class Common {
 	public static final int TYPE_LENGTH_DELIMITED = 2;
 	/** Wire format code for fixed 32bit number */
 	public static final int TYPE_FIXED32 = 5;
+    private static final Pattern COMPARABLE_PATTERN = Pattern.compile("class\\s+\\w+\\s+implements\\s+Comparable");
 
 
-	/**
+    /**
 	 * Makes a tag value given a field number and wire type.
 	 *
 	 * @param wireType the wire type part of tag
@@ -584,16 +586,9 @@ public final class Common {
 							}
 							""".replace("$fieldName", f.nameCamelFirstLower());
 				} else if (f.type() == Field.FieldType.STRING ||
+						f.type() == Field.FieldType.BYTES ||
 						f.type() == Field.FieldType.ENUM) {
 					generatedCodeSoFar += generateCompareToForObject(f);
-				} else if (f.type() == Field.FieldType.BYTES) {
-					generatedCodeSoFar +=
-							"""
-							result = $fieldName.compareTo(thatObj.$fieldName);
-							if (result != 0) {
-								return result;
-							}
-							 """.replace("$fieldName", f.nameCamelFirstLower());
 				} else if (f.type() == Field.FieldType.MESSAGE || f.type() == Field.FieldType.ONE_OF) {
 					verifyComparable(f, destinationSrcDir);
 					generatedCodeSoFar += generateCompareToForObject(f);
@@ -640,7 +635,7 @@ public final class Common {
 			try (BufferedReader reader = new BufferedReader(new FileReader(javaFile))) {
 				String line;
 				while ((line = reader.readLine()) != null) {
-					if (line.contains("implements Comparable")) {
+					if (COMPARABLE_PATTERN.matcher(line).matches()) {
 						return;
 					}
 				}

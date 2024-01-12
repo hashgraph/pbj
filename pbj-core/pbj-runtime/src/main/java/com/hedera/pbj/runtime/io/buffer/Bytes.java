@@ -363,7 +363,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
             }
         }
         // If all compared elements are equal, the shorter array is considered less
-        return length - otherData.length;
+        return Integer.compare(length, otherData.length);
     }
 
     /**
