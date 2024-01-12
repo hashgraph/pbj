@@ -26,6 +26,49 @@ message ComparableTest {
   bytes bytes = 7;
 }
 
+// <<<pbj.comparable = "stringValue" >>>
+message StringValueComparableTest {
+  google.protobuf.StringValue stringValue = 1;
+}
+
+// <<<pbj.comparable = "boolValue" >>>
+message BoolValueComparableTest {
+  google.protobuf.BoolValue boolValue = 1;
+}
+
+// <<<pbj.comparable = "int32Value, uint32Value" >>>
+message Int32ValueComparableTest {
+  google.protobuf.Int32Value int32Value = 1;
+  google.protobuf.UInt32Value uint32Value = 2;
+}
+
+// <<<pbj.comparable = "int64Value, uint64Value" >>>
+message Int64ValueComparableTest {
+  google.protobuf.Int64Value int64Value = 1;
+  google.protobuf.UInt64Value uint64Value = 2;
+}
+
+// <<<pbj.comparable = "floatValue" >>>
+message FloatValueComparableTest {
+  google.protobuf.FloatValue floatValue = 1;
+}
+
+// <<<pbj.comparable = "doubleValue" >>>
+message DoubleValueComparableTest {
+  google.protobuf.DoubleValue doubleValue = 1;
+}
+
+// <<<pbj.comparable = "bytesValue" >>>
+message BytesValueComparableTest {
+  google.protobuf.BytesValue bytesValue = 1;
+}
+
+// <<<pbj.comparable = "uint32Value, uint64Value" >>>
+message UnsignedComparableTest {
+  uint32 uint32Value = 1;
+  uint64 uint64Value = 2;
+}
+
 // <<<pbj.comparable = "oneofExample" >>>
 message ComparableOneOfTest {
   oneof oneofExample {

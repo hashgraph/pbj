@@ -33,7 +33,7 @@ public final class Common {
 	public static final int TYPE_LENGTH_DELIMITED = 2;
 	/** Wire format code for fixed 32bit number */
 	public static final int TYPE_FIXED32 = 5;
-    private static final Pattern COMPARABLE_PATTERN = Pattern.compile("class\\s+\\w+\\s+implements\\s+Comparable");
+    private static final Pattern COMPARABLE_PATTERN = Pattern.compile("[)] implements Comparable<\\w+> [{]");
 
 
     /**
@@ -673,14 +673,15 @@ public final class Common {
 
 
 		final String compareStatement = switch (f.messageType()) {
-			case "StringValue" -> "$fieldName.compareTo(thatObj.$fieldName)";
+			case "StringValue", "BytesValue" -> "$fieldName.compareTo(thatObj.$fieldName)";
 			case "BoolValue" -> "java.lang.Boolean.compare($fieldName, thatObj.$fieldName)";
-			case "Int32Value", "UInt32Value" -> "java.lang.Integer.compare($fieldName, thatObj.$fieldName)";
-			case "Int64Value", "UInt64Value" -> "java.lang.Long.compare($fieldName, thatObj.$fieldName)";
+			case "Int32Value" -> "java.lang.Integer.compare($fieldName, thatObj.$fieldName)";
+			case "UInt32Value" -> "java.lang.Integer.compareUnsigned($fieldName, thatObj.$fieldName)";
+			case "Int64Value" -> "java.lang.Long.compare($fieldName, thatObj.$fieldName)";
+			case "UInt64Value" -> "java.lang.Long.compareUnsigned($fieldName, thatObj.$fieldName)";
 			case "FloatValue" -> "java.lang.Float.compare($fieldName, thatObj.$fieldName)";
 			case "DoubleValue" -> "java.lang.Double.compare($fieldName, thatObj.$fieldName)";
-			case "BytesValue" -> "(int)($fieldName.length() - thatObj.$fieldName.length())";
-			default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
+            default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
 		};
 
 		return template
