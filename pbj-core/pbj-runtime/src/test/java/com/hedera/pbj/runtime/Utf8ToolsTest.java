@@ -6,6 +6,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 import java.util.stream.Stream;
@@ -14,13 +15,18 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class Utf8ToolsTest {
-    private static Stream<Arguments> provideStringsAndLengths() {
+    private static Stream<Arguments> provideStringsAndLengths() throws UnsupportedEncodingException {
         return Stream.of(
                 Arguments.of("", 0),
                 Arguments.of(" ", 1),
                 Arguments.of("a", 1),
                 Arguments.of("\n", 1),
-                Arguments.of("not blank", 9)
+                Arguments.of("not blank", 9),
+                Arguments.of("\u076c test", 7),
+                Arguments.of("\u076c \uea84 test", 11),
+                Arguments.of(new String(new byte[] {
+                        (byte) 0b11110001, (byte) 0b10000011, (byte) 0b10000111, (byte) 0b10001111
+                }, "UTF-8"), 4)
         );
     }
     @ParameterizedTest

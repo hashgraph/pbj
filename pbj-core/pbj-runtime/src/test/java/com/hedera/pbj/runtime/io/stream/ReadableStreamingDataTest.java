@@ -5,21 +5,26 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.ReadableSequentialTestBase;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+
 import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -31,6 +36,80 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         final var stream = new ReadableStreamingData(new byte[0]);
         stream.limit(0);
         return stream;
+    }
+
+    @NonNull
+    private ReadableSequentialData throwingSequence() {
+        return new ReadableStreamingData(new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("testing here");
+            }
+        });
+    }
+
+    @NonNull
+    private ReadableSequentialData oneByteSequence() {
+        return new ReadableStreamingData(new InputStream() {
+            private int pos = 0;
+            @Override
+            public int read() throws IOException {
+                switch (pos) {
+                    case 0: pos++; return 7;
+                    case 1: pos++; return -1;
+                    default: throw new IOException("EOF");
+                }
+            }
+
+            @Override
+            public int readNBytes(byte[] b, int off, int len) throws IOException {
+                switch (pos) {
+                    case 0: b[off] = (byte) read(); return 1;
+                    default: return super.readNBytes(b, off, len);
+                }
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("Stream with readByte() throwing an exception")
+    void throwingSequenceTest() {
+        final var stream = throwingSequence();
+        assertThat(stream.hasRemaining()).isTrue();
+        final var bytes = new byte[4];
+        assertThrows(DataAccessException.class, () -> stream.readBytes(bytes), "testing here");
+    }
+
+    @Test
+    @DisplayName("Stream with just one byte, to test EOF")
+    void oneByteSequenceTest() {
+        final var stream = oneByteSequence();
+        assertThat(stream.hasRemaining()).isTrue();
+        final var bb = ByteBuffer.allocate(4);
+        assertThat(stream.readBytes(bb)).isEqualTo(1);
+        assertThat(bb.array()[0]).isEqualTo((byte) 7);
+        assertThat(stream.readBytes(bb)).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Read into a ByteBuffer that has no a backing array")
+    void noArrayByteBufferTest() {
+        byte[] inputArr = {1, 2, 3};
+        ReadableStreamingData sequence = sequence(inputArr);
+        ByteBuffer bb = ByteBuffer.allocateDirect(3);
+        if (bb.hasArray()) {
+            // There's not an easy way to have a ByteBuffer w/o an array
+            // on this particular platform, so we skip this test.
+            // Note that on Mac, the direct buffer doesn't have an array,
+            // so at the very least this test runs on Mac OS (as of 2023-12.)
+            return;
+        }
+        final long bytesRead = sequence.readBytes(bb);
+        assertThat(bytesRead).isEqualTo(3);
+        byte[] outputArr = new byte[3];
+        bb.rewind();
+        bb.get(outputArr);
+        assertArrayEquals(inputArr, outputArr);
     }
 
     @NonNull

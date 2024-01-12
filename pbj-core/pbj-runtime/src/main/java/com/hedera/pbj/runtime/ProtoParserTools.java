@@ -27,10 +27,6 @@ public final class ProtoParserTools {
      * to reveal the field number
      */
     public static final int TAG_FIELD_OFFSET = 3;
-    /**
-     * Mask used to extract the wire type from the "tag" byte
-     */
-    public static final int TAG_WRITE_TYPE_MASK = 0b0000_0111;
 
     /** Instance should never be created */
     private ProtoParserTools() {}
