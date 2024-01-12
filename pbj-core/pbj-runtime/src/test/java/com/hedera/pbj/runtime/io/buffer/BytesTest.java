@@ -67,6 +67,20 @@ final class BytesTest {
         assertEquals(2, replicatedBytes.length());
         assertEquals(arr[1], replicatedBytes.getByte(0));
         assertEquals(arr[2], replicatedBytes.getByte(1));
+
+        // Also verify if the replica is really a replica and not a view
+        arr[0] = 100;
+        arr[1] = 90;
+        arr[2] = 80;
+
+        // First check if the original wrapped Bytes object sees the changes and keeps its length intact:
+        assertEquals(2, bytes.length());
+        assertEquals(90, bytes.getByte(0));
+        assertEquals(80, bytes.getByte(1));
+
+        // Now ensure the replica still has the original values defined at the very top
+        assertEquals(1, replicatedBytes.getByte(0));
+        assertEquals(2, replicatedBytes.getByte(1));
     }
 
     // ================================================================================================================
