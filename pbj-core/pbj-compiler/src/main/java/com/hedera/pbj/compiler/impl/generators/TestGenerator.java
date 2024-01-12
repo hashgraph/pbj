@@ -187,8 +187,9 @@ public final class TestGenerator implements Generator {
 						}
 						options.add(listStr + ("\n.stream()\n"+
           							"""
-										.map(value -> new OneOf<>(%sOneOfType.%s, value))
+										.map(value -> new %s<>(%sOneOfType.%s, value))
 										.toList()""".formatted(
+										((OneOfField) field).className(),
 										modelClassName + "." + field.nameCamelFirstUpper(),
 										enumValueName
 								)).indent(DEFAULT_INDENT )
@@ -201,9 +202,10 @@ public final class TestGenerator implements Generator {
 			}
 			return """
 					Stream.of(
-					    List.of(new OneOf<>(%sOneOfType.UNSET, null)),
+					    List.of(new %s<>(%sOneOfType.UNSET, null)),
 					    %s
 					).flatMap(List::stream).toList()""".formatted(
+							((OneOfField)field).className(),
 							modelClassName+"."+field.nameCamelFirstUpper(),
                     String.join(",\n", options).indent(DEFAULT_INDENT)
 					).indent(DEFAULT_INDENT * 2);

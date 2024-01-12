@@ -20,7 +20,7 @@ class CompareToNegativeTest {
     void testNonComparableSubObj() {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
                 getCompileFilesIn("non_compilable_comparable_sub_obj.proto"));
-        assertEquals("Field NonComparableSubObj.subObject specified in `pbj.comparable` option has is supposed to implement `Comparable` interface but it doesn't.",
+        assertEquals("Field NonComparableSubObj.subObject specified in `pbj.comparable` option must implement `Comparable` interface but it doesn't.",
                 exception.getMessage());
     }
 
@@ -36,7 +36,7 @@ class CompareToNegativeTest {
     void testNonComparableOneOfField() {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
                 getCompileFilesIn("non_compilable_comparable_oneOf.proto"));
-        assertEquals("Field NonComparableSubObj.subObject specified in `pbj.comparable` option has is supposed to implement `Comparable` interface but it doesn't.",
+        assertEquals("Field NonComparableSubObj.subObject specified in `pbj.comparable` option must implement `Comparable` interface but it doesn't.",
                 exception.getMessage());
     }
 

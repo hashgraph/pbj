@@ -398,8 +398,9 @@ public final class ModelGenerator implements Generator {
 							// handle special case where protobuf does not have destination between a OneOf with optional
 							// value of empty vs an unset OneOf.
 							if ($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldName.value() == null) {
-								$fieldName = new OneOf<>($fieldUpperNameOneOfType.UNSET, null);
+								$fieldName = new $className<>($fieldUpperNameOneOfType.UNSET, null);
 							}"""
+							.replace("$className", oof.className())
 							.replace("$fieldName", f.nameCamelFirstLower())
 							.replace("$fieldUpperName", f.nameCamelFirstUpper())
 							.replace("$subFieldNameUpper", camelToUpperSnake(subField.name()))
@@ -627,8 +628,8 @@ public final class ModelGenerator implements Generator {
 		final String prefix, postfix, fieldToSet;
 		final OneOfField parentOneOfField = field.parent();
 		if (parentOneOfField != null) {
-			final String oneOfEnumValue = parentOneOfField.getEnumClassRef()+"."+camelToUpperSnake(field.name());
-			prefix = " new OneOf<>("+oneOfEnumValue+",";
+			final String oneOfEnumValue = parentOneOfField.getEnumClassRef() + "." + camelToUpperSnake(field.name());
+			prefix = " new %s<>(".formatted(parentOneOfField.className()) + oneOfEnumValue + ",";
 			postfix = ")";
 			fieldToSet = parentOneOfField.nameCamelFirstLower();
 		} else {

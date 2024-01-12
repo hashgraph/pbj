@@ -4,6 +4,7 @@ import static java.util.Collections.shuffle;
 import static java.util.Collections.sort;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.pbj.runtime.ComparableOneOf;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.ComparableEnum;
@@ -11,6 +12,7 @@ import com.hedera.pbj.test.proto.pbj.ComparableOneOfTest;
 import com.hedera.pbj.test.proto.pbj.ComparableSubObj;
 import com.hedera.pbj.test.proto.pbj.ComparableTest;
 import com.hedera.pbj.test.proto.pbj.LimitedComparableTest;
+import com.hedera.pbj.test.proto.pbj.LimitedComparableTestWithOneOf;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -104,6 +106,13 @@ class CompareToTest {
      }
 
      @Test
+     void limitedCompareTo_nonComparableOneOf() {
+        // This code is only here to be compiled. OneOf field is not listed in `pbj.comparable` option
+         // and therefore it has `OneOf` type, not `ComparableOneOf`.
+        new LimitedComparableTestWithOneOf(0, new OneOf<>(LimitedComparableTestWithOneOf.OneOfExampleOneOfType.ONE_OF_SUB_OBJECT, new ComparableSubObj(1)));
+     }
+
+     @Test
      void limitedCompareTo_int32() {
          assertComparables(
                  new LimitedComparableTest(1, 0L, false, null, null, null),
@@ -154,8 +163,8 @@ class CompareToTest {
          );
      }
 
-     private ComparableOneOfTest createOneOf(ComparableOneOfTest.OneofExampleOneOfType type, Object value) {
-         return new ComparableOneOfTest(new OneOf<>(type, value));
+     private ComparableOneOfTest createOneOf(ComparableOneOfTest.OneofExampleOneOfType type, Comparable value) {
+         return new ComparableOneOfTest(new ComparableOneOf<>(type, value));
      }
 
     private static long nextLong() {

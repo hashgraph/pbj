@@ -54,5 +54,14 @@ message LimitedComparableTest {
   string text = 4;
   ComparableEnum comparableEnum = 5;
   ComparableSubObj subObject = 6;
+}
+
+// <<<pbj.comparable = "int32Number" >>>
+message LimitedComparableTestWithOneOf {
+  int32 int32Number = 1;
+  oneof oneOfExample {
+    string oneOfText = 10;
+    ComparableSubObj oneOfSubObject = 12;
+  }
 
 }
