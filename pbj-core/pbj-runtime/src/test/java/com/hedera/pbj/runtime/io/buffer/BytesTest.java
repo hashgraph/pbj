@@ -56,6 +56,33 @@ final class BytesTest {
         assertEquals("54686973206973206d7920537472696e6721", Bytes.wrap(s).toString());
     }
 
+    @Test
+    void testReplicate() {
+        byte[] arr = new byte[] { 0, 1, 2 };
+
+        // Only wrap the last two elements:
+        Bytes bytes = Bytes.wrap(arr, 1, 2);
+        Bytes replicatedBytes = bytes.replicate();
+
+        assertEquals(2, replicatedBytes.length());
+        assertEquals(arr[1], replicatedBytes.getByte(0));
+        assertEquals(arr[2], replicatedBytes.getByte(1));
+
+        // Also verify if the replica is really a replica and not a view
+        arr[0] = 100;
+        arr[1] = 90;
+        arr[2] = 80;
+
+        // First check if the original wrapped Bytes object sees the changes and keeps its length intact:
+        assertEquals(2, bytes.length());
+        assertEquals(90, bytes.getByte(0));
+        assertEquals(80, bytes.getByte(1));
+
+        // Now ensure the replica still has the original values defined at the very top
+        assertEquals(1, replicatedBytes.getByte(0));
+        assertEquals(2, replicatedBytes.getByte(1));
+    }
+
     // ================================================================================================================
     // Verify Bytes.wrap(byte[])
 
