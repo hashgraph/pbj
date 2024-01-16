@@ -633,7 +633,7 @@ class ProtoWriterToolsTest {
 
     @Test
     void testWriteOptionalBytes() throws IOException {
-        FieldDefinition definition = createOptionalFieldDefinition(STRING);
+        FieldDefinition definition = createOptionalFieldDefinition(BYTES);
         byte[] valToWrite = new byte[10];
         RNG.nextBytes(valToWrite);
         writeOptionalBytes(bufferedData, definition, Bytes.wrap(valToWrite));

@@ -288,10 +288,7 @@ public final class ProtoWriterTools {
      */
     public static void writeBytes(final WritableSequentialData out, final FieldDefinition field,
             final RandomAccessData value) throws IOException {
-        assert field.type() == FieldType.BYTES ||
-                field.type() == FieldType.STRING ||
-                field.type() == FieldType.MESSAGE
-                : "Not a byte[] type " + field;
+        assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert !field.repeated() : "Use writeBytesList with repeated types";
         writeBytesNoChecks(out, field, value, true);
     }
