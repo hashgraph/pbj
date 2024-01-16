@@ -43,7 +43,7 @@ public interface Codec<T /*extends Record*/> {
      *     input
      */
     @NonNull default T parse(@NonNull Bytes bytes) throws IOException {
-        return parse(bytes.toCopyingReadableSequentialData());
+        return parse(bytes.toReadableSequentialData());
     }
 
     /**
@@ -77,7 +77,7 @@ public interface Codec<T /*extends Record*/> {
      *     input
      */
     @NonNull default T parseStrict(@NonNull Bytes bytes) throws IOException {
-        return parseStrict(bytes.toCopyingReadableSequentialData());
+        return parseStrict(bytes.toReadableSequentialData());
     }
 
     /**
