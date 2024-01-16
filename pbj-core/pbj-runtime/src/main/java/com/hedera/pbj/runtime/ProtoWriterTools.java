@@ -227,28 +227,47 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a string to data output
+     * Write a string to data output, assuming the field is non-repeated.
      *
      * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
+     * @param field the descriptor for the field we are writing, the field must be non-repeated
      * @param value the string value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeString(WritableSequentialData out, FieldDefinition field, String value) throws IOException {
+    public static void writeString(final WritableSequentialData out, final FieldDefinition field,
+            final String value) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert !field.repeated() : "Use writeStringList with repeated types";
         writeStringNoChecks(out, field, value);
     }
 
     /**
-     * Write a integer to data output - No validation checks
+     * Write a string to data output, assuming the field is repeated. Usually this method is called multiple
+     * times, one for every repeated value. If all values are available immediately, {@link #writeStringList(
+     * WritableSequentialData, FieldDefinition, List)} should be used instead.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be non-repeated
+     * @param value the string value to write
+     * @throws IOException If a I/O error occurs
+     */
+    public static void writeOneRepeatedString(final WritableSequentialData out, final FieldDefinition field,
+            final String value) throws IOException {
+        assert field.type() == FieldType.STRING : "Not a string type " + field;
+        assert field.repeated() : "writeOneRepeatedString can only be used with repeated fields";
+        writeStringNoChecks(out, field, value);
+    }
+
+    /**
+     * Write a integer to data output - no validation checks.
      *
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the string value to write
      * @throws IOException If a I/O error occurs
      */
-    private static void writeStringNoChecks(WritableSequentialData out, FieldDefinition field, String value) throws IOException {
+    private static void writeStringNoChecks(final WritableSequentialData out, final FieldDefinition field,
+            final String value) throws IOException {
         // When not a oneOf don't write default value
         if (!field.oneOf() && (value == null || value.isEmpty())) {
             return;
@@ -259,21 +278,41 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a bytes to data output
+     * Write a bytes to data output, assuming the corresponding field is non-repeated, and field type
+     * is any delimited: bytes, string, or message.
      *
      * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
+     * @param field the descriptor for the field we are writing, the field must not be repeated
      * @param value the bytes value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeBytes(WritableSequentialData out, FieldDefinition field, RandomAccessData value) throws IOException {
+    public static void writeBytes(final WritableSequentialData out, final FieldDefinition field,
+            final RandomAccessData value) throws IOException {
         assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert !field.repeated() : "Use writeBytesList with repeated types";
         writeBytesNoChecks(out, field, value, true);
     }
 
     /**
-     * Write a bytes to data output
+     * Write a bytes to data output, assuming the corresponding field is repeated, and field type
+     * is any delimited: bytes, string, or message. Usually this method is called multiple times, one
+     * for every repeated value. If all values are available immediately, {@link #writeBytesList(
+     * WritableSequentialData, FieldDefinition, List)} should be used instead.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be repeated
+     * @param value the bytes value to write
+     * @throws IOException If a I/O error occurs
+     */
+    public static void writeOneRepeatedBytes(final WritableSequentialData out, final FieldDefinition field,
+            final RandomAccessData value) throws IOException {
+        assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
+        assert field.repeated() : "writeOneRepeatedBytes can only be used with repeated fields";
+        writeBytesNoChecks(out, field, value, true);
+    }
+
+    /**
+     * Write a bytes to data output - no validation checks.
      *
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
@@ -281,7 +320,8 @@ public final class ProtoWriterTools {
      * @param skipZeroLength this is true for normal single bytes and false for repeated lists
      * @throws IOException If a I/O error occurs
      */
-    private static void writeBytesNoChecks(WritableSequentialData out, FieldDefinition field, RandomAccessData value, boolean skipZeroLength) throws IOException {
+    private static void writeBytesNoChecks(final WritableSequentialData out, final FieldDefinition field,
+            final RandomAccessData value, final boolean skipZeroLength) throws IOException {
         // When not a oneOf don't write default value
         if (!field.oneOf() && (skipZeroLength && (value.length() == 0))) {
             return;
@@ -297,24 +337,46 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a message to data output
+     * Write a message to data output, assuming the corresponding field is non-repeated.
      *
      * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
+     * @param field the descriptor for the field we are writing, the field must not be repeated
      * @param message the message to write
      * @param writer method reference to writer for the given message type
      * @param sizeOf method reference to sizeOf measure method for the given message type
      * @throws IOException If a I/O error occurs
      * @param <T> type of message
      */
-    public static <T> void writeMessage(WritableSequentialData out, FieldDefinition field, T message, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
+    public static <T> void writeMessage(final WritableSequentialData out, final FieldDefinition field,
+            final T message, final ProtoWriter<T> writer, final ToIntFunction<T> sizeOf) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert !field.repeated() : "Use writeMessageList with repeated types";
         writeMessageNoChecks(out, field, message, writer, sizeOf);
     }
 
     /**
-     * Write a message to data output - No checks
+     * Write a message to data output, assuming the corresponding field is repeated. Usually this method is
+     * called multiple times, one for every repeated value. If all values are available immediately, {@link
+     * #writeMessageList(WritableSequentialData, FieldDefinition, List, ProtoWriter, ToIntFunction)}  should
+     * be used instead.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be repeated
+     * @param message the message to write
+     * @param writer method reference to writer for the given message type
+     * @param sizeOf method reference to sizeOf measure method for the given message type
+     * @throws IOException If a I/O error occurs
+     * @param <T> type of message
+     */
+    public static <T> void writeOneRepeatedMessage(final WritableSequentialData out, final FieldDefinition field,
+            final T message, final ProtoWriter<T> writer, final ToIntFunction<T> sizeOf) throws IOException {
+        assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
+        assert field.repeated() : "writeOneRepeatedMessage can only be used with repeated fields";
+        writeMessageNoChecks(out, field, message, writer, sizeOf);
+    }
+
+    /**
+     * Write a message to data output - no validation checks.
      *
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
@@ -324,7 +386,8 @@ public final class ProtoWriterTools {
      * @throws IOException If a I/O error occurs
      * @param <T> type of message
      */
-    private static <T> void writeMessageNoChecks(WritableSequentialData out, FieldDefinition field, T message, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
+    private static <T> void writeMessageNoChecks(final WritableSequentialData out, final FieldDefinition field,
+            final T message, final ProtoWriter<T> writer, final ToIntFunction<T> sizeOf) throws IOException {
         // When not a oneOf don't write default value
         if (field.oneOf() && message == null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);

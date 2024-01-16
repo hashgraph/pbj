@@ -385,6 +385,21 @@ class ProtoWriterToolsTest {
     }
 
     @Test
+    void testWriteOneRepeatedString() throws IOException {
+        final FieldDefinition definition = createRepeatedFieldDefinition(STRING);
+        final String value1 = RANDOM_STRING.nextString();
+        final String value2 = RANDOM_STRING.nextString();
+        final BufferedData buf1 = BufferedData.allocate(256);
+        ProtoWriterTools.writeStringList(buf1, definition, List.of(value1, value2));
+        final Bytes writtenBytes1 = buf1.getBytes(0, buf1.position());
+        final BufferedData buf2 = BufferedData.allocate(256);
+        ProtoWriterTools.writeOneRepeatedString(buf2, definition, value1);
+        ProtoWriterTools.writeOneRepeatedString(buf2, definition, value2);
+        final Bytes writtenBytes2 = buf2.getBytes(0, buf2.position());
+        assertEquals(writtenBytes1, writtenBytes2);
+    }
+
+    @Test
     void testWriteBytes_smallBuffer() throws IOException {
         BufferedData bd = BufferedData.allocate(1);
         FieldDefinition definition = createFieldDefinition(BYTES);
@@ -414,6 +429,21 @@ class ProtoWriterToolsTest {
     }
 
     @Test
+    void testWriteOneRepeatedBytes() throws IOException {
+        final FieldDefinition definition = createRepeatedFieldDefinition(BYTES);
+        final Bytes value1 = Bytes.wrap(RANDOM_STRING.nextString());
+        final Bytes value2 = Bytes.wrap(RANDOM_STRING.nextString());
+        final BufferedData buf1 = BufferedData.allocate(256);
+        ProtoWriterTools.writeBytesList(buf1, definition, List.of(value1, value2));
+        final Bytes writtenBytes1 = buf1.getBytes(0, buf1.position());
+        final BufferedData buf2 = BufferedData.allocate(256);
+        ProtoWriterTools.writeOneRepeatedBytes(buf2, definition, value1);
+        ProtoWriterTools.writeOneRepeatedBytes(buf2, definition, value2);
+        final Bytes writtenBytes2 = buf2.getBytes(0, buf2.position());
+        assertEquals(writtenBytes1, writtenBytes2);
+    }
+
+    @Test
     void testWriteMessage() throws IOException {
         FieldDefinition definition = createFieldDefinition(MESSAGE);
         String appleStr = RANDOM_STRING.nextString();
@@ -426,6 +456,24 @@ class ProtoWriterToolsTest {
     }
 
     @Test
+    void testWriteOneRepeatedMessage() throws IOException {
+        final FieldDefinition definition = createRepeatedFieldDefinition(MESSAGE);
+        final String appleStr1 = RANDOM_STRING.nextString();
+        final Apple apple1 = Apple.newBuilder().setVariety(appleStr1).build();
+        final String appleStr2 = RANDOM_STRING.nextString();
+        final Apple apple2 = Apple.newBuilder().setVariety(appleStr2).build();
+        final BufferedData buf1 = BufferedData.allocate(256);
+        final ProtoWriter<Apple> writer = (data, out) -> out.writeBytes(data.toByteArray());
+        ProtoWriterTools.writeMessageList(buf1, definition, List.of(apple1, apple2), writer, Apple::getSerializedSize);
+        final Bytes writtenBytes1 = buf1.getBytes(0, buf1.position());
+        final BufferedData buf2 = BufferedData.allocate(256);
+        ProtoWriterTools.writeOneRepeatedMessage(buf2, definition, apple1, writer, Apple::getSerializedSize);
+        ProtoWriterTools.writeOneRepeatedMessage(buf2, definition, apple2, writer, Apple::getSerializedSize);
+        final Bytes writtenBytes2 = buf2.getBytes(0, buf2.position());
+        assertEquals(writtenBytes1, writtenBytes2);
+    }
+
+    @Test
     void testWriteOneOfMessage() throws IOException {
         FieldDefinition definition = createOneOfFieldDefinition(MESSAGE);
         writeMessage(bufferedData, definition, null, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
@@ -433,7 +481,6 @@ class ProtoWriterToolsTest {
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
         int length = bufferedData.readVarInt(false);
         assertEquals(0, length);
-
     }
 
     @Test
@@ -586,7 +633,7 @@ class ProtoWriterToolsTest {
 
     @Test
     void testWriteOptionalBytes() throws IOException {
-        FieldDefinition definition = createOptionalFieldDefinition(STRING);
+        FieldDefinition definition = createOptionalFieldDefinition(BYTES);
         byte[] valToWrite = new byte[10];
         RNG.nextBytes(valToWrite);
         writeOptionalBytes(bufferedData, definition, Bytes.wrap(valToWrite));
