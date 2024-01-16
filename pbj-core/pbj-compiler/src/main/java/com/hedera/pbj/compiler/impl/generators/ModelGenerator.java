@@ -40,6 +40,8 @@ import java.util.stream.Collectors;
 @SuppressWarnings({"StringConcatenationInLoop", "EscapedSpace"})
 public final class ModelGenerator implements Generator {
 
+    private static final String NON_NULL_ANNOTATION = "@NonNull";
+
 	private static final String HASH_CODE_MANIPULATION =
 		"""
 		// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
@@ -209,6 +211,7 @@ public final class ModelGenerator implements Generator {
 				import com.hedera.pbj.runtime.Codec;
 				import java.util.function.Consumer;
 				import edu.umd.cs.findbugs.annotations.Nullable;
+				import edu.umd.cs.findbugs.annotations.NonNull;
 				import static java.util.Objects.requireNonNull;
 									
 				$javaDocComment$deprecated
@@ -223,12 +226,24 @@ public final class ModelGenerator implements Generator {
 				.replace("$implementsComparable", implementsComparable)
 				.replace("$javaRecordName", javaRecordName)
 				.replace("$fields", fields.stream().map(field ->
-						(field.type() == FieldType.MESSAGE ? "@Nullable " : "")
+						getFieldAnnotations(field)
 								+ field.javaFieldType() + " " + field.nameCamelFirstLower()
 				).collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT))
 				.replace("$bodyContent", bodyContent);
 	}
 
+	/**
+	 * Returns a set of annotations for a given field.
+	 * @param field a field
+	 * @return an empty string, or a string with Java annotations ending with a space
+	 */
+	private static String getFieldAnnotations(final Field field) {
+		return switch (field.type()) {
+			case MESSAGE -> "@Nullable ";
+			case BYTES -> NON_NULL_ANNOTATION + " ";
+			default -> "";
+		};
+	}
 
 	/**
 	 * Filter the fields to only include those that are comparable
@@ -624,18 +639,28 @@ public final class ModelGenerator implements Generator {
 		return bodyContent;
 	}
 
-	private static void generateBuilderMethods(final List<String> builderMethods, final Field field) {
+	private static void generateBuilderMethods(
+			final List<String> builderMethods,
+			final MessageDefContext msgDef,
+			final Field field,
+			final ContextualLookupHelper lookupHelper) {
 		final String prefix, postfix, fieldToSet;
+		final String fieldAnnotations = getFieldAnnotations(field);
 		final OneOfField parentOneOfField = field.parent();
+		final String fieldName = field.nameCamelFirstLower();
 		if (parentOneOfField != null) {
 			final String oneOfEnumValue = parentOneOfField.getEnumClassRef() + "." + camelToUpperSnake(field.name());
 			prefix = " new %s<>(".formatted(parentOneOfField.className()) + oneOfEnumValue + ",";
 			postfix = ")";
 			fieldToSet = parentOneOfField.nameCamelFirstLower();
+		} else if (fieldAnnotations.contains(NON_NULL_ANNOTATION)) {
+			prefix = "";
+			postfix = " != null ? " + fieldName + " : " + getDefaultValue(field, msgDef, lookupHelper);
+			fieldToSet = fieldName;
 		} else {
 			prefix = "";
 			postfix = "";
-			fieldToSet = field.nameCamelFirstLower();
+			fieldToSet = fieldName;
 		}
 		builderMethods.add("""
 						/**
@@ -644,16 +669,17 @@ public final class ModelGenerator implements Generator {
 						 * @param $fieldName value to set
 						 * @return builder to continue building with
 						 */
-						public Builder $fieldName($fieldType $fieldName) {
+						public Builder $fieldName($fieldAnnotations$fieldType $fieldName) {
 						    this.$fieldToSet = $prefix$fieldName$postfix;
 						    return this;
 						}"""
 				.replace("$fieldDoc",field.comment()
 						.replaceAll("\n", "\n * "))
-				.replace("$fieldName",field.nameCamelFirstLower())
+				.replace("$fieldName", fieldName)
 				.replace("$fieldToSet",fieldToSet)
 				.replace("$prefix",prefix)
 				.replace("$postfix",postfix)
+				.replace("$fieldAnnotations", fieldAnnotations)
 				.replace("$fieldType",field.javaFieldType())
 				.indent(DEFAULT_INDENT)
 		);
@@ -673,7 +699,7 @@ public final class ModelGenerator implements Generator {
 					.replace("$messageClass",field.messageType())
 					.replace("$fieldDoc",field.comment()
 							.replaceAll("\n", "\n * "))
-					.replace("$fieldName",field.nameCamelFirstLower())
+					.replace("$fieldName", fieldName)
 					.replace("$fieldToSet",fieldToSet)
 					.replace("$prefix",prefix)
 					.replace("$postfix",postfix)
@@ -698,7 +724,7 @@ public final class ModelGenerator implements Generator {
 					.replace("$baseType",field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1))
 					.replace("$fieldDoc",field.comment()
 							.replaceAll("\n", "\n * "))
-					.replace("$fieldName",field.nameCamelFirstLower())
+					.replace("$fieldName", fieldName)
 					.replace("$fieldToSet",fieldToSet)
 					.replace("$fieldType",field.javaFieldType())
 					.replace("$prefix",prefix)
@@ -722,10 +748,10 @@ public final class ModelGenerator implements Generator {
 			if (field.type() == Field.FieldType.ONE_OF) {
 				final OneOfField oneOfField = (OneOfField) field;
 				for (final Field subField: oneOfField.fields()) {
-					generateBuilderMethods(builderMethods, subField);
+					generateBuilderMethods(builderMethods, msgDef, subField, lookupHelper);
 				}
 			} else {
-				generateBuilderMethods(builderMethods, field);
+				generateBuilderMethods(builderMethods, msgDef, field, lookupHelper);
 			}
 		}
 		return """
@@ -754,8 +780,10 @@ public final class ModelGenerator implements Generator {
 		
 			    $builderMethods}"""
 				.replace("$fields", fields.stream().map(field ->
-						"private " + field.javaFieldType() + " " + field.nameCamelFirstLower() +
-								" = " + getDefaultValue(field, msgDef, lookupHelper)
+						getFieldAnnotations(field)
+								+ "private " + field.javaFieldType()
+								+ " " + field.nameCamelFirstLower()
+								+ " = " + getDefaultValue(field, msgDef, lookupHelper)
 						).collect(Collectors.joining(";\n    ")))
 				.replace("$prePopulatedBuilder", generatePrePopulatedBuilder(fields))
 				.replace("$javaRecordName",javaRecordName)
