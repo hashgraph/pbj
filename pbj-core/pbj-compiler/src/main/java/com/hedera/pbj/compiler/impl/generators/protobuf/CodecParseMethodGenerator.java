@@ -147,9 +147,11 @@ class CodecParseMethodGenerator {
                                     // handle error cases here, so we do not do if statements in normal loop
                                     // Validate the field number is valid (must be > 0)
                                     if (field == 0) {
-                                        throw new IOException("Bad protobuf encoding. We read a field value of " + field);
+                                        throw new IOException("Bad protobuf encoding. We read a field value of "
+                                            + field);
                                     }
-                                    // Validate the wire type is valid (must be >=0 && <= 5). Otherwise we cannot parse this.
+                                    // Validate the wire type is valid (must be >=0 && <= 5).
+                                    // Otherwise we cannot parse this.
                                     // Note: it is always >= 0 at this point (see code above where it is defined).
                                     if (wireType > 5) {
                                         throw new IOException("Cannot understand wire_type of " + wireType);
@@ -160,11 +162,13 @@ class CodecParseMethodGenerator {
                                             // Since we are parsing is strict mode, this is an exceptional condition.
                                             throw new UnknownFieldException(field);
                                         } else {
-                                            // We just need to read off the bytes for this field to skip it and move on to the next one.
+                                            // We just need to read off the bytes for this field to skip it
+                                            // and move on to the next one.
                                             skipField(input, ProtoConstants.get(wireType));
                                         }
                                     } else {
-                                        throw new IOException("Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
+                                        throw new IOException("Bad tag [" + tag + "], field [" + field
+                                                + "] wireType [" + wireType + "]");
                                     }
                                 }
                             }
