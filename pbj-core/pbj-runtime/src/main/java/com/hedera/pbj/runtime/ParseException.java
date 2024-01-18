@@ -1,7 +1,7 @@
 package com.hedera.pbj.runtime;
 
 /**
- * A checked exception thrown by Codec parse() methods when the parsing operation fails.
+ * A checked exception thrown by Codec.parse() methods when the parsing operation fails.
  *
  * The `cause` of this exception provides more details on the nature of the failure
  * which can be caused by I/O issues, malformed input data, or any other reason

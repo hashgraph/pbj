@@ -130,7 +130,7 @@ public final class JsonTools {
                     try {
                         return codec.parse(v.obj(), false);
                     } catch (ParseException e) {
-                        throw new RuntimeException(e);
+                        throw new UncheckedParseException(e);
                     }
                 }).toList();
     }

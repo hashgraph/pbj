@@ -45,7 +45,7 @@ class JsonCodecParseMethodGenerator {
         return """
                 /**
                  * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext. 
-                 * Throwsan UnknownFieldException wrapped in a ParseException if in strict mode ONLY.
+                 * Throws an UnknownFieldException wrapped in a ParseException if in strict mode ONLY.
                  *
                  * @param root The JSON parsed object tree to parse data from
                  * @return Parsed HashObject model object or null if data input was null or empty
