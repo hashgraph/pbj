@@ -80,7 +80,8 @@ class CodecParseMethodGenerator {
                  * @return Parsed $modelClassName model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
                  */
-                public @NonNull $modelClassName parseStrict(@NonNull final ReadableSequentialData input) throws ParseException {
+                public @NonNull $modelClassName parseStrict(@NonNull final ReadableSequentialData input)
+                        throws ParseException {
                     return parseInternal(input, true);
                 }
                 """
