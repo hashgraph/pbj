@@ -322,17 +322,6 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * Create and return a new {@link ReadableSequentialData} that is backed by this {@link Bytes}
-     * and that returns a replicated Bytes object upon a call to readBytes(int length).
-     *
-     * @return A {@link ReadableSequentialData} backed by this {@link Bytes}.
-     */
-    @NonNull
-    public ReadableSequentialData toCopyingReadableSequentialData() {
-        return new RandomAccessSequenceAdapter(this, true);
-    }
-
-    /**
      * Exposes this {@link Bytes} as an {@link InputStream}. This is a zero-copy operation.
      *
      * @return An {@link InputStream} that streams over the full set of data in this {@link Bytes}.
