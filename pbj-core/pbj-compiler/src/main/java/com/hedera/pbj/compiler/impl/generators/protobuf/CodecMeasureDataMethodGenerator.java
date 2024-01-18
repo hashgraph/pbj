@@ -22,9 +22,9 @@ class CodecMeasureDataMethodGenerator {
                  *
                  * @param input The input to use
                  * @return The length of the data item in the input
-                 * @throws IOException If it is impossible to read from the {@link ReadableSequentialData}
+                 * @throws ParseException If parsing fails
                  */
-                public int measure(@NonNull final ReadableSequentialData input) throws IOException {
+                public int measure(@NonNull final ReadableSequentialData input) throws ParseException {
                     final var start = input.position();
                     parse(input);
                     final var end = input.position();

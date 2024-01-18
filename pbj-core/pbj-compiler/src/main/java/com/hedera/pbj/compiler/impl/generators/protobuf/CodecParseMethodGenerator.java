@@ -51,9 +51,9 @@ class CodecParseMethodGenerator {
                  *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
                  *              then the method also returns immediately.
                  * @return Parsed $modelClassName model object or null if data input was null or empty
-                 * @throws IOException If the protobuf stream is not empty and has malformed protobuf bytes (i.e. isn't valid protobuf).
+                 * @throws ParseException If parsing fails
                  */
-                public @NonNull $modelClassName parse(@NonNull final ReadableSequentialData input) throws IOException {
+                public @NonNull $modelClassName parse(@NonNull final ReadableSequentialData input) throws ParseException {
                     return parseInternal(input, false);
                 }
                 """
@@ -77,11 +77,9 @@ class CodecParseMethodGenerator {
                  *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
                  *              then the method also returns immediately.
                  * @return Parsed $modelClassName model object or null if data input was null or empty
-                 * @throws UnknownFieldException If an unknown field is encountered while parsing the object
-                 * @throws IOException If the protobuf stream is not empty and has malformed
-                 * 									  protobuf bytes (i.e. isn't valid protobuf).
+                 * @throws ParseException If parsing fails
                  */
-                public @NonNull $modelClassName parseStrict(@NonNull final ReadableSequentialData input) throws IOException {
+                public @NonNull $modelClassName parseStrict(@NonNull final ReadableSequentialData input) throws ParseException {
                     return parseInternal(input, true);
                 }
                 """
@@ -103,13 +101,11 @@ class CodecParseMethodGenerator {
                  *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
                  *              then the method also returns immediately.
                  * @return Parsed $modelClassName model object or null if data input was null or empty
-                 * @throws UnknownFieldException If an unknown field is encountered while parsing the object and we are in strict mode
-                 * @throws IOException If the protobuf stream is not empty and has malformed
-                 * 									  protobuf bytes (i.e. isn't valid protobuf).
+                 * @throws ParseException If parsing fails
                  */
                 private @NonNull $modelClassName parseInternal(
                         @NonNull final ReadableSequentialData input,
-                        final boolean strictMode) throws IOException {
+                        final boolean strictMode) throws ParseException {
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
                         $fieldDefs
@@ -174,8 +170,8 @@ class CodecParseMethodGenerator {
                             }
                         }
                         return new $modelClassName($fieldsList);
-                    } catch (final RuntimeException uncheckedException) {
-                        throw new IOException("Unchecked parsing exception", uncheckedException);
+                    } catch (final Exception anyException) {
+                        throw new ParseException(anyException);
                     }
                 }
                 """

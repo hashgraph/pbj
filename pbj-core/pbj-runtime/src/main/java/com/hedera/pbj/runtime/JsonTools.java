@@ -129,8 +129,8 @@ public final class JsonTools {
                 .map(v -> {
                     try {
                         return codec.parse(v.obj(), false);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                    } catch (ParseException e) {
+                        throw new RuntimeException(e);
                     }
                 }).toList();
     }
