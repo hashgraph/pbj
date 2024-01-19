@@ -35,6 +35,8 @@ import org.gradle.api.tasks.TaskAction;
 
 /** Gradle Task that generates java src code from protobuf proto schema files. */
 public abstract class PbjCompilerTask extends SourceTask {
+    private static final int MAX_TRACE_FRAMES = 8;
+    private static final String STACK_ELEMENT_INDENT = "    ";
 
     /**
      * Set the java main directory that we write generated code into
@@ -120,6 +122,13 @@ public abstract class PbjCompilerTask extends SourceTask {
                     }
                 } catch (Exception e) {
                     System.err.println("Exception while processing file: " + protoFile);
+                    // Print an abbreviated stack trace for help in debugging.
+                    System.err.println(e);
+                    var trace = e.getStackTrace();
+                    int count = 0;
+                    for (var element : trace) {
+                        if (count++ < MAX_TRACE_FRAMES) System.err.println(STACK_ELEMENT_INDENT + element);
+                    }
                     throw e;
                 }
             }

@@ -15,7 +15,7 @@ message ComparableSubObj {
   int32 num = 1;
 }
 
-// <<<pbj.comparable = "int32Number, doubleNumber, booleanField, text, comparableEnum, subObject, bytes" >>>
+// <<<pbj.comparable = "int32Number, doubleNumber, booleanField, text, comparableEnum, subObject, test_bytes" >>>
 message ComparableTest {
   int32 int32Number = 1;
   double doubleNumber = 2;
@@ -23,7 +23,7 @@ message ComparableTest {
   string text = 4;
   ComparableEnum comparableEnum = 5;
   ComparableSubObj subObject = 6;
-  bytes bytes = 7;
+  bytes test_bytes = 7;
 }
 
 // <<<pbj.comparable = "stringValue" >>>

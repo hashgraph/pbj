@@ -256,7 +256,7 @@ public final class ModelGenerator implements Generator {
 	private static List<Field> filterComparableFields(final MessageDefContext msgDef,
 													final ContextualLookupHelper lookupHelper,
 													final List<Field> fields) {
-		final Map<String, Field> fieldByName = fields.stream().collect(toMap(Field::nameCamelFirstLower, f -> f));
+		final Map<String, Field> fieldByName = fields.stream().collect(toMap(Field::name, f -> f));
 		final List<String> comparableFields = lookupHelper.getComparableFields(msgDef);
 		return comparableFields.stream().map(fieldByName::get).collect(Collectors.toList());
 	}
