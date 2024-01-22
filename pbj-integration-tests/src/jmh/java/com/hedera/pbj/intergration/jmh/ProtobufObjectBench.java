@@ -120,7 +120,8 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
-	public void parsePbjByteBufferDirect(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws ParseException {
+	public void parsePbjByteBufferDirect(BenchmarkState<P,G> benchmarkState, Blackhole blackhole)
+			throws ParseException {
 		for (int i = 0; i < 1000; i++) {
 			benchmarkState.protobufDataBufferDirect.resetPosition();
 			blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBufferDirect));
