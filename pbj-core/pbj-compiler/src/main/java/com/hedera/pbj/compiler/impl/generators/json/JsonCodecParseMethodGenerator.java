@@ -44,35 +44,38 @@ class JsonCodecParseMethodGenerator {
     static String generateParseObjectMethod(final String modelClassName, final List<Field> fields) {
         return """
                 /**
-                 * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext. Throws if in strict mode ONLY.
+                 * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext. 
+                 * Throws an UnknownFieldException wrapped in a ParseException if in strict mode ONLY.
                  *
                  * @param root The JSON parsed object tree to parse data from
                  * @return Parsed HashObject model object or null if data input was null or empty
-                 * @throws UnknownFieldException If an unknown field is encountered while parsing the object, and we are in strict mode
-                 * @throws IOException If the protobuf stream is not empty and has malformed JSON.
-                 * @throws NoSuchElementException If there is no element of type T that can be parsed from this input
+                 * @throws ParseException If parsing fails
                  */
                 public @NonNull $modelClassName parse(
                         @Nullable final JSONParser.ObjContext root,
-                        final boolean strictMode) throws IOException {
-                    // -- TEMP STATE FIELDS --------------------------------------
-                $fieldDefs
+                        final boolean strictMode) throws ParseException {
+                    try {
+                        // -- TEMP STATE FIELDS --------------------------------------
+                        $fieldDefs
 
-                    // -- EXTRACT VALUES FROM PARSE TREE ---------------------------------------------
-                    
-                    for (JSONParser.PairContext kvPair : root.pair()) {
-                        switch (kvPair.STRING().getText()) {
-                            $caseStatements
-                            default -> {
-                                if (strictMode) {
-                                    // Since we are parsing is strict mode, this is an exceptional condition.
-                                    throw new UnknownFieldException(kvPair.STRING().getText());
+                        // -- EXTRACT VALUES FROM PARSE TREE ---------------------------------------------
+
+                        for (JSONParser.PairContext kvPair : root.pair()) {
+                            switch (kvPair.STRING().getText()) {
+                                $caseStatements
+                                default -> {
+                                    if (strictMode) {
+                                        // Since we are parsing is strict mode, this is an exceptional condition.
+                                        throw new UnknownFieldException(kvPair.STRING().getText());
+                                    }
                                 }
                             }
                         }
+
+                        return new $modelClassName($fieldsList);
+                    } catch (Exception ex) {
+                        throw new ParseException(ex);
                     }
-                    
-                    return new $modelClassName($fieldsList);
                 }
                 """
         .replace("$modelClassName",modelClassName)

@@ -3,7 +3,6 @@ package com.hedera.pbj.runtime;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.NoSuchElementException;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
@@ -27,22 +26,18 @@ public interface Codec<T /*extends Record*/> {
      *
      * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
      * @return The parsed object. It must not return null.
-     * @throws IOException If it is impossible to read from the {@link ReadableSequentialData}
-     * @throws NoSuchElementException If there is no element of type T that can be parsed from this
-     *     input
+     * @throws ParseException If parsing fails
      */
-    @NonNull T parse(@NonNull ReadableSequentialData input) throws IOException;
+    @NonNull T parse(@NonNull ReadableSequentialData input) throws ParseException;
 
     /**
      * Parses an object from the {@link Bytes} and returns it.
      *
      * @param bytes The {@link Bytes} from which to read the data to construct an object
      * @return The parsed object. It must not return null.
-     * @throws IOException If it is impossible to read from the {@link Bytes}
-     * @throws NoSuchElementException If there is no element of type T that can be parsed from this
-     *     input
+     * @throws ParseException If parsing fails
      */
-    @NonNull default T parse(@NonNull Bytes bytes) throws IOException {
+    @NonNull default T parse(@NonNull Bytes bytes) throws ParseException {
         return parse(bytes.toReadableSequentialData());
     }
 
@@ -55,12 +50,9 @@ public interface Codec<T /*extends Record*/> {
      *
      * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
      * @return The parsed object. It must not return null.
-     * @throws IOException If it is impossible to read from the {@link ReadableSequentialData}
-     * @throws UnknownFieldException If an unknown field is encountered while parsing the object
-     * @throws NoSuchElementException If there is no element of type T that can be parsed from this
-     *     input
+     * @throws ParseException If parsing fails
      */
-    @NonNull T parseStrict(@NonNull ReadableSequentialData input) throws IOException;
+    @NonNull T parseStrict(@NonNull ReadableSequentialData input) throws ParseException;
 
     /**
      * Parses an object from the {@link Bytes} and returns it. Throws an exception if fields
@@ -71,12 +63,9 @@ public interface Codec<T /*extends Record*/> {
      *
      * @param bytes The {@link Bytes} from which to read the data to construct an object
      * @return The parsed object. It must not return null.
-     * @throws IOException If it is impossible to read from the {@link Bytes}
-     * @throws UnknownFieldException If an unknown field is encountered while parsing the object
-     * @throws NoSuchElementException If there is no element of type T that can be parsed from this
-     *     input
+     * @throws ParseException If parsing fails
      */
-    @NonNull default T parseStrict(@NonNull Bytes bytes) throws IOException {
+    @NonNull default T parseStrict(@NonNull Bytes bytes) throws ParseException {
         return parseStrict(bytes.toReadableSequentialData());
     }
 
@@ -96,9 +85,9 @@ public interface Codec<T /*extends Record*/> {
      *
      * @param input The input to use
      * @return The length of the data item in the input
-     * @throws IOException If it is impossible to read from the {@link ReadableSequentialData}
+     * @throws ParseException If parsing fails
      */
-    int measure(@NonNull ReadableSequentialData input) throws IOException;
+    int measure(@NonNull ReadableSequentialData input) throws ParseException;
 
     /**
      * Compute number of bytes that would be written when calling {@code write()} method.
@@ -118,9 +107,9 @@ public interface Codec<T /*extends Record*/> {
      * @param item The item to compare. Cannot be null.
      * @param input The input with the bytes to compare
      * @return true if the bytes represent the item, false otherwise.
-     * @throws IOException If it is impossible to read from the {@link ReadableSequentialData}
+     * @throws ParseException If parsing fails
      */
-    boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws IOException;
+    boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException;
 
     /**
      * Converts a Record into a Bytes object

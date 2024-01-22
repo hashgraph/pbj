@@ -9,7 +9,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 
 /**
@@ -27,14 +26,16 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
      *
      * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
      * @return The parsed object. It must not return null.
-     * @throws IOException            If it is impossible to read from the {@link ReadableSequentialData}
-     * @throws NoSuchElementException If there is no element of type T that can be parsed from this
-     *                                input
+     * @throws ParseException If parsing fails
      */
     @NonNull
     @Override
-    default T parse(@NonNull ReadableSequentialData input) throws IOException {
-        return parse(JsonTools.parseJson(input), false);
+    default T parse(@NonNull ReadableSequentialData input) throws ParseException {
+        try {
+            return parse(JsonTools.parseJson(input), false);
+        } catch (IOException ex) {
+            throw new ParseException(ex);
+        }
     }
 
     /**
@@ -46,15 +47,16 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
      *
      * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
      * @return The parsed object. It must not return null.
-     * @throws IOException            If it is impossible to read from the {@link ReadableSequentialData}
-     * @throws UnknownFieldException  If an unknown field is encountered while parsing the object
-     * @throws NoSuchElementException If there is no element of type T that can be parsed from this
-     *                                input
+     * @throws ParseException If parsing fails
      */
     @NonNull
     @Override
-    default T parseStrict(@NonNull ReadableSequentialData input) throws IOException {
-        return parse(JsonTools.parseJson(input), true);
+    default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
+        try {
+            return parse(JsonTools.parseJson(input), true);
+        } catch (IOException ex) {
+            throw new ParseException(ex);
+        }
     }
 
     /**
@@ -62,13 +64,11 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
      *
      * @param root The JSON parsed object tree to parse data from
      * @return Parsed HashObject model object or null if data input was null or empty
-     * @throws UnknownFieldException If an unknown field is encountered while parsing the object, and we are in strict mode
-     * @throws IOException If the protobuf stream is not empty and has malformed JSON.
-     * @throws NoSuchElementException If there is no element of type T that can be parsed from this input
+     * @throws ParseException If parsing fails
      */
     @NonNull T parse(
             @Nullable final JSONParser.ObjContext root,
-            final boolean strictMode) throws IOException;
+            final boolean strictMode) throws ParseException;
 
     /**
      * Writes an item to the given {@link WritableSequentialData}.
@@ -109,9 +109,9 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
      *
      * @param input The input to use
      * @return The length of the data item in the input
-     * @throws IOException If it is impossible to read from the {@link ReadableSequentialData}
+     * @throws ParseException If parsing fails
      */
-    default int measure(@NonNull ReadableSequentialData input) throws IOException {
+    default int measure(@NonNull ReadableSequentialData input) throws ParseException {
         final long startPosition = input.position();
         parse(input);
         return (int)(input.position() - startPosition);
@@ -148,9 +148,9 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
      * @param item The item to compare. Cannot be null.
      * @param input The input with the bytes to compare
      * @return true if the bytes represent the item, false otherwise.
-     * @throws IOException If it is impossible to read from the {@link ReadableSequentialData}
+     * @throws ParseException If parsing fails
      */
-    default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws IOException {
+    default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
         return Objects.equals(item, parse(input));
     }
 }

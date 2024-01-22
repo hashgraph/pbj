@@ -2,6 +2,7 @@ package com.hedera.pbj.intergration.test;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
@@ -10,8 +11,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.nio.BufferOverflowException;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.random.RandomGenerator;
 
@@ -31,7 +30,7 @@ class MalformedMessageTest {
         final BufferedData data = prepareTestData(buffer);
         buffer.array()[1] += 1; // artificially increase message size
         // parser fails because the message size is not expected
-        assertThrows(BufferUnderflowException.class,() -> codec.parse(data));
+        assertThrows(ParseException.class, () -> codec.parse(data));
     }
 
     @Test
@@ -41,7 +40,7 @@ class MalformedMessageTest {
         buffer.limit(10); // we trick the parser into thinking that there is more to process
         buffer.array()[9] = 0; // but the byte is not valid
         buffer.array()[1] += 1; // artificially increase message size
-        assertThrows(IOException.class,() -> codec.parse(data)); // parser fails because of an unknown tag
+        assertThrows(ParseException.class, () -> codec.parse(data)); // parser fails because of an unknown tag
     }
 
     @Test
@@ -51,7 +50,7 @@ class MalformedMessageTest {
         buffer.limit(10); // we trick the parser into thinking that there is more to process
         buffer.array()[9] = 8; // the tag is valid but the data is not there
         buffer.array()[1] += 1; // artificially increase message size
-        assertThrows(BufferUnderflowException.class,() -> codec.parse(data));
+        assertThrows(ParseException.class, () -> codec.parse(data));
     }
 
     @Test
@@ -59,7 +58,7 @@ class MalformedMessageTest {
         final ByteBuffer buffer = ByteBuffer.allocate(13);
         final BufferedData data = prepareTestData(buffer);
         buffer.array()[1] -= 1; // artificially decrease message size
-        assertThrows(BufferUnderflowException.class,() -> codec.parse(data));
+        assertThrows(ParseException.class, () -> codec.parse(data));
     }
 
     private BufferedData prepareTestData(final ByteBuffer byteBuffer) throws IOException {
