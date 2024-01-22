@@ -9,6 +9,7 @@ import com.hedera.pbj.integration.AccountDetailsPbj;
 import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.JsonCodec;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
@@ -78,7 +79,7 @@ public abstract class JsonBench<P extends Record,G extends GeneratedMessageV3> {
 
 	/** Same as parsePbjByteBuffer because DataBuffer.wrap(byte[]) uses ByteBuffer today, added this because makes result plotting easier */
 	@Benchmark
-	public void parsePbj(JsonBenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
+	public void parsePbj(JsonBenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws ParseException {
 		benchmarkState.jsonDataBuffer.position(0);
 		blackhole.consume(benchmarkState.pbjJsonCodec.parse(benchmarkState.jsonDataBuffer));
 	}

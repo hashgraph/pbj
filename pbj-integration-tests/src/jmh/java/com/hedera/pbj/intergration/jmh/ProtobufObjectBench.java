@@ -9,6 +9,7 @@ import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayInputStream;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -101,7 +102,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	/** Same as parsePbjByteBuffer because DataBuffer.wrap(byte[]) uses ByteBuffer today, added this because makes result plotting easier */
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
-	public void parsePbjByteArray(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
+	public void parsePbjByteArray(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws ParseException {
 		for (int i = 0; i < 1000; i++) {
 			benchmarkState.protobufDataBuffer.resetPosition();
 			blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBuffer));
@@ -110,7 +111,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
-	public void parsePbjByteBuffer(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
+	public void parsePbjByteBuffer(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws ParseException {
 		for (int i = 0; i < 1000; i++) {
 			benchmarkState.protobufDataBuffer.resetPosition();
 			blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBuffer));
@@ -119,7 +120,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
-	public void parsePbjByteBufferDirect(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
+	public void parsePbjByteBufferDirect(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws ParseException {
 		for (int i = 0; i < 1000; i++) {
 			benchmarkState.protobufDataBufferDirect.resetPosition();
 			blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBufferDirect));
@@ -127,7 +128,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	}
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
-	public void parsePbjInputStream(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
+	public void parsePbjInputStream(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws ParseException {
 		for (int i = 0; i < 1000; i++) {
 			benchmarkState.bin.resetPosition();
 			blackhole.consume(benchmarkState.pbjCodec.parse(new ReadableStreamingData(benchmarkState.bin)));
