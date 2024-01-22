@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
 
 /**
@@ -826,6 +827,25 @@ public final class ProtoWriterTools {
         }
     }
 
+    /**
+     * Write a generic delimited field by delegating to a supplied `writer` to write the actual elements.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param size the size of all the elements together, in bytes
+     * @param writer the Consumer that accepts the `out` and writes the actual elements
+     * @param <T> the type of the data output that extends WritableSequentialData
+     */
+    public static <T extends WritableSequentialData> void writeDelimited(
+            final T out,
+            final FieldDefinition field,
+            final int size,
+            final Consumer<T> writer) {
+        writeTag(out, field);
+        out.writeVarInt(size, false);
+        writer.accept(out);
+    }
+
     // ================================================================================================================
     // SIZE OF METHODS
 
@@ -874,7 +894,7 @@ public final class ProtoWriterTools {
      * @param value The int value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfUnsignedVarInt32(final int value) {
+    public static int sizeOfUnsignedVarInt32(final int value) {
         if ((value & (~0 << 7)) == 0) return 1;
         if ((value & (~0 << 14)) == 0) return 2;
         if ((value & (~0 << 21)) == 0) return 3;
