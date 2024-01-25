@@ -17,8 +17,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class WritableStreamingDataTest extends WritableTestBase {
 
@@ -99,5 +104,19 @@ public class WritableStreamingDataTest extends WritableTestBase {
         final var src = new ByteArrayInputStream("Gonna Throw".getBytes(StandardCharsets.UTF_8));
         // When we try to write some bytes, then we get an exception because the stream throws IOException
         assertThatThrownBy(() -> seq.writeBytes(src, 5)).isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
+    @DisplayName("Calling flush() is delegated to the OutputStream")
+    void testFlushable() throws IOException {
+        final OutputStream out = mock(OutputStream.class);
+        doNothing().when(out).flush();
+
+        final WritableStreamingData seq = new WritableStreamingData(out);
+
+        seq.flush();
+
+        verify(out, times(1)).flush();
+        verifyNoMoreInteractions(out);
     }
 }
