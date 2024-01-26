@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-import io.github.gradlenexus.publishplugin.CloseNexusStagingRepository
-import io.github.gradlenexus.publishplugin.ReleaseNexusStagingRepository
-
 plugins {
     id("java-library")
     id("com.hedera.pbj.conventions")
@@ -39,17 +36,3 @@ protobuf {
 val maven = publishing.publications.create<MavenPublication>("maven") { from(components["java"]) }
 
 signing.sign(maven)
-
-tasks.register("releaseMavenCentral") {
-    group = "release"
-    dependsOn(
-        tasks.named("publishToSonatype"),
-        rootProject.tasks.withType<CloseNexusStagingRepository>(),
-        rootProject.tasks.withType<ReleaseNexusStagingRepository>()
-    )
-}
-
-tasks.register("releaseMavenCentralSnapshot") {
-    group = "release"
-    dependsOn(tasks.named("publishToSonatype"))
-}

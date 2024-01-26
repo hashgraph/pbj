@@ -30,5 +30,3 @@ tasks.register("releaseMavenCentral") {
     group = "release"
     dependsOn(tasks.named("publishPlugins"))
 }
-
-tasks.register("releaseMavenCentralSnapshot") { group = "release" }

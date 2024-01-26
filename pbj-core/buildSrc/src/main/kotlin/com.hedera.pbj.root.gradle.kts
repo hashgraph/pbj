@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,23 +15,6 @@
  */
 
 import io.github.gradlenexus.publishplugin.CloseNexusStagingRepository
-import io.github.gradlenexus.publishplugin.ReleaseNexusStagingRepository
-
-/*
- * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
 plugins {
     id("com.hedera.pbj.repositories")
@@ -55,10 +38,18 @@ nexusPublishing {
     }
 }
 
-tasks.withType<CloseNexusStagingRepository>().configureEach {
-    mustRunAfter(tasks.withType<PublishToMavenRepository>())
+tasks.withType<CloseNexusStagingRepository> {
+    // The publishing of all components to Maven Central (in this case only 'pbj-runtime') is
+    // automatically done before close (which is done before release).
+    dependsOn(":pbj-runtime:publishToSonatype")
 }
 
-tasks.withType<ReleaseNexusStagingRepository>().configureEach {
-    mustRunAfter(tasks.withType<PublishToMavenRepository>())
+tasks.register("releaseMavenCentral") {
+    group = "release"
+    dependsOn(tasks.closeAndReleaseStagingRepository)
+}
+
+tasks.register("releaseMavenCentralSnapshot") {
+    group = "release"
+    dependsOn(":pbj-runtime:publishToSonatype")
 }
