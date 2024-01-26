@@ -31,18 +31,6 @@ plugins {
 
 group = "com.hedera.pbj"
 
-javaModuleDependencies {
-    moduleNameToGA.put(
-        "com.github.spotbugs.annotations",
-        "com.github.spotbugs:spotbugs-annotations"
-    )
-    moduleNameToGA.put("com.google.protobuf", "com.google.protobuf:protobuf-java")
-    moduleNameToGA.put("org.antlr.antlr4.runtime", "org.antlr:antlr4-runtime")
-    moduleNameToGA.put("org.mockito.inline", "org.mockito:mockito-inline")
-    // The following line is commented out because it causes the Gradle build to break
-    // moduleNameToGA.put("org.mockito.junit.jupiter", "org.mockito:mockito-junit-jupiter")
-}
-
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(17))

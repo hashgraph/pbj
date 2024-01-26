@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import com.autonomousapps.DependencyAnalysisSubExtension
+
 plugins {
     id("com.hedera.pbj.conventions")
     id("com.gradle.plugin-publish")
@@ -30,3 +32,7 @@ tasks.register("releaseMavenCentral") {
     group = "release"
     dependsOn(tasks.named("publishPlugins"))
 }
+
+// As a Gradle plugin cannot be a Java Module, we do not have official internal packages.
+// We tell the dependency analysis to treat packages as "internal".
+configure<DependencyAnalysisSubExtension>() { abi { exclusions { ignoreSubPackage("impl") } } }

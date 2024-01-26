@@ -17,11 +17,11 @@
 plugins { id("com.hedera.pbj.runtime") }
 
 testModuleInfo {
+    requires("com.google.protobuf")
+    requires("org.assertj.core")
+    requires("net.bytebuddy")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-    requires("org.assertj.core")
     requires("org.mockito")
-    requires("com.google.protobuf")
-    runtimeOnly("org.mockito.inline")
     requiresStatic("com.github.spotbugs.annotations")
 }
