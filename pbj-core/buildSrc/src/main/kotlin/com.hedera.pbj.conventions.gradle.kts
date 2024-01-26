@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,17 +31,9 @@ plugins {
 
 group = "com.hedera.pbj"
 
-javaModuleDependencies {
-    moduleNameToGA.put(
-        "com.github.spotbugs.annotations",
-        "com.github.spotbugs:spotbugs-annotations"
-    )
-    moduleNameToGA.put("com.google.protobuf", "com.google.protobuf:protobuf-java")
-    moduleNameToGA.put("org.antlr.antlr4.runtime", "org.antlr:antlr4-runtime")
-    moduleNameToGA.put("org.mockito.inline", "org.mockito:mockito-inline")
-}
-
 java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(17))
         vendor.set(JvmVendorSpec.ADOPTIUM)

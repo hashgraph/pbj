@@ -37,14 +37,12 @@ dependencyResolutionManagement {
             version("com.github.spotbugs.annotations", "4.7.3")
 
             // Testing only versions
-            version("org.junit.jupiter.api", "5.9.0")
-            version("org.junit.jupiter.params", "5.9.0")
+            version("com.google.protobuf", "3.21.9")
             version("org.assertj.core", "3.23.1")
+            version("org.junit.jupiter.api", "5.10.0")
             version("org.mockito", "4.6.1")
             version("org.mockito.inline", "4.6.1")
-            version("com.google.protobuf", "3.21.9")
-
-            library("dd", "dd:xx:1.0")
+            version("org.mockito.junit.jupiter", "5.10.0")
         }
     }
 }

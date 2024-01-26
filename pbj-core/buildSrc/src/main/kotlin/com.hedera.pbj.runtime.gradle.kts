@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ plugins {
     id("java-library")
     id("com.hedera.pbj.conventions")
     id("com.google.protobuf") // protobuf plugin is only used for tests
+    id("me.champeau.jmh")
 }
 
 tasks.generateGrammarSource {
@@ -35,42 +36,3 @@ protobuf {
 val maven = publishing.publications.create<MavenPublication>("maven") { from(components["java"]) }
 
 signing.sign(maven)
-
-publishing {
-    repositories {
-        maven {
-            name = "sonatype"
-            url = uri("https://oss.sonatype.org/service/local/staging/deploy/maven2/")
-            credentials {
-                username = System.getenv("OSSRH_USERNAME")
-                password = System.getenv("OSSRH_PASSWORD")
-            }
-        }
-        maven {
-            name = "sonatypeSnapshot"
-            url = uri("https://oss.sonatype.org/content/repositories/snapshots/")
-            credentials {
-                username = System.getenv("OSSRH_USERNAME")
-                password = System.getenv("OSSRH_PASSWORD")
-            }
-        }
-    }
-}
-
-tasks.register("release-maven-central") {
-    group = "release"
-    dependsOn(
-        tasks.withType<PublishToMavenRepository>().matching {
-            it.name.endsWith("ToSonatypeRepository")
-        }
-    )
-}
-
-tasks.register("release-maven-central-snapshot") {
-    group = "release"
-    dependsOn(
-        tasks.withType<PublishToMavenRepository>().matching {
-            it.name.endsWith("ToSonatypeSnapshotRepository")
-        }
-    )
-}
