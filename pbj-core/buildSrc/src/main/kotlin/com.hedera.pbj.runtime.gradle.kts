@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import io.github.gradlenexus.publishplugin.CloseNexusStagingRepository
+import io.github.gradlenexus.publishplugin.ReleaseNexusStagingRepository
 
 plugins {
     id("java-library")
@@ -36,41 +39,16 @@ val maven = publishing.publications.create<MavenPublication>("maven") { from(com
 
 signing.sign(maven)
 
-publishing {
-    repositories {
-        maven {
-            name = "sonatype"
-            url = uri("https://oss.sonatype.org/service/local/staging/deploy/maven2/")
-            credentials {
-                username = System.getenv("OSSRH_USERNAME")
-                password = System.getenv("OSSRH_PASSWORD")
-            }
-        }
-        maven {
-            name = "sonatypeSnapshot"
-            url = uri("https://oss.sonatype.org/content/repositories/snapshots/")
-            credentials {
-                username = System.getenv("OSSRH_USERNAME")
-                password = System.getenv("OSSRH_PASSWORD")
-            }
-        }
-    }
-}
-
-tasks.register("release-maven-central") {
+tasks.register("releaseMavenCentral") {
     group = "release"
     dependsOn(
-        tasks.withType<PublishToMavenRepository>().matching {
-            it.name.endsWith("ToSonatypeRepository")
-        }
+        tasks.named("publishToSonatype"),
+        rootProject.tasks.withType<CloseNexusStagingRepository>(),
+        rootProject.tasks.withType<ReleaseNexusStagingRepository>()
     )
 }
 
-tasks.register("release-maven-central-snapshot") {
+tasks.register("releaseMavenCentralSnapshot") {
     group = "release"
-    dependsOn(
-        tasks.withType<PublishToMavenRepository>().matching {
-            it.name.endsWith("ToSonatypeSnapshotRepository")
-        }
-    )
+    dependsOn(tasks.named("publishToSonatype"))
 }

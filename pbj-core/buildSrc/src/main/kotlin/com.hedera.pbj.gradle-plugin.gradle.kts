@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
+ * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,9 @@ tasks.generateGrammarSource {
 // Do not generate Java Doc for generated antlr grammar
 tasks.withType<Javadoc> { excludes.add("com/hedera/pbj/compiler/impl/grammar/**") }
 
-tasks.register("release-maven-central") {
+tasks.register("releaseMavenCentral") {
     group = "release"
     dependsOn(tasks.named("publishPlugins"))
 }
 
-tasks.register("release-maven-central-snapshot") { group = "release" }
+tasks.register("releaseMavenCentralSnapshot") { group = "release" }
