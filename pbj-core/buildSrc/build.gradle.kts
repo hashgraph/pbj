@@ -25,7 +25,8 @@ dependencies {
     implementation("com.google.protobuf:protobuf-gradle-plugin:0.9.4")
     implementation("com.gradle.publish:plugin-publish-plugin:1.2.1")
     implementation("gradle.plugin.lazy.zoo.gradle:git-data-plugin:1.2.2")
+    implementation("io.github.gradle-nexus:publish-plugin:1.3.0")
+    implementation("me.champeau.jmh:jmh-gradle-plugin:0.7.2")
     implementation("net.swiftzer.semver:semver:1.3.0")
     implementation("org.gradlex:java-module-dependencies:1.4.1")
-    implementation("io.github.gradle-nexus:publish-plugin:1.3.0")
 }
