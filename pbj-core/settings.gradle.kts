@@ -43,8 +43,6 @@ dependencyResolutionManagement {
             version("org.mockito", "4.6.1")
             version("org.mockito.inline", "4.6.1")
             version("org.mockito.junit.jupiter", "5.10.0")
-
-            library("dd", "dd:xx:1.0")
         }
     }
 }
