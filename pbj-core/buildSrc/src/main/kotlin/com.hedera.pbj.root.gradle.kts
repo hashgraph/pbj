@@ -44,12 +44,12 @@ tasks.withType<CloseNexusStagingRepository> {
     dependsOn(":pbj-runtime:publishToSonatype")
 }
 
-tasks.register("releaseMavenCentral") {
+tasks.register("release") {
     group = "release"
     dependsOn(tasks.closeAndReleaseStagingRepository)
 }
 
-tasks.register("releaseMavenCentralSnapshot") {
+tasks.register("releaseSnapshot") {
     group = "release"
     dependsOn(":pbj-runtime:publishToSonatype")
 }

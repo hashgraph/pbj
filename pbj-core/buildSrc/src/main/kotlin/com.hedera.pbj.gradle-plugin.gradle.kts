@@ -28,7 +28,7 @@ tasks.generateGrammarSource {
 // Do not generate Java Doc for generated antlr grammar
 tasks.withType<Javadoc> { excludes.add("com/hedera/pbj/compiler/impl/grammar/**") }
 
-tasks.register("releaseMavenCentral") {
+tasks.register("release") {
     group = "release"
     dependsOn(tasks.named("publishPlugins"))
 }
