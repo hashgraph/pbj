@@ -1,4 +1,4 @@
-package com.hedera.pbj.intergration.test;
+package com.hedera.pbj.integration.test;
 
 import static com.hedera.pbj.compiler.PbjCompilerTask.compileFilesIn;
 import static org.junit.jupiter.api.Assertions.assertEquals;

@@ -1,4 +1,4 @@
-package com.hedera.pbj.intergration.test;
+package com.hedera.pbj.integration.test;
 
 import com.hedera.hapi.node.base.tests.AccountIDTest;
 import com.hedera.hapi.node.base.tests.ContractIDTest;
