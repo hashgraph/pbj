@@ -113,5 +113,28 @@ message LimitedComparableTestWithOneOf {
     string oneOfText = 10;
     ComparableSubObj oneOfSubObject = 12;
   }
+}
 
+/**
+ * Help to encounter the error found in issue #180 by providing an enum with a name
+ * that has unusual "almost" camel case. The odd case of "ENum" is deliberate here.
+ */
+enum OddCaseENum {
+  UP = 0;
+  DOWN = 1;
+  CHARM = 2;
+  STRANGE = 3;
+  TOP = 4;
+  BOTTOM = 5;
+}
+
+/**
+ * This exercises the error found in issue #180 by including fields of the
+ * problematic message types.
+ */
+// <<<pbj.comparable = "test_comparable_value, test_enum_value, simple_stringValue" >>>
+message ComparableContainsWrongCase {
+  ComparableWrongCaseID test_comparable_value = 1;
+  OddCaseENum test_enum_value = 2;
+  string simple_stringValue = 3;
 }

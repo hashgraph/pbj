@@ -7,6 +7,11 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -20,11 +25,6 @@ import java.util.stream.Collectors;
 public final class Common {
 	/** The indent for fields, default 4 spaces */
 	public static final String FIELD_INDENT = " ".repeat(4);
-
-	public static final int DEFAULT_INDENT = 4;
-	/** Number of bits used to represent the tag type */
-	static final int TAG_TYPE_BITS = 3;
-
 	/** Wire format code for var int */
 	public static final int TYPE_VARINT = 0;
 	/** Wire format code for fixed 64bit number */
@@ -33,8 +33,20 @@ public final class Common {
 	public static final int TYPE_LENGTH_DELIMITED = 2;
 	/** Wire format code for fixed 32bit number */
 	public static final int TYPE_FIXED32 = 5;
-    private static final Pattern COMPARABLE_PATTERN = Pattern.compile("[)] implements Comparable<\\w+> [{]");
+	public static final int DEFAULT_INDENT = 4;
 
+	/** Number of bits used to represent the tag type */
+	static final int TAG_TYPE_BITS = 3;
+
+    private static final Pattern COMPARABLE_PATTERN = Pattern.compile("[)] implements Comparable<\\w+> [{]");
+    private static final String FIELD_NOT_IMPLEMENT_COMPARABLE_MESSAGE =
+            "Field %s.%s specified in `pbj.comparable` option must implement `Comparable` interface but it doesn't.";
+    private static final String JAVA_FILE_PATH_FORM = "%1$s%2$c%1$s".formatted("%s", File.separatorChar);
+    private static final String JAVA_FILE_MISSING_MESSAGE =
+            "Unable to read Java file %1$s for class %2$s in package %3$s under source root %4$s.";
+    private static final String ESCAPED_FILE_SEPARATOR = "\\" + File.separator;
+
+    private Common() {}
 
     /**
 	 * Makes a tag value given a field number and wire type.
@@ -257,7 +269,7 @@ public final class Common {
                              }
                              """).replace("$fieldName", f.nameCamelFirstLower());
                 } else {
-                    throw new RuntimeException("Unexpected field type for getting HashCode - " + f.type().toString());
+                    throw new RuntimeException("Unexpected field type for getting HashCode - " + f.type());
                 }
             }
 		}
@@ -422,7 +434,7 @@ public final class Common {
                             }
                             """).replace("$fieldName", f.nameCamelFirstLower());
                 } else {
-                    throw new IllegalArgumentException("Unexpected field type for getting Equals - " + f.type().toString());
+                    throw new IllegalArgumentException("Unexpected field type for getting Equals - " + f.type());
                 }
             }
 		}
@@ -449,7 +461,6 @@ public final class Common {
                 }
                 """).replace("$fieldName", f.nameCamelFirstLower());
 			case "BoolValue" ->
-
 				generatedCodeSoFar += (
                 """
                 if (this.$fieldName == null && thatObj.$fieldName != null) {
@@ -481,7 +492,6 @@ public final class Common {
                 """).replace("$fieldName", f.nameCamelFirstLower());
 			default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
 		}
-		;
 		return generatedCodeSoFar;
 	}
 
@@ -593,7 +603,7 @@ public final class Common {
 					verifyComparable(f, destinationSrcDir);
 					generatedCodeSoFar += generateCompareToForObject(f);
 				} else {
-					throw new IllegalArgumentException("Unexpected field type for getting CompareTo - " + f.type().toString());
+					throw new IllegalArgumentException("Unexpected field type for getting CompareTo - " + f.type());
 				}
 			}
 		}
@@ -626,24 +636,27 @@ public final class Common {
 	private static void verifyComparable(final Field field, File destinationSrcDir) {
 		if (field instanceof final SingleField singleField) {
 			if (singleField.type() != Field.FieldType.MESSAGE) {
-				// everything else except message and bytes is comparable for sure
+				// everything except message and repeated is comparable for sure
 				return;
 			}
 			// let's check if the message implements Comparable
 			final String className = singleField.javaFieldType();
-			final File javaFile = getJavaFile(destinationSrcDir, singleField.messageTypeModelPackage(), className);
-			try (BufferedReader reader = new BufferedReader(new FileReader(javaFile))) {
-				String line;
-				while ((line = reader.readLine()) != null) {
-					if (COMPARABLE_PATTERN.matcher(line).matches()) {
-						return;
-					}
-				}
-				throw new IllegalArgumentException(("Field %s.%s specified in `pbj.comparable` option must implement " +
-						"`Comparable` interface but it doesn't.").formatted(className, field.nameCamelFirstLower()));
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
+            try {
+                final File javaFile =
+                        getJavaFile(destinationSrcDir, singleField.messageTypeModelPackage(), className, true);
+                try (BufferedReader reader = new BufferedReader(new FileReader(javaFile))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (COMPARABLE_PATTERN.matcher(line).matches()) {
+                            return;
+                        }
+                    }
+                    throw new IllegalArgumentException(
+                            FIELD_NOT_IMPLEMENT_COMPARABLE_MESSAGE.formatted(className, field.nameCamelFirstLower()));
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         } if (field instanceof final OneOfField oneOfField) {
 			oneOfField.fields().forEach(v -> verifyComparable(v, destinationSrcDir));
 		} else {
@@ -696,25 +709,97 @@ public final class Common {
 	 * @return  text without a leading dot
 	 */
 	public static String removingLeadingDot(String text) {
-		if (!text.isEmpty() & text.charAt(0) == '.') {
+		if (!text.isEmpty() && text.charAt(0) == '.') {
 			return text.substring(1);
 		}
 		return text;
 	}
 
-	/**
+    /**
 	 * Get the java file for a src directory, package and classname with optional suffix. All parent directories will
 	 * also be created.
 	 *
-	 * @param srcDir The src dir root of all java src
+	 * @param sourceFolder The source folder root of all generated java sources
 	 * @param javaPackage the java package with '.' deliminators
-	 * @param className the camel case class name
+	 * @param className the proper camel case class name
 	 * @return File object for java file
+     * @throws IOException if the source folder is invalid.
 	 */
-	public static File getJavaFile(File srcDir, String javaPackage, String className) {
-		File packagePath = new File(srcDir.getPath() + File.separatorChar + javaPackage.replaceAll("\\.","\\" + File.separator));
-		//noinspection ResultOfMethodCallIgnored
-		packagePath.mkdirs();
-		return new File(packagePath,className+".java");
+	public static File getJavaFile(final File sourceFolder, final String javaPackage, final String className)
+            throws IOException {
+        return getJavaFile(sourceFolder, javaPackage, className, false);
+    }
+
+    /**
+	 * Get the java file for a src directory, package and classname with optional suffix. All parent directories will
+	 * also be created.
+	 *
+	 * @param sourceFolder The source folder root of all generated java sources
+	 * @param javaPackage the java package with '.' deliminators
+	 * @param className the proper camel case class name
+	 * @param mustExist if true, then the file to return must already exist.
+     * @return File object for java file
+     * @throws IOException if the source folder is invalid,
+     *     or the java file requested does not exist and mustExist is true.
+	 */
+	public static File getJavaFile(final File sourceFolder, final String javaPackage, final String className,
+            final boolean mustExist) throws IOException {
+        final String sourcePath = sourceFolder.getCanonicalPath();
+		final File packagePath =
+                new File(JAVA_FILE_PATH_FORM.formatted(sourcePath, javaPackage.replaceAll("\\.", ESCAPED_FILE_SEPARATOR)));
+        if (!packagePath.exists()) packagePath.mkdirs();
+        final File javaFile = new File(packagePath, className + ".java");
+        if (mustExist && (!javaFile.exists() || !javaFile.canRead())) {
+            listFolder(javaFile.getParentFile());
+            final String message =
+                    JAVA_FILE_MISSING_MESSAGE.formatted(javaFile.getCanonicalPath(), className, javaPackage, sourcePath);
+            throw new IOException(message);
+        }
+		return javaFile;
 	}
+
+    private static void listFolder(final File folderToList) throws IOException {
+        System.err.println("Files in Target Folder:");
+        Files.walkFileTree(folderToList.toPath(), new PrintVisitor());
+    }
+
+    private static class PrintVisitor extends SimpleFileVisitor<Path> {
+        private static final String BASE_INDENT = "    ";
+        private int depth = 1;
+        private String indent = BASE_INDENT;
+
+        @Override
+        public FileVisitResult preVisitDirectory(Path folder, BasicFileAttributes attributes) {
+            System.err.print(indent);
+            System.err.print(folder.toFile().getName());
+            System.err.println(File.separator);
+            depth++;
+            indent += BASE_INDENT;
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult postVisitDirectory(Path folder, IOException exc) throws IOException {
+            if (exc != null) {
+                throw exc;
+            } else {
+                depth--;
+                if (depth > 1) {
+                    indent = indent.substring(0, (depth * BASE_INDENT.length()) - 1);
+                }
+                else {
+                    indent = BASE_INDENT;
+                    depth = 1;
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        }
+
+        @Override
+        public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
+            System.err.print(indent);
+            System.err.println(file.toFile().getName());
+            return FileVisitResult.CONTINUE;
+        }
+    }
 }

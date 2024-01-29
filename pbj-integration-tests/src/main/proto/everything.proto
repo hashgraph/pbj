@@ -184,3 +184,14 @@ message InnerEverything {
     google.protobuf.StringValue stringBoxedOneOf = 100026;
   }
 }
+
+/**
+ * Example of a message which is named <strong>almost</strong> like a Java class, but not quite.
+ * This helps test the error originally found in issue #180.
+ * Placed here to ensure comparable works across imported files.
+ */
+// <<<pbj.comparable = "subMessageCMP, sub_message_two" >>>
+message ComparableWrongCaseID {
+  TimestampTest subMessageCMP = 1;
+  Suit sub_message_two = 2;
+}
