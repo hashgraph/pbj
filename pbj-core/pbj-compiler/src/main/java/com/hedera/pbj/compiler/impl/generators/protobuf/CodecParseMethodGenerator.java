@@ -173,6 +173,9 @@ class CodecParseMethodGenerator {
                         }
                         return new $modelClassName($fieldsList);
                     } catch (final Exception anyException) {
+                        if (anyException instanceof ParseException parseException) {
+                            throw parseException;
+                        }
                         throw new ParseException(anyException);
                     }
                 }
