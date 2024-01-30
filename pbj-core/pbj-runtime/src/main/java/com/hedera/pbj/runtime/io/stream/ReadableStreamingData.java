@@ -25,12 +25,16 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
 
     /** The underlying input stream */
     private final InputStream in;
+
     /** The capacity of this stream if known, or Long.MAX_VALUE otherwise. */
     private final long capacity;
+
     /** The current position, aka the number of bytes read */
     private long position = 0;
+
     /** The current limit for reading, defaults to Long.MAX_VALUE basically unlimited */
     private long limit = Long.MAX_VALUE;
+
     /** Set to true when we encounter -1 from the underlying stream, or this instance is closed */
     private boolean eof = false;
 
