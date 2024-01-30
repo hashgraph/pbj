@@ -1,5 +1,7 @@
 package com.hedera.pbj.runtime.io;
 
+import java.io.UncheckedIOException;
+
 /**
  * Represents sequential data which may either be buffered or streamed. Conceptually, streamed data is
  * a sequential stream of bytes, while a buffer is a sequential array of bytes. A stream <b>necessarily</b>
