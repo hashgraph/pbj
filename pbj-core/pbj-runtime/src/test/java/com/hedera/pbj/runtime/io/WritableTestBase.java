@@ -14,6 +14,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -178,9 +179,9 @@ public abstract class WritableTestBase extends SequentialTestBase {
             assertThatThrownBy(() -> seq.writeBytes(new byte[10], 11, 10))
                     .isInstanceOf(IndexOutOfBoundsException.class);
             // When we try to write bytes using a byte array with an offset + length that is too large,
-            // then we get an IndexOutOfBoundsException
+            // then we get either an IndexOutOfBoundsException or an BufferUnderflowException
             assertThatThrownBy(() -> seq.writeBytes(new byte[10], 9, 2))
-                    .isInstanceOf(IndexOutOfBoundsException.class);
+                    .isInstanceOfAny(IndexOutOfBoundsException.class, BufferUnderflowException.class);
         }
 
         @Test
@@ -647,7 +648,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             final var src = mock(InputStream.class);
             doThrow(IOException.class).when(src).read(any(), anyInt(), anyInt());
             // When we try to write some bytes, then we get an exception because the stream throws IOException
-            assertThatThrownBy(() -> seq.writeBytes(src, 5)).isInstanceOf(DataAccessException.class);
+            assertThatThrownBy(() -> seq.writeBytes(src, 5)).isInstanceOf(UncheckedIOException.class);
         }
 
         @ParameterizedTest(name = "offset={0}, length={1}")
@@ -660,7 +661,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
         void badOffsetLength(int offset, int length) {
             final var seq = sequence();
             assertThatThrownBy(() -> seq.writeBytes(new byte[10], offset, length))
-                    .isInstanceOf(IndexOutOfBoundsException.class);
+                    .isInstanceOfAny(IndexOutOfBoundsException.class, BufferUnderflowException.class);
         }
     }
 

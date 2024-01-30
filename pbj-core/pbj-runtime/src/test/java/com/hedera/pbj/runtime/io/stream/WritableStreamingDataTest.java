@@ -1,6 +1,5 @@
 package com.hedera.pbj.runtime.io.stream;
 
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.WritableTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -12,6 +11,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -90,7 +90,7 @@ public class WritableStreamingDataTest extends WritableTestBase {
         final var seq = new WritableStreamingData(stream);
         doThrow(IOException.class).when(stream).write(any(), anyInt(), anyInt());
         // When we try to skip some bytes, then we get an exception because the stream throws IOException
-        assertThatThrownBy(() -> seq.skip(1)).isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> seq.skip(1)).isInstanceOf(UncheckedIOException.class);
     }
 
     @Test
@@ -102,7 +102,7 @@ public class WritableStreamingDataTest extends WritableTestBase {
         doThrow(IOException.class).when(stream).write(any(), anyInt(), anyInt());
         final var src = new ByteArrayInputStream("Gonna Throw".getBytes(StandardCharsets.UTF_8));
         // When we try to write some bytes, then we get an exception because the stream throws IOException
-        assertThatThrownBy(() -> seq.writeBytes(src, 5)).isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> seq.writeBytes(src, 5)).isInstanceOf(UncheckedIOException.class);
     }
 
     @Test

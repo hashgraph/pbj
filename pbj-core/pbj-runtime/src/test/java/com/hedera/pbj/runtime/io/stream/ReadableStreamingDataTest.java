@@ -1,6 +1,5 @@
 package com.hedera.pbj.runtime.io.stream;
 
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.ReadableSequentialTestBase;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -11,6 +10,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -77,7 +77,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         final var stream = throwingSequence();
         assertThat(stream.hasRemaining()).isTrue();
         final var bytes = new byte[4];
-        assertThrows(DataAccessException.class, () -> stream.readBytes(bytes), "testing here");
+        assertThrows(UncheckedIOException.class, () -> stream.readBytes(bytes), "testing here");
     }
 
     @Test
@@ -175,7 +175,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
         final var stream = new ReadableStreamingData(inputStream);
         assertThatThrownBy(() -> stream.skip(5))
-                .isInstanceOf(DataAccessException.class);
+                .isInstanceOf(UncheckedIOException.class);
     }
 
     @Test
@@ -199,7 +199,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
         throwNow.set(true);
         assertThatThrownBy(stream::readByte)
-                .isInstanceOf(DataAccessException.class);
+                .isInstanceOf(UncheckedIOException.class);
     }
 
     @Test

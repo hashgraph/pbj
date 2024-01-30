@@ -1,12 +1,12 @@
 package com.hedera.pbj.runtime.io.stream;
 
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
@@ -24,7 +24,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
     /** The current limit for writing, defaults to Long.MAX_VALUE, which is basically unlimited */
     private long limit = Long.MAX_VALUE;
     /** The maximum capacity. Normally this is unbounded ({@link Long#MAX_VALUE})*/
-    private long capacity = Long.MAX_VALUE;
+    private final long capacity;
 
     /**
      * Creates a {@code WritableStreamingData} built on top of the specified underlying output stream.
@@ -33,6 +33,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
      */
     public WritableStreamingData(@NonNull final OutputStream out) {
         this.out = Objects.requireNonNull(out);
+        this.capacity = Long.MAX_VALUE;
     }
 
     /**
@@ -125,9 +126,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
             position += count;
             return count;
         } catch (IOException e) {
-            // It is possible that we will encounter an IOException for some reason. If we do, then we turn
-            // it into a DataAccessException.
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -147,7 +146,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
             out.write(b);
             position++;
         } catch (IOException e) {
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -172,7 +171,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
             out.write(src, offset, length);
             position += length;
         } catch (final IOException e) {
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -189,7 +188,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
             out.write(src);
             position += src.length;
         } catch (final IOException e) {
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -217,7 +216,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
             position += len;
             src.position(Math.toIntExact(srcPos + len));
         } catch (final IOException e) {
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 

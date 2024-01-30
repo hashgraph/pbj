@@ -78,7 +78,7 @@ public interface SequentialData {
      *
      * @param count number of bytes to skip. If 0 or negative, then no bytes are skipped.
      * @return the actual number of bytes skipped.
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     long skip(long count);
 }

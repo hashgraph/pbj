@@ -2,12 +2,12 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import static java.nio.ByteOrder.BIG_ENDIAN;
 
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -152,10 +152,8 @@ public sealed class BufferedData
 
                 try {
                     return getUnsignedByte(pos++);
-                } catch (DataAccessException e) {
-                    // Catch and convert to IOException because the caller of the InputStream API
-                    // will expect an IOException and NOT a DataAccessException.
-                    throw new IOException(e);
+                } catch (UncheckedIOException e) {
+                    throw e.getCause();
                 }
             }
 
@@ -172,10 +170,8 @@ public sealed class BufferedData
                     getBytes(pos, b, off, toRead);
                     pos += toRead;
                     return toRead;
-                } catch (DataAccessException e) {
-                    // Catch and convert to IOException because the caller of the InputStream API
-                    // will expect an IOException and NOT a DataAccessException.
-                    throw new IOException(e);
+                } catch (UncheckedIOException e) {
+                    throw e.getCause();
                 }
             }
         };

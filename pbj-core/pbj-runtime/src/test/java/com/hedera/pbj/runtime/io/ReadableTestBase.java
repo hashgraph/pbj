@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -194,7 +196,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             // When we try to read bytes using a byte array with an offset + maxLength that is too large,
             // then we get an IndexOutOfBoundsException
             assertThatThrownBy(() -> seq.readBytes(new byte[10], 9, 2))
-                    .isInstanceOf(IndexOutOfBoundsException.class);
+                    .isInstanceOfAny(IndexOutOfBoundsException.class, BufferOverflowException.class);
         }
 
         @Test
@@ -616,7 +618,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         void badOffsetLength(int offset, int length) {
             final var seq = sequence(TEST_BYTES);
             assertThatThrownBy(() -> seq.readBytes(new byte[10], offset, length))
-                    .isInstanceOf(IndexOutOfBoundsException.class);
+                    .isInstanceOfAny(IndexOutOfBoundsException.class, BufferOverflowException.class);
         }
     }
 

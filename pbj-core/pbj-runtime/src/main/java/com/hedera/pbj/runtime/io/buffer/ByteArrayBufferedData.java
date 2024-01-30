@@ -1,11 +1,11 @@
 package com.hedera.pbj.runtime.io.buffer;
 
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -54,9 +54,7 @@ final class ByteArrayBufferedData extends BufferedData {
      */
     @Override
     public boolean contains(final long offset, @NonNull final byte[] bytes) {
-        if (offset < 0 || offset >= length()) {
-            throw new IndexOutOfBoundsException();
-        }
+        checkOffset(offset, length());
 
         final int len = bytes.length;
         if (length() - offset < len) {
@@ -73,7 +71,7 @@ final class ByteArrayBufferedData extends BufferedData {
      */
     @Override
     public byte getByte(final long offset) {
-        validateCanRead(offset, 0);
+        checkOffset(offset, length());
         return array[Math.toIntExact(arrayOffset + offset)];
     }
 
@@ -84,10 +82,10 @@ final class ByteArrayBufferedData extends BufferedData {
     public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
         validateLen(maxLength);
         final long len = Math.min(maxLength, length() - offset);
-        validateCanRead(offset, len);
         if (len == 0) {
             return 0;
         }
+        checkOffsetToRead(offset, length(), len);
         System.arraycopy(array, Math.toIntExact(arrayOffset + offset), dst, dstOffset, Math.toIntExact(len));
         return len;
     }
@@ -101,6 +99,7 @@ final class ByteArrayBufferedData extends BufferedData {
             return super.getBytes(offset, dst);
         }
         final long len = Math.min(length() - offset, dst.remaining());
+        checkOffsetToRead(offset, length(), len);
         final byte[] dstArr = dst.array();
         final int dstPos = dst.position();
         final int dstArrOffset = dst.arrayOffset();
@@ -119,9 +118,7 @@ final class ByteArrayBufferedData extends BufferedData {
         if (len == 0) {
             return Bytes.EMPTY;
         }
-        if (length() - offset < len) {
-            throw new BufferUnderflowException();
-        }
+        checkOffsetToRead(offset, length(), len);
         final byte[] res = new byte[Math.toIntExact(len)];
         System.arraycopy(array, Math.toIntExact(arrayOffset + offset), res, 0, res.length);
         return Bytes.wrap(res);
@@ -144,9 +141,7 @@ final class ByteArrayBufferedData extends BufferedData {
     }
 
     private long getVar(final int offset, final boolean zigZag) {
-        if ((offset < 0) || (offset >= buffer.limit())) {
-            throw new IndexOutOfBoundsException();
-        }
+        checkOffset(offset, buffer.limit());
 
         final int readOffset = arrayOffset + offset;
         int rem = buffer.limit() - offset;
@@ -324,9 +319,7 @@ final class ByteArrayBufferedData extends BufferedData {
     public int writeBytes(@NonNull final InputStream src, final int maxLength) {
         // Check for a bad length or a null src
         Objects.requireNonNull(src);
-        if (maxLength < 0) {
-            throw new IllegalArgumentException("The length must be >= 0");
-        }
+        validateLen(maxLength);
 
         // If the length is zero, then we have nothing to read
         if (maxLength == 0) {
@@ -355,7 +348,7 @@ final class ByteArrayBufferedData extends BufferedData {
             buffer.position(pos);
             return totalBytesRead;
         } catch (IOException e) {
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 }

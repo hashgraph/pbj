@@ -11,6 +11,7 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.BufferOverflowException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.stream.IntStream;
@@ -76,7 +77,7 @@ public abstract class RandomAccessTestBase extends ReadableTestBase {
         final byte[] dst = new byte[8];
         Arrays.fill(dst, (byte) 0);
         assertThatThrownBy(() -> buf.getBytes(4, dst, 6, 4))
-                .isInstanceOf(IndexOutOfBoundsException.class);
+                .isInstanceOfAny(IndexOutOfBoundsException.class, BufferOverflowException.class);
     }
 
     @Test

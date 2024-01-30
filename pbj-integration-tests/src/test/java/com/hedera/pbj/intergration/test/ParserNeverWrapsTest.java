@@ -1,7 +1,6 @@
 package com.hedera.pbj.intergration.test;
 
 import com.hedera.pbj.runtime.Codec;
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -11,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -65,7 +65,7 @@ public class ParserNeverWrapsTest {
         }
 
         @Override
-        public void writeByte(byte b) throws DataAccessException {
+        public void writeByte(byte b) throws UncheckedIOException {
             bytes[(int) position++] = b;
         }
     }

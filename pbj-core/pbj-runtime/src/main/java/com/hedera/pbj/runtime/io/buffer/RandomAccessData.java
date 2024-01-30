@@ -4,13 +4,14 @@ import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.SequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Represents data which may be accessed out of order in some random manner. Unliked {@link SequentialData},
+ * Represents data which may be accessed out of order in some random manner. Unlike {@link SequentialData},
  * this interface is only backed by a buffer of some kind: an array, a {@link ByteBuffer}, a memory-mapped file, etc.
  * Unlike {@link BufferedSequentialData}, it does not define any kind of "position" cursor, just a "length" representing
  * the valid range of indexes and methods for reading data at any of those indexes.
@@ -30,7 +31,6 @@ public interface RandomAccessData {
      *
      * @param offset The offset into data to get a byte from.
      * @return The signed byte at given {@code offset}
-     * @throws BufferUnderflowException if the buffer is empty
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     byte getByte(final long offset);
@@ -40,7 +40,6 @@ public interface RandomAccessData {
      *
      * @param offset The offset into data to get an unsigned byte from.
      * @return The unsigned byte at given {@code offset}
-     * @throws BufferUnderflowException if the buffer is empty
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     default int getUnsignedByte(final long offset) {
@@ -78,8 +77,9 @@ public interface RandomAccessData {
      * @param maxLength The maximum number of bytes to be written to the given {@code dst} array; must be non-negative
      *                and no larger than {@code dst.length - offset}
      * @throws NullPointerException if {@code dst} is null
-     * @throws IndexOutOfBoundsException If {@code offset} is out of bounds of {@code dst} or if
-     *                                  {@code offset + maxLength} is not less than {@code dst.length}
+     * @throws IndexOutOfBoundsException If {@code dstOffset} is out of bounds of {@code dst},
+     *             or if {@code dstOffset + maxLength} is not less than {@code dst.length},
+     *             or if {@code offset} is out of bounds of this RandomAccessData.
      * @throws IllegalArgumentException If {@code maxLength} is negative
      * @return The number of bytes read actually read and placed into {@code dst}
      */
@@ -110,8 +110,11 @@ public interface RandomAccessData {
      * @return The number of bytes read actually read and placed into {@code dst}
      */
     default long getBytes(final long offset, @NonNull final ByteBuffer dst) {
+        final long length = length();
+        checkOffset(offset, length);
+
         long index = offset;
-        while(dst.hasRemaining()) {
+        while (dst.hasRemaining() && index < length) {
             dst.put(getByte(index++));
         }
         return index - offset;
@@ -132,8 +135,11 @@ public interface RandomAccessData {
      * @return The number of bytes read actually read and placed into {@code dst}
      */
     default long getBytes(final long offset, @NonNull final BufferedData dst) {
+        final long length = length();
+        checkOffset(offset, length);
+
         long index = offset;
-        while(dst.hasRemaining()) {
+        while (dst.hasRemaining() && index < length) {
             dst.writeByte(getByte(index++));
         }
         return index - offset;
@@ -153,9 +159,7 @@ public interface RandomAccessData {
      */
     @NonNull
     default Bytes getBytes(final long offset, final long length) {
-        if (offset < 0 || offset >= length()) {
-            throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + length());
-        }
+        checkOffset(offset, length());
 
         if (length < 0) {
             throw new IllegalArgumentException("Negative maxLength not allowed");
@@ -172,7 +176,9 @@ public interface RandomAccessData {
 
         // Otherwise we need to read the data into a new buffer and return it
         final var buf = new byte[Math.toIntExact(length)];
-        getBytes(offset, buf);
+        if (getBytes(offset, buf) != length) {
+            throw new BufferUnderflowException();
+        }
         return Bytes.wrap(buf);
     }
 
@@ -203,6 +209,7 @@ public interface RandomAccessData {
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     default int getInt(final long offset) {
+        checkOffset(offset, length());
         if ((length() - offset) < Integer.BYTES) {
             throw new BufferUnderflowException();
         }
@@ -230,6 +237,7 @@ public interface RandomAccessData {
             throw new BufferUnderflowException();
         }
         if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
+            checkOffset(offset, length());
             // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
             //noinspection DuplicatedCode
             final byte b4 = getByte(offset);
@@ -279,6 +287,7 @@ public interface RandomAccessData {
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     default long getLong(final long offset) {
+        checkOffset(offset, length());
         if ((length() - offset) < Long.BYTES) {
             throw new BufferUnderflowException();
         }
@@ -317,6 +326,7 @@ public interface RandomAccessData {
             throw new BufferUnderflowException();
         }
         if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
+            checkOffset(offset, length());
             // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
             //noinspection DuplicatedCode
             final byte b8 = getByte(offset);
@@ -413,8 +423,9 @@ public interface RandomAccessData {
      * @param offset The offset into data to get a varlong from.
      * @return long get in var long format
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
-     * @throws BufferUnderflowException If the end of the buffer is encountered before the last segment of the varlong
-     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()},
+     *         or the end of the buffer is encountered before the last segment of the varlong
+     * @throws DataEncodingException if the var long is malformed
      */
     default long getVarLong(final long offset, final boolean zigZag) {
         long value = 0;
@@ -449,15 +460,13 @@ public interface RandomAccessData {
      */
     @NonNull
     default String asUtf8String(final long offset, final long len) {
-        if (len > length() - offset) {
-            throw new BufferUnderflowException();
-        }
-        if (offset < 0) {
-            throw new IndexOutOfBoundsException();
-        }
-
         if (len == 0) {
             return "";
+        }
+
+        checkOffset(offset, length());
+        if (len > length() - offset) {
+            throw new BufferUnderflowException();
         }
 
         final var data = new byte[Math.toIntExact(len)];
@@ -486,9 +495,7 @@ public interface RandomAccessData {
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     default boolean contains(final long offset, @NonNull final byte[] bytes) {
-        if (offset < 0 || offset >= length()) {
-            throw new IndexOutOfBoundsException();
-        }
+        checkOffset(offset, length());
 
         // If the number of bytes between offset and length is shorter than the bytes we're matching, then there
         // is NO WAY we could have a match, so we need to return false.
@@ -531,9 +538,7 @@ public interface RandomAccessData {
             return data.length() == 0;
         }
 
-        if (offset < 0 || offset >= length()) {
-            throw new IndexOutOfBoundsException();
-        }
+        checkOffset(offset, length());
 
         if (length() - offset < data.length()) {
             return false;
@@ -545,5 +550,62 @@ public interface RandomAccessData {
             }
         }
         return true;
+    }
+
+    /**
+     * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative
+     * or greater than/equal to the given {@code length}.
+     *
+     * @param offset offset
+     * @param length length
+     */
+    default void checkOffset(final long offset, final long length) {
+        if (offset < 0 || offset >= length) {
+            throw new IndexOutOfBoundsException("offset " + offset + " is out of bounds for length " + length);
+        }
+    }
+
+    /**
+     * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative
+     * or greater than/equal to the given {@code length}, and throws {@code BufferUnderflowException}
+     * if the {@code offset + dataLength - 1} exceeds the given {@code length}.
+     *
+     * checkOffsetToRead(offset, length, 1) is equivalent to checkOffset(offset, length)
+     * because the dataLength condition is always satisfied for dataLength == 1 byte
+     * as long as the initial offset is within the bounds.
+     *
+     * @param offset offset
+     * @param length length
+     * @param dataLength the length of the data to read
+     */
+    default void checkOffsetToRead(final long offset, final long length, final long dataLength) {
+        if (offset < 0 || offset > length || (offset == length && dataLength != 0)) {
+            throw new IndexOutOfBoundsException("offset " + offset + " is out of bounds for length " + length);
+        }
+        if (offset + dataLength - 1 >= length) {
+            throw new BufferUnderflowException();
+        }
+    }
+
+    /**
+     * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative
+     * or greater than/equal to the given {@code length}, and throws {@code BufferOverflowException}
+     * if the {@code offset + dataLength - 1} exceeds the given {@code length}.
+     *
+     * checkOffsetToWrite(offset, length, 1) is equivalent to checkOffset(offset, length)
+     * because the dataLength condition is always satisfied for dataLength == 1 byte
+     * as long as the initial offset is within the bounds.
+     *
+     * @param offset offset
+     * @param length length
+     * @param dataLength the length of the data to write
+     */
+    default void checkOffsetToWrite(final long offset, final long length, final long dataLength) {
+        if (offset < 0 || offset > length || (offset == length && dataLength != 0)) {
+            throw new IndexOutOfBoundsException("offset " + offset + " is out of bounds for length " + length);
+        }
+        if (offset + dataLength - 1 >= length) {
+            throw new BufferOverflowException();
+        }
     }
 }

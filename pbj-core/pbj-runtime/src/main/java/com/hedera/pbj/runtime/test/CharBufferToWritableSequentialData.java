@@ -1,10 +1,10 @@
 package com.hedera.pbj.runtime.test;
 
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.CharBuffer;
 
@@ -52,7 +52,7 @@ public class CharBufferToWritableSequentialData implements WritableSequentialDat
     }
 
     @Override
-    public void writeByte(byte b) throws DataAccessException {
+    public void writeByte(byte b) throws UncheckedIOException {
         throw new UnsupportedOperationException();
     }
 

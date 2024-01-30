@@ -27,13 +27,11 @@ final class DirectBufferedData extends BufferedData {
     public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
         validateLen(maxLength);
         final long len = Math.min(maxLength, length() - offset);
-        validateCanRead(offset, len);
+        checkOffsetToRead(offset, length(), len);
         if (len == 0) {
             return 0;
         }
-        if ((dstOffset < 0) || (dst.length - dstOffset < len)) {
-            throw new IndexOutOfBoundsException();
-        }
+        checkOffsetToWrite(dstOffset, dst.length, len);
         UnsafeUtils.getDirectBufferToArray(buffer, offset, dst, dstOffset, Math.toIntExact(len));
         return len;
     }
@@ -46,6 +44,7 @@ final class DirectBufferedData extends BufferedData {
         if (!dst.hasArray()) {
             return super.getBytes(offset, dst);
         }
+        checkOffset(offset, length());
         final long len = Math.min(length() - offset, dst.remaining());
         final byte[] dstArr = dst.array();
         final int dstPos = dst.position();
@@ -64,7 +63,7 @@ final class DirectBufferedData extends BufferedData {
         if (len == 0) {
             return Bytes.EMPTY;
         }
-        validateCanRead(offset, len);
+        checkOffsetToRead(offset, length(), len);
         final byte[] res = new byte[Math.toIntExact(len)];
         UnsafeUtils.getDirectBufferToArray(buffer, offset, res, 0, Math.toIntExact(len));
         return Bytes.wrap(res);
@@ -87,9 +86,7 @@ final class DirectBufferedData extends BufferedData {
     }
 
     private long getVar(final int offset, final boolean zigZag) {
-        if (offset < 0) {
-            throw new IndexOutOfBoundsException();
-        }
+        checkOffset(offset, length());
 
         int rem = Math.toIntExact(buffer.limit() - offset);
         if (rem > 10) {
@@ -212,10 +209,8 @@ final class DirectBufferedData extends BufferedData {
     @Override
     public void writeBytes(@NonNull final byte[] src, final int offset, final int len) {
         Objects.requireNonNull(src);
-        if ((offset < 0) || (offset > src.length - len)) {
-            throw new IndexOutOfBoundsException();
-        }
         validateLen(len);
+        checkOffsetToRead(offset, src.length, len);
         validateCanWrite(len);
         final int pos = buffer.position();
         UnsafeUtils.putByteArrayToDirectBuffer(buffer, pos, src, offset, len);

@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -28,7 +29,7 @@ public interface ReadableSequentialData extends SequentialData {
      *
      * @return The signed byte at the current {@link #position()}
      * @throws BufferUnderflowException If there are no bytes remaining in this sequence
-     * @throws DataAccessException If an I/O error occurs
+     * @throws UncheckedIOException If an I/O error occurs
      */
     byte readByte();
 
@@ -38,7 +39,7 @@ public interface ReadableSequentialData extends SequentialData {
      *
      * @return The unsigned byte at current {@link #position()}
      * @throws BufferUnderflowException If there are no bytes remaining in this sequence
-     * @throws DataAccessException If an I/O error occurs
+     * @throws UncheckedIOException If an I/O error occurs
      */
     default int readUnsignedByte() {
         return Byte.toUnsignedInt(readByte());
@@ -59,7 +60,7 @@ public interface ReadableSequentialData extends SequentialData {
      *
      * @param dst The destination array. Cannot be null.
      * @throws NullPointerException if {@code dst} is null
-     * @throws DataAccessException If an I/O error occurs
+     * @throws UncheckedIOException If an I/O error occurs
      * @return The number of bytes read actually read and placed into {@code dst}
      */
     default long readBytes(@NonNull final byte[] dst) {
@@ -88,7 +89,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws IndexOutOfBoundsException If {@code offset} is out of bounds of {@code dst} or if
      *                                  {@code offset + maxLength} is not less than {@code dst.length}
      * @throws IllegalArgumentException If {@code maxLength} is negative
-     * @throws DataAccessException If an I/O error occurs
+     * @throws UncheckedIOException If an I/O error occurs
      * @return The number of bytes read actually read and placed into {@code dst}
      */
     default long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength) {
@@ -130,7 +131,7 @@ public interface ReadableSequentialData extends SequentialData {
      *
      * @param dst The destination {@link ByteBuffer}
      * @throws NullPointerException If {@code dst} is null
-     * @throws DataAccessException If an I/O error occurs
+     * @throws UncheckedIOException If an I/O error occurs
      * @return The number of bytes read actually read and placed into {@code dst}
      */
     default long readBytes(@NonNull final ByteBuffer dst) {
@@ -166,7 +167,7 @@ public interface ReadableSequentialData extends SequentialData {
      * incremented by the number of bytes read prior to the exception.
      *
      * @param dst The destination {@link BufferedData}
-     * @throws DataAccessException If an I/O error occurs
+     * @throws UncheckedIOException If an I/O error occurs
      * @return The number of bytes read actually read and placed into {@code dst}
      */
     default long readBytes(@NonNull final BufferedData dst) {
@@ -200,7 +201,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @return new {@link Bytes} containing the read data
      * @throws IllegalArgumentException If {@code length} is negative
      * @throws BufferUnderflowException If there are not {@code length} bytes remaining in this sequence
-     * @throws DataAccessException If an I/O error occurs
+     * @throws UncheckedIOException If an I/O error occurs
      */
     default @NonNull Bytes readBytes(final int length) {
         if (length < 0) {
@@ -234,7 +235,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @return new {@link RandomAccessData} containing a view on the read data
      * @throws IllegalArgumentException If length is less than 0
      * @throws BufferUnderflowException If there are no bytes remaining in this sequence and a byte is read
-     * @throws DataAccessException If an I/O error occurs
+     * @throws UncheckedIOException If an I/O error occurs
      */
     default @NonNull ReadableSequentialData view(final int length) {
         if (length < 0) {
@@ -256,7 +257,7 @@ public interface ReadableSequentialData extends SequentialData {
      *
      * @return The int value at the current {@link #position()}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default int readInt() {
         // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
@@ -278,7 +279,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @param byteOrder the byte order, aka endian to use. Should never be null. If it is null, BIG_ENDIAN is used.
      * @return The int value at the current {@link #position()}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default int readInt(@NonNull final ByteOrder byteOrder) {
         if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
@@ -303,7 +304,7 @@ public interface ReadableSequentialData extends SequentialData {
      *
      * @return The int value at the current {@link #position()}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default long readUnsignedInt() {
         return (readInt()) & 0xFFFFFFFFL;
@@ -316,7 +317,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @param byteOrder the byte order, aka endian to use. Should never be null. If it is null, BIG_ENDIAN is used.
      * @return The int value at the current {@link #position()}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default long readUnsignedInt(@NonNull final ByteOrder byteOrder) {
         return (readInt(byteOrder)) & 0xFFFFFFFFL;
@@ -328,7 +329,7 @@ public interface ReadableSequentialData extends SequentialData {
      *
      * @return The long value at the current {@link #position()}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default long readLong() {
         // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
@@ -361,7 +362,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @param byteOrder the byte order, aka endian to use. Should never be null. If it is null, BIG_ENDIAN is used.
      * @return The long value at the current {@link #position()}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default long readLong(@NonNull final ByteOrder byteOrder) {
         if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
@@ -397,7 +398,7 @@ public interface ReadableSequentialData extends SequentialData {
      *
      * @return The float value at the current {@link #position()}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default float readFloat() {
         return Float.intBitsToFloat(readInt());
@@ -410,7 +411,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @param byteOrder the byte order, aka endian to use. Should never be null. If it is null, BIG_ENDIAN is used.
      * @return The float value at the current {@link #position()}
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default float readFloat(@NonNull final ByteOrder byteOrder) {
         return Float.intBitsToFloat(readInt(byteOrder));
@@ -422,7 +423,7 @@ public interface ReadableSequentialData extends SequentialData {
      *
      * @return The double value at the current {@link #position()}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default double readDouble() {
         return Double.longBitsToDouble(readLong());
@@ -435,7 +436,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @param byteOrder the byte order, aka endian to use. Should never be null. If it is null, BIG_ENDIAN is used.
      * @return The double value at the current {@link #position()}
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default double readDouble(@NonNull final ByteOrder byteOrder) {
         return Double.longBitsToDouble(readLong(byteOrder));
@@ -448,7 +449,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
      * @throws BufferUnderflowException If the end of the sequence is reached before the final variable byte fragment
      *                                  is read
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     default int readVarInt(final boolean zigZag) {
         return (int) readVarLong(zigZag);
@@ -461,7 +462,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
      * @throws BufferUnderflowException If the end of the sequence is reached before the final variable byte fragment
      *                                  is read
-     * @throws DataAccessException if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      * @throws DataEncodingException if the variable long cannot be decoded
      */
     default long readVarLong(final boolean zigZag) {
