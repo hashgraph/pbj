@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io.stream;
 import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.WritableTestBase;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,9 +16,11 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -118,4 +121,24 @@ public class WritableStreamingDataTest extends WritableTestBase {
         verify(out, times(1)).flush();
         verifyNoMoreInteractions(out);
     }
+
+    @Test
+    @DisplayName("writeBytes(RandomAccessData) should delegate to RandomAccessData.writeTo(OutputStream)")
+    void testWriteBytesFastPath() {
+        final OutputStream out = mock(OutputStream.class);
+        final RandomAccessData data = mock(RandomAccessData.class);
+        doReturn(10L).when(data).length();
+        doNothing().when(data).writeTo(out);
+
+        final WritableStreamingData seq = new WritableStreamingData(out);
+
+        seq.writeBytes(data);
+
+        verify(data, times(1)).length();
+        verify(data, times(1)).writeTo(out);
+        verifyNoMoreInteractions(data, out);
+
+        assertEquals(10L, seq.position());
+    }
+
 }

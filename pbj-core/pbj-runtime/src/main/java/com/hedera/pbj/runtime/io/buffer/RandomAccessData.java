@@ -4,13 +4,16 @@ import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.SequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Represents data which may be accessed out of order in some random manner. Unliked {@link SequentialData},
+ * Represents data which may be accessed out of order in some random manner. Unlike {@link SequentialData},
  * this interface is only backed by a buffer of some kind: an array, a {@link ByteBuffer}, a memory-mapped file, etc.
  * Unlike {@link BufferedSequentialData}, it does not define any kind of "position" cursor, just a "length" representing
  * the valid range of indexes and methods for reading data at any of those indexes.
@@ -546,4 +549,22 @@ public interface RandomAccessData {
         }
         return true;
     }
+
+    /**
+     * A helper method for efficient copy of our data into an OutputStream without creating a defensive copy
+     * of the data. The implementation relies on a well-behaved OutputStream that doesn't modify the buffer data.
+     *
+     * @param outStream the OutputStream to copy into
+     */
+    void writeTo(@NonNull final OutputStream outStream);
+
+    /**
+     * A helper method for efficient copy of our data into an OutputStream without creating a defensive copy
+     * of the data. The implementation relies on a well-behaved OutputStream that doesn't modify the buffer data.
+     *
+     * @param outStream The OutputStream to copy into.
+     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
+     * @param length The number of bytes to extract.
+     */
+    void writeTo(@NonNull final OutputStream outStream, final int offset, final int length);
 }
