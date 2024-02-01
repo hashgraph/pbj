@@ -1,7 +1,10 @@
 package com.hedera.pbj.runtime.io.buffer;
 
+import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.io.OutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -42,6 +45,24 @@ public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
         @Override
         public byte getByte(long offset) {
             return bytes[Math.toIntExact(offset)];
+        }
+
+        @Override
+        public void writeTo(@NonNull OutputStream outStream) {
+            try {
+                outStream.write(bytes);
+            } catch (IOException e) {
+                throw new DataAccessException(e);
+            }
+        }
+
+        @Override
+        public void writeTo(@NonNull OutputStream outStream, int offset, int length) {
+            try {
+                outStream.write(bytes, offset, length);
+            } catch (IOException e) {
+                throw new DataAccessException(e);
+            }
         }
     }
 }

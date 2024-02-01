@@ -8,10 +8,13 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 
 /**
  * A buffer backed by a {@link ByteBuffer} that is a {@link BufferedSequentialData} (and therefore contains
@@ -866,6 +869,32 @@ public sealed class BufferedData
                 buffer.put((byte) (((int) value & 0x7F) | 0x80));
                 value >>>= 7;
             }
+        }
+    }
+
+    /**
+     * @InheritDoc
+     */
+    @Override
+    public void writeTo(@NonNull OutputStream outStream) {
+        try {
+            final WritableByteChannel channel = Channels.newChannel(outStream);
+            channel.write(buffer.duplicate().position(0).limit(buffer.limit()));
+        } catch (IOException e) {
+            throw new DataAccessException(e);
+        }
+    }
+
+    /**
+     * @InheritDoc
+     */
+    @Override
+    public void writeTo(@NonNull OutputStream outStream, int offset, int length) {
+        try {
+            final WritableByteChannel channel = Channels.newChannel(outStream);
+            channel.write(buffer.duplicate().position(offset).limit(offset + length));
+        } catch (IOException e) {
+            throw new DataAccessException(e);
         }
     }
 
