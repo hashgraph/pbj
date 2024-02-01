@@ -873,7 +873,7 @@ public sealed class BufferedData
     }
 
     /**
-     * @InheritDoc
+     * {@inheritDoc}
      */
     @Override
     public void writeTo(@NonNull OutputStream outStream) {
@@ -886,7 +886,7 @@ public sealed class BufferedData
     }
 
     /**
-     * @InheritDoc
+     * {@inheritDoc}
      */
     @Override
     public void writeTo(@NonNull OutputStream outStream, int offset, int length) {

@@ -50,7 +50,6 @@ public class WriteBytesBench {
 
 		ByteArrayOutputStream bout = new ByteArrayOutputStream();
 		try (WritableStreamingData out = new WritableStreamingData(bout)) {
-
 			for (int i = 0; i < 100; i++) {
 				random.nextBytes(data);
 				ProtoWriterTools.writeBytes(out, BYTES_FIELD, sampleData);
