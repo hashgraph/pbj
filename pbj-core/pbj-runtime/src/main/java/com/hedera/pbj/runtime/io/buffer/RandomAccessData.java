@@ -13,7 +13,7 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Represents data which may be accessed out of order in some random manner. Unliked {@link SequentialData},
+ * Represents data which may be accessed out of order in some random manner. Unlike {@link SequentialData},
  * this interface is only backed by a buffer of some kind: an array, a {@link ByteBuffer}, a memory-mapped file, etc.
  * Unlike {@link BufferedSequentialData}, it does not define any kind of "position" cursor, just a "length" representing
  * the valid range of indexes and methods for reading data at any of those indexes.

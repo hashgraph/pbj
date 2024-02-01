@@ -4,17 +4,9 @@ import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -29,6 +21,15 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
+
 @SuppressWarnings("unused")
 @State(Scope.Benchmark)
 @Fork(1)
@@ -36,17 +37,17 @@ import org.openjdk.jmh.infra.Blackhole;
 @Measurement(iterations = 5, time = 2)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
-public class WriteBytesBench {
+public class WriteBufferedDataBench {
 
 	public static final FieldDefinition BYTES_FIELD = new FieldDefinition("bytesField", FieldType.BYTES, false, false, false, 17);
-	final static Bytes sampleData;
+	final static BufferedData sampleData;
 	final static byte[] sampleWrittenData;
 
 	static {
 		final Random random = new Random(6262266);
 		byte[] data = new byte[1024*16];
 		random.nextBytes(data);
-		sampleData = Bytes.wrap(data);
+		sampleData = BufferedData.wrap(data);
 
 		ByteArrayOutputStream bout = new ByteArrayOutputStream();
 		try (WritableStreamingData out = new WritableStreamingData(bout)) {

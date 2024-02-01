@@ -243,6 +243,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      *
      * @param outStream the OutputStream to copy into
      */
+    @Override
     public void writeTo(@NonNull final OutputStream outStream) {
         try {
             outStream.write(buffer, start, length);
@@ -259,6 +260,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
      * @param length The number of bytes to extract.
      */
+    @Override
     public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
         try {
             outStream.write(buffer, offset, length);

@@ -890,6 +890,7 @@ public sealed class BufferedData
      */
     @Override
     public void writeTo(@NonNull OutputStream outStream, int offset, int length) {
+        validateCanRead(offset, length);
         try {
             final WritableByteChannel channel = Channels.newChannel(outStream);
             channel.write(buffer.duplicate().position(offset).limit(offset + length));
