@@ -82,5 +82,5 @@ public interface SequentialData {
      * @return the actual number of bytes skipped.
      * @throws UncheckedIOException if an I/O error occurs
      */
-    long skip(long count);
+    long skip(long count) throws UncheckedIOException;
 }

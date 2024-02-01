@@ -26,7 +26,7 @@ public interface WritableSequentialData extends SequentialData {
      *      {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    void writeByte(byte b) throws UncheckedIOException;
+    void writeByte(byte b) throws BufferOverflowException, UncheckedIOException;
 
     /**
      * Writes the given unsigned byte at the current {@link #position()}, and then increments the {@link #position()}.
@@ -36,7 +36,7 @@ public interface WritableSequentialData extends SequentialData {
      *      {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeUnsignedByte(final int b) {
+    default void writeUnsignedByte(final int b) throws BufferOverflowException, UncheckedIOException {
         writeByte((byte)b);
     }
 
@@ -48,7 +48,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there is insufficient space before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeBytes(@NonNull final byte[] src) {
+    default void writeBytes(@NonNull final byte[] src) throws BufferOverflowException, UncheckedIOException {
         writeBytes(src, 0, src.length);
     }
 
@@ -66,7 +66,8 @@ public interface WritableSequentialData extends SequentialData {
      *          not hold
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeBytes(@NonNull final byte[] src, final int offset, final int length) {
+    default void writeBytes(@NonNull final byte[] src, final int offset, final int length)
+            throws BufferOverflowException, UncheckedIOException {
         if (length < 0) {
             throw new IllegalArgumentException("length must be >= 0");
         }
@@ -86,7 +87,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there is insufficient space before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeBytes(@NonNull final ByteBuffer src) {
+    default void writeBytes(@NonNull final ByteBuffer src) throws BufferOverflowException, UncheckedIOException {
         if (remaining() < src.remaining()) {
             throw new BufferOverflowException();
         }
@@ -105,7 +106,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there is insufficient space before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeBytes(@NonNull final BufferedData src) {
+    default void writeBytes(@NonNull final BufferedData src) throws BufferOverflowException, UncheckedIOException {
         if (remaining() < src.remaining()) {
             throw new BufferOverflowException();
         }
@@ -123,7 +124,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there is insufficient space before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeBytes(@NonNull final RandomAccessData src) {
+    default void writeBytes(@NonNull final RandomAccessData src) throws BufferOverflowException, UncheckedIOException {
         if (remaining() < src.length()) {
             throw new BufferOverflowException();
         }
@@ -148,7 +149,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws IllegalArgumentException if {@code len} is negative
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default int writeBytes(@NonNull final InputStream src, final int maxLength) {
+    default int writeBytes(@NonNull final InputStream src, final int maxLength) throws UncheckedIOException {
         // Check for a bad length or a null src
         Objects.requireNonNull(src);
         if (maxLength < 0) {
@@ -204,7 +205,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than four bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeInt(final int value) {
+    default void writeInt(final int value) throws BufferOverflowException, UncheckedIOException {
         if (remaining() < Integer.BYTES) {
             throw new BufferOverflowException();
         }
@@ -223,7 +224,8 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than four bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeInt(final int value, @NonNull final ByteOrder byteOrder) {
+    default void writeInt(final int value, @NonNull final ByteOrder byteOrder)
+            throws BufferOverflowException, UncheckedIOException {
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             writeInt(value);
         } else {
@@ -245,7 +247,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than four bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeUnsignedInt(final long value) {
+    default void writeUnsignedInt(final long value) throws BufferOverflowException, UncheckedIOException {
         if (remaining() < Integer.BYTES) {
             throw new BufferOverflowException();
         }
@@ -264,7 +266,8 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than four bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeUnsignedInt(final long value, @NonNull final ByteOrder byteOrder) {
+    default void writeUnsignedInt(final long value, @NonNull final ByteOrder byteOrder)
+            throws BufferOverflowException, UncheckedIOException {
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             writeUnsignedInt(value);
         } else {
@@ -286,7 +289,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than eight bytes remaining before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeLong(final long value) {
+    default void writeLong(final long value) throws BufferOverflowException, UncheckedIOException {
         if (remaining() < Long.BYTES) {
             throw new BufferOverflowException();
         }
@@ -309,7 +312,8 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than eight bytes remaining before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeLong(final long value, @NonNull final ByteOrder byteOrder) {
+    default void writeLong(final long value, @NonNull final ByteOrder byteOrder)
+            throws BufferOverflowException, UncheckedIOException {
         if (byteOrder == ByteOrder.BIG_ENDIAN) {
             writeLong(value);
         } else {
@@ -335,7 +339,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than four bytes remaining before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeFloat(final float value) {
+    default void writeFloat(final float value) throws BufferOverflowException, UncheckedIOException {
         writeInt(Float.floatToIntBits(value));
     }
 
@@ -348,7 +352,8 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than four bytes remaining before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeFloat(final float value, @NonNull final ByteOrder byteOrder) {
+    default void writeFloat(final float value, @NonNull final ByteOrder byteOrder)
+            throws BufferOverflowException, UncheckedIOException {
         writeInt(Float.floatToIntBits(value), byteOrder);
     }
 
@@ -360,7 +365,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than eight bytes remaining before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeDouble(final double value) {
+    default void writeDouble(final double value) throws BufferOverflowException, UncheckedIOException {
         writeLong(Double.doubleToLongBits(value));
     }
 
@@ -373,7 +378,8 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than eight bytes remaining before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeDouble(final double value, @NonNull final ByteOrder byteOrder) {
+    default void writeDouble(final double value, @NonNull final ByteOrder byteOrder)
+            throws BufferOverflowException, UncheckedIOException {
         writeLong(Double.doubleToLongBits(value), byteOrder);
     }
 
@@ -385,9 +391,11 @@ public interface WritableSequentialData extends SequentialData {
      *
      * @param value integer to write in var int format
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
+     * @throws BufferOverflowException If there are fewer than eight bytes remaining before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeVarInt(final int value, final boolean zigZag) {
+    default void writeVarInt(final int value, final boolean zigZag)
+            throws BufferOverflowException, UncheckedIOException {
         writeVarLong(value, zigZag);
     }
 
@@ -396,9 +404,11 @@ public interface WritableSequentialData extends SequentialData {
      *
      * @param value long to write in var int format
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
+     * @throws BufferOverflowException If there are fewer than eight bytes remaining before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeVarLong(long value, final boolean zigZag) {
+    default void writeVarLong(long value, final boolean zigZag)
+            throws BufferOverflowException, UncheckedIOException {
         if (zigZag) {
             value = (value << 1) ^ (value >> 63);
         }

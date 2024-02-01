@@ -31,7 +31,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are no bytes remaining in this sequence
      * @throws UncheckedIOException If an I/O error occurs
      */
-    byte readByte();
+    byte readByte() throws BufferUnderflowException, UncheckedIOException;
 
     /**
      * Reads the unsigned byte at the current {@link #position()}, and then increments the {@link #position()} by 1.
@@ -41,7 +41,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are no bytes remaining in this sequence
      * @throws UncheckedIOException If an I/O error occurs
      */
-    default int readUnsignedByte() {
+    default int readUnsignedByte() throws BufferUnderflowException, UncheckedIOException {
         return Byte.toUnsignedInt(readByte());
     }
 
@@ -63,7 +63,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws UncheckedIOException If an I/O error occurs
      * @return The number of bytes read actually read and placed into {@code dst}
      */
-    default long readBytes(@NonNull final byte[] dst) {
+    default long readBytes(@NonNull final byte[] dst) throws UncheckedIOException {
         return readBytes(dst, 0, dst.length);
     }
 
@@ -92,7 +92,8 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws UncheckedIOException If an I/O error occurs
      * @return The number of bytes read actually read and placed into {@code dst}
      */
-    default long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength) {
+    default long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength)
+            throws UncheckedIOException {
         if (maxLength < 0) {
             throw new IllegalArgumentException("Negative maxLength not allowed");
         }
@@ -134,7 +135,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws UncheckedIOException If an I/O error occurs
      * @return The number of bytes read actually read and placed into {@code dst}
      */
-    default long readBytes(@NonNull final ByteBuffer dst) {
+    default long readBytes(@NonNull final ByteBuffer dst) throws UncheckedIOException {
         // Read up to maxLength bytes into the dst array. Note the check for `hasRemaining()` is done in the loop
         // because, for streams, we cannot determine ahead of time the total number of available bytes, so we must
         // continue to check as we process each byte. This is not efficient for buffers.
@@ -170,7 +171,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws UncheckedIOException If an I/O error occurs
      * @return The number of bytes read actually read and placed into {@code dst}
      */
-    default long readBytes(@NonNull final BufferedData dst) {
+    default long readBytes(@NonNull final BufferedData dst) throws UncheckedIOException {
         // Read up to maxLength bytes into the dst array. Note the check for `hasRemaining()` is done in the loop
         // because, for streams, we cannot determine ahead of time the total number of available bytes, so we must
         // continue to check as we process each byte. This is not efficient for buffers.
@@ -203,7 +204,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are not {@code length} bytes remaining in this sequence
      * @throws UncheckedIOException If an I/O error occurs
      */
-    default @NonNull Bytes readBytes(final int length) {
+    default @NonNull Bytes readBytes(final int length) throws BufferUnderflowException, UncheckedIOException {
         if (length < 0) {
             throw new IllegalArgumentException("Negative length not allowed");
         }
@@ -237,7 +238,8 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are no bytes remaining in this sequence and a byte is read
      * @throws UncheckedIOException If an I/O error occurs
      */
-    default @NonNull ReadableSequentialData view(final int length) {
+    default @NonNull ReadableSequentialData view(final int length)
+            throws BufferUnderflowException, UncheckedIOException {
         if (length < 0) {
             throw new IllegalArgumentException("Length cannot be negative");
         }
@@ -259,7 +261,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default int readInt() {
+    default int readInt() throws BufferUnderflowException, UncheckedIOException {
         // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
         //noinspection DuplicatedCode
         if (remaining() < Integer.BYTES) {
@@ -281,7 +283,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default int readInt(@NonNull final ByteOrder byteOrder) {
+    default int readInt(@NonNull final ByteOrder byteOrder) throws BufferUnderflowException, UncheckedIOException {
         if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
             // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
             //noinspection DuplicatedCode
@@ -306,7 +308,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default long readUnsignedInt() {
+    default long readUnsignedInt() throws BufferUnderflowException, UncheckedIOException {
         return (readInt()) & 0xFFFFFFFFL;
     }
 
@@ -319,7 +321,8 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default long readUnsignedInt(@NonNull final ByteOrder byteOrder) {
+    default long readUnsignedInt(@NonNull final ByteOrder byteOrder)
+            throws BufferUnderflowException, UncheckedIOException {
         return (readInt(byteOrder)) & 0xFFFFFFFFL;
     }
 
@@ -331,7 +334,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default long readLong() {
+    default long readLong() throws BufferUnderflowException, UncheckedIOException {
         // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
         //noinspection DuplicatedCode
         if (remaining() < Long.BYTES) {
@@ -364,7 +367,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default long readLong(@NonNull final ByteOrder byteOrder) {
+    default long readLong(@NonNull final ByteOrder byteOrder) throws BufferUnderflowException, UncheckedIOException {
         if (byteOrder == ByteOrder.LITTLE_ENDIAN) {
             // False positive: bytes in "duplicated" fragments are read in opposite order for big vs. little endian
             //noinspection DuplicatedCode
@@ -400,7 +403,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default float readFloat() {
+    default float readFloat() throws BufferUnderflowException, UncheckedIOException {
         return Float.intBitsToFloat(readInt());
     }
 
@@ -413,7 +416,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are fewer than four bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default float readFloat(@NonNull final ByteOrder byteOrder) {
+    default float readFloat(@NonNull final ByteOrder byteOrder) throws BufferUnderflowException, UncheckedIOException {
         return Float.intBitsToFloat(readInt(byteOrder));
     }
 
@@ -425,7 +428,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default double readDouble() {
+    default double readDouble() throws BufferUnderflowException, UncheckedIOException {
         return Double.longBitsToDouble(readLong());
     }
 
@@ -438,7 +441,8 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws BufferUnderflowException If there are fewer than eight bytes remaining
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default double readDouble(@NonNull final ByteOrder byteOrder) {
+    default double readDouble(@NonNull final ByteOrder byteOrder)
+            throws BufferUnderflowException, UncheckedIOException {
         return Double.longBitsToDouble(readLong(byteOrder));
     }
 
@@ -451,7 +455,7 @@ public interface ReadableSequentialData extends SequentialData {
      *                                  is read
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default int readVarInt(final boolean zigZag) {
+    default int readVarInt(final boolean zigZag) throws BufferUnderflowException, UncheckedIOException {
         return (int) readVarLong(zigZag);
     }
 
@@ -465,7 +469,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws UncheckedIOException if an I/O error occurs
      * @throws DataEncodingException if the variable long cannot be decoded
      */
-    default long readVarLong(final boolean zigZag) {
+    default long readVarLong(final boolean zigZag) throws BufferUnderflowException, UncheckedIOException {
         long value = 0;
 
         for (int i = 0; i < 10; i++) {

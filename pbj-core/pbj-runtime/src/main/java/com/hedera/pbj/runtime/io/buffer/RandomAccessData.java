@@ -575,8 +575,10 @@ public interface RandomAccessData {
      * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative
      * or greater than/equal to the given {@code length}.
      *
-     * @param offset offset
-     * @param length length
+     * @param offset an offset in this RandomAccessData that the caller wants to access
+     * @param length the maximum offset plus one (1) that is allowed to be accessed.
+     *               It may be equal to the total length of the underlying buffer,
+     *               or be less than the total length when a limit value is used.
      */
     default void checkOffset(final long offset, final long length) {
         if (offset < 0 || offset >= length) {
@@ -588,13 +590,15 @@ public interface RandomAccessData {
      * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative
      * or greater than/equal to the given {@code length}, and throws {@code BufferUnderflowException}
      * if the {@code offset + dataLength - 1} exceeds the given {@code length}.
-     *
+     * <p>
      * checkOffsetToRead(offset, length, 1) is equivalent to checkOffset(offset, length)
      * because the dataLength condition is always satisfied for dataLength == 1 byte
      * as long as the initial offset is within the bounds.
      *
-     * @param offset offset
-     * @param length length
+     * @param offset an offset in this RandomAccessData that the caller wants to access
+     * @param length the maximum offset plus one (1) that is allowed to be accessed.
+     *               It may be equal to the total length of the underlying buffer,
+     *               or be less than the total length when a limit value is used.
      * @param dataLength the length of the data to read
      */
     default void checkOffsetToRead(final long offset, final long length, final long dataLength) {
@@ -610,13 +614,15 @@ public interface RandomAccessData {
      * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative
      * or greater than/equal to the given {@code length}, and throws {@code BufferOverflowException}
      * if the {@code offset + dataLength - 1} exceeds the given {@code length}.
-     *
+     * <p>
      * checkOffsetToWrite(offset, length, 1) is equivalent to checkOffset(offset, length)
      * because the dataLength condition is always satisfied for dataLength == 1 byte
      * as long as the initial offset is within the bounds.
      *
-     * @param offset offset
-     * @param length length
+     * @param offset an offset in this RandomAccessData that the caller wants to access
+     * @param length the maximum offset plus one (1) that is allowed to be accessed.
+     *               It may be equal to the total length of the underlying buffer,
+     *               or be less than the total length when a limit value is used.
      * @param dataLength the length of the data to write
      */
     default void checkOffsetToWrite(final long offset, final long length, final long dataLength) {
