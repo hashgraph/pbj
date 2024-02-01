@@ -237,11 +237,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * A helper method for efficient copy of our data into an OutputStream without creating a defensive copy
-     * of the data. The implementation relies on a well-behaved OutputStream that doesn't modify the buffer data.
-     *
-     * @param outStream the OutputStream to copy into
+     * {@inheritDoc}
      */
+    @Override
     public void writeTo(@NonNull final OutputStream outStream) {
         try {
             outStream.write(buffer, start, length);
@@ -251,13 +249,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * A helper method for efficient copy of our data into an OutputStream without creating a defensive copy
-     * of the data. The implementation relies on a well-behaved OutputStream that doesn't modify the buffer data.
-     *
-     * @param outStream The OutputStream to copy into.
-     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
-     * @param length The number of bytes to extract.
+     * {@inheritDoc}
      */
+    @Override
     public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
         try {
             outStream.write(buffer, offset, length);
