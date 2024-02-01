@@ -1,10 +1,10 @@
 package com.hedera.pbj.runtime.io.buffer;
 
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -52,7 +52,7 @@ public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
             try {
                 outStream.write(bytes);
             } catch (IOException e) {
-                throw new DataAccessException(e);
+                throw new UncheckedIOException(e);
             }
         }
 
@@ -61,7 +61,7 @@ public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
             try {
                 outStream.write(bytes, offset, length);
             } catch (IOException e) {
-                throw new DataAccessException(e);
+                throw new UncheckedIOException(e);
             }
         }
     }
