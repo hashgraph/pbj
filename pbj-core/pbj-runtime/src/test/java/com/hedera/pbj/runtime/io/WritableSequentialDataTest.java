@@ -1,6 +1,8 @@
 package com.hedera.pbj.runtime.io;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.util.Arrays;
@@ -70,7 +72,7 @@ final class WritableSequentialDataTest extends WritableTestBase {
         }
 
         @Override
-        public void writeByte(byte b) throws DataAccessException {
+        public void writeByte(byte b) throws UncheckedIOException {
             if (position >= limit) {
                 throw new BufferOverflowException();
             }

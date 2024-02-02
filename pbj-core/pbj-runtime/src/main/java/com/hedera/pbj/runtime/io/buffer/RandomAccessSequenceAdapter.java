@@ -138,6 +138,9 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
         final var length = Math.min(dst.remaining(), remaining());
         final var finalLimit = dstPos + Math.min(length, dst.remaining());
         dst.limit(Math.toIntExact(finalLimit));
+        if (length == 0) {
+            return 0;
+        }
         delegate.getBytes(start + position, dst);
         position += length;
         return length;
@@ -152,6 +155,9 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
         final var length = Math.min(dst.remaining(), remaining());
         final var finalLimit = dstPos + Math.min(length, dst.remaining());
         dst.limit(Math.toIntExact(finalLimit));
+        if (length == 0) {
+            return 0;
+        }
         delegate.getBytes(start + position, dst);
         position += length;
         return length;
@@ -161,6 +167,9 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
     @NonNull
     @Override
     public Bytes readBytes(final int length) {
+        if (length == 0) {
+            return Bytes.EMPTY;
+        }
         if (remaining() < length) {
             throw new BufferUnderflowException();
         }

@@ -1,6 +1,5 @@
 package com.hedera.pbj.runtime.io.buffer;
 
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
@@ -332,10 +331,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
                 try {
                     return getUnsignedByte(pos++);
-                } catch (DataAccessException e) {
-                    // Catch and convert to IOException because the caller of the InputStream API
-                    // will expect an IOException and NOT a DataAccessException.
-                    throw new IOException(e);
+                } catch (UncheckedIOException e) {
+                    throw e.getCause();
                 }
             }
         };

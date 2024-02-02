@@ -1,6 +1,5 @@
 package com.hedera.pbj.runtime.io.stream;
 
-import com.hedera.pbj.runtime.io.DataAccessException;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -9,6 +8,7 @@ import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -25,10 +25,16 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
 
     /** The underlying input stream */
     private final InputStream in;
+
+    /** The capacity of this stream if known, or Long.MAX_VALUE otherwise. */
+    private final long capacity;
+
     /** The current position, aka the number of bytes read */
     private long position = 0;
+
     /** The current limit for reading, defaults to Long.MAX_VALUE basically unlimited */
     private long limit = Long.MAX_VALUE;
+
     /** Set to true when we encounter -1 from the underlying stream, or this instance is closed */
     private boolean eof = false;
 
@@ -39,6 +45,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
      */
     public ReadableStreamingData(@NonNull final InputStream in) {
         this.in = requireNonNull(in);
+        this.capacity = Long.MAX_VALUE;
     }
 
     /**
@@ -53,7 +60,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
             throw new IOException("Cannot read file: " + file);
         }
         this.in = Files.newInputStream(file, StandardOpenOption.READ);
-        this.limit = Files.size(file);
+        this.capacity = this.limit = Files.size(file);
     }
 
     /**
@@ -63,7 +70,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
      */
     public ReadableStreamingData(@NonNull final byte[] bytes) {
         this.in = new ByteArrayInputStream(bytes);
-        this.limit = bytes.length;
+        this.capacity = this.limit = bytes.length;
     }
 
     // ================================================================================================================
@@ -86,11 +93,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
     /** {@inheritDoc} */
     @Override
     public long capacity() {
-        // This will always be true, for all streams, unless the stream had special knowledge of the maximum length.
-        // Since we do not yet have a use case for that, we will always set the capacity to be Long.MAX_VALUE, since
-        // that is the largest theoretical stream we will support. If we want to support streams with less capacity,
-        // we will need to add a constructor taking the capacity as an argument.
-        return Long.MAX_VALUE;
+        return capacity;
     }
 
     /** {@inheritDoc} */
@@ -144,7 +147,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
             position++;
             return (byte) result;
         } catch (final IOException e) {
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -164,7 +167,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
             position += numSkipped;
             return numSkipped;
         } catch (final IOException e) {
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -190,7 +193,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
             }
             return bytesRead;
         } catch (final IOException e) {
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -214,7 +217,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
             }
             return bytesRead;
         } catch (final IOException e) {
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -252,9 +255,10 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
                     return zigZag ? (value >>> 1) ^ -(value & 1) : value;
                 }
             }
-            throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+            assert i == 10;
+            throw new DataEncodingException("Malformed var int");
         } catch (final IOException e) {
-            throw new DataAccessException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
