@@ -199,7 +199,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 		} else if (repeated) {
 			return "Collections.emptyList()";
 		} else if (type == FieldType.ENUM) {
-			return messageType+".values()[0]";
+			return messageType+".fromProtobufOrdinal(0)";
 		} else {
 			return type.javaDefault;
 		}
