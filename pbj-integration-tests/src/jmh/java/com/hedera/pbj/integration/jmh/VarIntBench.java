@@ -1,4 +1,4 @@
-package com.hedera.pbj.intergration.jmh;
+package com.hedera.pbj.integration.jmh;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;

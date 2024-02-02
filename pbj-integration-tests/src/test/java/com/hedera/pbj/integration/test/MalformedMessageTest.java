@@ -1,4 +1,4 @@
-package com.hedera.pbj.intergration.test;
+package com.hedera.pbj.integration.test;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 

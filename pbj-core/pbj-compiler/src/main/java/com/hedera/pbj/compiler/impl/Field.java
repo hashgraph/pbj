@@ -1,11 +1,15 @@
 package com.hedera.pbj.compiler.impl;
 
+import static com.hedera.pbj.compiler.impl.Common.TYPE_FIXED32;
+import static com.hedera.pbj.compiler.impl.Common.TYPE_FIXED64;
+import static com.hedera.pbj.compiler.impl.Common.TYPE_LENGTH_DELIMITED;
+import static com.hedera.pbj.compiler.impl.Common.TYPE_VARINT;
+import static com.hedera.pbj.compiler.impl.Common.snakeToCamel;
+
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.util.Set;
-
-import static com.hedera.pbj.compiler.impl.Common.*;
 
 /**
  * Interface for SingleFields and OneOfFields

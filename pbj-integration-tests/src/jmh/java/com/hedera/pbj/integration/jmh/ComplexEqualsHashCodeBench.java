@@ -1,4 +1,4 @@
-package com.hedera.pbj.intergration.jmh;
+package com.hedera.pbj.integration.jmh;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.Hasheval;

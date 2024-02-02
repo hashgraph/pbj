@@ -1,6 +1,6 @@
-package com.hedera.pbj.intergration.jmh;
+package com.hedera.pbj.integration.jmh;
 
-import com.hedera.pbj.intergration.test.TestHashFunctions;
+import com.hedera.pbj.integration.test.TestHashFunctions;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.Hasheval;
 import com.hedera.pbj.test.proto.pbj.Suit;

@@ -669,3 +669,9 @@ Temporary Items
 
 ### Generated Protobuf Files
 /tests/src/main/proto/
+
+### IntelliJ workarounds
+.github/.github.iml
+github-setup
+
+

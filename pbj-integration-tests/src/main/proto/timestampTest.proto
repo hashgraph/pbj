@@ -5,12 +5,12 @@ package proto;
 /** Test issue 87 */
 /** Test issue 87 */
 
-/*-
- * ‌
+/*
+ *
  * Hedera Network Services Protobuf
- * ​
+ *
  * Copyright (C) 2018 - 2021 Hedera Hashgraph, LLC
- * ​
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -22,7 +22,7 @@ package proto;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * ‍
+ *
  */
 
 option java_package = "com.hedera.pbj.test.proto.java";
@@ -32,7 +32,9 @@ option java_multiple_files = true;
 /**
  * An exact date and time. This is the same data structure as the protobuf Timestamp.proto (see the
  * comments in https://github.com/google/protobuf/blob/master/src/google/protobuf/timestamp.proto)
+ * We add comparable here to expand testing of that feature
  */
+// <<<pbj.comparable = "seconds,nanos" >>>
 message TimestampTest {
     /**
      * Number of complete seconds since the start of the epoch
@@ -54,4 +56,3 @@ message TimestampTestSeconds {
      */
     int64 seconds = 1;
 }
-
