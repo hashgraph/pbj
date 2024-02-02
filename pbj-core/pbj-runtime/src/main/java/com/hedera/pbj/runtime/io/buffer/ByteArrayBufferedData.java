@@ -81,11 +81,12 @@ final class ByteArrayBufferedData extends BufferedData {
     @Override
     public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
         validateLen(maxLength);
+        checkOffset(offset);
         final long len = Math.min(maxLength, length() - offset);
+        checkOffsetToRead(offset, length(), len);
         if (len == 0) {
             return 0;
         }
-        checkOffsetToRead(offset, length(), len);
         System.arraycopy(array, Math.toIntExact(arrayOffset + offset), dst, dstOffset, Math.toIntExact(len));
         return len;
     }

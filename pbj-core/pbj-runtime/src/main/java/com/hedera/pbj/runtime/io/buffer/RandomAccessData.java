@@ -79,7 +79,7 @@ public interface RandomAccessData {
      *                and no larger than {@code dst.length - offset}
      * @throws NullPointerException if {@code dst} is null
      * @throws IndexOutOfBoundsException If {@code dstOffset} is out of bounds of {@code dst},
-     *             or if {@code dstOffset + maxLength} is not less than {@code dst.length},
+     *             or if {@code dstOffset + maxLength} is greater than {@code dst.length},
      *             or if {@code offset} is out of bounds of this RandomAccessData.
      * @throws IllegalArgumentException If {@code maxLength} is negative
      * @return The number of bytes read actually read and placed into {@code dst}
@@ -572,6 +572,22 @@ public interface RandomAccessData {
     void writeTo(@NonNull final OutputStream outStream, final int offset, final int length);
 
     /**
+     * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative.
+     * <p>
+     * This is used to check if the numeric value is valid. Note that the offset may still be
+     * larger than the largest valid offset, and it is assumed that the subsequent computations
+     * by the caller of this method will clamp it properly or run a full check including the length
+     * at a later time.
+     *
+     * @param offset an offset in this RandomAccessData that the caller wants to access
+     */
+    default void checkOffset(final long offset) {
+        if (offset < 0) {
+            throw new IndexOutOfBoundsException("offset " + offset + " is negative");
+        }
+    }
+
+    /**
      * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative
      * or greater than/equal to the given {@code length}.
      *
@@ -605,7 +621,7 @@ public interface RandomAccessData {
         if (offset < 0 || offset > length || (offset == length && dataLength != 0)) {
             throw new IndexOutOfBoundsException("offset " + offset + " is out of bounds for length " + length);
         }
-        if (offset + dataLength - 1 >= length) {
+        if (offset > length - dataLength) {
             throw new BufferUnderflowException();
         }
     }
@@ -629,7 +645,7 @@ public interface RandomAccessData {
         if (offset < 0 || offset > length || (offset == length && dataLength != 0)) {
             throw new IndexOutOfBoundsException("offset " + offset + " is out of bounds for length " + length);
         }
-        if (offset + dataLength - 1 >= length) {
+        if (offset > length - dataLength) {
             throw new BufferOverflowException();
         }
     }

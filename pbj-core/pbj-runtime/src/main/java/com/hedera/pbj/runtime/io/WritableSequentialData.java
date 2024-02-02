@@ -391,7 +391,7 @@ public interface WritableSequentialData extends SequentialData {
      *
      * @param value integer to write in var int format
      * @param zigZag use protobuf zigZag varint encoding, optimized for negative numbers
-     * @throws BufferOverflowException If there are fewer than eight bytes remaining before {@link #limit()}
+     * @throws BufferOverflowException If there are fewer than ten bytes remaining before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
     default void writeVarInt(final int value, final boolean zigZag)
