@@ -30,7 +30,7 @@ class OneOfTest {
     @Test
     void hashCodeReturnsHashCode() {
         final var oneOf = new OneOf<>(TestEnum.KIND1, "Value");
-        assertEquals(Objects.hash(TestEnum.KIND1, "Value"), oneOf.hashCode());
+        assertEquals(TestEnum.KIND1.hashCode() * 31 + Objects.hashCode("Value"), oneOf.hashCode());
     }
 
     @Test
