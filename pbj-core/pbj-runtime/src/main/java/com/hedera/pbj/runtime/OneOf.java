@@ -47,7 +47,7 @@ public record OneOf<E extends Enum<E>>(E kind, Object value) {
 
     @Override
     public int hashCode() {
-        return kind.hashCode() * 31 + Objects.hashCode(value);
+        return (31 + kind.hashCode()) * 31 + (value == null ? 0 : value.hashCode());
     }
 
 }
