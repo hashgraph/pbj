@@ -211,6 +211,7 @@ public final class ProtoParserTools {
      * Read a String field from data input
      *
      * @param input the input to read from
+     * @param maxSize the maximum allowed size
      * @return Read string
      * @throws ParseException if the length is greater than maxSize
      */
@@ -284,7 +285,7 @@ public final class ProtoParserTools {
 
     /**
      * Skip over the bytes in a stream for a given wire type. Assumes you have already read tag.
-     * 
+     *
      * @param input The input to move ahead
      * @param wireType The wire type of field to skip
      * @throws IOException For unsupported wire types
