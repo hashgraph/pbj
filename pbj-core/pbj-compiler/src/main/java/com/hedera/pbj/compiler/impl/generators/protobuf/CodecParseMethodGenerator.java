@@ -162,7 +162,7 @@ class CodecParseMethodGenerator {
                                         } else {
                                             // We just need to read off the bytes for this field to skip it
                                             // and move on to the next one.
-                                            skipField(input, ProtoConstants.get(wireType));
+                                            skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
                                         }
                                     } else {
                                         throw new IOException("Bad tag [" + tag + "], field [" + field
@@ -185,6 +185,7 @@ class CodecParseMethodGenerator {
                 field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
         .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
         .replace("$caseStatements",generateCaseStatements(fields))
+        .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
         .indent(DEFAULT_INDENT);
     }
 
@@ -197,9 +198,9 @@ class CodecParseMethodGenerator {
      */
     private static String generateCaseStatements(final List<Field> fields) {
         StringBuilder sb = new StringBuilder();
-        for(Field field: fields) {
+        for (Field field: fields) {
             if (field instanceof final OneOfField oneOfField) {
-                for(final Field subField: oneOfField.fields()) {
+                for (final Field subField: oneOfField.fields()) {
                     generateFieldCaseStatement(sb,subField);
                 }
             } else if (field.repeated() && field.type().wireType() != Common.TYPE_LENGTH_DELIMITED) {
@@ -230,6 +231,9 @@ class CodecParseMethodGenerator {
         sb.append("""
 				// Read the length of packed repeated field data
 				final long length = input.readVarInt(false);
+				if (length > $maxSize) {
+				    throw new ParseException("$fieldName size " + length + " is greater than max " + $maxSize);
+				}
 				if (input.remaining() < length) {
 				    throw new BufferUnderflowException();
 				}
@@ -245,6 +249,8 @@ class CodecParseMethodGenerator {
 				}"""
                 .replace("$tempFieldName", "temp_" + field.name())
                 .replace("$readMethod", readMethod(field))
+                .replace("$maxSize", String.valueOf(field.maxSize()))
+                .replace("$fieldName", field.name())
                 .indent(DEFAULT_INDENT)
         );
         sb.append("\n}\n");
@@ -306,13 +312,16 @@ class CodecParseMethodGenerator {
                     .indent(DEFAULT_INDENT)
             );
             sb.append('\n');
-        } else if (field.type() == Field.FieldType.MESSAGE){
+        } else if (field.type() == Field.FieldType.MESSAGE) {
             sb.append("""
 						final var messageLength = input.readVarInt(false);
 						final $fieldType value;
 						if (messageLength == 0) {
 							value = $fieldType.DEFAULT;
 						} else {
+							if (messageLength > $maxSize) {
+								throw new ParseException("$fieldName size " + messageLength + " is greater than max " + $maxSize);
+							}
 							final var limitBefore = input.limit();
 							// Make sure that we have enough bytes in the message
 							// to read the subObject.
@@ -335,6 +344,8 @@ class CodecParseMethodGenerator {
 						"""
                     .replace("$readMethod", readMethod(field))
                     .replace("$fieldType", field.javaFieldTypeBase())
+                    .replace("$fieldName", field.name())
+                    .replace("$maxSize", String.valueOf(field.maxSize()))
                     .indent(DEFAULT_INDENT)
             );
         } else {
@@ -349,6 +360,9 @@ class CodecParseMethodGenerator {
             sb.append("temp_" + oneOfField.name() + " =  new %s<>(".formatted(oneOfField.className()) +
                     oneOfField.getEnumClassRef() + '.' + Common.camelToUpperSnake(field.name()) + ", value);\n");
         } else if (field.repeated()) {
+            sb.append("if (temp_" + field.name() + ".size() >= " + field.maxSize() + ") {\n");
+            sb.append("    throw new ParseException(\"" + field.name() + " size \" + temp_" + field.name() + ".size() + \" is greater than max \" + " + field.maxSize() + ");\n");
+            sb.append("}\n");
             sb.append("temp_" + field.name() + " = addToList(temp_" + field.name() + ",value);\n");
         } else {
             sb.append("temp_" + field.name() + " = value;\n");
@@ -359,7 +373,7 @@ class CodecParseMethodGenerator {
     private static String readMethod(Field field) {
         if (field.optionalValueType()) {
             return switch (field.messageType()) {
-                case "StringValue" -> "readString(input)";
+                case "StringValue" -> "readString(input, " + field.maxSize() + ")";
                 case "Int32Value" -> "readInt32(input)";
                 case "UInt32Value" -> "readUint32(input)";
                 case "Int64Value" -> "readInt64(input)";
@@ -367,11 +381,11 @@ class CodecParseMethodGenerator {
                 case "FloatValue" -> "readFloat(input)";
                 case "DoubleValue" -> "readDouble(input)";
                 case "BoolValue" -> "readBool(input)";
-                case "BytesValue" -> "readBytes(input)";
+                case "BytesValue" -> "readBytes(input, " + field.maxSize() + ")";
                 default -> throw new PbjCompilerException("Optional message type [" + field.messageType() + "] not supported");
             };
         }
-        return switch(field.type()) {
+        return switch (field.type()) {
             case ENUM ->  Common.snakeToCamel(field.messageType(), true) + ".fromProtobufOrdinal(readEnum(input))";
             case INT32 -> "readInt32(input)";
             case UINT32 -> "readUint32(input)";
@@ -385,9 +399,9 @@ class CodecParseMethodGenerator {
             case DOUBLE -> "readDouble(input)";
             case FIXED64 -> "readFixed64(input)";
             case SFIXED64 -> "readSignedFixed64(input)";
-            case STRING -> "readString(input)";
+            case STRING -> "readString(input, " + field.maxSize() + ")";
             case BOOL -> "readBool(input)";
-            case BYTES -> "readBytes(input)";
+            case BYTES -> "readBytes(input, " + field.maxSize() + ")";
             case MESSAGE -> field.parseCode();
             case ONE_OF -> throw new PbjCompilerException("Should never happen, oneOf handled elsewhere");
         };

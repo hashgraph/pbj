@@ -200,7 +200,27 @@ public final class ProtoParserTools {
      * @return Read string
      */
     public static String readString(final ReadableSequentialData input) throws IOException {
+        try {
+            return readString(input, Long.MAX_VALUE);
+        } catch (ParseException ex) {
+            throw new UncheckedParseException(ex);
+        }
+    }
+
+    /**
+     * Read a String field from data input
+     *
+     * @param input the input to read from
+     * @param maxSize the maximum allowed size
+     * @return Read string
+     * @throws ParseException if the length is greater than maxSize
+     */
+    public static String readString(final ReadableSequentialData input, final long maxSize)
+            throws IOException, ParseException {
         final int length = input.readVarInt(false);
+        if (length > maxSize) {
+            throw new ParseException("size " + length + " is greater than max " + maxSize);
+        }
         if (input.remaining() < length) {
             throw new BufferUnderflowException();
         }
@@ -231,7 +251,28 @@ public final class ProtoParserTools {
      * of InputData
      */
     public static Bytes readBytes(final ReadableSequentialData input) {
+        try {
+            return readBytes(input, Long.MAX_VALUE);
+        } catch (ParseException ex) {
+            throw new UncheckedParseException(ex);
+        }
+    }
+
+    /**
+     * Read a Bytes field from data input, or throw ParseException if the Bytes in the input
+     * is longer than the maxSize.
+     *
+     * @param input the input to read from
+     * @param maxSize the maximum allowed size
+     * @return read Bytes object, this can be a copy or a direct reference to inputs data. So it has same life span
+     * of InputData
+     * @throws ParseException if the length is greater than maxSize
+     */
+    public static Bytes readBytes(final ReadableSequentialData input, final long maxSize) throws ParseException {
         final int length = input.readVarInt(false);
+        if (length > maxSize) {
+            throw new ParseException("size " + length + " is greater than max " + maxSize);
+        }
         if (input.remaining() < length) {
             throw new BufferUnderflowException();
         }
@@ -244,12 +285,30 @@ public final class ProtoParserTools {
 
     /**
      * Skip over the bytes in a stream for a given wire type. Assumes you have already read tag.
-     * 
+     *
      * @param input The input to move ahead
      * @param wireType The wire type of field to skip
      * @throws IOException For unsupported wire types
      */
     public static void skipField(final ReadableSequentialData input, final ProtoConstants wireType) throws IOException {
+        try {
+            skipField(input, wireType, Long.MAX_VALUE);
+        } catch (ParseException ex) {
+            throw new UncheckedParseException(ex);
+        }
+    }
+
+    /**
+     * Skip over the bytes in a stream for a given wire type. Assumes you have already read tag.
+     *
+     * @param input The input to move ahead
+     * @param wireType The wire type of field to skip
+     * @param maxSize the maximum allowed size for repeated/length-encoded fields
+     * @throws IOException For unsupported wire types
+     * @throws ParseException if the length of a repeated/length-encoded field is greater than maxSize
+     */
+    public static void skipField(final ReadableSequentialData input, final ProtoConstants wireType, final long maxSize)
+            throws IOException, ParseException {
         switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
@@ -261,6 +320,9 @@ public final class ProtoParserTools {
                 final int length = input.readVarInt(false);
                 if (length < 0) {
                     throw new IOException("Encountered a field with negative length " + length);
+                }
+                if (length > maxSize) {
+                    throw new ParseException("size " + length + " is greater than max " + maxSize);
                 }
                 input.skip(length);
             }
