@@ -13,12 +13,23 @@ import static com.hedera.pbj.compiler.impl.Common.*;
 @SuppressWarnings("unused")
 public interface Field {
 
+	/** The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.). */
+	public static final long DEFAULT_MAX_SIZE = 21 * 1024;
+
 	/**
 	 * Is this field a repeated field. Repeated fields are lists of values rather than a single value.
 	 *
 	 * @return true if this field is a list and false if it is a single value
 	 */
 	boolean repeated();
+
+	/**
+	 * Returns the field's max size relevant to repeated or length-encoded fields.
+	 * The returned value has no meaning for scalar fields (BOOL, INT, etc.).
+	 */
+	default long maxSize() {
+		return DEFAULT_MAX_SIZE;
+	}
 
 	/**
 	 * Get the field number, the number of the field in the parent message
