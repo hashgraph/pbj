@@ -180,6 +180,20 @@ class ProtoParserToolsTest {
                 new UncheckedThrowingFunction<>(ProtoParserTools::readString),
                 length + 1);
     }
+
+    @Test
+    void testReadString_maxSize() throws IOException {
+        final int length = 1;
+        final int maxSize = 1024;
+        final byte[] byteArray = new byte[length];
+        rng.nextBytes(byteArray);
+        final BufferedData data = BufferedData.allocate(length + 16);
+        data.writeVarInt(maxSize + 1, false); // write the size first
+        data.writeBytes(byteArray);
+        final ReadableStreamingData streamingData = new ReadableStreamingData(data.toInputStream());
+        assertThrows(ParseException.class, () -> ProtoParserTools.readString(streamingData, maxSize));
+    }
+
     @Test
     void testReadString_incomplete() throws IOException {
         final int length = rng.nextInt(0, 100);
@@ -210,6 +224,19 @@ class ProtoParserToolsTest {
                 },
                 ProtoParserTools::readBytes,
                 length + 1);
+    }
+
+    @Test
+    void testReadBytes_maxSize() throws IOException {
+        final int length = 1;
+        final int maxSize = 1024;
+        final byte[] byteArray = new byte[length];
+        rng.nextBytes(byteArray);
+        final BufferedData data = BufferedData.allocate(length + 16);
+        data.writeVarInt(maxSize + 1, false); // write the size first
+        data.writeBytes(byteArray);
+        final ReadableStreamingData streamingData = new ReadableStreamingData(data.toInputStream());
+        assertThrows(ParseException.class, () -> ProtoParserTools.readBytes(streamingData, maxSize));
     }
 
     @Test
@@ -265,6 +292,19 @@ class ProtoParserToolsTest {
         skipField(data, WIRE_TYPE_DELIMITED);
         skipTag(data);
         assertEquals(valToRead, readString(data));
+    }
+
+    @Test
+    void testSkipField_maxSize() throws IOException {
+        final int length = 1;
+        final int maxSize = 1024;
+        final byte[] byteArray = new byte[length];
+        rng.nextBytes(byteArray);
+        final BufferedData data = BufferedData.allocate(length + 16);
+        data.writeVarInt(maxSize + 1, false); // write the size first
+        data.writeBytes(byteArray);
+        final ReadableStreamingData streamingData = new ReadableStreamingData(data.toInputStream());
+        assertThrows(ParseException.class, () -> ProtoParserTools.skipField(streamingData, WIRE_TYPE_DELIMITED, maxSize));
     }
 
     @ParameterizedTest
