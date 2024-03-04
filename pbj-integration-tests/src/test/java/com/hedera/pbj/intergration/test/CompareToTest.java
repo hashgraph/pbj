@@ -36,78 +36,78 @@ class CompareToTest {
     @Test
     void testCompareTo_int32() {
         assertComparables(
-                new ComparableTest(1, 0.0, false, null, null, null, null),
-                new ComparableTest(2, 0.0, false, null, null, null, null),
-                new ComparableTest(3, 0.0, false, null, null, null, null));
+                new ComparableTest(1, 0.0, false, "", null, null, Bytes.EMPTY),
+                new ComparableTest(2, 0.0, false, "", null, null, Bytes.EMPTY),
+                new ComparableTest(3, 0.0, false, "", null, null, Bytes.EMPTY));
     }
     @Test
     void testCompareTo_double() {
         assertComparables(
-                new ComparableTest(1, 0.0, false, null, null, null, null),
-                new ComparableTest(2, 1.5, false, null, null, null, null),
-                new ComparableTest(3, 2.66, false, null, null, null, null)
+                new ComparableTest(1, 0.0, false, "", null, null, Bytes.EMPTY),
+                new ComparableTest(2, 1.5, false, "", null, null, Bytes.EMPTY),
+                new ComparableTest(3, 2.66, false, "", null, null, Bytes.EMPTY)
         );
     }
     @Test
     void testCompareTo_bool() {
         assertComparables(
-                new ComparableTest(0, 0.0, false, null, null, null, null),
-                new ComparableTest(0, 0.0, true, null, null, null, null)
+                new ComparableTest(0, 0.0, false, "", null, null, Bytes.EMPTY),
+                new ComparableTest(0, 0.0, true, "", null, null, Bytes.EMPTY)
         );
     }
     @Test
     void testCompareTo_string() {
         assertComparables(
-                new ComparableTest(0, 0.0, false, "a", null, null, null),
-                new ComparableTest(0, 0.0, false, "b", null, null, null),
-                new ComparableTest(0, 0.0, false, "c", null, null, null)
+                new ComparableTest(0, 0.0, false, "a", null, null, Bytes.EMPTY),
+                new ComparableTest(0, 0.0, false, "b", null, null, Bytes.EMPTY),
+                new ComparableTest(0, 0.0, false, "c", null, null, Bytes.EMPTY)
         );
     }
     @Test
     void testCompareTo_bytes() {
         assertComparables(
-                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("a")),
-                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("aa")),
-                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("aaa"))
+                new ComparableTest(0, 0.0, false, "", null, null, Bytes.wrap("a")),
+                new ComparableTest(0, 0.0, false, "", null, null, Bytes.wrap("aa")),
+                new ComparableTest(0, 0.0, false, "", null, null, Bytes.wrap("aaa"))
         );
     }
     @Test
     void testCompareTo_bytes_same_lenth() {
          assertComparables(
-                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("aba")),
-                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("abb")),
-                new ComparableTest(0, 0.0, false, null, null, null, Bytes.wrap("abc"))
+                new ComparableTest(0, 0.0, false, "", null, null, Bytes.wrap("aba")),
+                new ComparableTest(0, 0.0, false, "", null, null, Bytes.wrap("abb")),
+                new ComparableTest(0, 0.0, false, "", null, null, Bytes.wrap("abc"))
         );
     }
     @Test
     void testCompareTo_enum(){
         assertComparables(
-                new ComparableTest(0, 0.0, false, null, ComparableEnum.ONE, null, null),
-                new ComparableTest(0, 0.0, false, null, ComparableEnum.TWO, null, null),
-                new ComparableTest(0, 0.0, false, null, ComparableEnum.THREE, null, null)
+                new ComparableTest(0, 0.0, false, "", ComparableEnum.ONE, null, Bytes.EMPTY),
+                new ComparableTest(0, 0.0, false, "", ComparableEnum.TWO, null, Bytes.EMPTY),
+                new ComparableTest(0, 0.0, false, "", ComparableEnum.THREE, null, Bytes.EMPTY)
         );
     }
     @Test
     void testCompareTo_subObject(){
         assertComparables(
-                new ComparableTest(0, 0.0, false, null, null, new ComparableSubObj(1), null),
-                new ComparableTest(0, 0.0, false, null, null,  new ComparableSubObj(2), null),
-                new ComparableTest(0, 0.0, false, null, null,  new ComparableSubObj(3), null)
+                new ComparableTest(0, 0.0, false, "", null, new ComparableSubObj(1), Bytes.EMPTY),
+                new ComparableTest(0, 0.0, false, "", null,  new ComparableSubObj(2), Bytes.EMPTY),
+                new ComparableTest(0, 0.0, false, "", null,  new ComparableSubObj(3), Bytes.EMPTY)
         );
     }
     @Test
      void compareTo_mixed() {
          assertComparables(
-                 new ComparableTest(1, 0.0, false, null, null, new ComparableSubObj(1), null),
-                 new ComparableTest(1, 0.0, false, null, null, new ComparableSubObj(2), null),
-                 new ComparableTest(2, 0.0, false, null, null, new ComparableSubObj(1), null),
-                 new ComparableTest(2, 0.0, false, null, null,  new ComparableSubObj(2), null)
+                 new ComparableTest(1, 0.0, false, "", null, new ComparableSubObj(1), Bytes.EMPTY),
+                 new ComparableTest(1, 0.0, false, "", null, new ComparableSubObj(2), Bytes.EMPTY),
+                 new ComparableTest(2, 0.0, false, "", null, new ComparableSubObj(1), Bytes.EMPTY),
+                 new ComparableTest(2, 0.0, false, "", null,  new ComparableSubObj(2), Bytes.EMPTY)
          );
      }
      @Test
      void compareTo_StringValue() {
             assertComparables(
-                    new StringValueComparableTest(null),
+                    new StringValueComparableTest(""),
                     new StringValueComparableTest("a"),
                     new StringValueComparableTest("b"),
                     new StringValueComparableTest("c")
@@ -178,7 +178,7 @@ class CompareToTest {
     @Test
     void compareTo_ByteValue() {
         assertComparables(
-                new BytesValueComparableTest(null),
+                new BytesValueComparableTest(Bytes.EMPTY),
                 new BytesValueComparableTest(Bytes.wrap("a")),
                 new BytesValueComparableTest(Bytes.wrap("b")),
                 new BytesValueComparableTest(Bytes.wrap("c")));
@@ -207,9 +207,9 @@ class CompareToTest {
      @Test
      void limitedCompareTo_int32() {
          assertComparables(
-                 new LimitedComparableTest(1, 0L, false, null, null, null),
-                 new LimitedComparableTest(2, 0L, false, null, null, null),
-                 new LimitedComparableTest(3, 0L, false, null, null, null));
+                 new LimitedComparableTest(1, 0L, false, "", null, null),
+                 new LimitedComparableTest(2, 0L, false, "", null, null),
+                 new LimitedComparableTest(3, 0L, false, "", null, null));
      }
 
      @Test
@@ -223,9 +223,9 @@ class CompareToTest {
      @Test
      void limitedCompareTo_subObj() {
          assertComparables(
-                 new LimitedComparableTest(0, 0L, false, null, null,  new ComparableSubObj(1)),
-                 new LimitedComparableTest(0, 0L, false, null, null,  new ComparableSubObj(2)),
-                 new LimitedComparableTest(0, 0L, false, null, null,  new ComparableSubObj(3)));
+                 new LimitedComparableTest(0, 0L, false, "", null,  new ComparableSubObj(1)),
+                 new LimitedComparableTest(0, 0L, false, "", null,  new ComparableSubObj(2)),
+                 new LimitedComparableTest(0, 0L, false, "", null,  new ComparableSubObj(3)));
      }
 
      @Test

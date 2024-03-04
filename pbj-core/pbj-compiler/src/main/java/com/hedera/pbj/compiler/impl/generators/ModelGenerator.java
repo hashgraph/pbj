@@ -6,6 +6,7 @@ import static com.hedera.pbj.compiler.impl.Common.cleanDocStr;
 import static com.hedera.pbj.compiler.impl.Common.getFieldsHashCode;
 import static com.hedera.pbj.compiler.impl.Common.getJavaFile;
 import static com.hedera.pbj.compiler.impl.Common.javaPrimitiveToObjectType;
+import static com.hedera.pbj.compiler.impl.Field.FieldType.ONE_OF;
 import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.EnumValue;
 import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
 import static java.util.stream.Collectors.toMap;
@@ -137,7 +138,7 @@ public final class ModelGenerator implements Generator {
 				generateCodecFields(msgDef, lookupHelper, javaRecordName);
 
 		// constructor
-		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optionalValueType())) {
+		if (fields.stream().anyMatch(f -> shouldCheckForNull(f) || f.optionalValueType())) {
 			bodyContent += generateConstructor(fields, javaRecordName);
 		}
 
@@ -175,6 +176,10 @@ public final class ModelGenerator implements Generator {
 					generateClass(modelPackage, imports, javaDocComment, deprecated, javaRecordName, fields, bodyContent, hasComparableFields)
 			);
 		}
+	}
+
+	private static boolean shouldCheckForNull(final Field f) {
+		return f instanceof OneOfField || f.type() == FieldType.BYTES || f.type() == FieldType.STRING;
 	}
 
 	/**
@@ -240,7 +245,7 @@ public final class ModelGenerator implements Generator {
 	private static String getFieldAnnotations(final Field field) {
 		return switch (field.type()) {
 			case MESSAGE -> "@Nullable ";
-			case BYTES -> NON_NULL_ANNOTATION + " ";
+			case BYTES, STRING -> NON_NULL_ANNOTATION + " ";
 			default -> "";
 		};
 	}
@@ -388,7 +393,7 @@ public final class ModelGenerator implements Generator {
 						).collect(Collectors.joining()),
 						javaRecordName,
 						fields.stream()
-								.filter(f -> f instanceof OneOfField)
+								.filter(f -> shouldCheckForNull(f))
 								.map(ModelGenerator::generateConstructorCodeForField)
 								.collect(Collectors.joining("\n"))
 				)
@@ -745,7 +750,7 @@ public final class ModelGenerator implements Generator {
 		final String javaRecordName = msgDef.messageName().getText();
 		final List<String> builderMethods = new ArrayList<>();
 		for (final Field field: fields) {
-			if (field.type() == Field.FieldType.ONE_OF) {
+			if (field.type() == ONE_OF) {
 				final OneOfField oneOfField = (OneOfField) field;
 				for (final Field subField: oneOfField.fields()) {
 					generateBuilderMethods(builderMethods, msgDef, subField, lookupHelper);
@@ -816,7 +821,10 @@ public final class ModelGenerator implements Generator {
 						field.javaFieldType() + " " + field.nameCamelFirstLower()
 				).collect(Collectors.joining(", ")))
 				.replace("$constructorCode",fields.stream().map(field ->
-						"this.$name = $name;".replace("$name", field.nameCamelFirstLower())
+						switch (field.type()) {
+							case ONE_OF -> "this.$name = $name;".replace("$name", field.nameCamelFirstLower());
+							default -> "$name($name);".replace("$name", field.nameCamelFirstLower());
+						}
 				).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2))
 				.indent(DEFAULT_INDENT);
 	}
@@ -829,7 +837,7 @@ public final class ModelGenerator implements Generator {
 	 * @return the generated code
 	 */
 	private static String getDefaultValue(final Field field, final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
-		if (field.type() == Field.FieldType.ONE_OF) {
+		if (field.type() == ONE_OF) {
 			return lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef)+"."+field.javaDefault();
 		} else {
 			return field.javaDefault();
