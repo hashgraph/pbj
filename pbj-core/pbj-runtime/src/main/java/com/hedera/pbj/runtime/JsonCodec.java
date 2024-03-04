@@ -21,39 +21,11 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
     // then we should strongly enforce Codec works with Records. This will reduce bugs
     // where people try to use a mutable object.
 
-    /**
-     * Parses an object from the {@link ReadableSequentialData} and returns it.
-     *
-     * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
-     * @return The parsed object. It must not return null.
-     * @throws ParseException If parsing fails
-     */
-    @NonNull
-    @Override
-    default T parse(@NonNull ReadableSequentialData input) throws ParseException {
-        try {
-            return parse(JsonTools.parseJson(input), false);
-        } catch (IOException ex) {
-            throw new ParseException(ex);
-        }
-    }
 
-    /**
-     * Parses an object from the {@link ReadableSequentialData} and returns it. Throws an exception if fields
-     * have been defined on the encoded object that are not supported by the parser. This
-     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
-     * parsing it is prepared to handle.
-     *
-     * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
-     * @return The parsed object. It must not return null.
-     * @throws ParseException If parsing fails
-     */
-    @NonNull
-    @Override
-    default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
+    /** @inheritDoc */
+    default @NonNull T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth) throws ParseException {
         try {
-            return parse(JsonTools.parseJson(input), true);
+            return parse(JsonTools.parseJson(input), strictMode, maxDepth);
         } catch (IOException ex) {
             throw new ParseException(ex);
         }
@@ -68,7 +40,8 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
      */
     @NonNull T parse(
             @Nullable final JSONParser.ObjContext root,
-            final boolean strictMode) throws ParseException;
+            final boolean strictMode,
+            final int maxDepth) throws ParseException;
 
     /**
      * Writes an item to the given {@link WritableSequentialData}.

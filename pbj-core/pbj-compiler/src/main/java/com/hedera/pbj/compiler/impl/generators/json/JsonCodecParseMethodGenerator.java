@@ -53,7 +53,11 @@ class JsonCodecParseMethodGenerator {
                  */
                 public @NonNull $modelClassName parse(
                         @Nullable final JSONParser.ObjContext root,
-                        final boolean strictMode) throws ParseException {
+                        final boolean strictMode,
+                        final int maxDepth) throws ParseException {
+                    if (maxDepth < 0) {
+                        throw new ParseException("Reached maximum allowed depth of nested messages");
+                    }
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
                         $fieldDefs
@@ -124,7 +128,7 @@ class JsonCodecParseMethodGenerator {
     private static void generateFieldCaseStatement(final StringBuilder sb, final Field field) {
         if (field.repeated()) {
             if (field.type() == Field.FieldType.MESSAGE) {
-                sb.append("parseObjArray(kvPair.value().arr(), "+field.messageType()+".JSON)");
+                sb.append("parseObjArray(kvPair.value().arr(), "+field.messageType()+".JSON, maxDepth - 1)");
             } else {
                 sb.append("kvPair.value().arr().value().stream().map(v -> ");
                 switch (field.type()) {
@@ -153,7 +157,7 @@ class JsonCodecParseMethodGenerator {
             }
         } else {
             switch (field.type()) {
-                case MESSAGE -> sb.append(field.javaFieldType() + ".JSON.parse(kvPair.value().getChild(JSONParser.ObjContext.class, 0), false)");
+                case MESSAGE -> sb.append(field.javaFieldType() + ".JSON.parse(kvPair.value().getChild(JSONParser.ObjContext.class, 0), false, maxDepth - 1)");
                 case ENUM -> sb.append(field.javaFieldType() + ".fromString(kvPair.value().STRING().getText())");
                 case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> sb.append("parseInteger(kvPair.value())");
                 case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> sb.append("parseLong(kvPair.value())");

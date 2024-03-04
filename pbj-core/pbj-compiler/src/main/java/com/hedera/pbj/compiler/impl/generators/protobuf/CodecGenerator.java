@@ -77,15 +77,10 @@ public final class CodecGenerator implements Generator {
 					public final class $codecClass implements Codec<$modelClass> {
 					    $unsetOneOfConstants
 					    $parseMethod
-					    $parseStrictMethod
 					    $writeMethod
 					    $measureDataMethod
 					    $measureRecordMethod
 					    $fastEqualsMethod
-					    
-					    // ------ Private Implementation
-					    
-					    $parseInternal
 					}
 					"""
 					.replace("$package", codecPackage)
@@ -98,12 +93,10 @@ public final class CodecGenerator implements Generator {
 					.replace("$codecClass", codecClassName)
 					.replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
 					.replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, fields))
-					.replace("$parseStrictMethod", CodecParseMethodGenerator.generateParseStrictMethod(modelClassName, fields))
 					.replace("$writeMethod", writeMethod)
 					.replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))
 					.replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
 					.replace("$fastEqualsMethod", CodecFastEqualsMethodGenerator.generateFastEqualsMethod(modelClassName, fields))
-					.replace("$parseInternal", CodecParseMethodGenerator.generateParseInternalMethod(modelClassName, fields))
 			);
 		}
 	}

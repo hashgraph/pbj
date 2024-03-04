@@ -182,7 +182,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	@Override
 	public String parseCode() {
 		if (type == FieldType.MESSAGE) {
-			return "strictMode ? %s.PROTOBUF.parseStrict(input) : %s.PROTOBUF.parse(input)"
+			return "%s.PROTOBUF.parse(input, strictMode, maxDepth - 1)"
 					.formatted(messageType, messageType);
 		} else {
 			return "input";
