@@ -14,7 +14,7 @@ import static com.hedera.pbj.compiler.impl.Common.*;
 public interface Field {
 
 	/** The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.). */
-	public static final long DEFAULT_MAX_SIZE = 21 * 1024;
+	public static final long DEFAULT_MAX_SIZE = 2 * 1024 * 1024;
 
 	/**
 	 * Is this field a repeated field. Repeated fields are lists of values rather than a single value.
