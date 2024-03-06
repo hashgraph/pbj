@@ -139,11 +139,9 @@ public final class TestGenerator implements Generator {
 				""".formatted(
 					modelClassName,
 					fields.stream()
-							.filter(field -> !field.javaFieldType().equals(modelClassName))
 							.map(f -> "final var %sList = %s;".formatted(f.nameCamelFirstLower(), generateTestData(modelClassName, f, f.optionalValueType(), f.repeated())))
 							.collect(Collectors.joining("\n")).indent(DEFAULT_INDENT),
 					fields.stream()
-							.filter(field -> !field.javaFieldType().equals(modelClassName))
 							.map(f -> f.nameCamelFirstLower()+"List.size()")
 							.collect(Collectors.collectingAndThen(
 									Collectors.toList(),
@@ -151,11 +149,11 @@ public final class TestGenerator implements Generator {
 							))
 							.collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 2),
 					modelClassName,
-					fields.stream().map(field ->
-							field.javaFieldType().equals(modelClassName)
-									? field.javaFieldType() + ".newBuilder().build()"
-									: "$nameList.get(Math.min(i, $nameList.size()-1))".replace("$name", field.nameCamelFirstLower())
-					).collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 4),
+					fields.stream().map(field -> "%sList.get(Math.min(i, %sList.size()-1))".formatted(
+								field.nameCamelFirstLower(),
+								field.nameCamelFirstLower()
+						))
+							.collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 4),
 					modelClassName,
 					modelClassName
 				);
@@ -341,7 +339,7 @@ public final class TestGenerator implements Generator {
 				    assertEquals(charBuffer2, charBuffer);
 				    
 				    // Test JSON Reading
-				    final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(JsonTools.parseJson(charBuffer), false, Integer.MAX_VALUE);
+				    final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(JsonTools.parseJson(charBuffer), false);
 				    assertEquals(modelObj, jsonReadPbj);
 				}
 				

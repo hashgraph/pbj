@@ -44,24 +44,70 @@ class CodecParseMethodGenerator {
     static String generateParseMethod(final String modelClassName, final List<Field> fields) {
         return """
                 /**
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}
+                 *
+                 * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
+                 *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
+                 *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
+                 *              then the method also returns immediately.
+                 * @return Parsed $modelClassName model object or null if data input was null or empty
+                 * @throws ParseException If parsing fails
+                 */
+                public @NonNull $modelClassName parse(@NonNull final ReadableSequentialData input)
+                        throws ParseException {
+                    return parseInternal(input, false);
+                }
+                """
+        .replace("$modelClassName",modelClassName)
+        .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
+                field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
+        .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
+        .replace("$caseStatements",generateCaseStatements(fields))
+        .replaceAll("\n", "\n" + Common.FIELD_INDENT);
+    }
+
+    static String generateParseStrictMethod(final String modelClassName, final List<Field> fields) {
+        return """
+                /**
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData} in strict mode, such that
+                 * parsing will fail if the encoded protobuf object contains any fields that are unknown to this
+                 * version of the parser.
+                 *
+                 * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
+                 *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
+                 *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
+                 *              then the method also returns immediately.
+                 * @return Parsed $modelClassName model object or null if data input was null or empty
+                 * @throws ParseException If parsing fails
+                 */
+                public @NonNull $modelClassName parseStrict(@NonNull final ReadableSequentialData input)
+                        throws ParseException {
+                    return parseInternal(input, true);
+                }
+                """
+        .replace("$modelClassName",modelClassName)
+        .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
+                field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
+        .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
+        .replace("$caseStatements",generateCaseStatements(fields))
+        .indent(DEFAULT_INDENT);
+    }
+
+    static String generateParseInternalMethod(final String modelClassName, final List<Field> fields) {
+        return """
+                /**
                  * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
                  *
                  * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
                  *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
-                 *              method. If there are no bytes remaining in the data input,
+                 *              method. If null, the method returns immediately. If there are no bytes remaining in the data input,
                  *              then the method also returns immediately.
-                 * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
-                 * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
                  * @return Parsed $modelClassName model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
                  */
-                public @NonNull $modelClassName parse(
+                private @NonNull $modelClassName parseInternal(
                         @NonNull final ReadableSequentialData input,
-                        final boolean strictMode,
-                        final int maxDepth) throws ParseException {
-                    if (maxDepth < 0) {
-                        throw new ParseException("Reached maximum allowed depth of nested messages");
-                    }
+                        final boolean strictMode) throws ParseException {
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
                         $fieldDefs
@@ -283,9 +329,8 @@ class CodecParseMethodGenerator {
 							// we will not throw.
 							final var startPos = input.position();
 							try {
-								if ((startPos + messageLength) > limitBefore) {
+								if ((startPos + messageLength) > limitBefore)
 									throw new BufferUnderflowException();
-								}
 								input.limit(startPos + messageLength);
 								value = $readMethod;
 								// Make sure we read the full number of bytes. for the types
