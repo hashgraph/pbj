@@ -124,11 +124,11 @@ public final class JsonTools {
      * @return the list of parsed objects
      * @param <T> the type of the objects to parse
      */
-    public static <T> List<T> parseObjArray(JSONParser.ArrContext arrContext, JsonCodec<T> codec, final int maxDepth) {
+    public static <T> List<T> parseObjArray(JSONParser.ArrContext arrContext, JsonCodec<T> codec) {
         return arrContext.value().stream()
                 .map(v -> {
                     try {
-                        return codec.parse(v.obj(), false, maxDepth - 1);
+                        return codec.parse(v.obj(), false);
                     } catch (ParseException e) {
                         throw new UncheckedParseException(e);
                     }
