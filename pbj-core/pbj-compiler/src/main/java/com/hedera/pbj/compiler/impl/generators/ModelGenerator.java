@@ -137,9 +137,7 @@ public final class ModelGenerator implements Generator {
 				generateCodecFields(msgDef, lookupHelper, javaRecordName);
 
 		// constructor
-		if (fields.stream().anyMatch(f -> f instanceof OneOfField || f.optionalValueType())) {
-			bodyContent += generateConstructor(fields, javaRecordName);
-		}
+		bodyContent += generateConstructor(javaRecordName, fields, true, msgDef, lookupHelper);
 
 		bodyContent += generateHashCode(fields);
 
@@ -240,7 +238,7 @@ public final class ModelGenerator implements Generator {
 	private static String getFieldAnnotations(final Field field) {
 		return switch (field.type()) {
 			case MESSAGE -> "@Nullable ";
-			case BYTES -> NON_NULL_ANNOTATION + " ";
+			case BYTES, STRING -> NON_NULL_ANNOTATION + " ";
 			default -> "";
 		};
 	}
@@ -361,6 +359,58 @@ public final class ModelGenerator implements Generator {
 			""".replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
 				.indent(DEFAULT_INDENT);
 		return bodyContent;
+	}
+
+	/**
+	 * Generates a pre-populated constructor for a class.
+	 * @param fields the fields to use for the code generation
+	 * @return the generated code
+	 */
+	private static String generateConstructor(
+			final String constructorName,
+			final List<Field> fields,
+			final boolean shouldThrowOnOneOfNull,
+			final MessageDefContext msgDef,
+			final ContextualLookupHelper lookupHelper) {
+		if (fields.isEmpty()) {
+			return "";
+		}
+		return """
+			    /**
+			     * Create a pre-populated $constructorName.
+			     * $constructorParamDocs
+			     */
+			    public $constructorName($constructorParams) {
+			$constructorCode    }
+			"""
+				.replace("$constructorParamDocs",fields.stream().map(field ->
+						"\n     * @param "+field.nameCamelFirstLower()+" "+
+								field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
+				).collect(Collectors.joining(", ")))
+				.replace("$constructorName", constructorName)
+				.replace("$constructorParams",fields.stream().map(field ->
+						field.javaFieldType() + " " + field.nameCamelFirstLower()
+				).collect(Collectors.joining(", ")))
+				.replace("$constructorCode",fields.stream().map(field -> {
+					StringBuilder sb = new StringBuilder();
+					if (shouldThrowOnOneOfNull && field instanceof OneOfField) {
+						sb.append(generateConstructorCodeForField(field)).append('\n');
+					}
+					switch (field.type()) {
+						case BYTES, STRING: {
+							sb.append("this.$name = $name != null ? $name : $default;"
+									.replace("$name", field.nameCamelFirstLower())
+									.replace("$default", getDefaultValue(field, msgDef, lookupHelper))
+							);
+							break;
+						}
+						default:
+							sb.append("this.$name = $name;".replace("$name", field.nameCamelFirstLower()));
+							break;
+					}
+					return sb.toString();
+				}).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2))
+				;//.indent(DEFAULT_INDENT);
 	}
 
 	/**
@@ -785,39 +835,10 @@ public final class ModelGenerator implements Generator {
 								+ " " + field.nameCamelFirstLower()
 								+ " = " + getDefaultValue(field, msgDef, lookupHelper)
 						).collect(Collectors.joining(";\n    ")))
-				.replace("$prePopulatedBuilder", generatePrePopulatedBuilder(fields))
+				.replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, msgDef, lookupHelper))
 				.replace("$javaRecordName",javaRecordName)
 				.replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
 				.replace("$builderMethods", String.join("\n", builderMethods))
-				.indent(DEFAULT_INDENT);
-	}
-
-	/**
-	 * Generates the pre-populated builder for the class
-	 * @param fields the fields to use for the code generation
-	 * @return the generated code
-	 */
-	private static String generatePrePopulatedBuilder(final List<Field> fields) {
-		if (fields.isEmpty()) {
-			return "";
-		}
-		return """
-			    /**
-			     * Create a pre-populated builder
-			     * $constructorParamDocs
-			     */
-			    public Builder($constructorParams) {
-			$constructorCode    }"""
-				.replace("$constructorParamDocs",fields.stream().map(field ->
-						"\n     * @param "+field.nameCamelFirstLower()+" "+
-								field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
-				).collect(Collectors.joining(", ")))
-				.replace("$constructorParams",fields.stream().map(field ->
-						field.javaFieldType() + " " + field.nameCamelFirstLower()
-				).collect(Collectors.joining(", ")))
-				.replace("$constructorCode",fields.stream().map(field ->
-						"this.$name = $name;".replace("$name", field.nameCamelFirstLower())
-				).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2))
 				.indent(DEFAULT_INDENT);
 	}
 
