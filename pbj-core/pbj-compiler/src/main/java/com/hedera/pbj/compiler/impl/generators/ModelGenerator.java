@@ -409,8 +409,7 @@ public final class ModelGenerator implements Generator {
 							break;
 					}
 					return sb.toString();
-				}).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2))
-				;//.indent(DEFAULT_INDENT);
+				}).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2));
 	}
 
 	/**
