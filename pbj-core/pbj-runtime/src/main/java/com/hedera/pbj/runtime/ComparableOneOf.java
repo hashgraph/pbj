@@ -44,7 +44,8 @@ public record ComparableOneOf<E extends Enum<E>>(E kind, Comparable value) imple
 
     @Override
     public int hashCode() {
-        return Objects.hash(kind, value);
+        // name().hashCode() and NOT Enum.hashCode() because the latter changes between runs
+        return (31 + kind.name().hashCode()) * 31 + (value == null ? 0 : value.hashCode());
     }
 
     @SuppressWarnings("unchecked")

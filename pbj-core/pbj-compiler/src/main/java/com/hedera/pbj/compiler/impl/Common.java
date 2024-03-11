@@ -247,11 +247,18 @@ public final class Common {
                                 result = 31 * result + $fieldName.hashCode();
                              }
                              """).replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == Field.FieldType.ENUM ||
-						f.type() == Field.FieldType.STRING ||
-						f.parent() == null) { // process sub message
+                } else if (f.type() == Field.FieldType.ENUM) {
+                    // name().hashCode() and NOT Enum.hashCode() because the latter changes between runs
                     generatedCodeSoFar += (
                             """
+                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
+                                result = 31 * result + $fieldName.name().hashCode();
+                             }
+                             """).replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.STRING ||
+						f.parent() == null) { // process sub message
+					generatedCodeSoFar += (
+							"""
                              if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                                 result = 31 * result + $fieldName.hashCode();
                              }
