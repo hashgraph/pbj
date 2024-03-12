@@ -1,6 +1,7 @@
 package tests;
 
 import com.hedera.pbj.runtime.ComparableOneOf;
+import com.hedera.pbj.runtime.EnumWithProtoMetadata;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,7 +29,8 @@ class ComparableOneOfTest {
     @Test
     void hashCodeReturnsHashCode() {
         final var oneOf = new ComparableOneOf<>(TestEnum.KIND1, "Value");
-        assertEquals((31 + TestEnum.KIND1.name().hashCode()) * 31 + "Value".hashCode(), oneOf.hashCode());
+        assertEquals((31 + Integer.hashCode(TestEnum.KIND1.protoOrdinal())) * 31
+                + "Value".hashCode(), oneOf.hashCode());
     }
 
     @Test
@@ -46,9 +48,19 @@ class ComparableOneOfTest {
         assertEquals(false, oneOf.equals(TestEnum.KIND1));
     }
 
-    public enum TestEnum {
+    public enum TestEnum implements EnumWithProtoMetadata {
         KIND1,
-        KIND2
+        KIND2;
+
+        @Override
+        public int protoOrdinal() {
+            return ordinal();
+        }
+
+        @Override
+        public String protoName() {
+            return name();
+        }
     }
 
 }

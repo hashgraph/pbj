@@ -248,11 +248,10 @@ public final class Common {
                              }
                              """).replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.ENUM) {
-                    // name().hashCode() and NOT Enum.hashCode() because the latter changes between runs
                     generatedCodeSoFar += (
                             """
                              if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                                result = 31 * result + $fieldName.name().hashCode();
+                                result = 31 * result + Integer.hashCode($fieldName.protoOrdinal());
                              }
                              """).replace("$fieldName", f.nameCamelFirstLower());
 				} else if (f.type() == Field.FieldType.STRING ||
