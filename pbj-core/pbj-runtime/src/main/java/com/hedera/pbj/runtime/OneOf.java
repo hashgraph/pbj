@@ -25,6 +25,7 @@ public record OneOf<E extends Enum<E>>(E kind, Object value) {
         if (kind == null) {
             throw new NullPointerException("An enum 'kind' must be supplied");
         }
+        assert kind instanceof EnumWithProtoMetadata : "OneOf 'kind' must implement EnumWithProtoMetadata";
     }
 
     /**
@@ -47,8 +48,8 @@ public record OneOf<E extends Enum<E>>(E kind, Object value) {
 
     @Override
     public int hashCode() {
-        // name().hashCode() and NOT Enum.hashCode() because the latter changes between runs
-        return (31 + kind.name().hashCode()) * 31 + (value == null ? 0 : value.hashCode());
+        return (31 + Integer.hashCode(((EnumWithProtoMetadata)kind).protoOrdinal())) * 31
+                + (value == null ? 0 : value.hashCode());
     }
 
 }
