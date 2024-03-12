@@ -22,6 +22,7 @@ public record ComparableOneOf<E extends Enum<E>>(E kind, Comparable value) imple
         if (kind == null) {
             throw new NullPointerException("An enum 'kind' must be supplied");
         }
+        assert kind instanceof EnumWithProtoMetadata : "OneOf 'kind' must implement EnumWithProtoMetadata";
     }
 
     /**
