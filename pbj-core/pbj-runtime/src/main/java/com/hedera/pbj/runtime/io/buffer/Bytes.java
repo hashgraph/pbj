@@ -317,19 +317,6 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * A helper method for efficient copy of our data into a Signature without creating a defensive copy of the data.
-     * The implementation relies on a well-behaved Signature that doesn't modify the buffer data.
-     *
-     * @param signature the Signature to copy into
-     * @param offset    The offset from the start of this {@link Bytes} object to get the bytes from.
-     * @param length    The number of bytes to extract.
-     */
-    public void writeTo(@NonNull final Signature signature, final int offset, final int length)
-            throws SignatureException {
-        signature.update(buffer, offset, length);
-    }
-
-    /**
      * Create and return a new {@link ReadableSequentialData} that is backed by this {@link Bytes}.
      *
      * @return A {@link ReadableSequentialData} backed by this {@link Bytes}.
