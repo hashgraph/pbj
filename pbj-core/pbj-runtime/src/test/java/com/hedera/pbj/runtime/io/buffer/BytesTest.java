@@ -421,11 +421,12 @@ final class BytesTest {
 
     @Test
     @DisplayName("Write to Signature")
-    void writeToMessageSignature() throws SignatureException, InvalidKeyException {
+    void writeToSignature() throws SignatureException, InvalidKeyException {
         byte[] byteArray = {0, 1, 2, 3, 4, 5};
         final Bytes bytes = Bytes.wrap(byteArray);
 
         final Signature signature = Mockito.mock(Signature.class);
+        // Signature.writeTo() throws unless we call initVerify() first
         signature.initVerify(Mockito.mock(PublicKey.class));
         bytes.writeTo(signature);
         Mockito.verify(signature).initVerify(Mockito.any(PublicKey.class));
@@ -435,16 +436,17 @@ final class BytesTest {
 
     @Test
     @DisplayName("Write to Signature no 0 Offset")
-    void writeToMessageSignatureNo0Offset() throws NoSuchAlgorithmException {
+    void writeToSignatureNo0Offset() throws InvalidKeyException, SignatureException {
         final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5};
         final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
-        byte[] res;
 
-        MessageDigest md = MessageDigest.getInstance("MD5");
-        bytes.writeTo(md);
-        res = md.digest();
-        byte[] exp = {-47, 90, -27, 57, 49, -120, 15, -41, -73, 36, -35, 120, -120, -76, -76, -19};
-        assertArrayEquals(exp, res);
+        final Signature signature = Mockito.mock(Signature.class);
+        // Signature.writeTo() throws unless we call initVerify() first
+        signature.initVerify(Mockito.mock(PublicKey.class));
+        bytes.writeTo(signature);
+        Mockito.verify(signature).initVerify(Mockito.any(PublicKey.class));
+        Mockito.verify(signature).update(byteArray, 10, 6);
+        Mockito.verifyNoMoreInteractions(signature);
     }
 
     // asUtf8String throws with null (no offset here? That's wierd. Should have offset, or we should have non-offset
