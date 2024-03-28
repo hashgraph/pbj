@@ -14,6 +14,8 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -302,6 +304,16 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      */
     public void writeTo(@NonNull final MessageDigest digest, final int offset, final int length) {
         digest.update(buffer, offset, length);
+    }
+
+    /**
+     * A helper method for efficient copy of our data into a Signature without creating a defensive copy of the data.
+     * The implementation relies on a well-behaved Signature that doesn't modify the buffer data.
+     *
+     * @param signature the Signature to copy into
+     */
+    public void writeTo(@NonNull final Signature signature) throws SignatureException {
+        signature.update(buffer, start, length);
     }
 
     /**

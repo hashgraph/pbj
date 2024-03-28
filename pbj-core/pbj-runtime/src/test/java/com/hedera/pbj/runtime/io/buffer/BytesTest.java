@@ -4,6 +4,10 @@ import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.InvalidKeyException;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.SignatureException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,6 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mockito;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
@@ -412,6 +417,36 @@ final class BytesTest {
         res = md.digest();
         byte[] exp = {-47, 90, -27, 57, 49, -120, 15, -41, -73, 36, -35, 120, -120, -76, -76, -19};
         assertArrayEquals(exp, res);
+    }
+
+    @Test
+    @DisplayName("Write to Signature")
+    void writeToSignature() throws SignatureException, InvalidKeyException {
+        byte[] byteArray = {0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray);
+
+        final Signature signature = Mockito.mock(Signature.class);
+        // Signature.writeTo() throws unless we call initVerify() first
+        signature.initVerify(Mockito.mock(PublicKey.class));
+        bytes.writeTo(signature);
+        Mockito.verify(signature).initVerify(Mockito.any(PublicKey.class));
+        Mockito.verify(signature).update(byteArray, 0, 6);
+        Mockito.verifyNoMoreInteractions(signature);
+    }
+
+    @Test
+    @DisplayName("Write to Signature no 0 Offset")
+    void writeToSignatureNo0Offset() throws InvalidKeyException, SignatureException {
+        final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
+
+        final Signature signature = Mockito.mock(Signature.class);
+        // Signature.writeTo() throws unless we call initVerify() first
+        signature.initVerify(Mockito.mock(PublicKey.class));
+        bytes.writeTo(signature);
+        Mockito.verify(signature).initVerify(Mockito.any(PublicKey.class));
+        Mockito.verify(signature).update(byteArray, 10, 6);
+        Mockito.verifyNoMoreInteractions(signature);
     }
 
     // asUtf8String throws with null (no offset here? That's wierd. Should have offset, or we should have non-offset
