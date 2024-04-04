@@ -769,7 +769,8 @@ public final class ModelGenerator implements Generator {
 		if (field.repeated()) {
 			// Need to re-define the prefix and postfix for repeated fields because they don't use `values` directly
 			// but wrap it in List.of(values) instead, so the simple definitions above don't work here.
-			final String repeatedPrefix, repeatedPostfix;
+			final String repeatedPrefix;
+			final String repeatedPostfix;
 			if (parentOneOfField != null) {
 				repeatedPrefix = prefix + " values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
 				repeatedPostfix = postfix;
