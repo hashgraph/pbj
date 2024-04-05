@@ -236,6 +236,8 @@ public final class ModelGenerator implements Generator {
 	 * @return an empty string, or a string with Java annotations ending with a space
 	 */
 	private static String getFieldAnnotations(final Field field) {
+		if (field.repeated()) return NON_NULL_ANNOTATION + " ";
+
 		return switch (field.type()) {
 			case MESSAGE -> "@Nullable ";
 			case BYTES, STRING -> NON_NULL_ANNOTATION + " ";
@@ -405,7 +407,11 @@ public final class ModelGenerator implements Generator {
 							break;
 						}
 						default:
-							sb.append("this.$name = $name;".replace("$name", field.nameCamelFirstLower()));
+							if (field.repeated()) {
+								sb.append("this.$name = $name == null ? Collections.emptyList() : $name;".replace("$name", field.nameCamelFirstLower()));
+							} else {
+								sb.append("this.$name = $name;".replace("$name", field.nameCamelFirstLower()));
+							}
 							break;
 					}
 					return sb.toString();
@@ -514,7 +520,9 @@ public final class ModelGenerator implements Generator {
 		final SingleField field = new SingleField(item.field(), lookupHelper);
 		fields.add(field);
 		field.addAllNeededImports(imports, true, false, false);
-		if (field.type() == FieldType.MESSAGE) {
+		// Note that repeated fields default to empty list, so technically they always have a non-null value,
+		// and therefore the additional convenience methods, especially when they throw an NPE, don't make sense.
+		if (field.type() == FieldType.MESSAGE && !field.repeated()) {
 			hasMethods.add("""
 					/**
 					 * Convenience method to check if the $fieldName has a value
@@ -759,6 +767,20 @@ public final class ModelGenerator implements Generator {
 
 		// add nice method for message fields with list types for varargs
 		if (field.repeated()) {
+			// Need to re-define the prefix and postfix for repeated fields because they don't use `values` directly
+			// but wrap it in List.of(values) instead, so the simple definitions above don't work here.
+			final String repeatedPrefix;
+			final String repeatedPostfix;
+			if (parentOneOfField != null) {
+				repeatedPrefix = prefix + " values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
+				repeatedPostfix = postfix;
+			} else if (fieldAnnotations.contains(NON_NULL_ANNOTATION)) {
+				repeatedPrefix = "values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
+				repeatedPostfix = "";
+			} else {
+				repeatedPrefix = prefix;
+				repeatedPostfix = postfix;
+			}
 			builderMethods.add("""
 						/**
 						 * $fieldDoc
@@ -767,7 +789,7 @@ public final class ModelGenerator implements Generator {
 						 * @return builder to continue building with
 						 */
 						public Builder $fieldName($baseType ... values) {
-						    this.$fieldToSet = $prefix List.of(values) $postfix;
+						    this.$fieldToSet = $repeatedPrefix List.of(values) $repeatedPostfix;
 						    return this;
 						}"""
 					.replace("$baseType",field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1))
@@ -776,8 +798,8 @@ public final class ModelGenerator implements Generator {
 					.replace("$fieldName", fieldName)
 					.replace("$fieldToSet",fieldToSet)
 					.replace("$fieldType",field.javaFieldType())
-					.replace("$prefix",prefix)
-					.replace("$postfix",postfix)
+					.replace("$repeatedPrefix",repeatedPrefix)
+					.replace("$repeatedPostfix",repeatedPostfix)
 					.indent(DEFAULT_INDENT)
 			);
 		}
