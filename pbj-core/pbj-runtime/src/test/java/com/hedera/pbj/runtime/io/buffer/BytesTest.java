@@ -2,8 +2,12 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
 import java.security.PublicKey;
 import java.security.Signature;
@@ -23,7 +27,12 @@ import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
@@ -330,7 +339,7 @@ final class BytesTest {
         final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
         byte[] res = new byte[5];
         try (BufferedOutputStream out = new BufferedOutputStream(new ByteArrayOutputStream())) {
-            bytes.writeTo(out, 10, 5);
+            bytes.writeTo(out, 0, 5);
             bytes.getBytes(0, res, 0, 5);
         }
         byte[] comp = {0, 1, 2, 3, 4};
@@ -370,7 +379,7 @@ final class BytesTest {
         final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
         byte[] res = new byte[5];
         try (WritableStreamingData out = new WritableStreamingData(new ByteArrayOutputStream())) {
-            bytes.writeTo(out, 10, 5);
+            bytes.writeTo(out, 0, 5);
             bytes.getBytes(0, res, 0, 5);
         }
         byte[] comp = {0, 1, 2, 3, 4};
@@ -413,7 +422,7 @@ final class BytesTest {
         byte[] res;
 
         MessageDigest md = MessageDigest.getInstance("MD5");
-        bytes.writeTo(md, 10, 6);
+        bytes.writeTo(md, 0, 6);
         res = md.digest();
         byte[] exp = {-47, 90, -27, 57, 49, -120, 15, -41, -73, 36, -35, 120, -120, -76, -76, -19};
         assertArrayEquals(exp, res);
@@ -755,5 +764,77 @@ final class BytesTest {
     void asUtf8StringTest(final String value) {
         final Bytes bytes = Bytes.wrap(value.getBytes(StandardCharsets.UTF_8));
         assertThat(bytes.asUtf8String()).isEqualTo(value);
+    }
+
+    private <T> void testWriteToFromOffset(
+            final T dst,
+            final BiConsumer<Bytes, T> offset1Length1Writer,
+            final Function<T, Integer> dstSizeGetter,
+            final Function<T, Byte> dstByteAtZeroOffsetGetter) {
+        // Wrap the {2, 3, 4} sub-array:
+        final Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5}, 1, 3);
+
+        assertThat(dstSizeGetter.apply(dst)).isEqualTo(0);
+
+        // Write the offset 1 length 1 to dst, i.e. write the element `3` from the wrapped sub-array
+        offset1Length1Writer.accept(bytes, dst);
+
+        assertThat(dstSizeGetter.apply(dst)).isEqualTo(1);
+        assertThat(dstByteAtZeroOffsetGetter.apply(dst)).isEqualTo((byte) 3);
+    }
+
+    @Test
+    void writeToByteBufferTest() {
+        final ByteBuffer bb = ByteBuffer.allocate(1);
+
+        testWriteToFromOffset(
+                bb,
+                (b, d) -> b.writeTo(d, 1, 1),
+                ByteBuffer::position,
+                d -> d.get(0));
+    }
+
+    @Test
+    void writeToOutputStreamTest() {
+        final List<Integer> data = new ArrayList<>();
+        final OutputStream os = new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                data.add(b);
+            }
+        };
+
+        testWriteToFromOffset(
+                os,
+                (b, d) -> b.writeTo(d, 1, 1),
+                d -> data.size(),
+                d -> data.get(0).byteValue());
+    }
+
+    @Test
+    void writeToWritableSequentialDataTest() {
+        final BufferedData bd = BufferedData.allocate(1);
+
+        testWriteToFromOffset(
+                (WritableSequentialData) bd,
+                (b, d) -> b.writeTo(d, 1, 1),
+                d -> (int) bd.position(),
+                d -> bd.getByte(0));
+    }
+
+    @Test
+    void writeToMessageDigestDataTest() throws NoSuchAlgorithmException {
+        final MessageDigest md = MessageDigest.getInstance("SHA-384");
+        final AtomicInteger ai = new AtomicInteger();
+
+        testWriteToFromOffset(
+                md,
+                (b, d) -> {
+                    b.writeTo(d, 1, 1);
+                    ai.set(md.digest()[0]);
+                },
+                d -> ai.get() == 0 ? 0 : 1,
+                d -> (byte) (ai.get() + 121)
+        );
     }
 }
