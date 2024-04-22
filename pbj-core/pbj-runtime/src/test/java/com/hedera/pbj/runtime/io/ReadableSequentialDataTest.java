@@ -41,12 +41,17 @@ final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
     @Test
     @DisplayName("Verify asInputStream()")
     void testAsInputStream() throws IOException {
-        ReadableSequentialData sequence = sequence(new byte[]{1, 2, 3});
+        ReadableSequentialData sequence = sequence(new byte[]{1, 2, 3, (byte) 254, (byte) 255});
         InputStream inputStream = sequence.asInputStream();
 
         assertThat(inputStream.read()).isEqualTo(1);
         assertThat(inputStream.read()).isEqualTo(2);
         assertThat(inputStream.read()).isEqualTo(3);
+        // NOTE: do NOT convert to byte. The returned integer value must be in 0..255.
+        // Converting to byte would interpret both literal 255 and -1 as (byte) 255,
+        // which is wrong because -1 means something else in InputStream.read().
+        assertThat(inputStream.read()).isEqualTo(254);
+        assertThat(inputStream.read()).isEqualTo(255);
         // Now we're at the end:
         assertThat(inputStream.read()).isEqualTo(-1);
         assertThat(inputStream.read()).isEqualTo(-1);

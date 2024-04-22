@@ -504,7 +504,7 @@ public interface ReadableSequentialData extends SequentialData {
         @Override
         public int read() {
             try {
-                return sequentialData.readByte();
+                return sequentialData.readUnsignedByte();
             } catch (BufferUnderflowException e) {
                 return -1;
             }
