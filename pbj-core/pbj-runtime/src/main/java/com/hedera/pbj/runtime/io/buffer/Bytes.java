@@ -234,8 +234,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @param length The number of bytes to extract.
      */
     public void writeTo(@NonNull final ByteBuffer dstBuffer, final int offset, final int length) {
-        dstBuffer.put(buffer, offset, length);
-        dstBuffer.position(dstBuffer.position() + length);
+        dstBuffer.put(buffer, Math.toIntExact(start + offset), length);
     }
 
     /**
@@ -256,7 +255,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     @Override
     public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
         try {
-            outStream.write(buffer, offset, length);
+            outStream.write(buffer, Math.toIntExact(start + offset), length);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -281,7 +280,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @param length The number of bytes to extract.
      */
     public void writeTo(@NonNull final WritableSequentialData wsd, final int offset, final int length) {
-        wsd.writeBytes(buffer, offset, length);
+        wsd.writeBytes(buffer, Math.toIntExact(start + offset), length);
     }
 
     /**
@@ -303,7 +302,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @param length The number of bytes to extract.
      */
     public void writeTo(@NonNull final MessageDigest digest, final int offset, final int length) {
-        digest.update(buffer, offset, length);
+        digest.update(buffer, Math.toIntExact(start + offset), length);
     }
 
     /**
@@ -458,7 +457,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         }
 
         validateOffset(offset);
-        return buffer[start + Math.toIntExact(offset)];
+        return buffer[Math.toIntExact(start + offset)];
     }
 
     /** {@inheritDoc} */
@@ -475,7 +474,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         validateOffset(offset);
         // This is a faster implementation than the default, since it has access to the entire byte array
         // and can do a system array copy instead of a loop.
-        System.arraycopy(buffer, start + Math.toIntExact(offset), dst, dstOffset, Math.toIntExact(len));
+        System.arraycopy(buffer, Math.toIntExact(start + offset), dst, dstOffset, Math.toIntExact(len));
         return len;
     }
 
@@ -490,7 +489,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         validateOffset(offset);
         // This is a faster implementation than the default, since it has access to the entire byte array
         // and can do a system array copy instead of a loop.
-        dst.put(buffer, start + Math.toIntExact(offset), Math.toIntExact(len));
+        dst.put(buffer, Math.toIntExact(start + offset), Math.toIntExact(len));
         return len;
     }
 
@@ -505,7 +504,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         validateOffset(offset);
         // This is a faster implementation than the default, since it has access to the entire byte array
         // and can do a system array copy instead of a loop.
-        dst.writeBytes(buffer, start + Math.toIntExact(offset), Math.toIntExact(len));
+        dst.writeBytes(buffer, Math.toIntExact(start + offset), Math.toIntExact(len));
         return len;
     }
 
@@ -576,7 +575,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      *
      * @param offset The start offset to get the bytes from.
      * @param len The number of bytes to get.
-     * @return a clone of the bytes of this {@link Bytes} object or null.
+     * @return a clone of the bytes of this {@link Bytes} object.
      */
     @NonNull
     public byte[] toByteArray(final int offset, final int len) {
@@ -669,12 +668,13 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         return getVar(Math.toIntExact(offset), zigZag);
     }
 
-    private long getVar(final int offset, final boolean zigZag) {
-        if ((offset < 0) || (offset >= buffer.length)) {
+    private long getVar(int offset, final boolean zigZag) {
+        if ((offset < 0) || (offset >= length)) {
             throw new IndexOutOfBoundsException();
         }
+        offset += start;
 
-        int rem = buffer.length - offset;
+        int rem = (start + length) - offset;
         if (rem > 10) {
             rem = 10;
         }
