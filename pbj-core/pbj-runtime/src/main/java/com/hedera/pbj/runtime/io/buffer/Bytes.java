@@ -306,13 +306,51 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * A helper method for efficient copy of our data into a Signature without creating a defensive copy of the data.
-     * The implementation relies on a well-behaved Signature that doesn't modify the buffer data.
-     *
-     * @param signature the Signature to copy into
+     * Same as {@link #updateSignature(Signature, int, int)} with offset 0 and length equal to the length of this
+     * {@link Bytes} object.
      */
-    public void writeTo(@NonNull final Signature signature) throws SignatureException {
+    public void updateSignature(@NonNull final Signature signature) throws SignatureException {
         signature.update(buffer, start, length);
+    }
+
+    /**
+     * A helper method for efficient copy of our data into a Signature without creating a defensive copy of the data.
+     * The implementation relies on a well-behaved Signature that doesn't modify the buffer data. Calls the
+     * {@link Signature#update(byte[], int, int)} method with all the data in this {@link Bytes} object. This method
+     * should be used when the data in the buffer should be validated or signed.
+     *
+     * @param signature The Signature to update
+     * @param offset    The offset from the start of this {@link Bytes} object to get the bytes from
+     * @param length    The number of bytes to extract
+     * @throws SignatureException If the Signature instance throws this exception
+     */
+    public void updateSignature(@NonNull final Signature signature, final int offset, final int length)
+            throws SignatureException {
+        signature.update(buffer, Math.toIntExact(start + offset), length);
+    }
+
+    /**
+     * Same as {@link #verifySignature(Signature, int, int)} with offset 0 and length equal to the length of this
+     * {@link Bytes} object.
+     */
+    public void verifySignature(@NonNull final Signature signature) throws SignatureException {
+        signature.verify(buffer, start, length);
+    }
+
+    /**
+     * A helper method for efficient copy of our data into a Signature without creating a defensive copy of the data.
+     * The implementation relies on a well-behaved Signature that doesn't modify the buffer data. Calls the
+     * {@link Signature#verify(byte[], int, int)} method with all the data in this {@link Bytes} object. This method
+     * should be used when the data in the buffer is a signature that should be verified.
+     *
+     * @param signature the Signature to use to verify
+     * @param offset    The offset from the start of this {@link Bytes} object to get the bytes from
+     * @param length    The number of bytes to extract
+     * @throws SignatureException If the Signature instance throws this exception
+     */
+    public void verifySignature(@NonNull final Signature signature, final int offset, final int length)
+            throws SignatureException {
+        signature.verify(buffer, Math.toIntExact(start + offset), length);
     }
 
     /**

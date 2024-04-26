@@ -1,32 +1,29 @@
 package com.hedera.pbj.runtime.io.buffer;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
-import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.security.InvalidKeyException;
-import java.security.PublicKey;
-import java.security.Signature;
-import java.security.SignatureException;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.MethodSource;
-
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -34,11 +31,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 
 final class BytesTest {
 
@@ -428,33 +429,88 @@ final class BytesTest {
         assertArrayEquals(exp, res);
     }
 
+    /**
+     * Mock a Signature object for testing.
+     *
+     * @return a mock Signature object
+     */
+    private static Signature mockSignature() throws InvalidKeyException {
+        final Signature signature = Mockito.mock(Signature.class);
+        // Signature.update() throws unless we call initVerify() first
+        signature.initVerify(Mockito.mock(PublicKey.class));
+        Mockito.verify(signature).initVerify(Mockito.any(PublicKey.class));
+        return signature;
+    }
+
     @Test
-    @DisplayName("Write to Signature")
-    void writeToSignature() throws SignatureException, InvalidKeyException {
+    @DisplayName("Update Signature")
+    void updateSignature() throws SignatureException, InvalidKeyException {
         byte[] byteArray = {0, 1, 2, 3, 4, 5};
         final Bytes bytes = Bytes.wrap(byteArray);
 
-        final Signature signature = Mockito.mock(Signature.class);
-        // Signature.writeTo() throws unless we call initVerify() first
-        signature.initVerify(Mockito.mock(PublicKey.class));
-        bytes.writeTo(signature);
-        Mockito.verify(signature).initVerify(Mockito.any(PublicKey.class));
+        final Signature signature = mockSignature();
+        bytes.updateSignature(signature);
         Mockito.verify(signature).update(byteArray, 0, 6);
         Mockito.verifyNoMoreInteractions(signature);
     }
 
     @Test
-    @DisplayName("Write to Signature no 0 Offset")
-    void writeToSignatureNo0Offset() throws InvalidKeyException, SignatureException {
+    @DisplayName("Update Signature no 0 Offset")
+    void updateSignatureNo0Offset() throws InvalidKeyException, SignatureException {
         final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5};
         final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
 
-        final Signature signature = Mockito.mock(Signature.class);
-        // Signature.writeTo() throws unless we call initVerify() first
-        signature.initVerify(Mockito.mock(PublicKey.class));
-        bytes.writeTo(signature);
-        Mockito.verify(signature).initVerify(Mockito.any(PublicKey.class));
+        final Signature signature = mockSignature();
+        bytes.updateSignature(signature);
         Mockito.verify(signature).update(byteArray, 10, 6);
+        Mockito.verifyNoMoreInteractions(signature);
+    }
+
+    @Test
+    @DisplayName("Update Signature no 0 Offset, partial")
+    void updateSignatureNo0OffsetPartial() throws InvalidKeyException, SignatureException {
+        final byte[] byteArray = {9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5, 9, 9, 9, 9, 9};
+        final Bytes bytes = Bytes.wrap(byteArray, 5, 6);
+
+        final Signature signature = mockSignature();
+        bytes.updateSignature(signature, 1, 4);
+        Mockito.verify(signature).update(byteArray, 6, 4);
+        Mockito.verifyNoMoreInteractions(signature);
+    }
+
+    @Test
+    @DisplayName("Verify Signature")
+    void verifySignature() throws SignatureException, InvalidKeyException {
+        byte[] byteArray = {0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray);
+
+        final Signature signature = mockSignature();
+        bytes.verifySignature(signature);
+        Mockito.verify(signature).verify(byteArray, 0, 6);
+        Mockito.verifyNoMoreInteractions(signature);
+    }
+
+    @Test
+    @DisplayName("Verify Signature no 0 Offset")
+    void verifySignatureNo0Offset() throws InvalidKeyException, SignatureException {
+        final byte[] byteArray = {9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray, 10, 6);
+
+        final Signature signature = mockSignature();
+        bytes.verifySignature(signature);
+        Mockito.verify(signature).verify(byteArray, 10, 6);
+        Mockito.verifyNoMoreInteractions(signature);
+    }
+
+    @Test
+    @DisplayName("Verify Signature no 0 Offset, partial")
+    void verifySignatureNo0OffsetPartial() throws InvalidKeyException, SignatureException {
+        final byte[] byteArray = {9, 9, 9, 9, 9, 0, 1, 2, 3, 4, 5, 9, 9, 9, 9, 9};
+        final Bytes bytes = Bytes.wrap(byteArray, 5, 6);
+
+        final Signature signature = mockSignature();
+        bytes.verifySignature(signature, 1, 4);
+        Mockito.verify(signature).verify(byteArray, 6, 4);
         Mockito.verifyNoMoreInteractions(signature);
     }
 
