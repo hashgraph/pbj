@@ -326,7 +326,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      */
     public void updateSignature(@NonNull final Signature signature, final int offset, final int length)
             throws SignatureException {
-        signature.update(buffer, Math.toIntExact(start + offset), length);
+        validateOffsetLength(offset, length);
+        signature.update(buffer, calculateOffset(offset), length);
     }
 
     /**
@@ -350,7 +351,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      */
     public void verifySignature(@NonNull final Signature signature, final int offset, final int length)
             throws SignatureException {
-        signature.verify(buffer, Math.toIntExact(start + offset), length);
+        validateOffsetLength(offset, length);
+        signature.verify(buffer, calculateOffset(offset), length);
     }
 
     /**
@@ -629,6 +631,34 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         if ((offset < 0) || (offset >= this.length)) {
             throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + this.length);
         }
+    }
+
+    /**
+     * Validates whether the offset and length supplied to a method are within the bounds of the Bytes object.
+     *
+     * @param suppliedOffset the offset supplied
+     * @param suppliedLength the length supplied
+     */
+    private void validateOffsetLength(final long suppliedOffset, final long suppliedLength) {
+        if (suppliedOffset < 0 || suppliedLength < 0) {
+            throw new IllegalArgumentException("Negative length or offset not allowed");
+        }
+        if (suppliedOffset + suppliedLength > length) {
+            throw new IndexOutOfBoundsException(
+                    "The offset(%d) and length(%d) provided are out of bounds for this Bytes object, which has a length of %d"
+                            .formatted(suppliedOffset, suppliedLength, length)
+            );
+        }
+    }
+
+    /**
+     * Calculates the offset from the start for the given supplied offset.
+     *
+     * @param suppliedOffset the offset supplied
+     * @return the calculated offset
+     */
+    private int calculateOffset(final long suppliedOffset) {
+        return Math.toIntExact(start + suppliedOffset);
     }
 
     /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.

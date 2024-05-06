@@ -2,6 +2,7 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -479,6 +480,23 @@ final class BytesTest {
     }
 
     @Test
+    @DisplayName("Check updateSignature() index bounds")
+    void updateSignatureBoundsChecks() throws InvalidKeyException {
+        byte[] byteArray = {1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray);
+
+        final Signature signature = mockSignature();
+        assertThrows(IndexOutOfBoundsException.class, () -> bytes.updateSignature(signature, 3, 10));
+        assertThrows(IndexOutOfBoundsException.class, () -> bytes.updateSignature(signature, 0, 6));
+        assertThrows(IndexOutOfBoundsException.class, () -> bytes.updateSignature(signature, 1, 5));
+        assertThrows(IllegalArgumentException.class, () -> bytes.updateSignature(signature, 0, -5));
+        assertThrows(IllegalArgumentException.class, () -> bytes.updateSignature(signature, -1, 2));
+        Mockito.verifyNoMoreInteractions(signature);
+        assertDoesNotThrow(() -> bytes.updateSignature(signature, 0, 5));
+        assertDoesNotThrow(() -> bytes.updateSignature(signature, 5, 0));
+    }
+
+    @Test
     @DisplayName("Verify Signature")
     void verifySignature() throws SignatureException, InvalidKeyException {
         byte[] byteArray = {0, 1, 2, 3, 4, 5};
@@ -512,6 +530,23 @@ final class BytesTest {
         bytes.verifySignature(signature, 1, 4);
         Mockito.verify(signature).verify(byteArray, 6, 4);
         Mockito.verifyNoMoreInteractions(signature);
+    }
+
+    @Test
+    @DisplayName("Check verifySignature() index bounds")
+    void verifySignatureBoundsChecks() throws InvalidKeyException {
+        byte[] byteArray = {1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(byteArray);
+
+        final Signature signature = mockSignature();
+        assertThrows(IndexOutOfBoundsException.class, () -> bytes.verifySignature(signature, 3, 10));
+        assertThrows(IndexOutOfBoundsException.class, () -> bytes.verifySignature(signature, 0, 6));
+        assertThrows(IndexOutOfBoundsException.class, () -> bytes.verifySignature(signature, 1, 5));
+        assertThrows(IllegalArgumentException.class, () -> bytes.verifySignature(signature, 0, -5));
+        assertThrows(IllegalArgumentException.class, () -> bytes.verifySignature(signature, -1, 2));
+        Mockito.verifyNoMoreInteractions(signature);
+        assertDoesNotThrow(() -> bytes.verifySignature(signature, 0, 5));
+        assertDoesNotThrow(() -> bytes.verifySignature(signature, 5, 0));
     }
 
     // asUtf8String throws with null (no offset here? That's wierd. Should have offset, or we should have non-offset
