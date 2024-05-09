@@ -334,8 +334,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * Same as {@link #verifySignature(Signature, int, int)} with offset 0 and length equal to the length of this
      * {@link Bytes} object.
      */
-    public void verifySignature(@NonNull final Signature signature) throws SignatureException {
-        signature.verify(buffer, start, length);
+    public boolean verifySignature(@NonNull final Signature signature) throws SignatureException {
+        return signature.verify(buffer, start, length);
     }
 
     /**
@@ -347,12 +347,13 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @param signature the Signature to use to verify
      * @param offset    The offset from the start of this {@link Bytes} object to get the bytes from
      * @param length    The number of bytes to extract
+     * @return true if the signature is valid, false otherwise
      * @throws SignatureException If the Signature instance throws this exception
      */
-    public void verifySignature(@NonNull final Signature signature, final int offset, final int length)
+    public boolean verifySignature(@NonNull final Signature signature, final int offset, final int length)
             throws SignatureException {
         validateOffsetLength(offset, length);
-        signature.verify(buffer, calculateOffset(offset), length);
+        return signature.verify(buffer, calculateOffset(offset), length);
     }
 
     /**

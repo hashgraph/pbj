@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
@@ -20,6 +22,8 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
@@ -547,6 +551,28 @@ final class BytesTest {
         Mockito.verifyNoMoreInteractions(signature);
         assertDoesNotThrow(() -> bytes.verifySignature(signature, 0, 5));
         assertDoesNotThrow(() -> bytes.verifySignature(signature, 5, 0));
+    }
+
+    @Test
+    @DisplayName("Tests the signature verification without a mock")
+    void realSignatureTest() throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+        final Bytes bytes = Bytes.wrap(new byte[]{1, 2, 3, 4, 5});
+        final KeyPair keyPair = KeyPairGenerator.getInstance("RSA").generateKeyPair();
+        // sign the data
+        final Signature signer = Signature.getInstance("SHA256withRSA");
+        signer.initSign(keyPair.getPrivate());
+        bytes.updateSignature(signer);
+        final Bytes signature = Bytes.wrap(signer.sign());
+        // verify the signature
+        final Signature verifier = Signature.getInstance("SHA256withRSA");
+        verifier.initVerify(keyPair.getPublic());
+        bytes.updateSignature(verifier);
+        assertTrue(signature.verifySignature(verifier));
+        // test a bad signature
+        final Signature verifier2 = Signature.getInstance("SHA256withRSA");
+        verifier2.initVerify(keyPair.getPublic());
+        Bytes.wrap(new byte[]{123, 1, 2, 3}).updateSignature(verifier2);
+        assertFalse(signature.verifySignature(verifier2));
     }
 
     // asUtf8String throws with null (no offset here? That's wierd. Should have offset, or we should have non-offset
