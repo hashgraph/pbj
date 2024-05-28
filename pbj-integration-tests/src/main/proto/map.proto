@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>> This comment is special code for setting PBJ Compiler java package
+
+/**
+ * Sample protobuf containing maps.
+ */
+message MessageWithMaps {
+  /** A test map. */
+  map<int32, string> mapInt32ToString = 1;
+}
+
+/**
+ * Sample protobuf containing multiple different maps.
+ */
+message MessageWithManyMaps {
+  map<int32, string> mapInt32ToString = 1;
+  map<bool, double> mapBoolToDouble = 2;
+  map<string, MessageWithMaps> mapStringToMessage = 3;
+  map<uint64, bytes> mapUInt64ToBytes = 4;
+  map<int64, bool> mapInt64ToBool = 5;
+}

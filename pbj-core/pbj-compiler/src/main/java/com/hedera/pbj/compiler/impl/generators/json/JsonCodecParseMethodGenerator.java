@@ -2,6 +2,7 @@ package com.hedera.pbj.compiler.impl.generators.json;
 
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
+import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 
 import java.util.List;
@@ -67,7 +68,7 @@ class JsonCodecParseMethodGenerator {
                         for (JSONParser.PairContext kvPair : root.pair()) {
                             switch (kvPair.STRING().getText()) {
                                 $caseStatements
-                                default -> {
+                                default: {
                                     if (strictMode) {
                                         // Since we are parsing is strict mode, this is an exceptional condition.
                                         throw new UnknownFieldException(kvPair.STRING().getText());
@@ -103,34 +104,36 @@ class JsonCodecParseMethodGenerator {
             if (field instanceof final OneOfField oneOfField) {
                 for(final Field subField: oneOfField.fields()) {
                     sb.append("case \"" + toJsonFieldName(subField.name()) +"\" /* [" + subField.fieldNumber() + "] */ " +
-                            "-> temp_" + oneOfField.name() + " = new %s<>(\n".formatted(oneOfField.className()) +
+                            ": temp_" + oneOfField.name() + " = new %s<>(\n".formatted(oneOfField.className()) +
                             oneOfField.getEnumClassRef().indent(DEFAULT_INDENT) +"."+Common.camelToUpperSnake(subField.name())+
                             ", \n".indent(DEFAULT_INDENT));
-                    generateFieldCaseStatement(sb,subField);
-                    sb.append(");\n");
+                    generateFieldCaseStatement(sb, subField, "kvPair.value()");
+                    sb.append("); break;\n");
                 }
             } else {
                 sb.append("case \"" + toJsonFieldName(field.name()) +"\" /* [" + field.fieldNumber() + "] */ " +
-                        "-> temp_" + field.name()+" = ");
-                generateFieldCaseStatement(sb, field);
-                sb.append(";\n");
+                        ": temp_" + field.name()+" = ");
+                generateFieldCaseStatement(sb, field, "kvPair.value()");
+                sb.append("; break;\n");
             }
         }
-        return sb.toString().indent(DEFAULT_INDENT * 3);
+        return sb.toString();
     }
 
     /**
      * Generate switch case statement for a field.
      *
      * @param field field to generate case statement for
-     * @param sb StringBuilder to append code to
+     * @param origSB StringBuilder to append code to
+     * @param valueGetter normally a "kvPair.value()", but may be different e.g. for maps parsing
      */
-    private static void generateFieldCaseStatement(final StringBuilder sb, final Field field) {
+    private static void generateFieldCaseStatement(final StringBuilder origSB, final Field field, final String valueGetter) {
+        final StringBuilder sb = new StringBuilder();
         if (field.repeated()) {
             if (field.type() == Field.FieldType.MESSAGE) {
-                sb.append("parseObjArray(kvPair.value().arr(), "+field.messageType()+".JSON, maxDepth - 1)");
+                sb.append("parseObjArray($valueGetter.arr(), "+field.messageType()+".JSON, maxDepth - 1)");
             } else {
-                sb.append("kvPair.value().arr().value().stream().map(v -> ");
+                sb.append("$valueGetter.arr().value().stream().map(v -> ");
                 switch (field.type()) {
                     case ENUM -> sb.append(field.messageType() + ".fromString(v.STRING().getText())");
                     case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> sb.append("parseInteger(v)");
@@ -145,29 +148,48 @@ class JsonCodecParseMethodGenerator {
                 sb.append(").toList()");
             }
         } else if (field.optionalValueType()) {
-            switch(field.messageType()) {
-                case "Int32Value", "UInt32Value" -> sb.append("parseInteger(kvPair.value())");
-                case "Int64Value", "UInt64Value" -> sb.append("parseLong(kvPair.value())");
-                case "FloatValue" -> sb.append("parseFloat(kvPair.value())");
-                case "DoubleValue" -> sb.append("parseDouble(kvPair.value())");
-                case "StringValue" -> sb.append("unescape(kvPair.value().STRING().getText())");
-                case "BoolValue" -> sb.append("parseBoolean(kvPair.value())");
-                case "BytesValue" -> sb.append("Bytes.fromBase64(kvPair.value().STRING().getText())");
-                default -> throw new RuntimeException("Unknown message type ["+field.messageType()+"]");
+            switch (field.messageType()) {
+                case "Int32Value", "UInt32Value" -> sb.append("parseInteger($valueGetter)");
+                case "Int64Value", "UInt64Value" -> sb.append("parseLong($valueGetter)");
+                case "FloatValue" -> sb.append("parseFloat($valueGetter)");
+                case "DoubleValue" -> sb.append("parseDouble($valueGetter)");
+                case "StringValue" -> sb.append("unescape($valueGetter.STRING().getText())");
+                case "BoolValue" -> sb.append("parseBoolean($valueGetter)");
+                case "BytesValue" -> sb.append("Bytes.fromBase64($valueGetter.STRING().getText())");
+                default -> throw new RuntimeException("Unknown message type [" + field.messageType() + "]");
             }
+        } else if (field.type() == Field.FieldType.MAP) {
+            final MapField mapField = (MapField) field;
+
+            final StringBuilder keySB = new StringBuilder();
+            final StringBuilder valueSB = new StringBuilder();
+
+            generateFieldCaseStatement(keySB, mapField.keyField(), "mapKV");
+            generateFieldCaseStatement(valueSB, mapField.valueField(), "mapKV.value()");
+
+            sb.append("""
+                    $valueGetter.getChild(JSONParser.ObjContext.class, 0).pair().stream()
+                                        .collect(Collectors.toMap(
+                                            mapKV -> $mapEntryKey,
+                                            new UncheckedThrowingFunction<>(mapKV -> $mapEntryValue)
+                                        ))"""
+                    .replace("$mapEntryKey", keySB.toString())
+                    .replace("$mapEntryValue", valueSB.toString())
+            );
         } else {
             switch (field.type()) {
-                case MESSAGE -> sb.append(field.javaFieldType() + ".JSON.parse(kvPair.value().getChild(JSONParser.ObjContext.class, 0), false, maxDepth - 1)");
-                case ENUM -> sb.append(field.javaFieldType() + ".fromString(kvPair.value().STRING().getText())");
-                case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> sb.append("parseInteger(kvPair.value())");
-                case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> sb.append("parseLong(kvPair.value())");
-                case FLOAT -> sb.append("parseFloat(kvPair.value())");
-                case DOUBLE -> sb.append("parseDouble(kvPair.value())");
-                case STRING -> sb.append("unescape(kvPair.value().STRING().getText())");
-                case BOOL -> sb.append("parseBoolean(kvPair.value())");
-                case BYTES -> sb.append("Bytes.fromBase64(kvPair.value().STRING().getText())");
+                case MESSAGE -> sb.append(field.javaFieldType() + ".JSON.parse($valueGetter.getChild(JSONParser.ObjContext.class, 0), false, maxDepth - 1)");
+                case ENUM -> sb.append(field.javaFieldType() + ".fromString($valueGetter.STRING().getText())");
+                case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> sb.append("parseInteger($valueGetter)");
+                case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> sb.append("parseLong($valueGetter)");
+                case FLOAT -> sb.append("parseFloat($valueGetter)");
+                case DOUBLE -> sb.append("parseDouble($valueGetter)");
+                case STRING -> sb.append("unescape($valueGetter.STRING().getText())");
+                case BOOL -> sb.append("parseBoolean($valueGetter)");
+                case BYTES -> sb.append("Bytes.fromBase64($valueGetter.STRING().getText())");
                 default -> throw new RuntimeException("Unknown field type ["+field.type()+"]");
             }
         }
+        origSB.append(sb.toString().replace("$valueGetter", valueGetter));
     }
 }

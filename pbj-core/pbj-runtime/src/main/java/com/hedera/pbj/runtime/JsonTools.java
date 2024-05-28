@@ -16,6 +16,9 @@ import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -185,6 +188,56 @@ public final class JsonTools {
         return Boolean.parseBoolean(valueContext.getText());
     }
 
+    /**
+     * Parse an integer from a JSONParser.PairContext
+     *
+     * @param pairContext the JSONParser.PairContext to parse
+     * @return the parsed integer
+     */
+    public static int parseInteger(JSONParser.PairContext pairContext) {
+        return Integer.parseInt(pairContext.STRING().getText());
+    }
+
+    /**
+     * Parse a long from a JSONParser.PairContext
+     *
+     * @param pairContext the JSONParser.PairContext to parse
+     * @return the parsed long
+     */
+    public static long parseLong(JSONParser.PairContext pairContext) {
+        return Long.parseLong(pairContext.STRING().getText());
+    }
+
+    /**
+     * Parse a float from a JSONParser.PairContext
+     *
+     * @param pairContext the JSONParser.PairContext to parse
+     * @return the parsed float
+     */
+    public static float parseFloat(JSONParser.PairContext pairContext) {
+        return Float.parseFloat(pairContext.STRING().getText());
+    }
+
+    /**
+     * Parse a double from a JSONParser.PairContext
+     *
+     * @param pairContext the JSONParser.PairContext to parse
+     * @return the parsed double
+     */
+    public static double parseDouble(JSONParser.PairContext pairContext) {
+        return Double.parseDouble(pairContext.STRING().getText());
+    }
+
+    /**
+     * Parse a boolean from a JSONParser.PairContext
+     *
+     * @param pairContext the JSONParser.PairContext to parse
+     * @return the parsed boolean
+     */
+    public static boolean parseBoolean(JSONParser.PairContext pairContext) {
+        return Boolean.parseBoolean(pairContext.STRING().getText());
+    }
+
     // ====================================================================================================
     // To JSON String Methods
 
@@ -247,6 +300,32 @@ public final class JsonTools {
      */
     public static String field(String fieldName, byte[] value) {
         return rawFieldCode(fieldName, '"' + Base64.getEncoder().encodeToString(value) + '"');
+    }
+
+    /**
+     * Map field to JSON string
+     *
+     * @param fieldName the name of the field
+     * @param value the value of the field
+     * @param kEncoder an encoder of a key value to a string
+     * @param vComposer a composer of a "key":value strings - basically, a JsonTools::field method for the value type
+     * @return the JSON string
+     */
+    public static <K, V> String field(String fieldName, Map<K, V> value, Function<K, String> kEncoder, BiFunction<String, V, String> vComposer) {
+        assert !value.isEmpty();
+        StringBuilder sb = new StringBuilder();
+        PbjMap<K, V> pbjMap = (PbjMap<K, V>) value;
+        for (int i = 0; i < pbjMap.size(); i++) {
+            if (i > 0) {
+                sb.append(",\n");
+            }
+            K k = pbjMap.getSortedKeys().get(i);
+            V v = pbjMap.get(k);
+
+            String keyStr = kEncoder.apply(k);
+            sb.append(vComposer.apply(keyStr, v));
+        }
+        return rawFieldCode(fieldName, "{\n" + sb.toString().indent(4) + "  }");
     }
 
     /**
@@ -422,6 +501,7 @@ public final class JsonTools {
                                     case BOOL -> Boolean.toString((Boolean) item);
                                     case ENUM -> '"' + ((EnumWithProtoMetadata)item).protoName() + '"';
                                     case MESSAGE -> throw new UnsupportedOperationException("No expected here should have called other arrayField() method");
+                                    case MAP -> throw new UnsupportedOperationException("Arrays of maps not supported");
                                 };
                             }
                         })

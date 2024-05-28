@@ -42,7 +42,9 @@ public final class JsonCodecGenerator implements Generator {
 				fields.add(field);
 				field.addAllNeededImports(imports, true, true, false);
 			} else if (item.mapField() != null) { // process map fields
-				throw new IllegalStateException("Encountered a mapField that was not handled in "+ codecClassName);
+				final MapField field = new MapField(item.mapField(), lookupHelper);
+				fields.add(field);
+				field.addAllNeededImports(imports, true, true, false);
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
