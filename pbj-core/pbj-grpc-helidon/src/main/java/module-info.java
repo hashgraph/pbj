@@ -4,7 +4,6 @@ module com.hedera.pbj.grpc.helidon {
     requires com.hedera.pbj.runtime;
     requires io.helidon.webserver;
     requires io.helidon.webserver.http2;
-    requires java.net.http;
 
     exports com.hedera.pbj.grpc.helidon;
 
