@@ -22,6 +22,7 @@ plugins {
 
 include(":pbj-runtime")
 include(":pbj-compiler")
+include(":pbj-grpc-helidon")
 
 gradleEnterprise {
     buildScan {
@@ -37,6 +38,13 @@ dependencyResolutionManagement {
             // distribution. These libs can be depended on during compilation, or bundled as part of runtime.
             version("org.antlr.antlr4.runtime", "4.11.1")
             version("com.github.spotbugs.annotations", "4.7.3")
+
+            // The libs of this catalog are used by the PBJ library
+            version("io.helidon.webserver", "4.0.8")
+            version("io.helidon.webserver.http2", "4.0.8")
+            version("io.helidon.webclient", "4.0.8")  // for testing
+            version("io.helidon.webclient.http2", "4.0.8")  // for testing
+            version("com.hedera.node.hapi", "0.48.0")  // for testing
 
             // Testing only versions
             version("com.google.protobuf", "3.21.9")
