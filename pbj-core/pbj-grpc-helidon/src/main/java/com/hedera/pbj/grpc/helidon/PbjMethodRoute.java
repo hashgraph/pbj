@@ -33,7 +33,7 @@ final class PbjMethodRoute extends PbjRoute {
     @NonNull private final Counter failedHttpRequestCounter;
     @NonNull private final Counter failedUnknownRequestCounter;
     @NonNull private final Counter deadlineExceededCounter;
-    
+
     PbjMethodRoute(
             @NonNull final ServiceInterface service,
             @NonNull final ServiceInterface.Method method) {
