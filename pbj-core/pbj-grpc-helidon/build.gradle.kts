@@ -30,35 +30,9 @@ testModuleInfo {
     requires("io.helidon.webserver.http2")
     requires("io.helidon.webclient.http2")
     requires("com.hedera.node.hapi")
-    requires("com.google.protobuf.util")
-    requires("io.grpc.protobuf")
-    requires("io.grpc.netty")
-    requires("io.grpc.stub")
     requiresStatic("com.github.spotbugs.annotations")
-    requiresStatic("javax.annotation")
 }
 
 tasks.named("compileJava") {
     dependsOn(":pbj-runtime:jar")
-}
-
-protobuf {
-    // Configure the protoc executable
-    protoc {
-        // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.21.10"
-    }
-    plugins {
-        create("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.64.0"
-        }
-    }
-
-    generateProtoTasks {
-        all().forEach {
-            it.plugins {
-                create("grpc")
-            }
-        }
-    }
 }

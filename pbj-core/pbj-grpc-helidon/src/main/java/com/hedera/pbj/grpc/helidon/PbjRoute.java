@@ -1,6 +1,6 @@
 package com.hedera.pbj.grpc.helidon;
 
-import com.hedera.pbj.runtime.grpc.ServiceInterface;
+import com.hedera.pbj.runtime.ServiceInterface;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.http.HttpPrologue;
 import io.helidon.http.PathMatchers;
