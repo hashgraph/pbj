@@ -21,6 +21,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.buffers.BufferData;
 import io.helidon.common.uri.UriEncoding;
 import io.helidon.http.Header;
+import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
 import io.helidon.http.HttpException;
 import io.helidon.http.HttpMediaType;
@@ -34,6 +35,7 @@ import io.helidon.http.http2.Http2FrameHeader;
 import io.helidon.http.http2.Http2FrameTypes;
 import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2RstStream;
+import io.helidon.http.http2.Http2Settings;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
@@ -64,9 +66,12 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private static final Pattern GRPC_TIMEOUT_PATTERN = Pattern.compile(GRPC_TIMEOUT_REGEX);
 
     // Helidon-specific fields related to the connection itself
+    private final HttpPrologue prologue;
     private final Http2Headers headers;
     private final Http2StreamWriter streamWriter;
     private final int streamId;
+    private final Http2Settings serverSettings;
+    private final Http2Settings clientSettings;
     private final StreamFlowControl flowControl;
     private Http2StreamState currentStreamState;
 
@@ -119,6 +124,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         this.headers = requireNonNull(headers);
         this.streamWriter = requireNonNull(streamWriter);
         this.streamId = streamId;
+        this.serverSettings = requireNonNull(serverSettings);
+        this.clientSettings = requireNonNull(clientSettings);
         this.flowControl = requireNonNull(flowControl);
         this.currentStreamState = requireNonNull(currentStreamState);
         this.config = requireNonNull(config);
@@ -312,6 +319,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             if (header.flags(Http2FrameTypes.DATA).endOfStream()) {
                 entityBytesIndex = 0;
                 entityBytes = null;
+//                listener.onHalfClose();
                 currentStreamState = Http2StreamState.HALF_CLOSED_LOCAL;
                 incoming.onComplete();
             }
