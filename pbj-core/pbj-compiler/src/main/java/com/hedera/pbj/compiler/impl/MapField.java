@@ -85,7 +85,7 @@ public record MapField(
     }
 
     /**
-     * Composes the Java generic type of the map field, e.g. "<Integer, String>" for a Map<Integer, String>.
+     * Composes the Java generic type of the map field, e.g. "&lt;Integer, String&gt;" for a Map&lt;Integer, String&gt;.
      */
     public String javaGenericType() {
         return "<" + keyField.type().boxedType + ", " +

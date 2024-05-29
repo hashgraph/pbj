@@ -273,12 +273,12 @@ class ProtoParserToolsTest {
     void testSkipField() throws IOException {
         final String valToRead = randomVarSizeString();
         final BufferedData data = BufferedData.allocate(1000);
-        writeLong(data, createFieldDefinition(FIXED64), rng.nextLong());
-        writeInteger(data, createFieldDefinition(FIXED32), rng.nextInt());
+        writeLong(data, createFieldDefinition(FIXED64), rng.nextLong(), true);
+        writeInteger(data, createFieldDefinition(FIXED32), rng.nextInt(), true);
         int value = rng.nextInt(0, Integer.MAX_VALUE);
-        writeInteger(data, createFieldDefinition(INT32), value);
-        writeString(data, createFieldDefinition(STRING), randomVarSizeString());
-        writeString(data, createFieldDefinition(STRING), valToRead);
+        writeInteger(data, createFieldDefinition(INT32), value, true);
+        writeString(data, createFieldDefinition(STRING), randomVarSizeString(), true);
+        writeString(data, createFieldDefinition(STRING), valToRead, true);
 
         data.flip();
 
