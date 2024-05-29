@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.protobuf.util.JsonFormat;
 import com.hedera.pbj.grpc.helidon.GrpcStatus;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import greeter.GreeterGrpc;
@@ -34,6 +35,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class PbjTest {
+    private static final MediaType APPLICATION_GRPC = HttpMediaType.create("application/grpc");
     private static final MediaType APPLICATION_GRPC_PROTO = HttpMediaType.create("application/grpc+proto");
     private static final MediaType APPLICATION_GRPC_JSON = HttpMediaType.create("application/grpc+json");
     private static final MediaType APPLICATION_GRPC_STRING = HttpMediaType.create("application/grpc+string");
@@ -81,12 +83,16 @@ class PbjTest {
     // this functionality is strongly discouraged. gRPC does not go out of its way to break users that are using this
     // kind of override, but we do not actively support it, and some functionality (e.g., service config support) will
     // not work when the path is not of the form shown above.
+    //
+    // TESTS:
+    //   - Verify the path is case-sensitive
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     /** Verify the path is case-sensitive */
     @Test
     void badCaseOnPathIsNotFound() {
         try (var response = CLIENT.post()
+                .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
                 .path(SAY_HELLO_PATH.toUpperCase())
                 .submit(messageBytes(SIMPLE_REQUEST))) {
@@ -101,6 +107,9 @@ class PbjTest {
     // SPEC:
     //
     // Only POST can be used for gRPC calls.
+    //
+    // TESTS:
+    //   - Verify that only POST is supported
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     /** Verify that only POST is supported */
@@ -108,6 +117,7 @@ class PbjTest {
     @ValueSource(strings = { "GET", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE" })
     void mustUsePost(final String methodName) {
         try (var response = CLIENT.method(Method.create(methodName))
+                .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
                 .path(SAY_HELLO_PATH)
                 .request()) {
@@ -180,6 +190,7 @@ class PbjTest {
                 .contentType(MediaTypes.create(contentType))
                 .submit(messageBytes(SIMPLE_REQUEST))) {
 
+            // TODO Assert that the response is also encoded as JSON
             assertThat(response.status().code()).isEqualTo(200);
             assertThat(response.headers().contentType().orElseThrow().text())
                     .isEqualTo(contentType);
