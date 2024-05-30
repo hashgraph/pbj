@@ -10,6 +10,13 @@ import io.helidon.webserver.spi.ProtocolConfig;
 @Prototype.Provides(ProtocolConfig.class)
 interface PbjConfigBlueprint extends ProtocolConfig {
     /**
+     * Default maximum number of messages to buffer coming from the client until we start applying back pressure.
+     *
+     * @see #maxIncomingBufferedMessages()
+     */
+    int DEFAULT_MAX_INCOMING_BUFFERED_MESSAGES = 10;
+
+    /**
      * Default maximum message size in bytes ({@value}).
      *
      * @see #maxMessageSize()
@@ -51,4 +58,10 @@ interface PbjConfigBlueprint extends ProtocolConfig {
     default String type() {
         return PbjProtocolProvider.CONFIG_NAME;
     }
+
+    /**
+     * The maximum number of messages to buffer coming from the client until we start applying back pressure.
+     * Defaults to {@value #DEFAULT_MAX_INCOMING_BUFFERED_MESSAGES}.
+     */
+    int maxIncomingBufferedMessages();
 }

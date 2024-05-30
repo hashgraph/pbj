@@ -84,6 +84,7 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
         private Config config;
         private int maxMessageSize = 10240;
         private int maxResponseBufferSize = 10240;
+        private int maxIncomingBufferedMessages = 10;
         private String name;
 
         /**
@@ -101,6 +102,7 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
         public BUILDER from(PbjConfig prototype) {
             maxMessageSize(prototype.maxMessageSize());
             maxResponseBufferSize(prototype.maxResponseBufferSize());
+            maxIncomingBufferedMessages(prototype.maxIncomingBufferedMessages());
             name(prototype.name());
             return self();
         }
@@ -114,6 +116,7 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
         public BUILDER from(BuilderBase<?, ?> builder) {
             maxMessageSize(builder.maxMessageSize());
             maxResponseBufferSize(builder.maxResponseBufferSize());
+            maxIncomingBufferedMessages(builder.maxIncomingBufferedMessages());
             builder.name().ifPresent(this::name);
             return self();
         }
@@ -131,6 +134,7 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
             this.config = config;
             config.get("max-message-size").as(Integer.class).ifPresent(this::maxMessageSize);
             config.get("max-response-buffer-size").as(Integer.class).ifPresent(this::maxResponseBufferSize);
+            config.get("max-incoming-buffered-messages").as(Integer.class).ifPresent(this::maxIncomingBufferedMessages);
             return self();
         }
 
@@ -157,6 +161,19 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
          */
         public BUILDER maxResponseBufferSize(int maxResponseBufferSize) {
             this.maxResponseBufferSize = maxResponseBufferSize;
+            return self();
+        }
+
+        /**
+         * The maximum number of messages to buffer coming from the client until we start applying back pressure.
+         * Defaults to {@value #DEFAULT_MAX_INCOMING_BUFFERED_MESSAGES}.
+         *
+         * @param maxIncomingBufferedMessages the maximum number of incoming messages to buffer
+         * @return updated builder instance
+         * @see #maxIncomingBufferedMessages()
+         */
+        public BUILDER maxIncomingBufferedMessages(int maxIncomingBufferedMessages) {
+            this.maxIncomingBufferedMessages = maxIncomingBufferedMessages;
             return self();
         }
 
@@ -191,6 +208,16 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
          */
         public int maxResponseBufferSize() {
             return maxResponseBufferSize;
+        }
+
+        /**
+         * The maximum number of messages to buffer coming from the client until we start applying back pressure.
+         * Defaults to {@value #DEFAULT_MAX_INCOMING_BUFFERED_MESSAGES}.
+         *
+         * @return the max incoming messages that can be buffered
+         */
+        public int maxIncomingBufferedMessages() {
+            return maxIncomingBufferedMessages;
         }
 
         /**
@@ -244,6 +271,7 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
 
             private final int maxMessageSize;
             private final int maxResponseBufferSize;
+            private final int maxIncomingBufferedMessages;
             private final String name;
 
             /**
@@ -254,6 +282,7 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
             protected PbjConfigImpl(BuilderBase<?, ?> builder) {
                 this.maxMessageSize = builder.maxMessageSize();
                 this.maxResponseBufferSize = builder.maxResponseBufferSize();
+                this.maxIncomingBufferedMessages = builder.maxIncomingBufferedMessages();
                 this.name = builder.name().get();
             }
 
@@ -268,6 +297,11 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
             }
 
             @Override
+            public int maxIncomingBufferedMessages() {
+                return maxIncomingBufferedMessages;
+            }
+
+            @Override
             public String name() {
                 return name;
             }
@@ -277,6 +311,7 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
                 return "PbjConfig{"
                         + "maxMessageSize=" + maxMessageSize + ","
                         + "maxResponseBufferSize=" + maxResponseBufferSize + ","
+                        + "maxIncomingBufferedMessages=" + maxIncomingBufferedMessages + ","
                         + "name=" + name
                         + "}";
             }
@@ -291,12 +326,13 @@ public interface PbjConfig extends PbjConfigBlueprint, Prototype.Api {
                 }
                 return maxMessageSize == other.maxMessageSize()
                     && maxResponseBufferSize == other.maxResponseBufferSize()
+                    && maxIncomingBufferedMessages == other.maxIncomingBufferedMessages()
                     && Objects.equals(name, other.name());
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(maxMessageSize, maxResponseBufferSize, name);
+                return Objects.hash(maxMessageSize, maxResponseBufferSize, maxIncomingBufferedMessages, name);
             }
 
         }

@@ -2,7 +2,9 @@ package com.hedera.pbj.grpc.helidon;
 
 import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ACCEPT_ENCODING;
 import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ENCODING;
+import static java.util.Objects.requireNonNull;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.HttpPrologue;
 import io.helidon.http.Method;
@@ -27,12 +29,14 @@ import java.util.concurrent.TimeUnit;
  */
 public class PbjProtocolSelector implements Http2SubProtocolSelector {
     private final DeadlineDetector deadlineDetector;
+    private final PbjConfig config;
 
     /**
      * Create a new PBJ based grpc protocol selector (default). Access restricted to be package-private so as
      * to limit instantiation to the {@link PbjProtocolProvider}.
      */
-    PbjProtocolSelector() {
+    PbjProtocolSelector(final @NonNull PbjConfig config) {
+        this.config = requireNonNull(config);
         deadlineDetector = new DeadlineDetector() {
             private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
@@ -53,8 +57,8 @@ public class PbjProtocolSelector implements Http2SubProtocolSelector {
                                          Http2Headers headers,
                                          Http2StreamWriter streamWriter,
                                          int streamId,
-                                         Http2Settings serverSettings,
-                                         Http2Settings clientSettings,
+                                         Http2Settings serverSettings, // unused
+                                         Http2Settings clientSettings, // unused
                                          StreamFlowControl flowControl,
                                          Http2StreamState currentStreamState,
                                          Router router) {
@@ -65,22 +69,10 @@ public class PbjProtocolSelector implements Http2SubProtocolSelector {
             return NOT_SUPPORTED;
         }
 
-        // If Content-Type does not begin with "application/grpc", gRPC servers SHOULD respond with HTTP status of
-        // 415 (Unsupported Media Type). This will prevent other HTTP/2 clients from interpreting a gRPC error
-        // response, which uses status 200 (OK), as successful.
-        // See https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
-        final var httpHeaders = headers.httpHeaders();
-        final var contentType = httpHeaders.value(HeaderNames.CONTENT_TYPE).orElse("");
-        if (!contentType.startsWith("application/grpc")) {
-            return new SubProtocolResult(true,
-                    new PbjErrorProtocolHandler(streamWriter, streamId, currentStreamState, h ->
-                            h.set(Http2Headers.STATUS_NAME, Status.UNSUPPORTED_MEDIA_TYPE_415.code())));
-        }
-
         // Look up the route based on the path. If that route does not exist, we return a 200 OK response with
         // a gRPC status of NOT_FOUND.
-        PbjRouting routing = router.routing(PbjRouting.class, PbjRouting.EMPTY);
-        PbjMethodRoute route = routing.findRoute(prologue);
+        final var routing = router.routing(PbjRouting.class, PbjRouting.EMPTY);
+        final var route = routing.findRoute(prologue);
         if (route == null) {
             return new SubProtocolResult(true,
                     new PbjErrorProtocolHandler(streamWriter, streamId, currentStreamState, h -> {
@@ -89,27 +81,12 @@ public class PbjProtocolSelector implements Http2SubProtocolSelector {
                     }));
         }
 
-        // This implementation currently only supports "identity" and "gzip" compression. As per the documentation:
-        // If a client message is compressed by an algorithm that is not supported by a server, the message will result
-        // in an UNIMPLEMENTED error status on the server. The server will include a grpc-accept-encoding header [in]
-        // the response which specifies the algorithms that the server accepts.
-        final var encoding = httpHeaders.value(GRPC_ENCODING).orElse("identity");
-        if (!"identity".equals(encoding) && !"gzip".equals(encoding)) {
-            return new SubProtocolResult(true,
-                    new PbjErrorProtocolHandler(streamWriter, streamId, currentStreamState, h -> {
-                            h.set(GrpcStatus.UNIMPLEMENTED);
-                            h.set(GRPC_ACCEPT_ENCODING, "identity,gzip");
-                    }));
-        }
-
         // This looks like a valid call! We will return a new PbjProtocolHandler to handle the request.
         return new SubProtocolResult(true,
-                new PbjProtocolHandler(prologue,
+                new PbjProtocolHandler(config,
                         headers,
                         streamWriter,
                         streamId,
-                        serverSettings,
-                        clientSettings,
                         flowControl,
                         currentStreamState,
                         route,
