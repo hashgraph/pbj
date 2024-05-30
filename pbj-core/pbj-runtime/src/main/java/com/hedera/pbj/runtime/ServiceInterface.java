@@ -1,6 +1,7 @@
 package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
@@ -54,8 +55,9 @@ public interface ServiceInterface {
     }
 
     interface RequestOptions {
-        String APPLICATION_GRPC_PROTO = "proto";
-        String APPLICATION_GRPC_JSON = "json";
+        String APPLICATION_GRPC = "application/grpc";
+        String APPLICATION_GRPC_PROTO = "application/grpc+proto";
+        String APPLICATION_GRPC_JSON = "application/grpc+json";
 
         boolean isProtobuf();
         boolean isJson();
@@ -64,26 +66,19 @@ public interface ServiceInterface {
 
     /**
      * Through this interface the {@link ServiceInterface} implementation will send responses back to the client.
-     * The {@link #start()} method is called before any responses are sent, and the {@link #close()} method
-     * is called after all responses have been sent.
+     * The {@link #close()} method is called after all responses have been sent.
      *
      * <p>It is not common for an application to implement or use this interface. It is typically implemented by
      * a webserver to integrate PBJ into that server.
      */
     interface ResponseCallback {
         /**
-         * Called by the {@link ServiceInterface} implementation to before any responses have been sent to the client.
-         * This must be called before {@link #send(Bytes)} is called.
-         */
-        void start();
-
-        /**
          * Called to send a single response message to the client. For unary methods, this will be called once. For
          * server-side streaming or bidi-streaming, this may be called many times.
          *
          * @param response A response message to send to the client.
          */
-        void send(/*@NonNull*/ Bytes response);
+        void send(@NonNull Bytes response);
 
         /**
          * Called to close the connection with the client, signaling that no more responses will be sent.
@@ -92,11 +87,11 @@ public interface ServiceInterface {
     }
 
     /** Gets the simple name of the service. For example, "HelloService". */
-    /*@NonNull*/ String serviceName();
+    @NonNull String serviceName();
     /** Gets the full name of the service. For example, "example.HelloService". */
-    /*@NonNull*/ String fullName();
+    @NonNull String fullName();
     /** Gets a list of each method in the service. This list may be empty but should never be null. */
-    /*@NonNull*/ List<Method> methods();
+    @NonNull List<Method> methods();
 
     /**
      * Called by the webserver to open a new connection between the client and the service. This method may be called
@@ -110,8 +105,8 @@ public interface ServiceInterface {
      * @param callback A callback to send responses back to the client.
      */
     void open(
-            /*@NonNull*/ RequestOptions opts,
-            /*@NonNull*/ Method method,
-            /*@NonNull*/ BlockingQueue<Bytes> messages,
-            /*@NonNull*/ ResponseCallback callback);
+            @NonNull RequestOptions opts,
+            @NonNull Method method,
+            @NonNull BlockingQueue<Bytes> messages,
+            @NonNull ResponseCallback callback);
 }
