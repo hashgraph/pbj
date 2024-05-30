@@ -2,21 +2,27 @@ package pbj;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.pbj.grpc.helidon.GrpcStatus;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import io.helidon.common.media.type.MediaType;
+import io.helidon.common.media.type.MediaTypes;
+import io.helidon.http.HeaderNames;
 import io.helidon.http.HttpMediaType;
 import io.helidon.http.Method;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webserver.WebServer;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,13 +35,20 @@ class PbjTest {
     private static final MediaType APPLICATION_RANDOM = HttpMediaType.create("application/random");
     private static WebClient CLIENT;
     private static final String SUBMIT_MESSAGE_PATH = "/proto.ConsensusService/submitMessage";
+    private static final String ECHO_PATH = "/proto.TestService/echo";
+    private static final TransactionResponse SUCCESSFUL_TRANSACTION_RESPONSE = TransactionResponse.newBuilder()
+            .cost(100)
+            .nodeTransactionPrecheckCode(ResponseCodeEnum.SUCCESS)
+            .build();
 
     @BeforeAll
     static void setup() {
         // Set up the server
         WebServer.builder()
                 .port(8080)
-                .addRouting(PbjRouting.builder().service(new ConsensusServiceImpl()))
+                .addRouting(PbjRouting.builder()
+                        .service(new ConsensusServiceImpl())
+                        .service(new CustomServiceImpl()))
                 .build()
                 .start();
 
@@ -53,11 +66,9 @@ class PbjTest {
     // this functionality is strongly discouraged. gRPC does not go out of its way to break users that are using this
     // kind of override, but we do not actively support it, and some functionality (e.g., service config support) will
     // not work when the path is not of the form shown above.
-    //
-    // TESTS:
-    //   - Verify the path is case-sensitive
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    /** Verify the path is case-sensitive */
     @Test
     void badCaseOnPathIsNotFound() {
         try (var response = CLIENT.post()
@@ -76,11 +87,9 @@ class PbjTest {
     // SPEC:
     //
     // Only POST can be used for gRPC calls.
-    //
-    // TESTS:
-    //   - Verify that only POST is supported
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    /** Verify that only POST is supported */
     @ParameterizedTest
     @ValueSource(strings = { "GET", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE" })
     void mustUsePost(final String methodName) {
@@ -106,15 +115,10 @@ class PbjTest {
     // uses status 200 (OK), as successful.
     //
     // TESTS:
-    //   - Verify that the server responds with 415 when the Content-Type is not specified
-    //   - Verify that the server responds with 415 when the Content-Type is not "application/grpc"
-    //   - Verify that both "application/grpc+proto" and "application/grpc+json" are accepted
-    //   - Verify that if "application/grpc" is used, it defaults to "application/grpc+proto"
-    //   - Verify that the response is encoded as JSON when "application/grpc+json" is used
-    //   - Verify that the response is encoded as protobuf when "application/grpc+proto" or "application/grpc" is used
-    //   - Verify that a custom encoding "application/grpc+custom" can work
+    //   -
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    /** Verify that the server responds with 415 when the Content-Type is not specified */
     @Test
     void contentTypeMustBeSet() {
         try (var response = CLIENT.post()
@@ -126,6 +130,7 @@ class PbjTest {
         }
     }
 
+    /** Verify that the server responds with 415 when the Content-Type does not start with "application/grpc" */
     @Test
     void contentTypeMustStartWithApplicationGrpc() {
         try (var response = CLIENT.post()
@@ -138,23 +143,62 @@ class PbjTest {
         }
     }
 
+    /** Verify that "application/grpc+json" requests are accepted */
     @Test
-    void contentTypeCanBeJSON() {
+    void contentTypeCanBeJSON() throws ParseException {
         try (var response = CLIENT.post()
                 .protocolId("h2")
                 .path(SUBMIT_MESSAGE_PATH)
                 .contentType(APPLICATION_GRPC_JSON)
                 .submit(messageBytesJson(Transaction.DEFAULT))) {
 
-            // TODO Assert that the response is also encoded as JSON
+            // TODO Verify the response is valid JSON
             assertThat(response.status().code()).isEqualTo(200);
-            assertThat(response.headers().contentType().orElseThrow().text()).isEqualTo("application/grpc+json");
+            assertThat(response.headers().contentType().orElseThrow().text())
+                    .isEqualTo("application/grpc+json");
+
+            final var tx = decodeTransactionResponse(new ReadableStreamingData(response.inputStream()));
+            assertThat(tx).isEqualTo(SUCCESSFUL_TRANSACTION_RESPONSE);
         }
     }
 
-    @Test
-    void contentTypeWithoutProtoDefaultsToProto() {
+    /** Verify that "application/grpc+proto" and "application/grpc" both support protobuf encoding */
+    @ParameterizedTest
+    @ValueSource(strings = { "application/grpc+proto", "application/grpc" })
+    void contentTypeCanBeProtobuf(final String contentType) throws ParseException {
+        try (var response = CLIENT.post()
+                .protocolId("h2")
+                .path(SUBMIT_MESSAGE_PATH)
+                .contentType(MediaTypes.create(contentType))
+                .submit(messageBytes(Transaction.DEFAULT))) {
 
+            assertThat(response.status().code()).isEqualTo(200);
+            assertThat(response.headers().contentType().orElseThrow().text())
+                    .isEqualTo("application/grpc+proto");
+
+            final var tx = decodeTransactionResponse(new ReadableStreamingData(response.inputStream()));
+            assertThat(tx).isEqualTo(SUCCESSFUL_TRANSACTION_RESPONSE);
+        }
+    }
+
+    /** Verify that a custom suffix of the content type is supported */
+    @Test
+    void contentTypeCanBeCustom() throws IOException {
+        try (var response = CLIENT.post()
+                .protocolId("h2")
+                .path(ECHO_PATH)
+                .contentType(MediaTypes.create("application/grpc+string"))
+                .submit(messageBytes("Hello, dude!".getBytes(StandardCharsets.UTF_8)))) {
+
+            assertThat(response.status().code()).isEqualTo(200);
+            assertThat(response.headers().contentType().orElseThrow().text())
+                    .isEqualTo("application/grpc+string");
+
+            // The first five bytes are framing -- compression + length
+            final var data = response.inputStream().readAllBytes();
+            assertThat(new String(data, 5, data.length - 5, StandardCharsets.UTF_8))
+                    .isEqualTo("Hello, dude!");
+        }
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -185,7 +229,7 @@ class PbjTest {
     // that same list as the metadata in the response.
     //
     // TESTS:
-    //   - TBD
+    //   - Not implemented
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -219,10 +263,27 @@ class PbjTest {
     // occurred. Compression contexts are NOT maintained over message boundaries, implementations must create a new
     // context for each message in the stream. If the Message-Encoding header is omitted then the Compressed-Flag must
     // be 0.
-    //
-    // TESTS:
-    //   - TBD
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Verify that the server responds with grpc-accept-encoding and UNIMPLEMENTED if unsupported compression schemes
+     * are used.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = { "gzip", "deflate", "random" })
+    void compressionNotSupported(final String grpcEncoding) {
+        try (var response = CLIENT.post()
+                .protocolId("h2")
+                .contentType(APPLICATION_GRPC_PROTO)
+                .path(SUBMIT_MESSAGE_PATH)
+                .header(HeaderNames.create("grpc-encoding"), grpcEncoding)
+                .submit(messageBytes(Transaction.DEFAULT))) {
+
+            assertThat(response.status().code()).isEqualTo(200);
+            assertThat(response.headers().get(GrpcStatus.STATUS_NAME).values()).isEqualTo(GrpcStatus.UNIMPLEMENTED.values());
+            assertThat(response.headers().get(HeaderNames.create("grpc-accept-encoding")).get()).isEqualTo("identity");
+        }
+    }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Unary Method Calls
@@ -247,8 +308,6 @@ class PbjTest {
             assertThat(rsd.readByte()).isEqualTo((byte) 0); // No Compression (we didn't ask for it)
 
             final var responseLength = (int) rsd.readUnsignedInt();
-            assertThat(responseLength).isPositive();
-
             final var responseData = new byte[responseLength];
             rsd.readBytes(responseData);
             final var txr = TransactionResponse.PROTOBUF.parse(Bytes.wrap(responseData));
@@ -282,8 +341,15 @@ class PbjTest {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Utility methods
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    private byte[] messageBytes(Transaction tx) {
-        final var data = Transaction.PROTOBUF.toBytes(tx).toByteArray();
+    private TransactionResponse decodeTransactionResponse(ReadableStreamingData rsd) throws ParseException {
+        assertThat(rsd.readByte()).isEqualTo((byte) 0); // No Compression
+        final var responseLength = (int) rsd.readUnsignedInt();
+        final var responseData = new byte[responseLength];
+        rsd.readBytes(responseData);
+        return TransactionResponse.PROTOBUF.parse(Bytes.wrap(responseData));
+    }
+
+    private byte[] messageBytes(byte[] data) {
         final var out = new ByteArrayOutputStream();
         final WritableStreamingData wsd = new WritableStreamingData(out);
         wsd.writeByte((byte) 0);
@@ -292,46 +358,49 @@ class PbjTest {
         return out.toByteArray();
     }
 
+    private byte[] messageBytes(Transaction tx) {
+        final var data = Transaction.PROTOBUF.toBytes(tx).toByteArray();
+        return messageBytes(data);
+    }
+
     private byte[] messageBytesJson(Transaction tx) {
         final var data = Transaction.JSON.toBytes(tx).toByteArray();
-        final var out = new ByteArrayOutputStream();
-        final WritableStreamingData wsd = new WritableStreamingData(out);
-        wsd.writeByte((byte) 0);
-        wsd.writeUnsignedInt(data.length);
-        wsd.writeBytes(data);
-        return out.toByteArray();
+        return messageBytes(data);
     }
 
     private static final class ConsensusServiceImpl implements ConsensusService {
         @Override
         public TransactionResponse createTopic(Transaction tx) {
-            // TODO Test when one of these returns null!!
-            System.out.println("Creating topic");
-            return TransactionResponse.DEFAULT;
+            throw new RuntimeException("Some kind of Runtime exception is thrown!");
         }
 
         @Override
         public TransactionResponse updateTopic(Transaction tx) {
-            System.out.println("Updating topic");
-            return TransactionResponse.DEFAULT;
+            return SUCCESSFUL_TRANSACTION_RESPONSE;
         }
 
         @Override
         public TransactionResponse deleteTopic(Transaction tx) {
-            System.out.println("Deleting topic");
-            return TransactionResponse.DEFAULT;
+            return SUCCESSFUL_TRANSACTION_RESPONSE;
         }
 
         @Override
         public TransactionResponse submitMessage(Transaction tx) {
-            System.out.println("Submitting message");
-            return TransactionResponse.DEFAULT;
+            return SUCCESSFUL_TRANSACTION_RESPONSE;
         }
 
         @Override
         public Response getTopicInfo(Query q) {
             System.out.println("Getting topic info");
             return Response.DEFAULT;
+        }
+    }
+
+    private static final class CustomServiceImpl implements TestService {
+        @Override
+        public String echo(String message) {
+            System.out.println("Echoing message: " + message);
+            return message;
         }
     }
 }

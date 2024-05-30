@@ -6,6 +6,7 @@ import com.hedera.hapi.node.transaction.Response;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.pbj.runtime.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
@@ -24,14 +25,17 @@ public interface ConsensusService extends ServiceInterface {
     TransactionResponse submitMessage(Transaction tx);
     Response getTopicInfo(Query q);
 
+    @NonNull
     default String serviceName() {
         return "ConsensusService";
     }
 
+    @NonNull
     default String fullName() {
         return "proto.ConsensusService";
     }
 
+    @NonNull
     default List<Method> methods() {
         return List.of(
                 ConsensusMethod.createTopic,
@@ -43,10 +47,10 @@ public interface ConsensusService extends ServiceInterface {
 
     @Override
     default void open(
-            final /*@NonNull*/ RequestOptions options,
-            final /*@NonNull*/ Method method,
-            final /*@NonNull*/ BlockingQueue<Bytes> messages,
-            final /*@NonNull*/ ResponseCallback callback) {
+            final @NonNull RequestOptions options,
+            final @NonNull Method method,
+            final @NonNull BlockingQueue<Bytes> messages,
+            final @NonNull ResponseCallback callback) {
 
         final var m = (ConsensusMethod) method;
         Thread.ofVirtual().start(() -> {
@@ -55,7 +59,6 @@ public interface ConsensusService extends ServiceInterface {
                     case ConsensusMethod.createTopic -> {
                         // Unary method
                         final var message = messages.take();
-                        callback.start();
                         final var messageBytes = options.isProtobuf() // What if it isn't JSON or PROTOBUF?
                                 ? Transaction.PROTOBUF.parse(message)
                                 : Transaction.JSON.parse(message);
@@ -67,7 +70,6 @@ public interface ConsensusService extends ServiceInterface {
                     case ConsensusMethod.updateTopic -> {
                         // Unary method
                         final var message = messages.take();
-                        callback.start();
                         final var messageBytes = options.isProtobuf()
                                 ? Transaction.PROTOBUF.parse(message)
                                 : Transaction.JSON.parse(message);
@@ -79,7 +81,6 @@ public interface ConsensusService extends ServiceInterface {
                     case ConsensusMethod.deleteTopic -> {
                         // Unary method
                         final var message = messages.take();
-                        callback.start();
                         final var messageBytes = options.isProtobuf()
                                 ? Transaction.PROTOBUF.parse(message)
                                 : Transaction.JSON.parse(message);
@@ -89,9 +90,8 @@ public interface ConsensusService extends ServiceInterface {
                         callback.close();
                     }
                     case ConsensusMethod.submitMessage -> {
-                        // Unary method
+                        // Unary method.
                         final var message = messages.take();
-                        callback.start();
                         final var messageBytes = options.isProtobuf()
                                 ? Transaction.PROTOBUF.parse(message)
                                 : Transaction.JSON.parse(message);
@@ -103,7 +103,6 @@ public interface ConsensusService extends ServiceInterface {
                     case ConsensusMethod.getTopicInfo -> {
                         // Unary method
                         final var message = messages.take();
-                        callback.start();
                         final var messageBytes = options.isProtobuf()
                                 ? Query.PROTOBUF.parse(message)
                                 : Query.JSON.parse(message);
@@ -113,7 +112,7 @@ public interface ConsensusService extends ServiceInterface {
                         callback.close();
                     }
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 e.printStackTrace();
                 callback.close();
             }
