@@ -33,14 +33,10 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 				FieldType.of(fieldContext.type_(), lookupHelper),
 				Integer.parseInt(fieldContext.fieldNumber().getText()),
 				fieldContext.fieldName().getText(),
-				(fieldContext.type_().messageType() == null) ? null :
-						fieldContext.type_().messageType().messageName().getText(),
-				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getPackageFieldMessageType(FileType.MODEL, fieldContext),
-				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getPackageFieldMessageType(FileType.CODEC, fieldContext),
-				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getPackageFieldMessageType(FileType.TEST, fieldContext),
+				Field.extractMessageTypeName(fieldContext.type_()),
+				Field.extractMessageTypePackage(fieldContext.type_(), FileType.MODEL, lookupHelper),
+				Field.extractMessageTypePackage(fieldContext.type_(), FileType.CODEC, lookupHelper),
+				Field.extractMessageTypePackage(fieldContext.type_(), FileType.TEST, lookupHelper),
 				Common.buildCleanFieldJavaDoc(Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
 				getDeprecatedOption(fieldContext.fieldOptions()),
 				null

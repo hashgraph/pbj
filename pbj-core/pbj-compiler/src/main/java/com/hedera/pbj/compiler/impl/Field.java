@@ -190,6 +190,26 @@ public interface Field {
 	}
 
 	/**
+	 * Extract the name of the Java model class for a message type,
+	 * or null if the type is not a message.
+	 */
+	static String extractMessageTypeName(final Protobuf3Parser.Type_Context typeContext) {
+		return typeContext.messageType() == null ? null : typeContext.messageType().messageName().getText();
+	}
+
+	/**
+	 * Extract the name of the Java package for a given FileType for a message type,
+	 * or null if the type is not a message.
+	 */
+	static String extractMessageTypePackage(
+			final Protobuf3Parser.Type_Context typeContext,
+			final FileType fileType,
+			final ContextualLookupHelper lookupHelper) {
+		return typeContext.messageType() == null || typeContext.messageType().messageName().getText() == null ? null :
+				lookupHelper.getPackageFieldMessageType(fileType, typeContext);
+	}
+
+	/**
 	 * Field type enum for use in field classes
 	 */
 	enum FieldType {
@@ -245,6 +265,7 @@ public interface Field {
 		 * Construct a new FieldType enum
 		 *
 		 * @param javaType The type of field type in Java code
+		 * @param boxedType The boxed type of the field type, e.g. Integer for an int field.
 		 * @param javaDefault The field type default value in Java code
 		 * @param wireType The protobuf wire type for field type
 		 */

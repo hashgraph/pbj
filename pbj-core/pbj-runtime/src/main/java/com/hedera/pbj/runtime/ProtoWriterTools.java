@@ -88,6 +88,17 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the int value to write
+     */
+    public static void writeInteger(WritableSequentialData out, FieldDefinition field, int value) {
+        writeInteger(out, field, value, true);
+    }
+
+    /**
+     * Write a integer to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the int value to write
      * @param skipDefault default value results in no-op for non-oneOf
      */
     public static void writeInteger(WritableSequentialData out, FieldDefinition field, int value, boolean skipDefault) {
@@ -121,6 +132,17 @@ public final class ProtoWriterTools {
             }
             default -> throw unsupported();
         }
+    }
+
+    /**
+     * Write a long to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the long value to write
+     */
+    public static void writeLong(WritableSequentialData out, FieldDefinition field, long value) {
+        writeLong(out, field, value, true);
     }
 
     /**
@@ -201,6 +223,17 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param value the boolean value to write
+     */
+    public static void writeBoolean(WritableSequentialData out, FieldDefinition field, boolean value) {
+        writeBoolean(out, field, value, true);
+    }
+
+    /**
+     * Write a boolean to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the boolean value to write
      * @param skipDefault default value results in no-op for non-oneOf
      */
     public static void writeBoolean(WritableSequentialData out, FieldDefinition field, boolean value, boolean skipDefault) {
@@ -237,6 +270,19 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing, the field must be non-repeated
      * @param value the string value to write
+     * @throws IOException If a I/O error occurs
+     */
+    public static void writeString(final WritableSequentialData out, final FieldDefinition field,
+                                   final String value) throws IOException {
+        writeString(out, field, value, true);
+    }
+
+    /**
+     * Write a string to data output, assuming the field is non-repeated.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be non-repeated
+     * @param value the string value to write
      * @param skipDefault default value results in no-op for non-oneOf
      * @throws IOException If a I/O error occurs
      */
@@ -261,6 +307,19 @@ public final class ProtoWriterTools {
             final String value) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "writeOneRepeatedString can only be used with repeated fields";
+        writeStringNoChecks(out, field, value);
+    }
+
+    /**
+     * Write a integer to data output - no validation checks.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the string value to write
+     * @throws IOException If a I/O error occurs
+     */
+    private static void writeStringNoChecks(final WritableSequentialData out, final FieldDefinition field,
+                                            final String value) throws IOException {
         writeStringNoChecks(out, field, value, true);
     }
 
@@ -282,6 +341,20 @@ public final class ProtoWriterTools {
         writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarInt(sizeOfStringNoTag(value), false);
         Utf8Tools.encodeUtf8(value, out);
+    }
+
+    /**
+     * Write a bytes to data output, assuming the corresponding field is non-repeated, and field type
+     * is any delimited: bytes, string, or message.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must not be repeated
+     * @param value the bytes value to write
+     * @throws IOException If a I/O error occurs
+     */
+    public static void writeBytes(final WritableSequentialData out, final FieldDefinition field,
+                                  final RandomAccessData value) throws IOException {
+        writeBytes(out, field, value, true);
     }
 
     /**
@@ -456,8 +529,8 @@ public final class ProtoWriterTools {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfInteger(newField, value, true), false);
-            writeInteger(out, newField, value, true);
+            out.writeVarInt(sizeOfInteger(newField, value), false);
+            writeInteger(out, newField, value);
         }
     }
 
@@ -472,8 +545,8 @@ public final class ProtoWriterTools {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfLong(newField, value, true), false);
-            writeLong(out, newField, value, true);
+            out.writeVarInt(sizeOfLong(newField, value), false);
+            writeLong(out, newField, value);
         }
     }
 
@@ -520,8 +593,8 @@ public final class ProtoWriterTools {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfBoolean(newField, value, true), false);
-            writeBoolean(out, newField, value, true);
+            out.writeVarInt(sizeOfBoolean(newField, value), false);
+            writeBoolean(out, newField, value);
         }
     }
 
@@ -537,8 +610,8 @@ public final class ProtoWriterTools {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            out.writeVarInt(sizeOfString(newField, value, true), false);
-            writeString(out, newField, value, true);
+            out.writeVarInt(sizeOfString(newField, value), false);
+            writeString(out, newField, value);
         }
     }
 
@@ -554,10 +627,10 @@ public final class ProtoWriterTools {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            final int size = sizeOfBytes(newField, value, true);
+            final int size = sizeOfBytes(newField, value);
             out.writeVarInt(size, false);
             if (size > 0) {
-                writeBytes(out,newField, value, true);
+                writeBytes(out,newField, value);
             }
         }
     }
@@ -999,7 +1072,7 @@ public final class ProtoWriterTools {
     public static int sizeOfOptionalInteger(FieldDefinition field, @Nullable Integer value) {
         if (value != null) {
             final int intValue = value;
-            int size = sizeOfInteger(field.type().optionalFieldDefinition, intValue, true);
+            int size = sizeOfInteger(field.type().optionalFieldDefinition, intValue);
             return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
@@ -1015,7 +1088,7 @@ public final class ProtoWriterTools {
     public static int sizeOfOptionalLong(FieldDefinition field, @Nullable Long value) {
         if (value != null) {
             final long longValue = value;
-            final int size =  sizeOfLong(field.type().optionalFieldDefinition, longValue, true);
+            final int size =  sizeOfLong(field.type().optionalFieldDefinition, longValue);
             return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
@@ -1075,7 +1148,7 @@ public final class ProtoWriterTools {
      */
     public static int sizeOfOptionalString(FieldDefinition field, @Nullable String value) {
         if (value != null) {
-            final int size = sizeOfString(field.type().optionalFieldDefinition, value, true);
+            final int size = sizeOfString(field.type().optionalFieldDefinition, value);
             return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
@@ -1090,10 +1163,21 @@ public final class ProtoWriterTools {
      */
     public static int sizeOfOptionalBytes(FieldDefinition field, @Nullable RandomAccessData value) {
         if (value != null) {
-            final int size = sizeOfBytes(field.type().optionalFieldDefinition, value, true);
+            final int size = sizeOfBytes(field.type().optionalFieldDefinition, value);
             return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode an integer field
+     *
+     * @param field descriptor of field
+     * @param value integer value to get encoded size for
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfInteger(FieldDefinition field, int value) {
+        return sizeOfInteger(field, value, true);
     }
 
     /**
@@ -1113,6 +1197,17 @@ public final class ProtoWriterTools {
             case SFIXED32, FIXED32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED32_SIZE;
             default -> throw unsupported();
         };
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a long field
+     *
+     * @param field descriptor of field
+     * @param value long value to get encoded size for
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfLong(FieldDefinition field, long value) {
+        return sizeOfLong(field, value, true);
     }
 
     /**
@@ -1162,6 +1257,17 @@ public final class ProtoWriterTools {
      *
      * @param field descriptor of field
      * @param value boolean value to get encoded size for
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfBoolean(FieldDefinition field, boolean value) {
+        return sizeOfBoolean(field, value, true);
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a boolean field
+     *
+     * @param field descriptor of field
+     * @param value boolean value to get encoded size for
      * @param skipDefault default value results in zero size
      * @return the number of bytes for encoded value
      */
@@ -1182,6 +1288,17 @@ public final class ProtoWriterTools {
             return 0;
         }
         return sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(enumValue.protoOrdinal());
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a string field
+     *
+     * @param field descriptor of field
+     * @param value string value to get encoded size for
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfString(FieldDefinition field, String value) {
+        return sizeOfString(field, value, true);
     }
 
     /**
@@ -1216,6 +1333,17 @@ public final class ProtoWriterTools {
         } catch (IOException e) { // fall back to JDK
             return value.getBytes(StandardCharsets.UTF_8).length;
         }
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a bytes field
+     *
+     * @param field descriptor of field
+     * @param value bytes value to get encoded size for
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfBytes(FieldDefinition field, RandomAccessData value) {
+        return sizeOfBytes(field, value, true);
     }
 
     /**

@@ -157,7 +157,7 @@ class ProtoWriterToolsTest {
         FieldDefinition definition = createFieldDefinition(INT32);
         final int valToWrite = 0;
         final long positionBefore = bufferedData.position();
-        writeInteger(bufferedData, definition, valToWrite, true);
+        writeInteger(bufferedData, definition, valToWrite);
         final long positionAfter = bufferedData.position();
         assertEquals(positionBefore, positionAfter);
     }
@@ -172,7 +172,7 @@ class ProtoWriterToolsTest {
     void testWriteInteger_int32() {
         FieldDefinition definition = createFieldDefinition(INT32);
         final int valToWrite = nextNonZeroRandomInt();
-        writeInteger(bufferedData, definition, valToWrite, true);
+        writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
         assertEquals(valToWrite, bufferedData.readVarInt(false));
@@ -182,7 +182,7 @@ class ProtoWriterToolsTest {
     void testWriteInteger_uint32() {
         FieldDefinition definition = createFieldDefinition(UINT32);
         int valToWrite = RNG.nextInt(1, Integer.MAX_VALUE);
-        writeInteger(bufferedData, definition, valToWrite, true);
+        writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
         assertEquals(valToWrite, bufferedData.readVarLong(false));
@@ -192,7 +192,7 @@ class ProtoWriterToolsTest {
     void testWriteInteger_sint32() {
         FieldDefinition definition = createFieldDefinition(SINT32);
         final int valToWrite = nextNonZeroRandomInt();
-        writeInteger(bufferedData, definition, valToWrite, true);
+        writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
         assertEquals(valToWrite, bufferedData.readVarInt(true));
@@ -203,7 +203,7 @@ class ProtoWriterToolsTest {
     void testWriteInteger_fixed32(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
         final int valToWrite = nextNonZeroRandomInt();
-        writeInteger(bufferedData, definition, valToWrite, true);
+        writeInteger(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertFixed32Tag(definition);
         assertEquals(valToWrite, bufferedData.readInt(ByteOrder.LITTLE_ENDIAN));
@@ -216,7 +216,7 @@ class ProtoWriterToolsTest {
             "STRING", "BYTES", "ENUM", "MESSAGE"})
     void testWriteInteger_unsupported(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertThrows(RuntimeException.class, () -> writeInteger(bufferedData, definition, RNG.nextInt(), true));
+        assertThrows(RuntimeException.class, () -> writeInteger(bufferedData, definition, RNG.nextInt()));
     }
 
     @Test
@@ -224,7 +224,7 @@ class ProtoWriterToolsTest {
         FieldDefinition definition = createFieldDefinition(INT64);
         final long valToWrite = 0L;
         final long positionBefore = bufferedData.position();
-        writeLong(bufferedData, definition, valToWrite, true);
+        writeLong(bufferedData, definition, valToWrite);
         final long positionAfter = bufferedData.position();
         assertEquals(positionBefore, positionAfter);
     }
@@ -239,7 +239,7 @@ class ProtoWriterToolsTest {
     void testWriteLong_int64() {
         FieldDefinition definition = createFieldDefinition(INT64);
         final long valToWrite = nextNonZeroRandomLong();
-        writeLong(bufferedData, definition, valToWrite, true);
+        writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
         assertEquals(valToWrite, bufferedData.readVarLong(false));
@@ -249,7 +249,7 @@ class ProtoWriterToolsTest {
     void testWriteLong_uint64() {
         FieldDefinition definition = createFieldDefinition(UINT64);
         final long valToWrite = RNG.nextLong(1, Long.MAX_VALUE);
-        writeLong(bufferedData, definition, valToWrite, true);
+        writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
         assertEquals(valToWrite, bufferedData.readVarLong(false));
@@ -259,7 +259,7 @@ class ProtoWriterToolsTest {
     void testWriteLong_sint64() {
         FieldDefinition definition = createFieldDefinition(SINT64);
         final int valToWrite = nextNonZeroRandomInt();
-        writeLong(bufferedData, definition, valToWrite, true);
+        writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertVarIntTag(definition);
         assertEquals(valToWrite, bufferedData.readVarLong(true));
@@ -270,7 +270,7 @@ class ProtoWriterToolsTest {
     void testWriteLong_fixed64(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
         final long valToWrite = nextNonZeroRandomLong();
-        writeLong(bufferedData, definition, valToWrite, true);
+        writeLong(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_FIXED_64_BIT.ordinal(), bufferedData.readVarInt(false));
         assertEquals(valToWrite, bufferedData.readLong(ByteOrder.LITTLE_ENDIAN));
@@ -283,7 +283,7 @@ class ProtoWriterToolsTest {
             "STRING", "BYTES", "ENUM", "MESSAGE"})
     void testWriteLong_unsupported(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertThrows(RuntimeException.class, () -> writeLong(bufferedData, definition, RNG.nextInt(), true));
+        assertThrows(RuntimeException.class, () -> writeLong(bufferedData, definition, RNG.nextInt()));
     }
 
     private static float nextNonZeroRandomFloat() {
@@ -321,7 +321,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteBoolean_true() {
         FieldDefinition definition = createFieldDefinition(BOOL);
-        ProtoWriterTools.writeBoolean(bufferedData, definition, true, true);
+        ProtoWriterTools.writeBoolean(bufferedData, definition, true);
         bufferedData.flip();
         assertVarIntTag(definition);
         assertEquals(1, bufferedData.readVarInt(false));
@@ -330,7 +330,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteBoolean_false() {
         FieldDefinition definition = createFieldDefinition(BOOL);
-        ProtoWriterTools.writeBoolean(bufferedData, definition, false, true);
+        ProtoWriterTools.writeBoolean(bufferedData, definition, false);
         bufferedData.flip();
         assertEquals(0, bufferedData.length());
     }
@@ -368,7 +368,7 @@ class ProtoWriterToolsTest {
         FieldDefinition definition = createFieldDefinition(STRING);
         String valToWrite = "";
         final long positionBefore = bufferedData.position();
-        writeString(bufferedData, definition, valToWrite, true);
+        writeString(bufferedData, definition, valToWrite);
         final long positionAfter = bufferedData.position();
         assertEquals(positionAfter, positionBefore);
     }
@@ -377,7 +377,7 @@ class ProtoWriterToolsTest {
     void testWriteString() throws IOException {
         FieldDefinition definition = createFieldDefinition(STRING);
         String valToWrite = RANDOM_STRING.nextString();
-        writeString(bufferedData, definition, valToWrite, true);
+        writeString(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
         int length = bufferedData.readVarInt(false);
@@ -404,7 +404,7 @@ class ProtoWriterToolsTest {
         BufferedData bd = BufferedData.allocate(1);
         FieldDefinition definition = createFieldDefinition(BYTES);
         Bytes valToWrite = Bytes.wrap(new byte[] {1, 2});
-        assertThrows(BufferOverflowException.class, () -> writeBytes(bd, definition, valToWrite, true));
+        assertThrows(BufferOverflowException.class, () -> writeBytes(bd, definition, valToWrite));
     }
 
     @Test
@@ -412,7 +412,7 @@ class ProtoWriterToolsTest {
         FieldDefinition definition = createFieldDefinition(BYTES);
         Bytes valToWrite = Bytes.wrap(new byte[0]);
         final long positionBefore = bufferedData.position();
-        writeBytes(bufferedData, definition, valToWrite, true);
+        writeBytes(bufferedData, definition, valToWrite);
         final long positionAfter = bufferedData.position();
         assertEquals(positionAfter, positionBefore);
     }
@@ -421,7 +421,7 @@ class ProtoWriterToolsTest {
     void testWriteBytes() throws IOException {
         FieldDefinition definition = createFieldDefinition(BYTES);
         Bytes valToWrite = Bytes.wrap(RANDOM_STRING.nextString());
-        writeBytes(bufferedData, definition, valToWrite, true);
+        writeBytes(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
         int length = bufferedData.readVarInt(false);
@@ -683,21 +683,21 @@ class ProtoWriterToolsTest {
     void testSizeOfLong_int32() {
         FieldDefinition definition = createFieldDefinition(INT32);
         assertEquals(TAG_SIZE + MAX_VAR_INT_SIZE,
-                sizeOfInteger(definition, randomLargeInt(), true));
+                sizeOfInteger(definition, randomLargeInt()));
     }
 
     @Test
     void testSizeOfLong_uint32() {
         FieldDefinition definition = createFieldDefinition(UINT32);
         assertEquals(TAG_SIZE + MAX_VAR_INT_SIZE,
-                sizeOfInteger(definition, randomLargeInt(), true));
+                sizeOfInteger(definition, randomLargeInt()));
     }
 
     @Test
     void testSizeOfLong_sint32() {
         FieldDefinition definition = createFieldDefinition(SINT32);
         assertEquals(TAG_SIZE + MAX_VAR_INT_SIZE,
-                sizeOfInteger(definition, randomLargeNegativeInt(), true));
+                sizeOfInteger(definition, randomLargeNegativeInt()));
     }
 
     @ParameterizedTest
@@ -705,7 +705,7 @@ class ProtoWriterToolsTest {
     void testSizeOfLong_fixed32(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
         assertEquals(TAG_SIZE + Integer.BYTES,
-                sizeOfInteger(definition, randomLargeNegativeInt(), true));
+                sizeOfInteger(definition, randomLargeNegativeInt()));
     }
 
     @ParameterizedTest
@@ -713,21 +713,21 @@ class ProtoWriterToolsTest {
             "FIXED64", "SFIXED64", "BOOL", "STRING", "BYTES", "ENUM", "MESSAGE"})
     void testSizeOfInteger_notSupported(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertThrows(RuntimeException.class, () -> sizeOfInteger(definition, RNG.nextInt(), true));
+        assertThrows(RuntimeException.class, () -> sizeOfInteger(definition, RNG.nextInt()));
     }
 
     @Test
     void testSizeOfLong_int64() {
         FieldDefinition definition = createFieldDefinition(INT64);
         assertEquals(TAG_SIZE + MAX_VAR_LONG_SIZE,
-                sizeOfLong(definition, randomLargeLong(), true));
+                sizeOfLong(definition, randomLargeLong()));
     }
 
     @Test
     void testSizeOfLong_uint64() {
         FieldDefinition definition = createFieldDefinition(UINT64);
         assertEquals(TAG_SIZE + MAX_VAR_LONG_SIZE,
-                sizeOfLong(definition, randomLargeLong(), true));
+                sizeOfLong(definition, randomLargeLong()));
     }
 
     @Test
@@ -735,7 +735,7 @@ class ProtoWriterToolsTest {
         FieldDefinition definition = createFieldDefinition(SINT64);
         long value = randomLargeNegativeLong();
         assertEquals(TAG_SIZE + MAX_VAR_LONG_SIZE + 1 /* zigzag encoding */,
-                sizeOfLong(definition, value, true));
+                sizeOfLong(definition, value));
     }
 
     @ParameterizedTest
@@ -743,7 +743,7 @@ class ProtoWriterToolsTest {
     void testSizeOfLong_fixed64(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
         assertEquals(TAG_SIZE + Long.BYTES,
-                sizeOfLong(definition, randomLargeNegativeInt(), true));
+                sizeOfLong(definition, randomLargeNegativeInt()));
     }
 
     @ParameterizedTest
@@ -751,7 +751,7 @@ class ProtoWriterToolsTest {
             "FIXED32", "SFIXED32", "BOOL", "STRING", "BYTES", "ENUM", "MESSAGE"})
     void testSizeOfLong_notSupported(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertThrows(RuntimeException.class, () -> sizeOfLong(definition, RNG.nextLong(), true));
+        assertThrows(RuntimeException.class, () -> sizeOfLong(definition, RNG.nextLong()));
     }
 
     @Test
@@ -1049,19 +1049,19 @@ class ProtoWriterToolsTest {
         final FieldDefinition definition = createFieldDefinition(STRING);
         final String str = randomVarSizeString();
 
-        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + str.length(), sizeOfString(definition, str, true));
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + str.length(), sizeOfString(definition, str));
     }
 
     @Test
     void testSizeOfString_null() {
         final FieldDefinition definition = createFieldDefinition(STRING);
-        assertEquals(0, sizeOfString(definition, null, true));
+        assertEquals(0, sizeOfString(definition, null));
     }
 
     @Test
     void testSizeOfString_default() {
         final FieldDefinition definition = createFieldDefinition(STRING);
-        assertEquals(0, sizeOfString(definition, "", true));
+        assertEquals(0, sizeOfString(definition, ""));
     }
 
     @Test
@@ -1069,13 +1069,13 @@ class ProtoWriterToolsTest {
         final FieldDefinition definition = createOneOfFieldDefinition(STRING);
         final String str = randomVarSizeString();
 
-        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + str.length(), sizeOfString(definition, str, true));
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + str.length(), sizeOfString(definition, str));
     }
 
     @Test
     void testSizeOfString_oneOf_null(){
         final FieldDefinition definition = createOneOfFieldDefinition(STRING);
-        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE, sizeOfString(definition, null, true));
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE, sizeOfString(definition, null));
     }
 
     @Test
@@ -1083,7 +1083,7 @@ class ProtoWriterToolsTest {
         final FieldDefinition definition = createFieldDefinition(BYTES);
         final Bytes bytes = Bytes.wrap(randomVarSizeString());
 
-        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + bytes.length(), sizeOfBytes(definition, bytes, true));
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + bytes.length(), sizeOfBytes(definition, bytes));
     }
 
     @Test
@@ -1091,7 +1091,7 @@ class ProtoWriterToolsTest {
         final FieldDefinition definition = createFieldDefinition(BYTES);
         final Bytes bytes = Bytes.wrap("");
 
-        assertEquals(0, sizeOfBytes(definition, bytes, true));
+        assertEquals(0, sizeOfBytes(definition, bytes));
     }
 
     @Test
@@ -1099,7 +1099,7 @@ class ProtoWriterToolsTest {
         final FieldDefinition definition = createOneOfFieldDefinition(BYTES);
         final Bytes bytes = Bytes.wrap(randomVarSizeString());
 
-        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + bytes.length(), sizeOfBytes(definition, bytes, true));
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + bytes.length(), sizeOfBytes(definition, bytes));
     }
 
     @Test

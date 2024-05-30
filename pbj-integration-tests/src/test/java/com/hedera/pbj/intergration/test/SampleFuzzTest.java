@@ -70,7 +70,7 @@ public class SampleFuzzTest {
      * if the mean value of all the individual DESERIALIZATION_FAILED
      * shares is greater than this threshold.
      */
-    private static final double DESERIALIZATION_FAILED_MEAN_THRESHOLD = .983;
+    private static final double DESERIALIZATION_FAILED_MEAN_THRESHOLD = .9829;
 
     /**
      * Fuzz tests are tagged with this tag to allow Gradle/JUnit

@@ -33,6 +33,12 @@ message Everything {
 
   InnerEverything innerEverything = 50;
 
+  map<int32, string> mapInt32ToString = 71;
+  map<bool, double> mapBoolToDouble = 72;
+  map<string, InnerEverything> mapStringToMessage = 73;
+  map<uint64, bytes> mapUInt64ToBytes = 74;
+  map<int64, bool> mapInt64ToBool = 75;
+
   repeated int32 int32NumberList = 100;
   repeated sint32 sint32NumberList = 102;
   repeated uint32 uint32NumberList = 103;

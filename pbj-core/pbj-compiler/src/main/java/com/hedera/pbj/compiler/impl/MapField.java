@@ -58,13 +58,10 @@ public record MapField(
                         FieldType.of(mapContext.type_(), lookupHelper),
                         2,
                         "___" + mapContext.mapName().getText() + "__value",
-                        mapContext.type_().messageType() == null ? null : mapContext.type_().messageType().messageName().getText(),
-                        mapContext.type_().messageType() == null || mapContext.type_().messageType().messageName().getText() == null ? null :
-                                lookupHelper.getPackageFieldMessageType(FileType.MODEL, mapContext.type_()),
-                        mapContext.type_().messageType() == null || mapContext.type_().messageType().messageName().getText() == null ? null :
-                                lookupHelper.getPackageFieldMessageType(FileType.CODEC, mapContext.type_()),
-                        mapContext.type_().messageType() == null || mapContext.type_().messageType().messageName().getText() == null ? null :
-                                lookupHelper.getPackageFieldMessageType(FileType.TEST, mapContext.type_()),
+                        Field.extractMessageTypeName(mapContext.type_()),
+                        Field.extractMessageTypePackage(mapContext.type_(), FileType.MODEL, lookupHelper),
+                        Field.extractMessageTypePackage(mapContext.type_(), FileType.CODEC, lookupHelper),
+                        Field.extractMessageTypePackage(mapContext.type_(), FileType.TEST, lookupHelper),
                         "An internal, private map entry value for " + mapContext.mapName().getText(),
                         false,
                         null),
