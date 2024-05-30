@@ -87,18 +87,6 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
             return NOT_SUPPORTED;
         }
 
-        // If Content-Type does not begin with "application/grpc", gRPC servers SHOULD respond with HTTP status of
-        // 415 (Unsupported Media Type). This will prevent other HTTP/2 clients from interpreting a gRPC error
-        // response, which uses status 200 (OK), as successful.
-        // See https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
-        final var httpHeaders = headers.httpHeaders();
-        final var contentType = httpHeaders.value(HeaderNames.CONTENT_TYPE).orElse("");
-        if (!contentType.startsWith("application/grpc")) {
-            return new SubProtocolResult(true,
-                    new PbjErrorProtocolHandler(streamWriter, streamId, currentStreamState, h ->
-                            h.set(Http2Headers.STATUS_NAME, Status.UNSUPPORTED_MEDIA_TYPE_415.code())));
-        }
-
         // Look up the route based on the path. If that route does not exist, we return a 200 OK response with
         // a gRPC status of NOT_FOUND.
         final var routing = router.routing(PbjRouting.class, EMPTY);
@@ -114,8 +102,6 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
                 new PbjProtocolHandler(headers,
                         streamWriter,
                         streamId,
-                        serverSettings,
-                        clientSettings,
                         flowControl,
                         currentStreamState,
                         config,
