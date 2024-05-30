@@ -28,13 +28,13 @@ import io.helidon.http.HttpMediaType;
 import io.helidon.http.HttpMediaTypes;
 import io.helidon.http.Status;
 import io.helidon.http.WritableHeaders;
+import io.helidon.http.http2.FlowControl;
 import io.helidon.http.http2.Http2Flag;
 import io.helidon.http.http2.Http2FrameData;
 import io.helidon.http.http2.Http2FrameHeader;
 import io.helidon.http.http2.Http2FrameTypes;
 import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2RstStream;
-import io.helidon.http.http2.Http2Settings;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
@@ -65,12 +65,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private static final Pattern GRPC_TIMEOUT_PATTERN = Pattern.compile(GRPC_TIMEOUT_REGEX);
 
     // Helidon-specific fields related to the connection itself
-    private final HttpPrologue prologue;
     private final Http2Headers headers;
     private final Http2StreamWriter streamWriter;
     private final int streamId;
-    private final Http2Settings serverSettings;
-    private final Http2Settings clientSettings;
     private final StreamFlowControl flowControl;
     private Http2StreamState currentStreamState;
 
@@ -85,12 +82,12 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * deadline has been met. The detector runs on a background thread/timer.
      */
     private final DeadlineDetector deadlineDetector;
-    /** A future representing the background task detecting deadlines. */
-    private ScheduledFuture<?> deadlineFuture = new NoopScheduledFuture();
-    /** Whether the next incoming message is compressed. */
-    private boolean isCompressed;
-    /** The encoding as determined by the grpc-encoding header. Will not be null. */
-    private Encoding encoding;
+    /**
+     * A future representing the background task detecting deadlines. If there is a deadline, then this future will
+     * represent the task that will be executed when the deadline is reached. If there is no deadline, then we default
+     * to a non-null no-op future that exists in the infinite future.
+     */
+    private ScheduledFuture<?> deadlineFuture;
     /** The current index into {@link #entityBytes} into which data is to be read. */
     private int entityBytesIndex = 0;
     /**
@@ -123,8 +120,6 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         this.headers = requireNonNull(headers);
         this.streamWriter = requireNonNull(streamWriter);
         this.streamId = streamId;
-        this.serverSettings = requireNonNull(serverSettings);
-        this.clientSettings = requireNonNull(clientSettings);
         this.flowControl = requireNonNull(flowControl);
         this.currentStreamState = requireNonNull(currentStreamState);
         this.config = requireNonNull(config);
@@ -318,7 +313,6 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             if (header.flags(Http2FrameTypes.DATA).endOfStream()) {
                 entityBytesIndex = 0;
                 entityBytes = null;
-//                listener.onHalfClose();
                 currentStreamState = Http2StreamState.HALF_CLOSED_LOCAL;
                 incoming.onComplete();
             }
@@ -417,7 +411,22 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             grpcHeaders.set(messageEncoding);
         }
 
-        Http2Headers http2Headers = Http2Headers.create(writable);
+            streamWriter.writeData(new Http2FrameData(header, bufferData), flowControl.outbound());
+        } catch (final Exception e) {
+            LOGGER.log(ERROR, "Failed to respond to grpc request: " + route.method(), e);
+        }
+    }
+
+    private synchronized void close() {
+        final var responseHeaders = WritableHeaders.create();
+        // Canceling a future that has already completed has no effect. So by canceling here, we are saying:
+        // "If you have not yet executed, never execute. If you have already executed, then just ignore me".
+        // The "isCancelled" flag is set if the future was canceled before it was executed.
+        deadlineFuture.cancel(false);
+        // If the deadline was canceled, then we have not yet responded to the client. So the response is OK. On the
+        // other hand, if th deadline was NOT canceled, then the deadline was exceeded.
+        responseHeaders.set(deadlineFuture.isCancelled() ? GrpcStatus.OK : GrpcStatus.DEADLINE_EXCEEDED);
+        final var http2Headers = Http2Headers.create(responseHeaders);
         streamWriter.writeHeaders(http2Headers,
                 streamId,
                 Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS),
