@@ -14,10 +14,7 @@ import com.hedera.pbj.runtime.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.buffers.BufferData;
-import io.helidon.common.media.type.MediaType;
-import io.helidon.common.media.type.MediaTypes;
 import io.helidon.http.Header;
-import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
 import io.helidon.http.HttpMediaType;
 import io.helidon.http.HttpMediaTypes;
@@ -35,7 +32,6 @@ import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
 import io.helidon.http.http2.StreamFlowControl;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
-import java.net.http.HttpHeaders;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -43,7 +39,6 @@ import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
-import javax.security.auth.callback.Callback;
 
 /**
  * Implementation of gRPC relying on PBJ. This class specifically contains the glue logic for bridging between
