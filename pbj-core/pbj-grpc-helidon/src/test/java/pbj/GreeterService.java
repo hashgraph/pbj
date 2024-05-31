@@ -1,13 +1,12 @@
 package pbj;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.hedera.pbj.runtime.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import greeter.HelloReply;
-import greeter.HelloReplyOuterClass;
 import greeter.HelloRequest;
-import greeter.HelloRequestOuterClass;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -53,31 +52,11 @@ public interface GreeterService extends ServiceInterface {
             try {
                 switch (m) {
                     case GreeterMethod.sayHello -> {
-                        // Block waiting for the next message
+                        // Unary request
                         final var message = messages.take();
-                        // Parse the message into a HelloRequest
-                        HelloRequest request;
-                        if (options.isProtobuf()) {
-                            request = HelloRequest.parseFrom(message.toByteArray());
-                        } else if (options.isJson()) {
-                            final var builder = HelloRequest.newBuilder();
-                            JsonFormat.parser().merge(message.asUtf8String(), builder);
-                            request = builder.build();
-                        } else {
-                            request = HelloRequest.newBuilder().setName(message.asUtf8String()).build();
-                        }
-                        // Call the service method
+                        final var request = parseRequest(message, options);
                         final var reply = sayHello(request);
-                        // Convert the reply back into the appropriate format
-                        Bytes replyBytes;
-                        if (options.isProtobuf()) {
-                            replyBytes = Bytes.wrap(reply.toByteArray());
-                        } else if (options.isJson()) {
-                            replyBytes = Bytes.wrap(JsonFormat.printer().print(reply));
-                        } else {
-                            replyBytes = Bytes.wrap(reply.getMessage().getBytes());
-                        }
-                        // Send back the reply and close the stream (unary).
+                        final var replyBytes = createReply(reply, options);
                         callback.send(replyBytes);
                         callback.close();
                     }
@@ -87,5 +66,29 @@ public interface GreeterService extends ServiceInterface {
                 callback.close();
             }
         });
+    }
+
+    private HelloRequest parseRequest(Bytes message, RequestOptions options) throws InvalidProtocolBufferException {
+        HelloRequest request;
+        if (options.isProtobuf()) {
+            request = HelloRequest.parseFrom(message.toByteArray());
+        } else if (options.isJson()) {
+            final var builder = HelloRequest.newBuilder();
+            JsonFormat.parser().merge(message.asUtf8String(), builder);
+            request = builder.build();
+        } else {
+            request = HelloRequest.newBuilder().setName(message.asUtf8String()).build();
+        }
+        return request;
+    }
+
+    private Bytes createReply(HelloReply reply, RequestOptions options) throws InvalidProtocolBufferException {
+        if (options.isProtobuf()) {
+            return Bytes.wrap(reply.toByteArray());
+        } else if (options.isJson()) {
+            return Bytes.wrap(JsonFormat.printer().print(reply));
+        } else {
+            return  Bytes.wrap(reply.getMessage().getBytes());
+        }
     }
 }
