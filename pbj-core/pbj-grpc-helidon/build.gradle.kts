@@ -30,9 +30,18 @@ testModuleInfo {
     requires("io.helidon.webserver.http2")
     requires("io.helidon.webclient.http2")
     requires("com.hedera.node.hapi")
+    requires("com.google.protobuf.util")
     requiresStatic("com.github.spotbugs.annotations")
 }
 
 tasks.named("compileJava") {
     dependsOn(":pbj-runtime:jar")
+}
+
+protobuf {
+    // Configure the protoc executable
+    protoc {
+        // Download from repositories
+        artifact = "com.google.protobuf:protoc:3.21.10"
+    }
 }
