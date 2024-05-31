@@ -3,6 +3,7 @@ package com.hedera.pbj.grpc.helidon;
 import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ACCEPT_ENCODING;
 import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ENCODING;
 import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_TIMEOUT;
+import static com.hedera.pbj.runtime.ServiceInterface.RequestOptions.APPLICATION_GRPC;
 import static com.hedera.pbj.runtime.ServiceInterface.RequestOptions.APPLICATION_GRPC_JSON;
 import static com.hedera.pbj.runtime.ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO;
 import static java.lang.System.Logger.Level.ERROR;
@@ -13,9 +14,12 @@ import com.hedera.pbj.runtime.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.buffers.BufferData;
+import io.helidon.common.media.type.MediaType;
+import io.helidon.common.media.type.MediaTypes;
 import io.helidon.http.Header;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
+import io.helidon.http.HttpMediaType;
 import io.helidon.http.HttpMediaTypes;
 import io.helidon.http.Status;
 import io.helidon.http.WritableHeaders;
@@ -39,6 +43,7 @@ import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import javax.security.auth.callback.Callback;
 
 /**
  * Implementation of gRPC relying on PBJ. This class specifically contains the glue logic for bridging between
@@ -48,6 +53,11 @@ import java.util.regex.Pattern;
 final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler {
     private static final System.Logger LOGGER = System.getLogger(PbjProtocolHandler.class.getName());
     private static final String IDENTITY = "identity";
+
+    private static final HttpMediaType APPLICATION_GRPC_MEDIA_TYPE = HttpMediaType.create(APPLICATION_GRPC);
+    private static final HttpMediaType APPLICATION_GRPC_PROTO_MEDIA_TYPE = HttpMediaType.create(APPLICATION_GRPC_PROTO);
+    private static final HttpMediaType APPLICATION_GRPC_JSON_MEDIA_TYPE = HttpMediaType.create(APPLICATION_GRPC_JSON);
+
     private static final Header GRPC_ENCODING_IDENTITY = HeaderValues.createCached("grpc-encoding", IDENTITY);
 
     private static final String GRPC_TIMEOUT_REGEX = "(\\d{1,8})([HMSmun])";
@@ -106,26 +116,6 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         this.deadlineDetector = requireNonNull(deadlineDetector);
     }
 
-    private ScheduledFuture<?> scheduleDeadline(final @NonNull String timeout) {
-        final var matcher = GRPC_TIMEOUT_PATTERN.matcher(timeout);
-        if (matcher.matches()) {
-            final var num = Integer.parseInt(matcher.group(0));
-            final var unit = matcher.group(1);
-            final var deadline = System.nanoTime() + num * switch (unit) {
-                case "H" -> 3600_000_000_000L;
-                case "M" -> 60_000_000_000L;
-                case "S" -> 1_000_000_000L;
-                case "m" -> 1_000_000L;
-                case "u" -> 1_000L;
-                case "n" -> 1L;
-                default -> throw new IllegalArgumentException("Invalid unit: " + unit);
-            };
-            return deadlineDetector.scheduleDeadline(deadline, this::close);
-        }
-
-        return new NoopScheduledFuture();
-    }
-
     /**
      * Called at the very beginning of the request, before any data has arrived. At this point we can look at the
      * request headers and determine whether we have a valid request, and do any other initialization we need ot.
@@ -139,12 +129,13 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // See https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
             // In addition, "application/grpc" is interpreted as "application/grpc+proto".
             final var httpHeaders = headers.httpHeaders();
-            final var ct = httpHeaders.contentType().orElse(HttpMediaTypes.PLAINTEXT_UTF_8).text();
+            final var contentTypeMediaType = httpHeaders.contentType().orElse(HttpMediaTypes.PLAINTEXT_UTF_8);
+            final var ct = contentTypeMediaType.text();
             final var contentType = switch(ct) {
-                case "application/grpc", "application/grpc+proto" -> APPLICATION_GRPC_PROTO;
-                case "application/grpc+json" -> APPLICATION_GRPC_JSON;
+                case APPLICATION_GRPC, APPLICATION_GRPC_PROTO -> APPLICATION_GRPC_PROTO;
+                case APPLICATION_GRPC_JSON -> APPLICATION_GRPC_JSON;
                 default -> {
-                    if (ct.startsWith("application/grpc")) {
+                    if (ct.startsWith(APPLICATION_GRPC)) {
                         yield ct;
                     }
                     throw new FatalGrpcException(Status.UNSUPPORTED_MEDIA_TYPE_415);
@@ -190,7 +181,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
             // Send the headers to the client. This is the first thing we do, and it is done before any data is sent.
             final var responseHeaders = WritableHeaders.create();
-            responseHeaders.set(HeaderNames.CONTENT_TYPE, contentType); // Respond with the same content type we received
+            responseHeaders.contentType(contentTypeMediaType);
             responseHeaders.set(GRPC_ENCODING_IDENTITY);
             responseHeaders.set(GrpcStatus.OK);
             final var http2Headers = Http2Headers.create(responseHeaders);
@@ -335,13 +326,37 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         deadlineFuture.cancel(false);
         // If the deadline was canceled, then we have not yet responded to the client. So the response is OK. On the
         // other hand, if th deadline was NOT canceled, then the deadline was exceeded.
-        responseHeaders.set(deadlineFuture.isCancelled() ? GrpcStatus.OK : GrpcStatus.DEADLINE_EXCEEDED);
+//        if (!deadlineFuture.isCancelled()) {
+            responseHeaders.set(GrpcStatus.OK);
+//        } else {
+//            responseHeaders.set(GrpcStatus.DEADLINE_EXCEEDED);
+//        }
         final var http2Headers = Http2Headers.create(responseHeaders);
         streamWriter.writeHeaders(http2Headers,
                 streamId,
                 Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
                 flowControl.outbound());
         currentStreamState = Http2StreamState.HALF_CLOSED_LOCAL;
+    }
+
+    private ScheduledFuture<?> scheduleDeadline(final @NonNull String timeout) {
+        final var matcher = GRPC_TIMEOUT_PATTERN.matcher(timeout);
+        if (matcher.matches()) {
+            final var num = Integer.parseInt(matcher.group(0));
+            final var unit = matcher.group(1);
+            final var deadline = System.nanoTime() + num * switch (unit) {
+                case "H" -> 3600_000_000_000L;
+                case "M" -> 60_000_000_000L;
+                case "S" -> 1_000_000_000L;
+                case "m" -> 1_000_000L;
+                case "u" -> 1_000L;
+                case "n" -> 1L;
+                default -> throw new IllegalArgumentException("Invalid unit: " + unit);
+            };
+            return deadlineDetector.scheduleDeadline(deadline, this::close);
+        }
+
+        return new NoopScheduledFuture();
     }
 
     private final class Callback implements ServiceInterface.ResponseCallback {
