@@ -21,7 +21,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.buffers.BufferData;
 import io.helidon.common.uri.UriEncoding;
 import io.helidon.http.Header;
-import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
 import io.helidon.http.HttpException;
 import io.helidon.http.HttpMediaType;
@@ -48,7 +47,6 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
-import javax.security.auth.callback.Callback;
 
 /**
  * Implementation of gRPC based on PBJ. This class specifically contains the glue logic for bridging between
