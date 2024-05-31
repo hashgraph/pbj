@@ -1,11 +1,8 @@
 package com.hedera.pbj.grpc.helidon;
 
-import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ACCEPT_ENCODING;
-import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ENCODING;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.helidon.http.HeaderNames;
 import io.helidon.http.HttpPrologue;
 import io.helidon.http.Method;
 import io.helidon.http.Status;

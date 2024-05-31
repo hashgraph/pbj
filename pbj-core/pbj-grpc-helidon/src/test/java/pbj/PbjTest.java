@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.protobuf.util.JsonFormat;
 import com.hedera.pbj.grpc.helidon.GrpcStatus;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import greeter.HelloReply;
@@ -26,7 +25,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class PbjTest {
-    private static final MediaType APPLICATION_GRPC = HttpMediaType.create("application/grpc");
     private static final MediaType APPLICATION_GRPC_PROTO = HttpMediaType.create("application/grpc+proto");
     private static final MediaType APPLICATION_GRPC_JSON = HttpMediaType.create("application/grpc+json");
     private static final MediaType APPLICATION_GRPC_STRING = HttpMediaType.create("application/grpc+string");
@@ -145,14 +143,13 @@ class PbjTest {
 
     /** Verify that "application/grpc+json" requests are accepted */
     @Test
-    void contentTypeCanBeJSON() throws ParseException {
+    void contentTypeCanBeJSON() {
         try (var response = CLIENT.post()
                 .protocolId("h2")
                 .path(SAY_HELLO_PATH)
                 .contentType(APPLICATION_GRPC_JSON)
                 .submit(messageBytesJson(SIMPLE_REQUEST))) {
 
-            // TODO Verify the response is valid JSON
             assertThat(response.status().code()).isEqualTo(200);
             assertThat(response.headers().contentType().orElseThrow().text())
                     .isEqualTo("application/grpc+json");
@@ -165,7 +162,7 @@ class PbjTest {
     /** Verify that "application/grpc+proto" and "application/grpc" both support protobuf encoding */
     @ParameterizedTest
     @ValueSource(strings = { "application/grpc+proto", "application/grpc" })
-    void contentTypeCanBeProtobuf(final String contentType) throws ParseException {
+    void contentTypeCanBeProtobuf(final String contentType) {
         try (var response = CLIENT.post()
                 .protocolId("h2")
                 .path(SAY_HELLO_PATH)
@@ -244,25 +241,6 @@ class PbjTest {
     //
     // TESTS:
     //   - TBD
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Compression
-    //
-    // SPEC:
-    //
-    // The repeated sequence of Length-Prefixed-Message items is delivered in DATA frames
-    //
-    //  - Length-Prefixed-Message → Compressed-Flag Message-Length Message
-    //  - Compressed-Flag → 0 / 1 # encoded as 1 byte unsigned integer
-    //  - Message-Length → {length of Message} # encoded as 4 byte unsigned integer (big endian)
-    //  - Message → *{binary octet}
-    //
-    // A Compressed-Flag value of 1 indicates that the binary octet sequence of Message is compressed using the
-    // mechanism declared by the Message-Encoding header. A value of 0 indicates that no encoding of Message bytes has
-    // occurred. Compression contexts are NOT maintained over message boundaries, implementations must create a new
-    // context for each message in the stream. If the Message-Encoding header is omitted then the Compressed-Flag must
-    // be 0.
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     /**
