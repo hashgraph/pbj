@@ -2,17 +2,14 @@ package pbj;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
-import com.hedera.hapi.node.transaction.Query;
-import com.hedera.hapi.node.transaction.Response;
-import com.hedera.hapi.node.transaction.TransactionResponse;
+import com.google.protobuf.util.JsonFormat;
 import com.hedera.pbj.grpc.helidon.GrpcStatus;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import greeter.HelloReply;
+import greeter.HelloRequest;
 import io.helidon.common.media.type.MediaType;
 import io.helidon.common.media.type.MediaTypes;
 import io.helidon.http.HeaderNames;
@@ -32,13 +29,17 @@ class PbjTest {
     private static final MediaType APPLICATION_GRPC = HttpMediaType.create("application/grpc");
     private static final MediaType APPLICATION_GRPC_PROTO = HttpMediaType.create("application/grpc+proto");
     private static final MediaType APPLICATION_GRPC_JSON = HttpMediaType.create("application/grpc+json");
+    private static final MediaType APPLICATION_GRPC_STRING = HttpMediaType.create("application/grpc+string");
     private static final MediaType APPLICATION_RANDOM = HttpMediaType.create("application/random");
     private static WebClient CLIENT;
-    private static final String SUBMIT_MESSAGE_PATH = "/proto.ConsensusService/submitMessage";
-    private static final String ECHO_PATH = "/proto.TestService/echo";
-    private static final TransactionResponse SUCCESSFUL_TRANSACTION_RESPONSE = TransactionResponse.newBuilder()
-            .cost(100)
-            .nodeTransactionPrecheckCode(ResponseCodeEnum.SUCCESS)
+    private static final String SAY_HELLO_PATH = "/greeter.GreeterService/sayHello";
+
+    private static final HelloRequest SIMPLE_REQUEST = HelloRequest.newBuilder()
+            .setName("PBJ")
+            .build();
+
+    private static final HelloReply SIMPLE_REPLY = HelloReply.newBuilder()
+            .setMessage("Hello PBJ")
             .build();
 
     @BeforeAll
@@ -47,8 +48,7 @@ class PbjTest {
         WebServer.builder()
                 .port(8080)
                 .addRouting(PbjRouting.builder()
-                        .service(new ConsensusServiceImpl())
-                        .service(new CustomServiceImpl()))
+                        .service(new GreeterServiceImpl()))
                 .build()
                 .start();
 
@@ -74,8 +74,8 @@ class PbjTest {
         try (var response = CLIENT.post()
                 .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
-                .path(SUBMIT_MESSAGE_PATH.toUpperCase())
-                .submit(messageBytes(Transaction.DEFAULT))) {
+                .path(SAY_HELLO_PATH.toUpperCase())
+                .submit(messageBytes(SIMPLE_REQUEST))) {
             assertThat(response.status().code()).isEqualTo(200);
             assertThat(response.headers().get(GrpcStatus.STATUS_NAME)).isEqualTo(GrpcStatus.NOT_FOUND);
         }
@@ -96,7 +96,7 @@ class PbjTest {
         try (var response = CLIENT.method(Method.create(methodName))
                 .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
-                .path(SUBMIT_MESSAGE_PATH)
+                .path(SAY_HELLO_PATH)
                 .request()) {
 
             // This is consistent with existing behavior on Helidon, but I would have expected the response code
@@ -123,8 +123,8 @@ class PbjTest {
     void contentTypeMustBeSet() {
         try (var response = CLIENT.post()
                 .protocolId("h2")
-                .path(SUBMIT_MESSAGE_PATH)
-                .submit(messageBytes(Transaction.DEFAULT))) {
+                .path(SAY_HELLO_PATH)
+                .submit(messageBytes(SIMPLE_REQUEST))) {
 
             assertThat(response.status().code()).isEqualTo(415);
         }
@@ -135,9 +135,9 @@ class PbjTest {
     void contentTypeMustStartWithApplicationGrpc() {
         try (var response = CLIENT.post()
                 .protocolId("h2")
-                .path(SUBMIT_MESSAGE_PATH)
+                .path(SAY_HELLO_PATH)
                 .contentType(APPLICATION_RANDOM)
-                .submit(messageBytes(Transaction.DEFAULT))) {
+                .submit(messageBytes(SIMPLE_REQUEST))) {
 
             assertThat(response.status().code()).isEqualTo(415);
         }
@@ -148,17 +148,17 @@ class PbjTest {
     void contentTypeCanBeJSON() throws ParseException {
         try (var response = CLIENT.post()
                 .protocolId("h2")
-                .path(SUBMIT_MESSAGE_PATH)
+                .path(SAY_HELLO_PATH)
                 .contentType(APPLICATION_GRPC_JSON)
-                .submit(messageBytesJson(Transaction.DEFAULT))) {
+                .submit(messageBytesJson(SIMPLE_REQUEST))) {
 
             // TODO Verify the response is valid JSON
             assertThat(response.status().code()).isEqualTo(200);
             assertThat(response.headers().contentType().orElseThrow().text())
                     .isEqualTo("application/grpc+json");
 
-            final var tx = decodeTransactionResponse(new ReadableStreamingData(response.inputStream()));
-            assertThat(tx).isEqualTo(SUCCESSFUL_TRANSACTION_RESPONSE);
+            final var reply = decodeJsonReply(new ReadableStreamingData(response.inputStream()));
+            assertThat(reply).isEqualTo(SIMPLE_REPLY);
         }
     }
 
@@ -168,16 +168,16 @@ class PbjTest {
     void contentTypeCanBeProtobuf(final String contentType) throws ParseException {
         try (var response = CLIENT.post()
                 .protocolId("h2")
-                .path(SUBMIT_MESSAGE_PATH)
+                .path(SAY_HELLO_PATH)
                 .contentType(MediaTypes.create(contentType))
-                .submit(messageBytes(Transaction.DEFAULT))) {
+                .submit(messageBytes(SIMPLE_REQUEST))) {
 
             assertThat(response.status().code()).isEqualTo(200);
             assertThat(response.headers().contentType().orElseThrow().text())
-                    .isEqualTo("application/grpc+proto");
+                    .isEqualTo(contentType);
 
-            final var tx = decodeTransactionResponse(new ReadableStreamingData(response.inputStream()));
-            assertThat(tx).isEqualTo(SUCCESSFUL_TRANSACTION_RESPONSE);
+            final var tx = decodeReply(new ReadableStreamingData(response.inputStream()));
+            assertThat(tx).isEqualTo(SIMPLE_REPLY);
         }
     }
 
@@ -186,18 +186,18 @@ class PbjTest {
     void contentTypeCanBeCustom() throws IOException {
         try (var response = CLIENT.post()
                 .protocolId("h2")
-                .path(ECHO_PATH)
-                .contentType(MediaTypes.create("application/grpc+string"))
-                .submit(messageBytes("Hello, dude!".getBytes(StandardCharsets.UTF_8)))) {
+                .path(SAY_HELLO_PATH)
+                .contentType(APPLICATION_GRPC_STRING)
+                .submit(messageBytes("dude".getBytes(StandardCharsets.UTF_8)))) {
 
             assertThat(response.status().code()).isEqualTo(200);
             assertThat(response.headers().contentType().orElseThrow().text())
-                    .isEqualTo("application/grpc+string");
+                    .isEqualTo(APPLICATION_GRPC_STRING.text());
 
             // The first five bytes are framing -- compression + length
             final var data = response.inputStream().readAllBytes();
             assertThat(new String(data, 5, data.length - 5, StandardCharsets.UTF_8))
-                    .isEqualTo("Hello, dude!");
+                    .isEqualTo("Hello dude");
         }
     }
 
@@ -275,9 +275,9 @@ class PbjTest {
         try (var response = CLIENT.post()
                 .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
-                .path(SUBMIT_MESSAGE_PATH)
+                .path(SAY_HELLO_PATH)
                 .header(HeaderNames.create("grpc-encoding"), grpcEncoding)
-                .submit(messageBytes(Transaction.DEFAULT))) {
+                .submit(messageBytes(SIMPLE_REQUEST))) {
 
             assertThat(response.status().code()).isEqualTo(200);
             assertThat(response.headers().get(GrpcStatus.STATUS_NAME).values()).isEqualTo(GrpcStatus.UNIMPLEMENTED.values());
@@ -298,11 +298,11 @@ class PbjTest {
         try (var response = CLIENT.post()
                 .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
-                .path(SUBMIT_MESSAGE_PATH)
-                .submit(messageBytes(Transaction.DEFAULT))) {
+                .path(SAY_HELLO_PATH)
+                .submit(messageBytes(HelloRequest.newBuilder().setName("PBJ").build()))) {
 
             assertThat(response.status().code()).isEqualTo(200);
-            assertThat(response.headers().get(GrpcStatus.STATUS_NAME)).isEqualTo(GrpcStatus.OK);
+            assertThat(response.headers().get(GrpcStatus.STATUS_NAME).values()).isEqualTo(GrpcStatus.OK.values());
 
             final var rsd = new ReadableStreamingData(response.inputStream());
             assertThat(rsd.readByte()).isEqualTo((byte) 0); // No Compression (we didn't ask for it)
@@ -310,9 +310,8 @@ class PbjTest {
             final var responseLength = (int) rsd.readUnsignedInt();
             final var responseData = new byte[responseLength];
             rsd.readBytes(responseData);
-            final var txr = TransactionResponse.PROTOBUF.parse(Bytes.wrap(responseData));
-
-            assertThat(txr).isEqualTo(TransactionResponse.DEFAULT);
+            final var reply = HelloReply.parseFrom(responseData);
+            assertThat(reply.getMessage()).isEqualTo("Hello PBJ");
         }
     }
 
@@ -341,12 +340,30 @@ class PbjTest {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Utility methods
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    private TransactionResponse decodeTransactionResponse(ReadableStreamingData rsd) throws ParseException {
-        assertThat(rsd.readByte()).isEqualTo((byte) 0); // No Compression
-        final var responseLength = (int) rsd.readUnsignedInt();
-        final var responseData = new byte[responseLength];
-        rsd.readBytes(responseData);
-        return TransactionResponse.PROTOBUF.parse(Bytes.wrap(responseData));
+    private HelloReply decodeReply(ReadableStreamingData rsd) {
+        try {
+            assertThat(rsd.readByte()).isEqualTo((byte) 0); // No Compression
+            final var responseLength = (int) rsd.readUnsignedInt();
+            final var responseData = new byte[responseLength];
+            rsd.readBytes(responseData);
+            return HelloReply.parseFrom(responseData);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private HelloReply decodeJsonReply(ReadableStreamingData rsd) {
+        try {
+            assertThat(rsd.readByte()).isEqualTo((byte) 0); // No Compression
+            final var responseLength = (int) rsd.readUnsignedInt();
+            final var responseData = new byte[responseLength];
+            rsd.readBytes(responseData);
+            final var builder = HelloReply.newBuilder();
+            JsonFormat.parser().merge(new String(responseData, StandardCharsets.UTF_8), builder);
+            return builder.build();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private byte[] messageBytes(byte[] data) {
@@ -358,49 +375,26 @@ class PbjTest {
         return out.toByteArray();
     }
 
-    private byte[] messageBytes(Transaction tx) {
-        final var data = Transaction.PROTOBUF.toBytes(tx).toByteArray();
+    private byte[] messageBytes(HelloRequest req) {
+        final var data = req.toByteArray();
         return messageBytes(data);
     }
 
-    private byte[] messageBytesJson(Transaction tx) {
-        final var data = Transaction.JSON.toBytes(tx).toByteArray();
-        return messageBytes(data);
-    }
-
-    private static final class ConsensusServiceImpl implements ConsensusService {
-        @Override
-        public TransactionResponse createTopic(Transaction tx) {
-            throw new RuntimeException("Some kind of Runtime exception is thrown!");
-        }
-
-        @Override
-        public TransactionResponse updateTopic(Transaction tx) {
-            return SUCCESSFUL_TRANSACTION_RESPONSE;
-        }
-
-        @Override
-        public TransactionResponse deleteTopic(Transaction tx) {
-            return SUCCESSFUL_TRANSACTION_RESPONSE;
-        }
-
-        @Override
-        public TransactionResponse submitMessage(Transaction tx) {
-            return SUCCESSFUL_TRANSACTION_RESPONSE;
-        }
-
-        @Override
-        public Response getTopicInfo(Query q) {
-            System.out.println("Getting topic info");
-            return Response.DEFAULT;
+    private byte[] messageBytesJson(HelloRequest req) {
+        try {
+            final var data = JsonFormat.printer().print(req).getBytes(StandardCharsets.UTF_8);
+            return messageBytes(data);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
-    private static final class CustomServiceImpl implements TestService {
+    private static final class GreeterServiceImpl implements GreeterService {
         @Override
-        public String echo(String message) {
-            System.out.println("Echoing message: " + message);
-            return message;
+        public HelloReply sayHello(HelloRequest request) {
+            return HelloReply.newBuilder()
+                    .setMessage("Hello " + request.getName())
+                    .build();
         }
     }
 }
