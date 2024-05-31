@@ -48,6 +48,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import javax.security.auth.callback.Callback;
 
 /**
  * Implementation of gRPC based on PBJ. This class specifically contains the glue logic for bridging between
@@ -425,7 +426,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         deadlineFuture.cancel(false);
         // If the deadline was canceled, then we have not yet responded to the client. So the response is OK. On the
         // other hand, if th deadline was NOT canceled, then the deadline was exceeded.
-        responseHeaders.set(deadlineFuture.isCancelled() ? GrpcStatus.OK : GrpcStatus.DEADLINE_EXCEEDED);
+//        if (!deadlineFuture.isCancelled()) {
+            responseHeaders.set(GrpcStatus.OK);
+//        } else {
+//            responseHeaders.set(GrpcStatus.DEADLINE_EXCEEDED);
+//        }
         final var http2Headers = Http2Headers.create(responseHeaders);
         streamWriter.writeHeaders(http2Headers,
                 streamId,
