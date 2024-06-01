@@ -55,6 +55,10 @@ dependencyResolutionManagement {
             version("org.mockito", "4.6.1")
             version("org.mockito.inline", "4.6.1")
             version("org.mockito.junit.jupiter", "5.10.0")
+            version("io.grpc.netty", "1.61.1")
+            version("io.grpc.protobuf", "1.61.1")
+            version("io.grpc.stub", "1.61.1")
+            version("javax.annotation", "1.3.2")
         }
     }
 }

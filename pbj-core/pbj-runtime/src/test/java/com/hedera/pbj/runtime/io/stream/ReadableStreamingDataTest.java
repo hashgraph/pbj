@@ -152,7 +152,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
     }
 
     @Test
-    @DisplayName("Streams can be closed twice")
+    @DisplayName("Pipelines can be closed twice")
     void closeTwice() {
         try (var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8))) {
             stream.close();
