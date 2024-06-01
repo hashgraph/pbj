@@ -1,10 +1,9 @@
-package com.hedera.pbj.runtime;
+package com.hedera.pbj.runtime.grpc;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Flow;
 
 /**
  * Defines a common interface for all implementations of a gRPC {@code service}. PBJ will generate a subinterface
@@ -65,28 +64,6 @@ public interface ServiceInterface {
         String contentType();
     }
 
-    /**
-     * Through this interface the {@link ServiceInterface} implementation will send responses back to the client.
-     * The {@link #close()} method is called after all responses have been sent.
-     *
-     * <p>It is not common for an application to implement or use this interface. It is typically implemented by
-     * a webserver to integrate PBJ into that server.
-     */
-    interface ResponseCallback {
-        /**
-         * Called to send a single response message to the client. For unary methods, this will be called once. For
-         * server-side streaming or bidi-streaming, this may be called many times.
-         *
-         * @param response A response message to send to the client.
-         */
-        void send(@NonNull Bytes response);
-
-        /**
-         * Called to close the connection with the client, signaling that no more responses will be sent.
-         */
-        void close();
-    }
-
     /** Gets the simple name of the service. For example, "HelloService". */
     @NonNull String serviceName();
     /** Gets the full name of the service. For example, "example.HelloService". */
@@ -102,12 +79,11 @@ public interface ServiceInterface {
      *
      * @param opts Any options from the request, such as the content type.
      * @param method The method that was called by the client.
-     * @param messages A blocking queue of messages sent by the client.
+     * @param messages A source of messages sent by the client.
      * @param callback A callback to send responses back to the client.
      */
-    void open(
+    Flow.Subscriber<? super Bytes> open(
             @NonNull RequestOptions opts,
             @NonNull Method method,
-            @NonNull BlockingQueue<Bytes> messages,
-            @NonNull ResponseCallback callback);
+            @NonNull Flow.Subscriber<? super Bytes> responses);
 }
