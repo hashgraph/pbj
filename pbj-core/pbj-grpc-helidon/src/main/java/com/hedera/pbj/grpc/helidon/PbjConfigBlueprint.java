@@ -1,6 +1,6 @@
 package com.hedera.pbj.grpc.helidon;
 
-import com.hedera.pbj.runtime.ServiceInterface;
+import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import io.helidon.builder.api.Option;
 import io.helidon.builder.api.Prototype;
 import io.helidon.webserver.spi.ProtocolConfig;

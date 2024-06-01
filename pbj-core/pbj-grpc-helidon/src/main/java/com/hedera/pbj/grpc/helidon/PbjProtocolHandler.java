@@ -3,20 +3,18 @@ package com.hedera.pbj.grpc.helidon;
 import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ACCEPT_ENCODING;
 import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ENCODING;
 import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_TIMEOUT;
-import static com.hedera.pbj.runtime.ServiceInterface.RequestOptions.APPLICATION_GRPC;
-import static com.hedera.pbj.runtime.ServiceInterface.RequestOptions.APPLICATION_GRPC_JSON;
-import static com.hedera.pbj.runtime.ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO;
+import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC;
+import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_JSON;
+import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO;
 import static java.lang.System.Logger.Level.ERROR;
-import static java.lang.System.Logger.Level.WARNING;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.pbj.runtime.ServiceInterface;
+import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.buffers.BufferData;
 import io.helidon.http.Header;
 import io.helidon.http.HeaderValues;
-import io.helidon.http.HttpMediaType;
 import io.helidon.http.HttpMediaTypes;
 import io.helidon.http.Status;
 import io.helidon.http.WritableHeaders;
@@ -32,10 +30,9 @@ import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
 import io.helidon.http.http2.StreamFlowControl;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -48,10 +45,6 @@ import java.util.regex.Pattern;
 final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler {
     private static final System.Logger LOGGER = System.getLogger(PbjProtocolHandler.class.getName());
     private static final String IDENTITY = "identity";
-
-    private static final HttpMediaType APPLICATION_GRPC_MEDIA_TYPE = HttpMediaType.create(APPLICATION_GRPC);
-    private static final HttpMediaType APPLICATION_GRPC_PROTO_MEDIA_TYPE = HttpMediaType.create(APPLICATION_GRPC_PROTO);
-    private static final HttpMediaType APPLICATION_GRPC_JSON_MEDIA_TYPE = HttpMediaType.create(APPLICATION_GRPC_JSON);
 
     private static final Header GRPC_ENCODING_IDENTITY = HeaderValues.createCached("grpc-encoding", IDENTITY);
 
@@ -90,7 +83,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * larger than the system configured {@link PbjConfigBlueprint#maxMessageSize()}.
      */
     private byte[] entityBytes = null;
-    private BlockingQueue<Bytes> incomingMessages;
+    private Flow.Subscriber<? super Bytes> incoming;
+    private Flow.Subscriber<? super Bytes> outgoing;
 
     /** Create a new instance */
     PbjProtocolHandler(final @NonNull PbjConfig config,
@@ -171,8 +165,30 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     contentType);
 
             // Call the ServiceInterface to let it know of the new connection.
-            incomingMessages = new ArrayBlockingQueue<>(config.maxIncomingBufferedMessages());
-            route.service().open(options, route.method(), incomingMessages, new Callback());
+            outgoing = new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    subscription.request(Long.MAX_VALUE); // No flow control here!
+                }
+
+                @Override
+                public void onNext(Bytes item) {
+                    onSendMessage(item);
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    LOGGER.log(ERROR, "Failed to send response", throwable);
+                    close();
+                }
+
+                @Override
+                public void onComplete() {
+                    close();
+                }
+            };
+
+            incoming = route.service().open(options, route.method(), outgoing);
 
             // Send the headers to the client. This is the first thing we do, and it is done before any data is sent.
             final var responseHeaders = WritableHeaders.create();
@@ -267,7 +283,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 if (entityBytesIndex == entityBytes.length) {
                     // Grab and wrap the bytes and reset to being reading the next message
                     final var bytes = Bytes.wrap(entityBytes);
-                    incomingMessages.put(bytes);
+                    incoming.onNext(bytes);
                     entityBytesIndex = 0;
                     entityBytes = null;
                 }
@@ -279,14 +295,12 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 entityBytesIndex = 0;
                 entityBytes = null;
                 currentStreamState = Http2StreamState.HALF_CLOSED_LOCAL;
+                incoming.onComplete();
             }
-        } catch (final InterruptedException ie) {
-            // Thrown when the thread is interrupted while waiting to put a message into the queue. We'll log this
-            // but continue the next time around the loop.
-            LOGGER.log(WARNING, "Interrupted while waiting to put message into queue", ie);
-            Thread.currentThread().interrupt();
         } catch (final Exception e) {
             LOGGER.log(ERROR, "Failed to process grpc request: " + data.debugDataHex(true), e);
+            incoming.onError(e);
+            outgoing.onError(e); // TODO Not sure which.... both?
         }
     }
 
@@ -352,18 +366,6 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         }
 
         return new NoopScheduledFuture();
-    }
-
-    private final class Callback implements ServiceInterface.ResponseCallback {
-        @Override
-        public void send(final @NonNull Bytes response) {
-            PbjProtocolHandler.this.onSendMessage(response);
-        }
-
-        @Override
-        public void close() {
-            PbjProtocolHandler.this.close();
-        }
     }
 
     /**

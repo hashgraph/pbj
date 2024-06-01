@@ -7,18 +7,27 @@ import com.hedera.pbj.grpc.helidon.GrpcStatus;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import greeter.GreeterGrpc;
 import greeter.HelloReply;
 import greeter.HelloRequest;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.stub.StreamObserver;
 import io.helidon.common.media.type.MediaType;
 import io.helidon.common.media.type.MediaTypes;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.HttpMediaType;
 import io.helidon.http.Method;
-import io.helidon.webclient.api.WebClient;
+import io.helidon.webclient.http2.Http2Client;
 import io.helidon.webserver.WebServer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,8 +38,9 @@ class PbjTest {
     private static final MediaType APPLICATION_GRPC_JSON = HttpMediaType.create("application/grpc+json");
     private static final MediaType APPLICATION_GRPC_STRING = HttpMediaType.create("application/grpc+string");
     private static final MediaType APPLICATION_RANDOM = HttpMediaType.create("application/random");
-    private static WebClient CLIENT;
-    private static final String SAY_HELLO_PATH = "/greeter.GreeterService/sayHello";
+    private static Http2Client CLIENT;
+    private static final String SAY_HELLO_PATH = "/greeter.Greeter/sayHello";
+    private static final String SAY_HELLO_CLIENT_STREAM_PATH = "/greeter.Greeter/sayHelloStreamRequest";
 
     private static final HelloRequest SIMPLE_REQUEST = HelloRequest.newBuilder()
             .setName("PBJ")
@@ -39,6 +49,8 @@ class PbjTest {
     private static final HelloReply SIMPLE_REPLY = HelloReply.newBuilder()
             .setMessage("Hello PBJ")
             .build();
+
+    private static ManagedChannel CHANNEL;
 
     @BeforeAll
     static void setup() {
@@ -50,9 +62,14 @@ class PbjTest {
                 .build()
                 .start();
 
-        CLIENT = WebClient.builder()
+        CLIENT = Http2Client.builder()
                 .baseUri("http://localhost:8080")
                 .build();
+
+        CHANNEL = ManagedChannelBuilder.forAddress("localhost", 8080)
+                .usePlaintext()
+                .build();
+
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +87,6 @@ class PbjTest {
     @Test
     void badCaseOnPathIsNotFound() {
         try (var response = CLIENT.post()
-                .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
                 .path(SAY_HELLO_PATH.toUpperCase())
                 .submit(messageBytes(SIMPLE_REQUEST))) {
@@ -92,7 +108,6 @@ class PbjTest {
     @ValueSource(strings = { "GET", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE" })
     void mustUsePost(final String methodName) {
         try (var response = CLIENT.method(Method.create(methodName))
-                .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
                 .path(SAY_HELLO_PATH)
                 .request()) {
@@ -120,7 +135,6 @@ class PbjTest {
     @Test
     void contentTypeMustBeSet() {
         try (var response = CLIENT.post()
-                .protocolId("h2")
                 .path(SAY_HELLO_PATH)
                 .submit(messageBytes(SIMPLE_REQUEST))) {
 
@@ -132,7 +146,6 @@ class PbjTest {
     @Test
     void contentTypeMustStartWithApplicationGrpc() {
         try (var response = CLIENT.post()
-                .protocolId("h2")
                 .path(SAY_HELLO_PATH)
                 .contentType(APPLICATION_RANDOM)
                 .submit(messageBytes(SIMPLE_REQUEST))) {
@@ -145,7 +158,6 @@ class PbjTest {
     @Test
     void contentTypeCanBeJSON() {
         try (var response = CLIENT.post()
-                .protocolId("h2")
                 .path(SAY_HELLO_PATH)
                 .contentType(APPLICATION_GRPC_JSON)
                 .submit(messageBytesJson(SIMPLE_REQUEST))) {
@@ -164,7 +176,6 @@ class PbjTest {
     @ValueSource(strings = { "application/grpc+proto", "application/grpc" })
     void contentTypeCanBeProtobuf(final String contentType) {
         try (var response = CLIENT.post()
-                .protocolId("h2")
                 .path(SAY_HELLO_PATH)
                 .contentType(MediaTypes.create(contentType))
                 .submit(messageBytes(SIMPLE_REQUEST))) {
@@ -182,7 +193,6 @@ class PbjTest {
     @Test
     void contentTypeCanBeCustom() throws IOException {
         try (var response = CLIENT.post()
-                .protocolId("h2")
                 .path(SAY_HELLO_PATH)
                 .contentType(APPLICATION_GRPC_STRING)
                 .submit(messageBytes("dude".getBytes(StandardCharsets.UTF_8)))) {
@@ -251,7 +261,6 @@ class PbjTest {
     @ValueSource(strings = { "gzip", "deflate", "random" })
     void compressionNotSupported(final String grpcEncoding) {
         try (var response = CLIENT.post()
-                .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
                 .path(SAY_HELLO_PATH)
                 .header(HeaderNames.create("grpc-encoding"), grpcEncoding)
@@ -271,26 +280,12 @@ class PbjTest {
     //   - A correct unary call to a failed method should return a 200 OK response with an error code
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    // Intentionally uses grpc.io to verify compatibility
     @Test
-    void unaryCall() throws Exception {
-        try (var response = CLIENT.post()
-                .protocolId("h2")
-                .contentType(APPLICATION_GRPC_PROTO)
-                .path(SAY_HELLO_PATH)
-                .submit(messageBytes(HelloRequest.newBuilder().setName("PBJ").build()))) {
-
-            assertThat(response.status().code()).isEqualTo(200);
-            assertThat(response.headers().get(GrpcStatus.STATUS_NAME).values()).isEqualTo(GrpcStatus.OK.values());
-
-            final var rsd = new ReadableStreamingData(response.inputStream());
-            assertThat(rsd.readByte()).isEqualTo((byte) 0); // No Compression (we didn't ask for it)
-
-            final var responseLength = (int) rsd.readUnsignedInt();
-            final var responseData = new byte[responseLength];
-            rsd.readBytes(responseData);
-            final var reply = HelloReply.parseFrom(responseData);
-            assertThat(reply.getMessage()).isEqualTo("Hello PBJ");
-        }
+    void unaryCall() {
+        final var stub = GreeterGrpc.newBlockingStub(CHANNEL);
+        final var reply = stub.sayHello(SIMPLE_REQUEST);
+        assertThat(reply.getMessage()).isEqualTo("Hello PBJ");
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -300,12 +295,57 @@ class PbjTest {
     //   - TBD
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    @Test
+    void streamingServer() {
+        final var stub = GreeterGrpc.newBlockingStub(CHANNEL);
+        final var replies = stub.sayHelloStreamReply(SIMPLE_REQUEST);
+        final var messages = new ArrayList<HelloReply>();
+        replies.forEachRemaining(messages::add);
+        assertThat(messages)
+                .hasSize(10)
+                .allMatch(reply -> reply.getMessage().equals("Hello!"));
+    }
+
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Client Streaming Method Calls
     //
     // TESTS:
     //   - TBD
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    @Test
+    void streamingClient() throws InterruptedException {
+        final var latch = new CountDownLatch(1);
+        final var response = new AtomicReference<HelloReply>();
+        final var requestObserver = GreeterGrpc.newStub(CHANNEL).sayHelloStreamRequest(new StreamObserver<HelloReply>() {
+            @Override
+            public void onNext(HelloReply helloReply) {
+                response.set(helloReply);
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                // TODO Test fail
+                System.err.println("Error: " + throwable.getMessage());
+            }
+
+            @Override
+            public void onCompleted() {
+                latch.countDown();
+            }
+        });
+
+        requestObserver.onNext(HelloRequest.newBuilder().setName("Alice").build());
+        requestObserver.onNext(HelloRequest.newBuilder().setName("Bob").build());
+        requestObserver.onNext(HelloRequest.newBuilder().setName("Carol").build());
+        requestObserver.onCompleted();
+
+        latch.await(1, TimeUnit.MINUTES);
+
+        assertThat(response.get()).isEqualTo(HelloReply.newBuilder()
+                .setMessage("Hello Alice, Bob, Carol")
+                .build());
+    }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Bidi Streaming Calls
@@ -314,6 +354,39 @@ class PbjTest {
     //   - TBD
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    @Test
+    void streamingBidi() throws InterruptedException {
+        final var latch = new CountDownLatch(1);
+        final var response = new ArrayList<HelloReply>();
+        final var requestObserver = GreeterGrpc.newStub(CHANNEL).sayHelloStreamBidi(new StreamObserver<HelloReply>() {
+            @Override
+            public void onNext(HelloReply helloReply) {
+                response.add(helloReply);
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                // TODO Test fail
+                System.err.println("Error: " + throwable.getMessage());
+            }
+
+            @Override
+            public void onCompleted() {
+                latch.countDown();
+            }
+        });
+
+        requestObserver.onNext(HelloRequest.newBuilder().setName("Alice").build());
+        requestObserver.onNext(HelloRequest.newBuilder().setName("Bob").build());
+        requestObserver.onNext(HelloRequest.newBuilder().setName("Carol").build());
+        requestObserver.onCompleted();
+
+        latch.await(1, TimeUnit.MINUTES);
+
+        assertThat(response)
+                .hasSize(3)
+                .allMatch(reply -> reply.getMessage().startsWith("Hello"));
+    }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Utility methods
@@ -373,6 +446,77 @@ class PbjTest {
             return HelloReply.newBuilder()
                     .setMessage("Hello " + request.getName())
                     .build();
+        }
+
+        // Streams of stuff coming from the client, with a single response.
+        @Override
+        public Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(Flow.Subscriber<? super HelloReply> replies) {
+            final var names = new ArrayList<String>();
+            return new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    subscription.request(Long.MAX_VALUE); // turn off flow control
+                }
+
+                @Override
+                public void onNext(HelloRequest item) {
+                    names.add(item.getName());
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    replies.onError(throwable);
+                }
+
+                @Override
+                public void onComplete() {
+                    final var reply = HelloReply.newBuilder()
+                            .setMessage("Hello " + String.join(", ", names))
+                            .build();
+                    replies.onNext(reply);
+                    replies.onComplete();
+                }
+            };
+        }
+
+        @Override
+        public void sayHelloStreamReply(HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
+            for (int i = 0; i < 10; i++) {
+                replies.onNext(HelloReply.newBuilder()
+                        .setMessage("Hello!")
+                        .build());
+            }
+
+            replies.onComplete();
+        }
+
+        @Override
+        public Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(Flow.Subscriber<? super HelloReply> replies) {
+            // Here we receive info from the client. In this case, it is a stream of requests with names.
+            // We will respond with a stream of replies.
+            return new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    subscription.request(Long.MAX_VALUE); // turn off flow control
+                }
+
+                @Override
+                public void onNext(HelloRequest item) {
+                    replies.onNext(HelloReply.newBuilder()
+                            .setMessage("Hello " + item.getName())
+                            .build());
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    replies.onError(throwable);
+                }
+
+                @Override
+                public void onComplete() {
+                    replies.onComplete();
+                }
+            };
         }
     }
 }
