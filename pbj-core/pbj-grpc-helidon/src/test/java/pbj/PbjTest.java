@@ -92,7 +92,6 @@ class PbjTest {
     @Test
     void badCaseOnPathIsNotFound() {
         try (var response = CLIENT.post()
-                .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
                 .path(SAY_HELLO_PATH.toUpperCase())
                 .submit(messageBytes(SIMPLE_REQUEST))) {
@@ -117,7 +116,6 @@ class PbjTest {
     @ValueSource(strings = { "GET", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE" })
     void mustUsePost(final String methodName) {
         try (var response = CLIENT.method(Method.create(methodName))
-                .protocolId("h2")
                 .contentType(APPLICATION_GRPC_PROTO)
                 .path(SAY_HELLO_PATH)
                 .request()) {
