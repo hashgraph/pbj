@@ -84,6 +84,7 @@ public interface ServiceInterface {
      */
     @NonNull
     Flow.Subscriber<? super Bytes> open(
+            @NonNull RequestOptions opts,
             @NonNull Method method,
             @NonNull RequestOptions opts,
             @NonNull Flow.Subscriber<? super Bytes> responses) throws GrpcException;
