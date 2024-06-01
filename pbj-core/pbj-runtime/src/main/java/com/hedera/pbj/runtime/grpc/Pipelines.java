@@ -415,6 +415,30 @@ public final class Pipelines {
         protected boolean completed = false;
 
         @Override
+        public PipelineBuilder<T, R> mapRequest(MappingMethod<Bytes, T> mapper) {
+            this.requestMapper = mapper;
+            return this;
+        }
+
+        @Override
+        public PipelineBuilder<T, R> mapResponse(MappingMethod<R, Bytes> mapper) {
+            this.responseMapper = mapper;
+            return this;
+        }
+
+        @Override
+        public PipelineBuilder<T, R> respondTo(Flow.Subscriber<? super Bytes> replies) {
+            this.replies = replies;
+            return this;
+        }
+
+        @Override
+        public Flow.Subscriber<? super Bytes> build() {
+            replies.onSubscribe(this);
+            return this;
+        }
+
+        @Override
         public void request(long n) {
             // If we supported flow control, we'd pay attention to the number being presented. And we should, ideally,
             // implement flow control. For now, we don't, so for now this is ignored.
@@ -424,6 +448,7 @@ public final class Pipelines {
         public void cancel() {
             sourceSubscription.cancel();
         }
+
 
         @Override
         public void onSubscribe(@NonNull final Flow.Subscription subscription) {
