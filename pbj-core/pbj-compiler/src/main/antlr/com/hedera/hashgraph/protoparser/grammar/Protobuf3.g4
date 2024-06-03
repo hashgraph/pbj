@@ -91,7 +91,7 @@ oneofField
 // Map field
 
 mapField
-  : MAP LT keyType COMMA type_ GT mapName
+  : docComment MAP LT keyType COMMA type_ GT mapName
         EQ fieldNumber ( LB fieldOptions RB )? SEMI
   ;
 keyType

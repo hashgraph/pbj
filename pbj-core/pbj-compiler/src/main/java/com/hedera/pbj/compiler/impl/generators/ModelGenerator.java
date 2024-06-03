@@ -15,6 +15,7 @@ import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.Field.FieldType;
 import com.hedera.pbj.compiler.impl.FileType;
+import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
@@ -101,7 +102,9 @@ public final class ModelGenerator implements Generator {
 			} else if (item.oneof() != null) { // process one ofs
 				oneofGetters.addAll(generateCodeForOneOf(lookupHelper, item, javaRecordName, imports, oneofEnums, fields));
 			} else if (item.mapField() != null) { // process map fields
-				System.err.println("Encountered a mapField that was not handled in " + javaRecordName);
+				final MapField field = new MapField(item.mapField(), lookupHelper);
+				fields.add(field);
+				field.addAllNeededImports(imports, true, false, false);
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				generateCodeForField(lookupHelper, item, fields, imports, hasMethods);
 			} else if (item.optionStatement() != null){
@@ -403,6 +406,12 @@ public final class ModelGenerator implements Generator {
 							sb.append("this.$name = $name != null ? $name : $default;"
 									.replace("$name", field.nameCamelFirstLower())
 									.replace("$default", getDefaultValue(field, msgDef, lookupHelper))
+							);
+							break;
+						}
+						case MAP: {
+							sb.append("this.$name = PbjMap.of($name);"
+									.replace("$name", field.nameCamelFirstLower())
 							);
 							break;
 						}

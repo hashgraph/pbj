@@ -2,6 +2,7 @@ package com.hedera.pbj.compiler.impl.generators.json;
 
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
+import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,7 +76,7 @@ final class JsonCodecWriteMethodGenerator {
     private static String generateFieldWriteLines(final Field field, final String modelClassName, String getValueCode) {
         final String fieldDef = Common.camelToUpperSnake(field.name());
         final String fieldName = '\"' + toJsonFieldName(field.name()) + '\"';
-        final String basicFieldCode = generateBasicFieldLines(field, getValueCode, fieldDef, fieldName);
+        final String basicFieldCode = generateBasicFieldLines(field, getValueCode, fieldDef, fieldName, "childIndent");
         String prefix = "// ["+field.fieldNumber()+"] - "+field.name() + "\n";
 
         if (field.parent() != null) {
@@ -88,10 +89,13 @@ final class JsonCodecWriteMethodGenerator {
         } else {
             if (field.repeated()) {
                 return prefix + "if (!data." + field.nameCamelFirstLower() + "().isEmpty()) fieldLines.add(" + basicFieldCode + ");";
-            } else if (field.type() == Field.FieldType.BYTES){
+            } else if (field.type() == Field.FieldType.BYTES) {
                 return prefix + "if (data." + field.nameCamelFirstLower() + "() != " + field.javaDefault() +
                         " && data." + field.nameCamelFirstLower() + "() != null" +
                         " && data." + field.nameCamelFirstLower() + "().length() > 0) fieldLines.add(" + basicFieldCode + ");";
+            } else if (field.type() == Field.FieldType.MAP) {
+                return prefix + "if (data." + field.nameCamelFirstLower() + "() != " + field.javaDefault() +
+                        " && !data." + field.nameCamelFirstLower() + "().isEmpty()) fieldLines.add(" + basicFieldCode + ");";
             } else {
                 return prefix + "if (data." + field.nameCamelFirstLower() + "() != " + field.javaDefault() + ") fieldLines.add(" + basicFieldCode + ");";
             }
@@ -99,7 +103,7 @@ final class JsonCodecWriteMethodGenerator {
     }
 
     @NonNull
-    private static String generateBasicFieldLines(Field field, String getValueCode, String fieldDef, String fieldName) {
+    private static String generateBasicFieldLines(Field field, String getValueCode, String fieldDef, String fieldName, String childIndent) {
         if (field.optionalValueType()) {
             return switch (field.messageType()) {
                 case "StringValue", "BoolValue", "Int32Value",
@@ -123,13 +127,29 @@ final class JsonCodecWriteMethodGenerator {
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode);
             };
+        } else if (field.type() == Field.FieldType.MAP) {
+            final MapField mapField = (MapField) field;
+            final String vComposerMethod = generateBasicFieldLines(
+                    mapField.valueField(),
+                    "v",
+                    Common.camelToUpperSnake(mapField.valueField().name()),
+                    "n",
+                    "indent"
+            );
+            return "field(%s, %s, $kEncoder, $vComposer)"
+                    .formatted(fieldName, getValueCode)
+                    // Maps in protobuf can only have simple scalar and not floating keys, so toString should do a good job.
+                    // Also see https://protobuf.dev/programming-guides/proto3/#json
+                    .replace("$kEncoder", "k -> escape(k.toString())")
+                    .replace("$vComposer", "(n, v) -> " + vComposerMethod);
         } else {
             return switch (field.type()) {
                 case ENUM -> "field($fieldName, $valueCode.protoName())"
                         .replace("$fieldName", fieldName)
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode);
-                case MESSAGE -> "field(childIndent, $fieldName, $codec, $valueCode)"
+                case MESSAGE -> "field($childIndent, $fieldName, $codec, $valueCode)"
+                        .replace("$childIndent", childIndent)
                         .replace("$fieldName", fieldName)
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode)

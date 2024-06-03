@@ -11,6 +11,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -46,7 +47,9 @@ public final class TestGenerator implements Generator {
 					subField.addAllNeededImports(imports, true, false, true);
 				}
 			} else if (item.mapField() != null) { // process map fields
-				throw new IllegalStateException("Encountered a mapField that was not handled in "+ modelClassName);
+				final MapField field = new MapField(item.mapField(), lookupHelper);
+				fields.add(field);
+				field.addAllNeededImports(imports, true, false, true);
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
@@ -174,12 +177,12 @@ public final class TestGenerator implements Generator {
 					generateListArguments(%s)""".formatted(optionsList);
 		} else if (field instanceof final OneOfField oneOf) {
 			final List<String> options = new ArrayList<>();
-			for (var subField: oneOf.fields()) {
+			for (var subField : oneOf.fields()) {
 				if (subField instanceof SingleField) {
 					final String enumValueName = Common.camelToUpperSnake(subField.name());
 					// special cases to break cyclic dependencies
 					if (!("THRESHOLD_KEY".equals(enumValueName) || "KEY_LIST".equals(enumValueName)
-							|| "THRESHOLD_SIGNATURE".equals(enumValueName)|| "SIGNATURE_LIST".equals(enumValueName))) {
+							|| "THRESHOLD_SIGNATURE".equals(enumValueName) || "SIGNATURE_LIST".equals(enumValueName))) {
 						final String listStr;
 						if (subField.optionalValueType()) {
 							Field.FieldType convertedSubFieldType = getOptionalConvertedFieldType(subField);
@@ -187,19 +190,19 @@ public final class TestGenerator implements Generator {
 						} else {
 							listStr = getOptionsForFieldType(subField.type(), ((SingleField) subField).javaFieldTypeForTest());
 						}
-						options.add(listStr + ("\n.stream()\n"+
-          							"""
+						options.add(listStr + ("\n.stream()\n" +
+								"""
 										.map(value -> new %s<>(%sOneOfType.%s, value))
 										.toList()""".formatted(
 										((OneOfField) field).className(),
 										modelClassName + "." + field.nameCamelFirstUpper(),
 										enumValueName
-								)).indent(DEFAULT_INDENT )
+								)).indent(DEFAULT_INDENT)
 						);
 					}
 				} else {
-					System.err.println("Did not expect a OneOfField in a OneOfField. In "+
-							"modelClassName="+modelClassName+" field="+field+" subField="+subField);
+					System.err.println("Did not expect a OneOfField in a OneOfField. In " +
+							"modelClassName=" + modelClassName + " field=" + field + " subField=" + subField);
 				}
 			}
 			return """
@@ -207,10 +210,36 @@ public final class TestGenerator implements Generator {
 					    List.of(new %s<>(%sOneOfType.UNSET, null)),
 					    %s
 					).flatMap(List::stream).toList()""".formatted(
-							((OneOfField)field).className(),
-							modelClassName+"."+field.nameCamelFirstUpper(),
-                    String.join(",\n", options).indent(DEFAULT_INDENT)
+					((OneOfField) field).className(),
+					modelClassName + "." + field.nameCamelFirstUpper(),
+					String.join(",\n", options).indent(DEFAULT_INDENT)
 					).indent(DEFAULT_INDENT * 2);
+		} else if (field instanceof final MapField mapField) {
+			// e.g. INTEGER_TESTS_LIST
+			final String keyOptions = getOptionsForFieldType(mapField.keyField().type(), mapField.keyField().javaFieldType());
+			// e.g. STRING_TESTS_LIST, or, say, CustomMessageTest.ARGUMENTS
+			final String valueOptions = getOptionsForFieldType(mapField.valueField().type(), mapField.valueField().javaFieldType());
+
+			// A cartesian product is nice to use, but it doesn't seem reasonable from the performance perspective.
+			// Instead, we want to test three cases:
+			// 1. Empty map
+			// 2. Map with a single entry
+			// 3. Map with multiple (e.g. two) entries
+			// Note that keys and value options lists may be pretty small. E.g. Boolean would only have 2 elements. So we use mod.
+			// Also note that we assume there's at least one element in each list.
+			return """
+         			List.of(
+     					Map.$javaGenericTypeof(),
+     					Map.$javaGenericTypeof($keyOptions.get(0), $valueOptions.get(0)),
+     					Map.$javaGenericTypeof(
+     						$keyOptions.get(1 % $keyOptions.size()), $valueOptions.get(1 % $valueOptions.size()),
+     						$keyOptions.get(2 % $keyOptions.size()), $valueOptions.get(2 % $valueOptions.size())
+     					)
+					)"""
+					.replace("$javaGenericType", mapField.javaGenericType())
+					.replace("$keyOptions", keyOptions)
+					.replace("$valueOptions", valueOptions)
+					;
 		} else {
 			return getOptionsForFieldType(field.type(), ((SingleField)field).javaFieldTypeForTest());
 		}
@@ -245,6 +274,7 @@ public final class TestGenerator implements Generator {
 			case ENUM -> "Arrays.asList(" + javaFieldType + ".values())";
 			case ONE_OF -> throw new RuntimeException("Should never happen, should have been caught in generateTestData()");
 			case MESSAGE -> javaFieldType + FileAndPackageNamesConfig.TEST_JAVA_FILE_SUFFIX + ".ARGUMENTS";
+			case MAP -> throw new RuntimeException("Should never happen, should have been caught in generateTestData()");
 		};
 	}
 

@@ -12,7 +12,9 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This class is full of parse helper methods, they depend on a DataInput as input with position and limit set
@@ -46,6 +48,25 @@ public final class ProtoParserTools {
         }
         list.add(newItem);
         return list;
+    }
+
+    /**
+     * Add an entry to a map returning a new map with the entry or the same map with the entry added. If the map is
+     * Collections.EMPTY_MAP then a new map is created and returned with the entry added.
+     *
+     * @param map The map to add entry to or Collections.EMPTY_MAP
+     * @param key The key
+     * @param value The value
+     * @return The map passed in if mutable or new map
+     * @param <K> The type of keys
+     * @param <V> The type of values
+     */
+    public static <K, V> Map<K, V> addToMap(Map<K, V> map, final K key, final V value) {
+        if (map == PbjMap.EMPTY) {
+            map = new HashMap<>();
+        }
+        map.put(key, value);
+        return map;
     }
 
     /**

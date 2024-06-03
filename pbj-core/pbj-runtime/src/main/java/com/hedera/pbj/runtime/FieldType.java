@@ -37,7 +37,9 @@ public enum FieldType {
 	/** Protobuf enum type */
 	ENUM,
 	/** Protobuf sub-message type */
-	MESSAGE;
+	MESSAGE,
+	/** Protobuf map type */
+	MAP;
 
 	/**
 	 * Optional values have an inner field, with a standard definition for every FieldType. We create singleton

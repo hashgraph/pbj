@@ -4,8 +4,10 @@ import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
+import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.PbjCompilerException;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -66,65 +68,7 @@ class CodecParseMethodGenerator {
                         // -- TEMP STATE FIELDS --------------------------------------
                         $fieldDefs
 
-                        // -- PARSE LOOP ---------------------------------------------
-                        // Continue to parse bytes out of the input stream until we get to the end.
-                        while (input.hasRemaining()) {
-                            // Note: ReadableStreamingData.hasRemaining() won't flip to false
-                            // until the end of stream is actually hit with a read operation.
-                            // So we catch this exception here and **only** here, because an EOFException
-                            // anywhere else suggests that we're processing malformed data and so
-                            // we must re-throw the exception then.
-                            final int tag;
-                            try {
-                                // Read the "tag" byte which gives us the field number for the next field to read
-                                // and the wire type (way it is encoded on the wire).
-                                tag = input.readVarInt(false);
-                            } catch (EOFException e) {
-                                // There's no more fields. Stop the parsing loop.
-                                break;
-                            }
-
-                            // The field is the top 5 bits of the byte. Read this off
-                            final int field = tag >>> TAG_FIELD_OFFSET;
-
-                            // Ask the Schema to inform us what field this represents.
-                            final var f = getField(field);
-
-                            // Given the wire type and the field type, parse the field
-                            switch (tag) {
-                $caseStatements
-                                default -> {
-                                    // The wire type is the bottom 3 bits of the byte. Read that off
-                                    final int wireType = tag & TAG_WIRE_TYPE_MASK;
-                                    // handle error cases here, so we do not do if statements in normal loop
-                                    // Validate the field number is valid (must be > 0)
-                                    if (field == 0) {
-                                        throw new IOException("Bad protobuf encoding. We read a field value of "
-                                            + field);
-                                    }
-                                    // Validate the wire type is valid (must be >=0 && <= 5).
-                                    // Otherwise we cannot parse this.
-                                    // Note: it is always >= 0 at this point (see code above where it is defined).
-                                    if (wireType > 5) {
-                                        throw new IOException("Cannot understand wire_type of " + wireType);
-                                    }
-                                    // It may be that the parser subclass doesn't know about this field
-                                    if (f == null) {
-                                        if (strictMode) {
-                                            // Since we are parsing is strict mode, this is an exceptional condition.
-                                            throw new UnknownFieldException(field);
-                                        } else {
-                                            // We just need to read off the bytes for this field to skip it
-                                            // and move on to the next one.
-                                            skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
-                                        }
-                                    } else {
-                                        throw new IOException("Bad tag [" + tag + "], field [" + field
-                                                + "] wireType [" + wireType + "]");
-                                    }
-                                }
-                            }
-                        }
+                        $parseLoop
                         return new $modelClassName($fieldsList);
                     } catch (final Exception anyException) {
                         if (anyException instanceof ParseException parseException) {
@@ -138,9 +82,78 @@ class CodecParseMethodGenerator {
         .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
                 field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
         .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
-        .replace("$caseStatements",generateCaseStatements(fields))
+        .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields), ""))
         .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
         .indent(DEFAULT_INDENT);
+    }
+
+    // prefix is pre-pended to variable names to support a nested parsing loop.
+    static String generateParseLoop(final String caseStatements, @NonNull final String prefix) {
+        return """
+                        // -- PARSE LOOP ---------------------------------------------
+                        // Continue to parse bytes out of the input stream until we get to the end.
+                        while (input.hasRemaining()) {
+                            // Note: ReadableStreamingData.hasRemaining() won't flip to false
+                            // until the end of stream is actually hit with a read operation.
+                            // So we catch this exception here and **only** here, because an EOFException
+                            // anywhere else suggests that we're processing malformed data and so
+                            // we must re-throw the exception then.
+                            final int $prefixtag;
+                            try {
+                                // Read the "tag" byte which gives us the field number for the next field to read
+                                // and the wire type (way it is encoded on the wire).
+                                $prefixtag = input.readVarInt(false);
+                            } catch (EOFException e) {
+                                // There's no more fields. Stop the parsing loop.
+                                break;
+                            }
+
+                            // The field is the top 5 bits of the byte. Read this off
+                            final int $prefixfield = $prefixtag >>> TAG_FIELD_OFFSET;
+
+                            // Ask the Schema to inform us what field this represents.
+                            final var $prefixf = getField($prefixfield);
+
+                            // Given the wire type and the field type, parse the field
+                            switch ($prefixtag) {
+                $caseStatements
+                                default -> {
+                                    // The wire type is the bottom 3 bits of the byte. Read that off
+                                    final int wireType = $prefixtag & TAG_WIRE_TYPE_MASK;
+                                    // handle error cases here, so we do not do if statements in normal loop
+                                    // Validate the field number is valid (must be > 0)
+                                    if ($prefixfield == 0) {
+                                        throw new IOException("Bad protobuf encoding. We read a field value of "
+                                            + $prefixfield);
+                                    }
+                                    // Validate the wire type is valid (must be >=0 && <= 5).
+                                    // Otherwise we cannot parse this.
+                                    // Note: it is always >= 0 at this point (see code above where it is defined).
+                                    if (wireType > 5) {
+                                        throw new IOException("Cannot understand wire_type of " + wireType);
+                                    }
+                                    // It may be that the parser subclass doesn't know about this field
+                                    if ($prefixf == null) {
+                                        if (strictMode) {
+                                            // Since we are parsing is strict mode, this is an exceptional condition.
+                                            throw new UnknownFieldException($prefixfield);
+                                        } else {
+                                            // We just need to read off the bytes for this field to skip it
+                                            // and move on to the next one.
+                                            skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
+                                        }
+                                    } else {
+                                        throw new IOException("Bad tag [" + $prefixtag + "], field [" + $prefixfield
+                                                + "] wireType [" + wireType + "]");
+                                    }
+                                }
+                            }
+                        }
+                """
+                .replace("$caseStatements",caseStatements)
+                .replace("$prefix",prefix)
+                .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
+                .indent(DEFAULT_INDENT);
     }
 
     /**
@@ -303,6 +316,46 @@ class CodecParseMethodGenerator {
                     .replace("$maxSize", String.valueOf(field.maxSize()))
                     .indent(DEFAULT_INDENT)
             );
+        } else if (field.type() == Field.FieldType.MAP) {
+            // This is almost like reading a message above because that's how Protobuf encodes map entries.
+            // However(!), we read the key and value fields explicitly to avoid creating temporary entry objects.
+            final MapField mapField = (MapField) field;
+            final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
+            sb.append("""
+						final var __map_messageLength = input.readVarInt(false);
+						
+						$fieldDefs
+						if (__map_messageLength != 0) {
+							if (__map_messageLength > $maxSize) {
+								throw new ParseException("$fieldName size " + __map_messageLength + " is greater than max " + $maxSize);
+							}
+							final var __map_limitBefore = input.limit();
+							// Make sure that we have enough bytes in the message
+							// to read the subObject.
+							// If the buffer is truncated on the boundary of a subObject,
+							// we will not throw.
+							final var __map_startPos = input.position();
+							try {
+								if ((__map_startPos + __map_messageLength) > __map_limitBefore) {
+									throw new BufferUnderflowException();
+								}
+								input.limit(__map_startPos + __map_messageLength);
+								$mapParseLoop
+								// Make sure we read the full number of bytes. for the types
+								if ((__map_startPos + __map_messageLength) != input.position()) {
+									throw new BufferOverflowException();
+								}
+							} finally {
+								input.limit(__map_limitBefore);
+							}
+						}
+						"""
+                    .replace("$fieldName", field.name())
+                    .replace("$fieldDefs",mapEntryFields.stream().map(mapEntryField -> "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
+                            mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
+                    .replace("$mapParseLoop", generateParseLoop(generateCaseStatements(mapEntryFields), "map_entry_").indent(-DEFAULT_INDENT))
+                    .replace("$maxSize", String.valueOf(field.maxSize()))
+            );
         } else {
             sb.append(("final var value = " + readMethod(field) + ";\n").indent(DEFAULT_INDENT));
         }
@@ -316,16 +369,28 @@ class CodecParseMethodGenerator {
                     oneOfField.getEnumClassRef() + '.' + Common.camelToUpperSnake(field.name()) + ", value);\n");
         } else if (field.repeated()) {
             sb.append("if (temp_" + field.name() + ".size() >= " + field.maxSize() + ") {\n");
-            sb.append("    throw new ParseException(\"" + field.name() + " size \" + temp_" + field.name() + ".size() + \" is greater than max \" + " + field.maxSize() + ");\n");
-            sb.append("}\n");
-            sb.append("temp_" + field.name() + " = addToList(temp_" + field.name() + ",value);\n");
+            sb.append("		throw new ParseException(\"" + field.name() + " size \" + temp_" + field.name() + ".size() + \" is greater than max \" + " + field.maxSize() + ");\n");
+            sb.append("	}\n");
+            sb.append("	temp_" + field.name() + " = addToList(temp_" + field.name() + ",value);\n");
+        } else if (field.type() == Field.FieldType.MAP) {
+            final MapField mapField = (MapField) field;
+
+            sb.append("if (__map_messageLength != 0) {\n");
+            sb.append("		if (temp_" + field.name() + ".size() >= " + field.maxSize() + ") {\n");
+            sb.append("				throw new ParseException(\"" + field.name() + " size \" + temp_" + field.name() + ".size() + \" is greater than max \" + " + field.maxSize() + ");\n");
+            sb.append("			}\n");
+            sb.append("			temp_" + field.name() + " = addToMap(temp_" + field.name() + ", temp_$key, temp_$value);\n"
+                    .replace("$key", mapField.keyField().name())
+                    .replace("$value", mapField.valueField().name())
+            );
+            sb.append("		}\n");
         } else {
             sb.append("temp_" + field.name() + " = value;\n");
         }
         sb.append("}\n");
     }
 
-    private static String readMethod(Field field) {
+    static String readMethod(Field field) {
         if (field.optionalValueType()) {
             return switch (field.messageType()) {
                 case "StringValue" -> "readString(input, " + field.maxSize() + ")";
@@ -359,6 +424,7 @@ class CodecParseMethodGenerator {
             case BYTES -> "readBytes(input, " + field.maxSize() + ")";
             case MESSAGE -> field.parseCode();
             case ONE_OF -> throw new PbjCompilerException("Should never happen, oneOf handled elsewhere");
+            case MAP -> throw new PbjCompilerException("Should never happen, map handled elsewhere");
         };
     }
 }

@@ -254,6 +254,8 @@ public final class Common {
                                 result = 31 * result + Integer.hashCode($fieldName.protoOrdinal());
                              }
                              """).replace("$fieldName", f.nameCamelFirstLower());
+				} else if (f.type() == Field.FieldType.MAP) {
+					generatedCodeSoFar += getMapHashCodeGeneration(generatedCodeSoFar, f);
 				} else if (f.type() == Field.FieldType.STRING ||
 						f.parent() == null) { // process sub message
 					generatedCodeSoFar += (
@@ -351,6 +353,33 @@ public final class Common {
 	}
 
 	/**
+	 * Get the hashcode codegen for a map field.
+	 * @param generatedCodeSoFar The string that the codegen is generated into.
+	 * @param f The field for which to generate the hash code.
+	 * @return Updated codegen string.
+	 */
+	@NonNull
+	private static String getMapHashCodeGeneration(String generatedCodeSoFar, final Field f) {
+		generatedCodeSoFar += (
+				"""
+				for (Object k : ((PbjMap) $fieldName).getSortedKeys()) {
+					if (k != null) {
+						result = 31 * result + k.hashCode();
+					} else {
+						result = 31 * result;
+					}
+					Object v = $fieldName.get(k);
+					if (v != null) {
+						result = 31 * result + v.hashCode();
+					} else {
+						result = 31 * result;
+					}
+				}
+				""").replace("$fieldName", f.nameCamelFirstLower());
+		return generatedCodeSoFar;
+	}
+
+	/**
 	 * Recursively calculates `equals` statement for a message fields.
 	 *
 	 * @param fields The fields of this object.
@@ -417,6 +446,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.STRING ||
                         f.type() == Field.FieldType.BYTES ||
                         f.type() == Field.FieldType.ENUM ||
+                        f.type() == Field.FieldType.MAP ||
                         f.parent() == null /* Process a sub-message */) {
                     generatedCodeSoFar += (
                             """

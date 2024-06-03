@@ -8,6 +8,7 @@ import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public final class ProtoWriterTools {
             case FIXED32, SFIXED32 -> WIRE_TYPE_FIXED_32_BIT;
             case FIXED64, SFIXED64 -> WIRE_TYPE_FIXED_64_BIT;
             case BOOL -> WIRE_TYPE_VARINT_OR_ZIGZAG;
-            case BYTES, MESSAGE, STRING -> WIRE_TYPE_DELIMITED;
+            case BYTES, MESSAGE, STRING, MAP -> WIRE_TYPE_DELIMITED;
             case ENUM -> WIRE_TYPE_VARINT_OR_ZIGZAG;
         };
     }
@@ -89,13 +90,25 @@ public final class ProtoWriterTools {
      * @param value the int value to write
      */
     public static void writeInteger(WritableSequentialData out, FieldDefinition field, int value) {
+        writeInteger(out, field, value, true);
+    }
+
+    /**
+     * Write a integer to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the int value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     */
+    public static void writeInteger(WritableSequentialData out, FieldDefinition field, int value, boolean skipDefault) {
         assert switch(field.type()) {
             case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
             default -> false;
         } : "Not an integer type " + field;
         assert !field.repeated() : "Use writeIntegerList with repeated types";
 
-        if (!field.oneOf() && value == 0) {
+        if (skipDefault && !field.oneOf() && value == 0) {
             return;
         }
         switch (field.type()) {
@@ -129,12 +142,24 @@ public final class ProtoWriterTools {
      * @param value the long value to write
      */
     public static void writeLong(WritableSequentialData out, FieldDefinition field, long value) {
+        writeLong(out, field, value, true);
+    }
+
+    /**
+     * Write a long to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the long value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     */
+    public static void writeLong(WritableSequentialData out, FieldDefinition field, long value, boolean skipDefault) {
         assert switch(field.type()) {
             case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
             default -> false;
         } : "Not a long type " + field;
         assert !field.repeated() : "Use writeLongList with repeated types";
-        if (!field.oneOf() && value == 0) {
+        if (skipDefault && !field.oneOf() && value == 0) {
             return;
         }
         switch (field.type()) {
@@ -200,10 +225,22 @@ public final class ProtoWriterTools {
      * @param value the boolean value to write
      */
     public static void writeBoolean(WritableSequentialData out, FieldDefinition field, boolean value) {
+        writeBoolean(out, field, value, true);
+    }
+
+    /**
+     * Write a boolean to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the boolean value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     */
+    public static void writeBoolean(WritableSequentialData out, FieldDefinition field, boolean value, boolean skipDefault) {
         assert field.type() == FieldType.BOOL : "Not a boolean type " + field;
         assert !field.repeated() : "Use writeBooleanList with repeated types";
         // In the case of oneOf we write the value even if it is default value of false
-        if (value || field.oneOf()) {
+        if (value || field.oneOf() || !skipDefault) {
             writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
             out.writeByte(value ? (byte)1 : 0);
         }
@@ -236,10 +273,24 @@ public final class ProtoWriterTools {
      * @throws IOException If a I/O error occurs
      */
     public static void writeString(final WritableSequentialData out, final FieldDefinition field,
-            final String value) throws IOException {
+                                   final String value) throws IOException {
+        writeString(out, field, value, true);
+    }
+
+    /**
+     * Write a string to data output, assuming the field is non-repeated.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be non-repeated
+     * @param value the string value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     * @throws IOException If a I/O error occurs
+     */
+    public static void writeString(final WritableSequentialData out, final FieldDefinition field,
+            final String value, boolean skipDefault) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert !field.repeated() : "Use writeStringList with repeated types";
-        writeStringNoChecks(out, field, value);
+        writeStringNoChecks(out, field, value, skipDefault);
     }
 
     /**
@@ -268,14 +319,28 @@ public final class ProtoWriterTools {
      * @throws IOException If a I/O error occurs
      */
     private static void writeStringNoChecks(final WritableSequentialData out, final FieldDefinition field,
-            final String value) throws IOException {
+                                            final String value) throws IOException {
+        writeStringNoChecks(out, field, value, true);
+    }
+
+    /**
+     * Write a integer to data output - no validation checks.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the string value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     * @throws IOException If a I/O error occurs
+     */
+    private static void writeStringNoChecks(final WritableSequentialData out, final FieldDefinition field,
+            final String value, boolean skipDefault) throws IOException {
         // When not a oneOf don't write default value
-        if (!field.oneOf() && (value == null || value.isEmpty())) {
+        if (skipDefault && !field.oneOf() && (value == null || value.isEmpty())) {
             return;
         }
         writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarInt(sizeOfStringNoTag(value), false);
-        Utf8Tools.encodeUtf8(value,out);
+        Utf8Tools.encodeUtf8(value, out);
     }
 
     /**
@@ -288,10 +353,25 @@ public final class ProtoWriterTools {
      * @throws IOException If a I/O error occurs
      */
     public static void writeBytes(final WritableSequentialData out, final FieldDefinition field,
-            final RandomAccessData value) throws IOException {
+                                  final RandomAccessData value) throws IOException {
+        writeBytes(out, field, value, true);
+    }
+
+    /**
+     * Write a bytes to data output, assuming the corresponding field is non-repeated, and field type
+     * is any delimited: bytes, string, or message.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must not be repeated
+     * @param value the bytes value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     * @throws IOException If a I/O error occurs
+     */
+    public static void writeBytes(final WritableSequentialData out, final FieldDefinition field,
+            final RandomAccessData value, boolean skipDefault) throws IOException {
         assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert !field.repeated() : "Use writeBytesList with repeated types";
-        writeBytesNoChecks(out, field, value, true);
+        writeBytesNoChecks(out, field, value, skipDefault);
     }
 
     /**
@@ -403,6 +483,38 @@ public final class ProtoWriterTools {
         }
     }
 
+    public static <K, V> void writeMap(
+            final WritableSequentialData out,
+            final FieldDefinition field,
+            @NonNull final PbjMap<K, V> map,
+            final ProtoWriter<K> kWriter,
+            final ProtoWriter<V> vWriter,
+            final ToIntFunction<K> sizeOfK,
+            final ToIntFunction<V> sizeOfV
+    ) throws IOException {
+        // https://protobuf.dev/programming-guides/proto3/#maps
+        // On the wire, a map is equivalent to:
+        //    message MapFieldEntry {
+        //      key_type key = 1;
+        //      value_type value = 2;
+        //    }
+        //    repeated MapFieldEntry map_field = N;
+        if (map.isEmpty()) {
+            return;
+        }
+        final int size = map.size();
+        for (int i = 0; i < size; i++) {
+            K k = map.getSortedKeys().get(i);
+            V v = map.get(k);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final int sizeK = sizeOfK.applyAsInt(k);
+            final int sizeV = sizeOfV.applyAsInt(v);
+            out.writeVarInt(sizeK + sizeV, false);
+            kWriter.write(k, out);
+            vWriter.write(v, out);
+        }
+    }
+
     // ================================================================================================================
     // OPTIONAL VERSIONS OF WRITE METHODS
 
@@ -418,7 +530,7 @@ public final class ProtoWriterTools {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfInteger(newField, value), false);
-            writeInteger(out,newField,value);
+            writeInteger(out, newField, value);
         }
     }
 
@@ -434,7 +546,7 @@ public final class ProtoWriterTools {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfLong(newField, value), false);
-            writeLong(out,newField,value);
+            writeLong(out, newField, value);
         }
     }
 
@@ -482,7 +594,7 @@ public final class ProtoWriterTools {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfBoolean(newField, value), false);
-            writeBoolean(out,newField,value);
+            writeBoolean(out, newField, value);
         }
     }
 
@@ -499,7 +611,7 @@ public final class ProtoWriterTools {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfString(newField, value), false);
-            writeString(out,newField,value);
+            writeString(out, newField, value);
         }
     }
 
@@ -1036,7 +1148,7 @@ public final class ProtoWriterTools {
      */
     public static int sizeOfOptionalString(FieldDefinition field, @Nullable String value) {
         if (value != null) {
-            final int size = sizeOfString(field.type().optionalFieldDefinition,value);
+            final int size = sizeOfString(field.type().optionalFieldDefinition, value);
             return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfUnsignedVarInt32(size) + size;
         }
         return 0;
@@ -1065,7 +1177,19 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfInteger(FieldDefinition field, int value) {
-        if (!field.oneOf() && value == 0) return 0;
+        return sizeOfInteger(field, value, true);
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode an integer field
+     *
+     * @param field descriptor of field
+     * @param value integer value to get encoded size for
+     * @param skipDefault default value results in zero size
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfInteger(FieldDefinition field, int value, boolean skipDefault) {
+        if (skipDefault && !field.oneOf() && value == 0) return 0;
         return switch (field.type()) {
             case INT32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(value);
             case UINT32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt32(value);
@@ -1083,7 +1207,19 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfLong(FieldDefinition field, long value) {
-        if (!field.oneOf() && value == 0) return 0;
+        return sizeOfLong(field, value, true);
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a long field
+     *
+     * @param field descriptor of field
+     * @param value long value to get encoded size for
+     * @param skipDefault default value results in zero size
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfLong(FieldDefinition field, long value, boolean skipDefault) {
+        if (skipDefault && !field.oneOf() && value == 0) return 0;
         return switch (field.type()) {
             case INT64, UINT64 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64(value);
             case SINT64 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64((value << 1) ^ (value >> 63));
@@ -1124,7 +1260,19 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfBoolean(FieldDefinition field, boolean value) {
-        return (value || field.oneOf()) ? sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + 1 : 0;
+        return sizeOfBoolean(field, value, true);
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a boolean field
+     *
+     * @param field descriptor of field
+     * @param value boolean value to get encoded size for
+     * @param skipDefault default value results in zero size
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfBoolean(FieldDefinition field, boolean value, boolean skipDefault) {
+        return (value || field.oneOf() || !skipDefault) ? sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + 1 : 0;
     }
 
 
@@ -1150,8 +1298,20 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfString(FieldDefinition field, String value) {
+        return sizeOfString(field, value, true);
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a string field
+     *
+     * @param field descriptor of field
+     * @param value string value to get encoded size for
+     * @param skipDefault default value results in zero size
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfString(FieldDefinition field, String value, boolean skipDefault) {
         // When not a oneOf don't write default value
-        if (!field.oneOf() && (value == null || value.isEmpty())) {
+        if (skipDefault && !field.oneOf() && (value == null || value.isEmpty())) {
             return 0;
         }
         return sizeOfDelimited(field, sizeOfStringNoTag(value));
@@ -1183,8 +1343,20 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfBytes(FieldDefinition field, RandomAccessData value) {
+        return sizeOfBytes(field, value, true);
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a bytes field
+     *
+     * @param field descriptor of field
+     * @param value bytes value to get encoded size for
+     * @param skipDefault default value results in zero size
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfBytes(FieldDefinition field, RandomAccessData value, boolean skipDefault) {
         // When not a oneOf don't write default value
-        if (!field.oneOf() && (value.length() == 0)) {
+        if (skipDefault && !field.oneOf() && (value.length() == 0)) {
             return 0;
         }
         return sizeOfDelimited(field, (int) value.length());

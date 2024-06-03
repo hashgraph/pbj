@@ -31,14 +31,12 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	public SingleField(Protobuf3Parser.FieldContext fieldContext, final ContextualLookupHelper lookupHelper) {
 		this(fieldContext.REPEATED() != null,
 				FieldType.of(fieldContext.type_(), lookupHelper),
-				Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.fieldName().getText(),
-				(fieldContext.type_().messageType() == null) ? null :
-						fieldContext.type_().messageType().messageName().getText(),
-				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getPackageFieldMessageType(FileType.MODEL, fieldContext),
-				(fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getPackageFieldMessageType(FileType.CODEC, fieldContext), (fieldContext.type_().messageType() == null || fieldContext.type_().messageType().messageName().getText() == null) ? null :
-						lookupHelper.getPackageFieldMessageType(FileType.TEST, fieldContext),
+				Integer.parseInt(fieldContext.fieldNumber().getText()),
+				fieldContext.fieldName().getText(),
+				Field.extractMessageTypeName(fieldContext.type_()),
+				Field.extractMessageTypePackage(fieldContext.type_(), FileType.MODEL, lookupHelper),
+				Field.extractMessageTypePackage(fieldContext.type_(), FileType.CODEC, lookupHelper),
+				Field.extractMessageTypePackage(fieldContext.type_(), FileType.TEST, lookupHelper),
 				Common.buildCleanFieldJavaDoc(Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
 				getDeprecatedOption(fieldContext.fieldOptions()),
 				null
@@ -320,13 +318,13 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 	 * @param optionContext protobuf options from parser
 	 * @return true if field has deprecated option, otherwise false
 	 */
-	private static boolean getDeprecatedOption(Protobuf3Parser.FieldOptionsContext optionContext) {
+	static boolean getDeprecatedOption(Protobuf3Parser.FieldOptionsContext optionContext) {
 		if (optionContext != null) {
 			for (var option : optionContext.fieldOption()) {
 				if ("deprecated".equals(option.optionName().getText())) {
 					return true;
 				} else {
-					System.err.println("Unhandled Option on enum: "+optionContext.getText());
+					System.err.println("Unhandled Option: " + optionContext.getText());
 				}
 			}
 		}

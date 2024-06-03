@@ -190,48 +190,72 @@ public interface Field {
 	}
 
 	/**
+	 * Extract the name of the Java model class for a message type,
+	 * or null if the type is not a message.
+	 */
+	static String extractMessageTypeName(final Protobuf3Parser.Type_Context typeContext) {
+		return typeContext.messageType() == null ? null : typeContext.messageType().messageName().getText();
+	}
+
+	/**
+	 * Extract the name of the Java package for a given FileType for a message type,
+	 * or null if the type is not a message.
+	 */
+	static String extractMessageTypePackage(
+			final Protobuf3Parser.Type_Context typeContext,
+			final FileType fileType,
+			final ContextualLookupHelper lookupHelper) {
+		return typeContext.messageType() == null || typeContext.messageType().messageName().getText() == null ? null :
+				lookupHelper.getPackageFieldMessageType(fileType, typeContext);
+	}
+
+	/**
 	 * Field type enum for use in field classes
 	 */
 	enum FieldType {
 		/** Protobuf message field type */
-		MESSAGE("Object", "null", TYPE_LENGTH_DELIMITED),
+		MESSAGE("Object", "Object", "null", TYPE_LENGTH_DELIMITED),
 		/** Protobuf enum(unsigned varint encoded int of ordinal) field type */
-		ENUM("int", "null", TYPE_VARINT),
+		ENUM("int", "Integer", "null", TYPE_VARINT),
 		/** Protobuf int32(signed varint encoded int) field type */
-		INT32("int", "0", TYPE_VARINT),
+		INT32("int", "Integer", "0", TYPE_VARINT),
 		/** Protobuf uint32(unsigned varint encoded int) field type */
-		UINT32("int", "0", TYPE_VARINT),
+		UINT32("int", "Integer", "0", TYPE_VARINT),
 		/** Protobuf sint32(signed zigzag varint encoded int) field type */
-		SINT32("int", "0", TYPE_VARINT),
+		SINT32("int", "Integer", "0", TYPE_VARINT),
 		/** Protobuf int64(signed varint encoded long) field type */
-		INT64("long", "0", TYPE_VARINT),
+		INT64("long", "Long", "0", TYPE_VARINT),
 		/** Protobuf uint64(unsigned varint encoded long)  field type */
-		UINT64("long", "0", TYPE_VARINT),
+		UINT64("long", "Long", "0", TYPE_VARINT),
 		/** Protobuf sint64(signed zigzag varint encoded long) field type */
-		SINT64("long", "0", TYPE_VARINT),
+		SINT64("long", "Long", "0", TYPE_VARINT),
 		/** Protobuf float field type */
-		FLOAT("float", "0", TYPE_FIXED32),
+		FLOAT("float", "Float", "0", TYPE_FIXED32),
 		/** Protobuf fixed int32(fixed encoding int) field type */
-		FIXED32("int", "0", TYPE_FIXED32),
+		FIXED32("int", "Integer", "0", TYPE_FIXED32),
 		/** Protobuf sfixed int32(signed fixed encoding int) field type */
-		SFIXED32("int", "0", TYPE_FIXED32),
+		SFIXED32("int", "Integer", "0", TYPE_FIXED32),
 		/** Protobuf double field type */
-		DOUBLE("double", "0", TYPE_FIXED64),
+		DOUBLE("double", "Double", "0", TYPE_FIXED64),
 		/** Protobuf sfixed64(fixed encoding long) field type */
-		FIXED64("long", "0", TYPE_FIXED64),
+		FIXED64("long", "Long", "0", TYPE_FIXED64),
 		/** Protobuf sfixed64(signed fixed encoding long) field type */
-		SFIXED64("long", "0", TYPE_FIXED64),
+		SFIXED64("long", "Long", "0", TYPE_FIXED64),
 		/** Protobuf string field type */
-		STRING("String", "\"\"", TYPE_LENGTH_DELIMITED),
+		STRING("String", "String", "\"\"", TYPE_LENGTH_DELIMITED),
 		/** Protobuf bool(boolean) field type */
-		BOOL("boolean", "false", TYPE_VARINT),
+		BOOL("boolean", "Boolean", "false", TYPE_VARINT),
 		/** Protobuf bytes field type */
-		BYTES("Bytes", "Bytes.EMPTY", TYPE_LENGTH_DELIMITED),
+		BYTES("Bytes", "Bytes", "Bytes.EMPTY", TYPE_LENGTH_DELIMITED),
 		/** Protobuf oneof field type, this is not a true field type in protobuf. Needed here for a few edge cases */
-		ONE_OF("OneOf", "null", 0 );// BAD TYPE
+		ONE_OF("OneOf", "OneOf", "null", 0 ),// BAD TYPE
+		// On the wire, a map is a repeated Message {key, value}, sorted in the natural order of keys for determinism.
+		MAP("Map", "Map", "Collections.EMPTY_MAP", TYPE_LENGTH_DELIMITED );
 
 		/** The type of field type in Java code */
 		public final String javaType;
+		/** The type of boxed field type in Java code */
+		public final String boxedType;
 		/** The field type default value in Java code */
 		public final String javaDefault;
 		/** The protobuf wire type for field type */
@@ -241,11 +265,13 @@ public interface Field {
 		 * Construct a new FieldType enum
 		 *
 		 * @param javaType The type of field type in Java code
+		 * @param boxedType The boxed type of the field type, e.g. Integer for an int field.
 		 * @param javaDefault The field type default value in Java code
 		 * @param wireType The protobuf wire type for field type
 		 */
-		FieldType(String javaType, final String javaDefault, int wireType) {
+		FieldType(String javaType, final String boxedType, final String javaDefault, int wireType) {
 			this.javaType = javaType;
+			this.boxedType = boxedType;
 			this.javaDefault = javaDefault;
 			this.wireType = wireType;
 		}
@@ -335,6 +361,43 @@ public interface Field {
 				return FieldType.BYTES;
 			} else {
 				throw new IllegalArgumentException("Unknown field type: "+typeContext);
+			}
+		}
+
+		/**
+		 * Get the field type for a given map key type parser context
+		 *
+		 * @param typeContext The parser context to get field type for
+		 * @param lookupHelper Lookup helper with global context
+		 * @return The field type enum for parser context
+		 */
+		static FieldType of(Protobuf3Parser.KeyTypeContext typeContext,  final ContextualLookupHelper lookupHelper) {
+			if (typeContext.INT32() != null) {
+				return FieldType.INT32;
+			} else if (typeContext.UINT32() != null) {
+				return FieldType.UINT32;
+			} else if (typeContext.SINT32() != null) {
+				return FieldType.SINT32;
+			} else if (typeContext.INT64() != null) {
+				return FieldType.INT64;
+			} else if (typeContext.UINT64() != null) {
+				return FieldType.UINT64;
+			} else if (typeContext.SINT64() != null) {
+				return FieldType.SINT64;
+			} else if (typeContext.FIXED32() != null) {
+				return FieldType.FIXED32;
+			} else if (typeContext.SFIXED32() != null) {
+				return FieldType.SFIXED32;
+			} else if (typeContext.FIXED64() != null) {
+				return FieldType.FIXED64;
+			} else if (typeContext.SFIXED64() != null) {
+				return FieldType.SFIXED64;
+			} else if (typeContext.STRING() != null) {
+				return FieldType.STRING;
+			} else if (typeContext.BOOL() != null) {
+				return FieldType.BOOL;
+			} else {
+				throw new IllegalArgumentException("Unknown map key type: " + typeContext);
 			}
 		}
 	}

@@ -37,7 +37,9 @@ public final class SchemaGenerator implements Generator {
 				fields.add(field);
 				field.addAllNeededImports(imports, true, false, false);
 			} else if (item.mapField() != null) { // process map flattenedFields
-				throw new IllegalStateException("Encountered a mapField that was not handled in parser");
+				final MapField field = new MapField(item.mapField(), lookupHelper);
+				fields.add(field);
+				field.addAllNeededImports(imports, true, false, false);
 			} else if (item.field() != null && item.field().fieldName() != null) {
 				final var field = new SingleField(item.field(), lookupHelper);
 				fields.add(field);
