@@ -80,8 +80,7 @@ public class PbjProtocolSelector implements Http2SubProtocolSelector {
 
         // This looks like a valid call! We will return a new PbjProtocolHandler to handle the request.
         return new SubProtocolResult(true,
-                new PbjProtocolHandler(config,
-                        headers,
+                new PbjProtocolHandler(headers,
                         streamWriter,
                         streamId,
                         flowControl,
