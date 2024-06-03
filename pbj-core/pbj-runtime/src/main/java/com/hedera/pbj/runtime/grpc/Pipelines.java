@@ -1,208 +1,516 @@
 package com.hedera.pbj.runtime.grpc;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Flow;
 
+/**
+ * Utility class for generating a "pipeline" of processing steps for gRPC services. This is not intended to be used
+ * directly by application code, but rather by the PBJ compiler when generating service interfaces.
+ */
 public final class Pipelines {
 
     private Pipelines() {
         // No instantiation
     }
 
+    /**
+     * Create a new pipeline for a unary gRPC service method. A unary method is a simple request/response method.
+     *
+     * @return A new builder for constructing the pipeline.
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
     public static <T, R> UnaryBuilder<T, R> unary() {
-        return new UnaryBuilderImpl();
+        return new UnaryBuilderImpl<>();
     }
 
+    /**
+     * Create a new pipeline for a bidirectional streaming gRPC service method. A bidirectional streaming method
+     * allows for a stream of requests and a stream of responses to operate concurrently.
+     *
+     * @return A new builder for constructing the pipeline.
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
     public static <T, R> BidiStreamingBuilder<T, R> bidiStreaming() {
-        return new BidiStreamingBuilderImpl();
+        return new BidiStreamingBuilderImpl<>();
     }
 
+    /**
+     * Create a new pipeline for a client streaming gRPC service method. A client streaming method allows for a
+     * stream of requests to be sent to the server, with a single response returned at the very end.
+     *
+     * @return A new builder for constructing the pipeline.
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
     public static <T, R> ClientStreamingBuilder<T, R> clientStreaming() {
-        return new ClientStreamingBuilderImpl();
+        return new ClientStreamingBuilderImpl<>();
     }
 
+    /**
+     * Create a new pipeline for a server streaming gRPC service method. A server streaming method allows for a
+     * single request to be sent to the server, with a stream of responses returned.
+     *
+     * @return A new builder for constructing the pipeline.
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
     public static <T, R> ServerStreamingBuilder<T, R> serverStreaming() {
-        return new ServerStreamingBuilderImpl();
+        return new ServerStreamingBuilderImpl<>();
     }
 
-    // Interfaces that represent each step along the path of constructing the pipeline
+    /**
+     * A builder for constructing the pipeline for a unary gRPC service method.
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
+    public interface UnaryBuilder<T,R> {
+        /**
+         * Configures a lambda for mapping from {@link Bytes} to the request message type. This must be specified.
+         *
+         * @param mapper The mapping function.
+         * @return This builder.
+         */
+        @NonNull
+        UnaryBuilder<T, R> mapRequest(@NonNull ExceptionalFunction<Bytes, T> mapper);
 
-    public interface PipelineBuilder<T, R> {
-        PipelineBuilder<T, R> mapRequest(MappingMethod<Bytes, T> mapper);
-        PipelineBuilder<T, R> mapResponse(MappingMethod<R, Bytes> mapper);
-        PipelineBuilder<T, R> respondTo(Flow.Subscriber<? super Bytes> replies);
+        /**
+         * Configures the unary method to be called when a request is received. This method handles the request and
+         * returns a response. This must be specified.
+         *
+         * @param method The method to call.
+         * @return This builder.
+         */
+        @NonNull
+        UnaryBuilder<T, R> method(@NonNull ExceptionalFunction<T, R> method);
+
+        /**
+         * Configures a lambda for mapping from the response message type to {@link Bytes}. This must be specified.
+         *
+         * @param mapper The mapping function.
+         * @return This builder.
+         */
+        @NonNull
+        UnaryBuilder<T, R> mapResponse(@NonNull ExceptionalFunction<R, Bytes> mapper);
+
+        /**
+         * Configures a subscriber to receive the response messages. This must be specified. This subscriber is
+         * provided by the web server and is responsible for sending the responses back to the client.
+         *
+         * @param replies The subscriber to receive the responses.
+         * @return This builder.
+         */
+        @NonNull
+        UnaryBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
+
+        /**
+         * Builds the pipeline and returns the subscriber that should be used to receive the incoming messages.
+         *
+         * @return The subscriber to receive the incoming messages.
+         */
+        @NonNull
         Flow.Subscriber<? super Bytes> build();
     }
 
-    public interface UnaryBuilder<T,R> extends PipelineBuilder<T,R> {
-        UnaryBuilder<T, R> mapRequest(MappingMethod<Bytes, T> mapper);
-        UnaryBuilder<T, R> method(UnaryMethod<T, R> method);
-        UnaryBuilder<T, R> mapResponse(MappingMethod<R, Bytes> mapper);
-        UnaryBuilder<T, R> respondTo(Flow.Subscriber<? super Bytes> replies);
+    /**
+     * A builder for constructing the pipeline for a bidirectional streaming gRPC service method.
+     *
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
+    public interface BidiStreamingBuilder<T,R> {
+        /**
+         * Configures a lambda for mapping from {@link Bytes} to the request message type. This must be specified.
+         * This function will be called once for each message arriving from the client.
+         *
+         * @param mapper The mapping function.
+         * @return This builder.
+         */
+        @NonNull
+        BidiStreamingBuilder<T, R> mapRequest(@NonNull ExceptionalFunction<Bytes, T> mapper);
+
+        /**
+         * Configures the bidirectional streaming method to be called when a request is received. This method is given
+         * a subscriber that it can push responses to, and it returns a subscriber that the system can push requests to.
+         * This must be specified.
+         *
+         * @param method The method to call.
+         * @return This builder.
+         */
+        @NonNull
+        BidiStreamingBuilder<T, R> method(@NonNull BidiStreamingMethod<T, R> method);
+
+        /**
+         * Configures a lambda for mapping from the response message type to {@link Bytes}. This must be specified.
+         * This function will be called once for each message that the method sends back to the client.
+         *
+         * @param mapper The mapping function.
+         * @return This builder.
+         */
+        @NonNull
+        BidiStreamingBuilder<T, R> mapResponse(@NonNull ExceptionalFunction<R, Bytes> mapper);
+
+        /**
+         * Configures a subscriber to receive the response messages. This must be specified. This subscriber is
+         * provided by the web server and is responsible for sending the responses back to the client.
+         *
+         * @param replies The subscriber to receive the responses.
+         * @return This builder.
+         */
+        @NonNull
+        BidiStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
+
+        /**
+         * Builds the pipeline and returns the subscriber that should be used to receive the incoming messages.
+         *
+         * @return The subscriber to receive the incoming messages.
+         */
+        @NonNull
+        Flow.Subscriber<? super Bytes> build();
     }
 
-    public interface BidiStreamingBuilder<T,R> extends PipelineBuilder<T,R> {
-        BidiStreamingBuilder<T, R> mapRequest(MappingMethod<Bytes, T> mapper);
-        BidiStreamingBuilder<T, R> method(BidiStreamingMethod<T, R> method);
-        BidiStreamingBuilder<T, R> mapResponse(MappingMethod<R, Bytes> mapper);
-        BidiStreamingBuilder<T, R> respondTo(Flow.Subscriber<? super Bytes> replies);
+    /**
+     * A builder for constructing the pipeline for a client streaming gRPC service method.
+     *
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
+    public interface ClientStreamingBuilder<T,R> {
+        /**
+         * Configures a lambda for mapping from {@link Bytes} to the request message type. This must be specified.
+         * This function will be called once for each message arriving from the client.
+         *
+         * @param mapper The mapping function.
+         * @return This builder.
+         */
+        @NonNull
+        ClientStreamingBuilder<T, R> mapRequest(@NonNull ExceptionalFunction<Bytes, T> mapper);
+
+        /**
+         * Configures the client streaming method to be called when a request is received. This method is given
+         * a subscriber that it can push responses to, and it returns a subscriber that the system can push requests to.
+         * Only a single message is returned through the subscriber.
+         * This must be specified.
+         *
+         * @param method The method to call.
+         * @return This builder.
+         */
+        @NonNull
+        ClientStreamingBuilder<T, R> method(@NonNull ClientStreamingMethod<T, R> method); // TODO Test if the client sends 2 response messages
+
+        /**
+         * Configures a lambda for mapping from the response message type to {@link Bytes}. This must be specified.
+         * This function will be called once for each message that the method sends back to the client.
+         *
+         * @param mapper The mapping function.
+         * @return This builder.
+         */
+        @NonNull
+        ClientStreamingBuilder<T, R> mapResponse(@NonNull ExceptionalFunction<R, Bytes> mapper);
+
+        /**
+         * Configures a subscriber to receive the response messages. This must be specified. This subscriber is
+         * provided by the web server and is responsible for sending the responses back to the client.
+         *
+         * @param replies The subscriber to receive the responses.
+         * @return This builder.
+         */
+        @NonNull
+        ClientStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
+
+        /**
+         * Builds the pipeline and returns the subscriber that should be used to receive the incoming messages.
+         *
+         * @return The subscriber to receive the incoming messages.
+         */
+        @NonNull
+        Flow.Subscriber<? super Bytes> build();
     }
 
-    public interface ClientStreamingBuilder<T,R> extends PipelineBuilder<T,R> {
-        ClientStreamingBuilder<T, R> mapRequest(MappingMethod<Bytes, T> mapper);
-        ClientStreamingBuilder<T, R> method(ClientStreamingMethod<T, R> method);
-        ClientStreamingBuilder<T, R> mapResponse(MappingMethod<R, Bytes> mapper);
-        ClientStreamingBuilder<T, R> respondTo(Flow.Subscriber<? super Bytes> replies);
+    /**
+     * A builder for constructing the pipeline for a server streaming gRPC service method.
+     *
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
+    public interface ServerStreamingBuilder<T,R> {
+        /**
+         * Configures a lambda for mapping from {@link Bytes} to the request message type. This must be specified.
+         *
+         * @param mapper The mapping function.
+         * @return This builder.
+         */
+        @NonNull
+        ServerStreamingBuilder<T, R> mapRequest(@NonNull ExceptionalFunction<Bytes, T> mapper);
+
+        /**
+         * Configures the server streaming method to be called when a request is received. This method is given
+         * a subscriber that it can push responses to. This must be specified.
+         *
+         * @param method The method to call.
+         * @return This builder.
+         */
+        @NonNull
+        ServerStreamingBuilder<T, R> method(@NonNull ServerStreamingMethod<T, R> method);
+
+        /**
+         * Configures a lambda for mapping from the response message type to {@link Bytes}. This must be specified.
+         * This function will be called once for each message that the method sends back to the client.
+         *
+         * @param mapper The mapping function.
+         * @return This builder.
+         */
+        @NonNull
+        ServerStreamingBuilder<T, R> mapResponse(@NonNull ExceptionalFunction<R, Bytes> mapper);
+
+        /**
+         * Configures a subscriber to receive the response messages. This must be specified. This subscriber is
+         * provided by the web server and is responsible for sending the responses back to the client.
+         *
+         * @param replies The subscriber to receive the responses.
+         * @return This builder.
+         */
+        @NonNull
+        ServerStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
+
+        /**
+         * Builds the pipeline and returns the subscriber that should be used to receive the incoming messages.
+         *
+         * @return The subscriber to receive the incoming messages.
+         */
+        @NonNull
+        Flow.Subscriber<? super Bytes> build();
     }
 
-    public interface ServerStreamingBuilder<T,R> extends PipelineBuilder<T,R> {
-        ServerStreamingBuilder<T, R> mapRequest(MappingMethod<Bytes, T> mapper);
-        ServerStreamingBuilder<T, R> method(ServerStreamingMethod<T, R> method);
-        ServerStreamingBuilder<T, R> mapResponse(MappingMethod<R, Bytes> mapper);
-        ServerStreamingBuilder<T, R> respondTo(Flow.Subscriber<? super Bytes> replies);
+    /**
+     * A function that can throw an exception.
+     *
+     * @param <T> The type of the input.
+     * @param <R> The type of the output.
+     */
+    @FunctionalInterface
+    public interface ExceptionalFunction<T, R> {
+        /**
+         * Applies this function to the given argument.
+         *
+         * @param t The input argument.
+         * @return The function result.
+         * @throws Exception If an error occurs during processing.
+         */
+        @NonNull
+        R apply(@NonNull T t) throws Exception;
     }
 
-    // Implementations
-    private abstract static class PipelineBuilderImpl<T, R> implements PipelineBuilder<T, R>, Flow.Subscriber<Bytes>, Flow.Subscription {
-        protected MappingMethod<Bytes, T> requestMapper;
-        protected MappingMethod<R, Bytes> responseMapper;
+    /**
+     * A function that handles a client streaming gRPC service method. Many messages are received from the client,
+     * but only a single response is sent back to the client when completed.
+     *
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
+    @FunctionalInterface
+    public interface ClientStreamingMethod<T, R> extends
+            ExceptionalFunction<Flow.Subscriber<? super R>,
+            Flow.Subscriber<? super T>> {
+    }
+
+    /**
+     * A function that handles a server streaming gRPC service method. A single request is received from the client,
+     * and many responses are sent back to the client.
+     *
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
+    public interface ServerStreamingMethod<T, R> {
+        /**
+         * Applies the server streaming method.
+         *
+         * @param request The request message.
+         * @param replies The subscriber to send responses to.
+         * @throws Exception If an error occurs during processing.
+         */
+        void apply(@NonNull T request, @NonNull Flow.Subscriber<? super R> replies) throws Exception;
+    }
+
+    /**
+     * A function that handles a bidirectional streaming gRPC service method. Many messages are received from the client,
+     * and many responses are sent back to the client.
+     *
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
+    public interface BidiStreamingMethod<T, R> extends
+            ExceptionalFunction<Flow.Subscriber<? super R>,
+                    Flow.Subscriber<? super T>> {
+    }
+
+    /**
+     * A convenient base class for the different builders. All builders have to hold state for request and
+     * response mapping functions, as well as the subscriber to send responses to, so we have a base class.
+     * This class also implements the {@link Flow.Subscriber} and {@link Flow.Subscription} interfaces, to
+     * reduce the overall number of instances created.
+     *
+     * <p>A {@link Flow.Subscription} is provided to each subscriber at the time they subscribe. Technically
+     * this can be a many-to-one relationship, but in our case, there is only going to be one subscriber for
+     * this {@link Flow.Subscription}, so we can simplify things a bit.
+     *
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
+    private abstract static class PipelineBuilderImpl<T, R> implements Flow.Subscriber<Bytes>, Flow.Subscription {
+        protected ExceptionalFunction<Bytes, T> requestMapper;
+        protected ExceptionalFunction<R, Bytes> responseMapper;
         protected Flow.Subscriber<? super Bytes> replies;
+        private Flow.Subscription sourceSubscription;
 
         @Override
-        public PipelineBuilder<T, R> mapRequest(MappingMethod<Bytes, T> mapper) {
-            this.requestMapper = mapper;
+        public void request(long n) {
+            // If we supported flow control, we'd pay attention to the number being presented. And we should, ideally,
+            // implement flow control. For now, we don't, so for now this is ignored.
+        }
+
+        @Override
+        public void cancel() {
+            sourceSubscription.cancel();
+        }
+
+        @Override
+        public void onSubscribe(@NonNull final Flow.Subscription subscription) {
+            // This method is called ...
+            this.sourceSubscription = subscription;
+            subscription.request(Long.MAX_VALUE);
+        }
+
+        @Override
+        public void onError(@NonNull final Throwable throwable) {
+            if (replies != null) {
+                replies.onError(throwable);
+            }
+        }
+
+        @Override
+        public void onComplete() {
+            if (replies != null) {
+                replies.onComplete();
+            }
+        }
+    }
+
+    /**
+     * The implementation of the {@link UnaryBuilder} interface.
+     *
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
+    private static final class UnaryBuilderImpl<T, R> extends PipelineBuilderImpl<T, R> implements UnaryBuilder<T, R> {
+        private ExceptionalFunction<T, R> method;
+
+        @Override
+        @NonNull
+        public UnaryBuilder<T, R> mapRequest(@NonNull final ExceptionalFunction<Bytes, T> mapper) {
+            this.requestMapper = requireNonNull(mapper);
             return this;
         }
 
         @Override
-        public PipelineBuilder<T, R> mapResponse(MappingMethod<R, Bytes> mapper) {
-            this.responseMapper = mapper;
+        @NonNull
+        public UnaryBuilder<T, R> method(@NonNull final ExceptionalFunction<T, R> method) {
+            this.method = requireNonNull(method);
             return this;
         }
 
         @Override
-        public PipelineBuilder<T, R> respondTo(Flow.Subscriber<? super Bytes> replies) {
-            this.replies = replies;
+        @NonNull
+        public UnaryBuilder<T, R> mapResponse(@NonNull final ExceptionalFunction<R, Bytes> mapper) {
+            this.responseMapper = requireNonNull(mapper);
             return this;
         }
 
         @Override
+        @NonNull
+        public UnaryBuilder<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
+            this.replies = requireNonNull(replies);
+            return this;
+        }
+
+        @Override
+        @NonNull
         public Flow.Subscriber<? super Bytes> build() {
             replies.onSubscribe(this);
             return this;
         }
 
         @Override
-        public void request(long n) {
-            // TODO
-        }
-
-        @Override
-        public void cancel() {
-            // TODO
-        }
-
-
-        @Override
-        public void onSubscribe(Flow.Subscription subscription) {
-            subscription.request(Long.MAX_VALUE); // turn off flow control for now
-        }
-
-        @Override
-        public void onError(Throwable throwable) {
-            replies.onError(throwable);
-        }
-
-        @Override
-        public void onComplete() {
-            replies.onComplete();
-        }
-    }
-
-    private static final class UnaryBuilderImpl<T, R> extends PipelineBuilderImpl<T, R> implements UnaryBuilder<T, R> {
-        private UnaryMethod<T, R> method;
-
-        @Override
-        public UnaryBuilder<T, R> mapRequest(MappingMethod<Bytes, T> mapper) {
-            super.mapRequest(mapper);
-            return this;
-        }
-
-        @Override
-        public UnaryBuilder<T, R> method(UnaryMethod<T, R> method) {
-            this.method = method;
-            return this;
-        }
-
-        @Override
-        public UnaryBuilder<T, R> mapResponse(MappingMethod<R, Bytes> mapper) {
-            super.mapResponse(mapper);
-            return this;
-        }
-
-        @Override
-        public UnaryBuilder<T, R> respondTo(Flow.Subscriber<? super Bytes> replies) {
-            super.respondTo(replies);
-            return this;
-        }
-
-        @Override
-        public Flow.Subscriber<? super Bytes> build() {
-            super.build();
-            return this;
-        }
-
-        @Override
-        public void onNext(final Bytes message) {
+        public void onNext(@NonNull final Bytes message) {
+            // A unary method call is pretty simple. We take the incoming bytes, convert them into the request
+            // message type, call the method, and then convert the response message back into bytes. If there
+            // are any exceptions, we forward that along. Otherwise, we just do the work and complete.
+            //
+            // It may be that the client is broken and sends two messages instead of one. If they do this, it
+            // doesn't hurt, and we don't detect it. We simply process the first message and never see the second.
             try {
                 final var request = requestMapper.apply(message);
                 final var reply = method.apply(request);
                 final var replyBytes = responseMapper.apply(reply);
                 replies.onNext(replyBytes);
                 replies.onComplete();
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 replies.onError(e);
             }
         }
     }
 
+    /**
+     * The implementation of the {@link BidiStreamingBuilder} interface.
+     *
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
     private static final class BidiStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R> implements BidiStreamingBuilder<T, R> {
         private BidiStreamingMethod<T, R> method;
         private Flow.Subscriber<? super T> incoming;
 
         @Override
-        public BidiStreamingBuilderImpl<T, R> mapRequest(MappingMethod<Bytes, T> mapper) {
-            super.mapRequest(mapper);
+        @NonNull
+        public BidiStreamingBuilderImpl<T, R> mapRequest(@NonNull final ExceptionalFunction<Bytes, T> mapper) {
+            this.requestMapper = mapper;
             return this;
         }
 
         @Override
-        public BidiStreamingBuilderImpl<T, R> method(BidiStreamingMethod<T, R> method) {
+        @NonNull
+        public BidiStreamingBuilderImpl<T, R> method(@NonNull final BidiStreamingMethod<T, R> method) {
             this.method = method;
             return this;
         }
 
         @Override
-        public BidiStreamingBuilderImpl<T, R> mapResponse(MappingMethod<R, Bytes> mapper) {
-            super.mapResponse(mapper);
+        @NonNull
+        public BidiStreamingBuilderImpl<T, R> mapResponse(@NonNull final ExceptionalFunction<R, Bytes> mapper) {
+            this.responseMapper = mapper;
             return this;
         }
 
         @Override
-        public BidiStreamingBuilderImpl<T, R> respondTo(Flow.Subscriber<? super Bytes> replies) {
-            super.respondTo(replies);
+        @NonNull
+        public BidiStreamingBuilderImpl<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
+            this.replies = replies;
             return this;
         }
 
         @Override
+        @NonNull
         public Flow.Subscriber<? super Bytes> build() {
-            super.build();
-            final var responseConverter = new MapSubscriber<R, Bytes>(replies) {
-                @Override
-                public Bytes map(R item) throws Exception {
-                    return responseMapper.apply(item);
-                }
-            };
+            replies.onSubscribe(this);
+
+            // This subscriber maps from the response type to bytes and sends them back to the client. Whenever
+            // the "onNext" method produces a new response, it will pass through this subscriber before being
+            // forwarded to the "replies" subscriber, where the webserver will return it to the client.
+            final var responseConverter = new MapSubscriber<R, Bytes>(replies, item -> responseMapper.apply(item));
 
             try {
                 incoming = method.apply(responseConverter);
@@ -213,7 +521,7 @@ public final class Pipelines {
         }
 
         @Override
-        public void onNext(final Bytes message) {
+        public void onNext(@NonNull final Bytes message) {
             try {
                 final var request = requestMapper.apply(message);
                 incoming.onNext(request);
@@ -234,38 +542,38 @@ public final class Pipelines {
         private Flow.Subscriber<? super T> incoming;
 
         @Override
-        public ClientStreamingBuilderImpl<T, R> mapRequest(MappingMethod<Bytes, T> mapper) {
-            super.mapRequest(mapper);
+        @NonNull
+        public ClientStreamingBuilderImpl<T, R> mapRequest(@NonNull final ExceptionalFunction<Bytes, T> mapper) {
+            this.requestMapper = mapper;
             return this;
         }
 
         @Override
-        public ClientStreamingBuilderImpl<T, R> method(ClientStreamingMethod<T, R> method) {
+        @NonNull
+        public ClientStreamingBuilderImpl<T, R> method(@NonNull final ClientStreamingMethod<T, R> method) {
             this.method = method;
             return this;
         }
 
         @Override
-        public ClientStreamingBuilderImpl<T, R> mapResponse(MappingMethod<R, Bytes> mapper) {
-            super.mapResponse(mapper);
+        @NonNull
+        public ClientStreamingBuilderImpl<T, R> mapResponse(@NonNull final ExceptionalFunction<R, Bytes> mapper) {
+            this.responseMapper = mapper;
             return this;
         }
 
         @Override
-        public ClientStreamingBuilderImpl<T, R> respondTo(Flow.Subscriber<? super Bytes> replies) {
-            super.respondTo(replies);
+        @NonNull
+        public ClientStreamingBuilderImpl<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
+            this.replies = replies;
             return this;
         }
 
         @Override
+        @NonNull
         public Flow.Subscriber<? super Bytes> build() {
-            super.build();
-            final var responseConverter = new MapSubscriber<R, Bytes>(replies) {
-                @Override
-                public Bytes map(R item) throws Exception {
-                    return responseMapper.apply(item);
-                }
-            };
+            replies.onSubscribe(this);
+            final var responseConverter = new MapSubscriber<R, Bytes>(replies, item -> responseMapper.apply(item));
 
             try {
                 incoming = method.apply(responseConverter);
@@ -276,7 +584,7 @@ public final class Pipelines {
         }
 
         @Override
-        public void onNext(final Bytes message) {
+        public void onNext(@NonNull final Bytes message) {
             try {
                 final var request = requestMapper.apply(message);
                 incoming.onNext(request);
@@ -294,173 +602,98 @@ public final class Pipelines {
 
     private static final class ServerStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R> implements ServerStreamingBuilder<T, R> {
         private ServerStreamingMethod<T, R> method;
+        private Flow.Subscriber<? super R> responseConverter;
 
         @Override
-        public ServerStreamingBuilderImpl<T, R> mapRequest(MappingMethod<Bytes, T> mapper) {
-            super.mapRequest(mapper);
+        @NonNull
+        public ServerStreamingBuilderImpl<T, R> mapRequest(@NonNull final ExceptionalFunction<Bytes, T> mapper) {
+            this.requestMapper = mapper;
             return this;
         }
 
         @Override
-        public ServerStreamingBuilderImpl<T, R> method(ServerStreamingMethod<T, R> method) {
+        @NonNull
+        public ServerStreamingBuilderImpl<T, R> method(@NonNull final ServerStreamingMethod<T, R> method) {
             this.method = method;
             return this;
         }
 
         @Override
-        public ServerStreamingBuilderImpl<T, R> mapResponse(MappingMethod<R, Bytes> mapper) {
-            super.mapResponse(mapper);
+        @NonNull
+        public ServerStreamingBuilderImpl<T, R> mapResponse(@NonNull final ExceptionalFunction<R, Bytes> mapper) {
+            this.responseMapper = mapper;
             return this;
         }
 
         @Override
-        public ServerStreamingBuilderImpl<T, R> respondTo(Flow.Subscriber<? super Bytes> replies) {
-            super.respondTo(replies);
+        @NonNull
+        public ServerStreamingBuilderImpl<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
+            this.replies = replies;
             return this;
         }
 
         @Override
+        @NonNull
         public Flow.Subscriber<? super Bytes> build() {
-            super.build();
+            responseConverter = new MapSubscriber<>(replies, item -> responseMapper.apply(item));
+            responseConverter.onSubscribe(this); // Theoretically this should be done. But now I'm subscribing to this AND replies!
             return this;
         }
 
         @Override
-        public void onNext(final Bytes message) {
-            final var converter = new MapSubscriber<R, Bytes>(replies) {
-                @Override
-                public Bytes map(R item) throws Exception {
-                    return responseMapper.apply(item);
-                }
-            };
-
+        public void onNext(@NonNull final Bytes message) {
             try {
                 final var request = requestMapper.apply(message);
-                method.apply(request, converter);
+                method.apply(request, responseConverter);
             } catch (Exception e) {
                 replies.onError(e);
             }
         }
     }
 
-//
-//    public static final class BidiBuilder<T, R> {
-//        private final BidiStreamingMethod<T, R> handler;
-//        private final MappingMethod<Bytes, T> mapper;
-//
-//        public BidiBuilder(BidiStreamingMethod<T, R> handler, MappingMethod<Bytes, T> mapper) {
-//            this.handler = handler;
-//            this.mapper = mapper;
-//        }
-//
-//        /*
-//
-//                    final var r = new MapSubscriber<HelloReply, Bytes>(replies) {
-//                        @Override
-//                        public Bytes map(HelloReply item) throws Exception {
-//                            return createReply(item, options);
-//                        }
-//                    };
-//
-//                    final var incoming = new MapSubscriber<Bytes, HelloRequest>(sayHelloStreamBidi(r)) {
-//                        @Override
-//                        public HelloRequest map(Bytes item) throws Exception {
-//                            return parseRequest(item, options);
-//                        }
-//                    };
-//                    return new UnarySubscriber<>() {
-//                        @Override
-//                        public void onNext(Bytes item) {
-//                            try {
-//                                incoming.onNext(item);
-//                            } catch (Exception e) {
-//                                replies.onError(e);
-//                            }
-//                        }
-//
-//                        @Override
-//                        public void onComplete() {
-//                            incoming.onComplete();
-//                        }
-//                    };
-//
-//         */
-//
-//        public ResponseMappingBuilder<R> map(MappingMethod<R, Bytes> mapper) {
-//            return new ResponseMappingBuilder<>(mapper);
-//        }
-//
-//    }
-//
-//    public static final class ClientStreamingBuilder<T, R> {
-//        private final ClientStreamingMethod<T, R> handler;
-//        private final MappingMethod<Bytes, T> mapper;
-//
-//        public ClientStreamingBuilder(ClientStreamingMethod<T, R> handler, MappingMethod<Bytes, T> mapper) {
-//            this.handler = handler;
-//            this.mapper = mapper;
-//        }
-//
-//        /*
-//
-//                    // This guy will convert from HelloReply to Bytes and send it back to the client.
-//                    final var r = new MapSubscriber<HelloReply, Bytes>(replies) {
-//                        @Override
-//                        public Bytes map(HelloReply item) throws Exception {
-//                            return createReply(item, options);
-//                        }
-//                    };
-//
-//                    final var incoming = new MapSubscriber<Bytes, HelloRequest>(sayHelloStreamRequest(r)) {
-//                        @Override
-//                        public HelloRequest map(Bytes item) throws Exception {
-//                            return parseRequest(item, options);
-//                        }
-//                    };
-//
-//                    return new UnarySubscriber<>() {
-//                        @Override
-//                        public void onNext(Bytes item) {
-//                            try {
-//                                incoming.onNext(item);
-//                            } catch (Exception e) {
-//                                replies.onError(e);
-//                            }
-//                        }
-//
-//                        @Override
-//                        public void onComplete() {
-//                            incoming.onComplete();
-//                        }
-//                    };
-//         */
-//
-//        public ResponseMappingBuilder<R> map(MappingMethod<R, Bytes> mapper) {
-//            return new ResponseMappingBuilder<>(mapper);
-//        }
-//    }
+    private record MapSubscriber<T, R>(
+            Flow.Subscriber<? super R> next,
+            ExceptionalFunction<T, R> mapper) implements Flow.Subscriber<T>, Flow.Subscription {
 
-    public interface MappingMethod<T, R> {
-        R apply(T request) throws Exception;
-    }
+        private MapSubscriber(@NonNull final Flow.Subscriber<? super R> next, @NonNull final ExceptionalFunction<T, R> mapper) {
+            this.next = next;
+            this.mapper = mapper;
+            next.onSubscribe(this);
+        }
 
-    public interface UnaryMethod<T, R> {
-        R apply(T request) throws Exception;
-    }
+        @Override
+        public void request(long n) {
+            // We don't care about flow control right now. We should, but we don't.
+        }
 
-    public interface ClientStreamingMethod<T, R> {
-        Flow.Subscriber<? super T> apply(Flow.Subscriber<? super R> replies) throws Exception;
-    }
+        @Override
+        public void cancel() {
+            // TODO
+        }
 
-    public interface ServerStreamingMethod<T, R> {
-        void apply(T request, Flow.Subscriber<? super R> replies) throws Exception;
-    }
+        @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.request(Long.MAX_VALUE);
+            }
 
-    public interface BidiStreamingMethod<T, R> {
-        Flow.Subscriber<? super T> apply(Flow.Subscriber<? super R> replies) throws Exception;
-    }
+            @Override
+            public void onNext(T item) {
+                try {
+                    final var r = mapper.apply(item);
+                    next.onNext(r);
+                } catch (Throwable t) {
+                    next.onError(t);
+                }
+            }
 
-    private record CallParams<T, R>(MappingMethod<Bytes, T> mapper, Runnable r, MappingMethod<R, Bytes> mapper2) {
+            @Override
+            public void onError(Throwable throwable) {
+                next.onError(throwable);
+            }
 
-    }
+            @Override
+            public void onComplete() {
+                next.onComplete();
+            }
+        }
 }
