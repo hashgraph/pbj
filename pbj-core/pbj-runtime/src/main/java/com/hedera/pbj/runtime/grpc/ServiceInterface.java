@@ -140,6 +140,7 @@ public interface ServiceInterface {
      * @param opts      Any options from the request, such as the content type.
      * @param responses The subscriber used by the service to push responses back to the client.
      */
+    @NonNull
     Flow.Subscriber<? super Bytes> open(
             @NonNull Method method, @NonNull RequestOptions opts, @NonNull Flow.Subscriber<? super Bytes> responses)
             throws GrpcException;
