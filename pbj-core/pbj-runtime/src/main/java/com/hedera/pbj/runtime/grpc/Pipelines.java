@@ -449,7 +449,6 @@ public final class Pipelines {
             sourceSubscription.cancel();
         }
 
-
         @Override
         public void onSubscribe(@NonNull final Flow.Subscription subscription) {
             // This method is called ...
