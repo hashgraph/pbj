@@ -82,6 +82,7 @@ public interface ServiceInterface {
      * @param messages A source of messages sent by the client.
      * @param callback A callback to send responses back to the client.
      */
+    @NonNull
     Flow.Subscriber<? super Bytes> open(
             @NonNull RequestOptions opts,
             @NonNull Method method,
