@@ -58,8 +58,6 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private final StreamFlowControl flowControl;
     private Http2StreamState currentStreamState;
 
-    /** The configurations to use for this handler */
-    private final PbjConfig config;
     /**
      * The service method that this connection was created for. The route has information about the
      * {@link ServiceInterface} and method to invoke.
@@ -87,15 +85,13 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private Flow.Subscriber<? super Bytes> outgoing;
 
     /** Create a new instance */
-    PbjProtocolHandler(final @NonNull PbjConfig config,
-                       final @NonNull Http2Headers headers,
+    PbjProtocolHandler(final @NonNull Http2Headers headers,
                        final @NonNull Http2StreamWriter streamWriter,
                        final int streamId,
                        final @NonNull StreamFlowControl flowControl,
                        final @NonNull Http2StreamState currentStreamState,
                        final @NonNull PbjMethodRoute route,
                        final @NonNull DeadlineDetector deadlineDetector) {
-        this.config = requireNonNull(config);
         this.headers = requireNonNull(headers);
         this.streamWriter = requireNonNull(streamWriter);
         this.streamId = streamId;
