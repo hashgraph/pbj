@@ -448,3 +448,8 @@ is recorded. However, we need to be careful not to hurt performance or stability
 
 gRPC allows for custom metadata in the HTTP2 headers. This doesn't seem to be heavily used, but we can implement it
 later if required.
+
+## Support for gRPC Reflection
+
+gRPC defines a [reflection API](https://grpc.io/docs/guides/reflection/) that allows clients (such as grpcurl) to
+perform gRPC calls in a more ad-hoc human friendly way. This should be supported by the system.
