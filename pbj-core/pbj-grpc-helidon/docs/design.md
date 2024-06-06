@@ -92,7 +92,7 @@ a gRPC error code, or a `RuntimeException` to indicate an internal server error.
 Each of the remaining three types of RPC calls involve streaming. Streaming requires the application developer to deal
 with connection termination, cancellation, and error handling. The approach taken by PBJ is similar to that taken in
 `grpc.io`, but instead of using a library-specific `StreamObserver` object, PBJ uses implementations of the new reactive
-`Flow` API in Java 21 and associated interfaces.
+`Flow` API in Java 9 and associated interfaces.
 
 The `Flow` API has three primary methods on a `Flow.Subscriber`:
   - `onNext`: called when a new message is available
