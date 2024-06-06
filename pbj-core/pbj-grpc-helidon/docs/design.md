@@ -401,7 +401,7 @@ may be called more than once.
 
 ## Performance Testing
 
-1. Performance on the server is comparable to other solutions (see [Performance Testing](https://github.com/LesnyRumcajs/grpc_bench/blob/master/java_vertx_grpc_bench/Dockerfile)
+1. Performance on the server is comparable to other solutions (see [Performance Testing](https://github.com/LesnyRumcajs/grpc_bench/blob/master/java_vertx_grpc_bench/Dockerfile))
 
 ## Load Testing
 
