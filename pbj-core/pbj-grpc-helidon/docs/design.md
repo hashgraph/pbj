@@ -349,7 +349,7 @@ using the `onNext` method.
 public class GreeterServiceImpl implements GreeterService {
     @Override
     @NonNull
-    public Flow.Subscriber<HelloReply> sayHelloStreamBidi(@NonNull final Flow.Subscriber<HelloRequest> request) {
+    public Flow.Subscriber<HelloReply> sayHelloStreamBidi(@NonNull final Flow.Subscriber<HelloRequest> replies) {
         return new Flow.Subscriber<>() {
             @Override
             public void onSubscribe(Flow.Subscription subscription) {
