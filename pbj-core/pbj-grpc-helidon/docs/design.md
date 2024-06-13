@@ -16,7 +16,7 @@ little sense to bolt PBJ onto `grpc.io` and its expectations of what is generate
 alternative to `protoc`. While that is a decent way to bootstrap the use of PBJ on a server that doesn't support PBJ
 directly, in the case of Helidon, we can do better.
 
-Plugins or modules for other webservers can also be created if wanted.
+Plugins or modules for other webservers can also be created if desired.
 
 ## Design
 
