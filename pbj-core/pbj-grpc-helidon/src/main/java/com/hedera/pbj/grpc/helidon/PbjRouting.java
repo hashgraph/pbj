@@ -23,9 +23,6 @@ import java.util.List;
  * </pre>
  */
 public class PbjRouting implements Routing {
-    /** This routing has absolutely no routes. */
-    static final PbjRouting EMPTY = PbjRouting.builder().build();
-
     /** The list of routes. */
     @NonNull private final List<PbjRoute> routes;
 
