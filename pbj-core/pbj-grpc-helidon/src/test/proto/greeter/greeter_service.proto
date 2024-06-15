@@ -1,6 +1,6 @@
 syntax = "proto3";
-import "hello_reply.proto";
-import "hello_request.proto";
+import "greeter/hello_reply.proto";
+import "greeter/hello_request.proto";
 
 package greeter;
 option java_multiple_files = true;
