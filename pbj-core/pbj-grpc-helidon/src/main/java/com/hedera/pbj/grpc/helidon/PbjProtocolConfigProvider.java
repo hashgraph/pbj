@@ -16,13 +16,22 @@
 
 package com.hedera.pbj.grpc.helidon;
 
+import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import io.helidon.common.config.Config;
 import io.helidon.webserver.spi.ProtocolConfigProvider;
 
 /**
- * Implementation of a service provider interface to create grpc protocol configuration.
+ * Implementation of a service provider interface so Helidon can create a {@link PbjConfig} instance.
  */
 public class PbjProtocolConfigProvider implements ProtocolConfigProvider<PbjConfig> {
+
+    /**
+     * Create an instance.
+     */
+    public PbjProtocolConfigProvider() {
+        // default constructor, used by Helidon to create the instance
+    }
+
     @Override
     public String configKey() {
         return PbjProtocolProvider.CONFIG_NAME;

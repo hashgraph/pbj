@@ -2,6 +2,7 @@ package com.hedera.pbj.grpc.helidon;
 
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.http.HttpPrologue;
 import io.helidon.webserver.Routing;
 import java.util.ArrayList;
@@ -22,34 +23,28 @@ import java.util.List;
  * </pre>
  */
 public class PbjRouting implements Routing {
-    /** This routing has absolutely no routes. */
-    static final PbjRouting EMPTY = PbjRouting.builder().build();
-
     /** The list of routes. */
-    private final List<PbjRoute> routes;
+    @NonNull private final List<PbjRoute> routes;
 
     /** Create a new instance. This is private, so it can only be created using the builder method. */
-    private PbjRouting(final @NonNull Builder builder) {
+    private PbjRouting(@NonNull final Builder builder) {
         this.routes = new ArrayList<>(builder.routes);
     }
 
     @Override
+    @NonNull
     public Class<? extends Routing> routingType() {
         return PbjRouting.class;
     }
 
     @Override
     public void beforeStart() {
-        for (final PbjRoute route : routes) {
-            route.beforeStart();
-        }
+        routes.forEach(PbjRoute::beforeStart);
     }
 
     @Override
     public void afterStop() {
-        for (final PbjRoute route : routes) {
-            route.afterStop();
-        }
+        routes.forEach(PbjRoute::afterStop);
     }
 
     /**
@@ -59,8 +54,9 @@ public class PbjRouting implements Routing {
      * @param prologue the prologue to match
      * @return the route that matches the prologue, or {@code null} if no route matches
      */
-    PbjMethodRoute findRoute(final HttpPrologue prologue) {
-        for (final PbjRoute route : routes) {
+    @Nullable
+    PbjMethodRoute findRoute(@NonNull final HttpPrologue prologue) {
+        for (final var route : routes) {
             final var accepts = route.accepts(prologue);
             if (accepts.accepted()) {
                 return route.toPbjMethodRoute(prologue);
@@ -75,6 +71,7 @@ public class PbjRouting implements Routing {
      *
      * @return a new builder
      */
+    @NonNull
     public static Builder builder() {
         return new Builder();
     }
@@ -89,6 +86,7 @@ public class PbjRouting implements Routing {
         }
 
         @Override
+        @NonNull
         public PbjRouting build() {
             return new PbjRouting(this);
         }
@@ -99,11 +97,13 @@ public class PbjRouting implements Routing {
          * @param service service to add
          * @return updated builder
          */
-        public Builder service(final ServiceInterface service) {
+        @NonNull
+        public Builder service(@NonNull final ServiceInterface service) {
             return route(new PbjServiceRoute(service));
         }
 
-        private Builder route(PbjRoute route) {
+        @NonNull
+        private Builder route(@NonNull final PbjRoute route) {
             routes.add(route);
             return this;
         }

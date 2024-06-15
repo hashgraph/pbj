@@ -17,14 +17,14 @@ class PbjServiceRoute extends PbjRoute {
     /** One {@link PbjMethodRoute} for each method in the service. */
     private final List<PbjMethodRoute> routes;
 
-    PbjServiceRoute(final @NonNull ServiceInterface service) {
+    PbjServiceRoute(@NonNull final ServiceInterface service) {
         this.serviceName = requireNonNull(service).serviceName();
         this.routes = service.methods().stream().map(method -> new PbjMethodRoute(service, method)).toList();
     }
 
     @Override
     @NonNull
-    PbjMethodRoute toPbjMethodRoute(final @NonNull HttpPrologue prologue) {
+    PbjMethodRoute toPbjMethodRoute(@NonNull final HttpPrologue prologue) {
         for (final PbjMethodRoute route : routes) {
             final var accepts = route.accepts(prologue);
             if (accepts.accepted()) {
@@ -37,7 +37,7 @@ class PbjServiceRoute extends PbjRoute {
 
     @Override
     @NonNull
-    PathMatchers.MatchResult accepts(final @NonNull HttpPrologue prologue) {
+    PathMatchers.MatchResult accepts(@NonNull final HttpPrologue prologue) {
         for (final PbjMethodRoute route : routes) {
             final var accepts = route.accepts(prologue);
             if (accepts.accepted()) {

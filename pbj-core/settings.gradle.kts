@@ -23,6 +23,7 @@ plugins {
 
 include(":pbj-runtime")
 include(":pbj-compiler")
+include(":pbj-grpc-helidon-config")
 include(":pbj-grpc-helidon")
 
 gradleEnterprise {
@@ -32,6 +33,8 @@ gradleEnterprise {
     }
 }
 
+var helidonVersion = "4.0.8"
+
 dependencyResolutionManagement {
     versionCatalogs {
         create("libs") {
@@ -40,12 +43,16 @@ dependencyResolutionManagement {
             version("org.antlr.antlr4.runtime", "4.11.1")
             version("com.github.spotbugs.annotations", "4.8.6")
 
-            // The libs of this catalog are used by the PBJ library
-            version("io.helidon.webserver", "4.0.8")
-            version("io.helidon.webserver.http2", "4.0.8")
-            version("io.helidon.webclient", "4.0.8")  // for testing
-            version("io.helidon.webclient.http2", "4.0.8")  // for testing
-            version("com.hedera.node.hapi", "0.48.0")  // for testing
+            // The libs of this catalog are used to compile but are not bundled. The user will select helidon
+            // which will have the set of these dependencies that are required.
+            version("io.helidon.webserver", helidonVersion)
+            version("io.helidon.webserver.http2", helidonVersion)
+            version("io.helidon.metrics.api", helidonVersion)
+            version("io.helidon.common.features.api", helidonVersion)
+            version("io.helidon.common.features.processor", helidonVersion) // annotation processing
+            version("io.helidon.config.metadata.processor", helidonVersion) // annotation processing
+            version("io.helidon.codegen.apt", helidonVersion) // annotation processing
+            version("io.helidon.builder.codegen", helidonVersion) // annotation processing
 
             // Testing only versions
             version("com.google.protobuf", "3.21.9")
@@ -59,6 +66,9 @@ dependencyResolutionManagement {
             version("io.grpc.protobuf", "1.61.1")
             version("io.grpc.stub", "1.61.1")
             version("javax.annotation", "1.3.2")
+            version("io.helidon.webclient", helidonVersion)
+            version("io.helidon.webclient.http2", helidonVersion)
+            version("com.hedera.node.hapi", "0.48.0")
         }
     }
 }
