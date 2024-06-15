@@ -21,6 +21,12 @@ plugins {
     id("me.champeau.jmh")
 }
 
+mainModuleInfo {
+    annotationProcessor("io.helidon.common.features.processor")
+    annotationProcessor("io.helidon.codegen.apt")
+    annotationProcessor("io.helidon.builder.codegen")
+}
+
 testModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")

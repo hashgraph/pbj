@@ -1,4 +1,4 @@
-package com.hedera.pbj.grpc.helidon;
+package com.hedera.pbj.grpc.helidon.config;
 
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import io.helidon.builder.api.Option;
@@ -56,7 +56,7 @@ interface PbjConfigBlueprint extends ProtocolConfig {
      * @return type of this configuration
      */
     default String type() {
-        return PbjProtocolProvider.CONFIG_NAME;
+        return "pbj";
     }
 
     /**

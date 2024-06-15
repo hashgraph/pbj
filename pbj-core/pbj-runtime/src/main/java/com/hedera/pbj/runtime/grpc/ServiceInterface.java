@@ -59,6 +59,7 @@ public interface ServiceInterface {
         String APPLICATION_GRPC_PROTO = "application/grpc+proto";
         String APPLICATION_GRPC_JSON = "application/grpc+json";
 
+        String authority();
         boolean isProtobuf();
         boolean isJson();
         String contentType();
@@ -77,14 +78,13 @@ public interface ServiceInterface {
      * implementation is provided by the generated PBJ code, which will handle the dispatching of messages to the
      * appropriate methods in the correct way (unary, server-side streaming, etc.).
      *
-     * @param opts Any options from the request, such as the content type.
-     * @param method The method that was called by the client.
-     * @param messages A source of messages sent by the client.
-     * @param callback A callback to send responses back to the client.
+     * @param method    The method that was called by the client.
+     * @param opts      Any options from the request, such as the content type.
+     * @param responses The subscriber used by the service to push responses back to the client.
      */
     @NonNull
     Flow.Subscriber<? super Bytes> open(
-            @NonNull RequestOptions opts,
             @NonNull Method method,
-            @NonNull Flow.Subscriber<? super Bytes> responses);
+            @NonNull RequestOptions opts,
+            @NonNull Flow.Subscriber<? super Bytes> responses) throws GrpcException;
 }

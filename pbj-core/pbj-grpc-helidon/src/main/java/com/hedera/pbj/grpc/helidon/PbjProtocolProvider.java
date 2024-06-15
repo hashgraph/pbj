@@ -1,5 +1,6 @@
 package com.hedera.pbj.grpc.helidon;
 
+import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.webserver.ProtocolConfigs;
 import io.helidon.webserver.http2.spi.Http2SubProtocolProvider;
@@ -36,7 +37,7 @@ public class PbjProtocolProvider implements Http2SubProtocolProvider<PbjConfig> 
 
     @Override
     @NonNull
-    public Http2SubProtocolSelector create(final @NonNull PbjConfig config, final @NonNull ProtocolConfigs configs) {
+    public Http2SubProtocolSelector create(@NonNull final PbjConfig config, @NonNull final ProtocolConfigs configs) {
         return new PbjProtocolSelector(config);
     }
 }

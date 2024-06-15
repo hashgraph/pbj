@@ -1,4 +1,4 @@
-package pbj;
+package com.hedera.pbj.grpc.helidon;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -50,8 +50,8 @@ public interface GreeterService extends ServiceInterface {
 
     @Override
     default Flow.Subscriber<? super Bytes> open(
-            final @NonNull RequestOptions options,
             final @NonNull Method method,
+            final @NonNull RequestOptions options,
             final @NonNull Flow.Subscriber<? super Bytes> replies) {
 
         final var m = (GreeterMethod) method;

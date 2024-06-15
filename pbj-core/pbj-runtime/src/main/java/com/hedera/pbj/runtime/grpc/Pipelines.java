@@ -457,7 +457,6 @@ public final class Pipelines {
                 final var reply = method.apply(request);
                 final var replyBytes = responseMapper.apply(reply);
                 replies.onNext(replyBytes);
-                replies.onComplete();
             } catch (Throwable e) {
                 replies.onError(e);
             }
