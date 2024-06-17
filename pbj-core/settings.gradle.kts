@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+pluginManagement { includeBuild("gradle/plugins") }
+
 plugins {
     id("com.gradle.enterprise").version("3.15.1")
 }

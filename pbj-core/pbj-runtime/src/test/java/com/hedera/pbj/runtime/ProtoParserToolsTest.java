@@ -196,7 +196,7 @@ class ProtoParserToolsTest {
 
     @Test
     void testReadString_incomplete() throws IOException {
-        final int length = rng.nextInt(0, 100);
+        final int length = rng.nextInt(1, 100);
         final RandomString randomString = new RandomString(length);
         final BufferedData data = BufferedData.allocate(length + 1);
         data.writeVarInt(length, false); // write the size first
