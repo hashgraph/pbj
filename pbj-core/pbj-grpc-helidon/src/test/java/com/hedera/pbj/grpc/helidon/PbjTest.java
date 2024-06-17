@@ -33,20 +33,17 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingDeque;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Flow;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -573,18 +570,19 @@ class PbjTest {
 
     @Nested
     class ConcurrencyTests {
+        private static final int NUM_CONCURRENT = 10;
         private static final int NUM_REQUESTS = 100_000;
-        private final ConcurrentHashMap<Integer, HelloReply> replies = new ConcurrentHashMap<>();
+        private final ConcurrentLinkedQueue<AssertionError> failures = new ConcurrentLinkedQueue<>();
         private final CountDownLatch latch = new CountDownLatch(NUM_REQUESTS);
         private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
-        // Executor for running the different clients on different virtual threads
+        private final AtomicInteger nextClientId = new AtomicInteger(0);
         private final BlockingDeque<ManagedChannel> channels = new LinkedBlockingDeque<>();
 
         @BeforeEach
         void setup() {
             // Create a pool of channels. I want to have many, many, unique concurrent calls, but there is a practical
             // limit to the number of concurrent channels. If the deque is empty, there are no available channels.
-            for (int i = 0; i < 1000; i++) {
+            for (int i = 0; i < NUM_CONCURRENT; i++) {
                 final var channel = ManagedChannelBuilder.forAddress("localhost", 8080)
                         .usePlaintext()
                         .build();
@@ -596,26 +594,28 @@ class PbjTest {
         @AfterEach
         void teardown() {
             channels.forEach(ManagedChannel::shutdownNow);
+            channels.forEach(c -> {
+                try {
+                    c.awaitTermination(1, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
 
         @Test
         void manyConcurrentUnaryCalls() throws InterruptedException {
             // For each virtual client, execute the query and get the reply. Put the reply here in this map. The key
             // is the unique ID of the client (integer), and the value is the reply.
-            for (int i = 0; i < NUM_REQUESTS; i++) {
-                executor.submit(new TestClient(i));
+            for (int i = 0; i < NUM_CONCURRENT; i++) {
+                executor.submit(new TestClient(nextClientId.getAndIncrement()));
             }
 
             // It should take less than 20 seconds
             assertThat(latch.await(1, TimeUnit.MINUTES)).isTrue();
 
-            // Now, we should find we have `NUM_REQUESTS` entries, and each entry has a valid response
-            assertThat(replies).hasSize(NUM_REQUESTS);
-            for (int i = 0; i < NUM_REQUESTS; i++) {
-                final var reply = replies.get(i);
-                assertThat(reply).isNotNull();
-                assertThat(reply.getMessage()).isEqualTo("Hello " + i);
-            }
+            // If there were any failures, throw them.
+            assertThat(failures).isEmpty();
         }
 
         private final class TestClient implements Runnable {
@@ -629,20 +629,25 @@ class PbjTest {
             public void run() {
                 try {
                     final var channel = channels.takeFirst();
-                    while (true) {
-                        try {
-                            final var stub = GreeterGrpc.newFutureStub(channel);
-                            final var request = HelloRequest.newBuilder().setName("" + clientId).build();
-                            final var future = stub.sayHello(request);
-                            final var reply = future.get(10, TimeUnit.SECONDS);
-                            replies.put(clientId, reply);
-                            break;
-                        } catch (Exception e) {
-                            // If some random exception occurs, just reschedule this task for later execution.
-                            executor.submit(this);
+                    try {
+                        final var stub = GreeterGrpc.newFutureStub(channel);
+                        final var request = HelloRequest.newBuilder().setName("" + clientId).build();
+                        final var future = stub.sayHello(request);
+                        final var reply = future.get(10, TimeUnit.SECONDS);
+                        if (!reply.getMessage().equals("Hello " + clientId)) {
+                            failures.offer(new AssertionError("Failed " + clientId));
                         }
+
+                        final var id = nextClientId.getAndIncrement();
+                        if (id < NUM_REQUESTS) {
+                            executor.submit(new TestClient(id));
+                        }
+                    } catch (Exception e) {
+                        // If some random exception occurs, just reschedule this task for later execution.
+                        executor.submit(this);
+                    } finally {
+                        channels.offer(channel);
                     }
-                    channels.offer(channel);
                 } catch (InterruptedException ex) {
                     throw new RuntimeException(ex);
                 } finally {

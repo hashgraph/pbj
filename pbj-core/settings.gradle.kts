@@ -25,6 +25,7 @@ include(":pbj-runtime")
 include(":pbj-compiler")
 include(":pbj-grpc-helidon-config")
 include(":pbj-grpc-helidon")
+include(":pbj-grpc-helidon-benchmark")
 
 gradleEnterprise {
     buildScan {
@@ -55,8 +56,8 @@ dependencyResolutionManagement {
             version("io.helidon.builder.codegen", helidonVersion) // annotation processing
 
             // Testing only versions
-            version("com.google.protobuf", "3.21.9")
-            version("com.google.protobuf.util", "3.21.9")
+            version("com.google.protobuf", "4.27.1")
+            version("com.google.protobuf.util", "4.27.1")
             version("org.assertj.core", "3.23.1")
             version("org.junit.jupiter.api", "5.10.0")
             version("org.mockito", "4.6.1")
