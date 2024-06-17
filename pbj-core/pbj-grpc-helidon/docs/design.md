@@ -16,16 +16,16 @@ little sense to bolt PBJ onto `grpc.io` and its expectations of what is generate
 alternative to `protoc`. While that is a decent way to bootstrap the use of PBJ on a server that doesn't support PBJ
 directly, in the case of Helidon, we can do better.
 
-Plugins or modules for other webservers can also be created if wanted.
+Plugins or modules for other webservers can also be created if desired.
 
 ## Design
 
 Any user should be able to take a standard Helidon deployment, and include the `pbj-grpc-helidon` module as a
-dependency, and that should be enough for them to start using PBJ for gRPC. Helidon supports this model. Helidon is
-broken down into modules, where each is a proper JPMS module. Helidon uses the
+dependency, and that should be enough for them to start using PBJ for gRPC. Helidon includes full support for this approach; Helidon is
+already separated into JPMS modules that may be replaced with alternate implementations. Helidon uses the
 [ServiceLoader](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ServiceLoader.html)
-for loading the module classes. Critically, their modules are designed to be pluggable. This allows us to simply
-provide our own module, and Helidon will load it and use it.
+for loading the module classes and the modules are designed to be replaceable. This allows us to simply
+provide our own module implementation, and Helidon will load and use that alternative.
 
 Once `pbj-grpc-helidon` is on the module path, an application developer may create their Helidon server using the PBJ
 "routing". For example:
@@ -73,7 +73,7 @@ message HelloReply {
 }
 ```
 
-The PBJ compiler will generate classes for `HelloRequest` and `HelloResponse`, and a `GreeterService` interface that
+The PBJ compiler will generate classes for `HelloRequest` and `HelloReply`, and a `GreeterService` interface that
 extends `ServiceInterface`. The application developer will then create a concrete class that implements
 `GreeterService`. Using default methods in the `ServiceInterface` and/or the generated `GreeterService`, the PBJ
 compiler and runtime will do all the heavy lifting. The application developer only needs to implement the business
@@ -92,15 +92,15 @@ a gRPC error code, or a `RuntimeException` to indicate an internal server error.
 Each of the remaining three types of RPC calls involve streaming. Streaming requires the application developer to deal
 with connection termination, cancellation, and error handling. The approach taken by PBJ is similar to that taken in
 `grpc.io`, but instead of using a library-specific `StreamObserver` object, PBJ uses implementations of the new reactive
-`Flow` API in Java 21 and associated interfaces.
+`Flow` API in Java 9 and associated interfaces.
 
 The `Flow` API has three primary methods on a `Flow.Subscriber`:
   - `onNext`: called when a new message is available
   - `onError`: called when an error occurs
   - `onComplete`: called when the processing for this subscriber is complete
 
-It also includes some API for managing flow control, hence the name `Flow`. Each subscriber indicates to the publisher
-how many messages it is prepared to receive, and the publisher can then push that many messages (one at a time).
+It also provides APIs for managing flow control. Each subscriber indicates to the publisher how many messages it is
+prepared to receive in the next window, and the publisher can then push that many messages (one at a time).
 
 # Implementation Design
 
@@ -115,8 +115,8 @@ The `grpc` package of the PBJ runtime contains two classes to support grpc. Thes
 utility class called `Pipelines`.
 
 `ServiceInterface` defines common methods related to all service interface implementations. Given any
-`ServiceInterface` implementation, you can introspect the service name, the "full name" (that is, the service name
-plus whatever "package" it is part of, such as would be used as the HTTP path to the service endpoint), and the list
+`ServiceInterface` implementation, one may introspect the service name, the "full name" (that is, the service name
+plus whatever "package" it is part of, as might be used for the HTTP path to the service endpoint), and the list
 of methods (along with their names) that make up the service.
 
 Most importantly, the `ServiceInterface` defines the `open` method. This is called at the very beginning of the gRPC
@@ -126,7 +126,7 @@ that should be called for `onNext` (sending messages back to the client), `onErr
 `onComplete` (if the response is complete).
 
 This method may be called many times concurrently from different threads. Because this gRPC implementation is based
-on Helidon Nima, each request comes in on a single distinct Virtual Thread.
+on Helidon Nima, each request is dispatched on a single distinct Virtual Thread.
 
 ## Pipelines
 
@@ -205,7 +205,7 @@ have support for flow control, cancellation, and error handling.
 
 ## Unary Pipeline
 
-A unary call (which is a simple request/response call, or basic function), the application developer could implement a
+A unary call (which is a simple request/response call, or basic function), could be a
 very simple method like this:
 
 ```java
@@ -219,12 +219,12 @@ public class GreeterServiceImpl implements GreeterService {
 }
 ```
 
-As you can see, the method is trivial. It looks like a normal Java method. The PBJ runtime will handle all the work
+This method is trivial; it looks like a normal Java method with no special calls. The PBJ runtime will handle all the work
 to marshal the request and response messages to and from the wire format, using PBJ codecs to do the work. The request
 is completed immediately upon return of the method. If any `RuntimeException` is thrown, then an appropriate error
 code will be returned to the client.
 
-To have better control over error responses, the application developer can throw a `GrpcException`.
+To have better control over error responses, the application developer should throw a `GrpcException`.
 
 ```java
 public class GreeterServiceImpl implements GreeterService {
@@ -255,7 +255,7 @@ responds with a stream of messages.
 
 Here is an example, where after receiving a message, the server responds with 10 messages. For this case, the method
 signature contains the request object and a `Flow.Subscriber`. PBJ handles converting the request object from `Bytes`
-into the appropriate type. The `Flow.Subscriber` is used to send messages back to the client, or terminate the
+into the appropriate type. The `Flow.Subscriber` is used to send messages back to the client, to terminate the
 connection due to errors, or to complete the connection gracefully.
 
 ```java
@@ -280,8 +280,8 @@ called multiple times, and is actually exposed to the application developer.
 
 ## Client Streaming Pipeline
 
-The "client streaming" RPC method is one where many messages are sent from the client to the server, but only a single
-message is sent back from the server to the client at the end.
+The "client streaming" RPC method supports many messages sent from the client to the server, but only a single
+message sent back from the server to the client at the end.
 
 Here is an example. The client will send a stream of messages, each containing a name. The server will respond with a
 message containing the concatenation of all the names. Notice that the method must return a `Flow.Subscription` to
@@ -323,10 +323,10 @@ public Flow.Subscriber<HelloRequest> sayHelloStreamRequest(@NonNull final Flow.S
 }
 ```
 
-When the client streaming handler is built, it immediately calls the application method for that RPC call. That method
-return a `Flow.Subscriber`, F1. Then, as each message is received from the client, the `onNext` method of the request
-convert is called, which then calls `onNext` on F1 after converting from `Bytes` to the request object. When F1 calls
-any method on the `response` subscriber, the response is converted back to `Bytes` and sent back to the client.
+When the client streaming handler is initiated, it immediately calls the application method for that RPC call. That method
+returns a `Flow.Subscriber`, F1. Then, as each message is received from the client, the `onNext` method of the request
+converter is called, which then calls `onNext` on F1 after converting from `Bytes` to the request object. When F1 calls
+one of the methods on the `response` subscriber, the response is converted back to `Bytes` and sent back to the client.
 
 ![Client Streaming Pipeline](images/client-streaming.png)
 
@@ -349,7 +349,7 @@ using the `onNext` method.
 public class GreeterServiceImpl implements GreeterService {
     @Override
     @NonNull
-    public Flow.Subscriber<HelloReply> sayHelloStreamBidi(@NonNull final Flow.Subscriber<HelloRequest> request) {
+    public Flow.Subscriber<HelloReply> sayHelloStreamBidi(@NonNull final Flow.Subscriber<HelloRequest> replies) {
         return new Flow.Subscriber<>() {
             @Override
             public void onSubscribe(Flow.Subscription subscription) {
@@ -377,7 +377,7 @@ public class GreeterServiceImpl implements GreeterService {
 }
 ```
 
-The bidirectional streaming pipeline is similar to the client streaming pipeline, except that the `replies` subscriber
+The bidirectional streaming pipeline is, therefore, very similar to the client streaming pipeline, except that the `replies` subscriber
 may be called more than once.
 
 ![Bidirectional Streaming Pipeline](images/bidi-streaming.png)
@@ -401,7 +401,7 @@ may be called more than once.
 
 ## Performance Testing
 
-1. Performance on the server is comparable to other solutions (see [Performance Testing](https://github.com/LesnyRumcajs/grpc_bench/blob/master/java_vertx_grpc_bench/Dockerfile)
+1. Performance on the server is comparable to other solutions (see [Performance Testing](https://github.com/LesnyRumcajs/grpc_bench/blob/master/java_vertx_grpc_bench/Dockerfile))
 
 ## Load Testing
 
@@ -413,7 +413,7 @@ may be called more than once.
 ## Malicious Testing
 
 1. If an attacker attempts to send a massive message during an RPC call, the server will reject the message outright
-   and close the connection because it restricts the number of bytes per message.
+   and close the connection after reading only enough bytes to exceed a configured limit. The server will not read the entire message.
 
 # Future Work
 ## Support for gRPC-Web
@@ -448,3 +448,8 @@ is recorded. However, we need to be careful not to hurt performance or stability
 
 gRPC allows for custom metadata in the HTTP2 headers. This doesn't seem to be heavily used, but we can implement it
 later if required.
+
+## Support for gRPC Reflection
+
+gRPC defines a [reflection API](https://grpc.io/docs/guides/reflection/) that allows clients (such as grpcurl) to
+perform gRPC calls in a more ad-hoc human friendly way. This should be supported by the system.
