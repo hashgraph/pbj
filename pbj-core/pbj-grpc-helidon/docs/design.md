@@ -121,7 +121,7 @@ It also provides APIs for managing flow control. Each subscriber indicates to
 the publisher how many messages it is prepared to receive in the next window,
 and the publisher can then push that many messages (one at a time).
 
-# Implementation Design
+## Implementation Design
 
 This module follows the same general pattern found on the official
 [Helidon gRPC module](https://github.com/helidon-io/helidon/tree/main/webserver/grpc/src/main/java/io/helidon/webserver/grpc).
@@ -155,7 +155,7 @@ This method may be called many times concurrently from different threads.
 Because this gRPC implementation is based on Helidon Nima, each request is
 dispatched on a single distinct Virtual Thread.
 
-## Pipelines
+### Pipelines
 
 The `Pipelines` class is a utility class that provides a way to create a "
 pipeline" of steps involved in processing requests and responses. This class is
@@ -236,7 +236,7 @@ Internally, the pipelines use `Flow` classes, primarily `Flow.Subcriber` and
 `Flow.Subscription`. The `Flow` classes have support for flow control,
 cancellation, and error handling.
 
-## Unary Pipeline
+### Unary Pipeline
 
 A unary call (which is a simple request/response call, or basic function), could
 be a very simple method like this:
@@ -291,7 +291,7 @@ the client.
 
 ![Unary Pipeline](images/unary-call.png)
 
-## Server Streaming Pipeline
+### Server Streaming Pipeline
 
 The "server streaming" RPC method is one where a single message is sent from the
 client to the server, and the server responds with a stream of messages.
@@ -324,7 +324,7 @@ exposed to the application developer.
 
 ![Server Streaming Pipeline](images/server-streaming.png)
 
-## Client Streaming Pipeline
+### Client Streaming Pipeline
 
 The "client streaming" RPC method supports many messages sent from the client to
 the server, but only a single message sent back from the server to the client at
@@ -385,7 +385,7 @@ back to the client.
 
 ![Client Streaming Pipeline](images/client-streaming.png)
 
-## Bidirectional Streaming Pipeline
+### Bidirectional Streaming Pipeline
 
 Bidirectional stream methods have the same signature as the client streaming
 methods, but they permit multiple messages to be returned to the client. The
@@ -444,9 +444,9 @@ once.
 
 ![Bidirectional Streaming Pipeline](images/bidi-streaming.png)
 
-# Test Plan
+## Test Plan
 
-## Functional Tests
+### Functional Tests
 
 1. `Greeter.sayHello` can be successfully called
 2. `Greeter.sayHelloStreamReply` can be successfully called
@@ -472,12 +472,12 @@ once.
 12. The server passes the standard set
     of [gRPC tests](https://github.com/grpc/test-infra?tab=readme-ov-files)
 
-## Performance Testing
+### Performance Testing
 
 1. Performance on the server is comparable to other solutions (
    see [Performance Testing](https://github.com/LesnyRumcajs/grpc_bench/blob/master/java_vertx_grpc_bench/Dockerfile))
 
-## Load Testing
+### Load Testing
 
 1. If a client attempts to send a massive number of requests to a server, the
    server will only read as many as flow control allows. The server will not
@@ -485,16 +485,16 @@ once.
 2. The server will limit the number of concurrent requests to a level where it
    remains stable and responses remain within acceptable tolerances.
 
-## Malicious Testing
+### Malicious Testing
 
 1. If an attacker attempts to send a massive message during an RPC call, the
    server will reject the message outright and close the connection after
    reading only enough bytes to exceed a configured limit. The server will not
    read the entire message.
 
-# Future Work
+## Future Work
 
-## Support for gRPC-Web
+### Support for gRPC-Web
 
 Web clients are not able to use HTTP2 directly. They must use HTTP1.1.
 The `grpc.io` project promotes the use of an Envoy plugin that converts from
@@ -504,23 +504,23 @@ front of your gRPC service. It may be possible for this one module to support
 both standard gRPC and gRPC Web. See
 [gRPC Web protocols](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-WEB.md)
 
-## Support the Authority header
+### Support the Authority header
 
 gRPC supports authentication using the `Authority` header. Support for this
 feature will be needed in the future.
 
-## Support Timeouts
+### Support Timeouts
 
 In gRPC, the client can specify a timeout. If the request takes longer than the
 timeout to complete, the server is to terminate the connection.
 
-## Support Encodings
+### Support Encodings
 
 gRPC supports a variety of encodings. This module only supports `identity`
 encoding. Support for other encodings such as gzip, deflate, and snappy may be
 added later.
 
-## Add metrics
+### Add metrics
 
 This module should provide a number of useful metrics out of the box, such as
 the number of times each individual rcp method is called, and how long each call
@@ -528,12 +528,12 @@ takes. We should also think about an access long, in which the user agent is
 recorded. However, we need to be careful not to hurt performance or stability
 by logging such information.
 
-## Support Custom Metadata
+### Support Custom Metadata
 
 gRPC allows for custom metadata in the HTTP2 headers. This doesn't seem to be
 heavily used, but we can implement it later if required.
 
-## Support for gRPC Reflection
+### Support for gRPC Reflection
 
 gRPC defines a [reflection API](https://grpc.io/docs/guides/reflection/) that
 allows clients (such as grpcurl) to perform gRPC calls in a more ad-hoc human
