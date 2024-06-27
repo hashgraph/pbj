@@ -385,8 +385,8 @@ public final class Pipelines {
     }
 
     /**
-     * A function that handles a bidirectional streaming gRPC service method. Many messages are received from the client,
-     * and many responses are sent back to the client.
+     * A function that handles a bidirectional streaming gRPC service method. Many messages are received from the
+     * client, and many responses are sent back to the client.
      *
      * @param <T> The type of the request message.
      * @param <R> The type of the response message.
