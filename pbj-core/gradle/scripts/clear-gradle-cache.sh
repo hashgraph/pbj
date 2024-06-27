@@ -6,7 +6,7 @@
 SCRIPT_PATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 || exit ; pwd -P )"
 
 {
-  cd $SCRIPT_PATH/../..
+  cd "$SCRIPT_PATH"/../..
 
   pkill -9 -f gradle
 
