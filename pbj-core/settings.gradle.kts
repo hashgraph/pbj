@@ -66,10 +66,10 @@ dependencyResolutionManagement {
             version("org.mockito.junit.jupiter", "5.10.0")
             version("io.grpc.netty", grpcVersion)
             version("io.grpc.protobuf", grpcVersion)
+            version("io.grpc.stub", grpcVersion)
             version("java.annotation", "1.3.2")
             version("io.helidon.webclient", helidonVersion)
             version("io.helidon.webclient.http2", helidonVersion)
-            version("com.hedera.node.hapi", "0.48.0")
         }
     }
 }

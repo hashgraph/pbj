@@ -34,7 +34,6 @@ testModuleInfo {
     requires("io.helidon.webserver")
     requires("io.helidon.webserver.http2")
     requires("io.helidon.webclient.http2")
-    requires("com.hedera.node.hapi")
     requires("com.google.protobuf.util")
     requires("io.grpc.protobuf")
     requires("io.grpc.netty")
