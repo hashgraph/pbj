@@ -41,7 +41,6 @@ import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
 import io.helidon.http.http2.StreamFlowControl;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
-import java.net.URLEncoder;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Delayed;
@@ -109,8 +108,6 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private int entityBytesIndex = 0;
     /** The subscriber that will receive incoming messages from the client. */
     private Flow.Subscriber<? super Bytes> incoming;
-    /** The subscriber that will send messages to the client. */
-    private Flow.Subscriber<? super Bytes> outgoing;
 
     /** Create a new instance */
     PbjProtocolHandler(@NonNull final Http2Headers headers,
@@ -221,7 +218,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client. This
             // is given to the "open" method on the service to allow it to send messages to the client.
-            outgoing = new SendToClientSubscriber();
+            final var outgoing = new SendToClientSubscriber();
             incoming = route.service().open(route.method(), options, outgoing);
         } catch (final GrpcException grpcException) {
             route.failedGrpcRequestCounter().increment();

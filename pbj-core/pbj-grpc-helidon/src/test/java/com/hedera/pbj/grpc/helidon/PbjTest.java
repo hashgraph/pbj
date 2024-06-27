@@ -499,7 +499,7 @@ class PbjTest {
         void streamingClient() throws InterruptedException {
             final var latch = new CountDownLatch(1);
             final var response = new AtomicReference<HelloReply>();
-            final var requestObserver = GreeterGrpc.newStub(CHANNEL).sayHelloStreamRequest(new StreamObserver<HelloReply>() {
+            final var requestObserver = GreeterGrpc.newStub(CHANNEL).sayHelloStreamRequest(new StreamObserver<>() {
                 @Override
                 public void onNext(HelloReply helloReply) {
                     response.set(helloReply);
@@ -507,7 +507,7 @@ class PbjTest {
 
                 @Override
                 public void onError(Throwable throwable) {
-                    // TODO Test fail
+                    // FUTURE: Test this failure condition
                     System.err.println("Error: " + throwable.getMessage());
                 }
 
@@ -522,7 +522,7 @@ class PbjTest {
             requestObserver.onNext(HelloRequest.newBuilder().setName("Carol").build());
             requestObserver.onCompleted();
 
-            latch.await(1, TimeUnit.MINUTES);
+            assertThat(latch.await(1, TimeUnit.MINUTES)).isTrue();
 
             assertThat(response.get()).isEqualTo(HelloReply.newBuilder()
                     .setMessage("Hello Alice, Bob, Carol")
@@ -602,6 +602,8 @@ class PbjTest {
                 }
             });
         }
+
+        // FUTURE Try to test a bad client that sends multiple messages for a unary call
 
         @Test
         void manyConcurrentUnaryCalls() throws InterruptedException {
@@ -834,11 +836,13 @@ class PbjTest {
         GreeterService svc;
 
         @Override
+        @NonNull
         public HelloReply sayHello(HelloRequest request) {
             return svc.sayHello(request);
         }
 
         @Override
+        @NonNull
         public Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(Flow.Subscriber<? super HelloReply> replies) {
             return svc.sayHelloStreamRequest(replies);
         }
@@ -849,11 +853,13 @@ class PbjTest {
         }
 
         @Override
+        @NonNull
         public Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(Flow.Subscriber<? super HelloReply> replies) {
             return svc.sayHelloStreamBidi(replies);
         }
 
         @Override
+        @NonNull
         public Flow.Subscriber<? super Bytes> open(@NonNull Method method, @NonNull RequestOptions options, @NonNull Flow.Subscriber<? super Bytes> replies) {
             return svc.open(method, options, replies);
         }

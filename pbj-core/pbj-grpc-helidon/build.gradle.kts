@@ -15,12 +15,11 @@
  */
 
 plugins {
-    id("java-library")
     id("com.hedera.pbj.conventions")
-    id("com.google.protobuf") // protobuf plugin is only used for tests
-    id("me.champeau.jmh")
+    id("com.hedera.pbj.protoc") // protobuf plugin is only used for tests
 }
 
+// These annotation processors are used to generate config and other files that Helidon needs
 mainModuleInfo {
     annotationProcessor("io.helidon.common.features.processor")
     annotationProcessor("io.helidon.codegen.apt")
@@ -41,30 +40,20 @@ testModuleInfo {
     requires("io.grpc.netty")
     requires("io.grpc.stub")
     requiresStatic("com.github.spotbugs.annotations")
-    requiresStatic("javax.annotation")
+    requiresStatic("java.annotation")
 }
 
 tasks.named("compileJava") {
     dependsOn(":pbj-runtime:jar")
 }
 
-protobuf {
-    // Configure the protoc executable
-    protoc {
-        // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.21.10"
-    }
-    plugins {
-        create("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.64.0"
-        }
-    }
-
-    generateProtoTasks {
-        all().forEach {
-            it.plugins {
-                create("grpc")
-            }
+publishing {
+    publications.withType<MavenPublication>().configureEach {
+        pom {
+            description.set(
+                "A Helidon gRPC plugin with PBJ"
+            )
         }
     }
 }
+
