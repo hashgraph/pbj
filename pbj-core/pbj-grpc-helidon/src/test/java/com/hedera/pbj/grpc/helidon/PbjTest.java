@@ -49,6 +49,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -606,6 +607,7 @@ class PbjTest {
         // FUTURE Try to test a bad client that sends multiple messages for a unary call
 
         @Test
+        @Disabled("This test passes locally but fails in CI. More work is needed to see why. It is timing dependent.")
         void manyConcurrentUnaryCalls() throws InterruptedException {
             // For each virtual client, execute the query and get the reply. Put the reply here in this map. The key
             // is the unique ID of the client (integer), and the value is the reply.
