@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.runtime.grpc;
 
 import static java.util.Objects.requireNonNull;
@@ -14,6 +30,39 @@ public final class Pipelines {
 
     private Pipelines() {
         // No instantiation
+    }
+
+    /**
+     * Returns a {@link Flow.Subscriber} that does nothing. This can be used in cases where a subscriber is required
+     * but no proper implementation is available.
+     *
+     * @return A No-op subscriber.
+     */
+    public static Flow.Subscriber<? super Bytes> noop() {
+        return new Flow.Subscriber<>() {
+            private Flow.Subscription subscription;
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                this.subscription = subscription;
+                subscription.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(Bytes item) {
+                // Nothing to do
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                // Just cancel the subscription but nothing else to do
+                subscription.cancel();
+            }
+
+            @Override
+            public void onComplete() {
+                // Nothing to do
+            }
+        };
     }
 
     /**
@@ -68,7 +117,7 @@ public final class Pipelines {
      * @param <T> The type of the request message.
      * @param <R> The type of the response message.
      */
-    public interface UnaryBuilder<T,R> {
+    public interface UnaryBuilder<T, R> {
         /**
          * Configures a lambda for mapping from {@link Bytes} to the request message type. This must be specified.
          *
@@ -122,7 +171,7 @@ public final class Pipelines {
      * @param <T> The type of the request message.
      * @param <R> The type of the response message.
      */
-    public interface BidiStreamingBuilder<T,R> {
+    public interface BidiStreamingBuilder<T, R> {
         /**
          * Configures a lambda for mapping from {@link Bytes} to the request message type. This must be specified.
          * This function will be called once for each message arriving from the client.
@@ -179,7 +228,7 @@ public final class Pipelines {
      * @param <T> The type of the request message.
      * @param <R> The type of the response message.
      */
-    public interface ClientStreamingBuilder<T,R> {
+    public interface ClientStreamingBuilder<T, R> {
         /**
          * Configures a lambda for mapping from {@link Bytes} to the request message type. This must be specified.
          * This function will be called once for each message arriving from the client.
@@ -200,7 +249,8 @@ public final class Pipelines {
          * @return This builder.
          */
         @NonNull
-        ClientStreamingBuilder<T, R> method(@NonNull ClientStreamingMethod<T, R> method); // TODO Test if the client sends 2 response messages
+        ClientStreamingBuilder<T, R> method(
+                @NonNull ClientStreamingMethod<T, R> method);
 
         /**
          * Configures a lambda for mapping from the response message type to {@link Bytes}. This must be specified.
@@ -237,7 +287,7 @@ public final class Pipelines {
      * @param <T> The type of the request message.
      * @param <R> The type of the response message.
      */
-    public interface ServerStreamingBuilder<T,R> {
+    public interface ServerStreamingBuilder<T, R> {
         /**
          * Configures a lambda for mapping from {@link Bytes} to the request message type. This must be specified.
          *
@@ -313,10 +363,8 @@ public final class Pipelines {
      * @param <R> The type of the response message.
      */
     @FunctionalInterface
-    public interface ClientStreamingMethod<T, R> extends
-            ExceptionalFunction<Flow.Subscriber<? super R>,
-            Flow.Subscriber<? super T>> {
-    }
+    public interface ClientStreamingMethod<T, R>
+            extends ExceptionalFunction<Flow.Subscriber<? super R>, Flow.Subscriber<? super T>> {}
 
     /**
      * A function that handles a server streaming gRPC service method. A single request is received from the client,
@@ -343,10 +391,8 @@ public final class Pipelines {
      * @param <T> The type of the request message.
      * @param <R> The type of the response message.
      */
-    public interface BidiStreamingMethod<T, R> extends
-            ExceptionalFunction<Flow.Subscriber<? super R>,
-                    Flow.Subscriber<? super T>> {
-    }
+    public interface BidiStreamingMethod<T, R>
+            extends ExceptionalFunction<Flow.Subscriber<? super R>, Flow.Subscriber<? super T>> {}
 
     /**
      * A convenient base class for the different builders. All builders have to hold state for request and
@@ -493,7 +539,8 @@ public final class Pipelines {
      * @param <T> The type of the request message.
      * @param <R> The type of the response message.
      */
-    private static final class BidiStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R> implements BidiStreamingBuilder<T, R> {
+    private static final class BidiStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R>
+            implements BidiStreamingBuilder<T, R> {
         private BidiStreamingMethod<T, R> method;
         private Flow.Subscriber<? super T> incoming;
 
@@ -560,7 +607,8 @@ public final class Pipelines {
         }
     }
 
-    private static final class ClientStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R> implements ClientStreamingBuilder<T, R> {
+    private static final class ClientStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R>
+            implements ClientStreamingBuilder<T, R> {
         private ClientStreamingMethod<T, R> method;
         private Flow.Subscriber<? super T> incoming;
 
@@ -623,7 +671,8 @@ public final class Pipelines {
         }
     }
 
-    private static final class ServerStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R> implements ServerStreamingBuilder<T, R> {
+    private static final class ServerStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R>
+            implements ServerStreamingBuilder<T, R> {
         private ServerStreamingMethod<T, R> method;
         private Flow.Subscriber<? super R> responseConverter;
 
@@ -659,7 +708,8 @@ public final class Pipelines {
         @NonNull
         public Flow.Subscriber<? super Bytes> build() {
             responseConverter = new MapSubscriber<>(replies, item -> responseMapper.apply(item));
-            responseConverter.onSubscribe(this); // Theoretically this should be done. But now I'm subscribing to this AND replies!
+            responseConverter.onSubscribe(
+                    this); // Theoretically this should be done. But now I'm subscribing to this AND replies!
             return this;
         }
 
@@ -674,13 +724,11 @@ public final class Pipelines {
         }
     }
 
-    private record MapSubscriber<T, R>(
-            Flow.Subscriber<? super R> next,
-            ExceptionalFunction<T, R> mapper) implements Flow.Subscriber<T>, Flow.Subscription {
+    private record MapSubscriber<T, R>(Flow.Subscriber<? super R> next, ExceptionalFunction<T, R> mapper)
+            implements Flow.Subscriber<T>, Flow.Subscription {
 
-        private MapSubscriber(@NonNull final Flow.Subscriber<? super R> next, @NonNull final ExceptionalFunction<T, R> mapper) {
-            this.next = next;
-            this.mapper = mapper;
+
+        private MapSubscriber {
             next.onSubscribe(this);
         }
 
@@ -691,32 +739,32 @@ public final class Pipelines {
 
         @Override
         public void cancel() {
-            // TODO
+            // FUTURE: Look into implementing this
         }
 
         @Override
-            public void onSubscribe(Flow.Subscription subscription) {
-                subscription.request(Long.MAX_VALUE);
-            }
+        public void onSubscribe(Flow.Subscription subscription) {
+            subscription.request(Long.MAX_VALUE);
+        }
 
-            @Override
-            public void onNext(T item) {
-                try {
-                    final var r = mapper.apply(item);
-                    next.onNext(r);
-                } catch (Throwable t) {
-                    next.onError(t);
-                }
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-                next.onError(throwable);
-            }
-
-            @Override
-            public void onComplete() {
-                next.onComplete();
+        @Override
+        public void onNext(T item) {
+            try {
+                final var r = mapper.apply(item);
+                next.onNext(r);
+            } catch (Throwable t) {
+                next.onError(t);
             }
         }
+
+        @Override
+        public void onError(Throwable throwable) {
+            next.onError(throwable);
+        }
+
+        @Override
+        public void onComplete() {
+            next.onComplete();
+        }
+    }
 }

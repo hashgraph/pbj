@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.runtime.grpc;
 
 /**
@@ -52,7 +68,7 @@ public enum GrpcStatus {
     RESOURCE_EXHAUSTED, // 8
     /**
      * Operation was rejected because the system is not in a state required for the operation's execution. For example,
-     * directory to be deleted may be non-empty, an rmdir operation is applied to a non-directory, etc.
+     * directory to be deleted may be non-empty, an `rmdir` operation is applied to a non-directory, etc.
      *
      * <p>A litmus test that may help a service implementor in deciding between FAILED_PRECONDITION, ABORTED, and
      * UNAVAILABLE:<br/>
@@ -60,7 +76,7 @@ public enum GrpcStatus {
      * (b) Use ABORTED if the client should retry at a higher-level<br/>
      * (e.g., restarting a read-modify-write sequence).<br/>
      * (c) Use FAILED_PRECONDITION if the client should not retry until<br/>
-     * the system state has been explicitly fixed.  E.g., if an "rmdir"<br/>
+     * the system state has been explicitly fixed.  E.g., if an `rmdir`<br/>
      * fails because the directory is non-empty, FAILED_PRECONDITION<br/>
      * should be returned since the client should not retry unless<br/>
      * they have first fixed up the directory by deleting files from it.<br/>

@@ -49,6 +49,7 @@ public interface GreeterService extends ServiceInterface {
     }
 
     @Override
+    @NonNull
     default Flow.Subscriber<? super Bytes> open(
             final @NonNull Method method,
             final @NonNull RequestOptions options,
@@ -56,48 +57,44 @@ public interface GreeterService extends ServiceInterface {
 
         final var m = (GreeterMethod) method;
         try {
-            switch (m) {
-                case sayHello -> {
-                    // Simple request -> response
-                    return Pipelines.<HelloRequest, HelloReply>unary()
+            return switch (m) {
+                // Simple request -> response
+                case sayHello ->
+                        Pipelines.<HelloRequest, HelloReply>unary()
                             .mapRequest(bytes -> parseRequest(bytes, options))
                             .method(this::sayHello)
                             .mapResponse(reply -> createReply(reply, options))
                             .respondTo(replies)
                             .build();
-                }
-                case sayHelloStreamRequest -> {
-                    // Client sends many requests with a single response from the server at the end
-                    return Pipelines.<HelloRequest, HelloReply>clientStreaming()
+                // Client sends many requests with a single response from the server at the end
+                case sayHelloStreamRequest ->
+                        Pipelines.<HelloRequest, HelloReply>clientStreaming()
                             .mapRequest(bytes -> parseRequest(bytes, options))
                             .method(this::sayHelloStreamRequest)
                             .mapResponse(reply -> createReply(reply, options))
                             .respondTo(replies)
                             .build();
-                }
-                case sayHelloStreamReply -> {
-                    // Client sends a single request and the server sends many responses
-                    return Pipelines.<HelloRequest, HelloReply>serverStreaming()
+                // Client sends a single request and the server sends many responses
+                case sayHelloStreamReply ->
+                        Pipelines.<HelloRequest, HelloReply>serverStreaming()
                             .mapRequest(bytes -> parseRequest(bytes, options))
                             .method(this::sayHelloStreamReply)
                             .mapResponse(reply -> createReply(reply, options))
                             .respondTo(replies)
                             .build();
-                }
-                case sayHelloStreamBidi -> {
-                    // Client and server are sending messages back and forth.
-                    return Pipelines.<HelloRequest, HelloReply>bidiStreaming()
+                // Client and server are sending messages back and forth.
+                case sayHelloStreamBidi ->
+                        Pipelines.<HelloRequest, HelloReply>bidiStreaming()
                             .mapRequest(bytes -> parseRequest(bytes, options))
                             .method(this::sayHelloStreamBidi)
                             .mapResponse(reply -> createReply(reply, options))
                             .respondTo(replies)
                             .build();
-                }
-            }
+            };
         } catch (Exception e) {
             replies.onError(e);
+            return Pipelines.noop();
         }
-        return null;
     }
 
     private HelloRequest parseRequest(Bytes message, RequestOptions options) throws InvalidProtocolBufferException {

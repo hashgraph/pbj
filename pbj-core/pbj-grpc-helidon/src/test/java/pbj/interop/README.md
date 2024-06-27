@@ -1,2 +1,0 @@
-These tests are described in the [interop-test-descriptions.md](https://github.com/grpc/grpc/blob/master/doc/interop-test-descriptions.md)
-file of the official [gRPC repository](https://github.com/grpc/grpc).

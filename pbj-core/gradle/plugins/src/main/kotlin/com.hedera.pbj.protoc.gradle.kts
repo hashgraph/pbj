@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,7 @@
  * limitations under the License.
  */
 
-plugins {
-    id("application")
-    id("com.hedera.pbj.conventions")
-    id("com.google.protobuf")
-}
-
-tasks.named("compileJava") {
-    dependsOn(":pbj-grpc-helidon:jar")
-}
+plugins { id("com.google.protobuf") }
 
 protobuf {
     // Configure the protoc executable
