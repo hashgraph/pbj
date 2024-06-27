@@ -40,7 +40,6 @@ jobs:
     secrets:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
 
   integration-tests:
     name: Integration Tests
@@ -51,4 +50,3 @@ jobs:
     secrets:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
