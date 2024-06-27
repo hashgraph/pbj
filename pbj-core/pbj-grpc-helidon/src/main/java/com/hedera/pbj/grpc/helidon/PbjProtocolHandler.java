@@ -366,16 +366,16 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         if (matcher.matches()) {
             final var num = Integer.parseInt(matcher.group(1));
             final var unit = matcher.group(2);
-            final var deadline = System.nanoTime() + num * switch (unit) {
-                case "H" -> 3600_000_000_000L;
-                case "M" -> 60_000_000_000L;
-                case "S" -> 1_000_000_000L;
-                case "m" -> 1_000_000L;
-                case "u" -> 1_000L;
-                case "n" -> 1L;
+            final var deadline = System.nanoTime() * TimeUnit.NANOSECONDS.convert(num, switch (unit) {
+                case "H" -> TimeUnit.HOURS;
+                case "M" -> TimeUnit.MINUTES;
+                case "S" -> TimeUnit.SECONDS;
+                case "m" -> TimeUnit.MILLISECONDS;
+                case "u" -> TimeUnit.MICROSECONDS;
+                case "n" -> TimeUnit.NANOSECONDS;
                 // This should NEVER be reachable, because the matcher would not have matched.
                 default -> throw new GrpcException(GrpcStatus.INTERNAL, "Invalid unit: " + unit);
-            };
+            });
             return deadlineDetector.scheduleDeadline(deadline, () -> {
                 route.deadlineExceededCounter().increment();
                 incoming.onError(new GrpcException(GrpcStatus.DEADLINE_EXCEEDED));
