@@ -101,7 +101,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private ScheduledFuture<?> deadlineFuture;
     /**
      * The bytes of the next incoming message. This is created dynamically as a message is received, and is never
-     * larger than the system configured {@link PbjConfig#maxMessageSize()}.
+     * larger than the system configured {@link PbjConfig#maxMessageSizeBytes()}.
      */
     private byte[] entityBytes = null;
     /** The current index into {@link #entityBytes} into which data is to be read. */
@@ -280,7 +280,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     // where the attacker sends us a very large length and exhausts our memory, we have a maximum
                     // message size configuration setting. Using that, we can detect attempts to exhaust our memory.
                     final long length = data.readUnsignedInt32();
-                    if (length > config.maxMessageSize()) {
+                    if (length > config.maxMessageSizeBytes()) {
                         throw new GrpcException(GrpcStatus.INVALID_ARGUMENT,
                                 "Message size exceeds maximum allowed size");
                     }
