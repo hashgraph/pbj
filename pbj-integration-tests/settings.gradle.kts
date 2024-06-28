@@ -18,6 +18,7 @@ dependencyResolutionManagement {
 plugins {
     id("com.gradle.enterprise").version("3.15.1")
     id("me.champeau.includegit").version("0.1.5")
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
 }
 
 gitRepositories {
