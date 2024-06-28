@@ -20,7 +20,7 @@ protobuf {
     // Configure the protoc executable
     protoc {
         // Download from repositories
-        artifact = "com.google.protobuf:protoc:4.27.1"
+        artifact = "com.google.protobuf:protoc:3.21.10"
     }
     plugins {
         create("grpc") {
