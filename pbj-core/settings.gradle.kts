@@ -35,7 +35,7 @@ gradleEnterprise {
 
 var helidonVersion = "4.0.8"
 var grpcVersion = "1.61.1"
-var protobufVersion = "4.27.1"
+var protobufVersion = "3.21.10"
 
 dependencyResolutionManagement {
     versionCatalogs {
