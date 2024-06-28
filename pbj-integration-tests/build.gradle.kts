@@ -23,6 +23,19 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+        vendor.set(JvmVendorSpec.ADOPTIUM)
+    }
+
+    // Enable JAR file generation required for publishing
+    withJavadocJar()
+    withSourcesJar()
+}
+
 // Add downloaded HAPI repo protobuf files into build directory and add to sources to build them
 sourceSets {
     main {
