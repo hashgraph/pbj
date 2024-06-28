@@ -1,0 +1,13 @@
+syntax = "proto3";
+import "greeter/hello_reply.proto";
+import "greeter/hello_request.proto";
+
+package greeter;
+option java_multiple_files = true;
+service Greeter {
+  rpc sayHello (HelloRequest) returns (HelloReply) {}
+  rpc sayHelloStreamReply (HelloRequest) returns (stream HelloReply) {}
+  rpc sayHelloStreamRequest (stream HelloRequest) returns (HelloReply) {}
+  rpc sayHelloStreamBidi (stream HelloRequest) returns (stream HelloReply) {}
+}
+

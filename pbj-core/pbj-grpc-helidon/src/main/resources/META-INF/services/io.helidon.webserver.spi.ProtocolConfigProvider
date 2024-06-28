@@ -1,0 +1,2 @@
+# This file shouldn't be needed, because the module declaration?
+com.hedera.pbj.grpc.helidon.PbjProtocolConfigProvider

@@ -14,13 +14,29 @@ group = "com.hedera.pbj.integration-tests"
 dependencies {
     implementation("com.hedera.pbj:pbj-runtime")
     implementation("com.hedera.pbj:pbj-compiler")
-    implementation("com.google.protobuf:protobuf-java:3.21.12")
-    implementation("com.google.protobuf:protobuf-java-util:3.21.12")
+    implementation("com.google.protobuf:protobuf-java:4.27.1")
+    implementation("com.google.protobuf:protobuf-java-util:4.27.1")
+    implementation("io.grpc:grpc-protobuf:1.61.1")
+    implementation("io.grpc:grpc-stub:1.61.1")
+    implementation("javax.annotation:javax.annotation-api:1.3.2")
     compileOnly("com.github.spotbugs:spotbugs-annotations:4.7.3")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+        vendor.set(JvmVendorSpec.ADOPTIUM)
+    }
+
+    // Enable JAR file generation required for publishing
+    withJavadocJar()
+    withSourcesJar()
 }
 
 // Add downloaded HAPI repo protobuf files into build directory and add to sources to build them
@@ -50,7 +66,20 @@ protobuf {
     // Configure the protoc executable
     protoc {
         // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.21.12"
+        artifact = "com.google.protobuf:protoc:4.27.1"
+    }
+    plugins {
+        create("grpc") {
+            artifact = "io.grpc:protoc-gen-grpc-java:1.64.0"
+        }
+    }
+
+    generateProtoTasks {
+        all().forEach {
+            it.plugins {
+                create("grpc")
+            }
+        }
     }
 }
 

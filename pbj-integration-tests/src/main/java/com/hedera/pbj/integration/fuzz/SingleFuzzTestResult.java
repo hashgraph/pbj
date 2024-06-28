@@ -5,17 +5,17 @@ package com.hedera.pbj.integration.fuzz;
  *
  * A typical fuzz test performs the following actions:
  * <ol>
- * <p> 1. Serializes a valid object into a byte array
- * <p> 2. Modifies a random element of the byte array randomly
- * <p> 3. Deserializes the modified byte array. <b>This is where an exception thrown
+ * <li> 1. Serializes a valid object into a byte array
+ * <li> 2. Modifies a random element of the byte array randomly
+ * <li> 3. Deserializes the modified byte array. <b>This is where an exception thrown
  * by the codec is considered to be the best possible outcome of a test run.</b>
- * <p> 4. Compares the measured size of the deserialized object to the measured size
+ * <li> 4. Compares the measured size of the deserialized object to the measured size
  * of the original object. The test ends if they differ.
- * <p> 5. Reserializes the previously deserialized object into a new byte array.
+ * <li> 5. Reserializes the previously deserialized object into a new byte array.
  * The test ends if codec throws an exception.
- * <p> 6. Compares the bytes of the modified array from step #2 and the new array
+ * <li> 6. Compares the bytes of the modified array from step #2 and the new array
  * from step #5. The test ends if the contents differ.
- * <p> 7. Finally, the test ends unconditionally w/o any conclusion because the
+ * <li> 7. Finally, the test ends unconditionally w/o any conclusion because the
  * test was unable to make the codec fail.
  * </ol>
  */

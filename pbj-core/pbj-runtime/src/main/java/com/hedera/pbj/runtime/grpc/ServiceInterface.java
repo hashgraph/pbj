@@ -1,0 +1,111 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.hedera.pbj.runtime.grpc;
+
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.concurrent.Flow;
+
+/**
+ * Defines a common interface for all implementations of a gRPC {@code service}. PBJ will generate a sub-interface
+ * for each {@code service} in the protobuf schema definition files, with default implementations of each of the
+ * given methods in this interface.
+ *
+ * <p>For example, suppose I have the following protobuf file:
+ * <pre>
+ * {@code
+ * package example;
+ *
+ * service HelloService {
+ *   rpc SayHello (HelloRequest) returns (HelloResponse);
+ * }
+ *
+ * message HelloRequest {
+ *   string greeting = 1;
+ * }
+ *
+ * message HelloResponse {
+ *   string reply = 1;
+ * }
+ * }
+ * </pre>
+ *
+ * <p>From this file, PBJ will generate a {@code HelloService} interface that extends {@code ServiceInterface}:
+ * <pre>
+ * {@code
+ * public interface HelloService extends ServiceInterface {
+ *    // ...
+ *
+ *    @NonNull
+ *    HelloResponse sayHello(final @NonNull HelloRequest request);
+ *
+ *    default String serviceName() { return "HelloService"; }
+ *    default String fullName() { return "example.HelloService"; }
+ *
+ *    // ...
+ * }
+ * }
+ * </pre>
+ *
+ * In the application code, you will simply create a new class implementing the {@code HelloService} interface, and
+ * register it with your webserver in whatever way is appropriate for your webserver.
+ */
+public interface ServiceInterface {
+    interface Method {
+        String name();
+    }
+
+    interface RequestOptions {
+        String APPLICATION_GRPC = "application/grpc";
+        String APPLICATION_GRPC_PROTO = "application/grpc+proto";
+        String APPLICATION_GRPC_JSON = "application/grpc+json";
+
+        String authority();
+
+        boolean isProtobuf();
+
+        boolean isJson();
+
+        String contentType();
+    }
+
+    /** Gets the simple name of the service. For example, "HelloService". */
+    @NonNull
+    String serviceName();
+    /** Gets the full name of the service. For example, "example.HelloService". */
+    @NonNull
+    String fullName();
+    /** Gets a list of each method in the service. This list may be empty but should never be null. */
+    @NonNull
+    List<Method> methods();
+
+    /**
+     * Called by the webserver to open a new connection between the client and the service. This method may be called
+     * many times concurrently, once per connection. The implementation must therefore be thread-safe. A default
+     * implementation is provided by the generated PBJ code, which will handle the dispatching of messages to the
+     * appropriate methods in the correct way (unary, server-side streaming, etc.).
+     *
+     * @param method    The method that was called by the client.
+     * @param opts      Any options from the request, such as the content type.
+     * @param responses The subscriber used by the service to push responses back to the client.
+     */
+    @NonNull
+    Flow.Subscriber<? super Bytes> open(
+            @NonNull Method method, @NonNull RequestOptions opts, @NonNull Flow.Subscriber<? super Bytes> responses)
+            throws GrpcException;
+}
