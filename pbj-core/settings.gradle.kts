@@ -42,7 +42,7 @@ dependencyResolutionManagement {
             // Testing only versions
             version("com.google.protobuf", "3.21.9")
             version("org.assertj.core", "3.23.1")
-            version("org.junit.jupiter.api", "5.8.2")
+            version("org.junit.jupiter.api", "5.10.0")
             version("org.mockito", "4.6.1")
             version("org.mockito.inline", "4.6.1")
             version("org.mockito.junit.jupiter", "5.10.0")
