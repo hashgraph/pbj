@@ -18,7 +18,9 @@ package com.hedera.pbj.runtime.grpc;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Flow;
 
 /**
@@ -66,21 +68,55 @@ import java.util.concurrent.Flow;
  * register it with your webserver in whatever way is appropriate for your webserver.
  */
 public interface ServiceInterface {
+    /**
+     * Represents the metadata of a method in a gRPC service.
+     */
     interface Method {
         String name();
     }
 
+    /**
+     * The options that are passed to the service when a new connection is opened.
+     */
     interface RequestOptions {
+        /** A constant for the gRPC content type "application/grpc". */
         String APPLICATION_GRPC = "application/grpc";
+        /** A constant for the gRPC content type "application/grpc+proto". */
         String APPLICATION_GRPC_PROTO = "application/grpc+proto";
+        /** A constant for the gRPC content type "application/grpc+json". */
         String APPLICATION_GRPC_JSON = "application/grpc+json";
 
-        String authority();
+        /**
+         * The authority of the client that is connecting to the service. This is the value of the ":authority" header
+         * in the HTTP/2 request. This value is used by the service to determine the client's identity. It may be that
+         * no authority is provided, in which case this method will return an empty optional.
+         *
+         * @return the authority of the client
+         */
+        @NonNull
+        Optional<String> authority();
 
+        /**
+         * Gets whether the content type describes a protobuf message. This will be true if the {@link #contentType()}
+         * is equal to {@link #APPLICATION_GRPC_PROTO} or {@link #APPLICATION_GRPC}.
+         */
         boolean isProtobuf();
 
+        /**
+         * Gets whether the content type describes a JSON message. This will be true if the {@link #contentType()}
+         * is equal to {@link #APPLICATION_GRPC_JSON}.
+         */
         boolean isJson();
 
+        /**
+         * Gets the content type of the request. This is the value of the "content-type" header in the HTTP/2 request.
+         * This value is used by the service to determine how to parse the request. Since gRPC supports custom content
+         * types, it is possible that the content type will be something other than the constants defined in this
+         * interface.
+         *
+         * @return the content type of the request
+         */
+        @NonNull
         String contentType();
     }
 

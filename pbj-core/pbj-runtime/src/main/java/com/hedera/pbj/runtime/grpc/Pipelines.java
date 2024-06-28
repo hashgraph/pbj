@@ -583,6 +583,11 @@ public final class Pipelines {
         }
     }
 
+    /**
+     * The implementation of the {@link ClientStreamingBuilder} interface.
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
     private static final class ClientStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R>
             implements ClientStreamingBuilder<T, R> {
         private ClientStreamingMethod<T, R> method;
@@ -647,6 +652,12 @@ public final class Pipelines {
         }
     }
 
+    /**
+     * The implementation of the {@link ServerStreamingBuilder} interface.
+     *
+     * @param <T> The type of the request message.
+     * @param <R> The type of the response message.
+     */
     private static final class ServerStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R>
             implements ServerStreamingBuilder<T, R> {
         private ServerStreamingMethod<T, R> method;
@@ -700,9 +711,17 @@ public final class Pipelines {
         }
     }
 
+    /**
+     * A subscriber that maps from one type to another. It is like a Java "map" operation on a stream, but as a
+     * subscriber.
+     *
+     * @param next The subscriber to send the mapped values to.
+     * @param mapper The function to map from one type to another.
+     * @param <T> The type of the input.
+     * @param <R> The type of the output.
+     */
     private record MapSubscriber<T, R>(Flow.Subscriber<? super R> next, ExceptionalFunction<T, R> mapper)
             implements Flow.Subscriber<T>, Flow.Subscription {
-
 
         private MapSubscriber {
             next.onSubscribe(this);

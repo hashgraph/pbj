@@ -17,7 +17,9 @@
 package com.hedera.pbj.runtime.grpc;
 
 /**
- * Status codes for gRPC. These are added to a {@link GrpcException} when an error occurs.
+ * Status codes for gRPC. These are added to a {@link GrpcException} when an error occurs. The ordinal of the enum
+ * <strong>exactly matches</strong> the status code in the gRPC protocol. The order in which these enums are defined
+ * is critical.
  *
  * @see <a href="https://grpc.github.io/grpc/core/md_doc_statuscodes.html">GRPC Status codes</a>
  */
