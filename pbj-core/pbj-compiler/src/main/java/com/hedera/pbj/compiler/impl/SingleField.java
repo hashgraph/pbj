@@ -1,8 +1,7 @@
 package com.hedera.pbj.compiler.impl;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import org.jetbrains.annotations.NotNull;
-
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
 /**
@@ -105,7 +104,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 		return javaFieldType(false);
 	}
 
-	@NotNull
+	@NonNull
 	private String javaFieldType(boolean considerRepeated) {
 		String fieldType = switch(type) {
 			case MESSAGE -> messageType;

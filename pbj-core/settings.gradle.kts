@@ -37,12 +37,12 @@ dependencyResolutionManagement {
             // The libs of this catalog are the **ONLY** ones that are authorized to be part of the runtime
             // distribution. These libs can be depended on during compilation, or bundled as part of runtime.
             version("org.antlr.antlr4.runtime", "4.11.1")
-            version("com.github.spotbugs.annotations", "4.7.3")
+            version("com.github.spotbugs.annotations", "4.8.6")
 
             // Testing only versions
             version("com.google.protobuf", "3.21.9")
             version("org.assertj.core", "3.23.1")
-            version("org.junit.jupiter.api", "5.10.0")
+            version("org.junit.jupiter.api", "5.8.2")
             version("org.mockito", "4.6.1")
             version("org.mockito.inline", "4.6.1")
             version("org.mockito.junit.jupiter", "5.10.0")

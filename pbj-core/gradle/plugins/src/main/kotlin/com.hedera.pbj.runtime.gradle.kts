@@ -17,20 +17,12 @@
 plugins {
     id("java-library")
     id("com.hedera.pbj.conventions")
-    id("com.google.protobuf") // protobuf plugin is only used for tests
+    id("com.hedera.pbj.protoc") // protobuf plugin is only used for tests
     id("me.champeau.jmh")
 }
 
 tasks.generateGrammarSource {
     arguments = arguments + listOf("-package", "com.hedera.pbj.runtime.jsonparser")
-}
-
-protobuf {
-    // Configure the protoc executable
-    protoc {
-        // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.21.10"
-    }
 }
 
 val maven = publishing.publications.create<MavenPublication>("maven") { from(components["java"]) }
