@@ -37,7 +37,7 @@ dependencyResolutionManagement {
             // The libs of this catalog are the **ONLY** ones that are authorized to be part of the runtime
             // distribution. These libs can be depended on during compilation, or bundled as part of runtime.
             version("org.antlr.antlr4.runtime", "4.11.1")
-            version("com.github.spotbugs.annotations", "4.7.3")
+            version("com.github.spotbugs.annotations", "4.8.6")
 
             // Testing only versions
             version("com.google.protobuf", "3.21.9")

@@ -21,8 +21,6 @@ import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.antlr.v4.runtime.misc.NotNull;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -189,7 +187,7 @@ public final class ModelGenerator implements Generator {
 	 * @param bodyContent the body content to use for the code generation
 	 * @return the generated code
 	 */
-	@NotNull
+	@NonNull
 	private static String generateClass(final String modelPackage,
 										final Set<String> imports,
 										final String javaDocComment,
@@ -277,8 +275,8 @@ public final class ModelGenerator implements Generator {
 		String bodyContent =
 			"""
 			/**
-			* Implemenetation of Comparable interface
-			*/
+			 * Implementation of Comparable interface
+			 */
 			@Override
 			public int compareTo($javaRecordName thatObj) {
 				if (thatObj == null) {
@@ -677,7 +675,7 @@ public final class ModelGenerator implements Generator {
 		return oneofGetters;
 	}
 
-	@NotNull
+	@NonNull
 	private static String genrateBuilderFactoryMethods(String bodyContent, final List<Field> fields) {
 		bodyContent +=
     		"""
