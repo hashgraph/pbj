@@ -34,7 +34,7 @@ env:
 jobs:
   prepare-release:
     name: Release / Prepare
-    runs-on: [self-hosted, Linux, medium, ephemeral]
+    runs-on: network-node-linux-medium
     outputs:
       mode: ${{ steps.info.outputs.mode }}
       version: ${{ steps.info.outputs.version }}
@@ -78,7 +78,7 @@ jobs:
 
   maven-central-release:
     name: Release / Maven Central
-    runs-on: [self-hosted, Linux, medium, ephemeral]
+    runs-on: network-node-linux-medium
     needs:
       - prepare-release
     if: |
