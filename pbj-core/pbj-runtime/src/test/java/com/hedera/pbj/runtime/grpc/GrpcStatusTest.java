@@ -26,7 +26,7 @@ class GrpcStatusTest {
         assertThat(GrpcStatus.OUT_OF_RANGE.ordinal()).isEqualTo(11);
         assertThat(GrpcStatus.UNIMPLEMENTED.ordinal()).isEqualTo(12);
         assertThat(GrpcStatus.INTERNAL.ordinal()).isEqualTo(13);
-        assertThat(GrpcStatus.UNIMPLEMENTED.ordinal()).isEqualTo(14);
+        assertThat(GrpcStatus.UNAVAILABLE.ordinal()).isEqualTo(14);
         assertThat(GrpcStatus.DATA_LOSS.ordinal()).isEqualTo(15);
         assertThat(GrpcStatus.UNAUTHENTICATED.ordinal()).isEqualTo(16);
     }

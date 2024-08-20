@@ -42,18 +42,18 @@ public final class Pipelines {
         return new Flow.Subscriber<>() {
             private Flow.Subscription subscription;
             @Override
-            public void onSubscribe(Flow.Subscription subscription) {
-                this.subscription = subscription;
+            public void onSubscribe(@NonNull final Flow.Subscription subscription) {
+                this.subscription = requireNonNull(subscription);
                 subscription.request(Long.MAX_VALUE);
             }
 
             @Override
-            public void onNext(Bytes item) {
+            public void onNext(@NonNull final Bytes item) {
                 // Nothing to do
             }
 
             @Override
-            public void onError(Throwable throwable) {
+            public void onError(@NonNull final Throwable throwable) {
                 // Just cancel the subscription but nothing else to do
                 subscription.cancel();
             }
@@ -412,6 +412,7 @@ public final class Pipelines {
         protected ExceptionalFunction<R, Bytes> responseMapper;
         protected Flow.Subscriber<? super Bytes> replies;
         private Flow.Subscription sourceSubscription;
+        protected boolean completed = false;
 
         @Override
         public void request(long n) {
@@ -427,7 +428,7 @@ public final class Pipelines {
         @Override
         public void onSubscribe(@NonNull final Flow.Subscription subscription) {
             // This method is called ...
-            this.sourceSubscription = subscription;
+            this.sourceSubscription = requireNonNull(subscription);
             subscription.request(Long.MAX_VALUE);
         }
 
@@ -440,8 +441,23 @@ public final class Pipelines {
 
         @Override
         public void onComplete() {
+            completed = true;
             if (replies != null) {
                 replies.onComplete();
+            }
+        }
+
+        protected void validateParams() {
+            if (replies == null) {
+                throw new IllegalStateException("The replies subscriber must be specified.");
+            }
+
+            if (requestMapper == null) {
+                throw new IllegalStateException("The request mapper must be specified.");
+            }
+
+            if (responseMapper == null) {
+                throw new IllegalStateException("The response mapper must be specified.");
             }
         }
     }
@@ -486,6 +502,11 @@ public final class Pipelines {
         @Override
         @NonNull
         public Flow.Subscriber<? super Bytes> build() {
+            validateParams();
+            if (method == null) {
+                throw new IllegalStateException("The method must be specified.");
+            }
+
             replies.onSubscribe(this);
             return this;
         }
@@ -495,15 +516,19 @@ public final class Pipelines {
             // A unary method call is pretty simple. We take the incoming bytes, convert them into the request
             // message type, call the method, and then convert the response message back into bytes. If there
             // are any exceptions, we forward that along. Otherwise, we just do the work and complete.
-            //
-            // It may be that the client is broken and sends two messages instead of one. If they do this, it
-            // doesn't hurt, and we don't detect it. We simply process the first message and never see the second.
+
+            if (completed) {
+                replies.onError(new IllegalStateException("Unary method already called."));
+                return;
+            }
+
             try {
                 final var request = requestMapper.apply(message);
                 final var reply = method.apply(request);
                 final var replyBytes = responseMapper.apply(reply);
                 replies.onNext(replyBytes);
-            } catch (Throwable e) {
+                onComplete();
+            } catch (Exception e) {
                 replies.onError(e);
             }
         }
@@ -551,6 +576,11 @@ public final class Pipelines {
         @Override
         @NonNull
         public Flow.Subscriber<? super Bytes> build() {
+            validateParams();
+            if (method == null) {
+                throw new IllegalStateException("The method must be specified.");
+            }
+
             replies.onSubscribe(this);
 
             // This subscriber maps from the response type to bytes and sends them back to the client. Whenever
@@ -568,6 +598,11 @@ public final class Pipelines {
 
         @Override
         public void onNext(@NonNull final Bytes message) {
+            if (completed) {
+                replies.onError(new IllegalStateException("BidiStreaming method already called."));
+                return;
+            }
+
             try {
                 final var request = requestMapper.apply(message);
                 incoming.onNext(request);
@@ -624,6 +659,10 @@ public final class Pipelines {
         @Override
         @NonNull
         public Flow.Subscriber<? super Bytes> build() {
+            validateParams();
+            if (method == null) {
+                throw new IllegalStateException("The method must be specified.");
+            }
             replies.onSubscribe(this);
             final var responseConverter = new MapSubscriber<R, Bytes>(replies, item -> responseMapper.apply(item));
 
@@ -637,6 +676,11 @@ public final class Pipelines {
 
         @Override
         public void onNext(@NonNull final Bytes message) {
+            if (completed) {
+                replies.onError(new IllegalStateException("ClientStreaming method already called."));
+                return;
+            }
+
             try {
                 final var request = requestMapper.apply(message);
                 incoming.onNext(request);
@@ -694,6 +738,11 @@ public final class Pipelines {
         @Override
         @NonNull
         public Flow.Subscriber<? super Bytes> build() {
+            validateParams();
+            if (method == null) {
+                throw new IllegalStateException("The method must be specified.");
+            }
+
             responseConverter = new MapSubscriber<>(replies, item -> responseMapper.apply(item));
             responseConverter.onSubscribe(
                     this); // Theoretically this should be done. But now I'm subscribing to this AND replies!
@@ -702,6 +751,11 @@ public final class Pipelines {
 
         @Override
         public void onNext(@NonNull final Bytes message) {
+            if (completed) {
+                replies.onError(new IllegalStateException("ServerStreaming method already called."));
+                return;
+            }
+
             try {
                 final var request = requestMapper.apply(message);
                 method.apply(request, responseConverter);
