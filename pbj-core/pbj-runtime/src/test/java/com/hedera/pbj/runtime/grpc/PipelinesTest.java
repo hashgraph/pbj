@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -267,8 +268,17 @@ class PipelinesTest {
             pipeline.onSubscribe(mock(Flow.Subscription.class));
             pipeline.onNext(Bytes.wrap("hello"));
             pipeline.onNext(Bytes.wrap("world"));
+            verify(replies, times(2)).onNext(any());
+            verify(replies, never()).onComplete();
+            verify(replies, never()).onError(any(RuntimeException.class));
+
             pipeline.onComplete();
+            verify(replies, times(2)).onNext(any());
+            verify(replies).onComplete();
+            verify(replies, never()).onError(any(RuntimeException.class));
+
             pipeline.onNext(Bytes.wrap("!!!"));
+            verify(replies, times(2)).onNext(any());
             verify(replies).onError(any(IllegalStateException.class));
         }
 
