@@ -80,7 +80,9 @@ class PipelinesTest {
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The request mapper must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -90,7 +92,9 @@ class PipelinesTest {
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The method must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -100,7 +104,9 @@ class PipelinesTest {
                     .method(String::toUpperCase)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The response mapper must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -110,7 +116,9 @@ class PipelinesTest {
                     .method(String::toUpperCase)
                     .mapResponse(Bytes::wrap);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The replies subscriber must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -186,7 +194,9 @@ class PipelinesTest {
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The request mapper must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -196,7 +206,9 @@ class PipelinesTest {
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The method must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -206,7 +218,9 @@ class PipelinesTest {
                     .method(sink -> client)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The response mapper must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -216,7 +230,9 @@ class PipelinesTest {
                     .method(sink -> client)
                     .mapResponse(Bytes::wrap);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The replies subscriber must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -325,7 +341,9 @@ class PipelinesTest {
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The request mapper must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -335,7 +353,9 @@ class PipelinesTest {
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The method must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -345,7 +365,9 @@ class PipelinesTest {
                     .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The response mapper must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -355,7 +377,9 @@ class PipelinesTest {
                     .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
                     .mapResponse(Bytes::wrap);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The replies subscriber must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -446,7 +470,9 @@ class PipelinesTest {
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The request mapper must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -456,7 +482,9 @@ class PipelinesTest {
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The method must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -466,7 +494,9 @@ class PipelinesTest {
                     .method(ConcatenatingHandler::new)
                     .respondTo(replies);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The response mapper must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
@@ -476,7 +506,9 @@ class PipelinesTest {
                     .method(ConcatenatingHandler::new)
                     .mapResponse(Bytes::wrap);
 
-            assertThatThrownBy(builder::build).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(builder::build)
+                    .hasMessage("The replies subscriber must be specified.")
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
