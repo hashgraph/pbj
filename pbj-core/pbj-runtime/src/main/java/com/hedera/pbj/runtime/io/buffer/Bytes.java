@@ -455,16 +455,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     public boolean equals(@Nullable final Object o) {
         if (this == o) return true;
         if (!(o instanceof Bytes that)) return false;
-        if (length != that.length()) {
-            return false;
-        }
-        if (length == 0) return true;
-        for (int i = 0; i < length; i++) {
-            if (getByte(i) != that.getByte(i)) {
-                return false;
-            }
-        }
-        return true;
+        return Arrays.equals(buffer, start, start + length, that.buffer, that.start, that.start + that.length);
     }
 
     /**
