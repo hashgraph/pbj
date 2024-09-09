@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -27,6 +43,36 @@ public interface WritableSequentialData extends SequentialData {
      * @throws UncheckedIOException if an I/O error occurs
      */
     void writeByte(byte b) throws BufferOverflowException, UncheckedIOException;
+
+    /**
+     * Writes two bytes. Some implementations may implement this method more efficiently than two
+     * calls to {@link #writeByte(byte)} or a call to {@link #writeBytes(byte[])}.
+     */
+    default void writeByte2(byte b1, byte b2) {
+        writeByte(b1);
+        writeByte(b2);
+    }
+
+    /**
+     * Writes three bytes. Some implementations may implement this method more efficiently than two
+     * calls to {@link #writeByte(byte)} or a call to {@link #writeBytes(byte[])}.
+     */
+    default void writeByte3(byte b1, byte b2, byte b3) {
+        writeByte(b1);
+        writeByte(b2);
+        writeByte(b3);
+    }
+
+    /**
+     * Writes grou bytes. Some implementations may implement this method more efficiently than two
+     * calls to {@link #writeByte(byte)} or a call to {@link #writeBytes(byte[])}.
+     */
+    default void writeByte4(byte b1, byte b2, byte b3, byte b4) {
+        writeByte(b1);
+        writeByte(b2);
+        writeByte(b3);
+        writeByte(b4);
+    }
 
     /**
      * Writes the given unsigned byte at the current {@link #position()}, and then increments the {@link #position()}.
@@ -72,7 +118,7 @@ public interface WritableSequentialData extends SequentialData {
             throw new IllegalArgumentException("length must be >= 0");
         }
 
-        for (int i = offset; i < (offset+length); i++) {
+        for (int i = offset; i < (offset + length); i++) {
             writeByte(src[i]);
         }
     }
@@ -92,7 +138,7 @@ public interface WritableSequentialData extends SequentialData {
             throw new BufferOverflowException();
         }
 
-        while(src.hasRemaining()) {
+        while (src.hasRemaining()) {
             writeByte(src.get());
         }
     }
@@ -111,7 +157,7 @@ public interface WritableSequentialData extends SequentialData {
             throw new BufferOverflowException();
         }
 
-        while(src.hasRemaining()) {
+        while (src.hasRemaining()) {
             writeByte(src.readByte());
         }
     }
@@ -209,10 +255,7 @@ public interface WritableSequentialData extends SequentialData {
         if (remaining() < Integer.BYTES) {
             throw new BufferOverflowException();
         }
-        writeByte((byte)(value >>> 24));
-        writeByte((byte)(value >>> 16));
-        writeByte((byte)(value >>>  8));
-        writeByte((byte)(value));
+        writeByte4((byte) (value >>> 24), (byte) (value >>> 16), (byte) (value >>> 8), (byte) (value));
     }
 
     /**
@@ -232,10 +275,7 @@ public interface WritableSequentialData extends SequentialData {
             if (remaining() < Integer.BYTES) {
                 throw new BufferOverflowException();
             }
-            writeByte((byte) (value));
-            writeByte((byte) (value >>> 8));
-            writeByte((byte) (value >>> 16));
-            writeByte((byte) (value >>> 24));
+            writeByte4((byte) (value), (byte) (value >>> 8), (byte) (value >>> 16), (byte) (value >>> 24));
         }
     }
 
@@ -251,10 +291,7 @@ public interface WritableSequentialData extends SequentialData {
         if (remaining() < Integer.BYTES) {
             throw new BufferOverflowException();
         }
-        writeByte((byte)(value >>> 24));
-        writeByte((byte)(value >>> 16));
-        writeByte((byte)(value >>>  8));
-        writeByte((byte)(value));
+        writeByte4((byte) (value >>> 24), (byte) (value >>> 16), (byte) (value >>> 8), (byte) (value));
     }
 
     /**
@@ -274,10 +311,7 @@ public interface WritableSequentialData extends SequentialData {
             if (remaining() < Integer.BYTES) {
                 throw new BufferOverflowException();
             }
-            writeByte((byte) (value));
-            writeByte((byte) (value >>> 8));
-            writeByte((byte) (value >>> 16));
-            writeByte((byte) (value >>> 24));
+            writeByte4((byte) (value), (byte) (value >>> 8), (byte) (value >>> 16), (byte) (value >>> 24));
         }
     }
 
@@ -293,14 +327,8 @@ public interface WritableSequentialData extends SequentialData {
         if (remaining() < Long.BYTES) {
             throw new BufferOverflowException();
         }
-        writeByte((byte)(value >>> 56));
-        writeByte((byte)(value >>> 48));
-        writeByte((byte)(value >>> 40));
-        writeByte((byte)(value >>> 32));
-        writeByte((byte)(value >>> 24));
-        writeByte((byte)(value >>> 16));
-        writeByte((byte)(value >>>  8));
-        writeByte((byte)(value));
+        writeByte4((byte) (value >>> 56), (byte) (value >>> 48), (byte) (value >>> 40), (byte) (value >>> 32));
+        writeByte4((byte) (value >>> 24), (byte) (value >>> 16), (byte) (value >>> 8), (byte) (value));
     }
 
     /**
@@ -320,14 +348,8 @@ public interface WritableSequentialData extends SequentialData {
             if (remaining() < Long.BYTES) {
                 throw new BufferOverflowException();
             }
-            writeByte((byte) (value));
-            writeByte((byte) (value >>> 8));
-            writeByte((byte) (value >>> 16));
-            writeByte((byte) (value >>> 24));
-            writeByte((byte) (value >>> 32));
-            writeByte((byte) (value >>> 40));
-            writeByte((byte) (value >>> 48));
-            writeByte((byte) (value >>> 56));
+            writeByte4((byte) (value), (byte) (value >>> 8), (byte) (value >>> 16), (byte) (value >>> 24));
+            writeByte4((byte) (value >>> 32), (byte) (value >>> 40), (byte) (value >>> 48), (byte) (value >>> 56));
         }
     }
 

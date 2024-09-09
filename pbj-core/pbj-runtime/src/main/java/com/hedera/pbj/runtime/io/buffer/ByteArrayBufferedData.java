@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.DataEncodingException;
@@ -281,9 +297,37 @@ final class ByteArrayBufferedData extends BufferedData {
         buffer.position(pos + 1);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    @Override
+    public void writeByte2(final byte b1, final byte b2) {
+        validateCanWrite(2);
+        final int pos = buffer.position();
+        array[arrayOffset + pos] = b1;
+        array[arrayOffset + pos + 1] = b2;
+        buffer.position(pos + 2);
+    }
+
+    @Override
+    public void writeByte3(final byte b1, final byte b2, final byte b3) {
+        validateCanWrite(3);
+        final int pos = buffer.position();
+        array[arrayOffset + pos] = b1;
+        array[arrayOffset + pos + 1] = b2;
+        array[arrayOffset + pos + 2] = b3;
+        buffer.position(pos + 3);
+    }
+
+    @Override
+    public void writeByte4(final byte b1, final byte b2, final byte b3, final byte b4) {
+        validateCanWrite(4);
+        final int pos = buffer.position();
+        array[arrayOffset + pos] = b1;
+        array[arrayOffset + pos + 1] = b2;
+        array[arrayOffset + pos + 2] = b3;
+        array[arrayOffset + pos + 3] = b4;
+        buffer.position(pos + 4);
+    }
+
+    /** {@inheritDoc} */
     @Override
     public void writeBytes(@NonNull final byte[] src, final int offset, final int len) {
         validateLen(len);
