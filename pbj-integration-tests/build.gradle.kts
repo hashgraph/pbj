@@ -6,7 +6,7 @@ plugins {
     // compare output and parsing with pbj to make sure it matches.
     id("com.google.protobuf").version("0.9.1")
     // add jmh for performance benchmarks
-    id("me.champeau.jmh").version("0.7.1")
+    id("me.champeau.jmh").version("0.7.2")
 }
 
 group = "com.hedera.pbj.integration-tests"
@@ -114,7 +114,7 @@ jmh {
 //    includes.add("HashBench")
 //    includes.add("EqualsHashCodeBench");
 
-    jmhVersion.set("1.35")
+    jmhVersion.set("1.37")
     includeTests.set(true)
 //    jvmArgsAppend.add("-XX:MaxInlineSize=100 -XX:MaxInlineLevel=20")
 }
@@ -123,6 +123,12 @@ tasks.jmhJar {
     manifest {
         attributes(mapOf("Multi-Release" to true))
     }
+    // I've no ideas why these classes are in the shadow jar, they seem redundant. If
+    // not excluded, they make jmhJar fail, complaining about too many jar entries
+    exclude("org/gradle/**")
+    exclude("groovy*/**")
+    exclude("**/groovy/**")
+    exclude("kotlin/**")
 }
 
 // Ensure JaCoCo coverage is generated and aggregated
