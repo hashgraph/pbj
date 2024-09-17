@@ -40,6 +40,7 @@ import io.helidon.http.http2.Http2WindowUpdate;
 import io.helidon.http.http2.StreamFlowControl;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Flow;
@@ -196,7 +197,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // Create the "options" to make available to the ServiceInterface. These options are used to decide on the
             // best way to parse or handle the request.
             final var options = new Options(
-                    headers.authority(), // the client (see http2 spec)
+                    Optional.ofNullable(headers.authority()), // the client (see http2 spec)
                     contentType.equals(APPLICATION_GRPC_PROTO),
                     contentType.equals(APPLICATION_GRPC_JSON),
                     contentType);
@@ -562,7 +563,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * Simple implementation of the {@link ServiceInterface.RequestOptions} interface.
      */
     private record Options(
-            String authority,
+            Optional<String> authority,
             boolean isProtobuf,
             boolean isJson,
             String contentType)
