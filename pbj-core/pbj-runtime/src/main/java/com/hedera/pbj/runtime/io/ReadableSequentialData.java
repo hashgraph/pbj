@@ -214,7 +214,10 @@ public interface ReadableSequentialData extends SequentialData {
         }
 
         final var bytes = new byte[length];
-        readBytes(bytes, 0, length);
+        final long bytesRead = readBytes(bytes, 0, length);
+        if (bytesRead != length) {
+            throw new BufferUnderflowException();
+        }
         return Bytes.wrap(bytes);
     }
 

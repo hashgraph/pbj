@@ -250,8 +250,10 @@ class ProtoParserToolsTest {
         final byte[] bytes = data.toInputStream().readAllBytes();
         final byte[] incompleteCopy = new byte[bytes.length - 1];
         System.arraycopy(bytes, 0, incompleteCopy, 0, bytes.length - 1);
-        final ReadableStreamingData streamingData = new ReadableStreamingData(new ByteArrayInputStream(incompleteCopy));
-        assertThrows(BufferUnderflowException.class, () -> ProtoParserTools.readString(streamingData));
+        assertThrows(BufferUnderflowException.class,
+                () -> ProtoParserTools.readString(new ReadableStreamingData(new ByteArrayInputStream(incompleteCopy))));
+        assertThrows(BufferUnderflowException.class,
+                () -> ProtoParserTools.readBytes(new ReadableStreamingData(new ByteArrayInputStream(incompleteCopy))));
     }
 
 
