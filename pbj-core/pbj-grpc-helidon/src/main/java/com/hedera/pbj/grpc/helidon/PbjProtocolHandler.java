@@ -118,7 +118,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
     /**
      * Called at the very beginning of the request, before any data has arrived. At this point we can look at the
-     * request headers and determine whether we have a valid request, and do any other initialization we need ot.
+     * request headers and determine whether we have a valid request, and do any other initialization we need to.
      */
     @Override
     public void init() {

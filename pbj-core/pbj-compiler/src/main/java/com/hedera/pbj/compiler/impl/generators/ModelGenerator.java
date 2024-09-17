@@ -275,7 +275,7 @@ public final class ModelGenerator implements Generator {
 		String bodyContent =
 			"""
 			/**
-			 * Implemenetation of Comparable interface
+			 * Implementation of Comparable interface
 			 */
 			@Override
 			public int compareTo($javaRecordName thatObj) {

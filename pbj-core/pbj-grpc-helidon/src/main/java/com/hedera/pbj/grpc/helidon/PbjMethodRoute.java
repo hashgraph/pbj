@@ -13,7 +13,7 @@ import io.helidon.metrics.api.Tag;
 
 /**
  * Represents a route in a {@link PbjRouting} that corresponds to a specific gRPC service method.
- * An instance of this class exists is created for each gRPC method on a {@link ServiceInterface}
+ * An instance of this class is created for each gRPC method on a {@link ServiceInterface}
  * registered with a {@link PbjRouting}.
  */
 final class PbjMethodRoute extends PbjRoute {
@@ -62,13 +62,13 @@ final class PbjMethodRoute extends PbjRoute {
                         .addTag(Tag.create(SERVICE_TAG, serviceName))
                         .addTag(Tag.create(METHOD_TAG, methodName))
                         .addTag(Tag.create(FAILURE_TAG, "http-exception"))
-                        .description("The number of failed gRPC requests"));
+                        .description("The number of failed http requests"));
         this.failedUnknownRequestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.failed.requests")
                         .scope(SCOPE)
                         .addTag(Tag.create(SERVICE_TAG, serviceName))
                         .addTag(Tag.create(METHOD_TAG, methodName))
                         .addTag(Tag.create(FAILURE_TAG, "unknown-exception"))
-                        .description("The number of failed gRPC requests"));
+                        .description("The number of failed unknown requests"));
         this.deadlineExceededCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.deadline.exceeded")
                         .scope(SCOPE)
                         .addTag(Tag.create(SERVICE_TAG, serviceName))
