@@ -1,10 +1,25 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.WritableSequentialData;
-
-import java.io.IOException;
-
 import static java.lang.Character.*;
+
+import com.hedera.pbj.runtime.io.WritableSequentialData;
+import java.io.IOException;
 
 /**
  * UTF8 tools based on protobuf standard library, so we are byte for byte identical
@@ -75,7 +90,6 @@ public final class Utf8Tools {
         return utf8Length;
     }
 
-
     /**
      * Encodes the input character sequence to a {@link WritableSequentialData} using the same algorithm as protoc, so we are
      * byte for byte the same.
@@ -91,16 +105,16 @@ public final class Utf8Tools {
                 // Two bytes (110x xxxx 10xx xxxx)
 
                 // Benchmarks show put performs better than putShort here (for HotSpot).
-                out.writeByte((byte) (0xC0 | (c >>> 6)));
-                out.writeByte((byte) (0x80 | (0x3F & c)));
+                out.writeByte2((byte) (0xC0 | (c >>> 6)), (byte) (0x80 | (0x3F & c)));
             } else if (c < MIN_SURROGATE || MAX_SURROGATE < c) {
                 // Three bytes (1110 xxxx 10xx xxxx 10xx xxxx)
                 // Maximum single-char code point is 0xFFFF, 16 bits.
 
                 // Benchmarks show put performs better than putShort here (for HotSpot).
-                out.writeByte((byte) (0xE0 | (c >>> 12)));
-                out.writeByte((byte) (0x80 | (0x3F & (c >>> 6))));
-                out.writeByte((byte) (0x80 | (0x3F & c)));
+                out.writeByte3(
+                        (byte) (0xE0 | (c >>> 12)),
+                        (byte) (0x80 | (0x3F & (c >>> 6))),
+                        (byte) (0x80 | (0x3F & c)));
             } else {
                 // Four bytes (1111 xxxx 10xx xxxx 10xx xxxx 10xx xxxx)
                 // Minimum code point represented by a surrogate pair is 0x10000, 17 bits, four UTF-8 bytes
@@ -109,10 +123,11 @@ public final class Utf8Tools {
                     throw new MalformedProtobufException("Unpaired surrogate at index " + inIx + " of " + inLength);
                 }
                 int codePoint = toCodePoint(c, low);
-                out.writeByte((byte) ((0xF << 4) | (codePoint >>> 18)));
-                out.writeByte((byte) (0x80 | (0x3F & (codePoint >>> 12))));
-                out.writeByte((byte) (0x80 | (0x3F & (codePoint >>> 6))));
-                out.writeByte((byte) (0x80 | (0x3F & codePoint)));
+                out.writeByte4(
+                        (byte) ((0xF << 4) | (codePoint >>> 18)),
+                        (byte) (0x80 | (0x3F & (codePoint >>> 12))),
+                        (byte) (0x80 | (0x3F & (codePoint >>> 6))),
+                        (byte) (0x80 | (0x3F & codePoint)));
             }
         }
     }
