@@ -479,19 +479,20 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
         // Some headers are http2 specific, the rest are used for the grpc protocol
         final var grpcHeaders = WritableHeaders.create();
-        final var http2Headers = Http2Headers.create(grpcHeaders);
         // FUTURE: I think to support custom headers in the response, we would have to list them
         // here.
         // Since this has to be sent before we have any data to send, we must know ahead of time
         // which custom headers are to be returned.
         grpcHeaders.set(HeaderNames.TRAILER, "grpc-status, grpc-message");
-        http2Headers.status(Status.OK_200);
+        grpcHeaders.set(Http2Headers.STATUS_NAME, Status.OK_200.code());
         grpcHeaders.contentType(contentType);
         grpcHeaders.set(GRPC_ACCEPT_ENCODING, IDENTITY);
         customMetadata.forEach(grpcHeaders::set);
         if (messageEncoding != null) {
             grpcHeaders.set(messageEncoding);
         }
+
+        final var http2Headers = Http2Headers.create(grpcHeaders);
 
         streamWriter.writeHeaders(
                 http2Headers,
