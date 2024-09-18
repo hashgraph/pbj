@@ -113,34 +113,36 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * this future will represent the task that will be executed when the deadline is reached. If
      * there is no deadline, then we default to a non-null no-op future that exists in the infinite
      * future.
-     * <p>
-     * This member isn't final because it is set in the {@link #init()} method. It should not be set at any other time.
-     * <p>
-     * Method calls on this object are thread-safe.
+     *
+     * <p>This member isn't final because it is set in the {@link #init()} method. It should not be
+     * set at any other time.
+     *
+     * <p>Method calls on this object are thread-safe.
      */
     private ScheduledFuture<?> deadlineFuture;
 
     /**
      * The bytes of the next incoming message. This is created dynamically as a message is received,
      * and is never larger than the system configured {@link PbjConfig#maxMessageSizeBytes()}.
-     * <p>
-     * This member is only accessed by the {@link #data} method, which is called sequentially.
+     *
+     * <p>This member is only accessed by the {@link #data} method, which is called sequentially.
      */
     private byte[] entityBytes = null;
 
     /**
      * The current index into {@link #entityBytes} into which data is to be read.
-     * <p>
-     * This member is only accessed by the {@link #data} method, which is called sequentially.
+     *
+     * <p>This member is only accessed by the {@link #data} method, which is called sequentially.
      */
     private int entityBytesIndex = 0;
 
     /**
      * The subscriber that will receive incoming messages from the client.
-     * <p>
-     * This member isn't final because it is set in the {@link #init()} method. It should not be set at any other time.
-     * <p>
-     * Method calls on this object are thread-safe.
+     *
+     * <p>This member isn't final because it is set in the {@link #init()} method. It should not be
+     * set at any other time.
+     *
+     * <p>Method calls on this object are thread-safe.
      */
     private Flow.Subscriber<? super Bytes> incoming;
 
@@ -235,10 +237,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // If the grpc-timeout header is present, determine when that timeout would occur, or
             // default to a future that is so far in the future it will never happen.
             final var timeout = requestHeaders.value(GRPC_TIMEOUT);
+
             deadlineFuture =
-                    timeout.isPresent()
-                            ? scheduleDeadline(timeout.get())
-                            : new NoopScheduledFuture();
+                    timeout.map(this::scheduleDeadline).orElse(new NoopScheduledFuture<>());
 
             // At this point, the request itself is valid. Maybe it will still fail to be handled by
             // the service interface, but as far as the protocol is concerned, this was a valid
@@ -669,7 +670,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * {@link PbjProtocolHandler} instance, because it can become "corrupted" if canceled from any
      * particular call.
      */
-    private static final class NoopScheduledFuture extends CompletableFuture<Void>
+    private static final class NoopScheduledFuture<Void> extends CompletableFuture<Void>
             implements ScheduledFuture<Void> {
         @Override
         public long getDelay(@NonNull final TimeUnit unit) {
