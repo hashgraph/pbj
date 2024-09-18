@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.grpc.helidon;
 
 import static java.util.Objects.requireNonNull;
@@ -25,13 +41,15 @@ import io.helidon.webserver.ConnectionContext;
 import io.helidon.webserver.Router;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
 import io.helidon.webserver.http2.spi.SubProtocolResult;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Sub-protocol selector for HTTP/2. This is the main entry point into the PBJ implementation of gRPC. The web
- * server will use this class to determine if a request is a gRPC request and if so, how to handle it.
+ * Sub-protocol selector for HTTP/2. This is the main entry point into the PBJ implementation of
+ * gRPC. The web server will use this class to determine if a request is a gRPC request and if so,
+ * how to handle it.
  */
 class PbjProtocolSelector implements Http2SubProtocolSelector {
     /** This routing has absolutely no routes. */
@@ -39,66 +57,87 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
 
     private final PbjConfig config;
     private final DeadlineDetector deadlineDetector;
-    private final ScheduledExecutorService deadlineExecutorService = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService deadlineExecutorService =
+            Executors.newSingleThreadScheduledExecutor();
     private final Counter requestCounter;
     private final Counter failedRequestCounter;
 
     /**
-     * Create a new PBJ based grpc protocol selector (default). Access restricted to be package-private so as
-     * to limit instantiation to the {@link PbjProtocolProvider}.
+     * Create a new PBJ based grpc protocol selector (default). Access restricted to be
+     * package-private so as to limit instantiation to the {@link PbjProtocolProvider}.
      */
     PbjProtocolSelector(@NonNull final PbjConfig config) {
         this.config = requireNonNull(config);
-        this.deadlineDetector = (deadline, onDeadlineExceeded) ->
-                deadlineExecutorService.schedule(onDeadlineExceeded, deadline, TimeUnit.NANOSECONDS);
+        this.deadlineDetector =
+                (deadline, onDeadlineExceeded) ->
+                        deadlineExecutorService.schedule(
+                                onDeadlineExceeded, deadline, TimeUnit.NANOSECONDS);
 
         final var metricRegistry = Metrics.globalRegistry();
-        this.requestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.requests")
-                .scope("vendor")
-                .description("The number of gRPC requests"));
-        this.failedRequestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.request.failures")
-                .scope("vendor")
-                .description("The number of failed gRPC requests"));
+        this.requestCounter =
+                metricRegistry.getOrCreate(
+                        Counter.builder("pbj.grpc.requests")
+                                .scope("vendor")
+                                .description("The number of gRPC requests"));
+        this.failedRequestCounter =
+                metricRegistry.getOrCreate(
+                        Counter.builder("pbj.grpc.request.failures")
+                                .scope("vendor")
+                                .description("The number of failed gRPC requests"));
     }
 
     /**
-     * Called by Helidon to create the sub-protocol for PBJ gRPC requests. The {@link SubProtocolResult} returned
-     * will be responsible for handling the request.
+     * Called by Helidon to create the sub-protocol for PBJ gRPC requests. The {@link
+     * SubProtocolResult} returned will be responsible for handling the request.
      */
     @Override
-    public SubProtocolResult subProtocol(ConnectionContext ctx,
-                                         HttpPrologue prologue,
-                                         Http2Headers headers,
-                                         Http2StreamWriter streamWriter,
-                                         int streamId,
-                                         Http2Settings serverSettings, // unused
-                                         Http2Settings clientSettings, // unused
-                                         StreamFlowControl flowControl,
-                                         Http2StreamState currentStreamState,
-                                         Router router) {
+    public SubProtocolResult subProtocol(
+            @NonNull final ConnectionContext ctx, // unused
+            @NonNull final HttpPrologue prologue,
+            @NonNull final Http2Headers headers,
+            @NonNull final Http2StreamWriter streamWriter,
+            final int streamId,
+            @NonNull final Http2Settings serverSettings, // unused
+            @NonNull final Http2Settings clientSettings, // unused
+            @NonNull final StreamFlowControl flowControl,
+            @NonNull final Http2StreamState currentStreamState,
+            @NonNull final Router router) {
+        Objects.requireNonNull(ctx);
+        Objects.requireNonNull(prologue);
+        Objects.requireNonNull(headers);
+        Objects.requireNonNull(streamWriter);
+        Objects.requireNonNull(serverSettings);
+        Objects.requireNonNull(clientSettings);
+        Objects.requireNonNull(flowControl);
+        Objects.requireNonNull(currentStreamState);
+        Objects.requireNonNull(router);
+
         this.requestCounter.increment();
 
-        // As per the specification, only POST requests are supported. I would have thought that the code here should
-        // return a response code of 405 (Method Not Allowed) if the method is not POST, but the code here just returns
-        // NOT_SUPPORTED. I'm not sure if this is technically correct.
+        // As per the specification, only POST requests are supported. I would have thought that the
+        // code here should return a response code of 405 (Method Not Allowed) if the method is not
+        // POST, but the code here just returns NOT_SUPPORTED. I'm not sure if this is technically
+        // correct.
         if (prologue.method() != Method.POST) {
             this.failedRequestCounter.increment();
             return NOT_SUPPORTED;
         }
 
-        // Look up the route based on the path. If that route does not exist, we return a 200 OK response with
-        // a gRPC status of NOT_FOUND.
+        // Look up the route based on the path. If that route does not exist, we return a 200 OK
+        // response with a gRPC status of NOT_FOUND.
         final var routing = router.routing(PbjRouting.class, EMPTY);
         final var route = routing.findRoute(prologue);
         if (route == null) {
             this.failedRequestCounter.increment();
-            return new SubProtocolResult(true,
-                    new RouteNotFoundHandler(streamWriter, streamId, currentStreamState));
+            return new SubProtocolResult(
+                    true, new RouteNotFoundHandler(streamWriter, streamId, currentStreamState));
         }
 
         // This is a valid call!
-        return new SubProtocolResult(true,
-                new PbjProtocolHandler(headers,
+        return new SubProtocolResult(
+                true,
+                new PbjProtocolHandler(
+                        headers,
                         streamWriter,
                         streamId,
                         flowControl,
@@ -108,17 +147,17 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
                         deadlineDetector));
     }
 
-    /**
-     * A handler for the case where the path is not found.
-     */
-    private static final class RouteNotFoundHandler implements Http2SubProtocolSelector.SubProtocolHandler {
+    /** A handler for the case where the path is not found. */
+    private static final class RouteNotFoundHandler
+            implements Http2SubProtocolSelector.SubProtocolHandler {
         private final Http2StreamWriter streamWriter;
         private final int streamId;
         private Http2StreamState currentStreamState;
 
-        RouteNotFoundHandler(final Http2StreamWriter streamWriter,
-                             final int streamId,
-                             final Http2StreamState currentStreamState) {
+        RouteNotFoundHandler(
+                final Http2StreamWriter streamWriter,
+                final int streamId,
+                final Http2StreamState currentStreamState) {
             this.streamWriter = streamWriter;
             this.streamId = streamId;
             this.currentStreamState = currentStreamState;
@@ -130,14 +169,17 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
             writable.set(Http2Headers.STATUS_NAME, Status.OK_200.code());
             writable.set(GrpcHeaders.NOT_FOUND);
             Http2Headers http2Headers = Http2Headers.create(writable);
-            streamWriter.writeHeaders(http2Headers,
+            streamWriter.writeHeaders(
+                    http2Headers,
                     streamId,
-                    Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
+                    Http2Flag.HeaderFlags.create(
+                            Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
                     FlowControl.Outbound.NOOP);
             currentStreamState = Http2StreamState.HALF_CLOSED_LOCAL;
         }
 
         @Override
+        @NonNull
         public Http2StreamState streamState() {
             return currentStreamState;
         }
@@ -148,12 +190,12 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
         }
 
         @Override
-        public void windowUpdate(Http2WindowUpdate update) {
+        public void windowUpdate(@NonNull final Http2WindowUpdate update) {
             // No-op
         }
 
         @Override
-        public void data(Http2FrameHeader header, BufferData data) {
+        public void data(@NonNull final Http2FrameHeader header, @NonNull final BufferData data) {
             // No-op
         }
     }

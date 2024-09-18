@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.grpc.helidon;
 
 import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC;
@@ -10,9 +26,7 @@ import io.helidon.http.HeaderName;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.HttpMediaType;
 
-/**
- * Constants for gRPC related HTTP2 Headers.
- */
+/** Constants for gRPC related HTTP2 Headers. */
 final class GrpcHeaders {
     static final HeaderName GRPC_TIMEOUT = HeaderNames.create("grpc-timeout");
     static final HeaderName GRPC_ENCODING = HeaderNames.create("grpc-encoding");
@@ -25,20 +39,28 @@ final class GrpcHeaders {
     static final Header OK = createCached(GRPC_STATUS, GrpcStatus.OK.ordinal());
     static final Header CANCELLED = createCached(GRPC_STATUS, GrpcStatus.CANCELLED.ordinal());
     static final Header UNKNOWN = createCached(GRPC_STATUS, GrpcStatus.UNKNOWN.ordinal());
-    static final Header INVALID_ARGUMENT = createCached(GRPC_STATUS, GrpcStatus.INVALID_ARGUMENT.ordinal());
-    static final Header DEADLINE_EXCEEDED = createCached(GRPC_STATUS, GrpcStatus.DEADLINE_EXCEEDED.ordinal());
+    static final Header INVALID_ARGUMENT =
+            createCached(GRPC_STATUS, GrpcStatus.INVALID_ARGUMENT.ordinal());
+    static final Header DEADLINE_EXCEEDED =
+            createCached(GRPC_STATUS, GrpcStatus.DEADLINE_EXCEEDED.ordinal());
     static final Header NOT_FOUND = createCached(GRPC_STATUS, GrpcStatus.NOT_FOUND.ordinal());
-    static final Header ALREADY_EXISTS = createCached(GRPC_STATUS, GrpcStatus.ALREADY_EXISTS.ordinal());
-    static final Header PERMISSION_DENIED = createCached(GRPC_STATUS, GrpcStatus.PERMISSION_DENIED.ordinal());
-    static final Header RESOURCE_EXHAUSTED = createCached(GRPC_STATUS, GrpcStatus.RESOURCE_EXHAUSTED.ordinal());
-    static final Header FAILED_PRECONDITION = createCached(GRPC_STATUS, GrpcStatus.FAILED_PRECONDITION.ordinal());
+    static final Header ALREADY_EXISTS =
+            createCached(GRPC_STATUS, GrpcStatus.ALREADY_EXISTS.ordinal());
+    static final Header PERMISSION_DENIED =
+            createCached(GRPC_STATUS, GrpcStatus.PERMISSION_DENIED.ordinal());
+    static final Header RESOURCE_EXHAUSTED =
+            createCached(GRPC_STATUS, GrpcStatus.RESOURCE_EXHAUSTED.ordinal());
+    static final Header FAILED_PRECONDITION =
+            createCached(GRPC_STATUS, GrpcStatus.FAILED_PRECONDITION.ordinal());
     static final Header ABORTED = createCached(GRPC_STATUS, GrpcStatus.ABORTED.ordinal());
     static final Header OUT_OF_RANGE = createCached(GRPC_STATUS, GrpcStatus.OUT_OF_RANGE.ordinal());
-    static final Header UNIMPLEMENTED = createCached(GRPC_STATUS, GrpcStatus.UNIMPLEMENTED.ordinal());
+    static final Header UNIMPLEMENTED =
+            createCached(GRPC_STATUS, GrpcStatus.UNIMPLEMENTED.ordinal());
     static final Header INTERNAL = createCached(GRPC_STATUS, GrpcStatus.INTERNAL.ordinal());
     static final Header UNAVAILABLE = createCached(GRPC_STATUS, GrpcStatus.UNAVAILABLE.ordinal());
     static final Header DATA_LOSS = createCached(GRPC_STATUS, GrpcStatus.DATA_LOSS.ordinal());
-    static final Header UNAUTHENTICATED = createCached(GRPC_STATUS, GrpcStatus.UNAUTHENTICATED.ordinal());
+    static final Header UNAUTHENTICATED =
+            createCached(GRPC_STATUS, GrpcStatus.UNAUTHENTICATED.ordinal());
 
     private GrpcHeaders() {
         // prevent instantiation
@@ -51,7 +73,7 @@ final class GrpcHeaders {
      * @return The corresponding {@link Header}.
      */
     @NonNull
-    static Header header(@NonNull GrpcStatus status) {
+    static Header header(@NonNull final GrpcStatus status) {
         return switch (status) {
             case OK -> OK;
             case CANCELLED -> CANCELLED;

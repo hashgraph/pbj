@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.grpc.helidon;
 
 import static java.util.Objects.requireNonNull;
@@ -12,9 +28,9 @@ import io.helidon.metrics.api.Metrics;
 import io.helidon.metrics.api.Tag;
 
 /**
- * Represents a route in a {@link PbjRouting} that corresponds to a specific gRPC service method.
- * An instance of this class is created for each gRPC method on a {@link ServiceInterface}
- * registered with a {@link PbjRouting}.
+ * Represents a route in a {@link PbjRouting} that corresponds to a specific gRPC service method. An
+ * instance of this class is created for each gRPC method on a {@link ServiceInterface} registered
+ * with a {@link PbjRouting}.
  */
 final class PbjMethodRoute extends PbjRoute {
     private static final String SEP = "/";
@@ -33,7 +49,13 @@ final class PbjMethodRoute extends PbjRoute {
     @NonNull private final Counter failedHttpRequestCounter;
     @NonNull private final Counter failedUnknownRequestCounter;
     @NonNull private final Counter deadlineExceededCounter;
-    
+
+    /**
+     * Constructor
+     *
+     * @param service The service that the method belongs to
+     * @param method The method that this route represents
+     */
     PbjMethodRoute(
             @NonNull final ServiceInterface service,
             @NonNull final ServiceInterface.Method method) {
@@ -46,34 +68,46 @@ final class PbjMethodRoute extends PbjRoute {
         this.pathMatcher = PathMatchers.exact(fullPath);
 
         final var metricRegistry = Metrics.globalRegistry();
-        this.requestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.requests")
-                        .scope(SCOPE)
-                        .addTag(Tag.create(SERVICE_TAG, serviceName))
-                        .addTag(Tag.create(METHOD_TAG, methodName))
-                        .description("The number of gRPC requests"));
-        this.failedGrpcRequestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.failed.requests")
-                        .scope(SCOPE)
-                        .addTag(Tag.create(SERVICE_TAG, serviceName))
-                        .addTag(Tag.create(METHOD_TAG, methodName))
-                        .addTag(Tag.create(FAILURE_TAG, "grpc-exception"))
-                        .description("The number of failed gRPC requests"));
-        this.failedHttpRequestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.failed.requests")
-                        .scope(SCOPE)
-                        .addTag(Tag.create(SERVICE_TAG, serviceName))
-                        .addTag(Tag.create(METHOD_TAG, methodName))
-                        .addTag(Tag.create(FAILURE_TAG, "http-exception"))
-                        .description("The number of failed http requests"));
-        this.failedUnknownRequestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.failed.requests")
-                        .scope(SCOPE)
-                        .addTag(Tag.create(SERVICE_TAG, serviceName))
-                        .addTag(Tag.create(METHOD_TAG, methodName))
-                        .addTag(Tag.create(FAILURE_TAG, "unknown-exception"))
-                        .description("The number of failed unknown requests"));
-        this.deadlineExceededCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.deadline.exceeded")
-                        .scope(SCOPE)
-                        .addTag(Tag.create(SERVICE_TAG, serviceName))
-                        .addTag(Tag.create(METHOD_TAG, methodName))
-                        .description("The number of gRPC requests that exceeded their deadline"));
+        this.requestCounter =
+                metricRegistry.getOrCreate(
+                        Counter.builder("pbj.grpc.requests")
+                                .scope(SCOPE)
+                                .addTag(Tag.create(SERVICE_TAG, serviceName))
+                                .addTag(Tag.create(METHOD_TAG, methodName))
+                                .description("The number of gRPC requests"));
+        this.failedGrpcRequestCounter =
+                metricRegistry.getOrCreate(
+                        Counter.builder("pbj.grpc.failed.requests")
+                                .scope(SCOPE)
+                                .addTag(Tag.create(SERVICE_TAG, serviceName))
+                                .addTag(Tag.create(METHOD_TAG, methodName))
+                                .addTag(Tag.create(FAILURE_TAG, "grpc-exception"))
+                                .description("The number of failed gRPC requests"));
+        this.failedHttpRequestCounter =
+                metricRegistry.getOrCreate(
+                        Counter.builder("pbj.grpc.failed.requests")
+                                .scope(SCOPE)
+                                .addTag(Tag.create(SERVICE_TAG, serviceName))
+                                .addTag(Tag.create(METHOD_TAG, methodName))
+                                .addTag(Tag.create(FAILURE_TAG, "http-exception"))
+                                .description("The number of failed http requests"));
+        this.failedUnknownRequestCounter =
+                metricRegistry.getOrCreate(
+                        Counter.builder("pbj.grpc.failed.requests")
+                                .scope(SCOPE)
+                                .addTag(Tag.create(SERVICE_TAG, serviceName))
+                                .addTag(Tag.create(METHOD_TAG, methodName))
+                                .addTag(Tag.create(FAILURE_TAG, "unknown-exception"))
+                                .description("The number of failed unknown requests"));
+        this.deadlineExceededCounter =
+                metricRegistry.getOrCreate(
+                        Counter.builder("pbj.grpc.deadline.exceeded")
+                                .scope(SCOPE)
+                                .addTag(Tag.create(SERVICE_TAG, serviceName))
+                                .addTag(Tag.create(METHOD_TAG, methodName))
+                                .description(
+                                        "The number of gRPC requests that exceeded their"
+                                                + " deadline"));
     }
 
     @Override

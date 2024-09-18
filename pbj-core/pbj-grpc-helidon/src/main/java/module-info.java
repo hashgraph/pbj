@@ -4,12 +4,12 @@ import io.helidon.common.features.api.Preview;
 
 /** Runtime module of code needed by PBJ generated code at runtime. */
 @Preview
-@Feature(value = "PBJ",
+@Feature(
+        value = "PBJ",
         description = "WebServer gRPC-PBJ Support",
         in = HelidonFlavor.SE,
-        path = {"WebServer", "PBJ"}
-)
-@SuppressWarnings({ "requires-automatic" })
+        path = {"WebServer", "PBJ"})
+@SuppressWarnings({"requires-automatic"})
 module com.hedera.pbj.grpc.helidon {
     requires static io.helidon.common.features.api;
     requires static com.github.spotbugs.annotations;

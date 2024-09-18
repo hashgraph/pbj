@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.grpc.helidon;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,19 +72,20 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class PbjTest {
-    private static final MediaType APPLICATION_GRPC_PROTO = HttpMediaType.create("application/grpc+proto");
-    private static final MediaType APPLICATION_GRPC_JSON = HttpMediaType.create("application/grpc+json");
-    private static final MediaType APPLICATION_GRPC_STRING = HttpMediaType.create("application/grpc+string");
+    private static final MediaType APPLICATION_GRPC_PROTO =
+            HttpMediaType.create("application/grpc+proto");
+    private static final MediaType APPLICATION_GRPC_JSON =
+            HttpMediaType.create("application/grpc+json");
+    private static final MediaType APPLICATION_GRPC_STRING =
+            HttpMediaType.create("application/grpc+string");
     private static final MediaType APPLICATION_RANDOM = HttpMediaType.create("application/random");
     private static final String SAY_HELLO_PATH = "/greeter.Greeter/sayHello";
 
-    private static final HelloRequest SIMPLE_REQUEST = HelloRequest.newBuilder()
-            .setName("PBJ")
-            .build();
+    private static final HelloRequest SIMPLE_REQUEST =
+            HelloRequest.newBuilder().setName("PBJ").build();
 
-    private static final HelloReply SIMPLE_REPLY = HelloReply.newBuilder()
-            .setMessage("Hello PBJ")
-            .build();
+    private static final HelloReply SIMPLE_REPLY =
+            HelloReply.newBuilder().setMessage("Hello PBJ").build();
 
     private static WebServer SERVER;
     private static Http2Client CLIENT;
@@ -81,19 +98,16 @@ class PbjTest {
         PROXY = new GreeterProxy();
 
         // Set up the server
-        SERVER = WebServer.builder()
-                .port(8080)
-                .addRouting(PbjRouting.builder().service(PROXY))
-                .build()
-                .start();
+        SERVER =
+                WebServer.builder()
+                        .port(8080)
+                        .addRouting(PbjRouting.builder().service(PROXY))
+                        .build()
+                        .start();
 
-        CLIENT = Http2Client.builder()
-                .baseUri("http://localhost:8080")
-                .build();
+        CLIENT = Http2Client.builder().baseUri("http://localhost:8080").build();
 
-        CHANNEL = ManagedChannelBuilder.forAddress("localhost", 8080)
-                .usePlaintext()
-                .build();
+        CHANNEL = ManagedChannelBuilder.forAddress("localhost", 8080).usePlaintext().build();
     }
 
     @AfterAll
@@ -118,19 +132,22 @@ class PbjTest {
         /**
          * Verify the path is case-sensitive.
          *
-         * <p>SPEC:<pre>
+         * <p>SPEC:
+         *
+         * <pre>
          * Path is case-sensitive. Some gRPC implementations may allow the Path format shown above to be overridden,
          * but this functionality is strongly discouraged. gRPC does not go out of its way to break users that are using
          * this kind of override, but we do not actively support it, and some functionality (e.g., service config
          * support) will not work when the path is not of the form shown above.
-         * </pre></p>
+         * </pre>
          */
         @Test
         void badCaseOnPathIsNotFound() {
-            try (var response = CLIENT.post()
-                    .contentType(APPLICATION_GRPC_PROTO)
-                    .path(SAY_HELLO_PATH.toUpperCase())
-                    .submit(messageBytes(SIMPLE_REQUEST))) {
+            try (var response =
+                    CLIENT.post()
+                            .contentType(APPLICATION_GRPC_PROTO)
+                            .path(SAY_HELLO_PATH.toUpperCase())
+                            .submit(messageBytes(SIMPLE_REQUEST))) {
                 assertThat(response.status().code()).isEqualTo(200);
                 assertThat(grpcStatus(response)).isEqualTo(GrpcStatus.NOT_FOUND);
             }
@@ -139,20 +156,25 @@ class PbjTest {
         /**
          * Verify that only POST is supported.
          *
-         * <p>SPEC:<pre>
+         * <p>SPEC:
+         *
+         * <pre>
          * Only POST can be used for gRPC calls.
-         * </pre></p>
+         * </pre>
          */
         @ParameterizedTest
         @ValueSource(strings = {"GET", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE"})
         void mustUsePost(final String methodName) {
-            try (var response = CLIENT.method(Method.create(methodName))
-                    .contentType(APPLICATION_GRPC_PROTO)
-                    .path(SAY_HELLO_PATH)
-                    .request()) {
+            try (var response =
+                    CLIENT.method(Method.create(methodName))
+                            .contentType(APPLICATION_GRPC_PROTO)
+                            .path(SAY_HELLO_PATH)
+                            .request()) {
 
-                // This is consistent with existing behavior on Helidon, but I would have expected the response code
-                // to be 405 Method Not Allowed instead. See PbjProtocolSelector for the check for POST.
+                // This is consistent with existing behavior on Helidon, but I would have expected
+                // the response code
+                // to be 405 Method Not Allowed instead. See PbjProtocolSelector for the check for
+                // POST.
                 assertThat(response.status().code()).isEqualTo(404);
             }
         }
@@ -163,29 +185,34 @@ class PbjTest {
         /**
          * Verify that the server responds with 415 when the Content-Type is not specified
          *
-         * <p>Spec:<pre>
+         * <p>Spec:
+         *
+         * <pre>
          * If Content-Type does not begin with "application/grpc", gRPC servers SHOULD respond with HTTP status of 415
          * (Unsupported Media Type). This will prevent other HTTP/2 clients from interpreting a gRPC error response, which
          * uses status 200 (OK), as successful.
-         * </pre></p>
+         * </pre>
          */
         @Test
         void contentTypeMustBeSet() {
-            try (var response = CLIENT.post()
-                    .path(SAY_HELLO_PATH)
-                    .submit(messageBytes(SIMPLE_REQUEST))) {
+            try (var response =
+                    CLIENT.post().path(SAY_HELLO_PATH).submit(messageBytes(SIMPLE_REQUEST))) {
 
                 assertThat(response.status().code()).isEqualTo(415);
             }
         }
 
-        /** Verify that the server responds with 415 when the Content-Type does not start with "application/grpc" */
+        /**
+         * Verify that the server responds with 415 when the Content-Type does not start with
+         * "application/grpc"
+         */
         @Test
         void contentTypeMustStartWithApplicationGrpc() {
-            try (var response = CLIENT.post()
-                    .path(SAY_HELLO_PATH)
-                    .contentType(APPLICATION_RANDOM)
-                    .submit(messageBytes(SIMPLE_REQUEST))) {
+            try (var response =
+                    CLIENT.post()
+                            .path(SAY_HELLO_PATH)
+                            .contentType(APPLICATION_RANDOM)
+                            .submit(messageBytes(SIMPLE_REQUEST))) {
 
                 assertThat(response.status().code()).isEqualTo(415);
             }
@@ -194,28 +221,34 @@ class PbjTest {
         /** Verify that "application/grpc+json" requests are accepted */
         @Test
         void contentTypeCanBeJSON() {
-            try (var response = CLIENT.post()
-                    .path(SAY_HELLO_PATH)
-                    .contentType(APPLICATION_GRPC_JSON)
-                    .submit(messageBytesJson(SIMPLE_REQUEST))) {
+            try (var response =
+                    CLIENT.post()
+                            .path(SAY_HELLO_PATH)
+                            .contentType(APPLICATION_GRPC_JSON)
+                            .submit(messageBytesJson(SIMPLE_REQUEST))) {
 
                 assertThat(response.status().code()).isEqualTo(200);
                 assertThat(response.headers().contentType().orElseThrow().text())
                         .isEqualTo("application/grpc+json");
 
-                final var reply = decodeJsonReply(new ReadableStreamingData(response.inputStream()));
+                final var reply =
+                        decodeJsonReply(new ReadableStreamingData(response.inputStream()));
                 assertThat(reply).isEqualTo(SIMPLE_REPLY);
             }
         }
 
-        /** Verify that "application/grpc+proto" and "application/grpc" both support protobuf encoding */
+        /**
+         * Verify that "application/grpc+proto" and "application/grpc" both support protobuf
+         * encoding
+         */
         @ParameterizedTest
-        @ValueSource(strings = { "application/grpc+proto", "application/grpc" })
+        @ValueSource(strings = {"application/grpc+proto", "application/grpc"})
         void contentTypeCanBeProtobuf(final String contentType) {
-            try (var response = CLIENT.post()
-                    .path(SAY_HELLO_PATH)
-                    .contentType(MediaTypes.create(contentType))
-                    .submit(messageBytes(SIMPLE_REQUEST))) {
+            try (var response =
+                    CLIENT.post()
+                            .path(SAY_HELLO_PATH)
+                            .contentType(MediaTypes.create(contentType))
+                            .submit(messageBytes(SIMPLE_REQUEST))) {
 
                 assertThat(response.status().code()).isEqualTo(200);
                 assertThat(response.headers().contentType().orElseThrow().text())
@@ -229,10 +262,11 @@ class PbjTest {
         /** Verify that a custom suffix of the content type is supported */
         @Test
         void contentTypeCanBeCustom() throws IOException {
-            try (var response = CLIENT.post()
-                    .path(SAY_HELLO_PATH)
-                    .contentType(APPLICATION_GRPC_STRING)
-                    .submit(messageBytes("dude".getBytes(StandardCharsets.UTF_8)))) {
+            try (var response =
+                    CLIENT.post()
+                            .path(SAY_HELLO_PATH)
+                            .contentType(APPLICATION_GRPC_STRING)
+                            .submit(messageBytes("dude".getBytes(StandardCharsets.UTF_8)))) {
 
                 assertThat(response.status().code()).isEqualTo(200);
                 assertThat(response.headers().contentType().orElseThrow().text())
@@ -249,22 +283,25 @@ class PbjTest {
     @Nested
     class GrpcEncodingTests {
         /**
-         * If the client sets "grpc-accept-encoding" such that it does NOT include any values supported
-         * by the server, then the server should return IDENTITY.
+         * If the client sets "grpc-accept-encoding" such that it does NOT include any values
+         * supported by the server, then the server should return IDENTITY.
          */
         @Test
         void acceptEncodingExcludesAllSupportedEncodings() {
-            try (var response = CLIENT.post()
-                    .contentType(APPLICATION_GRPC_PROTO)
-                    .path(SAY_HELLO_PATH)
-                    .header(HeaderNames.create("grpc-accept-encoding"), "gzip, deflate")
-                    .submit(messageBytes(SIMPLE_REQUEST))) {
+            try (var response =
+                    CLIENT.post()
+                            .contentType(APPLICATION_GRPC_PROTO)
+                            .path(SAY_HELLO_PATH)
+                            .header(HeaderNames.create("grpc-accept-encoding"), "gzip, deflate")
+                            .submit(messageBytes(SIMPLE_REQUEST))) {
 
                 assertThat(response.status().code()).isEqualTo(200);
                 response.entity().consume();
                 assertThat(grpcStatus(response)).isEqualTo(GrpcStatus.OK);
-                assertThat(response.headers().get(HeaderNames.create("grpc-encoding")).get()).isEqualTo("identity");
-                assertThat(response.headers().get(HeaderNames.create("grpc-accept-encoding")).get()).isEqualTo("identity");
+                assertThat(response.headers().get(HeaderNames.create("grpc-encoding")).get())
+                        .isEqualTo("identity");
+                assertThat(response.headers().get(HeaderNames.create("grpc-accept-encoding")).get())
+                        .isEqualTo("identity");
             }
         }
     }
@@ -274,101 +311,110 @@ class PbjTest {
     //
     // SPEC:
     //
-    // Custom-Metadata is an arbitrary set of key-value pairs defined by the application layer. Header names starting
-    // with "grpc-" but not listed here are reserved for future GRPC use and should not be used by applications as
-    // Custom-Metadata.
+    // Custom-Metadata is an arbitrary set of key-value pairs defined by the application layer.
+    // Header names starting with "grpc-" but not listed here are reserved for future GRPC use
+    // and should not be used by applications as Custom-Metadata.
     //
-    // Note that HTTP2 does not allow arbitrary octet sequences for header values so binary header values must be
-    // encoded using Base64 as per https://tools.ietf.org/html/rfc4648#section-4. Implementations MUST accept padded
-    // and un-padded values and should emit un-padded values. Applications define binary headers by having their names
-    // end with "-bin". Runtime libraries use this suffix to detect binary headers and properly apply base64 encoding &
-    // decoding as headers are sent and received.
+    // Note that HTTP2 does not allow arbitrary octet sequences for header values so binary header
+    // values must be encoded using Base64 as per https://tools.ietf.org/html/rfc4648#section-4.
+    // Implementations MUST accept padded and un-padded values and should emit un-padded values.
+    // Applications define binary headers by having their names end with "-bin". Runtime libraries
+    // use this suffix to detect binary headers and properly apply base64 encoding & decoding as
+    // headers are sent and received.
     //
-    // Custom-Metadata header order is not guaranteed to be preserved except for values with duplicate header names.
-    // Duplicate header names may have their values joined with "," as the delimiter and be considered semantically
-    // equivalent. Implementations must split Binary-Headers on "," before decoding the Base64-encoded values.
+    // Custom-Metadata header order is not guaranteed to be preserved except for values with
+    // duplicate header names. Duplicate header names may have their values joined with "," as the
+    // delimiter and be considered semantically equivalent. Implementations must split
+    // Binary-Headers on "," before decoding the Base64-encoded values.
     //
-    // ASCII-Value should not have leading or trailing whitespace. If it contains leading or trailing whitespace, it
-    // may be stripped. The ASCII-Value character range defined is stricter than HTTP. Implementations must not error
-    // due to receiving an invalid ASCII-Value that's a valid field-value in HTTP, but the precise behavior is not
-    // strictly defined: they may throw the value away or accept the value. If accepted, care must be taken to make
-    // sure that the application is permitted to echo the value back as metadata. For example, if the metadata is
-    // provided to the application as a list in a request, the application should not trigger an error by providing
-    // that same list as the metadata in the response.
+    // ASCII-Value should not have leading or trailing whitespace. If it contains leading or
+    // trailing whitespace, it may be stripped. The ASCII-Value character range defined is stricter
+    // than HTTP. Implementations must not error due to receiving an invalid ASCII-Value that's a
+    // valid field-value in HTTP, but the precise behavior is not strictly defined: they may throw
+    // the value away or accept the value. If accepted, care must be taken to make sure that the
+    // application is permitted to echo the value back as metadata. For example, if the metadata is
+    // provided to the application as a list in a request, the application should not trigger an
+    // error by providing that same list as the metadata in the response.
     //
     // TESTS:
     //   - Not implemented
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     @Nested
-    class MetadataTests {
-
-    }
+    class MetadataTests {}
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Request-Headers
     //
     // SPEC:
     //
-    // Servers may limit the size of Request-Headers, with a default of 8 KiB suggested. Implementations are encouraged
-    // to compute total header size like HTTP/2's SETTINGS_MAX_HEADER_LIST_SIZE: the sum of all header fields, for each
-    // field the sum of the uncompressed field name and value lengths plus 32, with binary values' lengths being
-    // post-Base64.
+    // Servers may limit the size of Request-Headers, with a default of 8 KiB suggested.
+    // Implementations are encouraged to compute total header size like HTTP/2's
+    // SETTINGS_MAX_HEADER_LIST_SIZE: the sum of all header fields, for each field the
+    // sum of the uncompressed field name and value lengths plus 32, with binary values'
+    // lengths being post-Base64.
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     @Nested
     class CompressionTests {
         /**
-         * Verify that the server responds with grpc-accept-encoding and UNIMPLEMENTED for unsupported compression schemes.
+         * Verify that the server responds with grpc-accept-encoding and UNIMPLEMENTED for
+         * unsupported compression schemes.
          */
         @ParameterizedTest
-        @ValueSource(strings = { "gzip", "deflate", "random" })
+        @ValueSource(strings = {"gzip", "deflate", "random"})
         void compressionNotSupported(final String grpcEncoding) {
-            try (var response = CLIENT.post()
-                    .contentType(APPLICATION_GRPC_PROTO)
-                    .path(SAY_HELLO_PATH)
-                    .header(HeaderNames.create("grpc-encoding"), grpcEncoding)
-                    .submit(messageBytes(SIMPLE_REQUEST))) {
+            try (var response =
+                    CLIENT.post()
+                            .contentType(APPLICATION_GRPC_PROTO)
+                            .path(SAY_HELLO_PATH)
+                            .header(HeaderNames.create("grpc-encoding"), grpcEncoding)
+                            .submit(messageBytes(SIMPLE_REQUEST))) {
 
                 assertThat(response.status().code()).isEqualTo(200);
                 assertThat(grpcStatus(response)).isEqualTo(GrpcStatus.UNIMPLEMENTED);
-                assertThat(response.headers().get(HeaderNames.create("grpc-accept-encoding")).get()).isEqualTo("identity");
+                assertThat(response.headers().get(HeaderNames.create("grpc-accept-encoding")).get())
+                        .isEqualTo("identity");
             }
         }
 
         /**
-         * Verify that an explicit call uses IDENTITY, and that the response headers includes the grpc-accept-encoding
-         * header with a value of "identity".
+         * Verify that an explicit call uses IDENTITY, and that the response headers includes the
+         * grpc-accept-encoding header with a value of "identity".
          */
         @Test
         void identityIfNotSpecified() {
-            try (var response = CLIENT.post()
-                    .contentType(APPLICATION_GRPC_PROTO)
-                    .path(SAY_HELLO_PATH)
-                    .submit(messageBytes(SIMPLE_REQUEST))) {
+            try (var response =
+                    CLIENT.post()
+                            .contentType(APPLICATION_GRPC_PROTO)
+                            .path(SAY_HELLO_PATH)
+                            .submit(messageBytes(SIMPLE_REQUEST))) {
 
                 assertThat(response.status().code()).isEqualTo(200);
                 response.entity().consume();
                 assertThat(grpcStatus(response)).isEqualTo(GrpcStatus.OK);
-                assertThat(response.headers().get(HeaderNames.create("grpc-accept-encoding")).get()).isEqualTo("identity");
+                assertThat(response.headers().get(HeaderNames.create("grpc-accept-encoding")).get())
+                        .isEqualTo("identity");
             }
         }
 
         /**
-         * Verify that an explicit call uses IDENTITY, and that the response headers includes the grpc-accept-encoding
-         * header with a value of "identity".
+         * Verify that an explicit call uses IDENTITY, and that the response headers includes the
+         * grpc-accept-encoding header with a value of "identity".
          */
         @Test
         void identityIfSpecified() {
-            try (var response = CLIENT.post()
-                    .contentType(APPLICATION_GRPC_PROTO)
-                    .path(SAY_HELLO_PATH)
-                    .header(HeaderNames.create("grpc-encoding"), "identity")
-                    .submit(messageBytes(SIMPLE_REQUEST))) {
+            try (var response =
+                    CLIENT.post()
+                            .contentType(APPLICATION_GRPC_PROTO)
+                            .path(SAY_HELLO_PATH)
+                            .header(HeaderNames.create("grpc-encoding"), "identity")
+                            .submit(messageBytes(SIMPLE_REQUEST))) {
 
                 assertThat(response.status().code()).isEqualTo(200);
                 response.entity().consume();
                 assertThat(grpcStatus(response)).isEqualTo(GrpcStatus.OK);
-                assertThat(response.headers().get(HeaderNames.create("grpc-accept-encoding")).get()).isEqualTo("identity");
+                assertThat(response.headers().get(HeaderNames.create("grpc-accept-encoding")).get())
+                        .isEqualTo("identity");
             }
         }
     }
@@ -377,24 +423,26 @@ class PbjTest {
     class DeadlineTests {
         @Test
         void deadlineExceeded() {
-            PROXY.svc = new GreeterAdapter() {
-                @Override
-                public HelloReply sayHello(HelloRequest request) {
-                    try {
-                        // This should be plenty of time. Shouldn't be flaky...
-                        Thread.sleep(Duration.ofSeconds(1));
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
+            PROXY.svc =
+                    new GreeterAdapter() {
+                        @Override
+                        public HelloReply sayHello(HelloRequest request) {
+                            try {
+                                // This should be plenty of time. Shouldn't be flaky...
+                                Thread.sleep(Duration.ofSeconds(1));
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
 
-                    return HelloReply.newBuilder()
-                            .setMessage("Hello " + request.getName())
-                            .build();
-                }
-            };
+                            return HelloReply.newBuilder()
+                                    .setMessage("Hello " + request.getName())
+                                    .build();
+                        }
+                    };
 
-            final var stub = GreeterGrpc.newBlockingStub(CHANNEL)
-                    .withDeadline(Deadline.after(1, TimeUnit.NANOSECONDS));
+            final var stub =
+                    GreeterGrpc.newBlockingStub(CHANNEL)
+                            .withDeadline(Deadline.after(1, TimeUnit.NANOSECONDS));
 
             try {
                 //noinspection ResultOfMethodCallIgnored
@@ -407,9 +455,7 @@ class PbjTest {
     }
 
     @Nested
-    class AuthenticationTests {
-
-    }
+    class AuthenticationTests {}
 
     @Nested
     class UnaryTests {
@@ -422,19 +468,22 @@ class PbjTest {
         }
 
         /**
-         * Given a handler that throws exceptions, make sure the call fails accordingly. Note that I don't throw the OK
-         * code, if that is thrown, the call actually terminates with success, since that is the success code!
+         * Given a handler that throws exceptions, make sure the call fails accordingly. Note that I
+         * don't throw the OK code, if that is thrown, the call actually terminates with success,
+         * since that is the success code!
+         *
          * @param grpcStatusCode the code
          */
         @ParameterizedTest
-        @ValueSource(ints = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 })
+        @ValueSource(ints = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
         void exceptionThrownDuringHandling(final int grpcStatusCode) {
-            PROXY.svc = new GreeterAdapter() {
-                @Override
-                public HelloReply sayHello(HelloRequest request) {
-                    throw new GrpcException(GrpcStatus.values()[grpcStatusCode]);
-                }
-            };
+            PROXY.svc =
+                    new GreeterAdapter() {
+                        @Override
+                        public HelloReply sayHello(HelloRequest request) {
+                            throw new GrpcException(GrpcStatus.values()[grpcStatusCode]);
+                        }
+                    };
 
             final var stub = GreeterGrpc.newBlockingStub(CHANNEL);
 
@@ -450,21 +499,23 @@ class PbjTest {
         @Test
         void exceptionThrownWhileOpening() {
             // Try this list of exceptions
-            final var exceptions = List.of(
-                    new GrpcException(GrpcStatus.UNKNOWN),
-                    new RuntimeException("Error opening"));
+            final var exceptions =
+                    List.of(
+                            new GrpcException(GrpcStatus.UNKNOWN),
+                            new RuntimeException("Error opening"));
 
             for (final var ex : exceptions) {
-                PROXY.svc = new GreeterAdapter() {
-                    @Override
-                    @NonNull
-                    public Flow.Subscriber<? super Bytes> open(
-                            @NonNull Method method,
-                            @NonNull RequestOptions options,
-                            @NonNull Flow.Subscriber<? super Bytes> replies) {
-                        throw ex;
-                    }
-                };
+                PROXY.svc =
+                        new GreeterAdapter() {
+                            @Override
+                            @NonNull
+                            public Flow.Subscriber<? super Bytes> open(
+                                    @NonNull Method method,
+                                    @NonNull RequestOptions options,
+                                    @NonNull Flow.Subscriber<? super Bytes> replies) {
+                                throw ex;
+                            }
+                        };
 
                 final var stub = GreeterGrpc.newBlockingStub(CHANNEL);
 
@@ -473,7 +524,8 @@ class PbjTest {
                     stub.sayHello(SIMPLE_REQUEST);
                     fail("An exception should have been thrown");
                 } catch (StatusRuntimeException e) {
-                    assertThat(e.getStatus().getCode().value()).isEqualTo(GrpcStatus.UNKNOWN.ordinal());
+                    assertThat(e.getStatus().getCode().value())
+                            .isEqualTo(GrpcStatus.UNKNOWN.ordinal());
                 }
             }
         }
@@ -487,12 +539,9 @@ class PbjTest {
             final var replies = stub.sayHelloStreamReply(SIMPLE_REQUEST);
             final var messages = new ArrayList<HelloReply>();
             replies.forEachRemaining(messages::add);
-            assertThat(messages)
-                    .hasSize(10)
-                    .allMatch(reply -> reply.getMessage().equals("Hello!"));
+            assertThat(messages).hasSize(10).allMatch(reply -> reply.getMessage().equals("Hello!"));
         }
     }
-
 
     @Nested
     class StreamingClientTests {
@@ -500,23 +549,26 @@ class PbjTest {
         void streamingClient() throws InterruptedException {
             final var latch = new CountDownLatch(1);
             final var response = new AtomicReference<HelloReply>();
-            final var requestObserver = GreeterGrpc.newStub(CHANNEL).sayHelloStreamRequest(new StreamObserver<>() {
-                @Override
-                public void onNext(HelloReply helloReply) {
-                    response.set(helloReply);
-                }
+            final var requestObserver =
+                    GreeterGrpc.newStub(CHANNEL)
+                            .sayHelloStreamRequest(
+                                    new StreamObserver<>() {
+                                        @Override
+                                        public void onNext(HelloReply helloReply) {
+                                            response.set(helloReply);
+                                        }
 
-                @Override
-                public void onError(Throwable throwable) {
-                    // FUTURE: Test this failure condition
-                    System.err.println("Error: " + throwable.getMessage());
-                }
+                                        @Override
+                                        public void onError(Throwable throwable) {
+                                            // FUTURE: Test this failure condition
+                                            System.err.println("Error: " + throwable.getMessage());
+                                        }
 
-                @Override
-                public void onCompleted() {
-                    latch.countDown();
-                }
-            });
+                                        @Override
+                                        public void onCompleted() {
+                                            latch.countDown();
+                                        }
+                                    });
 
             requestObserver.onNext(HelloRequest.newBuilder().setName("Alice").build());
             requestObserver.onNext(HelloRequest.newBuilder().setName("Bob").build());
@@ -525,9 +577,9 @@ class PbjTest {
 
             assertThat(latch.await(1, TimeUnit.MINUTES)).isTrue();
 
-            assertThat(response.get()).isEqualTo(HelloReply.newBuilder()
-                    .setMessage("Hello Alice, Bob, Carol")
-                    .build());
+            assertThat(response.get())
+                    .isEqualTo(
+                            HelloReply.newBuilder().setMessage("Hello Alice, Bob, Carol").build());
         }
     }
 
@@ -537,23 +589,26 @@ class PbjTest {
         void streamingBidi() throws InterruptedException {
             final var latch = new CountDownLatch(1);
             final var response = new ArrayList<HelloReply>();
-            final var requestObserver = GreeterGrpc.newStub(CHANNEL).sayHelloStreamBidi(new StreamObserver<>() {
-                @Override
-                public void onNext(HelloReply helloReply) {
-                    response.add(helloReply);
-                }
+            final var requestObserver =
+                    GreeterGrpc.newStub(CHANNEL)
+                            .sayHelloStreamBidi(
+                                    new StreamObserver<>() {
+                                        @Override
+                                        public void onNext(HelloReply helloReply) {
+                                            response.add(helloReply);
+                                        }
 
-                @Override
-                public void onError(Throwable throwable) {
-                    latch.countDown();
-                    fail("Encountered unexpected exception", throwable);
-                }
+                                        @Override
+                                        public void onError(Throwable throwable) {
+                                            latch.countDown();
+                                            fail("Encountered unexpected exception", throwable);
+                                        }
 
-                @Override
-                public void onCompleted() {
-                    latch.countDown();
-                }
-            });
+                                        @Override
+                                        public void onCompleted() {
+                                            latch.countDown();
+                                        }
+                                    });
 
             requestObserver.onNext(HelloRequest.newBuilder().setName("Alice").build());
             requestObserver.onNext(HelloRequest.newBuilder().setName("Bob").build());
@@ -573,7 +628,8 @@ class PbjTest {
     class ConcurrencyTests {
         private static final int NUM_CONCURRENT = 10;
         private static final int NUM_REQUESTS = 100_000;
-        private final ConcurrentLinkedQueue<AssertionError> failures = new ConcurrentLinkedQueue<>();
+        private final ConcurrentLinkedQueue<AssertionError> failures =
+                new ConcurrentLinkedQueue<>();
         private final CountDownLatch latch = new CountDownLatch(NUM_REQUESTS);
         private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
         private final AtomicInteger nextClientId = new AtomicInteger(0);
@@ -581,12 +637,12 @@ class PbjTest {
 
         @BeforeEach
         void setup() {
-            // Create a pool of channels. I want to have many, many, unique concurrent calls, but there is a practical
-            // limit to the number of concurrent channels. If the deque is empty, there are no available channels.
+            // Create a pool of channels. I want to have many, many, unique concurrent calls, but
+            // there is a practical limit to the number of concurrent channels. If the deque is
+            // empty, there are no available channels.
             for (int i = 0; i < NUM_CONCURRENT; i++) {
-                final var channel = ManagedChannelBuilder.forAddress("localhost", 8080)
-                        .usePlaintext()
-                        .build();
+                final var channel =
+                        ManagedChannelBuilder.forAddress("localhost", 8080).usePlaintext().build();
 
                 channels.offer(channel);
             }
@@ -595,21 +651,25 @@ class PbjTest {
         @AfterEach
         void teardown() {
             channels.forEach(ManagedChannel::shutdownNow);
-            channels.forEach(c -> {
-                try {
-                    c.awaitTermination(1, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            channels.forEach(
+                    c -> {
+                        try {
+                            c.awaitTermination(1, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
         }
 
         // FUTURE Try to test a bad client that sends multiple messages for a unary call
 
         @Test
-        @Disabled("This test passes locally but fails in CI. More work is needed to see why. It is timing dependent.")
+        @Disabled(
+                "This test passes locally but fails in CI. More work is needed to see why. It is"
+                        + " timing dependent.")
         void manyConcurrentUnaryCalls() throws InterruptedException {
-            // For each virtual client, execute the query and get the reply. Put the reply here in this map. The key
+            // For each virtual client, execute the query and get the reply. Put the reply here in
+            // this map. The key
             // is the unique ID of the client (integer), and the value is the reply.
             for (int i = 0; i < NUM_CONCURRENT; i++) {
                 executor.submit(new TestClient(nextClientId.getAndIncrement()));
@@ -635,7 +695,8 @@ class PbjTest {
                     final var channel = channels.takeFirst();
                     try {
                         final var stub = GreeterGrpc.newFutureStub(channel);
-                        final var request = HelloRequest.newBuilder().setName("" + clientId).build();
+                        final var request =
+                                HelloRequest.newBuilder().setName("" + clientId).build();
                         final var future = stub.sayHello(request);
                         final var reply = future.get(10, TimeUnit.SECONDS);
                         if (!reply.getMessage().equals("Hello " + clientId)) {
@@ -647,7 +708,8 @@ class PbjTest {
                             executor.submit(new TestClient(id));
                         }
                     } catch (Exception e) {
-                        // If some random exception occurs, just reschedule this task for later execution.
+                        // If some random exception occurs, just reschedule this task for later
+                        // execution.
                         executor.submit(this);
                     } finally {
                         channels.offer(channel);
@@ -737,14 +799,13 @@ class PbjTest {
                 throw new GrpcException(errorToThrow);
             }
 
-            return HelloReply.newBuilder()
-                    .setMessage("Hello " + request.getName())
-                    .build();
+            return HelloReply.newBuilder().setMessage("Hello " + request.getName()).build();
         }
 
         // Streams of stuff coming from the client, with a single response.
         @Override
-        public Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(Flow.Subscriber<? super HelloReply> replies) {
+        public Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(
+                Flow.Subscriber<? super HelloReply> replies) {
             final var names = new ArrayList<String>();
             return new Flow.Subscriber<>() {
                 @Override
@@ -764,9 +825,10 @@ class PbjTest {
 
                 @Override
                 public void onComplete() {
-                    final var reply = HelloReply.newBuilder()
-                            .setMessage("Hello " + String.join(", ", names))
-                            .build();
+                    final var reply =
+                            HelloReply.newBuilder()
+                                    .setMessage("Hello " + String.join(", ", names))
+                                    .build();
                     replies.onNext(reply);
                     replies.onComplete();
                 }
@@ -774,20 +836,20 @@ class PbjTest {
         }
 
         @Override
-        public void sayHelloStreamReply(HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
+        public void sayHelloStreamReply(
+                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
             for (int i = 0; i < 10; i++) {
-                replies.onNext(HelloReply.newBuilder()
-                        .setMessage("Hello!")
-                        .build());
+                replies.onNext(HelloReply.newBuilder().setMessage("Hello!").build());
             }
 
             replies.onComplete();
         }
 
         @Override
-        public Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(Flow.Subscriber<? super HelloReply> replies) {
-            // Here we receive info from the client. In this case, it is a stream of requests with names.
-            // We will respond with a stream of replies.
+        public Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(
+                Flow.Subscriber<? super HelloReply> replies) {
+            // Here we receive info from the client. In this case, it is a stream of requests with
+            // names. We will respond with a stream of replies.
             return new Flow.Subscriber<>() {
                 @Override
                 public void onSubscribe(Flow.Subscription subscription) {
@@ -796,9 +858,8 @@ class PbjTest {
 
                 @Override
                 public void onNext(HelloRequest item) {
-                    replies.onNext(HelloReply.newBuilder()
-                            .setMessage("Hello " + item.getName())
-                            .build());
+                    replies.onNext(
+                            HelloReply.newBuilder().setMessage("Hello " + item.getName()).build());
                 }
 
                 @Override
@@ -816,20 +877,23 @@ class PbjTest {
 
     private interface GreeterAdapter extends GreeterService {
         @Override
-        default HelloReply sayHello(HelloRequest request) { return null; }
-
-        @Override
-        default Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(Flow.Subscriber<? super HelloReply> replies) {
+        default HelloReply sayHello(HelloRequest request) {
             return null;
         }
 
         @Override
-        default void sayHelloStreamReply(HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
-
+        default Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(
+                Flow.Subscriber<? super HelloReply> replies) {
+            return null;
         }
 
         @Override
-        default Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(Flow.Subscriber<? super HelloReply> replies) {
+        default void sayHelloStreamReply(
+                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {}
+
+        @Override
+        default Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(
+                Flow.Subscriber<? super HelloReply> replies) {
             return null;
         }
     }
@@ -845,24 +909,30 @@ class PbjTest {
 
         @Override
         @NonNull
-        public Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(Flow.Subscriber<? super HelloReply> replies) {
+        public Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(
+                Flow.Subscriber<? super HelloReply> replies) {
             return svc.sayHelloStreamRequest(replies);
         }
 
         @Override
-        public void sayHelloStreamReply(HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
+        public void sayHelloStreamReply(
+                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
             svc.sayHelloStreamReply(request, replies);
         }
 
         @Override
         @NonNull
-        public Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(Flow.Subscriber<? super HelloReply> replies) {
+        public Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(
+                Flow.Subscriber<? super HelloReply> replies) {
             return svc.sayHelloStreamBidi(replies);
         }
 
         @Override
         @NonNull
-        public Flow.Subscriber<? super Bytes> open(@NonNull Method method, @NonNull RequestOptions options, @NonNull Flow.Subscriber<? super Bytes> replies) {
+        public Flow.Subscriber<? super Bytes> open(
+                @NonNull Method method,
+                @NonNull RequestOptions options,
+                @NonNull Flow.Subscriber<? super Bytes> replies) {
             return svc.open(method, options, replies);
         }
     }

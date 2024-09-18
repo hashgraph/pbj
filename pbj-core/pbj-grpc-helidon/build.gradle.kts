@@ -42,17 +42,10 @@ testModuleInfo {
     requiresStatic("java.annotation")
 }
 
-tasks.named("compileJava") {
-    dependsOn(":pbj-runtime:jar")
-}
+tasks.named("compileJava") { dependsOn(":pbj-runtime:jar") }
 
 publishing {
     publications.withType<MavenPublication>().configureEach {
-        pom {
-            description.set(
-                "A Helidon gRPC plugin with PBJ"
-            )
-        }
+        pom { description.set("A Helidon gRPC plugin with PBJ") }
     }
 }
-

@@ -32,8 +32,7 @@ interface PbjConfigBlueprint extends ProtocolConfig {
     int DEFAULT_MAX_MESSAGE_SIZE_BYTES = 1024 * 10; // 10KB
 
     /**
-     * Maximum size of any message in bytes.
-     * Defaults to {@value #DEFAULT_MAX_MESSAGE_SIZE_BYTES}.
+     * Maximum size of any message in bytes. Defaults to {@value #DEFAULT_MAX_MESSAGE_SIZE_BYTES}.
      *
      * @return the maximum number of bytes a single message can be
      */
