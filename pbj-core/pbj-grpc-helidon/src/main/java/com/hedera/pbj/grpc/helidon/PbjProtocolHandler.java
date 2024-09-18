@@ -457,7 +457,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     });
         }
 
-        return new NoopScheduledFuture();
+        return new NoopScheduledFuture<>();
     }
 
     /**
@@ -641,7 +641,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
         @Override
         public void onError(@NonNull final Throwable throwable) {
-            if (throwable instanceof GrpcException grpcException) {
+            if (throwable instanceof final GrpcException grpcException) {
                 new TrailerBuilder()
                         .grpcStatus(grpcException.status())
                         .statusMessage(grpcException.getMessage())

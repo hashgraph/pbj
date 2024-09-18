@@ -90,7 +90,7 @@ final class PbjMethodRoute extends PbjRoute {
                                 .addTag(Tag.create(SERVICE_TAG, serviceName))
                                 .addTag(Tag.create(METHOD_TAG, methodName))
                                 .addTag(Tag.create(FAILURE_TAG, "http-exception"))
-                                .description("The number of failed http requests"));
+                                .description("The number of failed HTTP requests"));
         this.failedUnknownRequestCounter =
                 metricRegistry.getOrCreate(
                         Counter.builder("pbj.grpc.failed.requests")

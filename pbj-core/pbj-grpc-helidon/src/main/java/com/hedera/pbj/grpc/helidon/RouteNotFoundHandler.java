@@ -14,6 +14,8 @@ import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
 
+import java.util.Objects;
+
 /**
  * A handler for the case where the path is not found.
  */
@@ -23,13 +25,19 @@ public final class RouteNotFoundHandler
     private final int streamId;
     private Http2StreamState currentStreamState;
 
+    /**
+     * Constructor
+     * @param streamWriter the stream writer
+     * @param streamId the stream id
+     * @param currentStreamState the current stream state
+     */
     RouteNotFoundHandler(
-            final Http2StreamWriter streamWriter,
+            @NonNull final Http2StreamWriter streamWriter,
             final int streamId,
-            final Http2StreamState currentStreamState) {
-        this.streamWriter = streamWriter;
+            @NonNull final Http2StreamState currentStreamState) {
+        this.streamWriter = Objects.requireNonNull(streamWriter);
         this.streamId = streamId;
-        this.currentStreamState = currentStreamState;
+        this.currentStreamState = Objects.requireNonNull(currentStreamState);
     }
 
     @Override
