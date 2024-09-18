@@ -42,7 +42,7 @@ final class PbjMethodRoute extends PbjRoute {
 
         final var serviceName = service.fullName();
         final var methodName = method.name();
-        this.fullPath = serviceName + SEP + methodName;
+        this.fullPath = SEP + serviceName + SEP + methodName;
         this.pathMatcher = PathMatchers.exact(fullPath);
 
         final var metricRegistry = Metrics.globalRegistry();
