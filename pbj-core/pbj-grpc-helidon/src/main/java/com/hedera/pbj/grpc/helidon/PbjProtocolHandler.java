@@ -63,6 +63,7 @@ import java.util.concurrent.Delayed;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 /**
@@ -91,7 +92,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private final Http2StreamWriter streamWriter;
     private final int streamId;
     private final StreamFlowControl flowControl;
-    private Http2StreamState currentStreamState;
+    private final AtomicReference<Http2StreamState> currentStreamState;
 
     /**
      * The service method that this connection was created for. The route has information about the
@@ -141,7 +142,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         this.streamWriter = requireNonNull(streamWriter);
         this.streamId = streamId;
         this.flowControl = requireNonNull(flowControl);
-        this.currentStreamState = requireNonNull(currentStreamState);
+        this.currentStreamState = new AtomicReference<>(requireNonNull(currentStreamState));
         this.config = requireNonNull(config);
         this.route = requireNonNull(route);
         this.deadlineDetector = requireNonNull(deadlineDetector);
@@ -159,8 +160,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         try {
             // If Content-Type does not begin with "application/grpc", gRPC servers SHOULD respond
             // with HTTP status of 415 (Unsupported Media Type). This will prevent other HTTP/2
-            // clients from interpreting a gRPC error
-            // response, which uses status 200 (OK), as successful.
+            // clients from interpreting a gRPC error response, which uses status 200 (OK), as
+            // successful.
             // See https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
             // In addition, "application/grpc" is interpreted as "application/grpc+proto".
             final var requestHeaders = headers.httpHeaders();
@@ -216,8 +217,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // any compression.
 
             // If the grpc-timeout header is present, determine when that timeout would occur, or
-            // default to a future
-            // that is so far in the future it will never happen.
+            // default to a future that is so far in the future it will never happen.
             final var timeout = requestHeaders.value(GRPC_TIMEOUT);
             deadlineFuture =
                     timeout.isPresent()
@@ -277,7 +277,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     @Override
     @NonNull
     public Http2StreamState streamState() {
-        return currentStreamState;
+        return currentStreamState.get();
     }
 
     @Override
@@ -358,12 +358,12 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             }
 
             // The end of the stream has been reached! It is possible that a bad client will send
-            // end of stream before
-            // all the message data we sent. In that case, it is as if the message were never sent.
+            // end of stream before all the message data we sent. In that case, it is as if the
+            // message were never sent.
             if (header.flags(Http2FrameTypes.DATA).endOfStream()) {
                 entityBytesIndex = 0;
                 entityBytes = null;
-                currentStreamState = Http2StreamState.HALF_CLOSED_LOCAL;
+                currentStreamState.set(Http2StreamState.HALF_CLOSED_LOCAL);
                 incoming.onComplete();
             }
         } catch (final Exception e) {
@@ -375,14 +375,16 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     }
 
     /** Close the connection with the client. May be called by different threads concurrently. */
-    private synchronized void close() {
+    private void close() {
         // Canceling a future that has already completed has no effect. So by canceling here, we are
         // saying:
         // "If you have not yet executed, never execute. If you have already executed, then just
         // ignore me".
         // The "isCancelled" flag is set if the future was canceled before it was executed.
+
+        // cancel is threadsafe
         deadlineFuture.cancel(false);
-        currentStreamState = Http2StreamState.HALF_CLOSED_LOCAL;
+        currentStreamState.set(Http2StreamState.HALF_CLOSED_LOCAL);
     }
 
     /**
