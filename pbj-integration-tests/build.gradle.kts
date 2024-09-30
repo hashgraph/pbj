@@ -4,7 +4,7 @@ plugins {
     id("com.hedera.pbj.pbj-compiler")
     // We depend on Google protobuf plugin as we generate protobuf code using it as well as pbj. Then use it in tests to
     // compare output and parsing with pbj to make sure it matches.
-    id("com.google.protobuf").version("0.9.1")
+    id("com.google.protobuf").version("0.9.4")
     // add jmh for performance benchmarks
     id("me.champeau.jmh").version("0.7.2")
 }
@@ -14,10 +14,10 @@ group = "com.hedera.pbj.integration-tests"
 dependencies {
     implementation("com.hedera.pbj:pbj-runtime")
     implementation("com.hedera.pbj:pbj-compiler")
-    implementation("com.google.protobuf:protobuf-java:4.27.1")
-    implementation("com.google.protobuf:protobuf-java-util:4.27.1")
-    implementation("io.grpc:grpc-protobuf:1.61.1")
-    implementation("io.grpc:grpc-stub:1.61.1")
+    implementation("com.google.protobuf:protobuf-java:4.28.2")
+    implementation("com.google.protobuf:protobuf-java-util:4.28.2")
+    implementation("io.grpc:grpc-protobuf:1.65.1")
+    implementation("io.grpc:grpc-stub:1.65.1")
     implementation("javax.annotation:javax.annotation-api:1.3.2")
     compileOnly("com.github.spotbugs:spotbugs-annotations:4.7.3")
 
@@ -66,11 +66,11 @@ protobuf {
     // Configure the protoc executable
     protoc {
         // Download from repositories
-        artifact = "com.google.protobuf:protoc:4.27.1"
+        artifact = "com.google.protobuf:protoc:4.28.2"
     }
     plugins {
         create("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.64.0"
+            artifact = "io.grpc:protoc-gen-grpc-java:1.65.1"
         }
     }
 
