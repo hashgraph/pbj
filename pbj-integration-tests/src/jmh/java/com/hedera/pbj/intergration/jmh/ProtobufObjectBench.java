@@ -1,7 +1,7 @@
 package com.hedera.pbj.intergration.jmh;
 
 import com.google.protobuf.CodedOutputStream;
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.token.AccountDetails;
 import com.hedera.pbj.integration.AccountDetailsPbj;
@@ -15,7 +15,17 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
-import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OperationsPerInvocation;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
@@ -29,12 +39,12 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 5, time = 2)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
-public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMessageV3> {
+public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMessage> {
 	/** we repeat all operations 1000 times so that measured times are nig enough */
 	private static final int OPERATION_COUNT = 1000;
 
 	@State(Scope.Benchmark)
-	public static class BenchmarkState<P extends Record,G extends GeneratedMessageV3> {
+	public static class BenchmarkState<P extends Record,G extends GeneratedMessage> {
 		private Codec<P> pbjCodec;
 		private ProtobufParseFunction<byte[], G> googleByteArrayParseMethod;
 		private ProtobufParseFunction<ByteBuffer, G> googleByteBufferParseMethod;
