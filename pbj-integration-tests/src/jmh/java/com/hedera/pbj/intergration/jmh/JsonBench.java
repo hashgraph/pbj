@@ -1,5 +1,6 @@
 package com.hedera.pbj.intergration.jmh;
 
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.GeneratedMessageV3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -13,7 +14,16 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
-import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
@@ -26,13 +36,13 @@ import java.util.function.Supplier;
 @Measurement(iterations = 5, time = 2)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
-public abstract class JsonBench<P extends Record,G extends GeneratedMessageV3> {
+public abstract class JsonBench<P extends Record,G extends GeneratedMessage> {
 
 	@SuppressWarnings("rawtypes")
 	@State(Scope.Benchmark)
-	public static class JsonBenchmarkState<P extends Record,G extends GeneratedMessageV3> {
+	public static class JsonBenchmarkState<P extends Record,G extends GeneratedMessage> {
 		private JsonCodec<P> pbjJsonCodec;
-		private Supplier<GeneratedMessageV3.Builder> builderSupplier;
+		private Supplier<GeneratedMessage.Builder> builderSupplier;
 		// input objects
 		private P pbjModelObject;
 		private G googleModelObject;
@@ -45,7 +55,7 @@ public abstract class JsonBench<P extends Record,G extends GeneratedMessageV3> {
 		private BufferedData outDataBuffer;
 		public void configure(P pbjModelObject, Codec<P> pbjProtoCodec, JsonCodec<P> pbjJsonCodec,
 							  ProtobufObjectBench.ProtobufParseFunction<byte[],G> googleByteArrayParseMethod,
-							  Supplier<GeneratedMessageV3.Builder> builderSupplier) {
+							  Supplier<GeneratedMessage.Builder> builderSupplier) {
 			try {
 				this.pbjModelObject = pbjModelObject;
 				this.pbjJsonCodec = pbjJsonCodec;
