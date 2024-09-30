@@ -21,7 +21,7 @@ import io.helidon.builder.api.Prototype;
 import io.helidon.webserver.spi.ProtocolConfig;
 
 @Prototype.Blueprint
-@Prototype.Configured
+@Prototype.Configured("pbj")
 @Prototype.Provides(ProtocolConfig.class)
 interface PbjConfigBlueprint extends ProtocolConfig {
     /**
