@@ -15,7 +15,7 @@
  */
 
 plugins {
-    id("com.hedera.pbj.conventions")
+    id("com.hedera.pbj.helidon")
     id("com.hedera.pbj.protoc") // protobuf plugin is only used for tests
 }
 

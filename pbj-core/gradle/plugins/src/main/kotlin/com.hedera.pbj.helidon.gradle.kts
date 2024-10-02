@@ -14,19 +14,11 @@
  * limitations under the License.
  */
 
-plugins { id("com.hedera.pbj.helidon") }
-
-mainModuleInfo {
-    annotationProcessor("io.helidon.common.features.processor")
-    annotationProcessor("io.helidon.config.metadata.processor")
-    annotationProcessor("io.helidon.codegen.apt")
-    annotationProcessor("io.helidon.builder.codegen")
+plugins {
+    id("java-library")
+    id("com.hedera.pbj.conventions")
 }
 
-tasks.named("javadoc").configure { enabled = false }
+val maven = publishing.publications.create<MavenPublication>("maven") { from(components["java"]) }
 
-publishing {
-    publications.withType<MavenPublication>().configureEach {
-        pom { description.set("Configuration for a Helidon gRPC plugin for PBJ") }
-    }
-}
+signing.sign(maven)
