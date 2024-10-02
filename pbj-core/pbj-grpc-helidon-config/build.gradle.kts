@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-plugins { id("com.hedera.pbj.conventions") }
+plugins { id("com.hedera.pbj.helidon") }
 
 mainModuleInfo {
     annotationProcessor("io.helidon.common.features.processor")
