@@ -296,16 +296,15 @@ public sealed class BufferedData
      * {@inheritDoc}
      */
     @Override
-    public long skip(final long count) {
+    public void skip(final long count) {
         if (count > Integer.MAX_VALUE || (int) count > buffer.remaining()) {
             throw new BufferUnderflowException();
         }
         if (count <= 0) {
-            return 0;
+            return;
         }
 
         buffer.position(buffer.position() + (int) count);
-        return count;
     }
 
     // ================================================================================================================

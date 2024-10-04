@@ -58,10 +58,9 @@ public class ParserNeverWrapsTest {
         }
 
         @Override
-        public long skip(long count) {
+        public void skip(long count) {
             // This doesn't matter in this test
             position += count;
-            return count;
         }
 
         @Override

@@ -79,8 +79,7 @@ public interface SequentialData {
      * {@link #limit()}, then a buffer overflow or underflow exception is thrown.
      *
      * @param count number of bytes to skip. If 0 or negative, then no bytes are skipped.
-     * @return the actual number of bytes skipped.
      * @throws UncheckedIOException if an I/O error occurs
      */
-    long skip(long count) throws UncheckedIOException;
+    void skip(long count) throws UncheckedIOException;
 }

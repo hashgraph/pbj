@@ -60,15 +60,14 @@ final class WritableSequentialDataTest extends WritableTestBase {
         }
 
         @Override
-        public long skip(long count) {
+        public void skip(long count) {
             if (count > limit - position) {
                 throw new BufferUnderflowException();
             }
             if (count <= 0) {
-                return 0;
+                return;
             }
             position += count;
-            return count;
         }
 
         @Override
