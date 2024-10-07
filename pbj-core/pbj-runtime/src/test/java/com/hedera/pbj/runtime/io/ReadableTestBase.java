@@ -678,7 +678,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             // Given a sequence of bytes where the position is 10 bytes from the end
             final var seq = sequence(TEST_BYTES);
             final var startIndex = TEST_BYTES.length - 10;
-            assertThat(seq.skip(startIndex)).isEqualTo(16);
+            seq.skip(startIndex);
             assertThat(seq.position()).isEqualTo(16);
             // When we create a view with a length of 10 bytes
             final var view = seq.view(10);

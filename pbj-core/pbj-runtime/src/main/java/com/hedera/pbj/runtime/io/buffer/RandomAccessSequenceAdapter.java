@@ -83,16 +83,15 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
 
     /** {@inheritDoc} */
     @Override
-    public long skip(final long count) {
+    public void skip(final long count) {
         if (count > remaining()) {
             throw new BufferUnderflowException();
         }
         if (count <= 0) {
-            return 0;
+            return;
         }
 
         position += count;
-        return count;
     }
 
     // ================================================================================================================

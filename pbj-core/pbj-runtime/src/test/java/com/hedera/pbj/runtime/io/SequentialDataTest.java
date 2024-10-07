@@ -48,7 +48,7 @@ final class SequentialDataTest {
         }
 
         @Override
-        public long skip(long count) {
+        public void skip(long count) {
             throw new UnsupportedOperationException("Not implemented in this test");
         }
 

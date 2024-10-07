@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
@@ -99,11 +100,12 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
     /**
      * Move position forward by {@code count} bytes byte writing zeros to output stream.
      *
-     * @param count number of bytes to skip
-     * @return the actual number of bytes skipped.
+     * @param count number of bytes to skip. If 0 or negative, then no bytes are skipped.
+     * @throws BufferOverflowException if {@code count} would move the position past the {@link #limit()}.
+     * @throws UncheckedIOException if an I/O error occurs
      */
     @Override
-    public long skip(final long count) {
+    public void skip(final long count) {
         try {
             // We can only skip UP TO count.
             // And if the maximum bytes we can end up skipping is not positive, then we can't skip any bytes.
@@ -111,7 +113,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
                 throw new BufferOverflowException();
             }
             if (count <= 0) {
-                return 0;
+                return;
             }
 
             // Each byte skipped is a "zero" byte written to the output stream. To make this faster, we will support
@@ -125,7 +127,6 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
 
             // Update the position and return the number of bytes skipped.
             position += count;
-            return count;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

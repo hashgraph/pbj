@@ -61,7 +61,7 @@ public abstract class ReadableSequentialTestBase extends ReadableTestBase {
         stream.readBytes(bytes, 0, 4);
         assertThat(stream.position()).isEqualTo(4);
         assertThat(bytes).containsExactly('W', 'h', 'a', 't', 0);
-        assertThat(stream.skip(3)).isEqualTo(3);
+        stream.skip(3);
         assertThat(stream.position()).isEqualTo(7);
         stream.readBytes(bytes);
         assertThat(stream.position()).isEqualTo(12);
@@ -73,7 +73,7 @@ public abstract class ReadableSequentialTestBase extends ReadableTestBase {
     @DisplayName("Skip some bytes, read some bytes")
     void skipSomeReadSomeTest() {
         final var stream = sequence("What a dream!!".getBytes(StandardCharsets.UTF_8));
-        assertThat(stream.skip(7)).isEqualTo(7);
+        stream.skip(7);
         final var bytes = new byte[5];
         stream.readBytes(bytes);
         assertThat(stream.position()).isEqualTo(12);

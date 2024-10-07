@@ -39,16 +39,15 @@ public class CharBufferToWritableSequentialData implements WritableSequentialDat
     }
 
     @Override
-    public long skip(long count) {
+    public void skip(long count) {
         if (count > charBuffer.remaining()) {
             throw new BufferUnderflowException();
         }
         if (count <= 0) {
-            return 0;
+            return;
         }
         // Note: skip() should be relative. But it's okay, this is a test implementation.
         charBuffer.position((int) count);
-        return count;
     }
 
     @Override

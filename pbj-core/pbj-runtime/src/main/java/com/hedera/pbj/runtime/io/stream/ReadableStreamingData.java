@@ -151,21 +151,27 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * @throws BufferUnderflowException if {@code count} would move the position past the {@link #limit()}.
+     */
     @Override
-    public long skip(final long n) {
+    public void skip(final long n) {
         if (position + n > limit) {
             throw new BufferUnderflowException();
         }
 
         if (n <= 0) {
-            return 0;
+            return;
         }
 
         try {
-            long numSkipped = in.skip(n);
-            position += numSkipped;
-            return numSkipped;
+            long toSkip = n;
+            while (toSkip > 0) {
+                toSkip -= in.skip(toSkip);
+            }
+            position += n;
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }

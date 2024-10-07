@@ -123,7 +123,7 @@ public abstract class SequentialTestBase {
             final var seq = sequence();
             // When we set the limit to be between the position and capacity, and we skip those bytes
             seq.limit(5);
-            assertThat(seq.skip(skip)).isEqualTo(expected);
+            seq.skip(skip);
             // Then the position matches the number of bytes actually skipped, taking into account
             // whether the number of bytes skipped was clamped due to encountering the limit
             // or not (The "expected" arg tells us where we should have landed after skipping bytes)

@@ -195,7 +195,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         };
 
         final var stream = new ReadableStreamingData(inputStream);
-        assertThat(stream.skip(5)).isEqualTo(5);
+        stream.skip(5);
 
         throwNow.set(true);
         assertThatThrownBy(stream::readByte)
@@ -386,8 +386,8 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         }
 
         @Override
-        public long skip(long count) {
-            return readableStreamingData.skip(count);
+        public void skip(long count) {
+            readableStreamingData.skip(count);
         }
     }
 }
