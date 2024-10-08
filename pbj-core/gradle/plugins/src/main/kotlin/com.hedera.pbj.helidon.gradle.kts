@@ -17,8 +17,14 @@
 plugins {
     id("java-library")
     id("com.hedera.pbj.conventions")
+    id("maven-publish")
 }
 
-val maven = publishing.publications.create<MavenPublication>("maven") { from(components["java"]) }
+publishing {
+    publications.create<MavenPublication>("maven") {
+        from(components["java"])
+    }
+    repositories { mavenLocal() }
+}
 
-signing.sign(maven)
+//signing.sign(maven)
