@@ -156,11 +156,17 @@ jobs:
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+        run: |
+          ./gradlew releaseMavenCentral -PpublishSigningEnabled=true --no-configuration-cache --scan
+
+      - name: Gradle Plugin Portal Release
+        if: ${{ needs.prepare-release.outputs.mode == 'specified' && !cancelled() && !failure() }}
+        working-directory: ${{ env.PBJ_CORE }}
+        env:
           GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
         run: |
-          ./gradlew release --no-parallel --scan -PpublishSigningEnabled=true \
-              -Pgradle.publish.key=${GRADLE_PUBLISH_KEY} -Pgradle.publish.secret=${GRADLE_PUBLISH_SECRET}
+          ./gradlew publishPlugins -PpublishSigningEnabled=true --no-configuration-cache --scan
 
       - name: Gradle Maven Central Snapshot
         if: ${{ needs.prepare-release.outputs.mode == 'snapshot' && !cancelled() && !failure() }}
@@ -168,4 +174,4 @@ jobs:
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-        run: ./gradlew releaseSnapshot --no-parallel --scan -PpublishSigningEnabled=true
+        run: ./gradlew releaseSnapshot --scan -PpublishSigningEnabled=true

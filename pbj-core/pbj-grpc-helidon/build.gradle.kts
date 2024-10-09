@@ -15,9 +15,11 @@
  */
 
 plugins {
-    id("com.hedera.pbj.helidon")
-    id("com.hedera.pbj.protoc") // protobuf plugin is only used for tests
+    id("org.hiero.gradle.module.library")
+    id("org.hiero.gradle.feature.protobuf") // protobuf plugin is only used for tests
 }
+
+description = "A Helidon gRPC plugin with PBJ"
 
 // These annotation processors are used to generate config and other files that Helidon needs
 mainModuleInfo {
@@ -35,18 +37,21 @@ testModuleInfo {
     requires("io.helidon.webserver.http2")
     requires("io.helidon.webserver.observe.metrics")
     requires("io.helidon.webclient.http2")
+    requires("com.google.common")
+    requires("com.google.protobuf")
     requires("com.google.protobuf.util")
+    requires("io.grpc")
     requires("io.grpc.protobuf")
-    requires("io.grpc.netty")
     requires("io.grpc.stub")
+    requires("io.helidon.http.media")
+    requires("io.helidon.webclient.api")
+    requires("io.helidon.webclient.http2")
+    requires("org.assertj.core")
+    requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
     requiresStatic("com.github.spotbugs.annotations")
     requiresStatic("java.annotation")
+    runtimeOnly("io.grpc.netty")
 }
 
-tasks.named("compileJava") { dependsOn(":pbj-runtime:jar") }
-
-publishing {
-    publications.withType<MavenPublication>().configureEach {
-        pom { description.set("A Helidon gRPC plugin with PBJ") }
-    }
-}
+tasks.named("compileJava") { dependsOn(":pbj-runtime:jar") } // FIXME !!!
