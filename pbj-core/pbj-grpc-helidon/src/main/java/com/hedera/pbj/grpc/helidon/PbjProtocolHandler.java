@@ -275,19 +275,19 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     .grpcStatus(grpcException.status())
                     .statusMessage(grpcException.getMessage())
                     .send();
-            close();
+            error();
         } catch (final HttpException httpException) {
             route.failedHttpRequestCounter().increment();
             new TrailerOnlyBuilder()
                     .httpStatus(httpException.status())
                     .grpcStatus(GrpcStatus.INVALID_ARGUMENT)
                     .send();
-            close();
+            error();
         } catch (final Exception unknown) {
             route.failedUnknownRequestCounter().increment();
             LOGGER.log(ERROR, "Failed to initialize grpc protocol handler", unknown);
             new TrailerOnlyBuilder().grpcStatus(GrpcStatus.UNKNOWN).send();
-            close();
+            error();
         }
     }
 
@@ -299,7 +299,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
     @Override
     public void rstStream(@NonNull final Http2RstStream rstStream) {
-        // Nothing to do
+        incoming.onComplete();
     }
 
     @Override
@@ -380,8 +380,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             if (header.flags(Http2FrameTypes.DATA).endOfStream()) {
                 entityBytesIndex = 0;
                 entityBytes = null;
-                currentStreamState.set(Http2StreamState.HALF_CLOSED_LOCAL);
-                incoming.onComplete();
+                currentStreamState.set(Http2StreamState.HALF_CLOSED_REMOTE);
             }
         } catch (final Exception e) {
             // I have to propagate this error through the service interface, so it can respond to
@@ -391,8 +390,12 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         }
     }
 
-    /** Close the connection with the client. May be called by different threads concurrently. */
-    private void close() {
+    /**
+     * An error has occurred. Cancel the deadline future if it's still active, and set the stream state accordingly.
+     * <p>
+     * May be called by different threads concurrently.
+     */
+    private void error() {
         // Canceling a future that has already completed has no effect. So by canceling here, we are
         // saying:
         // "If you have not yet executed, never execute. If you have already executed, then just
@@ -401,7 +404,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
         // cancel is threadsafe
         deadlineFuture.cancel(false);
-        currentStreamState.set(Http2StreamState.HALF_CLOSED_LOCAL);
+        currentStreamState.set(Http2StreamState.CLOSED);
     }
 
     /**
@@ -650,13 +653,22 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 LOGGER.log(ERROR, "Failed to send response", throwable);
                 new TrailerBuilder().grpcStatus(GrpcStatus.INTERNAL).send();
             }
-            close();
+            error();
         }
 
         @Override
         public void onComplete() {
             new TrailerBuilder().send();
-            close();
+
+            deadlineFuture.cancel(false);
+
+            currentStreamState.getAndUpdate(
+                    currentValue -> {
+                        if (requireNonNull(currentValue) == Http2StreamState.OPEN) {
+                            return Http2StreamState.HALF_CLOSED_LOCAL;
+                        }
+                        return Http2StreamState.CLOSED;
+                    });
         }
     }
 
