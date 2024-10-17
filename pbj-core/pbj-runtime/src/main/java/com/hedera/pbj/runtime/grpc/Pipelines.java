@@ -442,6 +442,13 @@ public final class Pipelines {
         @Override
         public void onComplete() {
             completed = true;
+        }
+
+        /**
+         * Implementing classes may choose to call this method and complete replies, but they have
+         * the option to not complete the replies.
+         */
+        protected void completeReplies() {
             if (replies != null) {
                 replies.onComplete();
             }
@@ -509,6 +516,12 @@ public final class Pipelines {
 
             replies.onSubscribe(this);
             return this;
+        }
+
+        @Override
+        public void onComplete() {
+            completeReplies();
+            super.onComplete();
         }
 
         @Override
@@ -614,6 +627,7 @@ public final class Pipelines {
         @Override
         public void onComplete() {
             incoming.onComplete();
+            completeReplies();
             super.onComplete();
         }
     }
@@ -691,6 +705,10 @@ public final class Pipelines {
 
         @Override
         public void onComplete() {
+            // the client streaming implementation specifically does NOT complete the replies.
+            // even if the client has closed their half of the stream, the server may continue
+            // sending responses to the subscribed client indefinitely.
+
             incoming.onComplete();
             super.onComplete();
         }

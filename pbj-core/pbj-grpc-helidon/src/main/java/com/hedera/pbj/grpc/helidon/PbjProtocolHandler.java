@@ -146,6 +146,16 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      */
     private Flow.Subscriber<? super Bytes> incoming;
 
+    /**
+     * The outgoing messages to the client.
+     *
+     * <p>This member isn't final because it is set in the {@link #init()} method. It should not be
+     * set at any other time.
+     *
+     * <p>Method calls on this object are thread-safe.
+     */
+    private Flow.Subscriber<? super Bytes> outgoing;
+
     /** Create a new instance */
     PbjProtocolHandler(
             @NonNull final Http2Headers headers,
@@ -267,7 +277,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
             // the client.
-            final var outgoing = new SendToClientSubscriber();
+            outgoing = new SendToClientSubscriber();
             incoming = route.service().open(route.method(), options, outgoing);
         } catch (final GrpcException grpcException) {
             route.failedGrpcRequestCounter().increment();
@@ -300,6 +310,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     @Override
     public void rstStream(@NonNull final Http2RstStream rstStream) {
         incoming.onComplete();
+        outgoing.onComplete();
     }
 
     @Override
@@ -381,6 +392,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 entityBytesIndex = 0;
                 entityBytes = null;
                 currentStreamState.set(Http2StreamState.HALF_CLOSED_REMOTE);
+                incoming.onComplete();
             }
         } catch (final Exception e) {
             // I have to propagate this error through the service interface, so it can respond to
