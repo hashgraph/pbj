@@ -18,6 +18,7 @@ package com.hedera.pbj.grpc.helidon;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.Pipelines;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -46,14 +47,14 @@ public interface GreeterService extends ServiceInterface {
     HelloReply sayHello(HelloRequest request);
 
     // A stream of messages coming from the client, with a single response from the server.
-    Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(
+    Pipeline<? super HelloRequest> sayHelloStreamRequest(
             Flow.Subscriber<? super HelloReply> replies);
 
     // A single request from the client, with a stream of responses from the server.
     void sayHelloStreamReply(HelloRequest request, Flow.Subscriber<? super HelloReply> replies);
 
     // A bidirectional stream of requests and responses between the client and the server.
-    Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(
+    Pipeline<? super HelloRequest> sayHelloStreamBidi(
             Flow.Subscriber<? super HelloReply> replies);
 
     @NonNull
@@ -73,7 +74,7 @@ public interface GreeterService extends ServiceInterface {
 
     @Override
     @NonNull
-    default Flow.Subscriber<? super Bytes> open(
+    default Pipeline<? super Bytes> open(
             final @NonNull Method method,
             final @NonNull RequestOptions options,
             final @NonNull Flow.Subscriber<? super Bytes> replies) {

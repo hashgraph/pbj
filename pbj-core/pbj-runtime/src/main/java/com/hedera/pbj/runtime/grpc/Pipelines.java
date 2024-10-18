@@ -38,8 +38,13 @@ public final class Pipelines {
      *
      * @return A No-op subscriber.
      */
-    public static Flow.Subscriber<? super Bytes> noop() {
-        return new Flow.Subscriber<>() {
+    public static Pipeline<? super Bytes> noop() {
+        return new Pipeline<>() {
+            @Override
+            public void clientEndStreamReceived() {
+                // Nothing to do
+            }
+
             private Flow.Subscription subscription;
             @Override
             public void onSubscribe(@NonNull final Flow.Subscription subscription) {
@@ -157,12 +162,13 @@ public final class Pipelines {
         UnaryBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
 
         /**
-         * Builds the pipeline and returns the subscriber that should be used to receive the incoming messages.
+         * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
+         * the replies that are sent back to the client.
          *
-         * @return The subscriber to receive the incoming messages.
+         * @return the communication pipeline
          */
         @NonNull
-        Flow.Subscriber<? super Bytes> build();
+        Pipeline<? super Bytes> build();
     }
 
     /**
@@ -214,12 +220,13 @@ public final class Pipelines {
         BidiStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
 
         /**
-         * Builds the pipeline and returns the subscriber that should be used to receive the incoming messages.
+         * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
+         * the replies that are sent back to the client.
          *
-         * @return The subscriber to receive the incoming messages.
+         * @return the communication pipeline
          */
         @NonNull
-        Flow.Subscriber<? super Bytes> build();
+        Pipeline<? super Bytes> build();
     }
 
     /**
@@ -273,12 +280,13 @@ public final class Pipelines {
         ClientStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
 
         /**
-         * Builds the pipeline and returns the subscriber that should be used to receive the incoming messages.
+         * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
+         * the replies that are sent back to the client.
          *
-         * @return The subscriber to receive the incoming messages.
+         * @return the communication pipeline
          */
         @NonNull
-        Flow.Subscriber<? super Bytes> build();
+        Pipeline<? super Bytes> build();
     }
 
     /**
@@ -328,12 +336,13 @@ public final class Pipelines {
         ServerStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
 
         /**
-         * Builds the pipeline and returns the subscriber that should be used to receive the incoming messages.
+         * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
+         * the replies that are sent back to the client.
          *
-         * @return The subscriber to receive the incoming messages.
+         * @return the communication pipeline
          */
         @NonNull
-        Flow.Subscriber<? super Bytes> build();
+        Pipeline<? super Bytes> build();
     }
 
     /**
@@ -407,7 +416,7 @@ public final class Pipelines {
      * @param <T> The type of the request message.
      * @param <R> The type of the response message.
      */
-    private abstract static class PipelineBuilderImpl<T, R> implements Flow.Subscriber<Bytes>, Flow.Subscription {
+    private abstract static class PipelineBuilderImpl<T, R> implements Pipeline<Bytes>, Flow.Subscription {
         protected ExceptionalFunction<Bytes, T> requestMapper;
         protected ExceptionalFunction<R, Bytes> responseMapper;
         protected Flow.Subscriber<? super Bytes> replies;
@@ -442,13 +451,6 @@ public final class Pipelines {
         @Override
         public void onComplete() {
             completed = true;
-        }
-
-        /**
-         * Implementing classes may choose to call this method and complete replies, but they have
-         * the option to not complete the replies.
-         */
-        protected void completeReplies() {
             if (replies != null) {
                 replies.onComplete();
             }
@@ -508,7 +510,7 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public Flow.Subscriber<? super Bytes> build() {
+        public Pipeline<? super Bytes> build() {
             validateParams();
             if (method == null) {
                 throw new IllegalStateException("The method must be specified.");
@@ -516,12 +518,6 @@ public final class Pipelines {
 
             replies.onSubscribe(this);
             return this;
-        }
-
-        @Override
-        public void onComplete() {
-            completeReplies();
-            super.onComplete();
         }
 
         @Override
@@ -544,6 +540,11 @@ public final class Pipelines {
             } catch (Exception e) {
                 replies.onError(e);
             }
+        }
+
+        @Override
+        public void clientEndStreamReceived() {
+            // nothing to do, as onComplete is always called inside onNext
         }
     }
 
@@ -588,7 +589,7 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public Flow.Subscriber<? super Bytes> build() {
+        public Pipeline<? super Bytes> build() {
             validateParams();
             if (method == null) {
                 throw new IllegalStateException("The method must be specified.");
@@ -627,8 +628,13 @@ public final class Pipelines {
         @Override
         public void onComplete() {
             incoming.onComplete();
-            completeReplies();
             super.onComplete();
+        }
+
+        @Override
+        public void clientEndStreamReceived() {
+            // if the client stream is ended, the entire pipeline is ended
+            onComplete();
         }
     }
 
@@ -672,7 +678,7 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public Flow.Subscriber<? super Bytes> build() {
+        public Pipeline<? super Bytes> build() {
             validateParams();
             if (method == null) {
                 throw new IllegalStateException("The method must be specified.");
@@ -705,12 +711,13 @@ public final class Pipelines {
 
         @Override
         public void onComplete() {
-            // the client streaming implementation specifically does NOT complete the replies.
-            // even if the client has closed their half of the stream, the server may continue
-            // sending responses to the subscribed client indefinitely.
-
             incoming.onComplete();
             super.onComplete();
+        }
+
+        @Override
+        public void clientEndStreamReceived() {
+            onComplete();
         }
     }
 
@@ -755,7 +762,7 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public Flow.Subscriber<? super Bytes> build() {
+        public Pipeline<? super Bytes> build() {
             validateParams();
             if (method == null) {
                 throw new IllegalStateException("The method must be specified.");
@@ -780,6 +787,12 @@ public final class Pipelines {
             } catch (Exception e) {
                 replies.onError(e);
             }
+        }
+
+        @Override
+        public void clientEndStreamReceived() {
+            // nothing to do
+            // the server will continue streaming, since the message coming from the client is a subscription request
         }
     }
 

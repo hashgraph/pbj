@@ -30,6 +30,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
+import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -137,24 +138,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private int entityBytesIndex = 0;
 
     /**
-     * The subscriber that will receive incoming messages from the client.
+     * The communication pipeline between server and client
      *
      * <p>This member isn't final because it is set in the {@link #init()} method. It should not be
      * set at any other time.
      *
      * <p>Method calls on this object are thread-safe.
      */
-    private Flow.Subscriber<? super Bytes> incoming;
-
-    /**
-     * The outgoing messages to the client.
-     *
-     * <p>This member isn't final because it is set in the {@link #init()} method. It should not be
-     * set at any other time.
-     *
-     * <p>Method calls on this object are thread-safe.
-     */
-    private Flow.Subscriber<? super Bytes> outgoing;
+    private Pipeline<? super Bytes> pipeline;
 
     /** Create a new instance */
     PbjProtocolHandler(
@@ -277,8 +268,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
             // the client.
-            outgoing = new SendToClientSubscriber();
-            incoming = route.service().open(route.method(), options, outgoing);
+            final Flow.Subscriber<? super Bytes> outgoing = new SendToClientSubscriber();
+            pipeline = route.service().open(route.method(), options, outgoing);
         } catch (final GrpcException grpcException) {
             route.failedGrpcRequestCounter().increment();
             new TrailerOnlyBuilder()
@@ -309,8 +300,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
     @Override
     public void rstStream(@NonNull final Http2RstStream rstStream) {
-        incoming.onComplete();
-        outgoing.onComplete();
+        pipeline.onComplete();
     }
 
     @Override
@@ -379,7 +369,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 if (entityBytesIndex == entityBytes.length) {
                     // Grab and wrap the bytes and reset to being reading the next message
                     final var bytes = Bytes.wrap(entityBytes);
-                    incoming.onNext(bytes);
+                    pipeline.onNext(bytes);
                     entityBytesIndex = 0;
                     entityBytes = null;
                 }
@@ -392,13 +382,13 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 entityBytesIndex = 0;
                 entityBytes = null;
                 currentStreamState.set(Http2StreamState.HALF_CLOSED_REMOTE);
-                incoming.onComplete();
+                pipeline.clientEndStreamReceived();
             }
         } catch (final Exception e) {
             // I have to propagate this error through the service interface, so it can respond to
             // errors in the connection, tear down resources, etc. It will also forward this on
             // to the client, causing the connection to be torn down.
-            incoming.onError(e);
+            pipeline.onError(e);
         }
     }
 
@@ -468,7 +458,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     deadline,
                     () -> {
                         route.deadlineExceededCounter().increment();
-                        incoming.onError(new GrpcException(GrpcStatus.DEADLINE_EXCEEDED));
+                        pipeline.onError(new GrpcException(GrpcStatus.DEADLINE_EXCEEDED));
                     });
         }
 
