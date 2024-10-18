@@ -30,6 +30,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
+import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -137,14 +138,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private int entityBytesIndex = 0;
 
     /**
-     * The subscriber that will receive incoming messages from the client.
+     * The communication pipeline between server and client
      *
      * <p>This member isn't final because it is set in the {@link #init()} method. It should not be
      * set at any other time.
      *
      * <p>Method calls on this object are thread-safe.
      */
-    private Flow.Subscriber<? super Bytes> incoming;
+    private Pipeline<? super Bytes> pipeline;
 
     /** Create a new instance */
     PbjProtocolHandler(
@@ -267,27 +268,27 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
             // the client.
-            final var outgoing = new SendToClientSubscriber();
-            incoming = route.service().open(route.method(), options, outgoing);
+            final Flow.Subscriber<? super Bytes> outgoing = new SendToClientSubscriber();
+            pipeline = route.service().open(route.method(), options, outgoing);
         } catch (final GrpcException grpcException) {
             route.failedGrpcRequestCounter().increment();
             new TrailerOnlyBuilder()
                     .grpcStatus(grpcException.status())
                     .statusMessage(grpcException.getMessage())
                     .send();
-            close();
+            error();
         } catch (final HttpException httpException) {
             route.failedHttpRequestCounter().increment();
             new TrailerOnlyBuilder()
                     .httpStatus(httpException.status())
                     .grpcStatus(GrpcStatus.INVALID_ARGUMENT)
                     .send();
-            close();
+            error();
         } catch (final Exception unknown) {
             route.failedUnknownRequestCounter().increment();
             LOGGER.log(ERROR, "Failed to initialize grpc protocol handler", unknown);
             new TrailerOnlyBuilder().grpcStatus(GrpcStatus.UNKNOWN).send();
-            close();
+            error();
         }
     }
 
@@ -299,7 +300,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
     @Override
     public void rstStream(@NonNull final Http2RstStream rstStream) {
-        // Nothing to do
+        pipeline.onComplete();
     }
 
     @Override
@@ -368,7 +369,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 if (entityBytesIndex == entityBytes.length) {
                     // Grab and wrap the bytes and reset to being reading the next message
                     final var bytes = Bytes.wrap(entityBytes);
-                    incoming.onNext(bytes);
+                    pipeline.onNext(bytes);
                     entityBytesIndex = 0;
                     entityBytes = null;
                 }
@@ -380,19 +381,23 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             if (header.flags(Http2FrameTypes.DATA).endOfStream()) {
                 entityBytesIndex = 0;
                 entityBytes = null;
-                currentStreamState.set(Http2StreamState.HALF_CLOSED_LOCAL);
-                incoming.onComplete();
+                currentStreamState.set(Http2StreamState.HALF_CLOSED_REMOTE);
+                pipeline.clientEndStreamReceived();
             }
         } catch (final Exception e) {
             // I have to propagate this error through the service interface, so it can respond to
             // errors in the connection, tear down resources, etc. It will also forward this on
             // to the client, causing the connection to be torn down.
-            incoming.onError(e);
+            pipeline.onError(e);
         }
     }
 
-    /** Close the connection with the client. May be called by different threads concurrently. */
-    private void close() {
+    /**
+     * An error has occurred. Cancel the deadline future if it's still active, and set the stream state accordingly.
+     * <p>
+     * May be called by different threads concurrently.
+     */
+    private void error() {
         // Canceling a future that has already completed has no effect. So by canceling here, we are
         // saying:
         // "If you have not yet executed, never execute. If you have already executed, then just
@@ -401,7 +406,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
         // cancel is threadsafe
         deadlineFuture.cancel(false);
-        currentStreamState.set(Http2StreamState.HALF_CLOSED_LOCAL);
+        currentStreamState.set(Http2StreamState.CLOSED);
     }
 
     /**
@@ -453,7 +458,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     deadline,
                     () -> {
                         route.deadlineExceededCounter().increment();
-                        incoming.onError(new GrpcException(GrpcStatus.DEADLINE_EXCEEDED));
+                        pipeline.onError(new GrpcException(GrpcStatus.DEADLINE_EXCEEDED));
                     });
         }
 
@@ -650,13 +655,22 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 LOGGER.log(ERROR, "Failed to send response", throwable);
                 new TrailerBuilder().grpcStatus(GrpcStatus.INTERNAL).send();
             }
-            close();
+            error();
         }
 
         @Override
         public void onComplete() {
             new TrailerBuilder().send();
-            close();
+
+            deadlineFuture.cancel(false);
+
+            currentStreamState.getAndUpdate(
+                    currentValue -> {
+                        if (requireNonNull(currentValue) == Http2StreamState.OPEN) {
+                            return Http2StreamState.HALF_CLOSED_LOCAL;
+                        }
+                        return Http2StreamState.CLOSED;
+                    });
         }
     }
 

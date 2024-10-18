@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.fail;
 import com.google.protobuf.util.JsonFormat;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
+import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -509,7 +510,7 @@ class PbjTest {
                         new GreeterAdapter() {
                             @Override
                             @NonNull
-                            public Flow.Subscriber<? super Bytes> open(
+                            public Pipeline<? super Bytes> open(
                                     @NonNull Method method,
                                     @NonNull RequestOptions options,
                                     @NonNull Flow.Subscriber<? super Bytes> replies) {
@@ -804,10 +805,15 @@ class PbjTest {
 
         // Streams of stuff coming from the client, with a single response.
         @Override
-        public Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(
+        public Pipeline<? super HelloRequest> sayHelloStreamRequest(
                 Flow.Subscriber<? super HelloReply> replies) {
             final var names = new ArrayList<String>();
-            return new Flow.Subscriber<>() {
+            return new Pipeline<>() {
+                @Override
+                public void clientEndStreamReceived() {
+                    onComplete();
+                }
+
                 @Override
                 public void onSubscribe(Flow.Subscription subscription) {
                     subscription.request(Long.MAX_VALUE); // turn off flow control
@@ -846,11 +852,16 @@ class PbjTest {
         }
 
         @Override
-        public Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(
+        public Pipeline<? super HelloRequest> sayHelloStreamBidi(
                 Flow.Subscriber<? super HelloReply> replies) {
             // Here we receive info from the client. In this case, it is a stream of requests with
             // names. We will respond with a stream of replies.
-            return new Flow.Subscriber<>() {
+            return new Pipeline<>() {
+                @Override
+                public void clientEndStreamReceived() {
+                    onComplete();
+                }
+
                 @Override
                 public void onSubscribe(Flow.Subscription subscription) {
                     subscription.request(Long.MAX_VALUE); // turn off flow control
@@ -882,7 +893,7 @@ class PbjTest {
         }
 
         @Override
-        default Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(
+        default Pipeline<? super HelloRequest> sayHelloStreamRequest(
                 Flow.Subscriber<? super HelloReply> replies) {
             return null;
         }
@@ -892,7 +903,7 @@ class PbjTest {
                 HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {}
 
         @Override
-        default Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(
+        default Pipeline<? super HelloRequest> sayHelloStreamBidi(
                 Flow.Subscriber<? super HelloReply> replies) {
             return null;
         }
@@ -909,7 +920,7 @@ class PbjTest {
 
         @Override
         @NonNull
-        public Flow.Subscriber<? super HelloRequest> sayHelloStreamRequest(
+        public Pipeline<? super HelloRequest> sayHelloStreamRequest(
                 Flow.Subscriber<? super HelloReply> replies) {
             return svc.sayHelloStreamRequest(replies);
         }
@@ -922,14 +933,14 @@ class PbjTest {
 
         @Override
         @NonNull
-        public Flow.Subscriber<? super HelloRequest> sayHelloStreamBidi(
+        public Pipeline<? super HelloRequest> sayHelloStreamBidi(
                 Flow.Subscriber<? super HelloReply> replies) {
             return svc.sayHelloStreamBidi(replies);
         }
 
         @Override
         @NonNull
-        public Flow.Subscriber<? super Bytes> open(
+        public Pipeline<? super Bytes> open(
                 @NonNull Method method,
                 @NonNull RequestOptions options,
                 @NonNull Flow.Subscriber<? super Bytes> replies) {
