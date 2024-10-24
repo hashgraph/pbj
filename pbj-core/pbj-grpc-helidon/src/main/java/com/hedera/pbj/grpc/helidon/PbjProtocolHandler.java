@@ -679,6 +679,12 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * receives bytes from the handlers to send to the client.
      */
     private final class SendToClientSubscriber implements Flow.Subscriber<Bytes> {
+        /**
+         * Keep track of whether the onError method has been called. This is necessary because the
+         * onError method can be called multiple times, and we only want to handle it once.
+         */
+        private boolean onErrorCalled = false;
+
         @Override
         public void onSubscribe(@NonNull final Flow.Subscription subscription) {
             // FUTURE: Add support for flow control
@@ -709,6 +715,13 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
         @Override
         public void onError(@NonNull final Throwable throwable) {
+            // don't perform error handling multiple times
+            // this is necessary, so that the incoming and outgoing streams don't circularly close each other
+            if (onErrorCalled) {
+                return;
+            }
+            onErrorCalled = true;
+
             if (throwable instanceof final GrpcException grpcException) {
                 new TrailerBuilder()
                         .grpcStatus(grpcException.status())
@@ -718,6 +731,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 LOGGER.log(ERROR, "Failed to send response", throwable);
                 new TrailerBuilder().grpcStatus(GrpcStatus.INTERNAL).send();
             }
+
+            pipeline.onError(throwable);
             error();
         }
 
