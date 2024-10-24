@@ -20,6 +20,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.util.Objects;
 import java.util.concurrent.Flow;
 
 /**
@@ -162,6 +164,15 @@ public final class Pipelines {
         UnaryBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
 
         /**
+         * Configures a callback to be called when the subscription is complete. This is optional.
+         *
+         * @param onCompleteCallback The callback to call when the subscription is complete
+         * @return This builder.
+         */
+        @NonNull
+        UnaryBuilder<T, R> registerOnComplete(@NonNull Runnable onCompleteCallback);
+
+        /**
          * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
          * the replies that are sent back to the client.
          *
@@ -218,6 +229,15 @@ public final class Pipelines {
          */
         @NonNull
         BidiStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
+
+        /**
+         * Configures a callback to be called when the subscription is complete. This is optional.
+         *
+         * @param onCompleteCallback The callback to call when the subscription is complete
+         * @return This builder.
+         */
+        @NonNull
+        BidiStreamingBuilder<T, R> registerOnComplete(@NonNull Runnable onCompleteCallback);
 
         /**
          * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
@@ -280,6 +300,15 @@ public final class Pipelines {
         ClientStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
 
         /**
+         * Configures a callback to be called when the subscription is complete. This is optional.
+         *
+         * @param onCompleteCallback The callback to call when the subscription is complete
+         * @return This builder.
+         */
+        @NonNull
+        ClientStreamingBuilder<T, R> registerOnComplete(@NonNull Runnable onCompleteCallback);
+
+        /**
          * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
          * the replies that are sent back to the client.
          *
@@ -334,6 +363,15 @@ public final class Pipelines {
          */
         @NonNull
         ServerStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
+
+        /**
+         * Configures a callback to be called when the subscription is complete. This is optional.
+         *
+         * @param onCompleteCallback The callback to call when the subscription is complete
+         * @return This builder.
+         */
+        @NonNull
+        ServerStreamingBuilder<T, R> registerOnComplete(@NonNull Runnable onCompleteCallback);
 
         /**
          * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
@@ -420,6 +458,12 @@ public final class Pipelines {
         protected ExceptionalFunction<Bytes, T> requestMapper;
         protected ExceptionalFunction<R, Bytes> responseMapper;
         protected Flow.Subscriber<? super Bytes> replies;
+
+        /**
+         * Runs when the subscription is complete
+         */
+        protected Runnable onCompleteCallback;
+
         private Flow.Subscription sourceSubscription;
         protected boolean completed = false;
 
@@ -450,6 +494,10 @@ public final class Pipelines {
 
         @Override
         public void onComplete() {
+            if (onCompleteCallback != null) {
+                onCompleteCallback.run();
+            }
+
             completed = true;
             if (replies != null) {
                 replies.onComplete();
@@ -505,6 +553,13 @@ public final class Pipelines {
         @NonNull
         public UnaryBuilder<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
             this.replies = requireNonNull(replies);
+            return this;
+        }
+
+        @NonNull
+        @Override
+        public UnaryBuilder<T, R> registerOnComplete(@NonNull final Runnable onCompleteCallback) {
+            this.onCompleteCallback = Objects.requireNonNull(onCompleteCallback);
             return this;
         }
 
@@ -584,6 +639,13 @@ public final class Pipelines {
         @NonNull
         public BidiStreamingBuilderImpl<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
             this.replies = replies;
+            return this;
+        }
+
+        @NonNull
+        @Override
+        public BidiStreamingBuilder<T, R> registerOnComplete(@NonNull final Runnable onCompleteCallback) {
+            this.onCompleteCallback = Objects.requireNonNull(onCompleteCallback);
             return this;
         }
 
@@ -676,6 +738,13 @@ public final class Pipelines {
             return this;
         }
 
+        @NonNull
+        @Override
+        public ClientStreamingBuilder<T, R> registerOnComplete(@NonNull final Runnable onCompleteCallback) {
+            this.onCompleteCallback = Objects.requireNonNull(onCompleteCallback);
+            return this;
+        }
+
         @Override
         @NonNull
         public Pipeline<? super Bytes> build() {
@@ -757,6 +826,13 @@ public final class Pipelines {
         @NonNull
         public ServerStreamingBuilderImpl<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
             this.replies = replies;
+            return this;
+        }
+
+        @NonNull
+        @Override
+        public ServerStreamingBuilder<T, R> registerOnComplete(@NonNull final Runnable onCompleteCallback) {
+            this.onCompleteCallback = Objects.requireNonNull(onCompleteCallback);
             return this;
         }
 
