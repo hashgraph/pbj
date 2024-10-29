@@ -73,6 +73,11 @@ jobs:
     name: ${{ inputs.custom-job-label || 'Compiles' }}
     runs-on: network-node-linux-medium
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.0
+        with:
+          egress-policy: audit
+
       - name: Checkout Code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:

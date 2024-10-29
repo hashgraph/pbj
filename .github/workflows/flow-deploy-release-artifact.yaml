@@ -40,6 +40,11 @@ jobs:
       version: ${{ steps.info.outputs.version }}
       prerelease: ${{ steps.info.outputs.prerelease }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.0
+        with:
+          egress-policy: audit
+
       - name: Install Semantic Version Tools
         run: |
           echo "::group::Download SemVer Binary"
@@ -82,9 +87,13 @@ jobs:
     needs:
       - prepare-release
     if: |
-        (needs.prepare-release.outputs.mode == 'specified' && needs.prepare-release.outputs.prerelease != 'true') 
-        || needs.prepare-release.outputs.mode == 'snapshot'
+        (needs.prepare-release.outputs.mode == 'specified' && needs.prepare-release.outputs.prerelease != 'true') || needs.prepare-release.outputs.mode == 'snapshot'
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.0
+        with:
+          egress-policy: audit
+
       - name: Checkout Code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
