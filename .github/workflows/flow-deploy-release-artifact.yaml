@@ -40,6 +40,11 @@ jobs:
       version: ${{ steps.info.outputs.version }}
       prerelease: ${{ steps.info.outputs.prerelease }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Install Semantic Version Tools
         run: |
           echo "::group::Download SemVer Binary"
@@ -82,9 +87,13 @@ jobs:
     needs:
       - prepare-release
     if: |
-        (needs.prepare-release.outputs.mode == 'specified' && needs.prepare-release.outputs.prerelease != 'true') 
-        || needs.prepare-release.outputs.mode == 'snapshot'
+        (needs.prepare-release.outputs.mode == 'specified' && needs.prepare-release.outputs.prerelease != 'true') || needs.prepare-release.outputs.mode == 'snapshot'
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout Code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
@@ -97,7 +106,7 @@ jobs:
           java-version: ${{ github.event.inputs.java-version || '21.0.3' }}
 
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@a8f75513eafdebd8141bd1cd4e30fcd194af8dfa # v2.12.0
+        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
         with:
           gradle-home-cache-strict-match: false
 
