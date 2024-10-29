@@ -106,7 +106,7 @@ jobs:
           java-version: ${{ github.event.inputs.java-version || '21.0.3' }}
 
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@a8f75513eafdebd8141bd1cd4e30fcd194af8dfa # v2.12.0
+        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
         with:
           gradle-home-cache-strict-match: false
 
