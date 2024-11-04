@@ -25,10 +25,10 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import greeter.HelloReply;
 import greeter.HelloRequest;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Flow;
 
 /**
  * This service doesn't rely on any PBJ objects, because the build right now doesn't have a good way
@@ -48,14 +48,14 @@ public interface GreeterService extends ServiceInterface {
 
     // A stream of messages coming from the client, with a single response from the server.
     Pipeline<? super HelloRequest> sayHelloStreamRequest(
-            Flow.Subscriber<? super HelloReply> replies);
+            Pipeline<? super HelloReply> replies);
 
     // A single request from the client, with a stream of responses from the server.
-    void sayHelloStreamReply(HelloRequest request, Flow.Subscriber<? super HelloReply> replies);
+    void sayHelloStreamReply(HelloRequest request, Pipeline<? super HelloReply> replies);
 
     // A bidirectional stream of requests and responses between the client and the server.
     Pipeline<? super HelloRequest> sayHelloStreamBidi(
-            Flow.Subscriber<? super HelloReply> replies);
+            Pipeline<? super HelloReply> replies);
 
     @NonNull
     default String serviceName() {
@@ -77,7 +77,7 @@ public interface GreeterService extends ServiceInterface {
     default Pipeline<? super Bytes> open(
             final @NonNull Method method,
             final @NonNull RequestOptions options,
-            final @NonNull Flow.Subscriber<? super Bytes> replies) {
+            final @NonNull Pipeline<? super Bytes> replies) {
 
         final var m = (GreeterMethod) method;
         try {

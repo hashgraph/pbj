@@ -513,7 +513,7 @@ class PbjTest {
                             public Pipeline<? super Bytes> open(
                                     @NonNull Method method,
                                     @NonNull RequestOptions options,
-                                    @NonNull Flow.Subscriber<? super Bytes> replies) {
+                                    @NonNull Pipeline<? super Bytes> replies) {
                                 throw ex;
                             }
                         };
@@ -806,12 +806,17 @@ class PbjTest {
         // Streams of stuff coming from the client, with a single response.
         @Override
         public Pipeline<? super HelloRequest> sayHelloStreamRequest(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             final var names = new ArrayList<String>();
             return new Pipeline<>() {
                 @Override
                 public void clientEndStreamReceived() {
                     onComplete();
+                }
+
+                @Override
+                public void registerCallbackHandler(Runnable runnable) {
+
                 }
 
                 @Override
@@ -843,7 +848,7 @@ class PbjTest {
 
         @Override
         public void sayHelloStreamReply(
-                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
+                HelloRequest request, Pipeline<? super HelloReply> replies) {
             for (int i = 0; i < 10; i++) {
                 replies.onNext(HelloReply.newBuilder().setMessage("Hello!").build());
             }
@@ -853,13 +858,18 @@ class PbjTest {
 
         @Override
         public Pipeline<? super HelloRequest> sayHelloStreamBidi(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             // Here we receive info from the client. In this case, it is a stream of requests with
             // names. We will respond with a stream of replies.
             return new Pipeline<>() {
                 @Override
                 public void clientEndStreamReceived() {
                     onComplete();
+                }
+
+                @Override
+                public void registerCallbackHandler(Runnable runnable) {
+
                 }
 
                 @Override
@@ -894,17 +904,17 @@ class PbjTest {
 
         @Override
         default Pipeline<? super HelloRequest> sayHelloStreamRequest(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             return null;
         }
 
         @Override
         default void sayHelloStreamReply(
-                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {}
+                HelloRequest request, Pipeline<? super HelloReply> replies) {}
 
         @Override
         default Pipeline<? super HelloRequest> sayHelloStreamBidi(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             return null;
         }
     }
@@ -921,20 +931,20 @@ class PbjTest {
         @Override
         @NonNull
         public Pipeline<? super HelloRequest> sayHelloStreamRequest(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             return svc.sayHelloStreamRequest(replies);
         }
 
         @Override
         public void sayHelloStreamReply(
-                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
+                HelloRequest request, Pipeline<? super HelloReply> replies) {
             svc.sayHelloStreamReply(request, replies);
         }
 
         @Override
         @NonNull
         public Pipeline<? super HelloRequest> sayHelloStreamBidi(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             return svc.sayHelloStreamBidi(replies);
         }
 
@@ -943,7 +953,7 @@ class PbjTest {
         public Pipeline<? super Bytes> open(
                 @NonNull Method method,
                 @NonNull RequestOptions options,
-                @NonNull Flow.Subscriber<? super Bytes> replies) {
+                @NonNull Pipeline<? super Bytes> replies) {
             return svc.open(method, options, replies);
         }
     }

@@ -292,7 +292,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
             // the client.
-            final Flow.Subscriber<? super Bytes> outgoing = new SendToClientSubscriber();
+            final Pipeline<? super Bytes> outgoing = new SendToClientSubscriber();
             pipeline = route.service().open(route.method(), options, outgoing);
         } catch (final GrpcException grpcException) {
             route.failedGrpcRequestCounter().increment();
@@ -678,7 +678,10 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * The implementation of {@link Flow.Subscriber} used to send messages to the client. It
      * receives bytes from the handlers to send to the client.
      */
-    private final class SendToClientSubscriber implements Flow.Subscriber<Bytes> {
+    private final class SendToClientSubscriber implements Pipeline<Bytes> {
+
+        private Runnable onCancelRunnable;
+
         @Override
         public void onSubscribe(@NonNull final Flow.Subscription subscription) {
             // FUTURE: Add support for flow control
@@ -704,6 +707,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                         new Http2FrameData(header, bufferData), flowControl.outbound());
             } catch (final Exception e) {
                 LOGGER.log(ERROR, "Failed to respond to grpc request: " + route.method(), e);
+                if (onCancelRunnable != null) {
+                    onCancelRunnable.run();
+                }
             }
         }
 
@@ -734,6 +740,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                         }
                         return Http2StreamState.CLOSED;
                     });
+        }
+
+        @Override
+        public void clientEndStreamReceived() {}
+
+        @Override
+        public void registerCallbackHandler(Runnable runnable) {
+            onCancelRunnable = runnable;
         }
     }
 

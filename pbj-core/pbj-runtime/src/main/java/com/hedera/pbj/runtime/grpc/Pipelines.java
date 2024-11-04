@@ -45,6 +45,9 @@ public final class Pipelines {
                 // Nothing to do
             }
 
+            @Override
+            public void registerCallbackHandler(Runnable runnable) {}
+
             private Flow.Subscription subscription;
             @Override
             public void onSubscribe(@NonNull final Flow.Subscription subscription) {
@@ -159,7 +162,7 @@ public final class Pipelines {
          * @return This builder.
          */
         @NonNull
-        UnaryBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
+        UnaryBuilder<T, R> respondTo(@NonNull Pipeline<? super Bytes> replies);
 
         /**
          * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
@@ -217,7 +220,7 @@ public final class Pipelines {
          * @return This builder.
          */
         @NonNull
-        BidiStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
+        BidiStreamingBuilder<T, R> respondTo(@NonNull Pipeline<? super Bytes> replies);
 
         /**
          * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
@@ -277,7 +280,7 @@ public final class Pipelines {
          * @return This builder.
          */
         @NonNull
-        ClientStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
+        ClientStreamingBuilder<T, R> respondTo(@NonNull Pipeline<? super Bytes> replies);
 
         /**
          * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
@@ -333,7 +336,7 @@ public final class Pipelines {
          * @return This builder.
          */
         @NonNull
-        ServerStreamingBuilder<T, R> respondTo(@NonNull Flow.Subscriber<? super Bytes> replies);
+        ServerStreamingBuilder<T, R> respondTo(@NonNull Pipeline<? super Bytes> replies);
 
         /**
          * Builds the pipeline and returns it. The returned pipeline receives the incoming messages, and contains
@@ -373,7 +376,7 @@ public final class Pipelines {
      */
     @FunctionalInterface
     public interface ClientStreamingMethod<T, R>
-            extends ExceptionalFunction<Flow.Subscriber<? super R>, Flow.Subscriber<? super T>> {}
+            extends ExceptionalFunction<Pipeline<? super R>, Pipeline<? super T>> {}
 
     /**
      * A function that handles a server streaming gRPC service method. A single request is received from the client,
@@ -390,7 +393,7 @@ public final class Pipelines {
          * @param replies The subscriber to send responses to.
          * @throws Exception If an error occurs during processing.
          */
-        void apply(@NonNull T request, @NonNull Flow.Subscriber<? super R> replies) throws Exception;
+        void apply(@NonNull T request, @NonNull Pipeline<? super R> replies) throws Exception;
     }
 
     /**
@@ -401,7 +404,7 @@ public final class Pipelines {
      * @param <R> The type of the response message.
      */
     public interface BidiStreamingMethod<T, R>
-            extends ExceptionalFunction<Flow.Subscriber<? super R>, Flow.Subscriber<? super T>> {}
+            extends ExceptionalFunction<Pipeline<? super R>, Pipeline<? super T>> {}
 
     /**
      * A convenient base class for the different builders. All builders have to hold state for request and
@@ -419,7 +422,7 @@ public final class Pipelines {
     private abstract static class PipelineBuilderImpl<T, R> implements Pipeline<Bytes>, Flow.Subscription {
         protected ExceptionalFunction<Bytes, T> requestMapper;
         protected ExceptionalFunction<R, Bytes> responseMapper;
-        protected Flow.Subscriber<? super Bytes> replies;
+        protected Pipeline<? super Bytes> replies;
         private Flow.Subscription sourceSubscription;
         protected boolean completed = false;
 
@@ -503,7 +506,7 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public UnaryBuilder<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
+        public UnaryBuilder<T, R> respondTo(@NonNull final Pipeline<? super Bytes> replies) {
             this.replies = requireNonNull(replies);
             return this;
         }
@@ -546,6 +549,11 @@ public final class Pipelines {
         public void clientEndStreamReceived() {
             // nothing to do, as onComplete is always called inside onNext
         }
+
+        @Override
+        public void registerCallbackHandler(Runnable runnable) {
+
+        }
     }
 
     /**
@@ -557,7 +565,7 @@ public final class Pipelines {
     private static final class BidiStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R>
             implements BidiStreamingBuilder<T, R> {
         private BidiStreamingMethod<T, R> method;
-        private Flow.Subscriber<? super T> incoming;
+        private Pipeline<? super T> incoming;
 
         @Override
         @NonNull
@@ -582,7 +590,7 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public BidiStreamingBuilderImpl<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
+        public BidiStreamingBuilderImpl<T, R> respondTo(@NonNull final Pipeline<? super Bytes> replies) {
             this.replies = replies;
             return this;
         }
@@ -636,6 +644,11 @@ public final class Pipelines {
             // if the client stream is ended, the entire pipeline is ended
             onComplete();
         }
+
+        @Override
+        public void registerCallbackHandler(Runnable runnable) {
+
+        }
     }
 
     /**
@@ -646,7 +659,7 @@ public final class Pipelines {
     private static final class ClientStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R>
             implements ClientStreamingBuilder<T, R> {
         private ClientStreamingMethod<T, R> method;
-        private Flow.Subscriber<? super T> incoming;
+        private Pipeline<? super T> incoming;
 
         @Override
         @NonNull
@@ -671,7 +684,7 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public ClientStreamingBuilderImpl<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
+        public ClientStreamingBuilderImpl<T, R> respondTo(@NonNull final Pipeline<? super Bytes> replies) {
             this.replies = replies;
             return this;
         }
@@ -719,6 +732,11 @@ public final class Pipelines {
         public void clientEndStreamReceived() {
             onComplete();
         }
+
+        @Override
+        public void registerCallbackHandler(Runnable runnable) {
+
+        }
     }
 
     /**
@@ -730,7 +748,7 @@ public final class Pipelines {
     private static final class ServerStreamingBuilderImpl<T, R> extends PipelineBuilderImpl<T, R>
             implements ServerStreamingBuilder<T, R> {
         private ServerStreamingMethod<T, R> method;
-        private Flow.Subscriber<? super R> responseConverter;
+        private Pipeline<? super R> responseConverter;
 
         @Override
         @NonNull
@@ -755,7 +773,7 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public ServerStreamingBuilderImpl<T, R> respondTo(@NonNull final Flow.Subscriber<? super Bytes> replies) {
+        public ServerStreamingBuilderImpl<T, R> respondTo(@NonNull final Pipeline<? super Bytes> replies) {
             this.replies = replies;
             return this;
         }
@@ -794,6 +812,11 @@ public final class Pipelines {
             // nothing to do
             // the server will continue streaming, since the message coming from the client is a subscription request
         }
+
+        @Override
+        public void registerCallbackHandler(Runnable runnable) {
+
+        }
     }
 
     /**
@@ -805,8 +828,8 @@ public final class Pipelines {
      * @param <T> The type of the input.
      * @param <R> The type of the output.
      */
-    private record MapSubscriber<T, R>(Flow.Subscriber<? super R> next, ExceptionalFunction<T, R> mapper)
-            implements Flow.Subscriber<T>, Flow.Subscription {
+    private record MapSubscriber<T, R>(Pipeline<? super R> next, ExceptionalFunction<T, R> mapper)
+            implements Pipeline<T>, Flow.Subscription {
 
         private MapSubscriber {
             next.onSubscribe(this);
@@ -845,6 +868,16 @@ public final class Pipelines {
         @Override
         public void onComplete() {
             next.onComplete();
+        }
+
+        @Override
+        public void clientEndStreamReceived() {
+
+        }
+
+        @Override
+        public void registerCallbackHandler(Runnable runnable) {
+            next.registerCallbackHandler(runnable);
         }
     }
 }

@@ -71,7 +71,7 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class UnaryTest {
-        @Mock Flow.Subscriber<Bytes> replies;
+        @Mock Pipeline<Bytes> replies;
         @Mock Flow.Subscription subscription;
 
         @Test
@@ -184,8 +184,8 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class BidiTest {
-        @Mock Flow.Subscriber<String> client;
-        @Mock Flow.Subscriber<Bytes> replies;
+        @Mock Pipeline<String> client;
+        @Mock Pipeline<Bytes> replies;
         @Mock Flow.Subscription subscription;
 
         @Test
@@ -341,7 +341,7 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class ServerStreamingTest {
-        @Mock Flow.Subscriber<Bytes> replies;
+        @Mock Pipeline<Bytes> replies;
         @Mock Flow.Subscription subscription;
 
         @Test
@@ -470,7 +470,7 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class ClientStreamingTest {
-        @Mock Flow.Subscriber<Bytes> replies;
+        @Mock Pipeline<Bytes> replies;
         @Mock Flow.Subscription subscription;
 
         @Test
@@ -595,11 +595,11 @@ class PipelinesTest {
             verify(replies).onNext(Bytes.wrap("hello:world"));
         }
 
-        private static final class ConcatenatingHandler implements Flow.Subscriber<String> {
+        private static final class ConcatenatingHandler implements Pipeline<String> {
             private final List<String> strings = new ArrayList<>();
-            private final Flow.Subscriber<? super String> sink;
+            private final Pipeline<? super String> sink;
 
-            private ConcatenatingHandler(Flow.Subscriber<? super String> sink) {
+            private ConcatenatingHandler(Pipeline<? super String> sink) {
                 this.sink = sink;
             }
 
@@ -621,6 +621,16 @@ class PipelinesTest {
             @Override
             public void onComplete() {
                 sink.onNext(String.join(":", strings));
+            }
+
+            @Override
+            public void clientEndStreamReceived() {
+
+            }
+
+            @Override
+            public void registerCallbackHandler(Runnable runnable) {
+
             }
         }
     }
