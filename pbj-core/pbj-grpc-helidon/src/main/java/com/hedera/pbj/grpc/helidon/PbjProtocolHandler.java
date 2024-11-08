@@ -30,6 +30,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
+import com.hedera.pbj.runtime.grpc.PbjEventHandler;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -640,7 +641,10 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * The implementation of {@link Flow.Subscriber} used to send messages to the client. It
      * receives bytes from the handlers to send to the client.
      */
-    private final class SendToClientSubscriber implements Flow.Subscriber<Bytes> {
+    private final class SendToClientSubscriber implements Flow.Subscriber<Bytes>, PbjEventHandler {
+
+        private Runnable onErrorHandler;
+
         @Override
         public void onSubscribe(@NonNull final Flow.Subscription subscription) {
             // FUTURE: Add support for flow control
@@ -666,11 +670,16 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                         new Http2FrameData(header, bufferData), flowControl.outbound());
             } catch (final Exception e) {
                 LOGGER.log(ERROR, "Failed to respond to grpc request: " + route.method(), e);
+                pipeline.onError(e);
             }
         }
 
         @Override
         public void onError(@NonNull final Throwable throwable) {
+            if (onErrorHandler != null) {
+                onErrorHandler.run();
+            }
+
             if (throwable instanceof final GrpcException grpcException) {
                 new TrailerBuilder()
                         .grpcStatus(grpcException.status())
@@ -696,6 +705,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                         }
                         return Http2StreamState.CLOSED;
                     });
+        }
+
+        @Override
+        public void registerOnErrorHandler(@NonNull final Runnable handler) {
+            this.onErrorHandler = requireNonNull(handler);
         }
     }
 
