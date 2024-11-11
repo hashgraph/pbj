@@ -19,7 +19,6 @@ package com.hedera.pbj.grpc.helidon;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
-import com.hedera.pbj.runtime.grpc.PbjEventHandler;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.Pipelines;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
@@ -41,12 +40,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Flow;
 
 import static com.hedera.pbj.grpc.helidon.PbjProtocolHandlerTest.TestGreeterService.TestGreeterMethod.sayHelloStreamReply;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.withSettings;
 
 @ExtendWith(MockitoExtension.class)
 public class PbjProtocolHandlerTest {
@@ -73,7 +70,7 @@ public class PbjProtocolHandlerTest {
         // We're testing the onError() routing from PbjProtocolHandler into
         // an Application defined method. To confirm the registered handler
         // gets called when there's an exception.
-        final Flow.Subscriber<? super HelloReply> subscriber = mock(Flow.Subscriber.class, withSettings().extraInterfaces(PbjEventHandler.class));
+        final Pipeline<? super HelloReply> subscriber = mock(Pipeline.class);
         final PbjProtocolHandler testPbjProtocolHandler =
                 new TestPbjProtocolHandler(
                         http2Headers,
@@ -92,9 +89,9 @@ public class PbjProtocolHandlerTest {
 
     static class TestGreeterService implements ServiceInterface {
 
-        private final Flow.Subscriber<? super HelloReply> subscriber;
+        private final Pipeline<? super HelloReply> subscriber;
 
-        public TestGreeterService(final Flow.Subscriber<? super HelloReply> subscriber) {
+        public TestGreeterService(final Pipeline<? super HelloReply> subscriber) {
             this.subscriber = subscriber;
         }
 
@@ -123,7 +120,7 @@ public class PbjProtocolHandlerTest {
         public Pipeline<? super Bytes> open(
                 final @NonNull Method method,
                 final @NonNull RequestOptions options,
-                final @NonNull Flow.Subscriber<? super Bytes> replies) {
+                final @NonNull Pipeline<? super Bytes> replies) {
 
             final var m = (TestGreeterMethod) method;
             try {
@@ -184,49 +181,19 @@ public class PbjProtocolHandlerTest {
         }
 
         void sayHelloStreamReply(
-                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
-            if (replies instanceof PbjEventHandler pbjEventHandler) {
-                pbjEventHandler.registerOnErrorHandler(() -> {
+                HelloRequest request, Pipeline<? super HelloReply> replies) {
+                replies.registerOnErrorHandler(() -> {
                     System.out.println("Error handler called");
                     subscriber.onError(new NoSuchAlgorithmException());
                 });
-            }
         }
 
         @NonNull
         Pipeline<? super HelloRequest> sayHelloStreamBidi(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             return null;
         }
     }
-
-//    private static class TestGreeterProxy implements TestGreeterService {
-//
-//        private final Flow.Subscriber<? super HelloReply> subscriber;
-//
-//        public TestGreeterProxy(final Flow.Subscriber<? super HelloReply> subscriber) {
-//            this.subscriber = subscriber;
-//        }
-//
-//        @Override
-//        public void sayHelloStreamReply(
-//                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
-//            if (replies instanceof PbjEventHandler pbjEventHandler) {
-//                pbjEventHandler.registerOnErrorHandler(() -> {
-//                    System.out.println("Error handler called");
-//                    subscriber.onError(new NoSuchAlgorithmException());
-//                });
-//            }
-//        }
-//
-//        @Override
-//        @NonNull
-//        public Pipeline<? super HelloRequest> sayHelloStreamBidi(
-//                Flow.Subscriber<? super HelloReply> replies) {
-//            return null;
-//        }
-//    }
-
 
     // Subclass PbjProtocolHandler to expose the pipeline for testing
     private static class TestPbjProtocolHandler extends PbjProtocolHandler {
@@ -240,7 +207,7 @@ public class PbjProtocolHandlerTest {
                 @NonNull PbjConfig config,
                 @NonNull PbjMethodRoute route,
                 @NonNull DeadlineDetector deadlineDetector,
-                @NonNull Flow.Subscriber<? super HelloReply> subscriber) {
+                @NonNull Pipeline<? super HelloReply> subscriber) {
             super(
                     headers,
                     streamWriter,

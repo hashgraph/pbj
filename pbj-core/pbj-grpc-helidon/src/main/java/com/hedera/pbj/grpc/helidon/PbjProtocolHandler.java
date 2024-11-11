@@ -30,7 +30,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
-import com.hedera.pbj.runtime.grpc.PbjEventHandler;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -293,7 +292,7 @@ class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler 
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
             // the client.
-            final Flow.Subscriber<? super Bytes> outgoing = getOutgoing();
+            final Pipeline<? super Bytes> outgoing = getOutgoing();
             pipeline = route.service().open(route.method(), options, outgoing);
         } catch (final GrpcException grpcException) {
             route.failedGrpcRequestCounter().increment();
@@ -318,7 +317,7 @@ class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler 
     }
 
     // Visible for testing
-    protected Flow.Subscriber<? super Bytes> getOutgoing() {
+    protected Pipeline<? super Bytes> getOutgoing() {
         return new SendToClientSubscriber();
     }
 
@@ -648,10 +647,10 @@ class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler 
     }
 
     /**
-     * The implementation of {@link Flow.Subscriber} used to send messages to the client. It
+     * The implementation of {@link Pipeline} used to send messages to the client. It
      * receives bytes from the handlers to send to the client.
      */
-    private final class SendToClientSubscriber implements Flow.Subscriber<Bytes>, PbjEventHandler {
+    private final class SendToClientSubscriber implements Pipeline<Bytes> {
 
         private Runnable onErrorHandler;
 

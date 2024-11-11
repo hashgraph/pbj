@@ -26,4 +26,6 @@ import java.util.concurrent.Flow;
 public interface Pipeline<T> extends Flow.Subscriber<T> {
     /** Called when an END_STREAM frame is received from the client. */
     default void clientEndStreamReceived() {}
+
+    default void registerOnErrorHandler(Runnable runnable) {}
 }
