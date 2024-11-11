@@ -73,7 +73,7 @@ import java.util.regex.Pattern;
  * between Helidon and the generated PBJ service handler endpoints. An instance of this class is
  * created for each new connection, and each connection is made to a specific method endpoint.
  */
-final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler {
+class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler {
     private static final System.Logger LOGGER =
             System.getLogger(PbjProtocolHandler.class.getName());
 
@@ -170,7 +170,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      *
      * <p>Method calls on this object are thread-safe.
      */
-    private Pipeline<? super Bytes> pipeline;
+    protected Pipeline<? super Bytes> pipeline;
 
     /** Create a new instance */
     PbjProtocolHandler(
@@ -293,7 +293,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
             // the client.
-            final Flow.Subscriber<? super Bytes> outgoing = new SendToClientSubscriber();
+            final Flow.Subscriber<? super Bytes> outgoing = getOutgoing();
             pipeline = route.service().open(route.method(), options, outgoing);
         } catch (final GrpcException grpcException) {
             route.failedGrpcRequestCounter().increment();
@@ -315,6 +315,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             new TrailerOnlyBuilder().grpcStatus(GrpcStatus.UNKNOWN).send();
             error();
         }
+    }
+
+    // Visible for testing
+    protected Flow.Subscriber<? super Bytes> getOutgoing() {
+        return new SendToClientSubscriber();
     }
 
     @Override
@@ -342,6 +347,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     public void data(@NonNull final Http2FrameHeader header, @NonNull final BufferData data) {
         Objects.requireNonNull(header);
         Objects.requireNonNull(data);
+
+        processData(header, data);
+    }
+
+    protected void processData(@NonNull final Http2FrameHeader header, @NonNull final BufferData data) {
 
         try {
             // NOTE: if the deadline is exceeded, then the stream will be closed and data will no
@@ -717,7 +727,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     }
 
     /** Simple implementation of the {@link ServiceInterface.RequestOptions} interface. */
-    private record Options(
+    protected record Options(
             Optional<String> authority, boolean isProtobuf, boolean isJson, String contentType)
             implements ServiceInterface.RequestOptions {}
 
