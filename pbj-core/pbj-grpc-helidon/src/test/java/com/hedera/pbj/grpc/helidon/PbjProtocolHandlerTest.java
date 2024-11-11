@@ -131,15 +131,7 @@ public class PbjProtocolHandlerTest {
                     // Client sends a single request and the server sends many responses
                     case sayHelloStreamReply -> Pipelines.<HelloRequest, HelloReply>serverStreaming()
                             .mapRequest(bytes -> parseRequest(bytes, options))
-                            .method((request, replies) -> {
-
-                                if (replies instanceof PbjEventHandler pbjEventHandler) {
-                                    pbjEventHandler.registerOnErrorHandler(() -> {
-                                        System.out.println("Error handler called");
-                                        subscriber.onError(new NoSuchAlgorithmException());
-                                    });
-                                }
-                            })
+                            .method(this::sayHelloStreamReply)
                             .mapResponse(reply -> createReply(reply, options))
                             .respondTo(replies)
                             .build();
