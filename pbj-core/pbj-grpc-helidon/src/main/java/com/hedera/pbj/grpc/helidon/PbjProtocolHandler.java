@@ -677,6 +677,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         @Override
         public void onError(@NonNull final Throwable throwable) {
             if (onErrorHandler != null) {
+                // Invoke the handlers registered by
+                // the application code integrated
+                // with the PBJ Helidon Plugin.
                 onErrorHandler.run();
             }
 
