@@ -70,16 +70,17 @@ public class PbjProtocolHandlerTest {
     @Test
     public void testOnErrorHandlerCalledOnException() {
 
-        final HelloRequest helloRequest = HelloRequest.newBuilder().setName("Alice").build();
-        final var grpcDataProcessor = new TestGrpcDataProcessor(helloRequest);
+        // Create a fake HelloRequest which will initialize the route
+        final var grpcDataProcessor = new TestGrpcDataProcessor(HelloRequest.newBuilder().setName("Alice").build());
         when(headersProcessor.options()).thenReturn(options);
-        final SendToClientSubscriber sendToClientSubscriber = new SendToClientSubscriber(
+        final var sendToClientSubscriber = new SendToClientSubscriber(
                 http2StreamWriter, 1, streamFlowControl, pbjMethodRoute, grpcDataProcessor, headersProcessor);
 
-        final Pipeline<? super HelloReply> subscriber = mock(Pipeline.class);
-        when(pbjMethodRoute.service()).thenReturn(new TestGreeterService(subscriber));
+        // Stub the route so our test service is used
+        when(pbjMethodRoute.service()).thenReturn(new TestGreeterService());
         when(pbjMethodRoute.method()).thenReturn(sayHelloStreamReply);
 
+        // Create the pipeline
         final PipelineBuilder pipelineBuilder = new PipelineBuilder(
                 http2StreamWriter, 1, streamFlowControl, pbjMethodRoute, headersProcessor.options(), sendToClientSubscriber.subscriber(), grpcDataProcessor, headersProcessor);
         final Pipeline<? super Bytes> pipeline = pipelineBuilder.createPipeline();
@@ -87,12 +88,17 @@ public class PbjProtocolHandlerTest {
         grpcDataProcessor.setPipeline(pipeline);
         sendToClientSubscriber.setPipeline(pipeline);
 
+        // Use bufferData to simulate data being available in the first
+        // pass to initialize the downstream service.
+        // On the second while-loop pass, simulate the data being consumed (0).
+        // On the third while-loop pass, throw an exception.
         when(bufferData.available()).thenReturn(1, 0);
         grpcDataProcessor.data(null, bufferData);
 
         doThrow(IllegalArgumentException.class).when(bufferData).available();
         grpcDataProcessor.data(null, bufferData);
 
+        // Verify the testConsumer was invoked inside the registered runnable.
         verify(testConsumer, timeout(50).times(1)).accept("TEST");
     }
 
@@ -105,6 +111,9 @@ public class PbjProtocolHandlerTest {
             this.helloRequestBytes = helloRequest.toByteArray();
         }
 
+        // Implement the core pieces of the GrpcDataProcessorImpl class:
+        // a while loop which will call pipeline.onNext() while data is available
+        // and throw an exception if an error occurs.
         public void data(@NonNull final Http2FrameHeader header, @NonNull final BufferData data) {
             try {
                 while (data.available() > 0) {
@@ -127,10 +136,6 @@ public class PbjProtocolHandlerTest {
     }
 
     static class TestGreeterService implements ServiceInterface {
-
-        public TestGreeterService(final Pipeline<? super HelloReply> subscriber) {
-//            this.subscriber = subscriber;
-        }
 
         enum TestGreeterMethod implements Method {
             sayHelloStreamReply,
