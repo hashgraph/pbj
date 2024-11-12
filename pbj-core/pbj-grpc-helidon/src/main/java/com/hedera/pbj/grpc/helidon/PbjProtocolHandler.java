@@ -46,39 +46,22 @@ import static java.util.Objects.requireNonNull;
  * created for each new connection, and each connection is made to a specific method endpoint.
  */
 final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler {
-    private static final System.Logger LOGGER =
-            System.getLogger(PbjProtocolHandler.class.getName());
-
-    // Helidon-specific fields related to the connection itself
-    private final Http2StreamWriter streamWriter;
-    private final int streamId;
-    private final StreamFlowControl flowControl;
-    private final HeadersProcessor headersProcessor;
 
     /**
      * The service method that this connection was created for. The route has information about the
      * {@link ServiceInterface} and method to invoke, as well as metrics, and other information.
      */
     private final PbjMethodRoute route;
-
     private final Pipeline<? super Bytes> pipeline;
     private final GrpcDataProcessor grpcDataProcessor;
 
     /** Create a new instance */
     PbjProtocolHandler(
-            @NonNull final Http2StreamWriter streamWriter,
-            final int streamId,
-            @NonNull final StreamFlowControl flowControl,
             @NonNull final PbjMethodRoute route,
             @NonNull final GrpcDataProcessor grpcDataProcessor,
-            @NonNull final HeadersProcessor headersProcessor,
             @NonNull final Pipeline<? super Bytes> pipeline) {
-        this.streamWriter = requireNonNull(streamWriter);
-        this.streamId = streamId;
-        this.flowControl = requireNonNull(flowControl);
         this.route = requireNonNull(route);
         this.grpcDataProcessor = requireNonNull(grpcDataProcessor);
-        this.headersProcessor = requireNonNull(headersProcessor);
         this.pipeline = requireNonNull(pipeline);
     }
 

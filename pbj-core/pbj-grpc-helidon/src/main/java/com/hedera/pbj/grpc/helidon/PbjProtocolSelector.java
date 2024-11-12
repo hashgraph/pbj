@@ -127,9 +127,9 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
                     true, new RouteNotFoundHandler(streamWriter, streamId, currentStreamState));
         }
 
-        final HeadersProcessor headersProcessor = new HeadersProcessor(
-                headers, streamWriter, streamId, flowControl, route, deadlineDetector);
         final var grpcDataProcessor = new GrpcDataProcessorImpl(config, currentStreamState);
+        final HeadersProcessor headersProcessor = new HeadersProcessorImpl(
+                headers, streamWriter, streamId, flowControl, route, deadlineDetector, grpcDataProcessor);
 
         final SendToClientSubscriber sendToClientSubscriber = new SendToClientSubscriber(
                 streamWriter, streamId, flowControl, route, grpcDataProcessor, headersProcessor);
@@ -145,12 +145,8 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
         return new SubProtocolResult(
                 true,
                 new PbjProtocolHandler(
-                        streamWriter,
-                        streamId,
-                        flowControl,
                         route,
                         grpcDataProcessor,
-                        headersProcessor,
                         pipeline));
     }
 }

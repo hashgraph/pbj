@@ -107,7 +107,9 @@ final class SendToClientSubscriber implements Pipeline<Bytes> {
             new TrailerBuilder(streamWriter, streamId, flowControl)
                     .grpcStatus(GrpcStatus.INTERNAL).send();
         }
-//        error();
+
+        headersProcessor.cancelDeadlineFuture(false);
+        grpcDataProcessor.setCurrentStreamState(current -> Http2StreamState.CLOSED);
     }
 
     @Override
