@@ -127,19 +127,26 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
                     true, new RouteNotFoundHandler(streamWriter, streamId, currentStreamState));
         }
 
-        final var grpcDataProcessor = new GrpcDataProcessorImpl(config, currentStreamState);
+        final GrpcDataProcessorImpl grpcDataProcessor = new GrpcDataProcessorImpl(config, currentStreamState);
         final HeadersProcessor headersProcessor = new HeadersProcessorImpl(
                 headers, streamWriter, streamId, flowControl, route, deadlineDetector, grpcDataProcessor);
 
         final SendToClientSubscriber sendToClientSubscriber = new SendToClientSubscriber(
                 streamWriter, streamId, flowControl, route, grpcDataProcessor, headersProcessor);
-        final PipelineBuilder pipelineBuilder = new PipelineBuilder(route, headersProcessor.options(), sendToClientSubscriber.subscriber());
-        final Pipeline<? super Bytes> pipeline = pipelineBuilder.createPipeline();
+        final PipelineBuilder pipelineBuilder = new PipelineBuilder(
+                streamWriter,
+                streamId,
+                flowControl,
+                route,
+                headersProcessor.options(),
+                sendToClientSubscriber.subscriber(),
+                grpcDataProcessor,
+                headersProcessor);
 
+        final Pipeline<? super Bytes> pipeline = pipelineBuilder.createPipeline();
         grpcDataProcessor.setPipeline(pipeline);
         sendToClientSubscriber.setPipeline(pipeline);
         headersProcessor.setPipeline(pipeline);
-
 
         // This is a valid call!
         return new SubProtocolResult(

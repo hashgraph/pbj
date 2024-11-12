@@ -80,7 +80,8 @@ public class PbjProtocolHandlerTest {
         when(pbjMethodRoute.service()).thenReturn(new TestGreeterService(subscriber));
         when(pbjMethodRoute.method()).thenReturn(sayHelloStreamReply);
 
-        final PipelineBuilder pipelineBuilder = new PipelineBuilder(pbjMethodRoute, headersProcessor.options(), sendToClientSubscriber.subscriber());
+        final PipelineBuilder pipelineBuilder = new PipelineBuilder(
+                http2StreamWriter, 1, streamFlowControl, pbjMethodRoute, headersProcessor.options(), sendToClientSubscriber.subscriber(), grpcDataProcessor, headersProcessor);
         final Pipeline<? super Bytes> pipeline = pipelineBuilder.createPipeline();
 
         grpcDataProcessor.setPipeline(pipeline);
