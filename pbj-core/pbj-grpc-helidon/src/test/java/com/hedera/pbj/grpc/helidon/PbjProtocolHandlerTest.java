@@ -44,6 +44,7 @@ import java.util.Objects;
 import static com.hedera.pbj.grpc.helidon.PbjProtocolHandlerTest.TestGreeterService.TestGreeterMethod.sayHelloStreamReply;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class PbjProtocolHandlerTest {
@@ -64,6 +65,9 @@ public class PbjProtocolHandlerTest {
 
     @Mock private BufferData bufferData;
 
+
+    @Mock private Pipeline<? super Bytes> pipeline;
+
     @Test
     public void testOnErrorHandlerCalledOnException() {
 
@@ -71,20 +75,29 @@ public class PbjProtocolHandlerTest {
         // an Application defined method. To confirm the registered handler
         // gets called when there's an exception.
         final Pipeline<? super HelloReply> subscriber = mock(Pipeline.class);
-        final PbjProtocolHandler testPbjProtocolHandler =
-                new TestPbjProtocolHandler(
-                        http2Headers,
-                        http2StreamWriter,
-                        1,
-                        streamFlowControl,
-                        http2StreamState,
-                        pbjConfig,
-                        pbjMethodRoute,
-                        deadlineDetector,
-                        subscriber);
+        final HeadersProcessor headersProcessor = new HeadersProcessor(
+                http2Headers, http2StreamWriter, 1, streamFlowControl, pbjMethodRoute, deadlineDetector);
+        final var grpcDataProcessor = new GrpcDataProcessorImpl(pbjConfig, http2StreamState);
+
+        final SendToClientSubscriber sendToClientSubscriber = new SendToClientSubscriber(
+                http2StreamWriter, 1, streamFlowControl, pbjMethodRoute, grpcDataProcessor, headersProcessor);
+        final PipelineBuilder pipelineBuilder = new PipelineBuilder(pbjMethodRoute, headersProcessor.options(), sendToClientSubscriber.subscriber());
+
+        grpcDataProcessor.setPipeline(pipeline);
+        sendToClientSubscriber.setPipeline(pipeline);
+        headersProcessor.setPipeline(pipeline);
+
+        final PbjProtocolHandler testPbjProtocolHandler = new PbjProtocolHandler(
+                http2StreamWriter,
+                1,
+                streamFlowControl,
+                pbjMethodRoute,
+                grpcDataProcessor,
+                headersProcessor,
+                pipeline);
 
         doThrow(IllegalArgumentException.class).when(bufferData).available();
-        testPbjProtocolHandler.processData(null, bufferData);
+        testPbjProtocolHandler.data(null, bufferData);
     }
 
     static class TestGreeterService implements ServiceInterface {
@@ -193,32 +206,5 @@ public class PbjProtocolHandlerTest {
                 Pipeline<? super HelloReply> replies) {
             return null;
         }
-    }
-
-    // Subclass PbjProtocolHandler to expose the pipeline for testing
-    private static class TestPbjProtocolHandler extends PbjProtocolHandler {
-
-        TestPbjProtocolHandler(
-                @NonNull Http2Headers headers,
-                @NonNull Http2StreamWriter streamWriter,
-                int streamId,
-                @NonNull StreamFlowControl flowControl,
-                @NonNull Http2StreamState currentStreamState,
-                @NonNull PbjConfig config,
-                @NonNull PbjMethodRoute route,
-                @NonNull DeadlineDetector deadlineDetector,
-                @NonNull Pipeline<? super HelloReply> subscriber) {
-            super(
-                    headers,
-                    streamWriter,
-                    streamId,
-                    flowControl,
-                    currentStreamState,
-                    config,
-                    route,
-                    deadlineDetector);
-
-            final TestGreeterService greeterService = new TestGreeterService(subscriber);
-            super.pipeline = greeterService.open(sayHelloStreamReply, null, getOutgoing());        }
     }
 }
