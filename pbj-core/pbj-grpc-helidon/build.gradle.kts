@@ -38,6 +38,8 @@ testModuleInfo {
     requires("io.grpc.protobuf")
     requires("io.grpc.netty")
     requires("io.grpc.stub")
+    requires("org.mockito")
+    requires("org.mockito.junit.jupiter")
     requiresStatic("com.github.spotbugs.annotations")
     requiresStatic("java.annotation")
 }

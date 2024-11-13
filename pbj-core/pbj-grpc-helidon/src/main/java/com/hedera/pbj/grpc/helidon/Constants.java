@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-package com.hedera.pbj.runtime.grpc;
+package com.hedera.pbj.grpc.helidon;
 
-import java.util.concurrent.Flow;
+import io.helidon.http.Header;
+import io.helidon.http.HeaderValues;
 
-/**
- * Represents a pipeline of data that is being processed by a gRPC service.
- *
- * @param <T> The subscribed item type
- */
-public interface Pipeline<T> extends Flow.Subscriber<T> {
-    /** Called when an END_STREAM frame is received from the client. */
-    default void clientEndStreamReceived() {}
+public final class Constants {
+    private Constants() {}
 
-    default void registerOnErrorHandler(Runnable runnable) {}
+    /** The only grpc-encoding supported by this implementation. */
+    public static final String IDENTITY = "identity";
+
+    /** A pre-created and cached *response* header for "grpc-encoding: identity". */
+    public static final Header GRPC_ENCODING_IDENTITY =
+            HeaderValues.createCached("grpc-encoding", IDENTITY);
 }

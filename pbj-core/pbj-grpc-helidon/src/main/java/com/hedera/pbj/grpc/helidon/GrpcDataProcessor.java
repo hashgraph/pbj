@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-package com.hedera.pbj.runtime.grpc;
+package com.hedera.pbj.grpc.helidon;
 
-import java.util.concurrent.Flow;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import io.helidon.common.buffers.BufferData;
+import io.helidon.http.http2.Http2FrameHeader;
+import io.helidon.http.http2.Http2StreamState;
+import java.util.function.UnaryOperator;
 
-/**
- * Represents a pipeline of data that is being processed by a gRPC service.
- *
- * @param <T> The subscribed item type
- */
-public interface Pipeline<T> extends Flow.Subscriber<T> {
-    /** Called when an END_STREAM frame is received from the client. */
-    default void clientEndStreamReceived() {}
+public interface GrpcDataProcessor {
+    void data(@NonNull final Http2FrameHeader header, @NonNull final BufferData data);
 
-    default void registerOnErrorHandler(Runnable runnable) {}
+    void setCurrentStreamState(UnaryOperator<Http2StreamState> operator);
+
+    Http2StreamState getCurrentStreamState();
 }
