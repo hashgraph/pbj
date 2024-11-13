@@ -1,4 +1,23 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.grpc.helidon;
+
+import static java.lang.System.Logger.Level.ERROR;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
@@ -13,15 +32,11 @@ import io.helidon.http.http2.Http2FrameTypes;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.StreamFlowControl;
-
 import java.util.concurrent.Flow;
 
-import static java.lang.System.Logger.Level.ERROR;
-import static java.util.Objects.requireNonNull;
-
 /**
- * The implementation of {@link Pipeline} used to send messages to the client. It
- * receives bytes from the handlers to send to the client.
+ * The implementation of {@link Pipeline} used to send messages to the client. It receives bytes
+ * from the handlers to send to the client.
  */
 final class SendToClientSubscriber implements Pipeline<Bytes> {
 
@@ -80,8 +95,7 @@ final class SendToClientSubscriber implements Pipeline<Bytes> {
                             Http2Flag.DataFlags.create(0),
                             streamId);
 
-            streamWriter.writeData(
-                    new Http2FrameData(header, bufferData), flowControl.outbound());
+            streamWriter.writeData(new Http2FrameData(header, bufferData), flowControl.outbound());
         } catch (final Exception e) {
             LOGGER.log(ERROR, "Failed to respond to grpc request: " + route.method(), e);
             pipeline.onError(e);
@@ -105,7 +119,8 @@ final class SendToClientSubscriber implements Pipeline<Bytes> {
         } else {
             LOGGER.log(ERROR, "Failed to send response", throwable);
             new TrailerBuilder(streamWriter, streamId, flowControl)
-                    .grpcStatus(GrpcStatus.INTERNAL).send();
+                    .grpcStatus(GrpcStatus.INTERNAL)
+                    .send();
         }
 
         headersProcessor.cancelDeadlineFuture(false);
@@ -114,17 +129,17 @@ final class SendToClientSubscriber implements Pipeline<Bytes> {
 
     @Override
     public void onComplete() {
-        new TrailerBuilder(streamWriter, streamId, flowControl)
-                .send();
+        new TrailerBuilder(streamWriter, streamId, flowControl).send();
 
         headersProcessor.cancelDeadlineFuture(false);
 
-        grpcDataProcessor.setCurrentStreamState(currentValue -> {
-            if (requireNonNull(currentValue) == Http2StreamState.OPEN) {
-                return Http2StreamState.HALF_CLOSED_LOCAL;
-            }
-            return Http2StreamState.CLOSED;
-        });
+        grpcDataProcessor.setCurrentStreamState(
+                currentValue -> {
+                    if (requireNonNull(currentValue) == Http2StreamState.OPEN) {
+                        return Http2StreamState.HALF_CLOSED_LOCAL;
+                    }
+                    return Http2StreamState.CLOSED;
+                });
     }
 
     @Override

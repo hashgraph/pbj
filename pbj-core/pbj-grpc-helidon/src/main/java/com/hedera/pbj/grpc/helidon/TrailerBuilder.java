@@ -1,4 +1,25 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.grpc.helidon;
+
+import static com.hedera.pbj.grpc.helidon.Constants.IDENTITY;
+import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ACCEPT_ENCODING;
+import static java.util.Collections.emptyList;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,13 +31,7 @@ import io.helidon.http.http2.Http2Flag;
 import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.StreamFlowControl;
-
 import java.util.List;
-
-import static com.hedera.pbj.grpc.helidon.Constants.IDENTITY;
-import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ACCEPT_ENCODING;
-import static java.util.Collections.emptyList;
-import static java.util.Objects.requireNonNull;
 
 /**
  * A convenience class for building the trailers. In the specification, it says:
@@ -49,8 +64,8 @@ class TrailerBuilder {
     }
 
     /**
-     * Sets the gRPC status to return. Normally, the HTTP status will always be 200, while the
-     * gRPC status can be anything.
+     * Sets the gRPC status to return. Normally, the HTTP status will always be 200, while the gRPC
+     * status can be anything.
      */
     @NonNull
     public TrailerBuilder grpcStatus(@NonNull final GrpcStatus grpcStatus) {
@@ -73,8 +88,8 @@ class TrailerBuilder {
     }
 
     /**
-     * Actually sends the headers. This method exists so that "trailers-only" can call it to
-     * send the normal headers.
+     * Actually sends the headers. This method exists so that "trailers-only" can call it to send
+     * the normal headers.
      */
     protected void send(
             @NonNull final WritableHeaders<?> httpHeaders,
@@ -90,8 +105,7 @@ class TrailerBuilder {
         streamWriter.writeHeaders(
                 http2Headers,
                 streamId,
-                Http2Flag.HeaderFlags.create(
-                        Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
+                Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
                 flowControl.outbound());
     }
 }

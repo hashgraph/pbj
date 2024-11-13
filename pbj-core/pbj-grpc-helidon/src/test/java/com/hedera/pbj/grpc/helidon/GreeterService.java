@@ -28,7 +28,6 @@ import greeter.HelloRequest;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Flow;
 
 /**
  * This service doesn't rely on any PBJ objects, because the build right now doesn't have a good way
@@ -47,15 +46,13 @@ public interface GreeterService extends ServiceInterface {
     HelloReply sayHello(HelloRequest request);
 
     // A stream of messages coming from the client, with a single response from the server.
-    Pipeline<? super HelloRequest> sayHelloStreamRequest(
-            Pipeline<? super HelloReply> replies);
+    Pipeline<? super HelloRequest> sayHelloStreamRequest(Pipeline<? super HelloReply> replies);
 
     // A single request from the client, with a stream of responses from the server.
     void sayHelloStreamReply(HelloRequest request, Pipeline<? super HelloReply> replies);
 
     // A bidirectional stream of requests and responses between the client and the server.
-    Pipeline<? super HelloRequest> sayHelloStreamBidi(
-            Pipeline<? super HelloReply> replies);
+    Pipeline<? super HelloRequest> sayHelloStreamBidi(Pipeline<? super HelloReply> replies);
 
     @NonNull
     default String serviceName() {

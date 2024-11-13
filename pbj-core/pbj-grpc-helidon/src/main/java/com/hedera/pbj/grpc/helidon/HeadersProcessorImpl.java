@@ -1,4 +1,32 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.grpc.helidon;
+
+import static com.hedera.pbj.grpc.helidon.Constants.GRPC_ENCODING_IDENTITY;
+import static com.hedera.pbj.grpc.helidon.Constants.IDENTITY;
+import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ACCEPT_ENCODING;
+import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ENCODING;
+import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_TIMEOUT;
+import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC;
+import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_JSON;
+import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO;
+import static java.lang.System.Logger.Level.ERROR;
+import static java.util.Collections.emptyList;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
@@ -19,7 +47,6 @@ import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.StreamFlowControl;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -28,23 +55,12 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-import static com.hedera.pbj.grpc.helidon.Constants.GRPC_ENCODING_IDENTITY;
-import static com.hedera.pbj.grpc.helidon.Constants.IDENTITY;
-import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ACCEPT_ENCODING;
-import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_ENCODING;
-import static com.hedera.pbj.grpc.helidon.GrpcHeaders.GRPC_TIMEOUT;
-import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC;
-import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_JSON;
-import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO;
-import static java.lang.System.Logger.Level.ERROR;
-import static java.util.Collections.emptyList;
-import static java.util.Objects.requireNonNull;
-
 public class HeadersProcessorImpl implements HeadersProcessor {
     private final System.Logger LOGGER = System.getLogger(this.getClass().getName());
 
     /** The regular expression used to parse the grpc-timeout header. */
     private static final String GRPC_TIMEOUT_REGEX = "(\\d{1,8})([HMSmun])";
+
     private static final Pattern GRPC_TIMEOUT_PATTERN = Pattern.compile(GRPC_TIMEOUT_REGEX);
 
     /**
@@ -68,13 +84,13 @@ public class HeadersProcessorImpl implements HeadersProcessor {
      * {@link ServiceInterface} and method to invoke, as well as metrics, and other information.
      */
     private final PbjMethodRoute route;
+
     private final Http2StreamWriter streamWriter;
     private final StreamFlowControl flowControl;
     private final int streamId;
     private ServiceInterface.RequestOptions options;
     private final GrpcDataProcessor grpcDataProcessor;
     private Pipeline<? super Bytes> pipeline;
-
 
     HeadersProcessorImpl(
             @NonNull final Http2Headers headers,
@@ -199,7 +215,8 @@ public class HeadersProcessorImpl implements HeadersProcessor {
             route.failedUnknownRequestCounter().increment();
             LOGGER.log(ERROR, "Failed to initialize grpc protocol handler", unknown);
             new TrailerOnlyBuilder(streamWriter, streamId, flowControl)
-                    .grpcStatus(GrpcStatus.UNKNOWN).send();
+                    .grpcStatus(GrpcStatus.UNKNOWN)
+                    .send();
             error();
         }
     }
@@ -289,19 +306,19 @@ public class HeadersProcessorImpl implements HeadersProcessor {
             final var deadline =
                     System.nanoTime()
                             * TimeUnit.NANOSECONDS.convert(
-                            num,
-                            switch (unit) {
-                                case "H" -> TimeUnit.HOURS;
-                                case "M" -> TimeUnit.MINUTES;
-                                case "S" -> TimeUnit.SECONDS;
-                                case "m" -> TimeUnit.MILLISECONDS;
-                                case "u" -> TimeUnit.MICROSECONDS;
-                                case "n" -> TimeUnit.NANOSECONDS;
-                                // This should NEVER be reachable, because the matcher
-                                // would not have matched.
-                                default -> throw new GrpcException(
-                                        GrpcStatus.INTERNAL, "Invalid unit: " + unit);
-                            });
+                                    num,
+                                    switch (unit) {
+                                        case "H" -> TimeUnit.HOURS;
+                                        case "M" -> TimeUnit.MINUTES;
+                                        case "S" -> TimeUnit.SECONDS;
+                                        case "m" -> TimeUnit.MILLISECONDS;
+                                        case "u" -> TimeUnit.MICROSECONDS;
+                                        case "n" -> TimeUnit.NANOSECONDS;
+                                            // This should NEVER be reachable, because the matcher
+                                            // would not have matched.
+                                        default -> throw new GrpcException(
+                                                GrpcStatus.INTERNAL, "Invalid unit: " + unit);
+                                    });
             return deadlineDetector.scheduleDeadline(
                     deadline,
                     () -> {

@@ -34,8 +34,8 @@ public final class Pipelines {
     }
 
     /**
-     * Returns a {@link Pipeline} that does nothing. This can be used in cases where a
-     * subscriber is required but no proper implementation is available.
+     * Returns a {@link Pipeline} that does nothing. This can be used in cases where a subscriber is
+     * required but no proper implementation is available.
      *
      * @return A No-op subscriber.
      */
@@ -407,8 +407,7 @@ public final class Pipelines {
          * @param replies The subscriber to send responses to.
          * @throws Exception If an error occurs during processing.
          */
-        void apply(@NonNull T request, @NonNull Pipeline<? super R> replies)
-                throws Exception;
+        void apply(@NonNull T request, @NonNull Pipeline<? super R> replies) throws Exception;
     }
 
     /**
@@ -848,8 +847,7 @@ public final class Pipelines {
      * @param <T> The type of the input.
      * @param <R> The type of the output.
      */
-    private record MapSubscriber<T, R>(
-            Pipeline<? super R> next, ExceptionalFunction<T, R> mapper)
+    private record MapSubscriber<T, R>(Pipeline<? super R> next, ExceptionalFunction<T, R> mapper)
             implements Pipeline<T>, Flow.Subscription {
 
         private MapSubscriber {

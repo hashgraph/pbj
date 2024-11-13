@@ -16,6 +16,13 @@
 
 package com.hedera.pbj.grpc.helidon;
 
+import static com.hedera.pbj.grpc.helidon.PbjProtocolHandlerTest.TestGreeterService.TestGreeterMethod.sayHelloStreamReply;
+import static java.util.Objects.requireNonNull;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -30,24 +37,15 @@ import io.helidon.http.http2.Http2FrameHeader;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.StreamFlowControl;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
-
-import static com.hedera.pbj.grpc.helidon.PbjProtocolHandlerTest.TestGreeterService.TestGreeterMethod.sayHelloStreamReply;
-import static java.util.Objects.requireNonNull;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class PbjProtocolHandlerTest {
@@ -66,23 +64,37 @@ public class PbjProtocolHandlerTest {
 
     @Mock private static Consumer<String> testConsumer;
 
-
     @Test
     public void testOnErrorHandlerCalledOnException() {
 
         // Create a fake HelloRequest which will initialize the route
-        final var grpcDataProcessor = new TestGrpcDataProcessor(HelloRequest.newBuilder().setName("Alice").build());
+        final var grpcDataProcessor =
+                new TestGrpcDataProcessor(HelloRequest.newBuilder().setName("Alice").build());
         when(headersProcessor.options()).thenReturn(options);
-        final var sendToClientSubscriber = new SendToClientSubscriber(
-                http2StreamWriter, 1, streamFlowControl, pbjMethodRoute, grpcDataProcessor, headersProcessor);
+        final var sendToClientSubscriber =
+                new SendToClientSubscriber(
+                        http2StreamWriter,
+                        1,
+                        streamFlowControl,
+                        pbjMethodRoute,
+                        grpcDataProcessor,
+                        headersProcessor);
 
         // Stub the route so our test service is used
         when(pbjMethodRoute.service()).thenReturn(new TestGreeterService());
         when(pbjMethodRoute.method()).thenReturn(sayHelloStreamReply);
 
         // Create the pipeline
-        final PipelineBuilder pipelineBuilder = new PipelineBuilder(
-                http2StreamWriter, 1, streamFlowControl, pbjMethodRoute, headersProcessor.options(), sendToClientSubscriber.subscriber(), grpcDataProcessor, headersProcessor);
+        final PipelineBuilder pipelineBuilder =
+                new PipelineBuilder(
+                        http2StreamWriter,
+                        1,
+                        streamFlowControl,
+                        pbjMethodRoute,
+                        headersProcessor.options(),
+                        sendToClientSubscriber.subscriber(),
+                        grpcDataProcessor,
+                        headersProcessor);
         final Pipeline<? super Bytes> pipeline = pipelineBuilder.createPipeline();
 
         grpcDataProcessor.setPipeline(pipeline);
@@ -167,14 +179,15 @@ public class PbjProtocolHandlerTest {
             final var m = (TestGreeterMethod) method;
             try {
                 return switch (m) {
-                    // Client sends a single request and the server sends many responses
-                    case sayHelloStreamReply -> Pipelines.<HelloRequest, HelloReply>serverStreaming()
+                        // Client sends a single request and the server sends many responses
+                    case sayHelloStreamReply -> Pipelines
+                            .<HelloRequest, HelloReply>serverStreaming()
                             .mapRequest(bytes -> parseRequest(bytes, options))
                             .method(this::sayHelloStreamReply)
                             .mapResponse(reply -> createReply(reply, options))
                             .respondTo(replies)
                             .build();
-                    // Client and server are sending messages back and forth.
+                        // Client and server are sending messages back and forth.
                     case sayHelloStreamBidi -> Pipelines.<HelloRequest, HelloReply>bidiStreaming()
                             .mapRequest(bytes -> parseRequest(bytes, options))
                             .method(this::sayHelloStreamBidi)
@@ -222,16 +235,15 @@ public class PbjProtocolHandlerTest {
             }
         }
 
-        void sayHelloStreamReply(
-                HelloRequest request, Pipeline<? super HelloReply> replies) {
-                replies.registerOnErrorHandler(() -> {
-                    testConsumer.accept("TEST");
-                });
+        void sayHelloStreamReply(HelloRequest request, Pipeline<? super HelloReply> replies) {
+            replies.registerOnErrorHandler(
+                    () -> {
+                        testConsumer.accept("TEST");
+                    });
         }
 
         @NonNull
-        Pipeline<? super HelloRequest> sayHelloStreamBidi(
-                Pipeline<? super HelloReply> replies) {
+        Pipeline<? super HelloRequest> sayHelloStreamBidi(Pipeline<? super HelloReply> replies) {
             return null;
         }
     }

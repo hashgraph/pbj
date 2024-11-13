@@ -16,29 +16,19 @@
 
 package com.hedera.pbj.grpc.helidon;
 
-import com.hedera.pbj.runtime.grpc.GrpcException;
-import com.hedera.pbj.runtime.grpc.GrpcStatus;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.buffers.BufferData;
-import io.helidon.http.http2.Http2Flag;
-import io.helidon.http.http2.Http2FrameData;
 import io.helidon.http.http2.Http2FrameHeader;
-import io.helidon.http.http2.Http2FrameTypes;
 import io.helidon.http.http2.Http2RstStream;
 import io.helidon.http.http2.Http2StreamState;
-import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
-import io.helidon.http.http2.StreamFlowControl;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
-
 import java.util.Objects;
-import java.util.concurrent.Flow;
-
-import static java.lang.System.Logger.Level.ERROR;
-import static java.util.Objects.requireNonNull;
 
 /**
  * Implementation of gRPC based on PBJ. This class specifically contains the glue logic for bridging
@@ -52,6 +42,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * {@link ServiceInterface} and method to invoke, as well as metrics, and other information.
      */
     private final PbjMethodRoute route;
+
     private final Pipeline<? super Bytes> pipeline;
     private final GrpcDataProcessor grpcDataProcessor;
 
