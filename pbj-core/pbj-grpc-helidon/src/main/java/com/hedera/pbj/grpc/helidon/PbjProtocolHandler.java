@@ -54,7 +54,6 @@ import io.helidon.http.http2.Http2RstStream;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
-import io.helidon.http.http2.StreamFlowControl;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
 import java.util.List;
 import java.util.Objects;
@@ -62,6 +61,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Flow;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -116,11 +116,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * future.
      *
      * <p>This member isn't final because it is set in the {@link #init()} method. It should not be
-     * set at any other time.
+     * set at any other time, although it is initialized to avoid any possible NPE.
      *
      * <p>Method calls on this object are thread-safe.
      */
-    private ScheduledFuture<?> deadlineFuture;
+    private Future<?> deadlineFuture = CompletableFuture.completedFuture(null);
 
     /**
      * The bytes of the next incoming message. This is created dynamically as a message is received,
@@ -201,19 +201,13 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         route.requestCounter().increment();
 
         try {
-            // If the grpc-timeout header is present, determine when that timeout would occur, or
-            // default to a future that is so far in the future it will never happen.
-            final var requestHeaders = headers.httpHeaders();
-            final var timeout = requestHeaders.value(GRPC_TIMEOUT);
-            deadlineFuture =
-                    timeout.map(this::scheduleDeadline).orElse(new NoopScheduledFuture<>());
-
             // If Content-Type does not begin with "application/grpc", gRPC servers SHOULD respond
             // with HTTP status of 415 (Unsupported Media Type). This will prevent other HTTP/2
             // clients from interpreting a gRPC error response, which uses status 200 (OK), as
             // successful.
             // See https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
             // In addition, "application/grpc" is interpreted as "application/grpc+proto".
+            final var requestHeaders = headers.httpHeaders();
             final var requestContentType =
                     requestHeaders.contentType().orElse(null);
             final var ct = requestContentType == null ? "" : requestContentType.text();
@@ -265,6 +259,12 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // FUTURE: If the client sends a "grpc-accept-encoding", and if we support one of them,
             // then we should pick one and use it in the response. Otherwise, we should not have
             // any compression.
+
+            // If the grpc-timeout header is present, determine when that timeout would occur, or
+            // default to a future that is so far in the future it will never happen.
+            final var timeout = requestHeaders.value(GRPC_TIMEOUT);
+            deadlineFuture =
+                    timeout.map(this::scheduleDeadline).orElse(new NoopScheduledFuture<>());
 
             // At this point, the request itself is valid. Maybe it will still fail to be handled by
             // the service interface, but as far as the protocol is concerned, this was a valid
