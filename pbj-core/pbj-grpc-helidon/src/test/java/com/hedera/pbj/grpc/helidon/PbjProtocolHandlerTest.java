@@ -18,6 +18,7 @@ package com.hedera.pbj.grpc.helidon;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
@@ -69,11 +70,10 @@ class PbjProtocolHandlerTest {
         route = new PbjMethodRoute(new GreeterServiceImpl(), GreeterService.GreeterMethod.sayHello);
         deadlineDetector = new DeadlineDetectorStub();
 
-        // FUTURE: We need an easy way to test counters. When we have them, we can test this.
-//        assumeThat(route.requestCounter().count()).isEqualTo(0);
-//        assumeThat(route.failedGrpcRequestCounter().count()).isEqualTo(0);
-//        assumeThat(route.failedHttpRequestCounter().count()).isEqualTo(0);
-//        assumeThat(route.failedUnknownRequestCounter().count()).isEqualTo(0);
+        assumeThat(route.requestCounter().count()).isEqualTo(0);
+        assumeThat(route.failedGrpcRequestCounter().count()).isEqualTo(0);
+        assumeThat(route.failedHttpRequestCounter().count()).isEqualTo(0);
+        assumeThat(route.failedUnknownRequestCounter().count()).isEqualTo(0);
     }
 
     /**
@@ -90,11 +90,11 @@ class PbjProtocolHandlerTest {
         final var handler = new PbjProtocolHandler(headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
         handler.init();
         // Even though the request failed, it was made, and should be counted
-//        assertThat(route.requestCounter().count()).isEqualTo(1);
+        assertThat(route.requestCounter().count()).isEqualTo(1);
         // And since it failed the failed counter should be incremented
-//        assertThat(route.failedGrpcRequestCounter().count()).isEqualTo(0);
-//        assertThat(route.failedHttpRequestCounter().count()).isEqualTo(1);
-//        assertThat(route.failedUnknownRequestCounter().count()).isEqualTo(0);
+        assertThat(route.failedGrpcRequestCounter().count()).isEqualTo(0);
+        assertThat(route.failedHttpRequestCounter().count()).isEqualTo(1);
+        assertThat(route.failedUnknownRequestCounter().count()).isEqualTo(0);
 
         // Check the HTTP2 response header frame was error 415
         assertThat(streamWriter.writtenHeaders).hasSize(1);
