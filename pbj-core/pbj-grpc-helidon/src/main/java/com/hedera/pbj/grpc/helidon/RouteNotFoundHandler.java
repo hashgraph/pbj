@@ -19,7 +19,7 @@ import java.util.Objects;
 /**
  * A handler for the case where the path is not found.
  */
-public final class RouteNotFoundHandler
+final class RouteNotFoundHandler
         implements Http2SubProtocolSelector.SubProtocolHandler {
     private final Http2StreamWriter streamWriter;
     private final int streamId;
