@@ -42,9 +42,9 @@ import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
 import io.helidon.http.HttpException;
 import io.helidon.http.HttpMediaType;
-import io.helidon.http.HttpMediaTypes;
 import io.helidon.http.Status;
 import io.helidon.http.WritableHeaders;
+import io.helidon.http.http2.FlowControl;
 import io.helidon.http.http2.Http2Flag;
 import io.helidon.http.http2.Http2FrameData;
 import io.helidon.http.http2.Http2FrameHeader;
@@ -92,7 +92,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private final Http2Headers headers;
     private final Http2StreamWriter streamWriter;
     private final int streamId;
-    private final StreamFlowControl flowControl;
+    private final FlowControl.Outbound flowControl;
     private final AtomicReference<Http2StreamState> currentStreamState;
 
     /**
@@ -176,7 +176,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             @NonNull final Http2Headers headers,
             @NonNull final Http2StreamWriter streamWriter,
             final int streamId,
-            @NonNull final StreamFlowControl flowControl,
+            @NonNull final FlowControl.Outbound flowControl,
             @NonNull final Http2StreamState currentStreamState,
             @NonNull final PbjConfig config,
             @NonNull final PbjMethodRoute route,
@@ -201,16 +201,22 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         route.requestCounter().increment();
 
         try {
+            // If the grpc-timeout header is present, determine when that timeout would occur, or
+            // default to a future that is so far in the future it will never happen.
+            final var requestHeaders = headers.httpHeaders();
+            final var timeout = requestHeaders.value(GRPC_TIMEOUT);
+            deadlineFuture =
+                    timeout.map(this::scheduleDeadline).orElse(new NoopScheduledFuture<>());
+
             // If Content-Type does not begin with "application/grpc", gRPC servers SHOULD respond
             // with HTTP status of 415 (Unsupported Media Type). This will prevent other HTTP/2
             // clients from interpreting a gRPC error response, which uses status 200 (OK), as
             // successful.
             // See https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
             // In addition, "application/grpc" is interpreted as "application/grpc+proto".
-            final var requestHeaders = headers.httpHeaders();
             final var requestContentType =
-                    requestHeaders.contentType().orElse(HttpMediaTypes.PLAINTEXT_UTF_8);
-            final var ct = requestContentType.text();
+                    requestHeaders.contentType().orElse(null);
+            final var ct = requestContentType == null ? "" : requestContentType.text();
             final var contentType =
                     switch (ct) {
                         case APPLICATION_GRPC, APPLICATION_GRPC_PROTO -> APPLICATION_GRPC_PROTO;
@@ -220,7 +226,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                                 yield ct;
                             }
                             throw new HttpException(
-                                    "Unsupported", Status.UNSUPPORTED_MEDIA_TYPE_415);
+                                    "invalid gRPC request content-type \"" + ct + "\"",
+                                    Status.UNSUPPORTED_MEDIA_TYPE_415);
                         }
                     };
 
@@ -258,13 +265,6 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // FUTURE: If the client sends a "grpc-accept-encoding", and if we support one of them,
             // then we should pick one and use it in the response. Otherwise, we should not have
             // any compression.
-
-            // If the grpc-timeout header is present, determine when that timeout would occur, or
-            // default to a future that is so far in the future it will never happen.
-            final var timeout = requestHeaders.value(GRPC_TIMEOUT);
-
-            deadlineFuture =
-                    timeout.map(this::scheduleDeadline).orElse(new NoopScheduledFuture<>());
 
             // At this point, the request itself is valid. Maybe it will still fail to be handled by
             // the service interface, but as far as the protocol is concerned, this was a valid
@@ -306,6 +306,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             new TrailerOnlyBuilder()
                     .httpStatus(httpException.status())
                     .grpcStatus(GrpcStatus.INVALID_ARGUMENT)
+                    .statusMessage(httpException.getMessage())
                     .send();
             error();
         } catch (final Exception unknown) {
@@ -566,7 +567,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 http2Headers,
                 streamId,
                 Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS),
-                flowControl.outbound());
+                flowControl);
     }
 
     /**
@@ -630,7 +631,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     streamId,
                     Http2Flag.HeaderFlags.create(
                             Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
-                    flowControl.outbound());
+                    flowControl);
         }
     }
 
@@ -701,7 +702,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                                 streamId);
 
                 streamWriter.writeData(
-                        new Http2FrameData(header, bufferData), flowControl.outbound());
+                        new Http2FrameData(header, bufferData), flowControl);
             } catch (final Exception e) {
                 LOGGER.log(ERROR, "Failed to respond to grpc request: " + route.method(), e);
             }

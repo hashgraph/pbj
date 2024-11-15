@@ -140,7 +140,7 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
                         headers,
                         streamWriter,
                         streamId,
-                        flowControl,
+                        flowControl.outbound(),
                         currentStreamState,
                         config,
                         route,
