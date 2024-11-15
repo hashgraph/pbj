@@ -39,7 +39,7 @@ final class GreeterServiceImpl implements GreeterService {
     // Streams of stuff coming from the client, with a single response.
     @Override
     public Pipeline<? super HelloRequest> sayHelloStreamRequest(
-            Flow.Subscriber<? super HelloReply> replies) {
+            Pipeline<? super HelloReply> replies) {
         final var names = new ArrayList<String>();
         return new Pipeline<>() {
             @Override
@@ -76,7 +76,7 @@ final class GreeterServiceImpl implements GreeterService {
 
     @Override
     public void sayHelloStreamReply(
-            HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
+            HelloRequest request, Pipeline<? super HelloReply> replies) {
         for (int i = 0; i < 10; i++) {
             replies.onNext(HelloReply.newBuilder().setMessage("Hello!").build());
         }
@@ -86,7 +86,7 @@ final class GreeterServiceImpl implements GreeterService {
 
     @Override
     public Pipeline<? super HelloRequest> sayHelloStreamBidi(
-            Flow.Subscriber<? super HelloReply> replies) {
+            Pipeline<? super HelloReply> replies) {
         // Here we receive info from the client. In this case, it is a stream of requests with
         // names. We will respond with a stream of replies.
         return new Pipeline<>() {
