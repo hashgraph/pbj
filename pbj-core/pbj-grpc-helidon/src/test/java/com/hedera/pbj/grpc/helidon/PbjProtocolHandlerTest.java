@@ -19,11 +19,12 @@ package com.hedera.pbj.grpc.helidon;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
+import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
+import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import greeter.HelloReply;
@@ -42,18 +43,19 @@ import io.helidon.http.http2.Http2FrameTypes;
 import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
+import io.helidon.metrics.api.Metrics;
 import io.netty.handler.codec.http2.Http2Flags;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -68,28 +70,26 @@ class PbjProtocolHandlerTest {
     private PbjConfigStub config;
     private PbjMethodRoute route;
     private DeadlineDetectorStub deadlineDetector;
-
-    @BeforeAll
-    static void beforeAll() {
-    }
+    private ServiceInterfaceStub service;
 
     @BeforeEach
     void setUp() {
-        final var h = WritableHeaders.create();
-        h.add(HeaderNames.CONTENT_TYPE, "application/grpc");
-        headers = Http2Headers.create(h);
+        headers = Http2Headers.create(WritableHeaders.create()
+                .add(HeaderNames.CONTENT_TYPE, "application/grpc+proto"));
         streamWriter = new StreamWriterStub();
         streamId = 1;
         flowControl = new OutboundFlowControlStub();
         currentStreamState = Http2StreamState.OPEN;
         config = new PbjConfigStub();
-        route = new PbjMethodRoute(new GreeterServiceImpl(), GreeterService.GreeterMethod.sayHello);
+        service = new ServiceInterfaceStub();
+        route = new PbjMethodRoute(service, ServiceInterfaceStub.METHOD);
         deadlineDetector = new DeadlineDetectorStub();
 
-        assumeThat(route.requestCounter().count()).isEqualTo(0);
-        assumeThat(route.failedGrpcRequestCounter().count()).isEqualTo(0);
-        assumeThat(route.failedHttpRequestCounter().count()).isEqualTo(0);
-        assumeThat(route.failedUnknownRequestCounter().count()).isEqualTo(0);
+        Metrics.globalRegistry().close(); // reset the counters
+        assertThat(route.requestCounter().count()).isZero();
+        assertThat(route.failedGrpcRequestCounter().count()).isZero();
+        assertThat(route.failedHttpRequestCounter().count()).isZero();
+        assertThat(route.failedUnknownRequestCounter().count()).isZero();
     }
 
     /**
@@ -103,14 +103,18 @@ class PbjProtocolHandlerTest {
         final var h = WritableHeaders.create();
         if (!contentType.isBlank()) h.add(HeaderNames.CONTENT_TYPE, contentType);
         headers = Http2Headers.create(h);
-        final var handler = new PbjProtocolHandler(headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+
+        // Initializing the handler will throw an error because the content types are unsupported
+        final var handler = new PbjProtocolHandler(
+                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
         handler.init();
+
         // Even though the request failed, it was made, and should be counted
         assertThat(route.requestCounter().count()).isEqualTo(1);
         // And since it failed the failed counter should be incremented
-        assertThat(route.failedGrpcRequestCounter().count()).isEqualTo(0);
+        assertThat(route.failedGrpcRequestCounter().count()).isZero();
         assertThat(route.failedHttpRequestCounter().count()).isEqualTo(1);
-        assertThat(route.failedUnknownRequestCounter().count()).isEqualTo(0);
+        assertThat(route.failedUnknownRequestCounter().count()).isZero();
 
         // Check the HTTP2 response header frame was error 415
         assertThat(streamWriter.writtenHeaders).hasSize(1);
@@ -133,6 +137,139 @@ class PbjProtocolHandlerTest {
 
         // The stream should be closed
         assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+    }
+
+    /**
+     * If the content type is "application/grpc", then it is treated as "application/grpc+proto".
+     */
+    @Test
+    void contentTypeIsNormalized() {
+        final var h = WritableHeaders.create();
+        h.add(HeaderNames.CONTENT_TYPE, "application/grpc");
+        headers = Http2Headers.create(h);
+
+        // Initialize will succeed!
+        final var handler = new PbjProtocolHandler(
+                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+        handler.init();
+        assertThat(route.requestCounter().count()).isEqualTo(1);
+
+        // This will call the service
+        final var data = createRequestData("Alice");
+        sendAllData(handler, data);
+
+        assertThat(service.calledMethod).isSameAs(ServiceInterfaceStub.METHOD);
+        assertThat(service.receivedBytes).contains(data);
+        assertThat(service.opts.contentType()).isEqualTo("application/grpc+proto");
+
+        assertThat(route.failedGrpcRequestCounter().count()).isZero();
+        assertThat(route.failedHttpRequestCounter().count()).isZero();
+        assertThat(route.failedUnknownRequestCounter().count()).isZero();
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.HALF_CLOSED_REMOTE);
+    }
+
+    /**
+     * These are perfectly valid encodings, but none of them are supported at this time.
+     *
+     * @param encoding the encoding to test with.
+     */
+    @ValueSource(strings = {"gzip", "compress", "deflate", "br", "zstd", "gzip, deflate;q=0.5"})
+    @ParameterizedTest
+    void unsupportedGrpcEncodings(String encoding) {
+        final var h = WritableHeaders.create();
+        h.add(HeaderNames.CONTENT_TYPE, "application/grpc+proto");
+        h.add(HeaderNames.create("grpc-encoding"), encoding);
+        headers = Http2Headers.create(h);
+
+        // Initializing the handler will throw an error because the content types are unsupported
+        final var handler = new PbjProtocolHandler(
+                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+        handler.init();
+
+        // Even though the request failed, it was made, and should be counted
+        assertThat(route.requestCounter().count()).isEqualTo(1);
+        // And since it failed the failed counter should be incremented
+        assertThat(route.failedGrpcRequestCounter().count()).isEqualTo(1);
+        assertThat(route.failedHttpRequestCounter().count()).isZero();
+        assertThat(route.failedUnknownRequestCounter().count()).isZero();
+
+        // The HTTP2 response itself was successful, but the GRPC response was not
+        assertThat(streamWriter.writtenHeaders).hasSize(1);
+        assertThat(streamWriter.writtenDataFrames).isEmpty();
+        final var responseHeaderFrame = streamWriter.writtenHeaders.getFirst();
+        assertThat(responseHeaderFrame.status()).isEqualTo(Status.OK_200);
+
+        // I verified with the go GRPC server its behavior in this scenario. The following headers should be
+        // available in the response
+        // Content-Type: application/grpc
+        // Grpc-Message: grpc: Decompressor is not installed for grpc-encoding "[bad encoding here]"
+        // Grpc-Status: 12
+        final var responseHeaders = responseHeaderFrame.httpHeaders().stream()
+                .collect(Collectors.toMap(Header::name, Header::values));
+        assertThat(responseHeaders).contains(
+                entry("grpc-status", "" + GrpcStatus.UNIMPLEMENTED.ordinal()),
+                entry("grpc-message", UriEncoding.encodeUri("Decompressor is not installed for grpc-encoding \"" + encoding + "\"")),
+                entry("Content-Type", "application/grpc"),
+                entry("grpc-accept-encoding", "identity"));
+
+        // The stream should be closed
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+    }
+
+    /**
+     * These are encodings we support. They all contain "identity".
+     *
+     * <p>See <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding"/> for information
+     * on the encoding header syntax.
+     *
+     * @param encoding
+     */
+    @ValueSource(strings = {
+            // Simple identity strings with qualifiers
+            "identity", "identity;q=0.5", "identity;", "identity;nonsense",
+            // an identity with and without a qualifier in a list of encodings
+            "gzip, deflate;q=0.5, identity;q=0.1",
+            "gzip, deflate;q=0.5, identity",
+            "gzip, identity;q=0.1, deflate;q=0.5",
+            "gzip, identity, deflate;q=0.5",
+            "identity;q=.9, deflate;q=0.5, gzip;q=0.1, br;q=0.1",
+            "identity, deflate;q=0.5, gzip;q=0.1, br;q=0.1"})
+    @ParameterizedTest
+    void supportedComplexEncodingsWithIdentity(String encoding) {
+        final var h = WritableHeaders.create();
+        h.add(HeaderNames.CONTENT_TYPE, "application/grpc+proto");
+        h.add(HeaderNames.create("grpc-encoding"), encoding);
+        headers = Http2Headers.create(h);
+
+        // Initializing the handler will throw an error because the content types are unsupported
+        final var handler = new PbjProtocolHandler(
+                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+        handler.init();
+
+        // Even though the request failed, it was made, and should be counted
+        assertThat(route.requestCounter().count()).isEqualTo(1);
+        // And since it failed the failed counter should be incremented
+        assertThat(route.failedGrpcRequestCounter().count()).isZero();
+        assertThat(route.failedHttpRequestCounter().count()).isZero();
+        assertThat(route.failedUnknownRequestCounter().count()).isZero();
+
+        final var data = createRequestData("Alice");
+        sendAllData(handler, data);
+
+        // The HTTP2 response itself was successful, and so was the gRPC response
+        assertThat(streamWriter.writtenHeaders).hasSize(1);
+        assertThat(streamWriter.writtenDataFrames).isEmpty();
+        final var responseHeaderFrame = streamWriter.writtenHeaders.getFirst();
+        assertThat(responseHeaderFrame.status()).isEqualTo(Status.OK_200);
+
+        final var responseHeaders = responseHeaderFrame.httpHeaders().stream()
+                .collect(Collectors.toMap(Header::name, Header::values));
+        assertThat(responseHeaders).contains(
+                entry("Content-Type", "application/grpc+proto"),
+                entry("grpc-accept-encoding", "identity"));
+
+        // The stream should be closed
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.HALF_CLOSED_REMOTE);
     }
 
     @Test
@@ -161,7 +298,7 @@ class PbjProtocolHandlerTest {
 
         final var handler = new PbjProtocolHandler(headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
         handler.init();
-        sendAllData(handler, Bytes.wrap(HelloRequest.newBuilder().setName("Alice").build().toByteArray()));
+        sendAllData(handler, createRequestData("Alice"));
 
         final var replies = replyRef.get();
         assertThat(replies).isNotNull();
@@ -178,6 +315,14 @@ class PbjProtocolHandlerTest {
         assertThat(route.failedHttpRequestCounter().count()).isEqualTo(0);
         assertThat(route.failedUnknownRequestCounter().count()).isEqualTo(0);
         assertThat(route.failedResponseCounter().count()).isEqualTo(1);
+    }
+
+    private Bytes createRequestData(String name) {
+        return createData(HelloRequest.newBuilder().setName(name).build());
+    }
+
+    private Bytes createData(HelloRequest request) {
+        return Bytes.wrap(request.toByteArray());
     }
 
     private void sendAllData(PbjProtocolHandler handler, Bytes bytes) {
@@ -274,7 +419,7 @@ class PbjProtocolHandlerTest {
 
         @Override
         public int maxMessageSizeBytes() {
-            return 100;
+            return 1000;
         }
 
         @Override
@@ -321,6 +466,65 @@ class PbjProtocolHandlerTest {
                 @Override
                 public Object get(long timeout, @NonNull TimeUnit unit) {
                     return null;
+                }
+            };
+        }
+    }
+
+    private static final class ServiceInterfaceStub implements ServiceInterface {
+        private Method calledMethod;
+        private RequestOptions opts;
+        private List<Bytes> receivedBytes = new ArrayList<>();
+        private Throwable error;
+        private boolean completed;
+
+        static final Method METHOD = () -> "m";
+
+        @NonNull
+        @Override
+        public String serviceName() {
+            return "s";
+        }
+
+        @NonNull
+        @Override
+        public String fullName() {
+            return "s/m";
+        }
+
+        @NonNull
+        @Override
+        public List<Method> methods() {
+            return List.of(METHOD);
+        }
+
+        @NonNull
+        @Override
+        public Pipeline<? super Bytes> open(
+                @NonNull Method method,
+                @NonNull RequestOptions opts,
+                @NonNull Pipeline<? super Bytes> responses) throws GrpcException {
+            this.calledMethod = method;
+            this.opts = opts;
+            return new Pipeline<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    // ignored
+                }
+
+                @Override
+                public void onNext(Bytes item) {
+                    receivedBytes.add(item);
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    error = throwable;
+                }
+
+                @Override
+                public void onComplete() {
+                    completed = true;
                 }
             };
         }

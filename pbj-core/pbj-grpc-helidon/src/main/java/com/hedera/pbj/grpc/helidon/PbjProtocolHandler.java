@@ -238,9 +238,20 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // FUTURE: Add support for the other compression schemes and let the response be in the
             // same scheme that was sent to us, or another scheme in "grpc-accept-encoding" that
             // we support, or identity.
-            final var encodingHeader = requestHeaders.value(GRPC_ENCODING).orElse(IDENTITY);
-            if (!IDENTITY.equals(encodingHeader)) {
-                throw new GrpcException(GrpcStatus.UNIMPLEMENTED);
+            final var encodings = requestHeaders.contains(GRPC_ENCODING)
+                    ? requestHeaders.get(GRPC_ENCODING).allValues(true)
+                    : List.of(IDENTITY);
+            boolean identitySpecified = false;
+            for (final var encoding : encodings) {
+                if (encoding.startsWith(IDENTITY)) {
+                    identitySpecified = true;
+                    break;
+                }
+            }
+            if (!identitySpecified) {
+                throw new GrpcException(
+                        GrpcStatus.UNIMPLEMENTED,
+                        "Decompressor is not installed for grpc-encoding \"" + String.join(", ", encodings) + "\"");
             }
 
             // The client may have sent a "grpc-accept-encoding" header. Note that
