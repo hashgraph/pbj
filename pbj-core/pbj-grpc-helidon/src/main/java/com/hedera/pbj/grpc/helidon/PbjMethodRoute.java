@@ -48,6 +48,7 @@ final class PbjMethodRoute extends PbjRoute {
     @NonNull private final Counter failedGrpcRequestCounter;
     @NonNull private final Counter failedHttpRequestCounter;
     @NonNull private final Counter failedUnknownRequestCounter;
+    @NonNull private final Counter failedResponseCounter;
     @NonNull private final Counter deadlineExceededCounter;
 
     /**
@@ -99,6 +100,14 @@ final class PbjMethodRoute extends PbjRoute {
                                 .addTag(Tag.create(METHOD_TAG, methodName))
                                 .addTag(Tag.create(FAILURE_TAG, "unknown-exception"))
                                 .description("The number of failed unknown requests"));
+        this.failedResponseCounter =
+                metricRegistry.getOrCreate(
+                        Counter.builder("pbj.grpc.failed.responses")
+                                .scope(SCOPE)
+                                .addTag(Tag.create(SERVICE_TAG, serviceName))
+                                .addTag(Tag.create(METHOD_TAG, methodName))
+                                .addTag(Tag.create(FAILURE_TAG, "response"))
+                                .description("The number of failed responses"));
         this.deadlineExceededCounter =
                 metricRegistry.getOrCreate(
                         Counter.builder("pbj.grpc.deadline.exceeded")
@@ -158,6 +167,11 @@ final class PbjMethodRoute extends PbjRoute {
     @NonNull
     public Counter failedUnknownRequestCounter() {
         return failedUnknownRequestCounter;
+    }
+
+    @NonNull
+    public Counter failedResponseCounter() {
+        return failedResponseCounter;
     }
 
     @NonNull

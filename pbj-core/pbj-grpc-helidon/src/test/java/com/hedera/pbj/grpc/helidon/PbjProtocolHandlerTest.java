@@ -17,12 +17,18 @@
 package com.hedera.pbj.grpc.helidon;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
+import com.hedera.pbj.runtime.grpc.Pipeline;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import greeter.HelloReply;
+import greeter.HelloRequest;
+import io.helidon.common.buffers.BufferData;
 import io.helidon.common.uri.UriEncoding;
 import io.helidon.http.Header;
 import io.helidon.http.HeaderNames;
@@ -31,17 +37,25 @@ import io.helidon.http.WritableHeaders;
 import io.helidon.http.http2.FlowControl;
 import io.helidon.http.http2.Http2Flag;
 import io.helidon.http.http2.Http2FrameData;
+import io.helidon.http.http2.Http2FrameHeader;
+import io.helidon.http.http2.Http2FrameTypes;
 import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
+import io.netty.handler.codec.http2.Http2Flags;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -61,7 +75,9 @@ class PbjProtocolHandlerTest {
 
     @BeforeEach
     void setUp() {
-        headers = Http2Headers.create(WritableHeaders.create());
+        final var h = WritableHeaders.create();
+        h.add(HeaderNames.CONTENT_TYPE, "application/grpc");
+        headers = Http2Headers.create(h);
         streamWriter = new StreamWriterStub();
         streamId = 1;
         flowControl = new OutboundFlowControlStub();
@@ -119,6 +135,74 @@ class PbjProtocolHandlerTest {
         assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
     }
 
+    @Test
+    void errorThrownForOnNextWhenStreamIsClosed() {
+        // Use a custom streamWriter that will throw an exception when "streamClosed" is set to true, and it is
+        // asked to write something. This can be used to simulate what happens when the network connection fails.
+        final var streamClosed = new AtomicBoolean(false);
+        streamWriter = new StreamWriterStub() {
+            @Override
+            public void writeData(Http2FrameData frame, FlowControl.Outbound flowControl) {
+                if (streamClosed.get()) {
+                    throw new IllegalStateException("Stream is closed");
+                }
+            }
+        };
+
+        // Within this test, the replyRef will be set once when the setup is complete, and then
+        // will be available for the test code to use to call onNext, onError, etc. as required.
+        final var replyRef = new AtomicReference<Pipeline<? super HelloReply>>();
+        route = new PbjMethodRoute(new GreeterServiceImpl() {
+            @Override
+            public void sayHelloStreamReply(HelloRequest request, Pipeline<? super HelloReply> replies) {
+                replyRef.set(replies);
+            }
+        }, GreeterService.GreeterMethod.sayHelloStreamReply);
+
+        final var handler = new PbjProtocolHandler(headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+        handler.init();
+        sendAllData(handler, Bytes.wrap(HelloRequest.newBuilder().setName("Alice").build().toByteArray()));
+
+        final var replies = replyRef.get();
+        assertThat(replies).isNotNull();
+
+        replies.onNext(HelloReply.newBuilder().setMessage("Good").build());
+        streamClosed.set(true);
+
+        final var failingReply = HelloReply.newBuilder().setMessage("Bad").build();
+        assertThatThrownBy(() -> replies.onNext(failingReply))
+                .isInstanceOf(Exception.class);
+
+        assertThat(route.requestCounter().count()).isEqualTo(1);
+        assertThat(route.failedGrpcRequestCounter().count()).isEqualTo(0);
+        assertThat(route.failedHttpRequestCounter().count()).isEqualTo(0);
+        assertThat(route.failedUnknownRequestCounter().count()).isEqualTo(0);
+        assertThat(route.failedResponseCounter().count()).isEqualTo(1);
+    }
+
+    private void sendAllData(PbjProtocolHandler handler, Bytes bytes) {
+        final var frameHeader = createDataFrameHeader((int) bytes.length());
+        final var buf = createDataFrameBytes(bytes);
+        handler.data(frameHeader, buf);
+    }
+
+    private BufferData createDataFrameBytes(Bytes data) {
+        try {
+            final var buf = new ByteArrayOutputStream((int) data.length() + 5);
+            final var s = new DataOutputStream(buf);
+            s.writeByte(0);
+            s.writeInt((int) data.length());
+            data.writeTo(s);
+            return BufferData.create(buf.toByteArray());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Http2FrameHeader createDataFrameHeader(int length) {
+        return Http2FrameHeader.create(length + 5, Http2FrameTypes.DATA, Http2Flag.DataFlags.create(Http2Flags.END_STREAM), streamId);
+    }
+
     private static final class OutboundFlowControlStub implements FlowControl.Outbound {
 
         @Override
@@ -157,7 +241,7 @@ class PbjProtocolHandlerTest {
         }
     }
 
-    private static final class StreamWriterStub implements Http2StreamWriter {
+    private static class StreamWriterStub implements Http2StreamWriter {
         private final List<Http2FrameData> writtenDataFrames = new ArrayList<>();
         private final List<Http2Headers> writtenHeaders = new ArrayList<>();
 
@@ -190,7 +274,7 @@ class PbjProtocolHandlerTest {
 
         @Override
         public int maxMessageSizeBytes() {
-            return 0;
+            return 100;
         }
 
         @Override
