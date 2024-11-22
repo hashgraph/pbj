@@ -538,8 +538,12 @@ public final class Pipelines {
                 final var replyBytes = responseMapper.apply(reply);
                 replies.onNext(replyBytes);
                 onComplete();
+            } catch (RuntimeException e)  {
+                replies.onError(e);
+                throw e;
             } catch (Exception e) {
                 replies.onError(e);
+                throw new RuntimeException(e);
             }
         }
 
@@ -625,8 +629,12 @@ public final class Pipelines {
             try {
                 final var request = requestMapper.apply(message);
                 incoming.onNext(request);
+            } catch (RuntimeException e)  {
+                replies.onError(e);
+                throw e;
             } catch (Exception e) {
                 replies.onError(e);
+                throw new RuntimeException(e);
             }
         }
 
@@ -715,8 +723,12 @@ public final class Pipelines {
             try {
                 final var request = requestMapper.apply(message);
                 incoming.onNext(request);
+            } catch (RuntimeException e)  {
+                replies.onError(e);
+                throw e;
             } catch (Exception e) {
                 replies.onError(e);
+                throw new RuntimeException(e);
             }
         }
 
@@ -799,8 +811,12 @@ public final class Pipelines {
             try {
                 final var request = requestMapper.apply(message);
                 method.apply(request, responseConverter);
+            } catch (RuntimeException e)  {
+                replies.onError(e);
+                throw e;
             } catch (Exception e) {
                 replies.onError(e);
+                throw new RuntimeException(e);
             }
         }
 
@@ -847,8 +863,12 @@ public final class Pipelines {
             try {
                 final var r = mapper.apply(item);
                 next.onNext(r);
+            } catch (RuntimeException e)  {
+                next.onError(e);
+                throw e;
             } catch (Throwable t) {
                 next.onError(t);
+                throw new RuntimeException(t);
             }
         }
 

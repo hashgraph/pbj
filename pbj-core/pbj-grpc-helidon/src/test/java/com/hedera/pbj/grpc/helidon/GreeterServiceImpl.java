@@ -24,7 +24,7 @@ import greeter.HelloRequest;
 import java.util.ArrayList;
 import java.util.concurrent.Flow;
 
-final class GreeterServiceImpl implements GreeterService {
+class GreeterServiceImpl implements GreeterService {
     GrpcStatus errorToThrow = null;
 
     @Override
