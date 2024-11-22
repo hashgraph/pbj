@@ -18,10 +18,8 @@ package com.hedera.pbj.runtime.grpc;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Flow;
 
 /**
  * Defines a common interface for all implementations of a gRPC {@code service}. PBJ will generate a sub-interface
@@ -68,16 +66,12 @@ import java.util.concurrent.Flow;
  * register it with your webserver in whatever way is appropriate for your webserver.
  */
 public interface ServiceInterface {
-    /**
-     * Represents the metadata of a method in a gRPC service.
-     */
+    /** Represents the metadata of a method in a gRPC service. */
     interface Method {
         String name();
     }
 
-    /**
-     * The options that are passed to the service when a new connection is opened.
-     */
+    /** The options that are passed to the service when a new connection is opened. */
     interface RequestOptions {
         /** A constant for the gRPC content type "application/grpc". */
         String APPLICATION_GRPC = "application/grpc";
@@ -136,12 +130,14 @@ public interface ServiceInterface {
      * implementation is provided by the generated PBJ code, which will handle the dispatching of messages to the
      * appropriate methods in the correct way (unary, server-side streaming, etc.).
      *
-     * @param method    The method that was called by the client.
-     * @param opts      Any options from the request, such as the content type.
+     * @param method The method that was called by the client.
+     * @param opts Any options from the request, such as the content type.
      * @param responses The subscriber used by the service to push responses back to the client.
      */
     @NonNull
     Pipeline<? super Bytes> open(
-            @NonNull Method method, @NonNull RequestOptions opts, @NonNull Flow.Subscriber<? super Bytes> responses)
+            @NonNull Method method,
+            @NonNull RequestOptions opts,
+            @NonNull Pipeline<? super Bytes> responses)
             throws GrpcException;
 }

@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.hedera.pbj.runtime.grpc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -65,13 +81,12 @@ class PipelinesTest {
             noop.onComplete();
             assertThat(noop).isNotNull(); // if we get here, all is well.
         }
-
     }
 
     @Nested
     @ExtendWith(MockitoExtension.class)
     class UnaryTest {
-        @Mock Flow.Subscriber<Bytes> replies;
+        @Mock Pipeline<Bytes> replies;
         @Mock Flow.Subscription subscription;
 
         @Test
@@ -162,7 +177,8 @@ class PipelinesTest {
                     .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
-            pipeline.onNext(Bytes.wrap("hello"));
+            final var data = Bytes.wrap("hello");
+            assertThatThrownBy(() -> pipeline.onNext(data)).isInstanceOf(RuntimeException.class);
             verify(replies).onError(any(RuntimeException.class));
         }
 
@@ -184,8 +200,8 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class BidiTest {
-        @Mock Flow.Subscriber<String> client;
-        @Mock Flow.Subscriber<Bytes> replies;
+        @Mock Pipeline<String> client;
+        @Mock Pipeline<Bytes> replies;
         @Mock Flow.Subscription subscription;
 
         @Test
@@ -294,7 +310,8 @@ class PipelinesTest {
                     .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
-            pipeline.onNext(Bytes.wrap("hello"));
+            final var data = Bytes.wrap("hello");
+            assertThatThrownBy(() -> pipeline.onNext(data)).isInstanceOf(RuntimeException.class);
             verify(replies).onError(any(RuntimeException.class));
         }
 
@@ -341,7 +358,7 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class ServerStreamingTest {
-        @Mock Flow.Subscriber<Bytes> replies;
+        @Mock Pipeline<Bytes> replies;
         @Mock Flow.Subscription subscription;
 
         @Test
@@ -433,7 +450,8 @@ class PipelinesTest {
                     .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
-            pipeline.onNext(Bytes.wrap("hello"));
+            final var data = Bytes.wrap("hello");
+            assertThatThrownBy(() -> pipeline.onNext(data)).isInstanceOf(RuntimeException.class);
             verify(replies).onError(ex);
         }
 
@@ -448,7 +466,8 @@ class PipelinesTest {
                     .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
-            pipeline.onNext(Bytes.wrap("hello"));
+            final var data = Bytes.wrap("hello");
+            assertThatThrownBy(() -> pipeline.onNext(data)).isInstanceOf(RuntimeException.class);
             verify(replies).onError(ex);
         }
 
@@ -470,7 +489,7 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class ClientStreamingTest {
-        @Mock Flow.Subscriber<Bytes> replies;
+        @Mock Pipeline<Bytes> replies;
         @Mock Flow.Subscription subscription;
 
         @Test
@@ -562,7 +581,8 @@ class PipelinesTest {
                     .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
-            pipeline.onNext(Bytes.wrap("hello"));
+            final var data = Bytes.wrap("hello");
+            assertThatThrownBy(() -> pipeline.onNext(data)).isInstanceOf(RuntimeException.class);
             verify(replies).onError(ex);
         }
 
@@ -595,11 +615,11 @@ class PipelinesTest {
             verify(replies).onNext(Bytes.wrap("hello:world"));
         }
 
-        private static final class ConcatenatingHandler implements Flow.Subscriber<String> {
+        private static final class ConcatenatingHandler implements Pipeline<String> {
             private final List<String> strings = new ArrayList<>();
-            private final Flow.Subscriber<? super String> sink;
+            private final Pipeline<? super String> sink;
 
-            private ConcatenatingHandler(Flow.Subscriber<? super String> sink) {
+            private ConcatenatingHandler(Pipeline<? super String> sink) {
                 this.sink = sink;
             }
 

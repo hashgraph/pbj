@@ -49,6 +49,7 @@ dependencyResolutionManagement {
             // which will have the set of these dependencies that are required.
             version("io.helidon.webserver", helidonVersion)
             version("io.helidon.webserver.http2", helidonVersion)
+            version("io.helidon.webserver.observe.metrics", helidonVersion)
             version("io.helidon.metrics.api", helidonVersion)
             version("io.helidon.common.features.api", helidonVersion)
             version("io.helidon.common.features.processor", helidonVersion) // annotation processing
