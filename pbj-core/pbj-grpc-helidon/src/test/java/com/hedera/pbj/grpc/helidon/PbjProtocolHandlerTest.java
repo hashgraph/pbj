@@ -209,7 +209,7 @@ class PbjProtocolHandlerTest {
         assertThat(responseHeaders).contains(
                 entry("grpc-status", "" + GrpcStatus.UNIMPLEMENTED.ordinal()),
                 entry("grpc-message", UriEncoding.encodeUri("Decompressor is not installed for grpc-encoding \"" + encoding + "\"")),
-                entry("Content-Type", "application/grpc"), // TODO I think this should actually be application/grpc+proto
+                entry("Content-Type", "application/grpc"),
                 entry("grpc-accept-encoding", "identity"));
 
         // The stream should be closed
