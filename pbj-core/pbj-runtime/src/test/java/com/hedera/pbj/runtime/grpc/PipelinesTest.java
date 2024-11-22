@@ -177,7 +177,8 @@ class PipelinesTest {
                     .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
-            pipeline.onNext(Bytes.wrap("hello"));
+            final var data = Bytes.wrap("hello");
+            assertThatThrownBy(() -> pipeline.onNext(data)).isInstanceOf(RuntimeException.class);
             verify(replies).onError(any(RuntimeException.class));
         }
 
@@ -309,7 +310,8 @@ class PipelinesTest {
                     .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
-            pipeline.onNext(Bytes.wrap("hello"));
+            final var data = Bytes.wrap("hello");
+            assertThatThrownBy(() -> pipeline.onNext(data)).isInstanceOf(RuntimeException.class);
             verify(replies).onError(any(RuntimeException.class));
         }
 
@@ -448,7 +450,8 @@ class PipelinesTest {
                     .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
-            pipeline.onNext(Bytes.wrap("hello"));
+            final var data = Bytes.wrap("hello");
+            assertThatThrownBy(() -> pipeline.onNext(data)).isInstanceOf(RuntimeException.class);
             verify(replies).onError(ex);
         }
 
@@ -463,7 +466,8 @@ class PipelinesTest {
                     .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
-            pipeline.onNext(Bytes.wrap("hello"));
+            final var data = Bytes.wrap("hello");
+            assertThatThrownBy(() -> pipeline.onNext(data)).isInstanceOf(RuntimeException.class);
             verify(replies).onError(ex);
         }
 
@@ -577,7 +581,8 @@ class PipelinesTest {
                     .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
-            pipeline.onNext(Bytes.wrap("hello"));
+            final var data = Bytes.wrap("hello");
+            assertThatThrownBy(() -> pipeline.onNext(data)).isInstanceOf(RuntimeException.class);
             verify(replies).onError(ex);
         }
 
