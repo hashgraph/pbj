@@ -42,9 +42,9 @@ import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
 import io.helidon.http.HttpException;
 import io.helidon.http.HttpMediaType;
-import io.helidon.http.HttpMediaTypes;
 import io.helidon.http.Status;
 import io.helidon.http.WritableHeaders;
+import io.helidon.http.http2.FlowControl;
 import io.helidon.http.http2.Http2Flag;
 import io.helidon.http.http2.Http2FrameData;
 import io.helidon.http.http2.Http2FrameHeader;
@@ -54,7 +54,6 @@ import io.helidon.http.http2.Http2RstStream;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
-import io.helidon.http.http2.StreamFlowControl;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
 import java.util.List;
 import java.util.Objects;
@@ -62,6 +61,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Flow;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -92,7 +92,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private final Http2Headers headers;
     private final Http2StreamWriter streamWriter;
     private final int streamId;
-    private final StreamFlowControl flowControl;
+    private final FlowControl.Outbound flowControl;
     private final AtomicReference<Http2StreamState> currentStreamState;
 
     /**
@@ -116,11 +116,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * future.
      *
      * <p>This member isn't final because it is set in the {@link #init()} method. It should not be
-     * set at any other time.
+     * set at any other time, although it is initialized to avoid any possible NPE.
      *
      * <p>Method calls on this object are thread-safe.
      */
-    private ScheduledFuture<?> deadlineFuture;
+    private Future<?> deadlineFuture = CompletableFuture.completedFuture(null);
 
     /**
      * The bytes of the next incoming message. This is created dynamically as a message is received,
@@ -176,7 +176,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             @NonNull final Http2Headers headers,
             @NonNull final Http2StreamWriter streamWriter,
             final int streamId,
-            @NonNull final StreamFlowControl flowControl,
+            @NonNull final FlowControl.Outbound flowControl,
             @NonNull final Http2StreamState currentStreamState,
             @NonNull final PbjConfig config,
             @NonNull final PbjMethodRoute route,
@@ -209,8 +209,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // In addition, "application/grpc" is interpreted as "application/grpc+proto".
             final var requestHeaders = headers.httpHeaders();
             final var requestContentType =
-                    requestHeaders.contentType().orElse(HttpMediaTypes.PLAINTEXT_UTF_8);
-            final var ct = requestContentType.text();
+                    requestHeaders.contentType().orElse(null);
+            final var ct = requestContentType == null ? "" : requestContentType.text();
             final var contentType =
                     switch (ct) {
                         case APPLICATION_GRPC, APPLICATION_GRPC_PROTO -> APPLICATION_GRPC_PROTO;
@@ -220,7 +220,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                                 yield ct;
                             }
                             throw new HttpException(
-                                    "Unsupported", Status.UNSUPPORTED_MEDIA_TYPE_415);
+                                    "invalid gRPC request content-type \"" + ct + "\"",
+                                    Status.UNSUPPORTED_MEDIA_TYPE_415);
                         }
                     };
 
@@ -262,7 +263,6 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // If the grpc-timeout header is present, determine when that timeout would occur, or
             // default to a future that is so far in the future it will never happen.
             final var timeout = requestHeaders.value(GRPC_TIMEOUT);
-
             deadlineFuture =
                     timeout.map(this::scheduleDeadline).orElse(new NoopScheduledFuture<>());
 
@@ -292,7 +292,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
             // the client.
-            final Flow.Subscriber<? super Bytes> outgoing = new SendToClientSubscriber();
+            final Pipeline<? super Bytes> outgoing = new SendToClientSubscriber();
             pipeline = route.service().open(route.method(), options, outgoing);
         } catch (final GrpcException grpcException) {
             route.failedGrpcRequestCounter().increment();
@@ -306,6 +306,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             new TrailerOnlyBuilder()
                     .httpStatus(httpException.status())
                     .grpcStatus(GrpcStatus.INVALID_ARGUMENT)
+                    .statusMessage(httpException.getMessage())
                     .send();
             error();
         } catch (final Exception unknown) {
@@ -566,7 +567,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 http2Headers,
                 streamId,
                 Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS),
-                flowControl.outbound());
+                flowControl);
     }
 
     /**
@@ -630,7 +631,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     streamId,
                     Http2Flag.HeaderFlags.create(
                             Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
-                    flowControl.outbound());
+                    flowControl);
         }
     }
 
@@ -675,10 +676,10 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     }
 
     /**
-     * The implementation of {@link Flow.Subscriber} used to send messages to the client. It
+     * The implementation of {@link Pipeline} used to send messages to the client. It
      * receives bytes from the handlers to send to the client.
      */
-    private final class SendToClientSubscriber implements Flow.Subscriber<Bytes> {
+    private final class SendToClientSubscriber implements Pipeline<Bytes> {
         @Override
         public void onSubscribe(@NonNull final Flow.Subscription subscription) {
             // FUTURE: Add support for flow control
@@ -701,7 +702,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                                 streamId);
 
                 streamWriter.writeData(
-                        new Http2FrameData(header, bufferData), flowControl.outbound());
+                        new Http2FrameData(header, bufferData), flowControl);
             } catch (final Exception e) {
                 LOGGER.log(ERROR, "Failed to respond to grpc request: " + route.method(), e);
             }

@@ -57,7 +57,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Flow;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -513,7 +512,7 @@ class PbjTest {
                             public Pipeline<? super Bytes> open(
                                     @NonNull Method method,
                                     @NonNull RequestOptions options,
-                                    @NonNull Flow.Subscriber<? super Bytes> replies) {
+                                    @NonNull Pipeline<? super Bytes> replies) {
                                 throw ex;
                             }
                         };
@@ -791,101 +790,6 @@ class PbjTest {
         }
     }
 
-    private static final class GreeterServiceImpl implements GreeterService {
-        GrpcStatus errorToThrow = null;
-
-        @Override
-        public HelloReply sayHello(HelloRequest request) {
-            if (errorToThrow != null) {
-                throw new GrpcException(errorToThrow);
-            }
-
-            return HelloReply.newBuilder().setMessage("Hello " + request.getName()).build();
-        }
-
-        // Streams of stuff coming from the client, with a single response.
-        @Override
-        public Pipeline<? super HelloRequest> sayHelloStreamRequest(
-                Flow.Subscriber<? super HelloReply> replies) {
-            final var names = new ArrayList<String>();
-            return new Pipeline<>() {
-                @Override
-                public void clientEndStreamReceived() {
-                    onComplete();
-                }
-
-                @Override
-                public void onSubscribe(Flow.Subscription subscription) {
-                    subscription.request(Long.MAX_VALUE); // turn off flow control
-                }
-
-                @Override
-                public void onNext(HelloRequest item) {
-                    names.add(item.getName());
-                }
-
-                @Override
-                public void onError(Throwable throwable) {
-                    replies.onError(throwable);
-                }
-
-                @Override
-                public void onComplete() {
-                    final var reply =
-                            HelloReply.newBuilder()
-                                    .setMessage("Hello " + String.join(", ", names))
-                                    .build();
-                    replies.onNext(reply);
-                    replies.onComplete();
-                }
-            };
-        }
-
-        @Override
-        public void sayHelloStreamReply(
-                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
-            for (int i = 0; i < 10; i++) {
-                replies.onNext(HelloReply.newBuilder().setMessage("Hello!").build());
-            }
-
-            replies.onComplete();
-        }
-
-        @Override
-        public Pipeline<? super HelloRequest> sayHelloStreamBidi(
-                Flow.Subscriber<? super HelloReply> replies) {
-            // Here we receive info from the client. In this case, it is a stream of requests with
-            // names. We will respond with a stream of replies.
-            return new Pipeline<>() {
-                @Override
-                public void clientEndStreamReceived() {
-                    onComplete();
-                }
-
-                @Override
-                public void onSubscribe(Flow.Subscription subscription) {
-                    subscription.request(Long.MAX_VALUE); // turn off flow control
-                }
-
-                @Override
-                public void onNext(HelloRequest item) {
-                    replies.onNext(
-                            HelloReply.newBuilder().setMessage("Hello " + item.getName()).build());
-                }
-
-                @Override
-                public void onError(Throwable throwable) {
-                    replies.onError(throwable);
-                }
-
-                @Override
-                public void onComplete() {
-                    replies.onComplete();
-                }
-            };
-        }
-    }
-
     private interface GreeterAdapter extends GreeterService {
         @Override
         default HelloReply sayHello(HelloRequest request) {
@@ -894,17 +798,17 @@ class PbjTest {
 
         @Override
         default Pipeline<? super HelloRequest> sayHelloStreamRequest(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             return null;
         }
 
         @Override
         default void sayHelloStreamReply(
-                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {}
+                HelloRequest request, Pipeline<? super HelloReply> replies) {}
 
         @Override
         default Pipeline<? super HelloRequest> sayHelloStreamBidi(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             return null;
         }
     }
@@ -921,20 +825,20 @@ class PbjTest {
         @Override
         @NonNull
         public Pipeline<? super HelloRequest> sayHelloStreamRequest(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             return svc.sayHelloStreamRequest(replies);
         }
 
         @Override
         public void sayHelloStreamReply(
-                HelloRequest request, Flow.Subscriber<? super HelloReply> replies) {
+                HelloRequest request, Pipeline<? super HelloReply> replies) {
             svc.sayHelloStreamReply(request, replies);
         }
 
         @Override
         @NonNull
         public Pipeline<? super HelloRequest> sayHelloStreamBidi(
-                Flow.Subscriber<? super HelloReply> replies) {
+                Pipeline<? super HelloReply> replies) {
             return svc.sayHelloStreamBidi(replies);
         }
 
@@ -943,7 +847,7 @@ class PbjTest {
         public Pipeline<? super Bytes> open(
                 @NonNull Method method,
                 @NonNull RequestOptions options,
-                @NonNull Flow.Subscriber<? super Bytes> replies) {
+                @NonNull Pipeline<? super Bytes> replies) {
             return svc.open(method, options, replies);
         }
     }

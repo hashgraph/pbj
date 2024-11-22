@@ -33,6 +33,7 @@ testModuleInfo {
     requires("io.helidon.webclient")
     requires("io.helidon.webserver")
     requires("io.helidon.webserver.http2")
+    requires("io.helidon.webserver.observe.metrics")
     requires("io.helidon.webclient.http2")
     requires("com.google.protobuf.util")
     requires("io.grpc.protobuf")

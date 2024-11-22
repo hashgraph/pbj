@@ -1,0 +1,40 @@
+###################################
+##### Global Protection Rule ######
+###################################
+# NOTE: This rule is overriden by the more specific rules below. This is the catch-all rule for all files not covered by the more specific rules below.
+*                                               @hashgraph/devops-ci @hashgraph/release-engineering-managers
+
+#########################
+##### Source Files  #####
+#########################
+/pbj-core/                                      @hashgraph/pbj-committers @hashgraph/pbj-maintainers
+/pbj-integration-tests/                         @hashgraph/pbj-committers @hashgraph/pbj-maintainers
+
+#########################
+#####  Core Files  ######
+#########################
+
+# NOTE: Must be placed last to ensure enforcement over all other rules
+
+# Protection Rules for Github Configuration Files and Actions Workflows
+/.github/                                       @hashgraph/devops-ci @hashgraph/release-engineering-managers @hashgraph/pbj-maintainers
+/.github/workflows/                             @hashgraph/devops-ci @hashgraph/devops-ci-committers @hashgraph/pbj-maintainers
+
+# Gradle project files and inline plugins
+/gradle/                                        @hashgraph/devops-ci @hashgraph/devops-ci-committers @hashgraph/pbj-maintainers
+gradlew                                         @hashgraph/devops-ci @hashgraph/devops-ci-committers @hashgraph/pbj-maintainers
+gradlew.bat                                     @hashgraph/devops-ci @hashgraph/devops-ci-committers @hashgraph/pbj-maintainers
+**/build-logic/                                 @hashgraph/devops-ci @hashgraph/devops-ci-committers @hashgraph/pbj-maintainers
+**/gradle.*                                     @hashgraph/devops-ci @hashgraph/devops-ci-committers @hashgraph/pbj-maintainers
+**/*.gradle.*                                   @hashgraph/devops-ci @hashgraph/devops-ci-committers @hashgraph/pbj-maintainers
+
+# Self-protection for root CODEOWNERS files (this file should not exist and should definitely require approval)
+/CODEOWNERS                                     @hashgraph/release-engineering-managers
+
+# Protect the repository root files
+/README.md                                      @hashgraph/devops-ci @hashgraph/release-engineering-managers @hashgraph/pbj-maintainers
+**/LICENSE                                      @hashgraph/release-engineering-managers
+
+# Git Ignore definitions
+**/.gitignore                                   @hashgraph/devops-ci @hashgraph/release-engineering-managers @hashgraph/pbj-maintainers
+**/.gitignore.*                                 @hashgraph/devops-ci @hashgraph/release-engineering-managers @hashgraph/pbj-maintainers
