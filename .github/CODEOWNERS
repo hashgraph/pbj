@@ -33,7 +33,7 @@ gradlew.bat                                     @hashgraph/devops-ci @hashgraph/
 
 # Protect the repository root files
 /README.md                                      @hashgraph/devops-ci @hashgraph/release-engineering-managers @hashgraph/pbj-maintainers
-**/LICENSE                                      @hashgraph/release-engineering-managers
+**/LICENSE                                      @hashgraph/release-engineering-managers @hashgraph/pbj-maintainers
 
 # Git Ignore definitions
 **/.gitignore                                   @hashgraph/devops-ci @hashgraph/release-engineering-managers @hashgraph/pbj-maintainers
