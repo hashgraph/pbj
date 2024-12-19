@@ -8,10 +8,10 @@ import io.helidon.common.features.api.Preview;
         description = "WebServer gRPC-PBJ Config",
         in = HelidonFlavor.SE,
         path = {"WebServer", "PBJ"})
-@SuppressWarnings({"requires-automatic"})
 module com.hedera.pbj.grpc.helidon.config {
-    requires com.hedera.pbj.runtime;
-    requires io.helidon.webserver.http2;
+    requires transitive io.helidon.builder.api;
+    requires transitive io.helidon.common.config;
+    requires transitive io.helidon.common;
     requires io.helidon.webserver;
     requires static io.helidon.common.features.api;
     requires static io.helidon.common.features.processor;

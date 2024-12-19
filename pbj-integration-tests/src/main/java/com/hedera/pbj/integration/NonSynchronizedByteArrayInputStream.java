@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration;
 
 import java.io.IOException;
@@ -68,7 +69,7 @@ public final class NonSynchronizedByteArrayInputStream extends InputStream {
             k = n < 0 ? 0 : n;
         }
 
-        pos += k;
+        pos += (int) k;
         return k;
     }
 

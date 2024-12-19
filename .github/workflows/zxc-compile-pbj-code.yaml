@@ -126,15 +126,6 @@ jobs:
 #          project-token: ${{ secrets.codacy-project-token }}
 #          coverage-reports: ${{ env.PBJ_CORE }}/pbj-compiler/build/reports/jacoco/test/jacocoTestReport.xml, ${{ env.PBJ_CORE }}/pbj-runtime/build/reports/jacoco/test/jacocoTestReport.xml
 
-      - name: Gradle Maven Local (PBJ Core)
-        id: gradle-publish-local
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        if: ${{ (inputs.enable-integration-tests || inputs.enable-jmh-tests) && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          build-root-directory: ${{ env.PBJ_CORE }}
-          arguments: publishToMavenLocal --scan
-
       - name: Gradle Assemble (PBJ Integration)
         id: gradle-integration-build
         uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2

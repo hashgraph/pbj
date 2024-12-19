@@ -1,9 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.intergration.test;
 
 import com.hedera.pbj.test.proto.pbj.Hasheval;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
-import org.junit.jupiter.params.ParameterizedTest;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -13,8 +12,8 @@ import java.security.NoSuchAlgorithmException;
 public final class TestHashFunctions {
     public static int hash1(Hasheval hashEval) {
         try {
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(
-                    Hasheval.PROTOBUF.toBytes(hashEval).toByteArray());
+            byte[] hash = MessageDigest.getInstance("SHA-256")
+                    .digest(Hasheval.PROTOBUF.toBytes(hashEval).toByteArray());
             int res = hash[0] << 24 | hash[1] << 16 | hash[2] << 8 | hash[3];
             return processForBetterDistribution(res);
         } catch (NoSuchAlgorithmException e) {
@@ -70,10 +69,10 @@ public final class TestHashFunctions {
         }
         if (hashEval.subObject() != Hasheval.DEFAULT.subObject()) {
             TimestampTest sub = hashEval.subObject();
-            if (sub.nanos() != sub.DEFAULT.nanos()) {
+            if (sub.nanos() != TimestampTest.DEFAULT.nanos()) {
                 result = 31 * result + Integer.hashCode(sub.nanos());
             }
-            if (sub.seconds() != sub.DEFAULT.seconds()) {
+            if (sub.seconds() != TimestampTest.DEFAULT.seconds()) {
                 result = 31 * result + Long.hashCode(sub.seconds());
             }
         }
@@ -81,7 +80,8 @@ public final class TestHashFunctions {
             result = 31 * result + hashEval.text().hashCode();
         }
         if (hashEval.bytesField() != Hasheval.DEFAULT.bytesField()) {
-            result = 31 * result + (hashEval.bytesField() == null ? 0 : hashEval.bytesField().hashCode());
+            result = 31 * result
+                    + (hashEval.bytesField() == null ? 0 : hashEval.bytesField().hashCode());
         }
 
         return processForBetterDistribution(result);
