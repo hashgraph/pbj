@@ -33,7 +33,7 @@ gradleEnterprise {
     }
 }
 
-var helidonVersion = "4.1.1"
+var helidonVersion = "4.1.6"
 var grpcVersion = "1.65.1"
 var protobufVersion = "4.28.2"
 
