@@ -45,10 +45,12 @@ sourceSets {
         pbj {
             srcDir(layout.buildDirectory.dir("repos/hapi/services"))
             srcDir(layout.buildDirectory.dir("repos/hapi/streams"))
+            srcDir(layout.buildDirectory.dir("repos/hapi/platform"))
         }
         proto {
             srcDir(layout.buildDirectory.dir("repos/hapi/services"))
             srcDir(layout.buildDirectory.dir("repos/hapi/streams"))
+            srcDir(layout.buildDirectory.dir("repos/hapi/platform"))
         }
     }
 }

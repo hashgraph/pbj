@@ -166,6 +166,7 @@ Backup of *.doc*
 
 ### JetBrains IDEA
 .idea
+**/*.iml
 
 # CMake
 cmake-build-*/
