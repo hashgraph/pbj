@@ -2,6 +2,7 @@ package com.hedera.pbj.intergration.jmh;
 
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.GeneratedMessage;
+import com.hedera.hapi.block.stream.protoc.Block;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.token.AccountDetails;
 import com.hedera.pbj.integration.AccountDetailsPbj;
@@ -28,15 +29,17 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPInputStream;
 
 @SuppressWarnings("unused")
 @Fork(1)
-@Warmup(iterations = 2, time = 2)
-@Measurement(iterations = 5, time = 2)
+@Warmup(iterations = 3, time = 2)
+@Measurement(iterations = 7, time = 2)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
 public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMessage> {
@@ -113,7 +116,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void parsePbjByteArray(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws ParseException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.protobufDataBuffer.resetPosition();
 			blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBuffer));
 		}
@@ -122,7 +125,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void parsePbjByteBuffer(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws ParseException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.protobufDataBuffer.resetPosition();
 			blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBuffer));
 		}
@@ -132,7 +135,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void parsePbjByteBufferDirect(BenchmarkState<P,G> benchmarkState, Blackhole blackhole)
 			throws ParseException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.protobufDataBufferDirect.resetPosition();
 			blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBufferDirect));
 		}
@@ -140,7 +143,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void parsePbjInputStream(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws ParseException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.bin.resetPosition();
 			blackhole.consume(benchmarkState.pbjCodec.parse(new ReadableStreamingData(benchmarkState.bin)));
 		}
@@ -149,14 +152,14 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void parseProtoCByteArray(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			blackhole.consume(benchmarkState.googleByteArrayParseMethod.parse(benchmarkState.protobuf));
 		}
 	}
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void parseProtoCByteBufferDirect(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.protobufByteBufferDirect.position(0);
 			blackhole.consume(benchmarkState.googleByteBufferParseMethod.parse(benchmarkState.protobufByteBufferDirect));
 		}
@@ -164,14 +167,14 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void parseProtoCByteBuffer(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			blackhole.consume(benchmarkState.googleByteBufferParseMethod.parse(benchmarkState.protobufByteBuffer));
 		}
 	}
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void parseProtoCInputStream(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.bin.resetPosition();
 			blackhole.consume(benchmarkState.googleInputStreamParseMethod.parse(benchmarkState.bin));
 		}
@@ -181,7 +184,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void writePbjByteArray(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.outDataBuffer.reset();
 			benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, benchmarkState.outDataBuffer);
 			blackhole.consume(benchmarkState.outDataBuffer);
@@ -191,7 +194,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void writePbjByteBuffer(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.outDataBuffer.reset();
 			benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, benchmarkState.outDataBuffer);
 			blackhole.consume(benchmarkState.outDataBuffer);
@@ -200,7 +203,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void writePbjByteDirect(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.outDataBufferDirect.reset();
 			benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, benchmarkState.outDataBufferDirect);
 			blackhole.consume(benchmarkState.outDataBufferDirect);
@@ -209,7 +212,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void writePbjOutputStream(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.bout.reset();
 			benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, new WritableStreamingData(benchmarkState.bout));
 			blackhole.consume(benchmarkState.bout.toByteArray());
@@ -219,7 +222,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void writeProtoCByteArray(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			blackhole.consume(benchmarkState.googleModelObject.toByteArray());
 		}
 	}
@@ -227,7 +230,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void writeProtoCByteBuffer(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			CodedOutputStream cout = CodedOutputStream.newInstance(benchmarkState.bbout);
 			benchmarkState.googleModelObject.writeTo(cout);
 			blackhole.consume(benchmarkState.bbout);
@@ -237,7 +240,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void writeProtoCByteBufferDirect(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			CodedOutputStream cout = CodedOutputStream.newInstance(benchmarkState.bboutDirect);
 			benchmarkState.googleModelObject.writeTo(cout);
 			blackhole.consume(benchmarkState.bbout);
@@ -247,7 +250,7 @@ public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMe
 	@Benchmark
 	@OperationsPerInvocation(OPERATION_COUNT)
 	public void writeProtoCOutputStream(BenchmarkState<P,G> benchmarkState, Blackhole blackhole) throws IOException {
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < OPERATION_COUNT; i++) {
 			benchmarkState.bout.reset();
 			benchmarkState.googleModelObject.writeTo(benchmarkState.bout);
 			blackhole.consume(benchmarkState.bout.toByteArray());
