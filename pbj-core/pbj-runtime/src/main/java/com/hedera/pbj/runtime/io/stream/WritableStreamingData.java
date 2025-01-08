@@ -1,6 +1,7 @@
 package com.hedera.pbj.runtime.io.stream;
 
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Closeable;
@@ -223,6 +224,20 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void writeBytes(@NonNull BufferedData src) throws BufferOverflowException, UncheckedIOException {
+        if (remaining() < src.remaining()) {
+            throw new BufferOverflowException();
+        }
+        final int pos = Math.toIntExact(src.position());
+        final int len = Math.toIntExact(src.remaining());
+        src.writeTo(out, pos, len);
+        position += len;
     }
 
     /**
