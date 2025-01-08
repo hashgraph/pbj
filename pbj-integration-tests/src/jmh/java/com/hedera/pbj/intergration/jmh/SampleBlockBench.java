@@ -1,6 +1,7 @@
 package com.hedera.pbj.intergration.jmh;
 
 import com.google.protobuf.CodedOutputStream;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.protoc.Block;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayInputStream;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
@@ -9,6 +10,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import java.util.Comparator;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -134,6 +136,13 @@ public class SampleBlockBench {
 		blackhole.consume(outDataBuffer);
 	}
 
+	/** Added as should be same as above but creates new byte[] and does extra measure. But this is used a lot */
+	@Benchmark
+	public void writePbjToBytes(Blackhole blackhole) {
+		final Bytes bytes = com.hedera.hapi.block.stream.Block.PROTOBUF.toBytes(TEST_BLOCK);
+		blackhole.consume(bytes);
+	}
+
 	@Benchmark
 	public void writePbjByteBuffer(Blackhole blackhole) throws IOException {
 		outDataBuffer.reset();
@@ -179,5 +188,20 @@ public class SampleBlockBench {
 		bout.reset();
 		TEST_BLOCK_GOOGLE.writeTo(bout);
 		blackhole.consume(bout.toByteArray());
+	}
+
+	/**
+	 * Handy test main method for performance profiling
+	 *
+	 * @param args no args needed
+	 */
+	public static void main(String[] args) {
+		for (int i = 0; i < 1000; i++) {
+			final Bytes result = com.hedera.hapi.block.stream.Block.PROTOBUF.toBytes(TEST_BLOCK);
+//			TEST_BLOCK_GOOGLE.toByteArray();
+		}
+//		var biggsetItem = TEST_BLOCK.items().stream().sorted(Comparator.comparingLong(BlockItem.PROTOBUF::measureRecord)).toList().getLast();
+//		final Bytes result = com.hedera.hapi.block.stream.BlockItem.PROTOBUF.toBytes(biggsetItem);
+
 	}
 }

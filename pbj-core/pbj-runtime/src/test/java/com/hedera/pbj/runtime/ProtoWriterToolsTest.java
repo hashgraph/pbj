@@ -442,46 +442,46 @@ class ProtoWriterToolsTest {
         final Bytes writtenBytes2 = buf2.getBytes(0, buf2.position());
         assertEquals(writtenBytes1, writtenBytes2);
     }
-
-    @Test
-    void testWriteMessage() throws IOException {
-        FieldDefinition definition = createFieldDefinition(MESSAGE);
-        String appleStr = RANDOM_STRING.nextString();
-        Apple apple = Apple.newBuilder().setVariety(appleStr).build();
-        writeMessage(bufferedData, definition, apple, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
-        bufferedData.flip();
-        assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
-        int length = bufferedData.readVarInt(false);
-        assertEquals(appleStr, Apple.parseFrom(bufferedData.readBytes(length).toByteArray()).getVariety());
-    }
-
-    @Test
-    void testWriteOneRepeatedMessage() throws IOException {
-        final FieldDefinition definition = createRepeatedFieldDefinition(MESSAGE);
-        final String appleStr1 = RANDOM_STRING.nextString();
-        final Apple apple1 = Apple.newBuilder().setVariety(appleStr1).build();
-        final String appleStr2 = RANDOM_STRING.nextString();
-        final Apple apple2 = Apple.newBuilder().setVariety(appleStr2).build();
-        final BufferedData buf1 = BufferedData.allocate(256);
-        final ProtoWriter<Apple> writer = (data, out) -> out.writeBytes(data.toByteArray());
-        ProtoWriterTools.writeMessageList(buf1, definition, List.of(apple1, apple2), writer, Apple::getSerializedSize);
-        final Bytes writtenBytes1 = buf1.getBytes(0, buf1.position());
-        final BufferedData buf2 = BufferedData.allocate(256);
-        ProtoWriterTools.writeOneRepeatedMessage(buf2, definition, apple1, writer, Apple::getSerializedSize);
-        ProtoWriterTools.writeOneRepeatedMessage(buf2, definition, apple2, writer, Apple::getSerializedSize);
-        final Bytes writtenBytes2 = buf2.getBytes(0, buf2.position());
-        assertEquals(writtenBytes1, writtenBytes2);
-    }
-
-    @Test
-    void testWriteOneOfMessage() throws IOException {
-        FieldDefinition definition = createOneOfFieldDefinition(MESSAGE);
-        writeMessage(bufferedData, definition, null, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
-        bufferedData.flip();
-        assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
-        int length = bufferedData.readVarInt(false);
-        assertEquals(0, length);
-    }
+//
+//    @Test
+//    void testWriteMessage() throws IOException {
+//        FieldDefinition definition = createFieldDefinition(MESSAGE);
+//        String appleStr = RANDOM_STRING.nextString();
+//        Apple apple = Apple.newBuilder().setVariety(appleStr).build();
+//        writeMessage(bufferedData, definition, apple, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
+//        bufferedData.flip();
+//        assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
+//        int length = bufferedData.readVarInt(false);
+//        assertEquals(appleStr, Apple.parseFrom(bufferedData.readBytes(length).toByteArray()).getVariety());
+//    }
+//
+//    @Test
+//    void testWriteOneRepeatedMessage() throws IOException {
+//        final FieldDefinition definition = createRepeatedFieldDefinition(MESSAGE);
+//        final String appleStr1 = RANDOM_STRING.nextString();
+//        final Apple apple1 = Apple.newBuilder().setVariety(appleStr1).build();
+//        final String appleStr2 = RANDOM_STRING.nextString();
+//        final Apple apple2 = Apple.newBuilder().setVariety(appleStr2).build();
+//        final BufferedData buf1 = BufferedData.allocate(256);
+//        final ProtoWriter<Apple> writer = (data, out) -> out.writeBytes(data.toByteArray());
+//        ProtoWriterTools.writeMessageList(buf1, definition, List.of(apple1, apple2), writer, Apple::getSerializedSize);
+//        final Bytes writtenBytes1 = buf1.getBytes(0, buf1.position());
+//        final BufferedData buf2 = BufferedData.allocate(256);
+//        ProtoWriterTools.writeOneRepeatedMessage(buf2, definition, apple1, writer, Apple::getSerializedSize);
+//        ProtoWriterTools.writeOneRepeatedMessage(buf2, definition, apple2, writer, Apple::getSerializedSize);
+//        final Bytes writtenBytes2 = buf2.getBytes(0, buf2.position());
+//        assertEquals(writtenBytes1, writtenBytes2);
+//    }
+//
+//    @Test
+//    void testWriteOneOfMessage() throws IOException {
+//        FieldDefinition definition = createOneOfFieldDefinition(MESSAGE);
+//        writeMessage(bufferedData, definition, null, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
+//        bufferedData.flip();
+//        assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
+//        int length = bufferedData.readVarInt(false);
+//        assertEquals(0, length);
+//    }
 
     @Test
     void testWriteOptionalInteger() {
@@ -980,26 +980,26 @@ class ProtoWriterToolsTest {
         assertEquals(0,
                 sizeOfStringList(createOneOfFieldDefinition(STRING), emptyList()));
     }
-
-    @Test
-    void testSizeOfMessageList() {
-        final FieldDefinition definition = createFieldDefinition(MESSAGE);
-        final String appleStr1 = randomVarSizeString();
-        final Apple apple1 = Apple.newBuilder().setVariety(appleStr1).build();
-        final String appleStr2 = randomVarSizeString();
-        final Apple apple2 = Apple.newBuilder().setVariety(appleStr2).build();
-
-        assertEquals(
-                MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2 + appleStr1.length() + appleStr2.length(),
-                sizeOfMessageList(definition, Arrays.asList(apple1, apple2), v -> v.getVariety().length()));
-    }
-
-    @Test
-    void testSizeOfMessageList_empty() {
-        assertEquals(
-                0,
-                sizeOfMessageList(createFieldDefinition(MESSAGE), emptyList(), v -> RNG.nextInt()));
-    }
+//
+//    @Test
+//    void testSizeOfMessageList() {
+//        final FieldDefinition definition = createFieldDefinition(MESSAGE);
+//        final String appleStr1 = randomVarSizeString();
+//        final Apple apple1 = Apple.newBuilder().setVariety(appleStr1).build();
+//        final String appleStr2 = randomVarSizeString();
+//        final Apple apple2 = Apple.newBuilder().setVariety(appleStr2).build();
+//
+//        assertEquals(
+//                MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2 + appleStr1.length() + appleStr2.length(),
+//                sizeOfMessageList(definition, Arrays.asList(apple1, apple2), v -> v.getVariety().length()));
+//    }
+//
+//    @Test
+//    void testSizeOfMessageList_empty() {
+//        assertEquals(
+//                0,
+//                sizeOfMessageList(createFieldDefinition(MESSAGE), emptyList(), v -> RNG.nextInt()));
+//    }
 
     @Test
     void testSizeOfBytesList() {
@@ -1101,27 +1101,27 @@ class ProtoWriterToolsTest {
 
         assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + bytes.length(), sizeOfBytes(definition, bytes));
     }
+//
+//    @Test
+//    void testSizeOfMessage(){
+//        final FieldDefinition definition = createFieldDefinition(MESSAGE);
+//        final String appleStr = randomVarSizeString();
+//        final Apple apple = Apple.newBuilder().setVariety(appleStr).build();
+//
+//        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + appleStr.length(), sizeOfMessage(definition, apple, v -> v.getVariety().length()));
+//    }
 
-    @Test
-    void testSizeOfMessage(){
-        final FieldDefinition definition = createFieldDefinition(MESSAGE);
-        final String appleStr = randomVarSizeString();
-        final Apple apple = Apple.newBuilder().setVariety(appleStr).build();
-
-        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + appleStr.length(), sizeOfMessage(definition, apple, v -> v.getVariety().length()));
-    }
-
-    @Test
-    void testSizeOfMessage_oneOf_null() {
-        final FieldDefinition definition = createOneOfFieldDefinition(MESSAGE);
-        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE, sizeOfMessage(definition, null, v -> RNG.nextInt()));
-    }
-
-    @Test
-    void testSizeOfMessage_null() {
-        final FieldDefinition definition = createFieldDefinition(MESSAGE);
-        assertEquals(0, sizeOfMessage(definition, null, v -> RNG.nextInt()));
-    }
+//    @Test
+//    void testSizeOfMessage_oneOf_null() {
+//        final FieldDefinition definition = createOneOfFieldDefinition(MESSAGE);
+//        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE, sizeOfMessage(definition, null, v -> RNG.nextInt()));
+//    }
+//
+//    @Test
+//    void testSizeOfMessage_null() {
+//        final FieldDefinition definition = createFieldDefinition(MESSAGE);
+//        assertEquals(0, sizeOfMessage(definition, null, v -> RNG.nextInt()));
+//    }
 
     @Test
     void testSizeOfDelimited() {

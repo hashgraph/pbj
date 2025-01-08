@@ -1389,20 +1389,22 @@ public final class ProtoWriterTools {
             return 0;
         }
         int size = 0;
+        final int listSize = list.size();
         switch (field.type()) {
             case INT32 -> {
-                for (final int i : list) {
-                    size += sizeOfVarInt32(i);
+                for(int i = 0; i < listSize; i++) {
+                    size += sizeOfVarInt32(list.get(i));
                 }
             }
             case UINT32 -> {
-                for (final int i : list) {
-                    size += sizeOfUnsignedVarInt32(i);
+                for(int i = 0; i < listSize; i++) {
+                    size += sizeOfUnsignedVarInt32(list.get(i));
                 }
             }
             case SINT32 -> {
-                for (final int i : list) {
-                    size += sizeOfUnsignedVarInt64(((long)i << 1) ^ ((long)i >> 63));
+                for(int i = 0; i < listSize; i++) {
+                    final long val = list.get(i);
+                    size += sizeOfUnsignedVarInt64((val << 1) ^ (val >> 63));
                 }
             }
             case SFIXED32, FIXED32 -> size += FIXED32_SIZE * list.size();
@@ -1424,15 +1426,17 @@ public final class ProtoWriterTools {
             return 0;
         }
         int size = 0;
+        final int listSize = list.size();
         switch (field.type()) {
             case INT64, UINT64 -> {
-                for (final long i : list) {
-                    size += sizeOfUnsignedVarInt64(i);
+                for (int i = 0; i < listSize; i++) {
+                    size += sizeOfUnsignedVarInt64(list.get(i));
                 }
             }
             case SINT64 -> {
-                for (final long i : list) {
-                    size += sizeOfUnsignedVarInt64((i << 1) ^ (i >> 63));
+                for (int i = 0; i < listSize; i++) {
+                    final long val = list.get(i);
+                    size += sizeOfUnsignedVarInt64((val << 1) ^ (val >> 63));
                 }
             }
             case SFIXED64, FIXED64 -> size += FIXED64_SIZE * list.size();
@@ -1502,8 +1506,9 @@ public final class ProtoWriterTools {
             return 0;
         }
         int size = 0;
-        for (final EnumWithProtoMetadata enumValue : list) {
-            size += sizeOfUnsignedVarInt64(enumValue.protoOrdinal());
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            size += sizeOfUnsignedVarInt64(list.get(i).protoOrdinal());
         }
         return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
     }
@@ -1517,8 +1522,9 @@ public final class ProtoWriterTools {
      */
     public static int sizeOfStringList(FieldDefinition field, List<String> list) {
         int size = 0;
-        for (final String value : list) {
-            size += sizeOfDelimited(field, sizeOfStringNoTag(value));
+        final int listSize = list.size();
+        for(int i = 0; i < listSize; i++) {
+            size += sizeOfDelimited(field, sizeOfStringNoTag(list.get(i)));
         }
         return size;
     }
@@ -1534,8 +1540,9 @@ public final class ProtoWriterTools {
      */
     public static <T> int sizeOfMessageList(FieldDefinition field, List<T> list, Codec<T> codec) {
         int size = 0;
-        for (final T value : list) {
-            size += sizeOfMessage(field, value, codec);
+        final int listSize = list.size();
+        for(int i = 0; i < listSize; i++) {
+            size += sizeOfMessage(field, list.get(i), codec);
         }
         return size;
     }
@@ -1549,8 +1556,10 @@ public final class ProtoWriterTools {
      */
     public static int sizeOfBytesList(FieldDefinition field, List<? extends RandomAccessData> list) {
         int size = 0;
-        for (final RandomAccessData value : list) {
-            size += Math.toIntExact(sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(value.length())) + value.length());
+        final int listSize = list.size();
+        for(int i = 0; i < listSize; i++) {
+            final long valueLength = list.get(i).length();
+            size += Math.toIntExact(sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(valueLength)) + valueLength);
         }
         return size;
     }
