@@ -1,10 +1,5 @@
 package com.hedera.pbj.runtime;
 
-import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
-import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_32_BIT;
-import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_64_BIT;
-import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
-
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
@@ -17,6 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
+
+import static com.hedera.pbj.runtime.ProtoConstants.*;
 
 /**
  * Static helper methods for Writers
@@ -423,37 +420,35 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing, the field must not be repeated
      * @param message the message to write
-     * @param writer method reference to writer for the given message type
-     * @param sizeOf method reference to sizeOf measure method for the given message type
+     * @param codec the codec for the given message type
      * @throws IOException If a I/O error occurs
      * @param <T> type of message
      */
     public static <T> void writeMessage(final WritableSequentialData out, final FieldDefinition field,
-            final T message, final ProtoWriter<T> writer, final ToIntFunction<T> sizeOf) throws IOException {
+            final T message, final Codec<T> codec) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert !field.repeated() : "Use writeMessageList with repeated types";
-        writeMessageNoChecks(out, field, message, writer, sizeOf);
+        writeMessageNoChecks(out, field, message, codec);
     }
 
     /**
      * Write a message to data output, assuming the corresponding field is repeated. Usually this method is
      * called multiple times, one for every repeated value. If all values are available immediately, {@link
-     * #writeMessageList(WritableSequentialData, FieldDefinition, List, ProtoWriter, ToIntFunction)}  should
+     * #writeMessageList(WritableSequentialData, FieldDefinition, List, Codec)}  should
      * be used instead.
      *
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing, the field must be repeated
      * @param message the message to write
-     * @param writer method reference to writer for the given message type
-     * @param sizeOf method reference to sizeOf measure method for the given message type
+     * @param codec the codec for the given message type
      * @throws IOException If a I/O error occurs
      * @param <T> type of message
      */
     public static <T> void writeOneRepeatedMessage(final WritableSequentialData out, final FieldDefinition field,
-            final T message, final ProtoWriter<T> writer, final ToIntFunction<T> sizeOf) throws IOException {
+            final T message, final Codec<T> codec) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert field.repeated() : "writeOneRepeatedMessage can only be used with repeated fields";
-        writeMessageNoChecks(out, field, message, writer, sizeOf);
+        writeMessageNoChecks(out, field, message, codec);
     }
 
     /**
@@ -462,23 +457,22 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param message the message to write
-     * @param writer method reference to writer for the given message type
-     * @param sizeOf method reference to sizeOf measure method for the given message type
+     * @param codec the codec for the given message type
      * @throws IOException If a I/O error occurs
      * @param <T> type of message
      */
     private static <T> void writeMessageNoChecks(final WritableSequentialData out, final FieldDefinition field,
-            final T message, final ProtoWriter<T> writer, final ToIntFunction<T> sizeOf) throws IOException {
+            final T message, final Codec<T> codec) throws IOException {
         // When not a oneOf don't write default value
         if (field.oneOf() && message == null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             out.writeVarInt(0, false);
         } else if (message != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            final int size = sizeOf.applyAsInt(message);
+            final int size = codec.measureRecord(message);
             out.writeVarInt(size, false);
             if (size > 0) {
-                writer.write(message, out);
+                codec.write(message, out);
             }
         }
     }
@@ -900,12 +894,11 @@ public final class ProtoWriterTools {
      * @param out The data output to write to
      * @param field the descriptor for the field we are writing
      * @param list the list of messages value to write
-     * @param writer method reference to writer method for message type
-     * @param sizeOf method reference to size of method for message type
+     * @param codec the codec for the message type
      * @throws IOException If a I/O error occurs
      * @param <T> type of message
      */
-    public static <T> void writeMessageList(WritableSequentialData out, FieldDefinition field, List<T> list, ProtoWriter<T> writer, ToIntFunction<T> sizeOf) throws IOException {
+    public static <T> void writeMessageList(WritableSequentialData out, FieldDefinition field, List<T> list, Codec<T> codec) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert field.repeated() : "Use writeMessage with non-repeated types";
         // When not a oneOf don't write default value
@@ -914,7 +907,7 @@ public final class ProtoWriterTools {
         }
         final int listSize = list.size();
         for (int i = 0; i < listSize; i++) {
-            writeMessageNoChecks(out, field, list.get(i), writer, sizeOf);
+            writeMessageNoChecks(out, field, list.get(i), codec);
         }
     }
 
@@ -1367,16 +1360,16 @@ public final class ProtoWriterTools {
      *
      * @param field descriptor of field
      * @param message message value to get encoded size for
-     * @param sizeOf method reference to sizeOf measure function for message type
+     * @param codec the protobuf codec for message type
      * @return the number of bytes for encoded value
      * @param <T> The type of the message
      */
-    public static <T> int sizeOfMessage(FieldDefinition field, T message, ToIntFunction<T> sizeOf) {
+    public static <T> int sizeOfMessage(FieldDefinition field, T message, Codec<T> codec) {
         // When not a oneOf don't write default value
         if (field.oneOf() && message == null) {
             return sizeOfTag(field, WIRE_TYPE_DELIMITED) + 1;
         } else if (message != null) {
-            final int size = sizeOf.applyAsInt(message);
+            final int size = codec.measureRecord(message);
             return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
         } else {
             return 0;
@@ -1396,20 +1389,22 @@ public final class ProtoWriterTools {
             return 0;
         }
         int size = 0;
+        final int listSize = list.size();
         switch (field.type()) {
             case INT32 -> {
-                for (final int i : list) {
-                    size += sizeOfVarInt32(i);
+                for (int i = 0; i < listSize; i++) {
+                    size += sizeOfVarInt32(list.get(i));
                 }
             }
             case UINT32 -> {
-                for (final int i : list) {
-                    size += sizeOfUnsignedVarInt32(i);
+                for (int i = 0; i < listSize; i++) {
+                    size += sizeOfUnsignedVarInt32(list.get(i));
                 }
             }
             case SINT32 -> {
-                for (final int i : list) {
-                    size += sizeOfUnsignedVarInt64(((long)i << 1) ^ ((long)i >> 63));
+                for (int i = 0; i < listSize; i++) {
+                    final long val = list.get(i);
+                    size += sizeOfUnsignedVarInt64((val << 1) ^ (val >> 63));
                 }
             }
             case SFIXED32, FIXED32 -> size += FIXED32_SIZE * list.size();
@@ -1431,15 +1426,17 @@ public final class ProtoWriterTools {
             return 0;
         }
         int size = 0;
+        final int listSize = list.size();
         switch (field.type()) {
             case INT64, UINT64 -> {
-                for (final long i : list) {
-                    size += sizeOfUnsignedVarInt64(i);
+                for (int i = 0; i < listSize; i++) {
+                    size += sizeOfUnsignedVarInt64(list.get(i));
                 }
             }
             case SINT64 -> {
-                for (final long i : list) {
-                    size += sizeOfUnsignedVarInt64((i << 1) ^ (i >> 63));
+                for (int i = 0; i < listSize; i++) {
+                    final long val = list.get(i);
+                    size += sizeOfUnsignedVarInt64((val << 1) ^ (val >> 63));
                 }
             }
             case SFIXED64, FIXED64 -> size += FIXED64_SIZE * list.size();
@@ -1509,8 +1506,9 @@ public final class ProtoWriterTools {
             return 0;
         }
         int size = 0;
-        for (final EnumWithProtoMetadata enumValue : list) {
-            size += sizeOfUnsignedVarInt64(enumValue.protoOrdinal());
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            size += sizeOfUnsignedVarInt64(list.get(i).protoOrdinal());
         }
         return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
     }
@@ -1524,8 +1522,9 @@ public final class ProtoWriterTools {
      */
     public static int sizeOfStringList(FieldDefinition field, List<String> list) {
         int size = 0;
-        for (final String value : list) {
-            size += sizeOfDelimited(field, sizeOfStringNoTag(value));
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            size += sizeOfDelimited(field, sizeOfStringNoTag(list.get(i)));
         }
         return size;
     }
@@ -1535,14 +1534,15 @@ public final class ProtoWriterTools {
      *
      * @param field descriptor of field
      * @param list message list value to get encoded size for
-     * @param sizeOf method reference to sizeOf measure function for message type
+     * @param codec the protobuf codec for message type
      * @return the number of bytes for encoded value
      * @param <T> type for message
      */
-    public static <T> int sizeOfMessageList(FieldDefinition field, List<T> list, ToIntFunction<T> sizeOf) {
+    public static <T> int sizeOfMessageList(FieldDefinition field, List<T> list, Codec<T> codec) {
         int size = 0;
-        for (final T value : list) {
-            size += sizeOfMessage(field, value, sizeOf);
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            size += sizeOfMessage(field, list.get(i), codec);
         }
         return size;
     }
@@ -1556,12 +1556,21 @@ public final class ProtoWriterTools {
      */
     public static int sizeOfBytesList(FieldDefinition field, List<? extends RandomAccessData> list) {
         int size = 0;
-        for (final RandomAccessData value : list) {
-            size += Math.toIntExact(sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(value.length())) + value.length());
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            final long valueLength = list.get(i).length();
+            size += sizeOfDelimited(field, Math.toIntExact(valueLength));
         }
         return size;
     }
 
+    /**
+     * Get number of bytes that would be needed to encode a field of wire type delimited
+     *
+     * @param field The field definition of the field to be measured
+     * @param length The length of the delimited field data in bytes
+     * @return the number of bytes for encoded value
+     */
     public static int sizeOfDelimited(final FieldDefinition field, final int length) {
         return Math.toIntExact(sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(length) + length);
     }

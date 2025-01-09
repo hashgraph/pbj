@@ -43,11 +43,13 @@ java {
 sourceSets {
     main {
         pbj {
+            srcDir(layout.buildDirectory.dir("repos/hapi/block"))
             srcDir(layout.buildDirectory.dir("repos/hapi/services"))
             srcDir(layout.buildDirectory.dir("repos/hapi/streams"))
             srcDir(layout.buildDirectory.dir("repos/hapi/platform"))
         }
         proto {
+            srcDir(layout.buildDirectory.dir("repos/hapi/block"))
             srcDir(layout.buildDirectory.dir("repos/hapi/services"))
             srcDir(layout.buildDirectory.dir("repos/hapi/streams"))
             srcDir(layout.buildDirectory.dir("repos/hapi/platform"))
@@ -126,7 +128,7 @@ tasks.withType<Test>().configureEach {
 }
 
 jmh {
-//    includes.add("AccountDetailsBench")
+    includes.add("SampleBlockBench")
 //    includes.add("JsonBench")
 //    includes.add("VarIntBench")
 //    includes.add("HashBench")

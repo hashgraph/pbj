@@ -448,7 +448,7 @@ class ProtoWriterToolsTest {
         FieldDefinition definition = createFieldDefinition(MESSAGE);
         String appleStr = RANDOM_STRING.nextString();
         Apple apple = Apple.newBuilder().setVariety(appleStr).build();
-        writeMessage(bufferedData, definition, apple, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
+        writeMessage(bufferedData, definition, apple,  new CodecWrapper<>((data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize));
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
         int length = bufferedData.readVarInt(false);
@@ -464,11 +464,11 @@ class ProtoWriterToolsTest {
         final Apple apple2 = Apple.newBuilder().setVariety(appleStr2).build();
         final BufferedData buf1 = BufferedData.allocate(256);
         final ProtoWriter<Apple> writer = (data, out) -> out.writeBytes(data.toByteArray());
-        ProtoWriterTools.writeMessageList(buf1, definition, List.of(apple1, apple2), writer, Apple::getSerializedSize);
+        ProtoWriterTools.writeMessageList(buf1, definition, List.of(apple1, apple2),  new CodecWrapper<>(writer, Apple::getSerializedSize));
         final Bytes writtenBytes1 = buf1.getBytes(0, buf1.position());
         final BufferedData buf2 = BufferedData.allocate(256);
-        ProtoWriterTools.writeOneRepeatedMessage(buf2, definition, apple1, writer, Apple::getSerializedSize);
-        ProtoWriterTools.writeOneRepeatedMessage(buf2, definition, apple2, writer, Apple::getSerializedSize);
+        ProtoWriterTools.writeOneRepeatedMessage(buf2, definition, apple1,  new CodecWrapper<>(writer, Apple::getSerializedSize));
+        ProtoWriterTools.writeOneRepeatedMessage(buf2, definition, apple2,  new CodecWrapper<>(writer, Apple::getSerializedSize));
         final Bytes writtenBytes2 = buf2.getBytes(0, buf2.position());
         assertEquals(writtenBytes1, writtenBytes2);
     }
@@ -476,7 +476,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteOneOfMessage() throws IOException {
         FieldDefinition definition = createOneOfFieldDefinition(MESSAGE);
-        writeMessage(bufferedData, definition, null, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
+        writeMessage(bufferedData, definition, null,  new CodecWrapper<>((data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize));
         bufferedData.flip();
         assertEquals((definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
         int length = bufferedData.readVarInt(false);
@@ -991,14 +991,14 @@ class ProtoWriterToolsTest {
 
         assertEquals(
                 MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2 + appleStr1.length() + appleStr2.length(),
-                sizeOfMessageList(definition, Arrays.asList(apple1, apple2), v -> v.getVariety().length()));
+                sizeOfMessageList(definition, Arrays.asList(apple1, apple2),  new CodecWrapper<>(null, v -> v.getVariety().length())));
     }
 
     @Test
     void testSizeOfMessageList_empty() {
         assertEquals(
                 0,
-                sizeOfMessageList(createFieldDefinition(MESSAGE), emptyList(), v -> RNG.nextInt()));
+                sizeOfMessageList(createFieldDefinition(MESSAGE), emptyList(),  new CodecWrapper<>(null, v -> RNG.nextInt())));
     }
 
     @Test
@@ -1108,19 +1108,20 @@ class ProtoWriterToolsTest {
         final String appleStr = randomVarSizeString();
         final Apple apple = Apple.newBuilder().setVariety(appleStr).build();
 
-        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + appleStr.length(), sizeOfMessage(definition, apple, v -> v.getVariety().length()));
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE + appleStr.length(), sizeOfMessage(definition, apple,
+                new CodecWrapper<>(null, v -> v.getVariety().length())));
     }
 
     @Test
     void testSizeOfMessage_oneOf_null() {
         final FieldDefinition definition = createOneOfFieldDefinition(MESSAGE);
-        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE, sizeOfMessage(definition, null, v -> RNG.nextInt()));
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE, sizeOfMessage(definition, null,  new CodecWrapper<>(null, v -> RNG.nextInt())));
     }
 
     @Test
     void testSizeOfMessage_null() {
         final FieldDefinition definition = createFieldDefinition(MESSAGE);
-        assertEquals(0, sizeOfMessage(definition, null, v -> RNG.nextInt()));
+        assertEquals(0, sizeOfMessage(definition, null,  new CodecWrapper<>(null, v -> RNG.nextInt())));
     }
 
     @Test

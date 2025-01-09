@@ -1,14 +1,13 @@
 package com.hedera.pbj.runtime;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * Encapsulates Serialization, Deserialization and other IO operations.
@@ -166,11 +165,11 @@ public interface Codec<T /*extends Record*/> {
      * to write to the {@link WritableStreamingData}
      */
     default Bytes toBytes(@NonNull T item) {
-        byte[] bytes;
-        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-             WritableStreamingData writableStreamingData = new WritableStreamingData(byteArrayOutputStream)) {
-            write(item, writableStreamingData);
-            bytes = byteArrayOutputStream.toByteArray();
+        // it is cheaper performance wise to measure the size of the object first than grow a buffer as needed
+        final byte[] bytes = new byte[measureRecord(item)];
+        final BufferedData bufferedData = BufferedData.wrap(bytes);
+        try {
+            write(item, bufferedData);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
