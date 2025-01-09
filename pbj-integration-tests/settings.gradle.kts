@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import me.champeau.gradle.igp.gitRepositories
 
 pluginManagement {

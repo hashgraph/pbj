@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
