@@ -12,14 +12,14 @@ import io.helidon.common.features.api.Preview;
 module com.hedera.pbj.grpc.helidon {
     requires transitive com.hedera.pbj.grpc.helidon.config;
     requires transitive com.hedera.pbj.runtime;
-    requires transitive io.helidon.common.buffers;
     requires transitive io.helidon.common.config;
     requires transitive io.helidon.common;
-    requires transitive io.helidon.http.http2;
     requires transitive io.helidon.webserver.http2;
     requires transitive io.helidon.webserver;
+    requires io.helidon.common.buffers;
     requires io.helidon.common.media.type;
     requires io.helidon.common.uri;
+    requires io.helidon.http.http2;
     requires io.helidon.http;
     requires io.helidon.metrics.api;
     requires java.net.http;

@@ -29,14 +29,6 @@ mainModuleInfo {
 }
 
 testModuleInfo {
-    requires("org.assertj.core")
-    requires("org.junit.jupiter.api")
-    requires("org.junit.jupiter.params")
-    requires("io.helidon.webclient")
-    requires("io.helidon.webserver")
-    requires("io.helidon.webserver.http2")
-    requires("io.helidon.webserver.observe.metrics")
-    requires("io.helidon.webclient.http2")
     requires("com.google.common")
     requires("com.google.protobuf")
     requires("com.google.protobuf.util")
@@ -46,6 +38,7 @@ testModuleInfo {
     requires("io.helidon.http.media")
     requires("io.helidon.webclient.api")
     requires("io.helidon.webclient.http2")
+    requires("io.netty.codec.http2")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
