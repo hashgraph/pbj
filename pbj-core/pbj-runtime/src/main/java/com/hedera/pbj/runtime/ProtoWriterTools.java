@@ -425,7 +425,7 @@ public final class ProtoWriterTools {
      * @param <T> type of message
      */
     public static <T> void writeMessage(final WritableSequentialData out, final FieldDefinition field,
-            final T message, final Codec codec) throws IOException {
+            final T message, final Codec<T> codec) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert !field.repeated() : "Use writeMessageList with repeated types";
         writeMessageNoChecks(out, field, message, codec);
