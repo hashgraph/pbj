@@ -157,7 +157,7 @@ jobs:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
         run: |
-          ./gradlew releaseMavenCentral -PpublishSigningEnabled=true --no-configuration-cache --scan
+          ./gradlew releaseMavenCentral -PpublishingPackageGroup=com.hedera.pbj -PpublishSigningEnabled=true --no-configuration-cache --scan
 
       - name: Gradle Plugin Portal Release
         if: ${{ needs.prepare-release.outputs.mode == 'specified' && !cancelled() && !failure() }}
