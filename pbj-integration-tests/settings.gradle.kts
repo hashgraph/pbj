@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pluginManagement {
-    // To use locally built 'pbj-core' (Gradle plugin)
-    includeBuild("../pbj-core")
+    includeBuild("../pbj-core") // use locally built 'pbj-core' (Gradle plugin)
 }
 
 buildscript {
