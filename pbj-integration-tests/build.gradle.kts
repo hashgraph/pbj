@@ -1,14 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins {
-    id("java")
-    id("jacoco")
-    id("com.hedera.pbj.pbj-compiler")
-    // We depend on Google protobuf plugin as we generate protobuf code using it as well as pbj. Then use it in tests to
-    // compare output and parsing with pbj to make sure it matches.
-    id("com.google.protobuf").version("0.9.4")
-    // add jmh for performance benchmarks
-    id("me.champeau.jmh").version("0.7.2")
-}
+repositories { gradlePluginPortal() }
 
 group = "com.hedera.pbj.integration-tests"
 
@@ -20,11 +11,25 @@ dependencies {
     implementation("io.grpc:grpc-protobuf:1.65.1")
     implementation("io.grpc:grpc-stub:1.65.1")
     implementation("javax.annotation:javax.annotation-api:1.3.2")
+    implementation("com.diffplug.spotless:spotless-plugin-gradle:6.25.0")
     compileOnly("com.github.spotbugs:spotbugs-annotations:4.7.3")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
+}
+
+plugins {
+    id("java")
+    id("jacoco")
+    id("com.hedera.pbj.pbj-compiler")
+    // We depend on Google protobuf plugin as we generate protobuf code using it as well as pbj. Then use it in tests to
+    // compare output and parsing with pbj to make sure it matches.
+    id("com.google.protobuf").version("0.9.4")
+    // add jmh for performance benchmarks
+    id("me.champeau.jmh").version("0.7.2")
+    // Add spotless
+    id("com.diffplug.spotless").version("6.25.0")
 }
 
 java {
@@ -166,4 +171,27 @@ tasks.jacocoTestReport.configure {
 // Ensure the check task also runs the JaCoCo coverage report
 tasks.named("check").configure {
     dependsOn(tasks.named<JacocoReport>("jacocoTestReport"))
+}
+
+spotless {
+    java {
+        targetExclude("build/generated/sources/**/*.java")
+        // enable toggle comment support
+        toggleOffOn()
+        // don't need to set target, it is inferred from java
+        // apply a specific flavor of google-java-format
+        googleJavaFormat("1.17.0").aosp().reflowLongStrings()
+        // make sure every file has the following copyright header.
+        // optionally, Spotless can set copyright years by digging
+        // through git history (see "license" section below).
+        // The delimiter override below is required to support some
+        // of our test classes which are in the default package.
+        licenseHeader(
+            """
+           // SPDX-License-Identifier: Apache-2.0
+            """
+                .trimIndent(),
+            "(package|import)"
+        )
+    }
 }

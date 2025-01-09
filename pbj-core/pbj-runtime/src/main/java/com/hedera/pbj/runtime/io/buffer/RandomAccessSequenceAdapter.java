@@ -8,29 +8,33 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * A helper class used by {@link Bytes} (and some tests) to provide a {@link ReadableSequentialData} view of a
- * {@link RandomAccessData} instance. Since {@link RandomAccessData} has no position or limit, this class adds those,
- * and otherwise delegates to the underlying {@link RandomAccessData} instance.
+ * A helper class used by {@link Bytes} (and some tests) to provide a {@link ReadableSequentialData}
+ * view of a {@link RandomAccessData} instance. Since {@link RandomAccessData} has no position or
+ * limit, this class adds those, and otherwise delegates to the underlying {@link RandomAccessData}
+ * instance.
  */
 final class RandomAccessSequenceAdapter implements ReadableSequentialData {
     /** The delegate {@link RandomAccessData} instance */
     private final RandomAccessData delegate;
 
     /**
-     * The capacity of this sequence will be the difference between the <b>initial</b> position and the
-     * length of the delegate
+     * The capacity of this sequence will be the difference between the <b>initial</b> position and
+     * the length of the delegate
      */
     private final long capacity;
+
     /** The starting index into the delegate */
     private final long start;
+
     /** The position. Will be a value between 0 and the {@link #capacity} */
     private long position;
+
     /** The limit. Will be a value between {@link #position} and the {@link #capacity} */
     private long limit;
 
     /**
-     * Create a new instance where the position begins at 0 (the start of the random data buffer). The capacity of
-     * this instance will be the length of the delegate.
+     * Create a new instance where the position begins at 0 (the start of the random data buffer).
+     * The capacity of this instance will be the length of the delegate.
      */
     RandomAccessSequenceAdapter(@NonNull final RandomAccessData delegate) {
         this.delegate = delegate;
@@ -41,8 +45,8 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
 
     /**
      * Create a new instance where the start begins at the given start, which must be less than the
-     * length of the delegate. The capacity of this instance will be difference between the given {@code position}
-     * and the length of the delegate.
+     * length of the delegate. The capacity of this instance will be difference between the given
+     * {@code position} and the length of the delegate.
      */
     RandomAccessSequenceAdapter(@NonNull final RandomAccessData delegate, final long start) {
         this.delegate = delegate;
@@ -51,7 +55,8 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
         this.limit = this.capacity;
 
         if (this.start > delegate.length()) {
-            throw new IllegalArgumentException("Start " + start + " is greater than the delegate length " + delegate.length());
+            throw new IllegalArgumentException(
+                    "Start " + start + " is greater than the delegate length " + delegate.length());
         }
     }
 
@@ -120,7 +125,8 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
     @Override
     public long readBytes(@NonNull final byte[] dst, final int offset, final int maxLength) {
         if (offset < 0 || offset > dst.length) {
-            throw new IndexOutOfBoundsException("Offset cannot be negative or larger than last index");
+            throw new IndexOutOfBoundsException(
+                    "Offset cannot be negative or larger than last index");
         }
 
         final var length = Math.min(maxLength, remaining());
@@ -132,7 +138,8 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
     /** {@inheritDoc} */
     @Override
     public long readBytes(@NonNull final ByteBuffer dst) {
-        // False positive: duplicate code, yes, but two totally different data types that cannot reuse same code
+        // False positive: duplicate code, yes, but two totally different data types that cannot
+        // reuse same code
         //noinspection DuplicatedCode
         final var dstPos = dst.position();
         final var length = Math.min(dst.remaining(), remaining());
@@ -149,7 +156,8 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
     /** {@inheritDoc} */
     @Override
     public long readBytes(@NonNull final BufferedData dst) {
-        // False positive: duplicate code, yes, but two totally different data types that cannot reuse same code
+        // False positive: duplicate code, yes, but two totally different data types that cannot
+        // reuse same code
         //noinspection DuplicatedCode
         final var dstPos = dst.position();
         final var length = Math.min(dst.remaining(), remaining());

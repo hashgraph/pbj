@@ -3,9 +3,7 @@ package com.hedera.pbj.integration.fuzz;
 
 import java.lang.reflect.Field;
 
-/**
- * A utility class used in the fuzz testing framework.
- */
+/** A utility class used in the fuzz testing framework. */
 public final class FuzzUtil {
     /**
      * Get a value of a static field named `name` in a class `clz`.
@@ -20,7 +18,8 @@ public final class FuzzUtil {
             final Field field = clz.getField(name);
             return (T) field.get(null);
         } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new FuzzTestException("Failed to get field " + name + " from " + clz.getName(), e);
+            throw new FuzzTestException(
+                    "Failed to get field " + name + " from " + clz.getName(), e);
         }
     }
 }

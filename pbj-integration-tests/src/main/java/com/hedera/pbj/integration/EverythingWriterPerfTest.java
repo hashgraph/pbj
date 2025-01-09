@@ -9,7 +9,7 @@ import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 public class EverythingWriterPerfTest {
 
     public static void main(String[] args) throws Exception {
-        final BufferedData outDataBuffer = BufferedData.allocate(1024*1024);
+        final BufferedData outDataBuffer = BufferedData.allocate(1024 * 1024);
 
         for (int i = 0; i < 10_000_000; i++) {
             outDataBuffer.reset();
@@ -19,6 +19,7 @@ public class EverythingWriterPerfTest {
             }
         }
     }
+
     public static void main2(String[] args) throws Exception {
         // write to temp data buffer and then read into byte array
         BufferedData tempDataBuffer = BufferedData.allocate(5 * 1024 * 1024);
@@ -27,12 +28,13 @@ public class EverythingWriterPerfTest {
         final byte[] protobuf = new byte[(int) tempDataBuffer.remaining()];
         tempDataBuffer.readBytes(protobuf);
         // write out with protoc
-        final GetAccountDetailsResponse.AccountDetails accountDetailsProtoC = GetAccountDetailsResponse.AccountDetails.parseFrom(protobuf);
-//
-//        final ByteBuffer bbout = ByteBuffer.allocate(1024*1024);
+        final GetAccountDetailsResponse.AccountDetails accountDetailsProtoC =
+                GetAccountDetailsResponse.AccountDetails.parseFrom(protobuf);
+        //
+        //        final ByteBuffer bbout = ByteBuffer.allocate(1024*1024);
 
         for (int i = 0; i < 10_000_000; i++) {
-//            bbout.clear();
+            //            bbout.clear();
             final byte[] writtenData = accountDetailsProtoC.toByteArray();
             if (writtenData.length != protobuf.length) {
                 System.out.println("writtenData = " + writtenData);

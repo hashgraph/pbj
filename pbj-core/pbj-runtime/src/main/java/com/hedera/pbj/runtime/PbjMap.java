@@ -10,9 +10,9 @@ import java.util.Set;
 
 /**
  * Implements an immutable map that exposes a list of keys sorted in their natural order.
- * <p>
- * This Map implementation allows one to iterate the entries in a deterministic order
- * which is useful for serializing, hash computation, etc.
+ *
+ * <p>This Map implementation allows one to iterate the entries in a deterministic order which is
+ * useful for serializing, hash computation, etc.
  *
  * @param <K> key type
  * @param <V> value type
@@ -30,12 +30,12 @@ public class PbjMap<K, V> implements Map<K, V> {
     }
 
     /**
-     * A public factory method for PbjMap objects.
-     * It returns the PbjMap.EMPTY if the input map is empty.
-     * It returns the map itself if the input map is an instance of PbjMap (because it's immutable anyway.)
-     * Otherwise, it returns a new PbjMap instance delegating to the provided input map.
-     * NOTE: the caller code is expected to never modify the input map after this factory method is called,
-     * otherwise the behavior is undefined.
+     * A public factory method for PbjMap objects. It returns the PbjMap.EMPTY if the input map is
+     * empty. It returns the map itself if the input map is an instance of PbjMap (because it's
+     * immutable anyway.) Otherwise, it returns a new PbjMap instance delegating to the provided
+     * input map. NOTE: the caller code is expected to never modify the input map after this factory
+     * method is called, otherwise the behavior is undefined.
+     *
      * @param map an input map
      * @return a PbjMap instance corresponding to the input map
      * @param <K> key type
@@ -49,6 +49,7 @@ public class PbjMap<K, V> implements Map<K, V> {
 
     /**
      * Return a list of keys sorted in their natural order.
+     *
      * @return the sorted keys list
      */
     public List<K> getSortedKeys() {
@@ -127,7 +128,8 @@ public class PbjMap<K, V> implements Map<K, V> {
     public int hashCode() {
         // This is a convenience hashCode() implementation that delegates to Java hashCode,
         // and it's implemented here solely to support the above equals() method override.
-        // Generated protobuf models compute map fields' hash codes differently and deterministically.
+        // Generated protobuf models compute map fields' hash codes differently and
+        // deterministically.
         return 31 * map.hashCode() + sortedKeys.hashCode();
     }
 

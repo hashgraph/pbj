@@ -8,12 +8,11 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
 import com.hedera.pbj.test.proto.pbj.codec.EverythingProtoCodec;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.random.RandomGenerator;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 class MalformedMessageTest {
 
@@ -41,7 +40,9 @@ class MalformedMessageTest {
         buffer.limit(10); // we trick the parser into thinking that there is more to process
         buffer.array()[9] = 0; // but the byte is not valid
         buffer.array()[1] += 1; // artificially increase message size
-        assertThrows(ParseException.class, () -> codec.parse(data)); // parser fails because of an unknown tag
+        assertThrows(
+                ParseException.class,
+                () -> codec.parse(data)); // parser fails because of an unknown tag
     }
 
     @Test
@@ -66,12 +67,9 @@ class MalformedMessageTest {
         final BufferedData data = BufferedData.wrap(byteBuffer);
         byte[] bytes = new byte[8];
         rng.nextBytes(bytes);
-        final TimestampTest bytesTest = TimestampTest.newBuilder()
-                .seconds(System.currentTimeMillis())
-                .build();
-        final Everything obj = Everything.newBuilder()
-                .subObject(bytesTest)
-                .build();
+        final TimestampTest bytesTest =
+                TimestampTest.newBuilder().seconds(System.currentTimeMillis()).build();
+        final Everything obj = Everything.newBuilder().subObject(bytesTest).build();
         codec.write(obj, data);
         data.flip();
         return data;

@@ -7,9 +7,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
- * Thrown by an application when handling a gRPC request if the request fails. The status will be one of the canonical
- * gRPC statuses, and must be specified. This is returned back to the gRPC client. The message is optional and will be
- * returned to the client if specified. The cause is not returned to the client, but is used for debugging purposes.
+ * Thrown by an application when handling a gRPC request if the request fails. The status will be
+ * one of the canonical gRPC statuses, and must be specified. This is returned back to the gRPC
+ * client. The message is optional and will be returned to the client if specified. The cause is not
+ * returned to the client, but is used for debugging purposes.
  */
 public class GrpcException extends RuntimeException {
     /** The GRPC Status to return to the client */
@@ -17,6 +18,7 @@ public class GrpcException extends RuntimeException {
 
     /**
      * Create a new exception with the given status.
+     *
      * @param status the status of the exception
      */
     public GrpcException(@NonNull final GrpcStatus status) {
@@ -25,6 +27,7 @@ public class GrpcException extends RuntimeException {
 
     /**
      * Create a new exception with the given status and message.
+     *
      * @param status the status of the exception
      * @param message the message of the exception
      */
@@ -34,6 +37,7 @@ public class GrpcException extends RuntimeException {
 
     /**
      * Create a new exception with the given status and cause.
+     *
      * @param status the status of the exception
      * @param cause the cause of the exception
      */
@@ -43,12 +47,15 @@ public class GrpcException extends RuntimeException {
 
     /**
      * Create a new gRPC Exception.
+     *
      * @param status the status of the exception
      * @param message the message of the exception
      * @param cause the cause of the exception
      */
     public GrpcException(
-            @NonNull final GrpcStatus status, @Nullable final String message, @Nullable final Throwable cause) {
+            @NonNull final GrpcStatus status,
+            @Nullable final String message,
+            @Nullable final Throwable cause) {
         super(message, cause);
         this.status = requireNonNull(status);
         if (status == GrpcStatus.OK) {
@@ -58,6 +65,7 @@ public class GrpcException extends RuntimeException {
 
     /**
      * Get the status of the exception.
+     *
      * @return the status of the exception
      */
     @NonNull
@@ -67,6 +75,7 @@ public class GrpcException extends RuntimeException {
 
     /**
      * Get the message of the exception.
+     *
      * @return the message of the exception
      */
     @Nullable

@@ -4,9 +4,7 @@ package com.hedera.pbj.runtime;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 
-/**
- * An exception thrown when an unknown field is encountered while parsing a message.
- */
+/** An exception thrown when an unknown field is encountered while parsing a message. */
 public class UnknownFieldException extends IOException {
     /**
      * Constructs a new {@link UnknownFieldException} with the given field number.

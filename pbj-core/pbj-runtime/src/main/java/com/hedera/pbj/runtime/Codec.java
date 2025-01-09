@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * Encapsulates Serialization, Deserialization and other IO operations.
@@ -24,54 +23,65 @@ public interface Codec<T /*extends Record*/> {
 
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
-     * <p>
-     * If {@code strictMode} is {@code true}, then throws an exception if fields
-     * have been defined on the encoded object that are not supported by the parser. This
-     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
-     * parsing it is prepared to handle.
-     * <p>
-     * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
+     *
+     * <p>If {@code strictMode} is {@code true}, then throws an exception if fields have been
+     * defined on the encoded object that are not supported by the parser. This breaks forwards
+     * compatibility (an older parser cannot parse a newer encoded object), which is sometimes
+     * requires to avoid parsing an object that is newer than the code parsing it is prepared to
+     * handle.
+     *
+     * <p>The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
      * will fail with a ParseException if the maximum depth is reached.
      *
-     * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
-     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
-     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @param input The {@link ReadableSequentialData} from which to read the data to construct an
+     *     object
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise
+     *     they'll be simply skipped.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the
+     *     maxDepth value.
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth) throws ParseException;
+    @NonNull
+    T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth)
+            throws ParseException;
 
     /**
      * Parses an object from the {@link Bytes} and returns it.
-     * <p>
-     * If {@code strictMode} is {@code true}, then throws an exception if fields
-     * have been defined on the encoded object that are not supported by the parser. This
-     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
-     * parsing it is prepared to handle.
-     * <p>
-     * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
+     *
+     * <p>If {@code strictMode} is {@code true}, then throws an exception if fields have been
+     * defined on the encoded object that are not supported by the parser. This breaks forwards
+     * compatibility (an older parser cannot parse a newer encoded object), which is sometimes
+     * requires to avoid parsing an object that is newer than the code parsing it is prepared to
+     * handle.
+     *
+     * <p>The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
      * will fail with a ParseException if the maximum depth is reached.
      *
      * @param bytes The {@link Bytes} from which to read the data to construct an object
-     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
-     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise
+     *     they'll be simply skipped.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the
+     *     maxDepth value.
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull default T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
+    @NonNull
+    default T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth)
+            throws ParseException {
         return parse(bytes.toReadableSequentialData(), strictMode, maxDepth);
     }
 
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
      *
-     * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
+     * @param input The {@link ReadableSequentialData} from which to read the data to construct an
+     *     object
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull default T parse(@NonNull ReadableSequentialData input) throws ParseException {
+    @NonNull
+    default T parse(@NonNull ReadableSequentialData input) throws ParseException {
         return parse(input, false, Integer.MAX_VALUE);
     }
 
@@ -82,37 +92,41 @@ public interface Codec<T /*extends Record*/> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull default T parse(@NonNull Bytes bytes) throws ParseException {
+    @NonNull
+    default T parse(@NonNull Bytes bytes) throws ParseException {
         return parse(bytes.toReadableSequentialData());
     }
 
     /**
-     * Parses an object from the {@link ReadableSequentialData} and returns it. Throws an exception if fields
-     * have been defined on the encoded object that are not supported by the parser. This
-     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
-     * parsing it is prepared to handle.
+     * Parses an object from the {@link ReadableSequentialData} and returns it. Throws an exception
+     * if fields have been defined on the encoded object that are not supported by the parser. This
+     * breaks forwards compatibility (an older parser cannot parse a newer encoded object), which is
+     * sometimes requires to avoid parsing an object that is newer than the code parsing it is
+     * prepared to handle.
      *
-     * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
+     * @param input The {@link ReadableSequentialData} from which to read the data to construct an
+     *     object
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
+    @NonNull
+    default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
         return parse(input, true, Integer.MAX_VALUE);
     }
 
     /**
-     * Parses an object from the {@link Bytes} and returns it. Throws an exception if fields
-     * have been defined on the encoded object that are not supported by the parser. This
-     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
-     * parsing it is prepared to handle.
+     * Parses an object from the {@link Bytes} and returns it. Throws an exception if fields have
+     * been defined on the encoded object that are not supported by the parser. This breaks forwards
+     * compatibility (an older parser cannot parse a newer encoded object), which is sometimes
+     * requires to avoid parsing an object that is newer than the code parsing it is prepared to
+     * handle.
      *
      * @param bytes The {@link Bytes} from which to read the data to construct an object
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull default T parseStrict(@NonNull Bytes bytes) throws ParseException {
+    @NonNull
+    default T parseStrict(@NonNull Bytes bytes) throws ParseException {
         return parseStrict(bytes.toReadableSequentialData());
     }
 
@@ -156,20 +170,22 @@ public interface Codec<T /*extends Record*/> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException;
+    boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input)
+            throws ParseException;
 
     /**
      * Converts a Record into a Bytes object
      *
      * @param item The input model data to convert into a Bytes object.
      * @return The new Bytes object.
-     * @throws RuntimeException wrapping an IOException If it is impossible
-     * to write to the {@link WritableStreamingData}
+     * @throws RuntimeException wrapping an IOException If it is impossible to write to the {@link
+     *     WritableStreamingData}
      */
     default Bytes toBytes(@NonNull T item) {
         byte[] bytes;
         try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-             WritableStreamingData writableStreamingData = new WritableStreamingData(byteArrayOutputStream)) {
+                WritableStreamingData writableStreamingData =
+                        new WritableStreamingData(byteArrayOutputStream)) {
             write(item, writableStreamingData);
             bytes = byteArrayOutputStream.toByteArray();
         } catch (IOException e) {

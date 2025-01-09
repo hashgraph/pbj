@@ -7,9 +7,7 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Objects;
 
-/**
- * Faster non-synchronized ByteArrayInputStream
- */
+/** Faster non-synchronized ByteArrayInputStream */
 public final class NonSynchronizedByteArrayInputStream extends InputStream {
     private final byte[] buf;
     private int pos;

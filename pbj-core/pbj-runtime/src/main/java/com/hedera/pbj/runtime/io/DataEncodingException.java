@@ -2,9 +2,10 @@
 package com.hedera.pbj.runtime.io;
 
 /**
- * A {@link RuntimeException} thrown when attempting to decode data from a {@link ReadableSequentialData}
- * but it cannot be decoded. See specifically {@link ReadableSequentialData#readVarInt(boolean)} and
- * {@link ReadableSequentialData#readVarLong(boolean)}
+ * A {@link RuntimeException} thrown when attempting to decode data from a {@link
+ * ReadableSequentialData} but it cannot be decoded. See specifically {@link
+ * ReadableSequentialData#readVarInt(boolean)} and {@link
+ * ReadableSequentialData#readVarLong(boolean)}
  */
 public class DataEncodingException extends RuntimeException {
     /**

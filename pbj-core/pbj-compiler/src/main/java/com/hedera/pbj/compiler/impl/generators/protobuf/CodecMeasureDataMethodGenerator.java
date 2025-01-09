@@ -4,11 +4,11 @@ package com.hedera.pbj.compiler.impl.generators.protobuf;
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.Field;
-
 import java.util.List;
 
 /**
- * Code to generate the measure data method for Codec classes. This measures the size of bytes of data in the input to be parsed.
+ * Code to generate the measure data method for Codec classes. This measures the size of bytes of
+ * data in the input to be parsed.
  */
 @SuppressWarnings("unused")
 class CodecMeasureDataMethodGenerator {

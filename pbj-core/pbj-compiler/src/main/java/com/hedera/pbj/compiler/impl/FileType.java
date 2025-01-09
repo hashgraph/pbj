@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
-/**
- * Enum for the different types of files that are generated
- */
+/** Enum for the different types of files that are generated */
 public enum FileType {
     /** Generated model record object */
     MODEL,

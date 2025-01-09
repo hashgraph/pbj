@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.buffer;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
@@ -15,19 +17,17 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.HexFormat;
 
-import java.security.MessageDigest;
-import java.util.Comparator;
-
-import static java.util.Objects.requireNonNull;
-
 /**
- * An immutable representation of a byte array. This class is designed to be efficient and usable across threads.
+ * An immutable representation of a byte array. This class is designed to be efficient and usable
+ * across threads.
  */
 @SuppressWarnings("unused")
 public final class Bytes implements RandomAccessData, Comparable<Bytes> {
@@ -36,37 +36,41 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     public static final Bytes EMPTY = new Bytes(new byte[0]);
 
     /** Sorts {@link Bytes} according to their length, shorter first. */
-    public static final Comparator<Bytes> SORT_BY_LENGTH = (Bytes o1, Bytes o2) ->
-            Comparator.comparingLong(Bytes::length).compare(o1, o2);
+    public static final Comparator<Bytes> SORT_BY_LENGTH =
+            (Bytes o1, Bytes o2) -> Comparator.comparingLong(Bytes::length).compare(o1, o2);
 
-    /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
-      * Bytes are compared on a signed basis.
-      */
+    /**
+     * Sorts {@link Bytes} according to their byte values, lower valued bytes first. Bytes are
+     * compared on a signed basis.
+     */
     public static final Comparator<Bytes> SORT_BY_SIGNED_VALUE = valueSorter(Byte::compare);
 
-    /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
-      * Bytes are compared on an unsigned basis
-      */
-    public static final Comparator<Bytes> SORT_BY_UNSIGNED_VALUE = valueSorter(Byte::compareUnsigned);
+    /**
+     * Sorts {@link Bytes} according to their byte values, lower valued bytes first. Bytes are
+     * compared on an unsigned basis
+     */
+    public static final Comparator<Bytes> SORT_BY_UNSIGNED_VALUE =
+            valueSorter(Byte::compareUnsigned);
 
     /** byte[] used as backing buffer */
     private final byte[] buffer;
 
     /**
-     * The offset within the backing buffer where this {@link Bytes} starts. To prevent array copies, we sometimes
-     * want to have a "view" or "slice" of another buffer, where we begin at some offset and have a length.
+     * The offset within the backing buffer where this {@link Bytes} starts. To prevent array
+     * copies, we sometimes want to have a "view" or "slice" of another buffer, where we begin at
+     * some offset and have a length.
      */
     private final int start;
 
     /**
-     * The number of bytes in this {@link Bytes}. To prevent array copies, we sometimes want to have a "view" or
-     * "slice" of another buffer, where we begin at some offset and have a length.
+     * The number of bytes in this {@link Bytes}. To prevent array copies, we sometimes want to have
+     * a "view" or "slice" of another buffer, where we begin at some offset and have a length.
      */
     private final int length;
 
     /**
-     * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps so
-     * any changes to arrays contents will be effected here.
+     * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps
+     * so any changes to arrays contents will be effected here.
      *
      * @param data The data t
      */
@@ -75,8 +79,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps so
-     * any changes to arrays contents will be effected here.
+     * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps
+     * so any changes to arrays contents will be effected here.
      *
      * @param data The data t
      * @param offset The offset within that buffer to start
@@ -88,8 +92,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         this.length = length;
 
         if (offset < 0 || offset > data.length) {
-            throw new IndexOutOfBoundsException("Offset " + offset + " is out of bounds for buffer of length "
-                    + data.length);
+            throw new IndexOutOfBoundsException(
+                    "Offset " + offset + " is out of bounds for buffer of length " + data.length);
         }
 
         if (length < 0) {
@@ -97,8 +101,13 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         }
 
         if (offset + length > data.length) {
-            throw new IllegalArgumentException("Length " + length + " is too large buffer of length "
-                    + data.length + " starting at offset " + offset);
+            throw new IllegalArgumentException(
+                    "Length "
+                            + length
+                            + " is too large buffer of length "
+                            + data.length
+                            + " starting at offset "
+                            + offset);
         }
     }
 
@@ -106,8 +115,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     // Static Methods
 
     /**
-     * Create a new {@link Bytes} over the contents of the given byte array. This does not copy data it just
-     * wraps so any changes to array's contents will be visible in the returned result.
+     * Create a new {@link Bytes} over the contents of the given byte array. This does not copy data
+     * it just wraps so any changes to array's contents will be visible in the returned result.
      *
      * @param byteArray The byte array to wrap
      * @return new {@link Bytes} with same contents as byte array
@@ -119,12 +128,14 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * Create a new {@link Bytes} over the contents of the given byte array. This does not copy data it just
-     * wraps so any changes to arrays contents will be visible in the returned result.
+     * Create a new {@link Bytes} over the contents of the given byte array. This does not copy data
+     * it just wraps so any changes to arrays contents will be visible in the returned result.
      *
      * @param byteArray The byte array to wrap
-     * @param offset The offset within that buffer to start. Must be &gt;= 0 and &lt; byteArray.length
-     * @param length The length of bytes staring at offset to wrap. Must be &gt;= 0 and &lt; byteArray.length - offset
+     * @param offset The offset within that buffer to start. Must be &gt;= 0 and &lt;
+     *     byteArray.length
+     * @param length The length of bytes staring at offset to wrap. Must be &gt;= 0 and &lt;
+     *     byteArray.length - offset
      * @return new {@link Bytes} with same contents as byte array
      * @throws NullPointerException if byteArray is null
      * @throws IndexOutOfBoundsException if offset or length are out of bounds
@@ -181,7 +192,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     @Override
     public int getInt(final long offset, @NonNull final ByteOrder byteOrder) {
-        return byteOrder == ByteOrder.BIG_ENDIAN ? getInt(offset) : Integer.reverseBytes(getInt(offset));
+        return byteOrder == ByteOrder.BIG_ENDIAN
+                ? getInt(offset)
+                : Integer.reverseBytes(getInt(offset));
     }
 
     @Override
@@ -191,12 +204,15 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     @Override
     public long getLong(final long offset, @NonNull final ByteOrder byteOrder) {
-        return byteOrder == ByteOrder.BIG_ENDIAN ? getLong(offset) : Long.reverseBytes(getLong(offset));
+        return byteOrder == ByteOrder.BIG_ENDIAN
+                ? getLong(offset)
+                : Long.reverseBytes(getLong(offset));
     }
 
     /**
-     * Duplicate this {@link Bytes} by making a copy of the underlying byte array and returning a new {@link Bytes}
-     * over the copied data. Use this method when you need to wrap a copy of a byte array:
+     * Duplicate this {@link Bytes} by making a copy of the underlying byte array and returning a
+     * new {@link Bytes} over the copied data. Use this method when you need to wrap a copy of a
+     * byte array:
      *
      * <pre>
      *     final var arr = new byte[] { 1, 2, 3 };
@@ -204,8 +220,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      *     arr[0] = 4; // this modification will NOT be visible in the "bytes" instance
      * </pre>
      *
-     * <p>Implementation note: since we will be making an array copy, if the source array had an offset and length,
-     * the newly copied array will only contain the bytes between the offset and length of the original array.
+     * <p>Implementation note: since we will be making an array copy, if the source array had an
+     * offset and length, the newly copied array will only contain the bytes between the offset and
+     * length of the original array.
      *
      * @return A new {@link Bytes} instance with a copy of the underlying byte array data.
      */
@@ -217,8 +234,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * A helper method for efficient copy of our data into another ByteBuffer.
-     * The destination buffers position is updated.
+     * A helper method for efficient copy of our data into another ByteBuffer. The destination
+     * buffers position is updated.
      *
      * @param dstBuffer the buffer to copy into
      */
@@ -227,8 +244,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * A helper method for efficient copy of our data into another ByteBuffer.
-     * The destination buffers position is updated.
+     * A helper method for efficient copy of our data into another ByteBuffer. The destination
+     * buffers position is updated.
      *
      * @param dstBuffer the buffer to copy into
      * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
@@ -238,9 +255,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         dstBuffer.put(buffer, Math.toIntExact(start + offset), length);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeTo(@NonNull final OutputStream outStream) {
         try {
@@ -250,9 +265,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
         try {
@@ -263,8 +276,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * A helper method for efficient copy of our data into an WritableSequentialData without creating a defensive copy
-     * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
+     * A helper method for efficient copy of our data into an WritableSequentialData without
+     * creating a defensive copy of the data. The implementation relies on a well-behaved
+     * WritableSequentialData that doesn't modify the buffer data.
      *
      * @param wsd the OutputStream to copy into
      */
@@ -273,20 +287,23 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * A helper method for efficient copy of our data into an WritableSequentialData without creating a defensive copy
-     * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
+     * A helper method for efficient copy of our data into an WritableSequentialData without
+     * creating a defensive copy of the data. The implementation relies on a well-behaved
+     * WritableSequentialData that doesn't modify the buffer data.
      *
      * @param wsd The OutputStream to copy into.
      * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
      * @param length The number of bytes to extract.
      */
-    public void writeTo(@NonNull final WritableSequentialData wsd, final int offset, final int length) {
+    public void writeTo(
+            @NonNull final WritableSequentialData wsd, final int offset, final int length) {
         wsd.writeBytes(buffer, Math.toIntExact(start + offset), length);
     }
 
     /**
-     * A helper method for efficient copy of our data into an MessageDigest without creating a defensive copy
-     * of the data. The implementation relies on a well-behaved MessageDigest that doesn't modify the buffer data.
+     * A helper method for efficient copy of our data into an MessageDigest without creating a
+     * defensive copy of the data. The implementation relies on a well-behaved MessageDigest that
+     * doesn't modify the buffer data.
      *
      * @param digest the MessageDigest to copy into
      */
@@ -295,8 +312,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * A helper method for efficient copy of our data into an MessageDigest without creating a defensive copy
-     * of the data. The implementation relies on a well-behaved MessageDigest that doesn't modify the buffer data.
+     * A helper method for efficient copy of our data into an MessageDigest without creating a
+     * defensive copy of the data. The implementation relies on a well-behaved MessageDigest that
+     * doesn't modify the buffer data.
      *
      * @param digest the MessageDigest to copy into
      * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
@@ -307,51 +325,55 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * Same as {@link #updateSignature(Signature, int, int)} with offset 0 and length equal to the length of this
-     * {@link Bytes} object.
+     * Same as {@link #updateSignature(Signature, int, int)} with offset 0 and length equal to the
+     * length of this {@link Bytes} object.
      */
     public void updateSignature(@NonNull final Signature signature) throws SignatureException {
         signature.update(buffer, start, length);
     }
 
     /**
-     * A helper method for efficient copy of our data into a Signature without creating a defensive copy of the data.
-     * The implementation relies on a well-behaved Signature that doesn't modify the buffer data. Calls the
-     * {@link Signature#update(byte[], int, int)} method with all the data in this {@link Bytes} object. This method
-     * should be used when the data in the buffer should be validated or signed.
+     * A helper method for efficient copy of our data into a Signature without creating a defensive
+     * copy of the data. The implementation relies on a well-behaved Signature that doesn't modify
+     * the buffer data. Calls the {@link Signature#update(byte[], int, int)} method with all the
+     * data in this {@link Bytes} object. This method should be used when the data in the buffer
+     * should be validated or signed.
      *
      * @param signature The Signature to update
-     * @param offset    The offset from the start of this {@link Bytes} object to get the bytes from
-     * @param length    The number of bytes to extract
+     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from
+     * @param length The number of bytes to extract
      * @throws SignatureException If the Signature instance throws this exception
      */
-    public void updateSignature(@NonNull final Signature signature, final int offset, final int length)
+    public void updateSignature(
+            @NonNull final Signature signature, final int offset, final int length)
             throws SignatureException {
         validateOffsetLength(offset, length);
         signature.update(buffer, calculateOffset(offset), length);
     }
 
     /**
-     * Same as {@link #verifySignature(Signature, int, int)} with offset 0 and length equal to the length of this
-     * {@link Bytes} object.
+     * Same as {@link #verifySignature(Signature, int, int)} with offset 0 and length equal to the
+     * length of this {@link Bytes} object.
      */
     public boolean verifySignature(@NonNull final Signature signature) throws SignatureException {
         return signature.verify(buffer, start, length);
     }
 
     /**
-     * A helper method for efficient copy of our data into a Signature without creating a defensive copy of the data.
-     * The implementation relies on a well-behaved Signature that doesn't modify the buffer data. Calls the
-     * {@link Signature#verify(byte[], int, int)} method with all the data in this {@link Bytes} object. This method
-     * should be used when the data in the buffer is a signature that should be verified.
+     * A helper method for efficient copy of our data into a Signature without creating a defensive
+     * copy of the data. The implementation relies on a well-behaved Signature that doesn't modify
+     * the buffer data. Calls the {@link Signature#verify(byte[], int, int)} method with all the
+     * data in this {@link Bytes} object. This method should be used when the data in the buffer is
+     * a signature that should be verified.
      *
      * @param signature the Signature to use to verify
-     * @param offset    The offset from the start of this {@link Bytes} object to get the bytes from
-     * @param length    The number of bytes to extract
+     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from
+     * @param length The number of bytes to extract
      * @return true if the signature is valid, false otherwise
      * @throws SignatureException If the Signature instance throws this exception
      */
-    public boolean verifySignature(@NonNull final Signature signature, final int offset, final int length)
+    public boolean verifySignature(
+            @NonNull final Signature signature, final int offset, final int length)
             throws SignatureException {
         validateOffsetLength(offset, length);
         return signature.verify(buffer, calculateOffset(offset), length);
@@ -376,6 +398,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     public InputStream toInputStream() {
         return new InputStream() {
             private long pos = 0;
+
             @Override
             public int read() throws IOException {
                 if (length - pos <= 0) {
@@ -392,9 +415,12 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * Compare this {@link Bytes} object to another {@link Bytes} object. The comparison is done on a byte-by-byte
+     * Compare this {@link Bytes} object to another {@link Bytes} object. The comparison is done on
+     * a byte-by-byte
+     *
      * @param otherData the object to be compared.
-     * @return a negative integer, zero, or a positive integer as this object is less than, equal to, or greater than
+     * @return a negative integer, zero, or a positive integer as this object is less than, equal
+     *     to, or greater than
      */
     @Override
     public int compareTo(Bytes otherData) {
@@ -431,7 +457,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
             return Base64.getEncoder().encodeToString(buffer);
         } else {
             byte[] bytes = new byte[length];
-            getBytes(0,bytes);
+            getBytes(0, bytes);
             return Base64.getEncoder().encodeToString(bytes);
         }
     }
@@ -442,12 +468,12 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @return Hex encoded string of the bytes in this object.
      */
     public String toHex() {
-        return HexFormat.of().formatHex(buffer,start,start+length);
+        return HexFormat.of().formatHex(buffer, start, start + length);
     }
 
     /**
-     * Equals, important that it works for all subclasses of Bytes as well. As any 2 Bytes classes with same contents of
-     * bytes are equal
+     * Equals, important that it works for all subclasses of Bytes as well. As any 2 Bytes classes
+     * with same contents of bytes are equal
      *
      * @param o the other Bytes object to compare to for equality
      * @return true if o instance of Bytes and contents match
@@ -456,7 +482,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     public boolean equals(@Nullable final Object o) {
         if (this == o) return true;
         if (!(o instanceof Bytes that)) return false;
-        return Arrays.equals(buffer, start, start + length, that.buffer, that.start, that.start + that.length);
+        return Arrays.equals(
+                buffer, start, start + length, that.buffer, that.start, that.start + that.length);
     }
 
     /**
@@ -495,7 +522,11 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     /** {@inheritDoc} */
     @Override
-    public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
+    public long getBytes(
+            final long offset,
+            @NonNull final byte[] dst,
+            final int dstOffset,
+            final int maxLength) {
         if (maxLength < 0) {
             throw new IllegalArgumentException("Negative maxLength not allowed");
         }
@@ -505,9 +536,11 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
             return 0;
         }
         validateOffset(offset);
-        // This is a faster implementation than the default, since it has access to the entire byte array
+        // This is a faster implementation than the default, since it has access to the entire byte
+        // array
         // and can do a system array copy instead of a loop.
-        System.arraycopy(buffer, Math.toIntExact(start + offset), dst, dstOffset, Math.toIntExact(len));
+        System.arraycopy(
+                buffer, Math.toIntExact(start + offset), dst, dstOffset, Math.toIntExact(len));
         return len;
     }
 
@@ -520,7 +553,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
             return 0;
         }
         validateOffset(offset);
-        // This is a faster implementation than the default, since it has access to the entire byte array
+        // This is a faster implementation than the default, since it has access to the entire byte
+        // array
         // and can do a system array copy instead of a loop.
         dst.put(buffer, Math.toIntExact(start + offset), Math.toIntExact(len));
         return len;
@@ -535,7 +569,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
             return 0;
         }
         validateOffset(offset);
-        // This is a faster implementation than the default, since it has access to the entire byte array
+        // This is a faster implementation than the default, since it has access to the entire byte
+        // array
         // and can do a system array copy instead of a loop.
         dst.writeBytes(buffer, Math.toIntExact(start + offset), Math.toIntExact(len));
         return len;
@@ -556,7 +591,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
             return Bytes.EMPTY;
         }
         validateOffset(offset);
-        // Our buffer is assumed to be immutable, so we can just return a new Bytes object that wraps the same buffer
+        // Our buffer is assumed to be immutable, so we can just return a new Bytes object that
+        // wraps the same buffer
         return new Bytes(buffer, Math.toIntExact(start + offset), Math.toIntExact(len));
     }
 
@@ -585,7 +621,13 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
             return false;
         }
         validateOffset(offset);
-        return Arrays.equals(buffer, Math.toIntExact(start + offset), Math.toIntExact(start + offset + len), bytes, 0, len);
+        return Arrays.equals(
+                buffer,
+                Math.toIntExact(start + offset),
+                Math.toIntExact(start + offset + len),
+                bytes,
+                0,
+                len);
     }
 
     /** {@inheritDoc} */
@@ -595,7 +637,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         return getBytes(offset, length);
     }
 
-    /** * Gets a byte[] of the bytes of this {@link Bytes} object..
+    /**
+     * * Gets a byte[] of the bytes of this {@link Bytes} object..
      *
      * @return a clone of the bytes of this {@link Bytes} object or null.
      */
@@ -604,7 +647,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         return toByteArray(0, length);
     }
 
-    /** * Gets a byte[] of the bytes of this {@link Bytes} object.
+    /**
+     * * Gets a byte[] of the bytes of this {@link Bytes} object.
      *
      * @param offset The start offset to get the bytes from.
      * @param len The number of bytes to get.
@@ -627,7 +671,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * Validates whether the offset and length supplied to a method are within the bounds of the Bytes object.
+     * Validates whether the offset and length supplied to a method are within the bounds of the
+     * Bytes object.
      *
      * @param suppliedOffset the offset supplied
      * @param suppliedLength the length supplied
@@ -639,8 +684,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         if (suppliedOffset + suppliedLength > length) {
             throw new IndexOutOfBoundsException(
                     "The offset(%d) and length(%d) provided are out of bounds for this Bytes object, which has a length of %d"
-                            .formatted(suppliedOffset, suppliedLength, length)
-            );
+                            .formatted(suppliedOffset, suppliedLength, length));
         }
     }
 
@@ -654,9 +698,10 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         return Math.toIntExact(start + suppliedOffset);
     }
 
-    /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
-      * Bytes are compared using the passed in Byte Comparator
-      */
+    /**
+     * Sorts {@link Bytes} according to their byte values, lower valued bytes first. Bytes are
+     * compared using the passed in Byte Comparator
+     */
     private static Comparator<Bytes> valueSorter(@NonNull final Comparator<Byte> byteComparator) {
         return (Bytes o1, Bytes o2) -> {
             final var val = Math.min(o1.length(), o2.length());
@@ -667,8 +712,10 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
                 }
             }
 
-            // In case one of the buffers is longer than the other and the first n bytes (where n in the length of the
-            // shorter buffer) are equal, the buffer with the shorter length is first in the sort order.
+            // In case one of the buffers is longer than the other and the first n bytes (where n in
+            // the length of the
+            // shorter buffer) are equal, the buffer with the shorter length is first in the sort
+            // order.
             long len = o1.length() - o2.length();
             if (len == 0) {
                 return 0;
@@ -678,52 +725,54 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * Appends a {@link Bytes} object to this {@link Bytes} object, producing a new immutable {link Bytes} object.
+     * Appends a {@link Bytes} object to this {@link Bytes} object, producing a new immutable {link
+     * Bytes} object.
+     *
      * @param bytes The {@link Bytes} object to append.
      * @return A new {link Bytes} object containing the concatenated bytes and b.
      * @throws BufferUnderflowException if the buffer is empty
-     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than Bytes.length()
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than
+     *     Bytes.length()
      */
     @NonNull
     public Bytes append(@NonNull final Bytes bytes) {
         // The length field of Bytes is int. The length() returns always an int,
         // so safe to cast.
         long length = this.length();
-        byte[] newBytes = new byte[(int)(length + (int)bytes.length())];
+        byte[] newBytes = new byte[(int) (length + (int) bytes.length())];
         this.getBytes(0, newBytes, 0, (int) length);
-        bytes.getBytes(0, newBytes, (int) length, (int)bytes.length());
+        bytes.getBytes(0, newBytes, (int) length, (int) bytes.length());
         return Bytes.wrap(newBytes);
     }
 
     /**
-     * Appends a {@link RandomAccessData} object to this {@link Bytes} object, producing a new immutable {link Bytes} object.
+     * Appends a {@link RandomAccessData} object to this {@link Bytes} object, producing a new
+     * immutable {link Bytes} object.
+     *
      * @param data The {@link RandomAccessData} object to append.
      * @return A new {link Bytes} object containing the concatenated bytes and b.
      * @throws BufferUnderflowException if the buffer is empty
-     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than Bytes.length()
+     * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than
+     *     Bytes.length()
      */
     @NonNull
     public Bytes append(@NonNull final RandomAccessData data) {
         // The length field of Bytes is int. The length(0 returns always an int,
         // so safe to cast.
-        byte[] newBytes = new byte[(int)(this.length() + (int)data.length())];
+        byte[] newBytes = new byte[(int) (this.length() + (int) data.length())];
         int length1 = (int) this.length();
         this.getBytes(0, newBytes, 0, length1);
-        data.getBytes(0, newBytes, length1, (int)data.length());
+        data.getBytes(0, newBytes, length1, (int) data.length());
         return Bytes.wrap(newBytes);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getVarInt(final long offset, final boolean zigZag) {
         return (int) getVar(Math.toIntExact(offset), zigZag);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long getVarLong(final long offset, final boolean zigZag) {
         return getVar(Math.toIntExact(offset), zigZag);
@@ -751,5 +800,4 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         }
         throw new DataEncodingException("Malformed var int");
     }
-
 }

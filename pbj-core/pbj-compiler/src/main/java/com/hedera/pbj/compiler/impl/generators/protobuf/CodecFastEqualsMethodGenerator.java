@@ -4,12 +4,11 @@ package com.hedera.pbj.compiler.impl.generators.protobuf;
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.Field;
-
 import java.util.List;
 
 /**
- * Code to generate the fast equals method for Codec classes. The idea of fast equals is to parse and compare at same
- * time and fail fast as soon as parsed bytes do not match.
+ * Code to generate the fast equals method for Codec classes. The idea of fast equals is to parse
+ * and compare at same time and fail fast as soon as parsed bytes do not match.
  */
 @SuppressWarnings("unused")
 class CodecFastEqualsMethodGenerator {

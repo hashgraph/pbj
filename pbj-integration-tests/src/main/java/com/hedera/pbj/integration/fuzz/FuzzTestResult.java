@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 /**
  * A record that describes the result of running a fuzz test.
+ *
  * @param object an object for which this test was run.
  * @param passed indicates if the test passed or not. See the FuzzTest class for the definition.
  * @param percentageMap a map with percentage statistics of occurred outcomes.
@@ -18,26 +19,33 @@ public record FuzzTestResult<T>(
         boolean passed,
         Map<SingleFuzzTestResult, Double> percentageMap,
         int repeatCount,
-        long nanoDuration
-) {
+        long nanoDuration) {
     private static final NumberFormat PERCENTAGE_FORMAT = NumberFormat.getPercentInstance();
 
-    /**
-     * Format the FuzzTestResult object for printing/logging.
-     */
+    /** Format the FuzzTestResult object for printing/logging. */
     public String format() {
-        return "A fuzz test " + (passed ? "PASSED" : "FAILED")
-                + " with " + repeatCount + " runs took "
-                + TimeUnit.MILLISECONDS.convert(nanoDuration, TimeUnit.NANOSECONDS) + " ms"
-                + " for " + object
-                + " with:" + System.lineSeparator()
+        return "A fuzz test "
+                + (passed ? "PASSED" : "FAILED")
+                + " with "
+                + repeatCount
+                + " runs took "
+                + TimeUnit.MILLISECONDS.convert(nanoDuration, TimeUnit.NANOSECONDS)
+                + " ms"
+                + " for "
+                + object
+                + " with:"
+                + System.lineSeparator()
                 + formatResultsStats();
     }
 
     private String formatResultsStats() {
         return percentageMap.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .map(entry -> entry.getKey().name() + ": " + PERCENTAGE_FORMAT.format(entry.getValue()))
+                .map(
+                        entry ->
+                                entry.getKey().name()
+                                        + ": "
+                                        + PERCENTAGE_FORMAT.format(entry.getValue()))
                 .collect(Collectors.joining(System.lineSeparator()));
     }
 }

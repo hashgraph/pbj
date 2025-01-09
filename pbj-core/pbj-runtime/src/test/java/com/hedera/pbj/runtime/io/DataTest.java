@@ -1,204 +1,207 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 final class DataTest {
 
     static Stream<Byte> bytesTestCases() {
         return Stream.of(
-                Byte.MIN_VALUE,
-                Byte.MIN_VALUE + 1,
-                -100,
-                -66,
-                -7,
-                -1,
-                0,
-                1,
-                9,
-                51,
-                101,
-                Byte.MAX_VALUE - 1,
-                Byte.MAX_VALUE).map(Number::byteValue);
+                        Byte.MIN_VALUE,
+                        Byte.MIN_VALUE + 1,
+                        -100,
+                        -66,
+                        -7,
+                        -1,
+                        0,
+                        1,
+                        9,
+                        51,
+                        101,
+                        Byte.MAX_VALUE - 1,
+                        Byte.MAX_VALUE)
+                .map(Number::byteValue);
     }
 
     @ParameterizedTest
     @MethodSource("bytesTestCases")
     void byteTest(Byte value) throws IOException {
-        doTest(value,
+        doTest(
+                value,
                 WritableStreamingData::writeByte,
-                (dout, v) -> dout.writeByte((int)v),
+                (dout, v) -> dout.writeByte((int) v),
                 BufferedData::writeByte,
                 ReadableStreamingData::readByte,
                 java.io.DataInputStream::readByte,
-                BufferedData::readByte
-        );
+                BufferedData::readByte);
     }
 
     static Stream<Integer> unsignedBytesTestCases() {
-        return Stream.of(0,1,9,51,101,127,128,255).map(Number::intValue);
+        return Stream.of(0, 1, 9, 51, 101, 127, 128, 255).map(Number::intValue);
     }
 
     @ParameterizedTest
     @MethodSource("unsignedBytesTestCases")
     void unsignedByteTest(Integer value) throws IOException {
-        doTest(value,
+        doTest(
+                value,
                 WritableStreamingData::writeUnsignedByte,
                 java.io.DataOutputStream::writeByte,
                 BufferedData::writeUnsignedByte,
                 ReadableStreamingData::readUnsignedByte,
                 java.io.DataInputStream::readUnsignedByte,
-                ReadableSequentialData::readUnsignedByte
-        );
+                ReadableSequentialData::readUnsignedByte);
     }
 
     static Stream<Integer> intsTestCases() {
         return Stream.of(
-                Integer.MIN_VALUE,
-                Integer.MIN_VALUE + 1,
-                -536870912,
-                -4194304,
-                -32768,
-                -100,
-                -66,
-                -7,
-                -1,
-                0,
-                1,
-                9,
-                51,
-                101,
-                32768,
-                4194304,
-                536870912,
-                Integer.MAX_VALUE - 1,
-                Integer.MAX_VALUE).map(Number::intValue);
+                        Integer.MIN_VALUE,
+                        Integer.MIN_VALUE + 1,
+                        -536870912,
+                        -4194304,
+                        -32768,
+                        -100,
+                        -66,
+                        -7,
+                        -1,
+                        0,
+                        1,
+                        9,
+                        51,
+                        101,
+                        32768,
+                        4194304,
+                        536870912,
+                        Integer.MAX_VALUE - 1,
+                        Integer.MAX_VALUE)
+                .map(Number::intValue);
     }
 
     @ParameterizedTest
     @MethodSource("intsTestCases")
     void intTest(Integer value) throws IOException {
-        doTest(value,
+        doTest(
+                value,
                 WritableStreamingData::writeInt,
                 java.io.DataOutputStream::writeInt,
                 BufferedData::writeInt,
                 ReadableStreamingData::readInt,
                 java.io.DataInputStream::readInt,
-                BufferedData::readInt
-        );
-        doTest(value,
+                BufferedData::readInt);
+        doTest(
+                value,
                 (d, v) -> d.writeInt(v, ByteOrder.LITTLE_ENDIAN),
                 (d, v) -> d.writeInt(Integer.reverseBytes(v)),
                 (d, v) -> d.writeInt(v, ByteOrder.LITTLE_ENDIAN),
                 d -> d.readInt(ByteOrder.LITTLE_ENDIAN),
                 d -> Integer.reverseBytes(d.readInt()),
-                d -> d.readInt(ByteOrder.LITTLE_ENDIAN)
-        );
+                d -> d.readInt(ByteOrder.LITTLE_ENDIAN));
     }
 
     static Stream<Long> unsignedIntsTestCases() {
-        return Stream.of(0,1,9,51,127,Integer.MAX_VALUE*2L).map(Number::longValue);
+        return Stream.of(0, 1, 9, 51, 127, Integer.MAX_VALUE * 2L).map(Number::longValue);
     }
 
     @ParameterizedTest
     @MethodSource("unsignedIntsTestCases")
     void unsignedIntTest(Long value) throws IOException {
-        doTest(value,
+        doTest(
+                value,
                 WritableStreamingData::writeUnsignedInt,
                 (dout, v) -> dout.writeInt(v.intValue()),
                 BufferedData::writeUnsignedInt,
                 ReadableStreamingData::readUnsignedInt,
                 (dout) -> Integer.toUnsignedLong(dout.readInt()),
-                BufferedData::readUnsignedInt
-        );
-        doTest(value,
+                BufferedData::readUnsignedInt);
+        doTest(
+                value,
                 (d, v) -> d.writeUnsignedInt(v, ByteOrder.LITTLE_ENDIAN),
                 (d, v) -> d.writeInt(Integer.reverseBytes(v.intValue())),
                 (d, v) -> d.writeUnsignedInt(v, ByteOrder.LITTLE_ENDIAN),
                 d -> d.readUnsignedInt(ByteOrder.LITTLE_ENDIAN),
                 d -> Integer.toUnsignedLong(Integer.reverseBytes(d.readInt())),
-                d -> d.readUnsignedInt(ByteOrder.LITTLE_ENDIAN)
-        );
+                d -> d.readUnsignedInt(ByteOrder.LITTLE_ENDIAN));
     }
 
     static Stream<Long> longsTestCases() {
         return Stream.of(
-                Long.MIN_VALUE,
-                Long.MIN_VALUE + 1,
-                Integer.MIN_VALUE - 1L,
-                Integer.MIN_VALUE,
-                Integer.MIN_VALUE + 1,
-                -9007199254740992L,
-                -35184372088832L,
-                -137438953472L,
-                -536870912,
-                -4194304,
-                -65536,
-                -65535,
-                -65534,
-                -32768,
-                -100,
-                -66,
-                -7,
-                -1,
-                0,
-                1,
-                9,
-                51,
-                101,
-                1023,
-                1024,
-                1025,
-                32768,
-                4194304,
-                536870912,
-                137438953472L,
-                35184372088832L,
-                9007199254740992L,
-                Integer.MAX_VALUE - 1L,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE + 1L,
-                Long.MAX_VALUE - 1L,
-                Long.MAX_VALUE).map(Number::longValue);
-}
+                        Long.MIN_VALUE,
+                        Long.MIN_VALUE + 1,
+                        Integer.MIN_VALUE - 1L,
+                        Integer.MIN_VALUE,
+                        Integer.MIN_VALUE + 1,
+                        -9007199254740992L,
+                        -35184372088832L,
+                        -137438953472L,
+                        -536870912,
+                        -4194304,
+                        -65536,
+                        -65535,
+                        -65534,
+                        -32768,
+                        -100,
+                        -66,
+                        -7,
+                        -1,
+                        0,
+                        1,
+                        9,
+                        51,
+                        101,
+                        1023,
+                        1024,
+                        1025,
+                        32768,
+                        4194304,
+                        536870912,
+                        137438953472L,
+                        35184372088832L,
+                        9007199254740992L,
+                        Integer.MAX_VALUE - 1L,
+                        Integer.MAX_VALUE,
+                        Integer.MAX_VALUE + 1L,
+                        Long.MAX_VALUE - 1L,
+                        Long.MAX_VALUE)
+                .map(Number::longValue);
+    }
 
     @ParameterizedTest
     @MethodSource("longsTestCases")
     void longTest(Long value) throws IOException {
-        doTest(value,
+        doTest(
+                value,
                 WritableStreamingData::writeLong,
                 java.io.DataOutputStream::writeLong,
                 BufferedData::writeLong,
                 ReadableStreamingData::readLong,
                 java.io.DataInputStream::readLong,
-                BufferedData::readLong
-        );
-        doTest(value,
+                BufferedData::readLong);
+        doTest(
+                value,
                 (d, v) -> d.writeLong(v, ByteOrder.LITTLE_ENDIAN),
                 (d, v) -> d.writeLong(Long.reverseBytes(v)),
                 (d, v) -> d.writeLong(v, ByteOrder.LITTLE_ENDIAN),
                 d -> d.readLong(ByteOrder.LITTLE_ENDIAN),
                 d -> Long.reverseBytes(d.readLong()),
-                d -> d.readLong(ByteOrder.LITTLE_ENDIAN)
-        );
+                d -> d.readLong(ByteOrder.LITTLE_ENDIAN));
     }
+
     @ParameterizedTest
     @MethodSource("intsTestCases")
     void bytesVarIntTest(int value) throws IOException {
@@ -246,50 +249,81 @@ final class DataTest {
     }
 
     static Stream<Float> floatsTestCases() {
-        return Stream.of(Float.MIN_VALUE, Integer.MIN_VALUE-1L,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE+1L,Float.MAX_VALUE).map(Number::floatValue);
+        return Stream.of(
+                        Float.MIN_VALUE,
+                        Integer.MIN_VALUE - 1L,
+                        -100,
+                        -66,
+                        -7,
+                        -1,
+                        0,
+                        1,
+                        9,
+                        51,
+                        101,
+                        Integer.MAX_VALUE + 1L,
+                        Float.MAX_VALUE)
+                .map(Number::floatValue);
     }
+
     @ParameterizedTest
     @MethodSource("floatsTestCases")
     void floatTest(Float value) throws IOException {
-        doTest(value,
+        doTest(
+                value,
                 WritableStreamingData::writeFloat,
                 java.io.DataOutputStream::writeFloat,
                 BufferedData::writeFloat,
                 ReadableStreamingData::readFloat,
                 java.io.DataInputStream::readFloat,
-                BufferedData::readFloat
-        );
-        doTest(value,
+                BufferedData::readFloat);
+        doTest(
+                value,
                 (d, v) -> d.writeFloat(v, ByteOrder.LITTLE_ENDIAN),
-                (d, v) -> d.writeInt( Integer.reverseBytes(Float.floatToIntBits(v))),
+                (d, v) -> d.writeInt(Integer.reverseBytes(Float.floatToIntBits(v))),
                 (d, v) -> d.writeFloat(v, ByteOrder.LITTLE_ENDIAN),
                 d -> d.readFloat(ByteOrder.LITTLE_ENDIAN),
                 d -> Float.intBitsToFloat(Integer.reverseBytes(d.readInt())),
-                d -> d.readFloat(ByteOrder.LITTLE_ENDIAN)
-        );
+                d -> d.readFloat(ByteOrder.LITTLE_ENDIAN));
     }
+
     static Stream<Double> doublesTestCases() {
-        return Stream.of(Double.MIN_VALUE, Integer.MIN_VALUE-1L,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE+1L,Double.MAX_VALUE).map(Number::doubleValue);
+        return Stream.of(
+                        Double.MIN_VALUE,
+                        Integer.MIN_VALUE - 1L,
+                        -100,
+                        -66,
+                        -7,
+                        -1,
+                        0,
+                        1,
+                        9,
+                        51,
+                        101,
+                        Integer.MAX_VALUE + 1L,
+                        Double.MAX_VALUE)
+                .map(Number::doubleValue);
     }
+
     @ParameterizedTest
     @MethodSource("doublesTestCases")
     void doubleTest(Double value) throws IOException {
-        doTest(value,
+        doTest(
+                value,
                 WritableStreamingData::writeDouble,
                 java.io.DataOutputStream::writeDouble,
                 BufferedData::writeDouble,
                 ReadableStreamingData::readDouble,
                 java.io.DataInputStream::readDouble,
-                BufferedData::readDouble
-        );
-        doTest(value,
+                BufferedData::readDouble);
+        doTest(
+                value,
                 (d, v) -> d.writeDouble(v, ByteOrder.LITTLE_ENDIAN),
-                (d, v) -> d.writeLong( Long.reverseBytes(Double.doubleToLongBits(v))),
+                (d, v) -> d.writeLong(Long.reverseBytes(Double.doubleToLongBits(v))),
                 (d, v) -> d.writeDouble(v, ByteOrder.LITTLE_ENDIAN),
                 d -> d.readDouble(ByteOrder.LITTLE_ENDIAN),
                 d -> Double.longBitsToDouble(Long.reverseBytes(d.readLong())),
-                d -> d.readDouble(ByteOrder.LITTLE_ENDIAN)
-        );
+                d -> d.readDouble(ByteOrder.LITTLE_ENDIAN));
     }
 
     @ParameterizedTest
@@ -434,14 +468,15 @@ final class DataTest {
     // ==============================================================================================================
     // Generic test case used by all tests :-)
 
-    static <T> void doTest(T value,
-                           IoWrite<WritableStreamingData,T> dataOutputWriteMethod,
-                           IoWrite<java.io.DataOutputStream,T> javaDataOutputWriteMethod,
-                           IoWrite<BufferedData,T> dataBufferWriteMethod,
-                           IoRead<ReadableStreamingData,T> dataInputReadMethod,
-                           IoRead<java.io.DataInputStream,T> javaDataInputReadMethod,
-                           IoRead<BufferedData,T> dataBufferReadMethod
-    ) throws IOException {
+    static <T> void doTest(
+            T value,
+            IoWrite<WritableStreamingData, T> dataOutputWriteMethod,
+            IoWrite<java.io.DataOutputStream, T> javaDataOutputWriteMethod,
+            IoWrite<BufferedData, T> dataBufferWriteMethod,
+            IoRead<ReadableStreamingData, T> dataInputReadMethod,
+            IoRead<java.io.DataInputStream, T> javaDataInputReadMethod,
+            IoRead<BufferedData, T> dataBufferReadMethod)
+            throws IOException {
         try {
             // write to byte array with DataIO DataOutputStream
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
@@ -503,6 +538,7 @@ final class DataTest {
     public interface IoWrite<T, U> {
         void write(T t, U u) throws IOException;
     }
+
     public interface IoRead<T, U> {
         U read(T t) throws IOException;
     }

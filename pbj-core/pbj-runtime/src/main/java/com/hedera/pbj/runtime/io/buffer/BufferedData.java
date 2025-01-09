@@ -8,8 +8,8 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -18,15 +18,18 @@ import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 
 /**
- * A buffer backed by a {@link ByteBuffer} that is a {@link BufferedSequentialData} (and therefore contains
- * a "position" cursor into the data), a {@link ReadableSequentialData} (and therefore can be read from),
- * a {@link WritableSequentialData} (and therefore can be written to), and a {@link RandomAccessData} (and therefore can
- * be accessed at any position).
+ * A buffer backed by a {@link ByteBuffer} that is a {@link BufferedSequentialData} (and therefore
+ * contains a "position" cursor into the data), a {@link ReadableSequentialData} (and therefore can
+ * be read from), a {@link WritableSequentialData} (and therefore can be written to), and a {@link
+ * RandomAccessData} (and therefore can be accessed at any position).
  *
  * <p>This class is the most commonly used for buffered read/write data.
  */
 public sealed class BufferedData
-        implements BufferedSequentialData, ReadableSequentialData, WritableSequentialData, RandomAccessData
+        implements BufferedSequentialData,
+                ReadableSequentialData,
+                WritableSequentialData,
+                RandomAccessData
         permits ByteArrayBufferedData, DirectBufferedData {
 
     /** Single instance of an empty buffer we can use anywhere we need an empty read only buffer */
@@ -36,9 +39,10 @@ public sealed class BufferedData
     /**
      * {@link ByteBuffer} used as backing buffer for this instance.
      *
-     * <p>The buffer may be direct, or may be on the heap. It may also be a "view" of another buffer. The ByteBuffer has
-     * an inner array, which can be accessed directly. If it is, you MUST BE VERY CAREFUL to take the array offset into
-     * account, otherwise you will read out of bounds of the view.
+     * <p>The buffer may be direct, or may be on the heap. It may also be a "view" of another
+     * buffer. The ByteBuffer has an inner array, which can be accessed directly. If it is, you MUST
+     * BE VERY CAREFUL to take the array offset into account, otherwise you will read out of bounds
+     * of the view.
      */
     protected final ByteBuffer buffer;
 
@@ -49,8 +53,10 @@ public sealed class BufferedData
      */
     protected BufferedData(@NonNull final ByteBuffer buffer) {
         this.buffer = buffer;
-        // We switch the buffer to BIG_ENDIAN so that all our normal "get/read" methods can assume they are in
-        // BIG_ENDIAN mode, reducing the boilerplate around those methods. This necessarily means the LITTLE_ENDIAN
+        // We switch the buffer to BIG_ENDIAN so that all our normal "get/read" methods can assume
+        // they are in
+        // BIG_ENDIAN mode, reducing the boilerplate around those methods. This necessarily means
+        // the LITTLE_ENDIAN
         // methods will be slower. We're assuming BIG_ENDIAN is what we want to optimize for.
         this.buffer.order(BIG_ENDIAN);
     }
@@ -59,8 +65,8 @@ public sealed class BufferedData
     // Static Builder Methods
 
     /**
-     * Wrap an existing allocated {@link ByteBuffer}. No copy is made. DO NOT modify this buffer after having wrapped
-     * it.
+     * Wrap an existing allocated {@link ByteBuffer}. No copy is made. DO NOT modify this buffer
+     * after having wrapped it.
      *
      * @param buffer the {@link ByteBuffer} to wrap
      * @return new instance using {@code buffer} as its data buffer
@@ -78,10 +84,11 @@ public sealed class BufferedData
     }
 
     /**
-     * Wrap an existing allocated byte[]. No copy is made. DO NOT modify this array after having wrapped it.
+     * Wrap an existing allocated byte[]. No copy is made. DO NOT modify this array after having
+     * wrapped it.
      *
-     * <p>The current position of the created {@link BufferedData} will be 0, the length and capacity will
-     * be the length of the wrapped byte array.
+     * <p>The current position of the created {@link BufferedData} will be 0, the length and
+     * capacity will be the length of the wrapped byte array.
      *
      * @param array the byte[] to wrap
      * @return new BufferedData using {@code array} as its data buffer
@@ -92,13 +99,16 @@ public sealed class BufferedData
     }
 
     /**
-     * Wrap an existing allocated byte[]. No copy is made. DO NOT modify this array after having wrapped it.
+     * Wrap an existing allocated byte[]. No copy is made. DO NOT modify this array after having
+     * wrapped it.
      *
-     * <p>The current position of the created {@link BufferedData} will be {@code offset}, the length will be
-     * set to {@code offset} + {@code len}, and capacity will be the length of the wrapped byte array.
+     * <p>The current position of the created {@link BufferedData} will be {@code offset}, the
+     * length will be set to {@code offset} + {@code len}, and capacity will be the length of the
+     * wrapped byte array.
      *
      * @param array the byte[] to wrap
-     * @param offset the offset into the byte array which will form the origin of this {@link BufferedData}.
+     * @param offset the offset into the byte array which will form the origin of this {@link
+     *     BufferedData}.
      * @param len the length of the {@link BufferedData} in bytes.
      * @return new BufferedData using {@code array} as its data buffer
      */
@@ -119,11 +129,11 @@ public sealed class BufferedData
     }
 
     /**
-     * Allocate a new buffered data object with new memory, off the Java heap. Off heap has higher cost of allocation
-     * and garbage collection but is much faster to read and write to. It should be used for long-lived buffers where
-     * performance is critical. On heap is slower for read and writes but cheaper to allocate and garbage collect.
-     * Off-heap comes from different memory allocation that needs to be manually managed so make sure we have space
-     * for it before using.
+     * Allocate a new buffered data object with new memory, off the Java heap. Off heap has higher
+     * cost of allocation and garbage collection but is much faster to read and write to. It should
+     * be used for long-lived buffers where performance is critical. On heap is slower for read and
+     * writes but cheaper to allocate and garbage collect. Off-heap comes from different memory
+     * allocation that needs to be manually managed so make sure we have space for it before using.
      *
      * @param size size of new buffer in bytes
      * @return a new allocated BufferedData
@@ -140,7 +150,8 @@ public sealed class BufferedData
      * Exposes this {@link BufferedData} as an {@link InputStream}. This is a zero-copy operation.
      * The {@link #position()} and {@link #limit()} are **IGNORED**.
      *
-     * @return An {@link InputStream} that streams over the full set of data in this {@link BufferedData}.
+     * @return An {@link InputStream} that streams over the full set of data in this {@link
+     *     BufferedData}.
      */
     @NonNull
     public InputStream toInputStream() {
@@ -162,14 +173,16 @@ public sealed class BufferedData
             }
 
             @Override
-            public int read(@NonNull final byte[] b, final int off, final int len) throws IOException {
+            public int read(@NonNull final byte[] b, final int off, final int len)
+                    throws IOException {
                 final var remaining = length - pos;
                 if (remaining <= 0) {
                     return -1;
                 }
 
                 try {
-                    // We know for certain int is big enough because the min of an int and long will be an int
+                    // We know for certain int is big enough because the min of an int and long will
+                    // be an int
                     final int toRead = (int) Math.min(len, remaining);
                     getBytes(pos, b, off, toRead);
                     pos += toRead;
@@ -252,50 +265,38 @@ public sealed class BufferedData
         return buffer.capacity();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long position() {
         return buffer.position();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long limit() {
         return buffer.limit();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void limit(final long limit) {
         final var lim = Math.min(capacity(), Math.max(limit, position()));
         buffer.limit((int) lim);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public boolean hasRemaining() {
         return buffer.hasRemaining();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long remaining() {
         return buffer.remaining();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void skip(final long count) {
         if (count > Integer.MAX_VALUE || (int) count > buffer.remaining()) {
@@ -311,17 +312,15 @@ public sealed class BufferedData
     // ================================================================================================================
     // BufferedSequentialData Methods
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void position(final long position) {
         buffer.position(Math.toIntExact(position));
     }
 
     /**
-     * Set the limit to current position and position to origin. This is useful when you have just finished writing
-     * into a buffer and want to flip it ready to read back from, or vice versa.
+     * Set the limit to current position and position to origin. This is useful when you have just
+     * finished writing into a buffer and want to flip it ready to read back from, or vice versa.
      */
     @Override
     public void flip() {
@@ -329,7 +328,8 @@ public sealed class BufferedData
     }
 
     /**
-     * Reset position to origin and limit to capacity, allowing this buffer to be read or written again
+     * Reset position to origin and limit to capacity, allowing this buffer to be read or written
+     * again
      */
     @Override
     public void reset() {
@@ -337,7 +337,8 @@ public sealed class BufferedData
     }
 
     /**
-     * Reset position to origin and leave limit alone, allowing this buffer to be read again with existing limit
+     * Reset position to origin and leave limit alone, allowing this buffer to be read again with
+     * existing limit
      */
     @Override
     public void resetPosition() {
@@ -362,7 +363,11 @@ public sealed class BufferedData
 
     /** {@inheritDoc} */
     @Override
-    public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
+    public long getBytes(
+            final long offset,
+            @NonNull final byte[] dst,
+            final int dstOffset,
+            final int maxLength) {
         if (maxLength < 0) {
             throw new IllegalArgumentException("Negative maxLength not allowed");
         }
@@ -385,7 +390,8 @@ public sealed class BufferedData
     @Override
     public long getBytes(final long offset, @NonNull final BufferedData dst) {
         final var len = Math.min(dst.remaining(), length() - offset);
-        dst.buffer.put(dst.buffer.position(), buffer, Math.toIntExact(offset), Math.toIntExact(len));
+        dst.buffer.put(
+                dst.buffer.position(), buffer, Math.toIntExact(offset), Math.toIntExact(len));
         return len;
     }
 
@@ -400,7 +406,8 @@ public sealed class BufferedData
         if (length() - offset < length) {
             throw new BufferUnderflowException();
         }
-        // It is vital that we always copy here, we can never assume ownership of the underlying buffer
+        // It is vital that we always copy here, we can never assume ownership of the underlying
+        // buffer
         final var copy = new byte[len];
         buffer.get(Math.toIntExact(offset), copy, 0, len);
         return Bytes.wrap(copy);
@@ -597,9 +604,7 @@ public sealed class BufferedData
         return buffer.getInt();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int readInt(@NonNull final ByteOrder byteOrder) {
         final var order = buffer.order();
@@ -611,25 +616,19 @@ public sealed class BufferedData
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long readUnsignedInt() {
         return Integer.toUnsignedLong(buffer.getInt());
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long readLong() {
         return buffer.getLong();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long readLong(@NonNull final ByteOrder byteOrder) {
         final var order = buffer.order();
@@ -641,17 +640,13 @@ public sealed class BufferedData
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public float readFloat() {
         return buffer.getFloat();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public float readFloat(@NonNull final ByteOrder byteOrder) {
         final var order = buffer.order();
@@ -663,17 +658,13 @@ public sealed class BufferedData
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public double readDouble() {
         return buffer.getDouble();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public double readDouble(@NonNull final ByteOrder byteOrder) {
         final var order = buffer.order();
@@ -688,32 +679,24 @@ public sealed class BufferedData
     // ================================================================================================================
     // DataOutput Write Methods
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeByte(final byte b) {
         buffer.put(b);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     public void writeUnsignedByte(final int b) {
         buffer.put((byte) b);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeBytes(@NonNull final byte[] src) {
         buffer.put(src);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeBytes(@NonNull final byte[] src, final int offset, final int length) {
         if (length < 0) {
@@ -722,9 +705,7 @@ public sealed class BufferedData
         buffer.put(src, offset, length);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeBytes(@NonNull final ByteBuffer src) {
         if ((limit() - position()) < src.remaining()) {
@@ -733,9 +714,7 @@ public sealed class BufferedData
         buffer.put(src);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeBytes(@NonNull final BufferedData src) {
         if ((limit() - position()) < src.remaining()) {
@@ -744,9 +723,7 @@ public sealed class BufferedData
         buffer.put(src.buffer);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeBytes(@NonNull final RandomAccessData src) {
         if (src instanceof Bytes buf) {
@@ -759,99 +736,77 @@ public sealed class BufferedData
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeInt(final int value) {
         buffer.order(BIG_ENDIAN);
         buffer.putInt(value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeInt(final int value, @NonNull final ByteOrder byteOrder) {
         buffer.order(byteOrder);
         buffer.putInt(value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeUnsignedInt(final long value) {
         buffer.order(BIG_ENDIAN);
         buffer.putInt((int) value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeUnsignedInt(final long value, @NonNull final ByteOrder byteOrder) {
         buffer.order(byteOrder);
         buffer.putInt((int) value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeLong(final long value) {
         buffer.order(BIG_ENDIAN);
         buffer.putLong(value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeLong(final long value, @NonNull final ByteOrder byteOrder) {
         buffer.order(byteOrder);
         buffer.putLong(value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeFloat(final float value) {
         buffer.order(BIG_ENDIAN);
         buffer.putFloat(value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeFloat(final float value, @NonNull final ByteOrder byteOrder) {
         buffer.order(byteOrder);
         buffer.putFloat(value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeDouble(final double value) {
         buffer.order(BIG_ENDIAN);
         buffer.putDouble(value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeDouble(final double value, @NonNull final ByteOrder byteOrder) {
         buffer.order(byteOrder);
         buffer.putDouble(value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeVarLong(long value, final boolean zigZag) {
         if (zigZag) {
@@ -868,9 +823,7 @@ public sealed class BufferedData
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeTo(@NonNull OutputStream outStream) {
         try {
@@ -881,9 +834,7 @@ public sealed class BufferedData
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeTo(@NonNull OutputStream outStream, int offset, int length) {
         validateCanRead(offset, length);

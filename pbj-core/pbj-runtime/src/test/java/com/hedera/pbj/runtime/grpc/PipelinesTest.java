@@ -76,10 +76,11 @@ class PipelinesTest {
 
         @Test
         void requestMapperIsRequired() {
-            final var builder = Pipelines.<String, String>unary()
-                    .method(String::toUpperCase)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>unary()
+                            .method(String::toUpperCase)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The request mapper must be specified.")
@@ -88,10 +89,11 @@ class PipelinesTest {
 
         @Test
         void methodIsRequired() {
-            final var builder = Pipelines.<String, String>unary()
-                    .mapRequest(Bytes::asUtf8String)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>unary()
+                            .mapRequest(Bytes::asUtf8String)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The method must be specified.")
@@ -100,10 +102,11 @@ class PipelinesTest {
 
         @Test
         void responseMapperIsRequired() {
-            final var builder = Pipelines.<String, String>unary()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(String::toUpperCase)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>unary()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(String::toUpperCase)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The response mapper must be specified.")
@@ -112,10 +115,11 @@ class PipelinesTest {
 
         @Test
         void respondToIsRequired() {
-            final var builder = Pipelines.<String, String>unary()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(String::toUpperCase)
-                    .mapResponse(Bytes::wrap);
+            final var builder =
+                    Pipelines.<String, String>unary()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(String::toUpperCase)
+                            .mapResponse(Bytes::wrap);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The replies subscriber must be specified.")
@@ -124,12 +128,13 @@ class PipelinesTest {
 
         @Test
         void nullSubscriptionThrowsNPE() {
-            final var pipeline = Pipelines.<String, String>unary()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(String::toUpperCase)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>unary()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(String::toUpperCase)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             assertThatThrownBy(() -> pipeline.onSubscribe(null))
                     .isInstanceOf(NullPointerException.class);
@@ -137,12 +142,13 @@ class PipelinesTest {
 
         @Test
         void onNextTwiceThrowsISE() {
-            final var pipeline = Pipelines.<String, String>unary()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(String::toUpperCase)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>unary()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(String::toUpperCase)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
             pipeline.onNext(Bytes.wrap("hello"));
@@ -154,12 +160,13 @@ class PipelinesTest {
         void exceptionDuring_onNext_IsHandled() {
             final var ex = new RuntimeException("Some exception");
             doThrow(ex).when(replies).onNext(any());
-            final var pipeline = Pipelines.<String, String>unary()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(String::toUpperCase)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>unary()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(String::toUpperCase)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
             final var data = Bytes.wrap("hello");
@@ -169,12 +176,13 @@ class PipelinesTest {
 
         @Test
         void positive() {
-            final var pipeline = Pipelines.<String, String>unary()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(String::toUpperCase)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>unary()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(String::toUpperCase)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(subscription);
             pipeline.onNext(Bytes.wrap("hello"));
@@ -191,10 +199,11 @@ class PipelinesTest {
 
         @Test
         void requestMapperIsRequired() {
-            final var builder = Pipelines.<String, String>bidiStreaming()
-                    .method(sink -> client)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>bidiStreaming()
+                            .method(sink -> client)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The request mapper must be specified.")
@@ -203,10 +212,11 @@ class PipelinesTest {
 
         @Test
         void methodIsRequired() {
-            final var builder = Pipelines.<String, String>bidiStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>bidiStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The method must be specified.")
@@ -215,10 +225,11 @@ class PipelinesTest {
 
         @Test
         void responseMapperIsRequired() {
-            final var builder = Pipelines.<String, String>bidiStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(sink -> client)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>bidiStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(sink -> client)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The response mapper must be specified.")
@@ -227,10 +238,11 @@ class PipelinesTest {
 
         @Test
         void respondToIsRequired() {
-            final var builder = Pipelines.<String, String>bidiStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(sink -> client)
-                    .mapResponse(Bytes::wrap);
+            final var builder =
+                    Pipelines.<String, String>bidiStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(sink -> client)
+                            .mapResponse(Bytes::wrap);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The replies subscriber must be specified.")
@@ -239,12 +251,13 @@ class PipelinesTest {
 
         @Test
         void nullSubscriptionThrowsNPE() {
-            final var pipeline = Pipelines.<String, String>bidiStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(sink -> client)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>bidiStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(sink -> client)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             assertThatThrownBy(() -> pipeline.onSubscribe(null))
                     .isInstanceOf(NullPointerException.class);
@@ -252,19 +265,27 @@ class PipelinesTest {
 
         @Test
         void onCompleteNextThrowsISE() {
-            final var pipeline = Pipelines.<String, String>bidiStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(sink -> {
-                        lenient().doAnswer(invocation -> {
-                            final var msg = invocation.getArgument(0, String.class);
-                            sink.onNext(msg.toUpperCase());
-                            return null;
-                        }).when(client).onNext(any());
-                        return client;
-                    })
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>bidiStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(
+                                    sink -> {
+                                        lenient()
+                                                .doAnswer(
+                                                        invocation -> {
+                                                            final var msg =
+                                                                    invocation.getArgument(
+                                                                            0, String.class);
+                                                            sink.onNext(msg.toUpperCase());
+                                                            return null;
+                                                        })
+                                                .when(client)
+                                                .onNext(any());
+                                        return client;
+                                    })
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
             pipeline.onNext(Bytes.wrap("hello"));
@@ -287,12 +308,13 @@ class PipelinesTest {
         void exceptionDuring_onNext_IsHandled() {
             final var ex = new RuntimeException("Some exception");
             doThrow(ex).when(client).onNext(any());
-            final var pipeline = Pipelines.<String, String>bidiStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(sink -> client)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>bidiStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(sink -> client)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
             final var data = Bytes.wrap("hello");
@@ -305,7 +327,10 @@ class PipelinesTest {
             final var ex = new RuntimeException("Some exception");
             Pipelines.<String, String>bidiStreaming()
                     .mapRequest(Bytes::asUtf8String)
-                    .method(sink -> { throw ex; })
+                    .method(
+                            sink -> {
+                                throw ex;
+                            })
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies)
                     .build();
@@ -315,28 +340,34 @@ class PipelinesTest {
 
         @Test
         void positive() {
-            final var pipeline = Pipelines.<String, String>bidiStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(sink -> {
-                        doAnswer(invocation -> {
-                            final var msg = invocation.getArgument(0, String.class);
-                            sink.onNext(msg.toUpperCase());
-                            return null;
-                        }).when(client).onNext(any());
-                        return client;
-                    })
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>bidiStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(
+                                    sink -> {
+                                        doAnswer(
+                                                        invocation -> {
+                                                            final var msg =
+                                                                    invocation.getArgument(
+                                                                            0, String.class);
+                                                            sink.onNext(msg.toUpperCase());
+                                                            return null;
+                                                        })
+                                                .when(client)
+                                                .onNext(any());
+                                        return client;
+                                    })
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             final var argCaptor = ArgumentCaptor.forClass(Bytes.class);
             pipeline.onSubscribe(subscription);
             pipeline.onNext(Bytes.wrap("hello"));
             pipeline.onNext(Bytes.wrap("world"));
             verify(replies, times(2)).onNext(argCaptor.capture());
-            assertThat(argCaptor.getAllValues()).containsExactly(
-                    Bytes.wrap("HELLO"),
-                    Bytes.wrap("WORLD"));
+            assertThat(argCaptor.getAllValues())
+                    .containsExactly(Bytes.wrap("HELLO"), Bytes.wrap("WORLD"));
         }
     }
 
@@ -348,10 +379,11 @@ class PipelinesTest {
 
         @Test
         void requestMapperIsRequired() {
-            final var builder = Pipelines.<String, String>serverStreaming()
-                    .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>serverStreaming()
+                            .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The request mapper must be specified.")
@@ -360,10 +392,11 @@ class PipelinesTest {
 
         @Test
         void methodIsRequired() {
-            final var builder = Pipelines.<String, String>serverStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>serverStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The method must be specified.")
@@ -372,10 +405,11 @@ class PipelinesTest {
 
         @Test
         void responseMapperIsRequired() {
-            final var builder = Pipelines.<String, String>serverStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>serverStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The response mapper must be specified.")
@@ -384,10 +418,11 @@ class PipelinesTest {
 
         @Test
         void respondToIsRequired() {
-            final var builder = Pipelines.<String, String>serverStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
-                    .mapResponse(Bytes::wrap);
+            final var builder =
+                    Pipelines.<String, String>serverStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
+                            .mapResponse(Bytes::wrap);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The replies subscriber must be specified.")
@@ -396,12 +431,13 @@ class PipelinesTest {
 
         @Test
         void nullSubscriptionThrowsNPE() {
-            final var pipeline = Pipelines.<String, String>serverStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>serverStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             assertThatThrownBy(() -> pipeline.onSubscribe(null))
                     .isInstanceOf(NullPointerException.class);
@@ -409,12 +445,13 @@ class PipelinesTest {
 
         @Test
         void onCompleteNextThrowsISE() {
-            final var pipeline = Pipelines.<String, String>serverStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>serverStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
             pipeline.onNext(Bytes.wrap("hello"));
@@ -427,12 +464,16 @@ class PipelinesTest {
         @Test
         void badRequestMapperCallsOnError() {
             final var ex = new RuntimeException("Bad bad bad");
-            final var pipeline = Pipelines.<String, String>serverStreaming()
-                    .mapRequest(bytes -> { throw ex; })
-                    .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>serverStreaming()
+                            .mapRequest(
+                                    bytes -> {
+                                        throw ex;
+                                    })
+                            .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
             final var data = Bytes.wrap("hello");
@@ -443,12 +484,16 @@ class PipelinesTest {
         @Test
         void badMethodCallsOnError() {
             final var ex = new RuntimeException("Bad bad bad");
-            final var pipeline = Pipelines.<String, String>serverStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method((msg, sink) -> { throw ex; })
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>serverStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(
+                                    (msg, sink) -> {
+                                        throw ex;
+                                    })
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
             final var data = Bytes.wrap("hello");
@@ -458,12 +503,13 @@ class PipelinesTest {
 
         @Test
         void positive() {
-            final var pipeline = Pipelines.<String, String>serverStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>serverStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(subscription);
             pipeline.onNext(Bytes.wrap("hello"));
@@ -479,10 +525,11 @@ class PipelinesTest {
 
         @Test
         void requestMapperIsRequired() {
-            final var builder = Pipelines.<String, String>clientStreaming()
-                    .method(ConcatenatingHandler::new)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>clientStreaming()
+                            .method(ConcatenatingHandler::new)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The request mapper must be specified.")
@@ -491,10 +538,11 @@ class PipelinesTest {
 
         @Test
         void methodIsRequired() {
-            final var builder = Pipelines.<String, String>clientStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>clientStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The method must be specified.")
@@ -503,10 +551,11 @@ class PipelinesTest {
 
         @Test
         void responseMapperIsRequired() {
-            final var builder = Pipelines.<String, String>clientStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(ConcatenatingHandler::new)
-                    .respondTo(replies);
+            final var builder =
+                    Pipelines.<String, String>clientStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(ConcatenatingHandler::new)
+                            .respondTo(replies);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The response mapper must be specified.")
@@ -515,10 +564,11 @@ class PipelinesTest {
 
         @Test
         void respondToIsRequired() {
-            final var builder = Pipelines.<String, String>clientStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(ConcatenatingHandler::new)
-                    .mapResponse(Bytes::wrap);
+            final var builder =
+                    Pipelines.<String, String>clientStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(ConcatenatingHandler::new)
+                            .mapResponse(Bytes::wrap);
 
             assertThatThrownBy(builder::build)
                     .hasMessage("The replies subscriber must be specified.")
@@ -527,12 +577,13 @@ class PipelinesTest {
 
         @Test
         void nullSubscriptionThrowsNPE() {
-            final var pipeline = Pipelines.<String, String>clientStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(ConcatenatingHandler::new)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>clientStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(ConcatenatingHandler::new)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             assertThatThrownBy(() -> pipeline.onSubscribe(null))
                     .isInstanceOf(NullPointerException.class);
@@ -540,12 +591,13 @@ class PipelinesTest {
 
         @Test
         void onCompleteNextThrowsISE() {
-            final var pipeline = Pipelines.<String, String>clientStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(ConcatenatingHandler::new)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>clientStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(ConcatenatingHandler::new)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
             pipeline.onNext(Bytes.wrap("hello"));
@@ -558,12 +610,16 @@ class PipelinesTest {
         @Test
         void badRequestMapperCallsOnError() {
             final var ex = new RuntimeException("Bad bad bad");
-            final var pipeline = Pipelines.<String, String>clientStreaming()
-                    .mapRequest(bytes -> { throw ex; })
-                    .method(ConcatenatingHandler::new)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>clientStreaming()
+                            .mapRequest(
+                                    bytes -> {
+                                        throw ex;
+                                    })
+                            .method(ConcatenatingHandler::new)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(mock(Flow.Subscription.class));
             final var data = Bytes.wrap("hello");
@@ -576,7 +632,10 @@ class PipelinesTest {
             final var ex = new RuntimeException("Bad bad bad");
             Pipelines.<String, String>clientStreaming()
                     .mapRequest(Bytes::asUtf8String)
-                    .method(sink -> { throw ex; })
+                    .method(
+                            sink -> {
+                                throw ex;
+                            })
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies)
                     .build();
@@ -586,12 +645,13 @@ class PipelinesTest {
 
         @Test
         void positive() {
-            final var pipeline = Pipelines.<String, String>clientStreaming()
-                    .mapRequest(Bytes::asUtf8String)
-                    .method(ConcatenatingHandler::new)
-                    .mapResponse(Bytes::wrap)
-                    .respondTo(replies)
-                    .build();
+            final var pipeline =
+                    Pipelines.<String, String>clientStreaming()
+                            .mapRequest(Bytes::asUtf8String)
+                            .method(ConcatenatingHandler::new)
+                            .mapResponse(Bytes::wrap)
+                            .respondTo(replies)
+                            .build();
 
             pipeline.onSubscribe(subscription);
             pipeline.onNext(Bytes.wrap("hello"));

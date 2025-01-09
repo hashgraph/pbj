@@ -9,39 +9,41 @@ import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.PbjCompilerException;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Code to generate the parse method for Codec classes.
- */
+/** Code to generate the parse method for Codec classes. */
 @SuppressWarnings("StringConcatenationInsideStringBufferAppend")
 class CodecParseMethodGenerator {
 
     /**
-     * Because all UNSET OneOf values are the same and we use them often we create a static constant for them and just
-     * reuse it throughout codec code.
+     * Because all UNSET OneOf values are the same and we use them often we create a static constant
+     * for them and just reuse it throughout codec code.
      *
      * @param fields the fields to generate for
      * @return code for constants
      */
     static String generateUnsetOneOfConstants(final List<Field> fields) {
-        return "\n" + fields.stream()
-            .filter(f -> f instanceof OneOfField)
-            .map(f -> {
-                final OneOfField field = (OneOfField)f;
-                return """
+        return "\n"
+                + fields.stream()
+                        .filter(f -> f instanceof OneOfField)
+                        .map(
+                                f -> {
+                                    final OneOfField field = (OneOfField) f;
+                                    return """
                            /** Constant for an unset oneof for $fieldName */
                            public static final $className<$enum> $unsetFieldName = new $className<>($enum.UNSET,null);
                        """
-                        .replace("$className", field.className())
-                        .replace("$enum", field.getEnumClassRef())
-                        .replace("$fieldName", field.name())
-                        .replace("$unsetFieldName", Common.camelToUpperSnake(field.name())+"_UNSET")
-                        .replace("$unsetFieldName", field.getEnumClassRef());
-            })
-            .collect(Collectors.joining("\n"));
+                                            .replace("$className", field.className())
+                                            .replace("$enum", field.getEnumClassRef())
+                                            .replace("$fieldName", field.name())
+                                            .replace(
+                                                    "$unsetFieldName",
+                                                    Common.camelToUpperSnake(field.name())
+                                                            + "_UNSET")
+                                            .replace("$unsetFieldName", field.getEnumClassRef());
+                                })
+                        .collect(Collectors.joining("\n"));
     }
 
     static String generateParseMethod(final String modelClassName, final List<Field> fields) {
@@ -79,13 +81,26 @@ class CodecParseMethodGenerator {
                     }
                 }
                 """
-        .replace("$modelClassName",modelClassName)
-        .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
-                field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
-        .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
-        .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields), ""))
-        .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
-        .indent(DEFAULT_INDENT);
+                .replace("$modelClassName", modelClassName)
+                .replace(
+                        "$fieldDefs",
+                        fields.stream()
+                                .map(
+                                        field ->
+                                                "    %s temp_%s = %s;"
+                                                        .formatted(
+                                                                field.javaFieldType(),
+                                                                field.name(),
+                                                                field.javaDefault()))
+                                .collect(Collectors.joining("\n")))
+                .replace(
+                        "$fieldsList",
+                        fields.stream()
+                                .map(field -> "temp_" + field.name())
+                                .collect(Collectors.joining(", ")))
+                .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields), ""))
+                .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
+                .indent(DEFAULT_INDENT);
     }
 
     // prefix is pre-pended to variable names to support a nested parsing loop.
@@ -151,28 +166,30 @@ class CodecParseMethodGenerator {
                             }
                         }
                 """
-                .replace("$caseStatements",caseStatements)
-                .replace("$prefix",prefix)
+                .replace("$caseStatements", caseStatements)
+                .replace("$prefix", prefix)
                 .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
                 .indent(DEFAULT_INDENT);
     }
 
     /**
-     * Generate switch case statements for each tag (field & wire type pair). For repeated numeric value types we
-     * generate 2 case statements for packed and unpacked encoding.
+     * Generate switch case statements for each tag (field & wire type pair). For repeated numeric
+     * value types we generate 2 case statements for packed and unpacked encoding.
      *
      * @param fields list of all fields in record
      * @return string of case statement code
      */
     private static String generateCaseStatements(final List<Field> fields) {
         StringBuilder sb = new StringBuilder();
-        for (Field field: fields) {
+        for (Field field : fields) {
             if (field instanceof final OneOfField oneOfField) {
-                for (final Field subField: oneOfField.fields()) {
-                    generateFieldCaseStatement(sb,subField);
+                for (final Field subField : oneOfField.fields()) {
+                    generateFieldCaseStatement(sb, subField);
                 }
-            } else if (field.repeated() && field.type().wireType() != Common.TYPE_LENGTH_DELIMITED) {
-                // for repeated fields that are not length encoded there are 2 forms they can be stored in file.
+            } else if (field.repeated()
+                    && field.type().wireType() != Common.TYPE_LENGTH_DELIMITED) {
+                // for repeated fields that are not length encoded there are 2 forms they can be
+                // stored in file.
                 // "packed" and repeated primitive fields
                 generateFieldCaseStatement(sb, field);
                 generateFieldCaseStatementPacked(sb, field);
@@ -190,13 +207,26 @@ class CodecParseMethodGenerator {
      * @param sb StringBuilder to append code to
      */
     @SuppressWarnings("StringConcatenationInsideStringBufferAppend")
-    private static void generateFieldCaseStatementPacked(final StringBuilder sb, final Field field) {
+    private static void generateFieldCaseStatementPacked(
+            final StringBuilder sb, final Field field) {
         final int wireType = Common.TYPE_LENGTH_DELIMITED;
         final int fieldNum = field.fieldNumber();
         final int tag = Common.getTag(wireType, fieldNum);
-        sb.append("case " + tag +" /* type=" + wireType + " [" + field.type() + "] packed-repeated " +
-                "field=" + fieldNum + " [" + field.name() + "] */ -> {\n");
-        sb.append("""
+        sb.append(
+                "case "
+                        + tag
+                        + " /* type="
+                        + wireType
+                        + " ["
+                        + field.type()
+                        + "] packed-repeated "
+                        + "field="
+                        + fieldNum
+                        + " ["
+                        + field.name()
+                        + "] */ -> {\n");
+        sb.append(
+                """
 				// Read the length of packed repeated field data
 				final long length = input.readVarInt(false);
 				if (length > $maxSize) {
@@ -215,12 +245,11 @@ class CodecParseMethodGenerator {
 				if (input.position() != beforePosition + length) {
 				    throw new BufferUnderflowException();
 				}"""
-                .replace("$tempFieldName", "temp_" + field.name())
-                .replace("$readMethod", readMethod(field))
-                .replace("$maxSize", String.valueOf(field.maxSize()))
-                .replace("$fieldName", field.name())
-                .indent(DEFAULT_INDENT)
-        );
+                        .replace("$tempFieldName", "temp_" + field.name())
+                        .replace("$readMethod", readMethod(field))
+                        .replace("$maxSize", String.valueOf(field.maxSize()))
+                        .replace("$fieldName", field.name())
+                        .indent(DEFAULT_INDENT));
         sb.append("\n}\n");
     }
 
@@ -231,13 +260,26 @@ class CodecParseMethodGenerator {
      * @param sb StringBuilder to append code to
      */
     private static void generateFieldCaseStatement(final StringBuilder sb, final Field field) {
-        final int wireType = field.optionalValueType() ? Common.TYPE_LENGTH_DELIMITED : field.type().wireType();
+        final int wireType =
+                field.optionalValueType() ? Common.TYPE_LENGTH_DELIMITED : field.type().wireType();
         final int fieldNum = field.fieldNumber();
         final int tag = Common.getTag(wireType, fieldNum);
-        sb.append("case " + tag +" /* type=" + wireType + " [" + field.type() + "] " +
-                "field=" + fieldNum + " [" + field.name() + "] */ -> {\n");
+        sb.append(
+                "case "
+                        + tag
+                        + " /* type="
+                        + wireType
+                        + " ["
+                        + field.type()
+                        + "] "
+                        + "field="
+                        + fieldNum
+                        + " ["
+                        + field.name()
+                        + "] */ -> {\n");
         if (field.optionalValueType()) {
-            sb.append("""
+            sb.append(
+                    """
 							// Read the message size, it is not needed
 							final var valueTypeMessageSize = input.readVarInt(false);
 							final $fieldType value;
@@ -256,32 +298,46 @@ class CodecParseMethodGenerator {
 							    // means optional is default value
 							    value = $defaultValue;
 							}"""
-                    .replace("$fieldType", field.javaFieldType())
-                    .replace("$readMethod", readMethod(field))
-                    .replace("$defaultValue",
-                            switch (field.messageType()) {
-                                case "Int32Value", "UInt32Value" -> "0";
-                                case "Int64Value", "UInt64Value" -> "0l";
-                                case "FloatValue" -> "0f";
-                                case "DoubleValue" -> "0d";
-                                case "BoolValue" -> "false";
-                                case "BytesValue" -> "Bytes.EMPTY";
-                                case "StringValue" -> "\"\"";
-                                default -> throw new PbjCompilerException("Unexpected and unknown field type " + field.type() + " cannot be parsed");
-                            })
-                    .replace("$valueTypeWireType", Integer.toString(
-                            switch (field.messageType()) {
-                                case "StringValue", "BytesValue" -> Common.TYPE_LENGTH_DELIMITED;
-                                case "Int32Value", "UInt32Value", "Int64Value", "UInt64Value", "BoolValue" -> Common.TYPE_VARINT;
-                                case "FloatValue" -> Common.TYPE_FIXED32;
-                                case "DoubleValue" -> Common.TYPE_FIXED64;
-                                default -> throw new PbjCompilerException("Unexpected and unknown field type " + field.type() + " cannot be parsed");
-                            }))
-                    .indent(DEFAULT_INDENT)
-            );
+                            .replace("$fieldType", field.javaFieldType())
+                            .replace("$readMethod", readMethod(field))
+                            .replace(
+                                    "$defaultValue",
+                                    switch (field.messageType()) {
+                                        case "Int32Value", "UInt32Value" -> "0";
+                                        case "Int64Value", "UInt64Value" -> "0l";
+                                        case "FloatValue" -> "0f";
+                                        case "DoubleValue" -> "0d";
+                                        case "BoolValue" -> "false";
+                                        case "BytesValue" -> "Bytes.EMPTY";
+                                        case "StringValue" -> "\"\"";
+                                        default -> throw new PbjCompilerException(
+                                                "Unexpected and unknown field type "
+                                                        + field.type()
+                                                        + " cannot be parsed");
+                                    })
+                            .replace(
+                                    "$valueTypeWireType",
+                                    Integer.toString(
+                                            switch (field.messageType()) {
+                                                case "StringValue", "BytesValue" -> Common
+                                                        .TYPE_LENGTH_DELIMITED;
+                                                case "Int32Value",
+                                                        "UInt32Value",
+                                                        "Int64Value",
+                                                        "UInt64Value",
+                                                        "BoolValue" -> Common.TYPE_VARINT;
+                                                case "FloatValue" -> Common.TYPE_FIXED32;
+                                                case "DoubleValue" -> Common.TYPE_FIXED64;
+                                                default -> throw new PbjCompilerException(
+                                                        "Unexpected and unknown field type "
+                                                                + field.type()
+                                                                + " cannot be parsed");
+                                            }))
+                            .indent(DEFAULT_INDENT));
             sb.append('\n');
         } else if (field.type() == Field.FieldType.MESSAGE) {
-            sb.append("""
+            sb.append(
+                    """
 						final var messageLength = input.readVarInt(false);
 						final $fieldType value;
 						if (messageLength == 0) {
@@ -311,20 +367,22 @@ class CodecParseMethodGenerator {
 							}
 						}
 						"""
-                    .replace("$readMethod", readMethod(field))
-                    .replace("$fieldType", field.javaFieldTypeBase())
-                    .replace("$fieldName", field.name())
-                    .replace("$maxSize", String.valueOf(field.maxSize()))
-                    .indent(DEFAULT_INDENT)
-            );
+                            .replace("$readMethod", readMethod(field))
+                            .replace("$fieldType", field.javaFieldTypeBase())
+                            .replace("$fieldName", field.name())
+                            .replace("$maxSize", String.valueOf(field.maxSize()))
+                            .indent(DEFAULT_INDENT));
         } else if (field.type() == Field.FieldType.MAP) {
-            // This is almost like reading a message above because that's how Protobuf encodes map entries.
-            // However(!), we read the key and value fields explicitly to avoid creating temporary entry objects.
+            // This is almost like reading a message above because that's how Protobuf encodes map
+            // entries.
+            // However(!), we read the key and value fields explicitly to avoid creating temporary
+            // entry objects.
             final MapField mapField = (MapField) field;
             final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
-            sb.append("""
+            sb.append(
+                    """
 						final var __map_messageLength = input.readVarInt(false);
-						
+
 						$fieldDefs
 						if (__map_messageLength != 0) {
 							if (__map_messageLength > $maxSize) {
@@ -351,39 +409,80 @@ class CodecParseMethodGenerator {
 							}
 						}
 						"""
-                    .replace("$fieldName", field.name())
-                    .replace("$fieldDefs",mapEntryFields.stream().map(mapEntryField -> "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
-                            mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
-                    .replace("$mapParseLoop", generateParseLoop(generateCaseStatements(mapEntryFields), "map_entry_").indent(-DEFAULT_INDENT))
-                    .replace("$maxSize", String.valueOf(field.maxSize()))
-            );
+                            .replace("$fieldName", field.name())
+                            .replace(
+                                    "$fieldDefs",
+                                    mapEntryFields.stream()
+                                            .map(
+                                                    mapEntryField ->
+                                                            "%s temp_%s = %s;"
+                                                                    .formatted(
+                                                                            mapEntryField
+                                                                                    .javaFieldType(),
+                                                                            mapEntryField.name(),
+                                                                            mapEntryField
+                                                                                    .javaDefault()))
+                                            .collect(Collectors.joining("\n")))
+                            .replace(
+                                    "$mapParseLoop",
+                                    generateParseLoop(
+                                                    generateCaseStatements(mapEntryFields),
+                                                    "map_entry_")
+                                            .indent(-DEFAULT_INDENT))
+                            .replace("$maxSize", String.valueOf(field.maxSize())));
         } else {
             sb.append(("final var value = " + readMethod(field) + ";\n").indent(DEFAULT_INDENT));
         }
         // set value to temp var
         sb.append(Common.FIELD_INDENT);
         if (field.parent() != null && field.repeated()) {
-            throw new PbjCompilerException("Fields can not be oneof and repeated ["+field+"]");
+            throw new PbjCompilerException("Fields can not be oneof and repeated [" + field + "]");
         } else if (field.parent() != null) {
             final var oneOfField = field.parent();
-            sb.append("temp_" + oneOfField.name() + " =  new %s<>(".formatted(oneOfField.className()) +
-                    oneOfField.getEnumClassRef() + '.' + Common.camelToUpperSnake(field.name()) + ", value);\n");
+            sb.append(
+                    "temp_"
+                            + oneOfField.name()
+                            + " =  new %s<>(".formatted(oneOfField.className())
+                            + oneOfField.getEnumClassRef()
+                            + '.'
+                            + Common.camelToUpperSnake(field.name())
+                            + ", value);\n");
         } else if (field.repeated()) {
             sb.append("if (temp_" + field.name() + ".size() >= " + field.maxSize() + ") {\n");
-            sb.append("		throw new ParseException(\"" + field.name() + " size \" + temp_" + field.name() + ".size() + \" is greater than max \" + " + field.maxSize() + ");\n");
+            sb.append(
+                    "		throw new ParseException(\""
+                            + field.name()
+                            + " size \" + temp_"
+                            + field.name()
+                            + ".size() + \" is greater than max \" + "
+                            + field.maxSize()
+                            + ");\n");
             sb.append("	}\n");
             sb.append("	temp_" + field.name() + " = addToList(temp_" + field.name() + ",value);\n");
         } else if (field.type() == Field.FieldType.MAP) {
             final MapField mapField = (MapField) field;
 
             sb.append("if (__map_messageLength != 0) {\n");
-            sb.append("		if (temp_" + field.name() + ".size() >= " + field.maxSize() + ") {\n");
-            sb.append("				throw new ParseException(\"" + field.name() + " size \" + temp_" + field.name() + ".size() + \" is greater than max \" + " + field.maxSize() + ");\n");
+            sb.append(
+                    "		if (temp_" + field.name() + ".size()"
+                                                          + " >= " + field.maxSize() + ") {\n");
+            sb.append(
+                    "				throw new ParseException(\""
+                            + field.name()
+                            + " size \" + temp_"
+                            + field.name()
+                            + ".size() + \" is greater than max \" + "
+                            + field.maxSize()
+                            + ");\n");
             sb.append("			}\n");
-            sb.append("			temp_" + field.name() + " = addToMap(temp_" + field.name() + ", temp_$key, temp_$value);\n"
-                    .replace("$key", mapField.keyField().name())
-                    .replace("$value", mapField.valueField().name())
-            );
+            sb.append(
+                    "			temp_"
+                            + field.name()
+                            + " = addToMap(temp_"
+                            + field.name()
+                            + ", temp_$key, temp_$value);\n"
+                                    .replace("$key", mapField.keyField().name())
+                                    .replace("$value", mapField.valueField().name()));
             sb.append("		}\n");
         } else {
             sb.append("temp_" + field.name() + " = value;\n");
@@ -403,11 +502,13 @@ class CodecParseMethodGenerator {
                 case "DoubleValue" -> "readDouble(input)";
                 case "BoolValue" -> "readBool(input)";
                 case "BytesValue" -> "readBytes(input, " + field.maxSize() + ")";
-                default -> throw new PbjCompilerException("Optional message type [" + field.messageType() + "] not supported");
+                default -> throw new PbjCompilerException(
+                        "Optional message type [" + field.messageType() + "] not supported");
             };
         }
         return switch (field.type()) {
-            case ENUM ->  Common.snakeToCamel(field.messageType(), true) + ".fromProtobufOrdinal(readEnum(input))";
+            case ENUM -> Common.snakeToCamel(field.messageType(), true)
+                    + ".fromProtobufOrdinal(readEnum(input))";
             case INT32 -> "readInt32(input)";
             case UINT32 -> "readUint32(input)";
             case SINT32 -> "readSignedInt32(input)";
@@ -424,8 +525,10 @@ class CodecParseMethodGenerator {
             case BOOL -> "readBool(input)";
             case BYTES -> "readBytes(input, " + field.maxSize() + ")";
             case MESSAGE -> field.parseCode();
-            case ONE_OF -> throw new PbjCompilerException("Should never happen, oneOf handled elsewhere");
-            case MAP -> throw new PbjCompilerException("Should never happen, map handled elsewhere");
+            case ONE_OF -> throw new PbjCompilerException(
+                    "Should never happen, oneOf handled elsewhere");
+            case MAP -> throw new PbjCompilerException(
+                    "Should never happen, map handled elsewhere");
         };
     }
 }

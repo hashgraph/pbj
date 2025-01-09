@@ -60,8 +60,7 @@ class GreeterServiceImpl implements GreeterService {
     }
 
     @Override
-    public void sayHelloStreamReply(
-            HelloRequest request, Pipeline<? super HelloReply> replies) {
+    public void sayHelloStreamReply(HelloRequest request, Pipeline<? super HelloReply> replies) {
         for (int i = 0; i < 10; i++) {
             replies.onNext(HelloReply.newBuilder().setMessage("Hello!").build());
         }
@@ -70,8 +69,7 @@ class GreeterServiceImpl implements GreeterService {
     }
 
     @Override
-    public Pipeline<? super HelloRequest> sayHelloStreamBidi(
-            Pipeline<? super HelloReply> replies) {
+    public Pipeline<? super HelloRequest> sayHelloStreamBidi(Pipeline<? super HelloReply> replies) {
         // Here we receive info from the client. In this case, it is a stream of requests with
         // names. We will respond with a stream of replies.
         return new Pipeline<>() {

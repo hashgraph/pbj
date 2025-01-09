@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
-/**
- * Exception thrown when compiler hits errors that are not recoverable
- */
+/** Exception thrown when compiler hits errors that are not recoverable */
 public class PbjCompilerException extends RuntimeException {
 
     /**

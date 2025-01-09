@@ -4,15 +4,16 @@ package com.hedera.pbj.runtime.test;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.CharBuffer;
 
 /**
- * <p>A {@code WritableSequentialData} backed by a {@link CharBuffer}. It only supports writing UTF8 strings.
+ * A {@code WritableSequentialData} backed by a {@link CharBuffer}. It only supports writing UTF8
+ * strings.
  */
-public class CharBufferToWritableSequentialData implements WritableSequentialData, ReadableSequentialData {
+public class CharBufferToWritableSequentialData
+        implements WritableSequentialData, ReadableSequentialData {
     private final CharBuffer charBuffer;
 
     public CharBufferToWritableSequentialData(CharBuffer charBuffer) {
@@ -70,6 +71,4 @@ public class CharBufferToWritableSequentialData implements WritableSequentialDat
     public byte readByte() {
         throw new UnsupportedOperationException();
     }
-
-
 }

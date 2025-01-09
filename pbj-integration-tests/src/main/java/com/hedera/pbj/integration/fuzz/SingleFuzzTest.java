@@ -3,7 +3,6 @@ package com.hedera.pbj.integration.fuzz;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-
 import java.io.InputStream;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -11,33 +10,33 @@ import java.util.function.Function;
 
 /**
  * A single fuzz test.
- * <p>
- * This class exposes a single public static method that allows a caller to pass
- * a valid object, a Protobuf codec for this object, as well as a random numbers
- * generator. The method will then perform a single fuzz test run with the given
- * data and return a SingleFuzzTestResult describing the outcome of the test run.
- * <p>
- * A fuzz testing framework is expected to use this class to execute multiple runs
- * of the same test (each being random per the given random numbers generator)
- * until the set of outcomes satisfies the testing framework threshold,
- * or the framework runs out of the maximum number of attempts, or a timeout
- * occurs.
- * <p>
- * This class is thread-safe and can be called concurrently from multiple threads
- * as long as the input parameters are immutable or thread-safe.
+ *
+ * <p>This class exposes a single public static method that allows a caller to pass a valid object,
+ * a Protobuf codec for this object, as well as a random numbers generator. The method will then
+ * perform a single fuzz test run with the given data and return a SingleFuzzTestResult describing
+ * the outcome of the test run.
+ *
+ * <p>A fuzz testing framework is expected to use this class to execute multiple runs of the same
+ * test (each being random per the given random numbers generator) until the set of outcomes
+ * satisfies the testing framework threshold, or the framework runs out of the maximum number of
+ * attempts, or a timeout occurs.
+ *
+ * <p>This class is thread-safe and can be called concurrently from multiple threads as long as the
+ * input parameters are immutable or thread-safe.
  */
 public final class SingleFuzzTest {
     // When set to true, the test will print debugging info to System.out,
     // including payloads, for every single run. This may produce a lot of console output.
-    private final static boolean debug = false;
+    private static final boolean debug = false;
 
-    private final static AtomicInteger TEST_ID_GENERATOR = new AtomicInteger(0);
+    private static final AtomicInteger TEST_ID_GENERATOR = new AtomicInteger(0);
 
     public static int getNumberOfRuns() {
         return TEST_ID_GENERATOR.get();
     }
 
-    private static <T> BufferedData write(final T object, final Codec<T> codec, final int size) throws Exception {
+    private static <T> BufferedData write(final T object, final Codec<T> codec, final int size)
+            throws Exception {
         final BufferedData dataBuffer = BufferedData.allocate(size);
         codec.write(object, dataBuffer);
         return dataBuffer;
@@ -50,32 +49,34 @@ public final class SingleFuzzTest {
             final Object deserializedObject,
             final Function<InputStream, ?> protocParser,
             Exception pbjException,
-            boolean doThrow
-    ) {
+            boolean doThrow) {
         dataBuffer.reset();
         try {
             Object protocObject = protocParser.apply(dataBuffer.toInputStream());
             if (pbjException != null) {
-                System.out.println(prefix + "NOTE: Protoc was able to parse this payload w/o exceptions as "
-                        + protocObject
-                        + " , but PBJ errored out with "
-                        + pbjException.toString()
-                );
+                System.out.println(
+                        prefix
+                                + "NOTE: Protoc was able to parse this payload w/o exceptions as "
+                                + protocObject
+                                + " , but PBJ errored out with "
+                                + pbjException.toString());
             }
         } catch (Exception ex) {
             // Protoc didn't like the bytes.
             if (doThrow) {
                 throw new FuzzTestException(
-                        prefix + "Protoc threw an exception "
-                                // Fetch the actual cause because this was a call via Java Reflection:
+                        prefix
+                                + "Protoc threw an exception "
+                                // Fetch the actual cause because this was a call via Java
+                                // Reflection:
                                 + ex.getCause().getCause()
                                 + ", while PBJ didn't for original object: "
                                 + originalObject
-                                + " and fuzzBytes " + dataBuffer
-                                + " that PBJ parsed as: " + deserializedObject
-                        ,
-                        ex
-                );
+                                + " and fuzzBytes "
+                                + dataBuffer
+                                + " that PBJ parsed as: "
+                                + deserializedObject,
+                        ex);
             }
         }
     }
@@ -101,19 +102,19 @@ public final class SingleFuzzTest {
     }
 
     /**
-     * Perform a fuzz test for a given input object of type T and its codec
-     * using a provided random numbers generator.
-     * <p>
-     * The input object is expected to be valid (i.e. serializable using the given codec),
+     * Perform a fuzz test for a given input object of type T and its codec using a provided random
+     * numbers generator.
+     *
+     * <p>The input object is expected to be valid (i.e. serializable using the given codec),
      * otherwise an exception is thrown.
-     * <p>
-     * A comparison with Google Protoc parser is performed as well. A log output is generated
-     * if PBJ fails to parse data that Protoc is able to parse. Conversely, the test run
-     * fails with an exception if Protoc fails to parse malformed data that PBJ parses successfully.
-     * <p>
-     * The test run produces debugging output on stdout with a prefix that is unique
-     * to this particular run, allowing one to identify all the debugging output related
-     * to this specific run even if multiple runs are running concurrently.
+     *
+     * <p>A comparison with Google Protoc parser is performed as well. A log output is generated if
+     * PBJ fails to parse data that Protoc is able to parse. Conversely, the test run fails with an
+     * exception if Protoc fails to parse malformed data that PBJ parses successfully.
+     *
+     * <p>The test run produces debugging output on stdout with a prefix that is unique to this
+     * particular run, allowing one to identify all the debugging output related to this specific
+     * run even if multiple runs are running concurrently.
      *
      * @return a SingleFuzzTestResult
      */
@@ -123,7 +124,11 @@ public final class SingleFuzzTest {
             final Random random,
             final Function<InputStream, ?> protocParser) {
         // Generate a unique test ID prefix for this particular run to tag debugging output:
-        final String prefix = SingleFuzzTest.class.getSimpleName() + " " + TEST_ID_GENERATOR.getAndIncrement() + ": ";
+        final String prefix =
+                SingleFuzzTest.class.getSimpleName()
+                        + " "
+                        + TEST_ID_GENERATOR.getAndIncrement()
+                        + ": ";
 
         if (debug) System.out.println(prefix + "Object: " + object);
         final int size = codec.measureRecord(object);
@@ -158,7 +163,9 @@ public final class SingleFuzzTest {
 
         final int deserializedSize = codec.measureRecord(deserializedObject);
         if (deserializedSize != size) {
-            if (debug) System.out.println(prefix + "Original size: " + size + " , fuzz size: " + deserializedSize);
+            if (debug)
+                System.out.println(
+                        prefix + "Original size: " + size + " , fuzz size: " + deserializedSize);
             return SingleFuzzTestResult.DESERIALIZED_SIZE_MISMATCHED;
         }
 
@@ -180,7 +187,8 @@ public final class SingleFuzzTest {
         return SingleFuzzTestResult.RESERIALIZATION_PASSED;
     }
 
-    private static void modifyBufferedData(final Random random, final int size, final BufferedData dataBuffer) {
+    private static void modifyBufferedData(
+            final Random random, final int size, final BufferedData dataBuffer) {
         final int actualNumberOfBytesToModify = estimateNumberOfBytesToModify(random, size);
         for (int i = 0; i < actualNumberOfBytesToModify; i++) {
             final int randomPosition = random.nextInt(size);
@@ -192,10 +200,7 @@ public final class SingleFuzzTest {
     }
 
     private static <T> BufferedData createBufferedData(
-            final T object,
-            final Codec<T> codec,
-            final int size,
-            final String prefix) {
+            final T object, final Codec<T> codec, final int size, final String prefix) {
         final BufferedData dataBuffer;
         try {
             dataBuffer = write(object, codec, size);
@@ -205,5 +210,4 @@ public final class SingleFuzzTest {
         }
         return dataBuffer;
     }
-
 }

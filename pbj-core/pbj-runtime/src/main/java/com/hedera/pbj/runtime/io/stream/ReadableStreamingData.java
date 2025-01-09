@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.stream;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -16,11 +18,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
-import static java.util.Objects.requireNonNull;
-
 /**
- * <p>A {@code ReadableSequentialData} backed by an input stream. If the instance is closed,
- * the underlying {@link InputStream} is closed too.
+ * A {@code ReadableSequentialData} backed by an input stream. If the instance is closed, the
+ * underlying {@link InputStream} is closed too.
  */
 public class ReadableStreamingData implements ReadableSequentialData, Closeable {
 
@@ -112,7 +112,8 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
     /** {@inheritDoc} */
     @Override
     public void limit(long limit) {
-        // Any attempt to set the limit must be clamped between position on the low end and capacity on the high end.
+        // Any attempt to set the limit must be clamped between position on the low end and capacity
+        // on the high end.
         this.limit = Math.min(capacity(), Math.max(position, limit));
     }
 
@@ -155,7 +156,8 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
     /**
      * {@inheritDoc}
      *
-     * @throws BufferUnderflowException if {@code count} would move the position past the {@link #limit()}.
+     * @throws BufferUnderflowException if {@code count} would move the position past the {@link
+     *     #limit()}.
      */
     @Override
     public void skip(final long n) {
@@ -239,7 +241,6 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
         return bytesRead;
     }
 
-
     @Override
     public long readVarLong(final boolean zigZag) {
         if (!hasRemaining()) {
@@ -268,5 +269,4 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
             throw new UncheckedIOException(e);
         }
     }
-
 }

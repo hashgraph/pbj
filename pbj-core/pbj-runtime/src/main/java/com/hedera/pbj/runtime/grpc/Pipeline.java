@@ -9,13 +9,12 @@ import java.util.concurrent.Flow;
  * @param <T> The subscribed item type
  */
 public interface Pipeline<T> extends Flow.Subscriber<T> {
-    /**
-     * Called when an END_STREAM frame is received from the client.
-     */
-    default void clientEndStreamReceived() { }
+    /** Called when an END_STREAM frame is received from the client. */
+    default void clientEndStreamReceived() {}
 
     /**
      * {@inheritDoc}
+     *
      * @throws RuntimeException if an error occurs while trying to write data to the pipeline
      */
     @Override

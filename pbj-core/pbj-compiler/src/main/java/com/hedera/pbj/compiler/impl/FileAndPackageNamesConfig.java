@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
-/**
- * All constants used in the naming of class files and packages
- */
+/** All constants used in the naming of class files and packages */
 public final class FileAndPackageNamesConfig {
 
     /** Suffix for schema java classes */

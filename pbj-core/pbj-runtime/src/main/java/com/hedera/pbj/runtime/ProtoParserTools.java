@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -18,16 +17,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * This class is full of parse helper methods, they depend on a DataInput as input with position and limit set
- * correctly.
- * <p>
- * Methods that IDE things are unused are used in generated code by PBJ compiler.
+ * This class is full of parse helper methods, they depend on a DataInput as input with position and
+ * limit set correctly.
+ *
+ * <p>Methods that IDE things are unused are used in generated code by PBJ compiler.
  */
 @SuppressWarnings({"DuplicatedCode", "unused"})
 public final class ProtoParserTools {
     /**
-     * The number of lower order bits from the "tag" byte that should be rotated out
-     * to reveal the field number
+     * The number of lower order bits from the "tag" byte that should be rotated out to reveal the
+     * field number
      */
     public static final int TAG_FIELD_OFFSET = 3;
 
@@ -35,8 +34,9 @@ public final class ProtoParserTools {
     private ProtoParserTools() {}
 
     /**
-     * Add an item to a list returning a new list with the item or the same list with the item added. If the list is
-     * Collections.EMPTY_LIST then a new list is created and returned with the item added.
+     * Add an item to a list returning a new list with the item or the same list with the item
+     * added. If the list is Collections.EMPTY_LIST then a new list is created and returned with the
+     * item added.
      *
      * @param list The list to add item to or Collections.EMPTY_LIST
      * @param newItem The item to add
@@ -52,8 +52,9 @@ public final class ProtoParserTools {
     }
 
     /**
-     * Add an entry to a map returning a new map with the entry or the same map with the entry added. If the map is
-     * Collections.EMPTY_MAP then a new map is created and returned with the entry added.
+     * Add an entry to a map returning a new map with the entry or the same map with the entry
+     * added. If the map is Collections.EMPTY_MAP then a new map is created and returned with the
+     * entry added.
      *
      * @param map The map to add entry to or Collections.EMPTY_MAP
      * @param key The key
@@ -76,7 +77,7 @@ public final class ProtoParserTools {
      * @param input The input data to read from
      * @return the read int
      */
-    public static int readInt32(final ReadableSequentialData input)  {
+    public static int readInt32(final ReadableSequentialData input) {
         return input.readVarInt(false);
     }
 
@@ -255,7 +256,8 @@ public final class ProtoParserTools {
 
         try {
             // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
-            return StandardCharsets.UTF_8.newDecoder()
+            return StandardCharsets.UTF_8
+                    .newDecoder()
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
                     .decode(bb)
@@ -269,8 +271,8 @@ public final class ProtoParserTools {
      * Read a Bytes field from data input
      *
      * @param input the input to read from
-     * @return read Bytes object, this can be a copy or a direct reference to inputs data. So it has same life span
-     * of InputData
+     * @return read Bytes object, this can be a copy or a direct reference to inputs data. So it has
+     *     same life span of InputData
      */
     public static Bytes readBytes(final ReadableSequentialData input) {
         try {
@@ -281,16 +283,17 @@ public final class ProtoParserTools {
     }
 
     /**
-     * Read a Bytes field from data input, or throw ParseException if the Bytes in the input
-     * is longer than the maxSize.
+     * Read a Bytes field from data input, or throw ParseException if the Bytes in the input is
+     * longer than the maxSize.
      *
      * @param input the input to read from
      * @param maxSize the maximum allowed size
-     * @return read Bytes object, this can be a copy or a direct reference to inputs data. So it has same life span
-     * of InputData
+     * @return read Bytes object, this can be a copy or a direct reference to inputs data. So it has
+     *     same life span of InputData
      * @throws ParseException if the length is greater than maxSize
      */
-    public static Bytes readBytes(final ReadableSequentialData input, final long maxSize) throws ParseException {
+    public static Bytes readBytes(final ReadableSequentialData input, final long maxSize)
+            throws ParseException {
         final int length = input.readVarInt(false);
         if (length > maxSize) {
             throw new ParseException("size " + length + " is greater than max " + maxSize);
@@ -312,7 +315,8 @@ public final class ProtoParserTools {
      * @param wireType The wire type of field to skip
      * @throws IOException For unsupported wire types
      */
-    public static void skipField(final ReadableSequentialData input, final ProtoConstants wireType) throws IOException {
+    public static void skipField(final ReadableSequentialData input, final ProtoConstants wireType)
+            throws IOException {
         try {
             skipField(input, wireType, Long.MAX_VALUE);
         } catch (ParseException ex) {
@@ -327,16 +331,20 @@ public final class ProtoParserTools {
      * @param wireType The wire type of field to skip
      * @param maxSize the maximum allowed size for repeated/length-encoded fields
      * @throws IOException For unsupported wire types
-     * @throws ParseException if the length of a repeated/length-encoded field is greater than maxSize
+     * @throws ParseException if the length of a repeated/length-encoded field is greater than
+     *     maxSize
      */
-    public static void skipField(final ReadableSequentialData input, final ProtoConstants wireType, final long maxSize)
+    public static void skipField(
+            final ReadableSequentialData input, final ProtoConstants wireType, final long maxSize)
             throws IOException, ParseException {
         switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
-            // The value for "zigZag" when calling varint doesn't matter because we are just reading past
-            // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
-            // the bytes, not how many of them there are)
+                // The value for "zigZag" when calling varint doesn't matter because we are just
+                // reading past
+                // the varint, we don't care how to interpret it (zigzag is only used for
+                // interpretation of
+                // the bytes, not how many of them there are)
             case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
             case WIRE_TYPE_DELIMITED -> {
                 final int length = input.readVarInt(false);
@@ -348,9 +356,12 @@ public final class ProtoParserTools {
                 }
                 input.skip(length);
             }
-            case WIRE_TYPE_GROUP_START -> throw new IOException("Wire type 'Group Start' is unsupported");
-            case WIRE_TYPE_GROUP_END -> throw new IOException("Wire type 'Group End' is unsupported");
-            default -> throw new IOException("Unhandled wire type while trying to skip a field " + wireType);
+            case WIRE_TYPE_GROUP_START -> throw new IOException(
+                    "Wire type 'Group Start' is unsupported");
+            case WIRE_TYPE_GROUP_END -> throw new IOException(
+                    "Wire type 'Group End' is unsupported");
+            default -> throw new IOException(
+                    "Unhandled wire type while trying to skip a field " + wireType);
         }
     }
 

@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
-import java.util.Set;
-import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import static com.hedera.pbj.compiler.impl.SingleField.getDeprecatedOption;
+
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+import java.util.Set;
 
 /**
  * A field of type map.
- * <p>
- * In protobuf, a map is essentially a repeated map entry message with two fields: key and value.
- * However, we don't model the map entry message explicitly for performance reasons. Instead,
- * we deal with the keys and values directly, and define synthetic Field objects for them here
- * for convenience, so that we can reuse the majority of the code generation code.
- * <p>
- * In model implementations we use a custom implementation of the Map interface named PbjMap
- * which is an immutable map that exposes a SortedKeys list which allows one to iterate
- * the map deterministically which is useful for serializing, computing the hash code, etc.
+ *
+ * <p>In protobuf, a map is essentially a repeated map entry message with two fields: key and value.
+ * However, we don't model the map entry message explicitly for performance reasons. Instead, we
+ * deal with the keys and values directly, and define synthetic Field objects for them here for
+ * convenience, so that we can reuse the majority of the code generation code.
+ *
+ * <p>In model implementations we use a custom implementation of the Map interface named PbjMap
+ * which is an immutable map that exposes a SortedKeys list which allows one to iterate the map
+ * deterministically which is useful for serializing, computing the hash code, etc.
  */
 public record MapField(
         /** A synthetic "key" field in a map entry. */
@@ -34,13 +35,12 @@ public record MapField(
         String javaDefault,
         String parserFieldsSetMethodCase,
         String comment,
-        boolean deprecated
-) implements Field {
+        boolean deprecated)
+        implements Field {
 
-    /**
-     * Construct a MapField instance out of a MapFieldContext and a lookup helper.
-     */
-    public MapField(Protobuf3Parser.MapFieldContext mapContext, final ContextualLookupHelper lookupHelper) {
+    /** Construct a MapField instance out of a MapFieldContext and a lookup helper. */
+    public MapField(
+            Protobuf3Parser.MapFieldContext mapContext, final ContextualLookupHelper lookupHelper) {
         this(
                 new SingleField(
                         false,
@@ -60,13 +60,16 @@ public record MapField(
                         2,
                         "___" + mapContext.mapName().getText() + "__value",
                         Field.extractMessageTypeName(mapContext.type_()),
-                        Field.extractMessageTypePackage(mapContext.type_(), FileType.MODEL, lookupHelper),
-                        Field.extractMessageTypePackage(mapContext.type_(), FileType.CODEC, lookupHelper),
-                        Field.extractMessageTypePackage(mapContext.type_(), FileType.TEST, lookupHelper),
-                        "An internal, private map entry value for " + mapContext.mapName().getText(),
+                        Field.extractMessageTypePackage(
+                                mapContext.type_(), FileType.MODEL, lookupHelper),
+                        Field.extractMessageTypePackage(
+                                mapContext.type_(), FileType.CODEC, lookupHelper),
+                        Field.extractMessageTypePackage(
+                                mapContext.type_(), FileType.TEST, lookupHelper),
+                        "An internal, private map entry value for "
+                                + mapContext.mapName().getText(),
                         false,
                         null),
-
                 false, // maps cannot be repeated
                 Integer.parseInt(mapContext.fieldNumber().getText()),
                 mapContext.mapName().getText(),
@@ -77,43 +80,51 @@ public record MapField(
                 null,
                 "PbjMap.EMPTY",
                 "",
-                Common.buildCleanFieldJavaDoc(Integer.parseInt(mapContext.fieldNumber().getText()), mapContext.docComment()),
-                getDeprecatedOption(mapContext.fieldOptions())
-        );
+                Common.buildCleanFieldJavaDoc(
+                        Integer.parseInt(mapContext.fieldNumber().getText()),
+                        mapContext.docComment()),
+                getDeprecatedOption(mapContext.fieldOptions()));
     }
 
     /**
-     * Composes the Java generic type of the map field, e.g. "&lt;Integer, String&gt;" for a Map&lt;Integer, String&gt;.
+     * Composes the Java generic type of the map field, e.g. "&lt;Integer, String&gt;" for a
+     * Map&lt;Integer, String&gt;.
      */
     public String javaGenericType() {
-        return "<" + keyField.type().boxedType + ", " +
-                (valueField().type() == FieldType.MESSAGE ? ((SingleField)valueField()).messageType() : valueField().type().boxedType)
+        return "<"
+                + keyField.type().boxedType
+                + ", "
+                + (valueField().type() == FieldType.MESSAGE
+                        ? ((SingleField) valueField()).messageType()
+                        : valueField().type().boxedType)
                 + ">";
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String javaFieldType() {
         return "Map" + javaGenericType();
     }
 
     private void composeFieldDef(StringBuilder sb, Field field) {
-        sb.append("""
+        sb.append(
+                """
                     /**
                      * $doc
                      */
                 """
-                .replace("$doc", field.comment().replaceAll("\n","\n     * "))
-        );
-        sb.append("    public static final FieldDefinition %s = new FieldDefinition(\"%s\", FieldType.%s, %s, false, false, %d);\n"
-                .formatted(Common.camelToUpperSnake(field.name()), field.name(), field.type().fieldType(), field.repeated(), field.fieldNumber()));
+                        .replace("$doc", field.comment().replaceAll("\n", "\n     * ")));
+        sb.append(
+                "    public static final FieldDefinition %s = new FieldDefinition(\"%s\", FieldType.%s, %s, false, false, %d);\n"
+                        .formatted(
+                                Common.camelToUpperSnake(field.name()),
+                                field.name(),
+                                field.type().fieldType(),
+                                field.repeated(),
+                                field.fieldNumber()));
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String schemaFieldsDef() {
         StringBuilder sb = new StringBuilder();
@@ -123,17 +134,13 @@ public record MapField(
         return sb.toString();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String schemaGetFieldsDefCase() {
         return "case %d -> %s;".formatted(fieldNumber, Common.camelToUpperSnake(name));
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void addAllNeededImports(
             final Set<String> imports,

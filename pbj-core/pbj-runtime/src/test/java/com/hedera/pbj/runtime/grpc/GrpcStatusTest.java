@@ -7,9 +7,10 @@ import org.junit.jupiter.api.Test;
 
 class GrpcStatusTest {
     /**
-     * The specific ordinal values must match exactly the expectations as set forth in the specification. This test
-     * "fixes" them in place. Any changes to the order in which fields are placed in GrpcStatus will break this test,
-     * as the ordinal values will change. The test MUST NOT BE adapted to match.
+     * The specific ordinal values must match exactly the expectations as set forth in the
+     * specification. This test "fixes" them in place. Any changes to the order in which fields are
+     * placed in GrpcStatus will break this test, as the ordinal values will change. The test MUST
+     * NOT BE adapted to match.
      */
     @Test
     void statusCodesAreSpecific() {

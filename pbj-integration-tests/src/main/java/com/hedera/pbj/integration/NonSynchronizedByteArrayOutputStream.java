@@ -6,9 +6,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Objects;
 
-/**
- * Faster non-synchronized ByteArrayOutputStream
- */
+/** Faster non-synchronized ByteArrayOutputStream */
 public final class NonSynchronizedByteArrayOutputStream extends OutputStream {
 
     private ByteBuffer byteBuffer = null;
@@ -26,8 +24,8 @@ public final class NonSynchronizedByteArrayOutputStream extends OutputStream {
     }
 
     /**
-     * get a reused bytebuffer directly over the internal buffer. It will have position reset and limit set to
-     * current data size.
+     * get a reused bytebuffer directly over the internal buffer. It will have position reset and
+     * limit set to current data size.
      */
     public ByteBuffer getByteBuffer() {
         if (byteBuffer == null || byteBuffer.array() != buf) {
@@ -43,8 +41,10 @@ public final class NonSynchronizedByteArrayOutputStream extends OutputStream {
         int oldCapacity = buf.length;
         int minGrowth = minCapacity - oldCapacity;
         if (minGrowth > 0) {
-            buf = Arrays.copyOf(buf, newLength(oldCapacity,
-                    minGrowth, oldCapacity /* preferred growth */));
+            buf =
+                    Arrays.copyOf(
+                            buf,
+                            newLength(oldCapacity, minGrowth, oldCapacity /* preferred growth */));
         }
     }
 
@@ -73,6 +73,5 @@ public final class NonSynchronizedByteArrayOutputStream extends OutputStream {
         return Arrays.copyOf(buf, count);
     }
 
-    public void close() {
-    }
+    public void close() {}
 }

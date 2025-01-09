@@ -15,7 +15,8 @@ class GrpcExceptionTest {
     void testStatus(final GrpcStatus expected) {
         // If it is OK, then it will actually fail the test, so do not run the test in that case.
         Assumptions.assumeThat(expected).isNotEqualTo(GrpcStatus.OK);
-        // A GrpcException that is given any status should return that status from the status() method.
+        // A GrpcException that is given any status should return that status from the status()
+        // method.
         GrpcException grpcException = new GrpcException(expected);
         assertThat(grpcException.status()).isEqualTo(expected);
     }
@@ -25,8 +26,8 @@ class GrpcExceptionTest {
         // If the status is OK, then the constructor should throw an IllegalArgumentException.
         //noinspection ThrowableNotThrown
         assertThatThrownBy(() -> new GrpcException(GrpcStatus.OK))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("status cannot be OK");
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("status cannot be OK");
     }
 
     @Test

@@ -6,9 +6,7 @@ import static java.lang.Character.*;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import java.io.IOException;
 
-/**
- * UTF8 tools based on protobuf standard library, so we are byte for byte identical
- */
+/** UTF8 tools based on protobuf standard library, so we are byte for byte identical */
 public final class Utf8Tools {
 
     /**
@@ -52,7 +50,8 @@ public final class Utf8Tools {
         return utf8Length;
     }
 
-    private static int encodedLengthGeneral(final CharSequence sequence, final int start) throws IOException {
+    private static int encodedLengthGeneral(final CharSequence sequence, final int start)
+            throws IOException {
         int utf16Length = sequence.length();
         int utf8Length = 0;
         for (int i = start; i < utf16Length; i++) {
@@ -66,7 +65,8 @@ public final class Utf8Tools {
                     // Check that we have a well-formed surrogate pair.
                     int cp = Character.codePointAt(sequence, i);
                     if (cp < MIN_SUPPLEMENTARY_CODE_POINT) {
-                        throw new MalformedProtobufException("Unpaired surrogate at index " + i + " of " + utf16Length);
+                        throw new MalformedProtobufException(
+                                "Unpaired surrogate at index " + i + " of " + utf16Length);
                     }
                     i++;
                 }
@@ -76,10 +76,11 @@ public final class Utf8Tools {
     }
 
     /**
-     * Encodes the input character sequence to a {@link WritableSequentialData} using the same algorithm as protoc, so we are
-     * byte for byte the same.
+     * Encodes the input character sequence to a {@link WritableSequentialData} using the same
+     * algorithm as protoc, so we are byte for byte the same.
      */
-    static void encodeUtf8(final CharSequence in, final WritableSequentialData out) throws IOException {
+    static void encodeUtf8(final CharSequence in, final WritableSequentialData out)
+            throws IOException {
         final int inLength = in.length();
         for (int inIx = 0; inIx < inLength; ++inIx) {
             final char c = in.charAt(inIx);
@@ -102,10 +103,12 @@ public final class Utf8Tools {
                         (byte) (0x80 | (0x3F & c)));
             } else {
                 // Four bytes (1111 xxxx 10xx xxxx 10xx xxxx 10xx xxxx)
-                // Minimum code point represented by a surrogate pair is 0x10000, 17 bits, four UTF-8 bytes
+                // Minimum code point represented by a surrogate pair is 0x10000, 17 bits, four
+                // UTF-8 bytes
                 final char low;
                 if (inIx + 1 == inLength || !isSurrogatePair(c, (low = in.charAt(++inIx)))) {
-                    throw new MalformedProtobufException("Unpaired surrogate at index " + inIx + " of " + inLength);
+                    throw new MalformedProtobufException(
+                            "Unpaired surrogate at index " + inIx + " of " + inLength);
                 }
                 int codePoint = toCodePoint(c, low);
                 out.writeByte4(

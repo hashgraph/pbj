@@ -8,27 +8,23 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import sun.misc.Unsafe;
 
-/**
- * A set of utility methods on top of sun.misc.Unsafe
- */
+/** A set of utility methods on top of sun.misc.Unsafe */
 public class UnsafeUtils {
 
     private static final Unsafe UNSAFE;
 
     /**
-     * Java and PBJ use BIG_ENDIAN, while native byte order used by Unsafe may or may not
-     * be BIG_ENDIAN. This flag indicates that if they don't match
+     * Java and PBJ use BIG_ENDIAN, while native byte order used by Unsafe may or may not be
+     * BIG_ENDIAN. This flag indicates that if they don't match
      */
     private static final boolean NEED_CHANGE_BYTE_ORDER;
 
-    /**
-     * Field offset of the byte[] class
-     */
+    /** Field offset of the byte[] class */
     private static final int BYTE_ARRAY_BASE_OFFSET;
 
     /**
-     * Direct byte buffer "address" field offset. This is not the address of the buffer,
-     * but the offset of the field, which contains the address of the buffer
+     * Direct byte buffer "address" field offset. This is not the address of the buffer, but the
+     * offset of the field, which contains the address of the buffer
      */
     private static final long DIRECT_BYTEBUFFER_ADDRESS_OFFSET;
 
@@ -41,17 +37,17 @@ public class UnsafeUtils {
             BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
             final Field addressField = Buffer.class.getDeclaredField("address");
             DIRECT_BYTEBUFFER_ADDRESS_OFFSET = UNSAFE.objectFieldOffset(addressField);
-        } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
+        } catch (NoSuchFieldException
+                | SecurityException
+                | IllegalArgumentException
+                | IllegalAccessException e) {
             throw new InternalError(e);
         }
     }
 
-    private UnsafeUtils() {
-    }
+    private UnsafeUtils() {}
 
-    /**
-     * Get byte array element at a given offset. Identical to arr[offset].
-     */
+    /** Get byte array element at a given offset. Identical to arr[offset]. */
     public static byte getArrayByte(final byte[] arr, final int offset) {
         if (arr.length <= offset) {
             throw new IndexOutOfBoundsException();
@@ -60,8 +56,8 @@ public class UnsafeUtils {
     }
 
     /**
-     * Get byte array element at a given offset. Identical to arr[offset], but faster,
-     * because no array bounds checks are performed.
+     * Get byte array element at a given offset. Identical to arr[offset], but faster, because no
+     * array bounds checks are performed.
      *
      * <p><b>Use with caution!</b>
      */
@@ -70,8 +66,8 @@ public class UnsafeUtils {
     }
 
     /**
-     * Get heap byte buffer element at a given offset. Identical to buf.get(offset). May only
-     * be called for Java heap byte buffers.
+     * Get heap byte buffer element at a given offset. Identical to buf.get(offset). May only be
+     * called for Java heap byte buffers.
      */
     public static byte getHeapBufferByte(final ByteBuffer buf, final int offset) {
         if (buf.limit() < offset + 1) {
@@ -91,8 +87,8 @@ public class UnsafeUtils {
     }
 
     /**
-     * Get direct byte buffer element at a given offset. Identical to buf.get(offset). May only
-     * be called for direct byte buffers
+     * Get direct byte buffer element at a given offset. Identical to buf.get(offset). May only be
+     * called for direct byte buffers
      */
     public static byte getDirectBufferByte(final ByteBuffer buf, final int offset) {
         if (buf.limit() < offset + 1) {
@@ -128,8 +124,8 @@ public class UnsafeUtils {
     }
 
     /**
-     * Reads a long from the given array starting at the given offset. Array bytes are
-     * interpreted in BIG_ENDIAN order.
+     * Reads a long from the given array starting at the given offset. Array bytes are interpreted
+     * in BIG_ENDIAN order.
      *
      * @param arr The byte array
      * @param offset The offset to read a long at
@@ -145,42 +141,58 @@ public class UnsafeUtils {
     }
 
     /**
-     * Copies heap byte buffer bytes to a given byte array. May only be called for heap
-     * byte buffers
+     * Copies heap byte buffer bytes to a given byte array. May only be called for heap byte buffers
      */
     public static void getHeapBufferToArray(
-            final ByteBuffer buffer, final long offset, final byte[] dst, final int dstOffset, final int length) {
-        UNSAFE.copyMemory(buffer.array(), BYTE_ARRAY_BASE_OFFSET + offset,
-                dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
+            final ByteBuffer buffer,
+            final long offset,
+            final byte[] dst,
+            final int dstOffset,
+            final int length) {
+        UNSAFE.copyMemory(
+                buffer.array(),
+                BYTE_ARRAY_BASE_OFFSET + offset,
+                dst,
+                BYTE_ARRAY_BASE_OFFSET + dstOffset,
+                length);
     }
 
     /**
-     * Copies direct byte buffer bytes to a given byte array. May only be called for direct
-     * byte buffers
+     * Copies direct byte buffer bytes to a given byte array. May only be called for direct byte
+     * buffers
      */
     public static void getDirectBufferToArray(
-            final ByteBuffer buffer, final long offset, final byte[] dst, final int dstOffset, final int length) {
+            final ByteBuffer buffer,
+            final long offset,
+            final byte[] dst,
+            final int dstOffset,
+            final int length) {
         final long address = UNSAFE.getLong(buffer, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
-        UNSAFE.copyMemory(null, address + offset,
-                dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
+        UNSAFE.copyMemory(null, address + offset, dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
     }
 
     /**
-     * Copies direct byte buffer bytes to another direct byte buffer. May only be called for
-     * direct byte buffers
+     * Copies direct byte buffer bytes to another direct byte buffer. May only be called for direct
+     * byte buffers
      */
     public static void getDirectBufferToDirectBuffer(
-            final ByteBuffer buffer, final long offset, final ByteBuffer dst, final int dstOffset, final int length) {
+            final ByteBuffer buffer,
+            final long offset,
+            final ByteBuffer dst,
+            final int dstOffset,
+            final int length) {
         final long address = UNSAFE.getLong(buffer, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
         final long dstAddress = UNSAFE.getLong(dst, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
         UNSAFE.copyMemory(null, address + offset, null, dstAddress, length);
     }
 
-    /**
-     * Copies a byte array to a direct byte buffer. May only be called for direct byte buffers
-     */
+    /** Copies a byte array to a direct byte buffer. May only be called for direct byte buffers */
     public static void putByteArrayToDirectBuffer(
-            final ByteBuffer buffer, final long offset, final byte[] src, final int srcOffset, final int length) {
+            final ByteBuffer buffer,
+            final long offset,
+            final byte[] src,
+            final int srcOffset,
+            final int length) {
         final long address = UNSAFE.getLong(buffer, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
         UNSAFE.copyMemory(src, BYTE_ARRAY_BASE_OFFSET + srcOffset, null, address + offset, length);
     }

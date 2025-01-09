@@ -3,9 +3,7 @@ package com.hedera.pbj.runtime.test;
 
 import java.util.Objects;
 
-/**
- * Wrapper for arguments to avoid expensive toString() calls during junit tests
- */
+/** Wrapper for arguments to avoid expensive toString() calls during junit tests */
 public final class NoToStringWrapper<T> {
     private final T value;
     private final String toString;
@@ -39,9 +37,7 @@ public final class NoToStringWrapper<T> {
         return toString;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -50,9 +46,7 @@ public final class NoToStringWrapper<T> {
         return value.equals(that.value);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int hashCode() {
         return Objects.hash(value);

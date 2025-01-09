@@ -9,23 +9,27 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 
 /**
- * BufferedData subclass for instances backed by direct byte buffers. Provides slightly more optimized
- * versions of several methods to get / read / write bytes using {@link UnsafeUtils} methods.
+ * BufferedData subclass for instances backed by direct byte buffers. Provides slightly more
+ * optimized versions of several methods to get / read / write bytes using {@link UnsafeUtils}
+ * methods.
  */
 final class DirectBufferedData extends BufferedData {
 
     DirectBufferedData(final ByteBuffer buffer) {
         super(buffer);
         if (!buffer.isDirect()) {
-            throw new IllegalArgumentException("Cannot create a DirectBufferedData over a heap byte buffer");
+            throw new IllegalArgumentException(
+                    "Cannot create a DirectBufferedData over a heap byte buffer");
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
+    public long getBytes(
+            final long offset,
+            @NonNull final byte[] dst,
+            final int dstOffset,
+            final int maxLength) {
         validateLen(maxLength);
         final long len = Math.min(maxLength, length() - offset);
         checkOffsetToRead(offset, length(), len);
@@ -37,9 +41,7 @@ final class DirectBufferedData extends BufferedData {
         return len;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long getBytes(final long offset, @NonNull final ByteBuffer dst) {
         if (!dst.hasArray()) {
@@ -50,13 +52,12 @@ final class DirectBufferedData extends BufferedData {
         final byte[] dstArr = dst.array();
         final int dstPos = dst.position();
         final int dstArrOffset = dst.arrayOffset();
-        UnsafeUtils.getDirectBufferToArray(buffer, offset, dstArr, dstArrOffset + dstPos, Math.toIntExact(len));
+        UnsafeUtils.getDirectBufferToArray(
+                buffer, offset, dstArr, dstArrOffset + dstPos, Math.toIntExact(len));
         return len;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @NonNull
     @Override
     public Bytes getBytes(final long offset, final long len) {
@@ -70,17 +71,13 @@ final class DirectBufferedData extends BufferedData {
         return Bytes.wrap(res);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getVarInt(final long offset, final boolean zigZag) {
         return (int) getVar(Math.toIntExact(offset), zigZag);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long getVarLong(final long offset, final boolean zigZag) {
         return getVar(Math.toIntExact(offset), zigZag);
@@ -106,12 +103,12 @@ final class DirectBufferedData extends BufferedData {
                 return zigZag ? (value >>> 1) ^ -(value & 1) : value;
             }
         }
-        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+        throw (i == 10)
+                ? new DataEncodingException("Malformed var int")
+                : new BufferUnderflowException();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long readBytes(@NonNull final byte[] dst, final int dstOffset, final int maxLength) {
         validateLen(maxLength);
@@ -137,12 +134,14 @@ final class DirectBufferedData extends BufferedData {
         if (dst.hasArray()) {
             final byte[] dstArr = dst.array();
             final int dstArrOffset = dst.arrayOffset();
-            UnsafeUtils.getDirectBufferToArray(buffer, pos, dstArr, dstArrOffset + dstPos, Math.toIntExact(len));
+            UnsafeUtils.getDirectBufferToArray(
+                    buffer, pos, dstArr, dstArrOffset + dstPos, Math.toIntExact(len));
             buffer.position(Math.toIntExact(pos + len));
             dst.position(Math.toIntExact(dstPos + len));
             return len;
         } else if (dst.isDirect()) {
-            UnsafeUtils.getDirectBufferToDirectBuffer(buffer, pos, dst, dstPos, Math.toIntExact(len));
+            UnsafeUtils.getDirectBufferToDirectBuffer(
+                    buffer, pos, dst, dstPos, Math.toIntExact(len));
             buffer.position(Math.toIntExact(pos + len));
             dst.position(Math.toIntExact(dstPos + len));
             return len;
@@ -151,9 +150,7 @@ final class DirectBufferedData extends BufferedData {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @NonNull
     @Override
     public Bytes readBytes(final int len) {
@@ -166,17 +163,13 @@ final class DirectBufferedData extends BufferedData {
         return Bytes.wrap(res);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int readVarInt(final boolean zigZag) {
         return (int) readVar(zigZag);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long readVarLong(final boolean zigZag) {
         return readVar(zigZag);
@@ -204,9 +197,7 @@ final class DirectBufferedData extends BufferedData {
         throw (i == 10) ? new DataEncodingException("") : new BufferUnderflowException();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeBytes(@NonNull final byte[] src, final int offset, final int len) {
         Objects.requireNonNull(src);
@@ -218,9 +209,7 @@ final class DirectBufferedData extends BufferedData {
         buffer.position(pos + len);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeBytes(@NonNull final ByteBuffer src) {
         if (!src.hasArray()) {

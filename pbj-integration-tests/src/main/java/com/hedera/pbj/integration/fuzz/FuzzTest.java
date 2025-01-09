@@ -2,7 +2,6 @@
 package com.hedera.pbj.integration.fuzz;
 
 import com.hedera.pbj.runtime.Codec;
-
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -14,24 +13,22 @@ import java.util.stream.IntStream;
 
 /**
  * A fuzz test runner for a single object/codec.
- * <p>
- * This class exposes a single public static method that runs a comprehensive fuzz test
- * for a given object and its codec. Note that the codec must be valid for the given
- * object (see the SingleFuzzTest javadoc for more details.)
- * <p>
- * Ultimately, the result of the test is a map that describes how often a particular
- * SingleFuzzTest outcome occurred in percentages. The provided threshold specifies
- * the percentage of the DESERIALIZATION_FAILED outcome for the test to be considered
- * as passed.
- * <p>
- * The method returns a FuzzTestResult record that describes the results in full.
+ *
+ * <p>This class exposes a single public static method that runs a comprehensive fuzz test for a
+ * given object and its codec. Note that the codec must be valid for the given object (see the
+ * SingleFuzzTest javadoc for more details.)
+ *
+ * <p>Ultimately, the result of the test is a map that describes how often a particular
+ * SingleFuzzTest outcome occurred in percentages. The provided threshold specifies the percentage
+ * of the DESERIALIZATION_FAILED outcome for the test to be considered as passed.
+ *
+ * <p>The method returns a FuzzTestResult record that describes the results in full.
  */
 public class FuzzTest {
 
     /**
-     * Run a fuzz test for a given object and codec, and use the provided threshold
-     * for the most desirable DESERIALIZATION_FAILED outcome to determine
-     * if the test passed or not.
+     * Run a fuzz test for a given object and codec, and use the provided threshold for the most
+     * desirable DESERIALIZATION_FAILED outcome to determine if the test passed or not.
      */
     public static <T> FuzzTestResult<T> fuzzTest(
             final T object,
@@ -48,45 +45,47 @@ public class FuzzTest {
             // Certain objects result in zero-size payload, so there's nothing to test.
             // Mark it as passed.
             return new FuzzTestResult<>(
-                    object,
-                    true,
-                    Map.of(),
-                    repeatCount,
-                    System.nanoTime() - startNanoTime
-            );
+                    object, true, Map.of(), repeatCount, System.nanoTime() - startNanoTime);
         }
 
-        final Map<SingleFuzzTestResult, Long> resultCounts = IntStream.range(0, repeatCount)
-                // Note that we must run this stream sequentially to enable
-                // reproducing the tests for a given random seed.
-                .mapToObj(n -> SingleFuzzTest.fuzzTest(object, codec, random, protocParser))
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        final Map<SingleFuzzTestResult, Long> resultCounts =
+                IntStream.range(0, repeatCount)
+                        // Note that we must run this stream sequentially to enable
+                        // reproducing the tests for a given random seed.
+                        .mapToObj(n -> SingleFuzzTest.fuzzTest(object, codec, random, protocParser))
+                        .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
 
-        final Map<SingleFuzzTestResult, Double> statsMap = computePercentageMap(resultCounts, repeatCount);
+        final Map<SingleFuzzTestResult, Double> statsMap =
+                computePercentageMap(resultCounts, repeatCount);
 
         return new FuzzTestResult<>(
                 object,
                 statsMap.getOrDefault(SingleFuzzTestResult.DESERIALIZATION_FAILED, 0.) >= threshold,
                 statsMap,
                 repeatCount,
-                System.nanoTime() - startNanoTime
-        );
+                System.nanoTime() - startNanoTime);
     }
 
     private static Function<InputStream, ?> getProtocParser(Class<?> protocModelClass) {
         final Function<InputStream, ?> protocParser;
         try {
-            final Method method = protocModelClass.getDeclaredMethod("parseFrom", InputStream.class);
-            protocParser = inputStream -> {
-                try {
-                    return method.invoke(null, inputStream);
-                } catch (IllegalAccessException | InvocationTargetException e) {
-                    throw new FuzzTestException("Failed to invoke protocModelClass.parseFrom(InputStream)", e);
-                }
-            };
+            final Method method =
+                    protocModelClass.getDeclaredMethod("parseFrom", InputStream.class);
+            protocParser =
+                    inputStream -> {
+                        try {
+                            return method.invoke(null, inputStream);
+                        } catch (IllegalAccessException | InvocationTargetException e) {
+                            throw new FuzzTestException(
+                                    "Failed to invoke protocModelClass.parseFrom(InputStream)", e);
+                        }
+                    };
         } catch (NoSuchMethodException e) {
-            throw new FuzzTestException("Protoc model " + protocModelClass.getName()
-                    + " doesn't have the parseFrom(InputStream) method", e);
+            throw new FuzzTestException(
+                    "Protoc model "
+                            + protocModelClass.getName()
+                            + " doesn't have the parseFrom(InputStream) method",
+                    e);
         }
         return protocParser;
     }
@@ -103,12 +102,11 @@ public class FuzzTest {
     }
 
     private static Map<SingleFuzzTestResult, Double> computePercentageMap(
-            final Map<SingleFuzzTestResult, Long> resultCounts,
-            final int repeatCount) {
+            final Map<SingleFuzzTestResult, Long> resultCounts, final int repeatCount) {
         return resultCounts.entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> entry.getValue().doubleValue() / (double) repeatCount)
-                );
+                .collect(
+                        Collectors.toMap(
+                                Map.Entry::getKey,
+                                entry -> entry.getValue().doubleValue() / (double) repeatCount));
     }
 }

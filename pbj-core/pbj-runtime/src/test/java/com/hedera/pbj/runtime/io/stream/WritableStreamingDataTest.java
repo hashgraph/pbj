@@ -1,20 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.stream;
 
-import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.WritableTestBase;
-import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,6 +13,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+
+import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.WritableTestBase;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class WritableStreamingDataTest extends WritableTestBase {
 
@@ -73,7 +74,7 @@ public class WritableStreamingDataTest extends WritableTestBase {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = { -1, 0, 2, 1024, 1025, 2048, 3000 })
+    @ValueSource(ints = {-1, 0, 2, 1024, 1025, 2048, 3000})
     @DisplayName("Skip inserts empty bytes into the output stream")
     void skip(final int numBytesToSkip) {
         // Given a sequence
@@ -93,7 +94,8 @@ public class WritableStreamingDataTest extends WritableTestBase {
         final var stream = mock(OutputStream.class);
         final var seq = new WritableStreamingData(stream);
         doThrow(IOException.class).when(stream).write(any(), anyInt(), anyInt());
-        // When we try to skip some bytes, then we get an exception because the stream throws IOException
+        // When we try to skip some bytes, then we get an exception because the stream throws
+        // IOException
         assertThatThrownBy(() -> seq.skip(1)).isInstanceOf(UncheckedIOException.class);
     }
 
@@ -105,7 +107,8 @@ public class WritableStreamingDataTest extends WritableTestBase {
         final var seq = new WritableStreamingData(stream);
         doThrow(IOException.class).when(stream).write(any(), anyInt(), anyInt());
         final var src = new ByteArrayInputStream("Gonna Throw".getBytes(StandardCharsets.UTF_8));
-        // When we try to write some bytes, then we get an exception because the stream throws IOException
+        // When we try to write some bytes, then we get an exception because the stream throws
+        // IOException
         assertThatThrownBy(() -> seq.writeBytes(src, 5)).isInstanceOf(UncheckedIOException.class);
     }
 
@@ -124,7 +127,9 @@ public class WritableStreamingDataTest extends WritableTestBase {
     }
 
     @Test
-    @DisplayName("writeBytes(RandomAccessData) should delegate to RandomAccessData.writeTo(OutputStream)")
+    @DisplayName(
+            "writeBytes(RandomAccessData) should delegate to"
+                    + " RandomAccessData.writeTo(OutputStream)")
     void testWriteBytesFastPath() {
         final OutputStream out = mock(OutputStream.class);
         final RandomAccessData data = mock(RandomAccessData.class);
@@ -141,5 +146,4 @@ public class WritableStreamingDataTest extends WritableTestBase {
 
         assertEquals(10L, seq.position());
     }
-
 }

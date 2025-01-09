@@ -1,33 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.stream;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.ReadableSequentialTestBase;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.nio.BufferUnderflowException;
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
@@ -41,35 +39,46 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
     @NonNull
     private ReadableSequentialData throwingSequence() {
-        return new ReadableStreamingData(new InputStream() {
-            @Override
-            public int read() throws IOException {
-                throw new IOException("testing here");
-            }
-        });
+        return new ReadableStreamingData(
+                new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        throw new IOException("testing here");
+                    }
+                });
     }
 
     @NonNull
     private ReadableSequentialData oneByteSequence() {
-        return new ReadableStreamingData(new InputStream() {
-            private int pos = 0;
-            @Override
-            public int read() throws IOException {
-                switch (pos) {
-                    case 0: pos++; return 7;
-                    case 1: pos++; return -1;
-                    default: throw new IOException("EOF");
-                }
-            }
+        return new ReadableStreamingData(
+                new InputStream() {
+                    private int pos = 0;
 
-            @Override
-            public int readNBytes(byte[] b, int off, int len) throws IOException {
-                switch (pos) {
-                    case 0: b[off] = (byte) read(); return 1;
-                    default: return super.readNBytes(b, off, len);
-                }
-            }
-        });
+                    @Override
+                    public int read() throws IOException {
+                        switch (pos) {
+                            case 0:
+                                pos++;
+                                return 7;
+                            case 1:
+                                pos++;
+                                return -1;
+                            default:
+                                throw new IOException("EOF");
+                        }
+                    }
+
+                    @Override
+                    public int readNBytes(byte[] b, int off, int len) throws IOException {
+                        switch (pos) {
+                            case 0:
+                                b[off] = (byte) read();
+                                return 1;
+                            default:
+                                return super.readNBytes(b, off, len);
+                        }
+                    }
+                });
     }
 
     @Test
@@ -125,7 +134,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
     @Override
     @NonNull
-    protected ReadableStreamingData sequence(@NonNull byte [] arr) {
+    protected ReadableStreamingData sequence(@NonNull byte[] arr) {
         final var stream = new ReadableStreamingData(arr);
         stream.limit(arr.length);
         return stream;
@@ -147,8 +156,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
     void closedStreamCannotBeRead() {
         try (var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8))) {
             stream.close();
-            assertThatThrownBy(stream::readByte)
-                    .isInstanceOf(BufferUnderflowException.class);
+            assertThatThrownBy(stream::readByte).isInstanceOf(BufferUnderflowException.class);
         }
     }
 
@@ -158,60 +166,60 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         try (var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8))) {
             stream.close();
             stream.close();
-            assertThatThrownBy(stream::readByte)
-                    .isInstanceOf(BufferUnderflowException.class);
+            assertThatThrownBy(stream::readByte).isInstanceOf(BufferUnderflowException.class);
         }
     }
 
     @Test
     @DisplayName("Bad InputStream will fail on skip")
     void inputStreamFailsDuringSkip() {
-        final var byteStream = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5, 6, 7 });
-        final var inputStream = new BufferedInputStream(byteStream) {
-            @Override
-            public synchronized long skip(long n) throws IOException {
-                throw new IOException("Failed");
-            }
-        };
+        final var byteStream = new ByteArrayInputStream(new byte[] {1, 2, 3, 4, 5, 6, 7});
+        final var inputStream =
+                new BufferedInputStream(byteStream) {
+                    @Override
+                    public synchronized long skip(long n) throws IOException {
+                        throw new IOException("Failed");
+                    }
+                };
 
         final var stream = new ReadableStreamingData(inputStream);
-        assertThatThrownBy(() -> stream.skip(5))
-                .isInstanceOf(UncheckedIOException.class);
+        assertThatThrownBy(() -> stream.skip(5)).isInstanceOf(UncheckedIOException.class);
     }
 
     @Test
     @DisplayName("Bad InputStream will fail on read")
     void inputStreamFailsDuringRead() {
         final var throwNow = new AtomicBoolean(false);
-        final var byteStream = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5, 6, 7 });
-        final var inputStream = new BufferedInputStream(byteStream) {
-            @Override
-            public int read() throws IOException {
-                if (throwNow.get()) {
-                    throw new IOException("Failed");
-                } else {
-                    return super.read();
-                }
-            }
-        };
+        final var byteStream = new ByteArrayInputStream(new byte[] {1, 2, 3, 4, 5, 6, 7});
+        final var inputStream =
+                new BufferedInputStream(byteStream) {
+                    @Override
+                    public int read() throws IOException {
+                        if (throwNow.get()) {
+                            throw new IOException("Failed");
+                        } else {
+                            return super.read();
+                        }
+                    }
+                };
 
         final var stream = new ReadableStreamingData(inputStream);
         stream.skip(5);
 
         throwNow.set(true);
-        assertThatThrownBy(stream::readByte)
-                .isInstanceOf(UncheckedIOException.class);
+        assertThatThrownBy(stream::readByte).isInstanceOf(UncheckedIOException.class);
     }
 
     @Test
     @DisplayName("Bad InputStream during close is ignored")
     void inputStreamFailsDuringClose() {
-        final var inputStream = new ByteArrayInputStream(new byte[0]) {
-            @Override
-            public void close() throws IOException {
-                throw new IOException("Failed");
-            }
-        };
+        final var inputStream =
+                new ByteArrayInputStream(new byte[0]) {
+                    @Override
+                    public void close() throws IOException {
+                        throw new IOException("Failed");
+                    }
+                };
 
         final var stream = new ReadableStreamingData(inputStream);
         stream.close();
@@ -221,26 +229,30 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
     @Test
     @DisplayName("Bad InputStream empty when read")
     void inputStreamEmptyReadBytes() {
-        final var inputStream = new ByteArrayInputStream(new byte[0]) {
-            @Override
-            public void close() throws IOException {
-                throw new IOException("Failed");
-            }
-        };
+        final var inputStream =
+                new ByteArrayInputStream(new byte[0]) {
+                    @Override
+                    public void close() throws IOException {
+                        throw new IOException("Failed");
+                    }
+                };
 
         byte[] read = new byte[5];
         final var stream = new ReadableStreamingData(inputStream);
-        assertThrows(EOFException.class, () -> {
-            final var i = stream.readInt();
-        });
+        assertThrows(
+                EOFException.class,
+                () -> {
+                    final var i = stream.readInt();
+                });
         assertEquals(0, stream.readBytes(read));
     }
 
     @Test
     @DisplayName("Bad InputStream empty when read")
     void inputStreamEmptyReadVarLong() {
-        final var inputStream = new ByteArrayInputStream(new byte[] {
-                (byte) 128, (byte) 129, (byte) 130, (byte) 131});
+        final var inputStream =
+                new ByteArrayInputStream(
+                        new byte[] {(byte) 128, (byte) 129, (byte) 130, (byte) 131});
 
         final var stream = new ReadableStreamingData(inputStream);
 
@@ -249,8 +261,9 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
     @Test
     void incompleteStreamToByteBuffer() {
-        final var inputStream = new ByteArrayInputStream(new byte[] {
-                (byte) 128, (byte) 129, (byte) 130, (byte) 131});
+        final var inputStream =
+                new ByteArrayInputStream(
+                        new byte[] {(byte) 128, (byte) 129, (byte) 130, (byte) 131});
 
         final var stream = new TestReadeableSequentialData(new ReadableStreamingData(inputStream));
         ByteBuffer buffer = ByteBuffer.allocate(8);
@@ -260,8 +273,9 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
     @Test
     void incompleteStreamToBufferedData() {
-        final var inputStream = new ByteArrayInputStream(new byte[] {
-                (byte) 128, (byte) 129, (byte) 130, (byte) 131});
+        final var inputStream =
+                new ByteArrayInputStream(
+                        new byte[] {(byte) 128, (byte) 129, (byte) 130, (byte) 131});
 
         final var stream = new TestReadeableSequentialData(new ReadableStreamingData(inputStream));
         stream.limit(8);
@@ -273,7 +287,7 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
     @Test
     @DisplayName("Reusing an input stream on two ReadableStreamingData does not lose any data")
     void reuseStream() {
-        final var byteStream = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+        final var byteStream = new ByteArrayInputStream(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
 
         final var bytes1 = new byte[5];
         final var stream1 = new ReadableStreamingData(byteStream);
@@ -334,7 +348,8 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
     @Test
     void readDirectoryFile() throws IOException {
-        final Path dir = Files.createTempDirectory(getClass().getSimpleName() + "_readDirectoryFile");
+        final Path dir =
+                Files.createTempDirectory(getClass().getSimpleName() + "_readDirectoryFile");
         try {
             assertThrows(IOException.class, () -> new ReadableStreamingData(dir));
         } finally {
@@ -344,15 +359,17 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
     @Test
     void readFileThatDoesntExist() throws IOException {
-        final Path file = Files.createTempFile(getClass().getSimpleName(), "readFileThatDoesntExist");
+        final Path file =
+                Files.createTempFile(getClass().getSimpleName(), "readFileThatDoesntExist");
         Files.delete(file);
         assertThrows(IOException.class, () -> new ReadableStreamingData(file));
     }
 
     /**
-     * The sole purpose of this class is to allow testing of
-     * `{@link ReadableStreamingData#readBytes(ByteBuffer)}` and `{@link ReadableStreamingData#readBytes(BufferedData)}`.
-     * This methods are overriddin in other implementation and not possible to test ortherwise.
+     * The sole purpose of this class is to allow testing of `{@link
+     * ReadableStreamingData#readBytes(ByteBuffer)}` and `{@link
+     * ReadableStreamingData#readBytes(BufferedData)}`. This methods are overriddin in other
+     * implementation and not possible to test ortherwise.
      */
     private static class TestReadeableSequentialData implements ReadableSequentialData {
         private ReadableStreamingData readableStreamingData;

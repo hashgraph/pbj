@@ -3,19 +3,16 @@ package com.hedera.pbj.integration.test;
 
 import com.hedera.pbj.test.proto.pbj.Hasheval;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
-import org.junit.jupiter.params.ParameterizedTest;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-/**
- * Unit Test for TimestampTest model object. Generate based on protobuf schema.
- */
+/** Unit Test for TimestampTest model object. Generate based on protobuf schema. */
 public final class TestHashFunctions {
     public static int hash1(Hasheval hashEval) {
         try {
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(
-                    Hasheval.PROTOBUF.toBytes(hashEval).toByteArray());
+            byte[] hash =
+                    MessageDigest.getInstance("SHA-256")
+                            .digest(Hasheval.PROTOBUF.toBytes(hashEval).toByteArray());
             int res = hash[0] << 24 | hash[1] << 16 | hash[2] << 8 | hash[3];
             return processForBetterDistribution(res);
         } catch (NoSuchAlgorithmException e) {
@@ -82,7 +79,11 @@ public final class TestHashFunctions {
             result = 31 * result + hashEval.text().hashCode();
         }
         if (hashEval.bytesField() != Hasheval.DEFAULT.bytesField()) {
-            result = 31 * result + (hashEval.bytesField() == null ? 0 : hashEval.bytesField().hashCode());
+            result =
+                    31 * result
+                            + (hashEval.bytesField() == null
+                                    ? 0
+                                    : hashEval.bytesField().hashCode());
         }
 
         return processForBetterDistribution(result);

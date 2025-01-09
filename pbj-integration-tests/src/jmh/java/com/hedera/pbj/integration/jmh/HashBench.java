@@ -6,6 +6,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.Hasheval;
 import com.hedera.pbj.test.proto.pbj.Suit;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -17,9 +19,6 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("unused")
 @State(Scope.Benchmark)
@@ -33,10 +32,25 @@ public class HashBench {
 
     public HashBench() {
         TimestampTest tst = new TimestampTest(987L, 123);
-        hasheval = new Hasheval(1, -1, 2, 3, -2,
-                                123f, 7L, -7L, 123L, 234L,
-                                -345L, 456.789D, true, Suit.ACES, tst, "FooBarKKKKHHHHOIOIOI",
-                                 Bytes.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, (byte)255}));
+        hasheval =
+                new Hasheval(
+                        1,
+                        -1,
+                        2,
+                        3,
+                        -2,
+                        123f,
+                        7L,
+                        -7L,
+                        123L,
+                        234L,
+                        -345L,
+                        456.789D,
+                        true,
+                        Suit.ACES,
+                        tst,
+                        "FooBarKKKKHHHHOIOIOI",
+                        Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, (byte) 255}));
     }
 
     @Benchmark

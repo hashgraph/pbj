@@ -54,21 +54,21 @@ public abstract class PbjCompilerTask extends SourceTask {
     public void perform() throws Exception {
         // Clean output directories
         getFileOperations().delete(getJavaMainOutputDirectory(), getJavaTestOutputDirectory());
-        compileFilesIn(getSource(),
+        compileFilesIn(
+                getSource(),
                 getJavaMainOutputDirectory().get().getAsFile(),
                 getJavaTestOutputDirectory().get().getAsFile());
     }
 
     /**
      * Compile all the proto files in the given source directories
+     *
      * @param sourceFiles The source files to compile
      * @param mainOutputDir The main output directory
      * @param testOutputDir The test output directory
      */
-
-    public static void compileFilesIn(Iterable<File> sourceFiles,
-                                       File mainOutputDir,
-                                       File testOutputDir) throws Exception {
+    public static void compileFilesIn(
+            Iterable<File> sourceFiles, File mainOutputDir, File testOutputDir) throws Exception {
         // first we do a scan of files to build lookup tables for imports, packages etc.
         final LookupHelper lookupHelper = new LookupHelper(sourceFiles);
         // for each proto src directory generate code
@@ -100,9 +100,7 @@ public abstract class PbjCompilerTask extends SourceTask {
                         if (enumDef != null) {
                             // run just enum generators for enum
                             EnumGenerator.generateEnumFile(
-                                    enumDef,
-                                    mainOutputDir,
-                                    contextualLookupHelper);
+                                    enumDef, mainOutputDir, contextualLookupHelper);
                         }
                     }
                 } catch (Exception e) {
@@ -112,7 +110,8 @@ public abstract class PbjCompilerTask extends SourceTask {
                     var trace = e.getStackTrace();
                     int count = 0;
                     for (var element : trace) {
-                        if (count++ < MAX_TRACE_FRAMES) System.err.println(STACK_ELEMENT_INDENT + element);
+                        if (count++ < MAX_TRACE_FRAMES)
+                            System.err.println(STACK_ELEMENT_INDENT + element);
                     }
                     throw e;
                 }

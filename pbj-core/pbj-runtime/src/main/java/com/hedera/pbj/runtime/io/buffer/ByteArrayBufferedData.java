@@ -14,8 +14,8 @@ import java.util.Objects;
 
 /**
  * BufferedData subclass for instances backed by a byte array. Provides slightly more optimized
- * versions of several methods to get / read / write bytes using {@link System#arraycopy} and
- * direct array reads / writes.
+ * versions of several methods to get / read / write bytes using {@link System#arraycopy} and direct
+ * array reads / writes.
  */
 final class ByteArrayBufferedData extends BufferedData {
 
@@ -28,7 +28,8 @@ final class ByteArrayBufferedData extends BufferedData {
     ByteArrayBufferedData(final ByteBuffer buffer) {
         super(buffer);
         if (!buffer.hasArray()) {
-            throw new IllegalArgumentException("Cannot create a ByteArrayBufferedData over a buffer with no array");
+            throw new IllegalArgumentException(
+                    "Cannot create a ByteArrayBufferedData over a buffer with no array");
         }
         this.array = buffer.array();
         this.arrayOffset = buffer.arrayOffset();
@@ -50,9 +51,7 @@ final class ByteArrayBufferedData extends BufferedData {
         return sb.toString();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public boolean contains(final long offset, @NonNull final byte[] bytes) {
         checkOffset(offset, length());
@@ -67,20 +66,20 @@ final class ByteArrayBufferedData extends BufferedData {
         return Arrays.equals(array, fromThisIndex, fromToIndex, bytes, 0, len);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public byte getByte(final long offset) {
         checkOffset(offset, length());
         return array[Math.toIntExact(arrayOffset + offset)];
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
+    public long getBytes(
+            final long offset,
+            @NonNull final byte[] dst,
+            final int dstOffset,
+            final int maxLength) {
         validateLen(maxLength);
         checkOffset(offset);
         final long len = Math.min(maxLength, length() - offset);
@@ -88,13 +87,12 @@ final class ByteArrayBufferedData extends BufferedData {
         if (len == 0) {
             return 0;
         }
-        System.arraycopy(array, Math.toIntExact(arrayOffset + offset), dst, dstOffset, Math.toIntExact(len));
+        System.arraycopy(
+                array, Math.toIntExact(arrayOffset + offset), dst, dstOffset, Math.toIntExact(len));
         return len;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long getBytes(final long offset, @NonNull final ByteBuffer dst) {
         if (!dst.hasArray()) {
@@ -106,13 +104,15 @@ final class ByteArrayBufferedData extends BufferedData {
         final int dstPos = dst.position();
         final int dstArrOffset = dst.arrayOffset();
         System.arraycopy(
-                array, Math.toIntExact(arrayOffset + offset), dstArr, dstArrOffset + dstPos, Math.toIntExact(len));
+                array,
+                Math.toIntExact(arrayOffset + offset),
+                dstArr,
+                dstArrOffset + dstPos,
+                Math.toIntExact(len));
         return len;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @NonNull
     @Override
     public Bytes getBytes(final long offset, final long len) {
@@ -126,17 +126,13 @@ final class ByteArrayBufferedData extends BufferedData {
         return Bytes.wrap(res);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getVarInt(final long offset, final boolean zigZag) {
         return (int) getVar(Math.toIntExact(offset), zigZag);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long getVarLong(final long offset, final boolean zigZag) {
         return getVar(Math.toIntExact(offset), zigZag);
@@ -162,12 +158,12 @@ final class ByteArrayBufferedData extends BufferedData {
                 return zigZag ? (value >>> 1) ^ -(value & 1) : value;
             }
         }
-        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+        throw (i == 10)
+                ? new DataEncodingException("Malformed var int")
+                : new BufferUnderflowException();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public byte readByte() {
         if (remaining() == 0) {
@@ -179,9 +175,7 @@ final class ByteArrayBufferedData extends BufferedData {
         return res;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long readBytes(@NonNull byte[] dst, int offset, int maxLength) {
         validateLen(maxLength);
@@ -195,9 +189,7 @@ final class ByteArrayBufferedData extends BufferedData {
         return len;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long readBytes(@NonNull final ByteBuffer dst) {
         if (!dst.hasArray()) {
@@ -208,15 +200,14 @@ final class ByteArrayBufferedData extends BufferedData {
         final byte[] dstArr = dst.array();
         final int dstPos = dst.position();
         final int dstArrOffset = dst.arrayOffset();
-        System.arraycopy(array, arrayOffset + pos, dstArr, dstArrOffset + dstPos, Math.toIntExact(len));
+        System.arraycopy(
+                array, arrayOffset + pos, dstArr, dstArrOffset + dstPos, Math.toIntExact(len));
         buffer.position(Math.toIntExact(pos + len));
         dst.position(Math.toIntExact(dstPos + len));
         return len;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @NonNull
     @Override
     public Bytes readBytes(final int len) {
@@ -232,17 +223,13 @@ final class ByteArrayBufferedData extends BufferedData {
         return Bytes.wrap(res);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int readVarInt(final boolean zigZag) {
         return (int) readVar(zigZag);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public long readVarLong(final boolean zigZag) {
         return readVar(zigZag);
@@ -268,12 +255,12 @@ final class ByteArrayBufferedData extends BufferedData {
                 return zigZag ? (value >>> 1) ^ -(value & 1) : value;
             }
         }
-        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+        throw (i == 10)
+                ? new DataEncodingException("Malformed var int")
+                : new BufferUnderflowException();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeByte(final byte b) {
         validateCanWrite(1);
@@ -322,9 +309,7 @@ final class ByteArrayBufferedData extends BufferedData {
         buffer.position(pos + len);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void writeBytes(@NonNull final ByteBuffer src) {
         if (!src.hasArray()) {
@@ -337,14 +322,13 @@ final class ByteArrayBufferedData extends BufferedData {
         final byte[] srcArr = src.array();
         final int srcArrOffset = src.arrayOffset();
         final int srcPos = src.position();
-        System.arraycopy(srcArr, srcArrOffset + srcPos, array, arrayOffset + pos, Math.toIntExact(len));
+        System.arraycopy(
+                srcArr, srcArrOffset + srcPos, array, arrayOffset + pos, Math.toIntExact(len));
         src.position(Math.toIntExact(srcPos + len));
         buffer.position(Math.toIntExact(pos + len));
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int writeBytes(@NonNull final InputStream src, final int maxLength) {
         // Check for a bad length or a null src
@@ -367,7 +351,8 @@ final class ByteArrayBufferedData extends BufferedData {
             int pos = buffer.position();
             int totalBytesRead = 0;
             while (totalBytesRead < numBytesToRead) {
-                int bytesRead = src.read(array, pos + arrayOffset, (int) numBytesToRead - totalBytesRead);
+                int bytesRead =
+                        src.read(array, pos + arrayOffset, (int) numBytesToRead - totalBytesRead);
                 if (bytesRead == -1) {
                     buffer.position(pos);
                     return totalBytesRead;

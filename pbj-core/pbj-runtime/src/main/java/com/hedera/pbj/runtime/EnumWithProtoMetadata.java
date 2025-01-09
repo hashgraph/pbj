@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-/**
- * Interface for enums that have a protobuf ordinal and name metdata
- */
+/** Interface for enums that have a protobuf ordinal and name metdata */
 public interface EnumWithProtoMetadata {
     /**
      * Get the Protobuf ordinal for this object

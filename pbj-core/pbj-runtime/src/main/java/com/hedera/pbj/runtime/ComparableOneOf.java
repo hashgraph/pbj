@@ -4,26 +4,28 @@ package com.hedera.pbj.runtime;
 import java.util.Objects;
 
 /**
+ * This is a version of {@link OneOf} that implements `Comparable` interface to allow sorting of
+ * lists of ComparableOneOf objects. It requires that the value implements `Comparable` interface as
+ * well.
  *
- * This is a version of {@link OneOf} that implements `Comparable` interface to allow sorting of lists of ComparableOneOf objects.
- * It requires that the value implements `Comparable` interface as well.
- *
- * @param kind     An enum representing the kind of data being represented. Must not be null.
- * @param value    The actual value in the "oneof". May be null.
- * @param <E>      The enum type
+ * @param kind An enum representing the kind of data being represented. Must not be null.
+ * @param value The actual value in the "oneof". May be null.
+ * @param <E> The enum type
  */
-public record ComparableOneOf<E extends Enum<E>>(E kind, Comparable value) implements Comparable<ComparableOneOf<E>> {
+public record ComparableOneOf<E extends Enum<E>>(E kind, Comparable value)
+        implements Comparable<ComparableOneOf<E>> {
     /**
      * Construct a new ComparableOneOf
      *
-     * @param kind     An enum representing the kind of data being represented. Must not be null.
-     * @param value    The actual value in the "oneof". May be null.
+     * @param kind An enum representing the kind of data being represented. Must not be null.
+     * @param value The actual value in the "oneof". May be null.
      */
     public ComparableOneOf {
         if (kind == null) {
             throw new NullPointerException("An enum 'kind' must be supplied");
         }
-        assert kind instanceof EnumWithProtoMetadata : "OneOf 'kind' must implement EnumWithProtoMetadata";
+        assert kind instanceof EnumWithProtoMetadata
+                : "OneOf 'kind' must implement EnumWithProtoMetadata";
     }
 
     /**
@@ -46,7 +48,7 @@ public record ComparableOneOf<E extends Enum<E>>(E kind, Comparable value) imple
 
     @Override
     public int hashCode() {
-        return (31 + Integer.hashCode(((EnumWithProtoMetadata)kind).protoOrdinal())) * 31
+        return (31 + Integer.hashCode(((EnumWithProtoMetadata) kind).protoOrdinal())) * 31
                 + (value == null ? 0 : value.hashCode());
     }
 
@@ -63,4 +65,3 @@ public record ComparableOneOf<E extends Enum<E>>(E kind, Comparable value) imple
         return value.compareTo(thatObj.value);
     }
 }
-

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.test;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
 import com.hedera.pbj.test.proto.pbj.MessageWithBytes;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -19,10 +20,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class ParserNeverWrapsTest {
 
@@ -75,8 +74,7 @@ public class ParserNeverWrapsTest {
             Function<Codec<T>, T> parser,
             Runnable resetter,
             Supplier<byte[]> getter,
-            BiConsumer<Integer, byte[]> setter
-    ) {
+            BiConsumer<Integer, byte[]> setter) {
         static <T> WrapTestData<T> createByteArrayBufferedData(int size) {
             // The current implementation creates ByteArrayBufferedData:
             final BufferedData seq = BufferedData.allocate(size);
@@ -88,8 +86,7 @@ public class ParserNeverWrapsTest {
                     (pos, bytes) -> {
                         seq.position(pos);
                         seq.writeBytes(bytes);
-                    }
-            );
+                    });
         }
 
         static <T> WrapTestData<T> createDirectBufferedData(int size) {
@@ -103,8 +100,7 @@ public class ParserNeverWrapsTest {
                     (pos, bytes) -> {
                         seq.position(pos);
                         seq.writeBytes(bytes);
-                    }
-            );
+                    });
         }
 
         static <T> WrapTestData<T> createBytes(int size) {
@@ -122,8 +118,7 @@ public class ParserNeverWrapsTest {
                         for (int i = 0; i < arr.length; i++) {
                             byteArray[pos + i] = arr[i];
                         }
-                    }
-            );
+                    });
         }
     }
 
@@ -131,8 +126,7 @@ public class ParserNeverWrapsTest {
         return Stream.of(
                 WrapTestData::createByteArrayBufferedData,
                 WrapTestData::createDirectBufferedData,
-                WrapTestData::createBytes
-        );
+                WrapTestData::createBytes);
     }
 
     @ParameterizedTest
@@ -141,9 +135,8 @@ public class ParserNeverWrapsTest {
         final String randomString = UUID.randomUUID().toString();
         final byte[] originalBytes = randomString.getBytes(StandardCharsets.UTF_8);
 
-        final MessageWithBytes originalMessage = MessageWithBytes.newBuilder()
-                .bytesField(Bytes.wrap(originalBytes))
-                .build();
+        final MessageWithBytes originalMessage =
+                MessageWithBytes.newBuilder().bytesField(Bytes.wrap(originalBytes)).build();
         final int size = MessageWithBytes.PROTOBUF.measureRecord(originalMessage);
         final WrapTestData<MessageWithBytes> data = config.apply(size);
         MessageWithBytes.PROTOBUF.write(originalMessage, data.wSeq().get());

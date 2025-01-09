@@ -194,8 +194,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // See https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
             // In addition, "application/grpc" is interpreted as "application/grpc+proto".
             final var requestHeaders = headers.httpHeaders();
-            final var requestContentType =
-                    requestHeaders.contentType().orElse(null);
+            final var requestContentType = requestHeaders.contentType().orElse(null);
             final var ct = requestContentType == null ? "" : requestContentType.text();
             final var contentType =
                     switch (ct) {
@@ -223,9 +222,10 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // FUTURE: Add support for the other compression schemes and let the response be in the
             // same scheme that was sent to us, or another scheme in "grpc-accept-encoding" that
             // we support, or identity.
-            final var encodings = requestHeaders.contains(GRPC_ENCODING)
-                    ? requestHeaders.get(GRPC_ENCODING).allValues(true)
-                    : List.of(IDENTITY);
+            final var encodings =
+                    requestHeaders.contains(GRPC_ENCODING)
+                            ? requestHeaders.get(GRPC_ENCODING).allValues(true)
+                            : List.of(IDENTITY);
             boolean identitySpecified = false;
             for (final var encoding : encodings) {
                 if (encoding.startsWith(IDENTITY)) {
@@ -236,7 +236,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             if (!identitySpecified) {
                 throw new GrpcException(
                         GrpcStatus.UNIMPLEMENTED,
-                        "Decompressor is not installed for grpc-encoding \"" + String.join(", ", encodings) + "\"");
+                        "Decompressor is not installed for grpc-encoding \""
+                                + String.join(", ", encodings)
+                                + "\"");
             }
 
             // The client may have sent a "grpc-accept-encoding" header. Note that
@@ -386,11 +388,16 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                                             GrpcStatus.INVALID_ARGUMENT,
                                             "Message size exceeds maximum allowed size");
                                 }
-                                // Create a buffer to hold the message. We sadly cannot reuse this buffer
-                                // because once we have filled it and wrapped it in Bytes and sent it to the
-                                // handler, some user code may grab and hold that Bytes object for an arbitrary
-                                // amount of time, and if we were to scribble into the same byte array, we
-                                // would break the application. So we need a new buffer each time :-(
+                                // Create a buffer to hold the message. We sadly cannot reuse this
+                                // buffer
+                                // because once we have filled it and wrapped it in Bytes and sent
+                                // it to the
+                                // handler, some user code may grab and hold that Bytes object for
+                                // an arbitrary
+                                // amount of time, and if we were to scribble into the same byte
+                                // array, we
+                                // would break the application. So we need a new buffer each time
+                                // :-(
                                 entityBytes = new byte[(int) length];
                                 entityBytesIndex = 0;
                                 // done with length now, so move on to next state
@@ -400,10 +407,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                         }
                     case READ_ENTITY_BYTES:
                         {
-                            // By the time we get here, entityBytes is no longer null. It may be empty, or it
-                            // may already have been partially populated from a previous iteration. It may be
-                            // that the number of bytes available to be read is larger than just this one
-                            // message. So we need to be careful to read, from what is available, only up to
+                            // By the time we get here, entityBytes is no longer null. It may be
+                            // empty, or it
+                            // may already have been partially populated from a previous iteration.
+                            // It may be
+                            // that the number of bytes available to be read is larger than just
+                            // this one
+                            // message. So we need to be careful to read, from what is available,
+                            // only up to
                             // the message length, and to leave the rest for the next iteration.
                             final int available = data.available();
                             final int numBytesToRead =
@@ -450,8 +461,10 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * <p>May be called by different threads concurrently.
      */
     private void error() {
-        // Canceling a future that has already completed has no effect. So by canceling here, we are saying:
-        // "If you have not yet executed, never execute. If you have already executed, then just ignore me".
+        // Canceling a future that has already completed has no effect. So by canceling here, we are
+        // saying:
+        // "If you have not yet executed, never execute. If you have already executed, then just
+        // ignore me".
         // The "isCancelled" flag is set if the future was canceled before it was executed.
 
         // cancel is threadsafe
@@ -534,7 +547,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
         // Some headers are http2 specific, the rest are used for the grpc protocol
         final var grpcHeaders = WritableHeaders.create();
-        // FUTURE: I think to support custom headers in the response, we would have to list them here.
+        // FUTURE: I think to support custom headers in the response, we would have to list them
+        // here.
         // Since this has to be sent before we have any data to send, we must know ahead of time
         // which custom headers are to be returned.
         grpcHeaders.set(HeaderNames.TRAILER, "grpc-status, grpc-message");
@@ -661,8 +675,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     }
 
     /**
-     * The implementation of {@link Pipeline} used to send messages to the client. It
-     * receives bytes from the handlers to send to the client.
+     * The implementation of {@link Pipeline} used to send messages to the client. It receives bytes
+     * from the handlers to send to the client.
      */
     private final class SendToClientSubscriber implements Pipeline<Bytes> {
         @Override
@@ -686,8 +700,10 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                                 Http2Flag.DataFlags.create(0),
                                 streamId);
 
-                // This method may throw an UncheckedIOException. If this happens, the connection with the client
-                // has been violently terminated, and we should raise the error, and we should throw an exception
+                // This method may throw an UncheckedIOException. If this happens, the connection
+                // with the client
+                // has been violently terminated, and we should raise the error, and we should throw
+                // an exception
                 // so the user knows the connection is toast.
                 streamWriter.writeData(new Http2FrameData(header, bufferData), flowControl);
             } catch (final Exception e) {
@@ -710,7 +726,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     new TrailerBuilder().grpcStatus(GrpcStatus.INTERNAL).send();
                 }
             } catch (Exception ignored) {
-                // If an exception is thrown trying to return headers, we're already in the error state, so
+                // If an exception is thrown trying to return headers, we're already in the error
+                // state, so
                 // just continue.
             }
             error();

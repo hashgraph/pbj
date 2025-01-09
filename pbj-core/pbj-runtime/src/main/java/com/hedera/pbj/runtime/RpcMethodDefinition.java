@@ -11,9 +11,7 @@ package com.hedera.pbj.runtime;
  * @param <R> The type of the response message
  */
 public record RpcMethodDefinition<T extends Record, R extends Record>(
-        String path,
-        Class<T> requestType,
-        Class<R> responseType) {
+        String path, Class<T> requestType, Class<R> responseType) {
 
     /**
      * Create a new builder for a {@link RpcMethodDefinition}.
@@ -50,6 +48,7 @@ public record RpcMethodDefinition<T extends Record, R extends Record>(
 
         /**
          * Set the request type.
+         *
          * @param requestType The request type
          * @return This builder
          */
@@ -60,6 +59,7 @@ public record RpcMethodDefinition<T extends Record, R extends Record>(
 
         /**
          * Set the response type.
+         *
          * @param responseType The response type
          * @return This builder
          */
@@ -70,6 +70,7 @@ public record RpcMethodDefinition<T extends Record, R extends Record>(
 
         /**
          * Build the {@link RpcMethodDefinition}.
+         *
          * @return The {@link RpcMethodDefinition}
          */
         public RpcMethodDefinition<T, R> build() {

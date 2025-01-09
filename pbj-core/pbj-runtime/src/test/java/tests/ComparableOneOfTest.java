@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package tests;
 
-import com.hedera.pbj.runtime.ComparableOneOf;
-import com.hedera.pbj.runtime.EnumWithProtoMetadata;
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import com.hedera.pbj.runtime.ComparableOneOf;
+import com.hedera.pbj.runtime.EnumWithProtoMetadata;
+import org.junit.jupiter.api.Test;
 
 class ComparableOneOfTest {
     @Test
@@ -30,8 +30,9 @@ class ComparableOneOfTest {
     @Test
     void hashCodeReturnsHashCode() {
         final var oneOf = new ComparableOneOf<>(TestEnum.KIND1, "Value");
-        assertEquals((31 + Integer.hashCode(TestEnum.KIND1.protoOrdinal())) * 31
-                + "Value".hashCode(), oneOf.hashCode());
+        assertEquals(
+                (31 + Integer.hashCode(TestEnum.KIND1.protoOrdinal())) * 31 + "Value".hashCode(),
+                oneOf.hashCode());
     }
 
     @Test
@@ -39,7 +40,8 @@ class ComparableOneOfTest {
         final var oneOf = new ComparableOneOf<>(TestEnum.KIND1, "Value");
         final var sameComparableOneOf = new ComparableOneOf<>(TestEnum.KIND1, "Value");
         final var differentComparableOneOf = new ComparableOneOf<>(TestEnum.KIND2, "Value");
-        final var anotherDifferentComparableOneOf = new ComparableOneOf<>(TestEnum.KIND1, "AnotherValue");
+        final var anotherDifferentComparableOneOf =
+                new ComparableOneOf<>(TestEnum.KIND1, "AnotherValue");
 
         assertEquals(true, oneOf.equals(oneOf));
         assertEquals(true, oneOf.equals(sameComparableOneOf));
@@ -63,5 +65,4 @@ class ComparableOneOfTest {
             return name();
         }
     }
-
 }

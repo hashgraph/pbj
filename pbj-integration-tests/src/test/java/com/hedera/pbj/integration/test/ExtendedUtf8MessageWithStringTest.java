@@ -1,92 +1,92 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.test;
 
-import com.google.protobuf.CodedOutputStream;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.test.NoToStringWrapper;
-import com.hedera.pbj.test.proto.pbj.MessageWithString;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import static com.hedera.pbj.runtime.ProtoTestTools.getThreadLocalByteBuffer;
 import static com.hedera.pbj.runtime.ProtoTestTools.getThreadLocalDataBuffer;
 import static com.hedera.pbj.runtime.ProtoTestTools.getThreadLocalDataBuffer2;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/**
- * Unit Test for MessageWithString model object. Generate based on protobuf schema.
- */
+import com.google.protobuf.CodedOutputStream;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.test.NoToStringWrapper;
+import com.hedera.pbj.test.proto.pbj.MessageWithString;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+/** Unit Test for MessageWithString model object. Generate based on protobuf schema. */
 public final class ExtendedUtf8MessageWithStringTest {
-	@ParameterizedTest
+    @ParameterizedTest
     @MethodSource("createModelTestArguments")
-    public void testMessageWithStringAgainstProtoC(final NoToStringWrapper<MessageWithString> modelObjWrapper) throws Exception {
-    	final MessageWithString modelObj = modelObjWrapper.getValue();
-    	// get reusable thread buffers
-    	final BufferedData dataBuffer = getThreadLocalDataBuffer();
-    	final BufferedData dataBuffer2 = getThreadLocalDataBuffer2();
-    	final ByteBuffer byteBuffer = getThreadLocalByteBuffer();
-    
-    	// model to bytes with PBJ
-    	MessageWithString.PROTOBUF.write(modelObj,dataBuffer);
-    	// clamp limit to bytes written
-    	dataBuffer.limit(dataBuffer.position());
-    
-    	// copy bytes to ByteBuffer
-    	dataBuffer.resetPosition();
-    	dataBuffer.readBytes(byteBuffer);
-    	byteBuffer.flip();
-    
-    	// read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
-    	final com.hedera.pbj.test.proto.java.MessageWithString protoCModelObj = com.hedera.pbj.test.proto.java.MessageWithString.parseFrom(byteBuffer);
-    
-    	// read proto bytes with PBJ parser
-    	dataBuffer.resetPosition();
-    	final MessageWithString modelObj2 = MessageWithString.PROTOBUF.parse(dataBuffer);
-    
-    	// check the read back object is equal to written original one
-    	//assertEquals(modelObj.toString(), modelObj2.toString());
-    	assertEquals(modelObj, modelObj2);
-    
-    	// model to bytes with ProtoC writer
-    	byteBuffer.clear();
-    	final CodedOutputStream codedOutput = CodedOutputStream.newInstance(byteBuffer);
-    	protoCModelObj.writeTo(codedOutput);
-    	codedOutput.flush();
-    	byteBuffer.flip();
-    	// copy to a data buffer
-    	dataBuffer2.writeBytes(byteBuffer);
-    	dataBuffer2.flip();
-    
-    	// compare written bytes
-    	assertEquals(dataBuffer, dataBuffer2);
-    
-    	// parse those bytes again with PBJ
-    	dataBuffer2.resetPosition();
-    	final MessageWithString modelObj3 = MessageWithString.PROTOBUF.parse(dataBuffer2);
-    	assertEquals(modelObj, modelObj3);
+    public void testMessageWithStringAgainstProtoC(
+            final NoToStringWrapper<MessageWithString> modelObjWrapper) throws Exception {
+        final MessageWithString modelObj = modelObjWrapper.getValue();
+        // get reusable thread buffers
+        final BufferedData dataBuffer = getThreadLocalDataBuffer();
+        final BufferedData dataBuffer2 = getThreadLocalDataBuffer2();
+        final ByteBuffer byteBuffer = getThreadLocalByteBuffer();
+
+        // model to bytes with PBJ
+        MessageWithString.PROTOBUF.write(modelObj, dataBuffer);
+        // clamp limit to bytes written
+        dataBuffer.limit(dataBuffer.position());
+
+        // copy bytes to ByteBuffer
+        dataBuffer.resetPosition();
+        dataBuffer.readBytes(byteBuffer);
+        byteBuffer.flip();
+
+        // read proto bytes with ProtoC to make sure it is readable and no parse exceptions are
+        // thrown
+        final com.hedera.pbj.test.proto.java.MessageWithString protoCModelObj =
+                com.hedera.pbj.test.proto.java.MessageWithString.parseFrom(byteBuffer);
+
+        // read proto bytes with PBJ parser
+        dataBuffer.resetPosition();
+        final MessageWithString modelObj2 = MessageWithString.PROTOBUF.parse(dataBuffer);
+
+        // check the read back object is equal to written original one
+        // assertEquals(modelObj.toString(), modelObj2.toString());
+        assertEquals(modelObj, modelObj2);
+
+        // model to bytes with ProtoC writer
+        byteBuffer.clear();
+        final CodedOutputStream codedOutput = CodedOutputStream.newInstance(byteBuffer);
+        protoCModelObj.writeTo(codedOutput);
+        codedOutput.flush();
+        byteBuffer.flip();
+        // copy to a data buffer
+        dataBuffer2.writeBytes(byteBuffer);
+        dataBuffer2.flip();
+
+        // compare written bytes
+        assertEquals(dataBuffer, dataBuffer2);
+
+        // parse those bytes again with PBJ
+        dataBuffer2.resetPosition();
+        final MessageWithString modelObj3 = MessageWithString.PROTOBUF.parse(dataBuffer2);
+        assertEquals(modelObj, modelObj3);
     }
-    
-	/**
-     * List of all valid arguments for testing, built as a static list, so we can reuse it.
-     */
+
+    /** List of all valid arguments for testing, built as a static list, so we can reuse it. */
     public static final List<MessageWithString> ARGUMENTS;
-    
+
     /**
-     * Create a stream of all test permutations of the MessageWithString class we are testing. This is reused by other tests
-     * as well that have model objects with fields of this type.
+     * Create a stream of all test permutations of the MessageWithString class we are testing. This
+     * is reused by other tests as well that have model objects with fields of this type.
      *
      * @return stream of model objects for all test cases
      */
     public static Stream<NoToStringWrapper<MessageWithString>> createModelTestArguments() {
-    	return ARGUMENTS.stream().map(NoToStringWrapper::new);
+        return ARGUMENTS.stream().map(NoToStringWrapper::new);
     }
 
-
-	/** Simple multi-line text test block */
-	private static final String SAMPLE_TEXT_BLOCK = """
+    /** Simple multi-line text test block */
+    private static final String SAMPLE_TEXT_BLOCK =
+            """
                     To be, or not to be, that is the question:
                     Whether ’tis nobler in the mind to suffer
                     The slings and arrows of outrageous fortune,
@@ -102,8 +102,9 @@ public final class ExtendedUtf8MessageWithStringTest {
                     Must give us pause—there’s the respect
                     That makes calamity of so long life…""";
 
-	/** UTF-8 language test block containing pangrams in a bunch of languages */
-	private static final String UTF8_LANGUAGES_TEXT_BLOCK_1 = """
+    /** UTF-8 language test block containing pangrams in a bunch of languages */
+    private static final String UTF8_LANGUAGES_TEXT_BLOCK_1 =
+            """
             English : A quick brown fox jumps over the lazy dog
             Arabic : صِف خَلقَ خَودِ كَمِثلِ الشَمسِ إِذ بَزَغَت — يَحظى الضَجيعُ بِها نَجلاءَ مِعطارِ
             Arabic : نصٌّ حكيمٌ لهُ سِرٌّ قاطِعٌ وَذُو شَأنٍ عَظيمٍ مكتوبٌ على ثوبٍ أخضرَ ومُغلفٌ بجلدٍ أزرق
@@ -130,8 +131,9 @@ public final class ExtendedUtf8MessageWithStringTest {
             Japanese : あめ つち ほし そら / やま かは みね たに / くも きり むろ こけ / ひと いぬ うへ すゑ / ゆわ さる おふ せよ / えのえを なれ ゐて
             """;
 
-	/** UTF-8 language test block containing pangrams in a bunch of languages, continued */
-	private static final String UTF8_LANGUAGES_TEXT_BLOCK_2 = """
+    /** UTF-8 language test block containing pangrams in a bunch of languages, continued */
+    private static final String UTF8_LANGUAGES_TEXT_BLOCK_2 =
+            """
             Japanese : あめ つち ほし そら / やま かは みね たに / くも きり むろ こけ / ひと いぬ うへ すゑ / ゆわ さる おふ せよ / えのえを なれ ゐて
             Japanese : 天 地 星 空 / 山 川 峰 谷 / 雲 霧 室 苔 / 人 犬 上 末 / 硫黄 猿 生ふ 為よ / 榎の 枝を 馴れ 居て
             Japanese : いろはにほへと ちりぬるを わかよたれそ つねならむ うゐのおくやま けふこえて あさきゆめみし ゑひもせす（ん）
@@ -161,8 +163,9 @@ public final class ExtendedUtf8MessageWithStringTest {
             Welsh : Parciais fy jac codi baw hud llawn dŵr ger tŷ Mabon.
             """;
 
-	/** Example Unicode Math symbols */
-	private static final String MATH_SYMBOLS = """
+    /** Example Unicode Math symbols */
+    private static final String MATH_SYMBOLS =
+            """
             U+220x  ∀	∁	∂	∃	∄	∅	∆	∇	∈	∉	∊	∋	∌	∍	∎	∏
             U+221x	∐	∑	−	∓	∔	∕	∖	∗	∘	∙	√	∛	∜	∝	∞	∟
             U+222x	∠	∡	∢	∣	∤	∥	∦	∧	∨	∩	∪	∫	∬	∭	∮	∯
@@ -196,7 +199,9 @@ public final class ExtendedUtf8MessageWithStringTest {
             U+2AEx	⫠	⫡	⫢	⫣	⫤	⫥	⫦	⫧	⫨	⫩	⫪	⫫	⫬	⫭	⫮	⫯
             U+2AFx	⫰	⫱	⫲	⫳	⫴	⫵	⫶	⫷	⫸	⫹	⫺	⫻	⫼	⫽	⫾	⫿
             """;
-	private static final String ARROW_SYMBOLS = """
+
+    private static final String ARROW_SYMBOLS =
+            """
             U+219x	←	↑	→	↓	↔	↕	↖	↗	↘	↙	↚	↛	↜	↝	↞	↟
             U+21Ax	↠	↡	↢	↣	↤	↥	↦	↧	↨	↩	↪	↫	↬	↭	↮	↯
             U+21Bx	↰	↱	↲	↳	↴	↵	↶	↷	↸	↹	↺	↻	↼	↽	↾	↿
@@ -213,32 +218,34 @@ public final class ExtendedUtf8MessageWithStringTest {
             U+296x	⥠	⥡	⥢	⥣	⥤	⥥	⥦	⥧	⥨	⥩	⥪	⥫	⥬	⥭	⥮	⥯
             U+297x	⥰	⥱	⥲	⥳	⥴	⥵	⥶	⥷	⥸	⥹	⥺	⥻	⥼	⥽	⥾	⥿
             """;
-	/** string type test cases */
-	public static final List<String> EXTENDED_STRING_TESTS_LIST = List.of(
-			"",
-			"Dude",
-			"©«",
-			"\n",
-			"I need some HBAR to run work on Hedera!",
-			"I need some ℏ to run work on Hedera!",
-			SAMPLE_TEXT_BLOCK,
-			UTF8_LANGUAGES_TEXT_BLOCK_1,
-			UTF8_LANGUAGES_TEXT_BLOCK_2,
-			MATH_SYMBOLS,
-			ARROW_SYMBOLS
-	);
 
+    /** string type test cases */
+    public static final List<String> EXTENDED_STRING_TESTS_LIST =
+            List.of(
+                    "",
+                    "Dude",
+                    "©«",
+                    "\n",
+                    "I need some HBAR to run work on Hedera!",
+                    "I need some ℏ to run work on Hedera!",
+                    SAMPLE_TEXT_BLOCK,
+                    UTF8_LANGUAGES_TEXT_BLOCK_1,
+                    UTF8_LANGUAGES_TEXT_BLOCK_2,
+                    MATH_SYMBOLS,
+                    ARROW_SYMBOLS);
 
-	static {
-		final var aTestStringList = EXTENDED_STRING_TESTS_LIST;
-		// work out the longest of all the lists of args as that is how many test cases we need
-		final int maxValues = IntStream.of(
-				aTestStringList.size()
-		).max().getAsInt();
-		// create new stream of model objects using lists above as constructor params
-		ARGUMENTS = IntStream.range(0,maxValues)
-				.mapToObj(i -> new MessageWithString(
-						aTestStringList.get(Math.min(i, aTestStringList.size()-1))
-				)).toList();
-	}
+    static {
+        final var aTestStringList = EXTENDED_STRING_TESTS_LIST;
+        // work out the longest of all the lists of args as that is how many test cases we need
+        final int maxValues = IntStream.of(aTestStringList.size()).max().getAsInt();
+        // create new stream of model objects using lists above as constructor params
+        ARGUMENTS =
+                IntStream.range(0, maxValues)
+                        .mapToObj(
+                                i ->
+                                        new MessageWithString(
+                                                aTestStringList.get(
+                                                        Math.min(i, aTestStringList.size() - 1))))
+                        .toList();
+    }
 }
