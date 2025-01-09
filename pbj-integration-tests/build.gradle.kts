@@ -64,10 +64,12 @@ val cloneHederaProtobufs =
 sourceSets {
     main {
         pbj {
+            srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("platform") })
             srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("services") })
             srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("streams") })
         }
         proto {
+            srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("platform") })
             srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("services") })
             srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("streams") })
         }
