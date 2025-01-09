@@ -1,4 +1,4 @@
-package com.hedera.pbj.intergration.jmh;
+package com.hedera.pbj.integration.jmh;
 
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
 import org.openjdk.jmh.annotations.Benchmark;

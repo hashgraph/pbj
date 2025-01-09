@@ -1,4 +1,4 @@
-package com.hedera.pbj.intergration.test;
+package com.hedera.pbj.integration.test;
 
 import com.hedera.pbj.test.proto.pbj.Hasheval;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;

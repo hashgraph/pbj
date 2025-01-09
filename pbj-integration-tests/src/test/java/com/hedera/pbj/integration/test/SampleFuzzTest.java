@@ -1,4 +1,4 @@
-package com.hedera.pbj.intergration.test;
+package com.hedera.pbj.integration.test;
 
 import com.hedera.hapi.node.base.tests.AccountIDTest;
 import com.hedera.hapi.node.base.tests.ContractIDTest;
@@ -199,7 +199,7 @@ public class SampleFuzzTest {
 
     private Random buildRandom() {
         final boolean useRandomSeed
-                = Boolean.valueOf(System.getProperty("com.hedera.pbj.intergration.test.fuzz.useRandomSeed"));
+                = Boolean.valueOf(System.getProperty("com.hedera.pbj.integration.test.fuzz.useRandomSeed"));
         final long seed = useRandomSeed ? new Random().nextLong() : FIXED_RANDOM_SEED;
 
         System.out.println("Fuzz tests are configured to use a "

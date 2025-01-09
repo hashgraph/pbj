@@ -6,10 +6,9 @@
  * Original source is published under Apache License 2.0.
  *
  * Changes from the source above:
- * - rewrite to antlr
+ * - rewrite to antlr.
  * - extract some group to rule.
- *
- * @author anatawa12
+ * - Allow document comments in a few added places.
  */
 
 grammar Protobuf3;
@@ -29,30 +28,32 @@ proto
 
 docComment: DOC_COMMENT*;
 
+skippedDocComment: (WS | SKIPPED_DOC_COMMENT | LINE_COMMENT | COMMENT)*;
+
 optionComment: OPTION_LINE_COMMENT;
 
 // Syntax
 
 syntax
-  : SYNTAX EQ (PROTO3_LIT_SINGLE | PROTO3_LIT_DOBULE) SEMI
+  : skippedDocComment SYNTAX EQ (PROTO3_LIT_SINGLE | PROTO3_LIT_DOBULE) SEMI
   ;
 
 // Import Statement
 
 importStatement
-  : IMPORT ( WEAK | PUBLIC )? strLit SEMI
+  : skippedDocComment IMPORT ( WEAK | PUBLIC )? strLit SEMI
   ;
 
 // Package
 
 packageStatement
-  : PACKAGE fullIdent SEMI
+  : skippedDocComment PACKAGE fullIdent SEMI
   ;
 
 // Option
 
 optionStatement
-  : OPTION optionName EQ constant SEMI
+  : skippedDocComment OPTION optionName EQ constant SEMI
   ;
 
 optionName
@@ -80,6 +81,8 @@ fieldNumber
 
 // Oneof and oneof field
 
+// Note, oneOf isn't a message or field, so docComment is broken here, but the current
+// PBJ compiler requires docComment.
 oneof
   : docComment ONEOF oneofName LC ( optionStatement | oneofField | emptyStatement_ )* RC
   ;
@@ -134,7 +137,7 @@ type_
 // Reserved
 
 reserved
-  : RESERVED ( ranges | reservedFieldNames ) SEMI
+  : skippedDocComment RESERVED ( ranges | reservedFieldNames ) SEMI
   ;
 
 ranges
@@ -348,6 +351,7 @@ WS  :   [ \t\r\n\u000C]+ -> skip;
 OPTION_LINE_COMMENT: '//' WS? '<<<' .*? '>>>' ~[\r\n]*;
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
 DOC_COMMENT: '/**' .*? '*/';
+SKIPPED_DOC_COMMENT: '/**' .*? '*/' -> skip;
 COMMENT: '/*' .*? '*/' -> skip;
 
 keywords

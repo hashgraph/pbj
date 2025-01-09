@@ -1,4 +1,4 @@
-package com.hedera.pbj.intergration.test;
+package com.hedera.pbj.integration.test;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.util.JsonFormat;
