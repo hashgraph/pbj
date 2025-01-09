@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /** Runtime module of code needed by PBJ generated code at runtime. */
 module com.hedera.pbj.runtime {
     requires transitive org.antlr.antlr4.runtime;

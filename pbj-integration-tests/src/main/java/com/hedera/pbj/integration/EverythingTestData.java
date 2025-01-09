@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;

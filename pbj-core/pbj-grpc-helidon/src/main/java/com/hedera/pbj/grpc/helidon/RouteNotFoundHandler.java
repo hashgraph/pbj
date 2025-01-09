@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.grpc.helidon;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
