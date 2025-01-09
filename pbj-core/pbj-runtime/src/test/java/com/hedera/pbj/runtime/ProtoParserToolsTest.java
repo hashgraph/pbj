@@ -264,7 +264,8 @@ class ProtoParserToolsTest {
         final String appleStr = randomVarSizeString();
         final Apple apple = Apple.newBuilder().setVariety(appleStr).build();
 
-        writeMessage(bufferedData, definition, apple, (data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize);
+        writeMessage(bufferedData, definition, apple,
+                new CodecWrapper<>((data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize));
         bufferedData.flip();
 
         assertEquals(definition.number(), readNextFieldNumber(bufferedData));
