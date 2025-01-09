@@ -6,10 +6,9 @@
  * Original source is published under Apache License 2.0.
  *
  * Changes from the source above:
- * - rewrite to antlr
+ * - rewrite to antlr.
  * - extract some group to rule.
- *
- * @author anatawa12
+ * - Allow document comments in a few added places.
  */
 
 grammar Protobuf3;
@@ -17,8 +16,7 @@ grammar Protobuf3;
 proto
   : DOC_COMMENT?
     syntax
-    (
-        importStatement
+    ( importStatement
       | packageStatement
       | optionStatement
       | topLevelDef
@@ -35,25 +33,25 @@ optionComment: OPTION_LINE_COMMENT;
 // Syntax
 
 syntax
-  : SYNTAX EQ (PROTO3_LIT_SINGLE | PROTO3_LIT_DOBULE) SEMI
+  : SYNTAX EQ (PROTO3_LIT_SINGLE | PROTO3_LIT_DOUBLE) SEMI
   ;
 
 // Import Statement
 
 importStatement
-  : IMPORT ( WEAK | PUBLIC )? strLit SEMI
+  : DOC_COMMENT? IMPORT ( WEAK | PUBLIC )? strLit SEMI
   ;
 
 // Package
 
 packageStatement
-  : PACKAGE fullIdent SEMI
+  : DOC_COMMENT? PACKAGE fullIdent SEMI
   ;
 
 // Option
 
 optionStatement
-  : OPTION optionName EQ constant SEMI
+  : DOC_COMMENT? OPTION optionName EQ constant SEMI
   ;
 
 optionName
@@ -81,6 +79,8 @@ fieldNumber
 
 // Oneof and oneof field
 
+// Note, oneOf isn't a message or field, so docComment is broken here, but the current
+// PBJ compiler requires docComment.
 oneof
   : docComment ONEOF oneofName LC ( optionStatement | oneofField | emptyStatement_ )* RC
   ;
@@ -135,7 +135,7 @@ type_
 // Reserved
 
 reserved
-  : RESERVED ( ranges | reservedFieldNames ) SEMI
+  : DOC_COMMENT? RESERVED ( ranges | reservedFieldNames ) SEMI
   ;
 
 ranges
@@ -260,7 +260,7 @@ messageType: ( DOT )? ( ident DOT )* messageName;
 enumType: ( DOT )? ( ident DOT )* enumName;
 
 intLit: INT_LIT;
-strLit: STR_LIT | PROTO3_LIT_SINGLE | PROTO3_LIT_DOBULE;
+strLit: STR_LIT | PROTO3_LIT_SINGLE | PROTO3_LIT_DOUBLE;
 boolLit: BOOL_LIT;
 floatLit: FLOAT_LIT;
 
@@ -300,7 +300,7 @@ STREAM: 'stream';
 RETURNS: 'returns';
 
 PROTO3_LIT_SINGLE: '"proto3"';
-PROTO3_LIT_DOBULE: '\'proto3\'';
+PROTO3_LIT_DOUBLE: '\'proto3\'';
 
 // symbols
 

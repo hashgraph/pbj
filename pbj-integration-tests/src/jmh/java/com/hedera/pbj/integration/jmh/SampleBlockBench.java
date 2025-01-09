@@ -1,4 +1,4 @@
-package com.hedera.pbj.intergration.jmh;
+package com.hedera.pbj.integration.jmh;
 
 import com.google.protobuf.CodedOutputStream;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -149,14 +149,14 @@ public class SampleBlockBench {
 		com.hedera.hapi.block.stream.Block.PROTOBUF.write(TEST_BLOCK, outDataBuffer);
 		blackhole.consume(outDataBuffer);
 	}
-	
+
 	@Benchmark
 	public void writePbjByteDirect(Blackhole blackhole) throws IOException {
 		outDataBufferDirect.reset();
 		com.hedera.hapi.block.stream.Block.PROTOBUF.write(TEST_BLOCK, outDataBufferDirect);
 		blackhole.consume(outDataBufferDirect);
 	}
-	
+
 	@Benchmark
 	public void writePbjOutputStream(Blackhole blackhole) throws IOException {
 		bout.reset();

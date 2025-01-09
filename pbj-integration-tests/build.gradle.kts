@@ -126,7 +126,7 @@ testing {
             classpath = sources.runtimeClasspath
             useJUnitPlatform { includeTags("FUZZ_TEST") }
             enableAssertions = false
-            systemProperties["com.hedera.pbj.intergration.test.fuzz.useRandomSeed"] = true
+            systemProperties["com.hedera.pbj.integration.test.fuzz.useRandomSeed"] = true
         }
         targets.named("test") {
             testTask {
