@@ -1392,17 +1392,17 @@ public final class ProtoWriterTools {
         final int listSize = list.size();
         switch (field.type()) {
             case INT32 -> {
-                for(int i = 0; i < listSize; i++) {
+                for (int i = 0; i < listSize; i++) {
                     size += sizeOfVarInt32(list.get(i));
                 }
             }
             case UINT32 -> {
-                for(int i = 0; i < listSize; i++) {
+                for (int i = 0; i < listSize; i++) {
                     size += sizeOfUnsignedVarInt32(list.get(i));
                 }
             }
             case SINT32 -> {
-                for(int i = 0; i < listSize; i++) {
+                for (int i = 0; i < listSize; i++) {
                     final long val = list.get(i);
                     size += sizeOfUnsignedVarInt64((val << 1) ^ (val >> 63));
                 }
@@ -1523,7 +1523,7 @@ public final class ProtoWriterTools {
     public static int sizeOfStringList(FieldDefinition field, List<String> list) {
         int size = 0;
         final int listSize = list.size();
-        for(int i = 0; i < listSize; i++) {
+        for (int i = 0; i < listSize; i++) {
             size += sizeOfDelimited(field, sizeOfStringNoTag(list.get(i)));
         }
         return size;
@@ -1541,7 +1541,7 @@ public final class ProtoWriterTools {
     public static <T> int sizeOfMessageList(FieldDefinition field, List<T> list, Codec<T> codec) {
         int size = 0;
         final int listSize = list.size();
-        for(int i = 0; i < listSize; i++) {
+        for (int i = 0; i < listSize; i++) {
             size += sizeOfMessage(field, list.get(i), codec);
         }
         return size;
@@ -1557,13 +1557,20 @@ public final class ProtoWriterTools {
     public static int sizeOfBytesList(FieldDefinition field, List<? extends RandomAccessData> list) {
         int size = 0;
         final int listSize = list.size();
-        for(int i = 0; i < listSize; i++) {
+        for (int i = 0; i < listSize; i++) {
             final long valueLength = list.get(i).length();
-            size += Math.toIntExact(sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(Math.toIntExact(valueLength)) + valueLength);
+            size += sizeOfDelimited(field, Math.toIntExact(valueLength));
         }
         return size;
     }
 
+    /**
+     * Get number of bytes that would be needed to encode a field of wire type delimited
+     *
+     * @param field The field definition of the field to be measured
+     * @param length The length of the delimited field data in bytes
+     * @return the number of bytes for encoded value
+     */
     public static int sizeOfDelimited(final FieldDefinition field, final int length) {
         return Math.toIntExact(sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(length) + length);
     }
