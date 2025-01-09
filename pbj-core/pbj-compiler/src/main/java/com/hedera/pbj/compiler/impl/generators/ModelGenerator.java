@@ -19,6 +19,7 @@ import com.hedera.pbj.compiler.impl.FileType;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
+import com.hedera.pbj.compiler.impl.generators.protobuf.StaticMeasureRecordMethodGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -32,6 +33,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+import org.gradle.internal.impldep.com.google.common.collect.Streams;
 
 /**
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
@@ -72,9 +76,13 @@ public final class ModelGenerator implements Generator {
 		final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
 		// The File to write the sources that we generate into
 		final File javaFile = getJavaFile(destinationSrcDir, modelPackage, javaRecordName);
+		// The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
+		// but is cleaned up and formatted for use in JavaDoc.
+		String javaDocComment = (msgDef.docComment()== null) ? "" :
+				cleanDocStr(msgDef.docComment().getText().replaceAll("\n \\*\s*\n","\n * <p>\n"));
 		// The Javadoc "@Deprecated" tag, which is set if the protobuf schema says the field is deprecated
 		String deprecated = "";
-		// The list of fields, as defined in the protobuf schema
+		// The list of fields, as defined in the protobuf schema & precomputed fields
 		final List<Field> fields = new ArrayList<>();
 		// The generated Java code for an enum field if OneOf is used
 		final List<String> oneofEnums = new ArrayList<>();
@@ -89,6 +97,7 @@ public final class ModelGenerator implements Generator {
 		imports.add("com.hedera.pbj.runtime.io.buffer");
 		imports.add("com.hedera.pbj.runtime.io.stream");
 		imports.add("edu.umd.cs.findbugs.annotations");
+		imports.add("static "+modelPackage+".schema."+javaRecordName+"Schema");
 
 		// Iterate over all the items in the protobuf schema
 		for (final var item : msgDef.messageBody().messageElement()) {
@@ -113,41 +122,56 @@ public final class ModelGenerator implements Generator {
 			}
 		}
 
-		// process field java doc and insert into record java doc
+		// collect all non precomputed fields
+		fieldsNoPrecomputed.addAll(fields);
 
-		// The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
-		// but is cleaned up and formatted for use in JavaDoc.
-		final String docComment = (msgDef.docComment() == null || msgDef.docComment().getText().isBlank())
-				? javaRecordName :
-				cleanJavaDocComment(msgDef.docComment().getText());
-		String javaDocComment = "/**\n * " + docComment.replaceAll("\n", "\n * ");
-		if (fields.isEmpty()) {
-			javaDocComment +=  "\n */";
-		} else {
-			javaDocComment += "\n *";
+		// add precomputed fields to fields
+		fields.add(new SingleField(false, FieldType.FIXED32, -1,
+				"precomputedHashCode", null, null,
+				null, null, "Computed hash code, manual input ignored.", false, null));
+		fields.add(new SingleField(false, FieldType.FIXED32, -1,
+				"protobufEncodedSize", null, null,
+				null, null, "Computed protobuf encoded size, manual input ignored.", false, null));
+
+		// process field java doc and insert into record java doc
+		if (!fields.isEmpty()) {
+			String recordJavaDoc = javaDocComment.isEmpty() ? "/**\n * " + javaRecordName :
+					javaDocComment.replaceAll("\n\s*\\*/", "");
+			recordJavaDoc += "\n *";
 			for (final var field : fields) {
-				javaDocComment += "\n * @param "+field.nameCamelFirstLower()+" "+
+				recordJavaDoc += "\n * @param "+field.nameCamelFirstLower()+" "+
 							field.comment()
 								.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()));
 			}
-			javaDocComment += "\n */";
+			recordJavaDoc += "\n */";
+			javaDocComment = cleanDocStr(recordJavaDoc);
 		}
 
 		// === Build Body Content
 		String bodyContent = "";
 
 		// static codec and default instance
-		bodyContent += generateCodecFields(msgDef, lookupHelper, javaRecordName);
+		bodyContent +=
+				generateCodecFields(msgDef, lookupHelper, javaRecordName);
 		bodyContent += "\n";
 
 		// constructor
 		bodyContent += generateConstructor(javaRecordName, fields, true, msgDef, lookupHelper);
 		bodyContent += "\n";
 
-		bodyContent += generateHashCode(fields);
+		// precomputed constructor
+		bodyContent += generatePrecomputedConstructor(javaRecordName, fields, true, msgDef, lookupHelper);
 		bodyContent += "\n";
 
-		bodyContent += generateEquals(fields, javaRecordName);
+		bodyContent += StaticMeasureRecordMethodGenerator.generateStaticMeasureMethod(fieldsNoPrecomputed);
+		bodyContent += "\n";
+
+		// hashCode method
+		bodyContent += generateHashCode(fieldsNoPrecomputed);
+		bodyContent += "\n";
+
+		// equals method
+		bodyContent += generateEquals(fieldsNoPrecomputed, javaRecordName);
 
 		final List<Field> comparableFields = filterComparableFields(msgDef, lookupHelper, fields);
 		final boolean hasComparableFields = !comparableFields.isEmpty();
@@ -164,12 +188,12 @@ public final class ModelGenerator implements Generator {
 		bodyContent += "\n";
 
 		// builder copy & new builder methods
-		bodyContent = genrateBuilderFactoryMethods(bodyContent, fields);
-		bodyContent += "\n";
+		bodyContent = genrateBuilderFactoryMethods(bodyContent, fieldsNoPrecomputed);
+        bodyContent += "\n";
 
 		// generate builder
-		bodyContent += generateBuilder(msgDef, fields, lookupHelper);
-		if (!oneofEnums.isEmpty()) bodyContent += "\n";
+		bodyContent += generateBuilder(msgDef, fieldsNoPrecomputed, lookupHelper);
+        if (!oneofEnums.isEmpty()) bodyContent += "\n";
 
 		// oneof enums
 		bodyContent += String.join("\n    ", oneofEnums);
@@ -218,6 +242,8 @@ public final class ModelGenerator implements Generator {
 				import edu.umd.cs.findbugs.annotations.Nullable;
 				import edu.umd.cs.findbugs.annotations.NonNull;
 				import static java.util.Objects.requireNonNull;
+				import static com.hedera.pbj.runtime.ProtoWriterTools.*;
+				import static com.hedera.pbj.runtime.ProtoConstants.*;
 				
 				$javaDocComment$deprecated
 				public record $javaRecordName(
@@ -348,18 +374,32 @@ public final class ModelGenerator implements Generator {
 		String bodyContent =
 			"""
 			/**
-			 * Override the default hashCode method for
-			 * all other objects to make hashCode
-			 */
+			* Override the default hashCode method for to make hashCode better distributed and follows protobuf rules 
+			* for default values. This is important for backward compatibility.
+			*/
 			@Override
 			public int hashCode() {
+				return precomputedHashCode;
+			}
+			
+			/**
+			* Compute the hashcode
+			*/
+			private static int computeHashCode($params) {
 				int result = 1;
-			""".indent(DEFAULT_INDENT);
+				if(DEFAULT != null) {
+			""".replace("$params",fields.stream()
+							.filter(f -> f.fieldNumber() != -1)
+							.map(field ->
+									field.javaFieldType() + " " + field.nameCamelFirstLower()
+							).collect(Collectors.joining(", ")))
+					.indent(DEFAULT_INDENT);
 
 		bodyContent += statements;
 
 		bodyContent +=
 			"""
+				}
 				long hashCode = result;
 			$hashCodeManipulation
 				return (int)hashCode;
@@ -367,6 +407,48 @@ public final class ModelGenerator implements Generator {
 			""".replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
 				.indent(DEFAULT_INDENT);
 		return bodyContent;
+	}
+
+	/**
+	 * Generates a pre-populated constructor for a class.
+	 * @param fields the fields to use for the code generation
+	 * @return the generated code
+	 */
+	private static String generatePrecomputedConstructor(
+			final String constructorName,
+			final List<Field> fields,
+			final boolean shouldThrowOnOneOfNull,
+			final MessageDefContext msgDef,
+			final ContextualLookupHelper lookupHelper) {
+		String constructorCode = "this($constructorParams);"
+				.replace("$constructorParams",Stream.concat(
+						fields.stream()
+							.filter(f -> f.fieldNumber() != -1)
+							.map(Field::nameCamelFirstLower),
+						Stream.of("0","0")
+				).collect(Collectors.joining(", \n"+" ".repeat(DEFAULT_INDENT))))
+				.indent(DEFAULT_INDENT);
+		return """
+				/**
+				 * Create a $constructorName without passing computed fields.
+				 * $constructorParamDocs
+				 */
+				public $constructorName($constructorParams) {
+			$constructorCode    }
+			"""
+				.replace("$constructorParamDocs",fields.stream()
+						.filter(f -> f.fieldNumber() != -1)
+						.map(field ->
+						"\n     * The @param "+field.nameCamelFirstLower()+" "+
+								field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
+				).collect(Collectors.joining(" ")))
+				.replace("$constructorName", constructorName)
+				.replace("$constructorParams",fields.stream()
+						.filter(f -> f.fieldNumber() != -1)
+						.map(field ->
+						field.javaFieldType() + " " + field.nameCamelFirstLower()
+				).collect(Collectors.joining(", ")))
+				.replace("$constructorCode",constructorCode.indent(DEFAULT_INDENT));
 	}
 
 	/**
@@ -394,7 +476,7 @@ public final class ModelGenerator implements Generator {
 				.replace("$constructorParamDocs",fields.stream().map(field ->
 						"\n     * @param "+field.nameCamelFirstLower()+" "+
 								field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
-				).collect(Collectors.joining(", ")))
+				).collect(Collectors.joining(" ")))
 				.replace("$constructorName", constructorName)
 				.replace("$constructorParams",fields.stream().map(field ->
 						field.javaFieldType() + " " + field.nameCamelFirstLower()
@@ -404,27 +486,46 @@ public final class ModelGenerator implements Generator {
 					if (shouldThrowOnOneOfNull && field instanceof OneOfField) {
 						sb.append(generateConstructorCodeForField(field)).append('\n');
 					}
-					switch (field.type()) {
-						case BYTES, STRING: {
-							sb.append("this.$name = $name != null ? $name : $default;"
-									.replace("$name", field.nameCamelFirstLower())
-									.replace("$default", getDefaultValue(field, msgDef, lookupHelper))
-							);
-							break;
-						}
-						case MAP: {
-							sb.append("this.$name = PbjMap.of($name);"
-									.replace("$name", field.nameCamelFirstLower())
-							);
-							break;
-						}
-						default:
-							if (field.repeated()) {
-								sb.append("this.$name = $name == null ? Collections.emptyList() : $name;".replace("$name", field.nameCamelFirstLower()));
-							} else {
-								sb.append("this.$name = $name;".replace("$name", field.nameCamelFirstLower()));
+					if (field.nameCamelFirstLower().equals("precomputedHashCode")) {
+						final String computeHashCode = "computeHashCode("
+								+ fields.stream()
+								.filter(f -> f.fieldNumber() != -1)
+								.map(f -> "this."+f.nameCamelFirstLower())
+								.collect(Collectors.joining(", "))
+								+ ")";
+						sb.append("this.precomputedHashCode = "+computeHashCode+";");
+					} else if (field.nameCamelFirstLower().equals("protobufEncodedSize")) {
+						final String computeProtobufSize = "computeProtobufSize("
+								+ fields.stream()
+								.filter(f -> f.fieldNumber() != -1)
+								.map(f -> "this."+f.nameCamelFirstLower())
+								.collect(Collectors.joining(", "))
+								+ ")";
+						sb.append("this.protobufEncodedSize = "+computeProtobufSize+";");
+					} else {
+						switch (field.type()) {
+							case BYTES, STRING: {
+								sb.append("this.$name = $name != null ? $name : $default;"
+										.replace("$name", field.nameCamelFirstLower())
+										.replace("$default", getDefaultValue(field, msgDef, lookupHelper))
+								);
+								break;
 							}
-							break;
+							case MAP: {
+								sb.append("this.$name = PbjMap.of($name);"
+										.replace("$name", field.nameCamelFirstLower())
+								);
+								break;
+							}
+							default:
+								if (field.repeated()) {
+									sb.append("this.$name = $name == null ? Collections.emptyList() : $name;".replace(
+											"$name", field.nameCamelFirstLower()));
+								} else {
+									sb.append("this.$name = $name;".replace("$name", field.nameCamelFirstLower()));
+								}
+								break;
+						}
 					}
 					return sb.toString();
 				}).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2));
