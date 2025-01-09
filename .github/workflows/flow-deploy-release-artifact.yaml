@@ -150,12 +150,13 @@ jobs:
         working-directory: ${{ env.PBJ_CORE }}
         run: ./gradlew assemble --scan
 
-      - name: Gradle Maven Central Release
-        if: ${{ needs.prepare-release.outputs.mode == 'specified' && !cancelled() && !failure() }}
+      - name: Gradle Release Maven Central
+        if: ${{ !cancelled() && !failure() }}
         working-directory: ${{ env.PBJ_CORE }}
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+        # The 'releaseMavenCentral' task will select if Release or Snapshot based on the version
         run: |
           ./gradlew releaseMavenCentral -PpublishingPackageGroup=com.hedera.pbj -PpublishSigningEnabled=true --no-configuration-cache --scan
 
@@ -167,11 +168,3 @@ jobs:
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
         run: |
           ./gradlew publishPlugins -PpublishSigningEnabled=true --no-configuration-cache --scan
-
-      - name: Gradle Maven Central Snapshot
-        if: ${{ needs.prepare-release.outputs.mode == 'snapshot' && !cancelled() && !failure() }}
-        working-directory: ${{ env.PBJ_CORE }}
-        env:
-          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-        run: ./gradlew releaseSnapshot --scan -PpublishSigningEnabled=true
