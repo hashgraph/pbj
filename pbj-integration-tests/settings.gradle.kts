@@ -12,7 +12,7 @@ buildscript {
     }
 }
 
-plugins { id("org.hiero.gradle.build") version "0.1.2" }
+plugins { id("org.hiero.gradle.build") version "0.2.0" }
 
 dependencyResolutionManagement {
     // To use locally built 'pbj-runtime'
