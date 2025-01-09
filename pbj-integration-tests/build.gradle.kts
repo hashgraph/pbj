@@ -56,12 +56,19 @@ testModuleInfo {
     runtimeOnly("org.junit.jupiter.engine")
 }
 
+jmhModuleInfo { requires("com.hedera.pbj.runtime") }
+
+// IMPROVE: Disable module-info transform for 'testRuntimeClasspath' which leads to an error
+// possible caused by a cycle produced by depending on 'pbj-compiler' in multiple ways which
+// eventually leads to 'pbj-compiler' depending on itself in this context.
+configurations.testRuntimeClasspath {
+    attributes { attribute(Attribute.of("javaModule", Boolean::class.javaObjectType), false) }
+}
+
 // IMPROVE: Test code should not have a direct dependency to 'com.hedera.pbj.compiler'
 dependencies { testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive = false } }
 
 dependencyAnalysis { issues { all { onAny { exclude("com.hedera.pbj:pbj-compiler") } } } }
-
-// tasks.checkModuleDirectivesScope { enabled = false }
 
 // IMPROVE: JMH code should not depend on test code
 jmh { includeTests = true }
