@@ -27,7 +27,7 @@ import java.io.FileInputStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 
-/** Gradle Task that generates java src code from protobuf proto schema files. */
+/** Compiler entry point to generate java src code from protobuf proto schema files. */
 public abstract class PbjCompiler {
     private static final int MAX_TRACE_FRAMES = 8;
     private static final String STACK_ELEMENT_INDENT = "    ";
