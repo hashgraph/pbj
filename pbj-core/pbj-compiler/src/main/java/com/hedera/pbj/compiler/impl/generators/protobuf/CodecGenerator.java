@@ -55,7 +55,7 @@ public final class CodecGenerator implements Generator {
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
 					package $package;
-									
+					
 					import com.hedera.pbj.runtime.*;
 					import com.hedera.pbj.runtime.io.*;
 					import com.hedera.pbj.runtime.io.buffer.*;
@@ -77,6 +77,14 @@ public final class CodecGenerator implements Generator {
 					 * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
 					 */
 					public final class $codecClass implements Codec<$modelClass> {
+					
+						/**
+						 * Empty constructor
+						 */
+						 public $codecClass() {
+						 	// no-op
+						 }
+					
 					$unsetOneOfConstants
 					$parseMethod
 					$writeMethod

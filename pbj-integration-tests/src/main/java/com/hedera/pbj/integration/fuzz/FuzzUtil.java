@@ -6,6 +6,14 @@ import java.lang.reflect.Field;
  * A utility class used in the fuzz testing framework.
  */
 public final class FuzzUtil {
+
+    /**
+     * Empty constructor
+     */
+    public FuzzUtil() {
+        // no-op
+    }
+
     /**
      * Get a value of a static field named `name` in a class `clz`.
      *
@@ -17,6 +25,7 @@ public final class FuzzUtil {
     public static <T> T getStaticFieldValue(final Class<?> clz, final String name) {
         try {
             final Field field = clz.getField(name);
+            //noinspection unchecked
             return (T) field.get(null);
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new FuzzTestException("Failed to get field " + name + " from " + clz.getName(), e);

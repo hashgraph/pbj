@@ -1,12 +1,10 @@
 package com.hedera.pbj.integration;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hedera.pbj.test.proto.pbj.InnerEverything;
 import com.hedera.pbj.test.proto.pbj.Suit;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
-
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -16,7 +14,16 @@ import java.util.stream.LongStream;
  */
 public class EverythingTestData {
 
-    // input objects
+    /**
+     * Empty constructor
+     */
+    public EverythingTestData() {
+        // no-op
+    }
+
+    /**
+     * Sample Everything object for testing
+     */
     public static final Everything EVERYTHING = new Everything.Builder()
             .int32Number(1234)
             .sint32Number(-1234)

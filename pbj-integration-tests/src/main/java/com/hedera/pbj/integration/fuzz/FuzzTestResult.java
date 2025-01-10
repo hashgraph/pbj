@@ -7,9 +7,12 @@ import java.util.stream.Collectors;
 
 /**
  * A record that describes the result of running a fuzz test.
+ *
  * @param object an object for which this test was run.
  * @param passed indicates if the test passed or not. See the FuzzTest class for the definition.
  * @param percentageMap a map with percentage statistics of occurred outcomes.
+ * @param repeatCount the number of times the test was repeated.
+ * @param nanoDuration the duration of the test in nanoseconds.
  * @param <T> the type of the object for which the test was run
  */
 public record FuzzTestResult<T>(
@@ -19,10 +22,13 @@ public record FuzzTestResult<T>(
         int repeatCount,
         long nanoDuration
 ) {
+    /** A number format for percentage values. */
     private static final NumberFormat PERCENTAGE_FORMAT = NumberFormat.getPercentInstance();
 
     /**
      * Format the FuzzTestResult object for printing/logging.
+     *
+     * @return a formatted string with the test results
      */
     public String format() {
         return "A fuzz test " + (passed ? "PASSED" : "FAILED")
@@ -33,6 +39,11 @@ public record FuzzTestResult<T>(
                 + formatResultsStats();
     }
 
+    /**
+     * Format the percentage statistics for printing/logging.
+     *
+     * @return a formatted string with the percentage statistics
+     */
     private String formatResultsStats() {
         return percentageMap.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())

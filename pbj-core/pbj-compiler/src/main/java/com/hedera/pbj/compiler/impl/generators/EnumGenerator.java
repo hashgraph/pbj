@@ -19,7 +19,7 @@ import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 /**
  * Code for generating enum code
  */
-@SuppressWarnings({"InconsistentTextBlockIndent", "EscapedSpace"})
+@SuppressWarnings({"EscapedSpace"})
 public final class EnumGenerator {
 
 	/** Record for an enum value temporary storage */
@@ -38,7 +38,7 @@ public final class EnumGenerator {
 		final String enumName = enumDef.enumName().getText();
 		final String modelPackage = lookupHelper.getPackageForEnum(FileType.MODEL, enumDef);
 		final String javaDocComment = (enumDef.docComment()== null) ? "" :
-				cleanDocStr(enumDef.docComment().getText().replaceAll("\n \\*\s*\n","\n * <p>\n"));
+				cleanDocStr(enumDef.docComment().getText().replaceAll("\n \\*\s*\n","\n * <br>\n"));
 		String deprecated = "";
 		final Map<Integer, EnumValue> enumValues = new HashMap<>();
 		int maxIndex = 0;
@@ -117,16 +117,16 @@ public final class EnumGenerator {
 		}
 		return """
 				$javaDocComment
-				$deprecated$public enum $enumName 
+				$deprecated$public enum $enumName
 				        implements com.hedera.pbj.runtime.EnumWithProtoMetadata {
 				$enumValues;
-				    
+				
 				    /** The field ordinal in protobuf for this type */
 				    private final int protoOrdinal;
-				    
+				
 				    /** The original field name in protobuf for this type */
 				    private final String protoName;
-				    
+				
 				    /**
 				     * OneOf Type Enum Constructor
 				     *
@@ -137,7 +137,7 @@ public final class EnumGenerator {
 				        this.protoOrdinal = protoOrdinal;
 				        this.protoName = protoName;
 				    }
-				    
+				
 				    /**
 				     * Get the oneof field ordinal in protobuf for this type
 				     *
@@ -146,7 +146,7 @@ public final class EnumGenerator {
 				    public int protoOrdinal() {
 				        return protoOrdinal;
 				    }
-				    
+				
 				    /**
 				     * Get the original field name in protobuf for this type
 				     *
@@ -155,7 +155,7 @@ public final class EnumGenerator {
 				    public String protoName() {
 				        return protoName;
 				    }
-				    
+				
 				    /**
 				     * Get enum from protobuf ordinal
 				     *
@@ -169,7 +169,7 @@ public final class EnumGenerator {
 				            default -> throw new IllegalArgumentException("Unknown protobuf ordinal "+ordinal);
 				        };
 				    }
-				    
+				
 				    /**
 				     * Get enum from string name, supports the enum or protobuf format name
 				     *

@@ -57,23 +57,30 @@ public final class SchemaGenerator implements Generator {
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
 					package $schemaPackage;
-										
+					
 					import com.hedera.pbj.runtime.FieldDefinition;
 					import com.hedera.pbj.runtime.FieldType;
 					import com.hedera.pbj.runtime.Schema;
 					$imports
-										
+					
 					/**
 					 * Schema for $modelClassName model object. Generate based on protobuf schema.
 					 */
 					public final class $schemaClassName implements Schema {
 					
+						/**
+						 * Private constructor to prevent instantiation.
+						 */
+						 private $schemaClassName() {
+						 	// no-op
+						 }
+					
 					    // -- FIELD DEFINITIONS ---------------------------------------------
-					    
+					
 					$fields
-					    
+					
 					    // -- OTHER METHODS -------------------------------------------------
-					    
+					
 					    /**
 					     * Check if a field definition belongs to this schema.
 					     *
@@ -83,7 +90,7 @@ public final class SchemaGenerator implements Generator {
 					    public static boolean valid(FieldDefinition f) {
 					    	return f != null && getField(f.number()) == f;
 					    }
-					    
+					
 					$getMethods
 					}
 					"""

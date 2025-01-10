@@ -25,8 +25,14 @@ tasks.generateGrammarSource {
     arguments = arguments + listOf("-package", "com.hedera.pbj.compiler.impl.grammar")
 }
 
-// Do not generate Java Doc for generated antlr grammar
-tasks.withType<Javadoc> { excludes.add("com/hedera/pbj/compiler/impl/grammar/**") }
+tasks.withType<Javadoc> {
+    // Do not generate Java Doc for generated antlr grammar
+    excludes.add("com/hedera/pbj/compiler/impl/grammar/**")
+    // Do not generate Java Doc for generated protobuf classes by Google ProtoC
+    excludes.add("com/hedera/**/protoc/**")
+    excludes.add("com/hederahashgraph/api/proto/java/**")
+    excludes.add("com/hederahashgraph/service/proto/java/**")
+}
 
 tasks.register("release") {
     group = "release"

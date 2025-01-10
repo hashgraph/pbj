@@ -3,6 +3,7 @@ package com.hedera.pbj.compiler.impl.generators;
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 import static com.hedera.pbj.compiler.impl.Common.camelToUpperSnake;
 import static com.hedera.pbj.compiler.impl.Common.cleanDocStr;
+import static com.hedera.pbj.compiler.impl.Common.cleanJavaDocComment;
 import static com.hedera.pbj.compiler.impl.Common.getFieldsHashCode;
 import static com.hedera.pbj.compiler.impl.Common.getJavaFile;
 import static com.hedera.pbj.compiler.impl.Common.javaPrimitiveToObjectType;
@@ -55,6 +56,42 @@ public final class ModelGenerator implements Generator {
 		hashCode += hashCode << 30;
 		""".indent(DEFAULT_INDENT);
 
+	public static void main(String[] args) {
+		String test = """
+				 * A consensus snapshot.<br/>
+				 * This is a snapshot of the consensus state for a particular round.
+				 *
+				 * This message SHALL record consensus data necessary for restart
+				 * and reconnect.
+				 *
+				 * @param round <b>(1)</b> A consensus round.<br/>
+				 *              The round number of this snapshot.
+				 * @param judgeHashes <b>(2)</b> A list of SHA-384 hash values.<br/>
+				 *                    The hashes of all judges for this round.
+				 *                    <p>
+				 *                    This list SHALL be ordered by creator ID.<br/>
+				 *                    This list MUST be deterministically ordered.
+				 * @param minimumJudgeInfoList <b>(3)</b> A list of minimum judge information entries.<br/>
+				 *                             These are "minimum ancient" entries for non-ancient rounds.
+				 * @param nextConsensusNumber <b>(4)</b> A single consensus number.<br/>
+				 *                            The consensus order of the next event to reach consensus.
+				 * @param consensusTimestamp <b>(5)</b> A "consensus" timestamp.<br/>
+				 *                           The consensus timestamp of this snapshot.
+				 *                           <p>
+				 *                           Depending on the context this timestamp may have different meanings:
+				 *                           <ul>
+				 *                           <li>if there are transactions, the timestamp is equal to the timestamp of the last transaction</li>
+				 *                           <li>if there are no transactions, the timestamp is equal to the timestamp of the last event</li>
+				 *                           <li>if there are no events, the timestamp is equal to the timestamp of the previous round plus a small constant</li>
+				 *                           </ul>
+				 *                           <p>
+				 *                           This SHALL be a consensus value and MAY NOT correspond to an actual
+				 *                           "wall clock" timestamp.<br/>
+				 *                           Consensus Timestamps SHALL always increase.
+				 <p> hello <p>
+				""";
+		System.out.println(test.replaceAll("<p>((:?.|\n)*?)(<p>|$)","<pXX>$1</pXX>$2"));
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -71,10 +108,6 @@ public final class ModelGenerator implements Generator {
 		final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
 		// The File to write the sources that we generate into
 		final File javaFile = getJavaFile(destinationSrcDir, modelPackage, javaRecordName);
-		// The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
-		// but is cleaned up and formatted for use in JavaDoc.
-		String javaDocComment = (msgDef.docComment()== null) ? "" :
-				cleanDocStr(msgDef.docComment().getText().replaceAll("\n \\*\s*\n","\n * <p>\n"));
 		// The Javadoc "@Deprecated" tag, which is set if the protobuf schema says the field is deprecated
 		String deprecated = "";
 		// The list of fields, as defined in the protobuf schema
@@ -117,30 +150,38 @@ public final class ModelGenerator implements Generator {
 		}
 
 		// process field java doc and insert into record java doc
-		if (!fields.isEmpty()) {
-			String recordJavaDoc = javaDocComment.isEmpty() ? "/**\n * " + javaRecordName :
-					javaDocComment.replaceAll("\n\s*\\*/", "");
-			recordJavaDoc += "\n *";
+
+		// The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
+		// but is cleaned up and formatted for use in JavaDoc.
+		final String docComment = (msgDef.docComment() == null || msgDef.docComment().getText().isBlank())
+				? javaRecordName :
+				cleanJavaDocComment(msgDef.docComment().getText());
+		String javaDocComment = "/**\n * " + docComment.replaceAll("\n", "\n * ");
+		if (fields.isEmpty()) {
+			javaDocComment +=  "\n */";
+		} else {
+			javaDocComment += "\n *";
 			for (final var field : fields) {
-				recordJavaDoc += "\n * @param "+field.nameCamelFirstLower()+" "+
+				javaDocComment += "\n * @param "+field.nameCamelFirstLower()+" "+
 							field.comment()
 								.replaceAll("\n", "\n *         "+" ".repeat(field.nameCamelFirstLower().length()));
 			}
-			recordJavaDoc += "\n */";
-			javaDocComment = cleanDocStr(recordJavaDoc);
+			javaDocComment += "\n */";
 		}
 
 		// === Build Body Content
 		String bodyContent = "";
 
 		// static codec and default instance
-		bodyContent +=
-				generateCodecFields(msgDef, lookupHelper, javaRecordName);
+		bodyContent += generateCodecFields(msgDef, lookupHelper, javaRecordName);
+		bodyContent += "\n";
 
 		// constructor
 		bodyContent += generateConstructor(javaRecordName, fields, true, msgDef, lookupHelper);
+		bodyContent += "\n";
 
 		bodyContent += generateHashCode(fields);
+		bodyContent += "\n";
 
 		bodyContent += generateEquals(fields, javaRecordName);
 
@@ -160,10 +201,11 @@ public final class ModelGenerator implements Generator {
 
 		// builder copy & new builder methods
 		bodyContent = genrateBuilderFactoryMethods(bodyContent, fields);
+		bodyContent += "\n";
 
 		// generate builder
 		bodyContent += generateBuilder(msgDef, fields, lookupHelper);
-		bodyContent += "\n";
+		if (!oneofEnums.isEmpty()) bodyContent += "\n";
 
 		// oneof enums
 		bodyContent += String.join("\n    ", oneofEnums);
@@ -212,7 +254,7 @@ public final class ModelGenerator implements Generator {
 				import edu.umd.cs.findbugs.annotations.Nullable;
 				import edu.umd.cs.findbugs.annotations.NonNull;
 				import static java.util.Objects.requireNonNull;
-									
+				
 				$javaDocComment$deprecated
 				public record $javaRecordName(
 				$fields) $implementsComparable{
@@ -267,7 +309,7 @@ public final class ModelGenerator implements Generator {
 	 *
 	 * @param fields                the fields to use for the code generation
 	 * @param javaRecordName        the name of the class
-	 * @param destinationSrcDir
+	 * @param destinationSrcDir     the destination source directory
 	 * @return the generated code
 	 */
 	@NonNull
@@ -325,8 +367,7 @@ public final class ModelGenerator implements Generator {
 		bodyContent +=
 		"""
 		    return true;
-		}
-		""".indent(DEFAULT_INDENT);
+		}""".indent(DEFAULT_INDENT);
 		return bodyContent;
 	}
 
@@ -343,9 +384,9 @@ public final class ModelGenerator implements Generator {
 		String bodyContent =
 			"""
 			/**
-			* Override the default hashCode method for
-			* all other objects to make hashCode
-			*/
+			 * Override the default hashCode method for
+			 * all other objects to make hashCode
+			 */
 			@Override
 			public int hashCode() {
 				int result = 1;
@@ -426,38 +467,6 @@ public final class ModelGenerator implements Generator {
 	}
 
 	/**
-	 * Generates constructor code for the class
-	 * @param fields the fields to use for the code generation
-	 * @param javaRecordName the name of the class
-	 * @return the generated code
-	 */
-	@NonNull
-	private static String generateConstructor(final List<Field> fields, final String javaRecordName) {
-		return """
-				     
-				/**
-				 * Override the default constructor adding input validation
-				 * %s
-				 */
-				public %s {
-				%s
-				}
-				"""
-				.formatted(
-						fields.stream().map(field -> "\n * @param " + field.nameCamelFirstLower() + " " +
-								field.comment()
-										.replaceAll("\n", "\n *         " + " ".repeat(field.nameCamelFirstLower().length()))
-						).collect(Collectors.joining()),
-						javaRecordName,
-						fields.stream()
-								.filter(f -> f instanceof OneOfField)
-								.map(ModelGenerator::generateConstructorCodeForField)
-								.collect(Collectors.joining("\n"))
-				)
-				.indent(DEFAULT_INDENT);
-	}
-
-	/**
 	 * Generates the constructor code for the class
 	 * @param f the field to use for the code generation
 	 * @return the generated code
@@ -502,7 +511,7 @@ public final class ModelGenerator implements Generator {
 				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
 				/** JSON codec for reading and writing in JSON format */
 				public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
-								
+				
 				/** Default instance with all fields set to default values */
 				public static final $modelClass DEFAULT = newBuilder().build();
 				"""
@@ -600,7 +609,7 @@ public final class ModelGenerator implements Generator {
 		final List<String> oneofGetters = new ArrayList<>();
 		final var oneOfField = new OneOfField(item.oneof(), javaRecordName, lookupHelper);
 		final var enumName = oneOfField.nameCamelFirstUpper() + "OneOfType";
-		final int maxIndex = oneOfField.fields().get(oneOfField.fields().size() - 1).fieldNumber();
+		final int maxIndex = oneOfField.fields().getLast().fieldNumber();
 		final Map<Integer, EnumValue> enumValues = new HashMap<>();
 		for (final var field : oneOfField.fields()) {
 			final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
@@ -844,9 +853,8 @@ public final class ModelGenerator implements Generator {
 			     * Create an empty builder
 			     */
 			    public Builder() {}
-			    
-			    $prePopulatedBuilder
-		
+			
+			$prePopulatedBuilder
 			    /**
 			     * Build a new model record with data set on builder
 			     *
@@ -856,7 +864,7 @@ public final class ModelGenerator implements Generator {
 			        return new $javaRecordName($recordParams);
 			    }
 		
-			    $builderMethods}"""
+			$builderMethods}"""
 				.replace("$fields", fields.stream().map(field ->
 						getFieldAnnotations(field)
 								+ "private " + field.javaFieldType()

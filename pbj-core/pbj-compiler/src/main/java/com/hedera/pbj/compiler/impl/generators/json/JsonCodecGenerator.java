@@ -58,7 +58,7 @@ public final class JsonCodecGenerator implements Generator {
 		try (FileWriter javaWriter = new FileWriter(javaFile)) {
 			javaWriter.write("""
 					package $package;
-									
+					
 					import com.hedera.pbj.runtime.*;
 					import com.hedera.pbj.runtime.io.*;
 					import com.hedera.pbj.runtime.io.buffer.*;
@@ -74,11 +74,19 @@ public final class JsonCodecGenerator implements Generator {
 					import com.hedera.pbj.runtime.jsonparser.*;
 					import static $schemaClass.*;
 					import static com.hedera.pbj.runtime.JsonTools.*;
-										
+					
 					/**
 					 * JSON Codec for $modelClass model object. Generated based on protobuf schema.
 					 */
 					public final class $codecClass implements JsonCodec<$modelClass> {
+					
+						/**
+						 * Empty constructor
+						 */
+						 public $codecClass() {
+						 	// no-op
+						 }
+					
 					    $unsetOneOfConstants
 					    $parseObject
 					    $writeMethod
