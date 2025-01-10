@@ -56,42 +56,6 @@ public final class ModelGenerator implements Generator {
 		hashCode += hashCode << 30;
 		""".indent(DEFAULT_INDENT);
 
-	public static void main(String[] args) {
-		String test = """
-				 * A consensus snapshot.<br/>
-				 * This is a snapshot of the consensus state for a particular round.
-				 *
-				 * This message SHALL record consensus data necessary for restart
-				 * and reconnect.
-				 *
-				 * @param round <b>(1)</b> A consensus round.<br/>
-				 *              The round number of this snapshot.
-				 * @param judgeHashes <b>(2)</b> A list of SHA-384 hash values.<br/>
-				 *                    The hashes of all judges for this round.
-				 *                    <p>
-				 *                    This list SHALL be ordered by creator ID.<br/>
-				 *                    This list MUST be deterministically ordered.
-				 * @param minimumJudgeInfoList <b>(3)</b> A list of minimum judge information entries.<br/>
-				 *                             These are "minimum ancient" entries for non-ancient rounds.
-				 * @param nextConsensusNumber <b>(4)</b> A single consensus number.<br/>
-				 *                            The consensus order of the next event to reach consensus.
-				 * @param consensusTimestamp <b>(5)</b> A "consensus" timestamp.<br/>
-				 *                           The consensus timestamp of this snapshot.
-				 *                           <p>
-				 *                           Depending on the context this timestamp may have different meanings:
-				 *                           <ul>
-				 *                           <li>if there are transactions, the timestamp is equal to the timestamp of the last transaction</li>
-				 *                           <li>if there are no transactions, the timestamp is equal to the timestamp of the last event</li>
-				 *                           <li>if there are no events, the timestamp is equal to the timestamp of the previous round plus a small constant</li>
-				 *                           </ul>
-				 *                           <p>
-				 *                           This SHALL be a consensus value and MAY NOT correspond to an actual
-				 *                           "wall clock" timestamp.<br/>
-				 *                           Consensus Timestamps SHALL always increase.
-				 <p> hello <p>
-				""";
-		System.out.println(test.replaceAll("<p>((:?.|\n)*?)(<p>|$)","<pXX>$1</pXX>$2"));
-	}
 	/**
 	 * {@inheritDoc}
 	 *
