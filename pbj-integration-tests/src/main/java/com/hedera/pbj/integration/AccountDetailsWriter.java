@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration;
 
+import static com.hedera.pbj.integration.AccountDetailsPbj.ACCOUNT_DETAILS;
+
 import com.hedera.hapi.node.token.AccountDetails;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 import java.util.Arrays;
-import static com.hedera.pbj.integration.AccountDetailsPbj.ACCOUNT_DETAILS;
 
 /**
  * Testing main class for profiling parser and writer performance
@@ -27,7 +28,7 @@ public class AccountDetailsWriter {
      * @throws Exception if there was a problem
      */
     public static void main(String[] args) throws Exception {
-        final BufferedData outDataBuffer = BufferedData.allocate(1024*1024);
+        final BufferedData outDataBuffer = BufferedData.allocate(1024 * 1024);
 
         for (int i = 0; i < 10_000_000; i++) {
             outDataBuffer.reset();
@@ -52,12 +53,13 @@ public class AccountDetailsWriter {
         final byte[] protobuf = new byte[(int) tempDataBuffer.remaining()];
         tempDataBuffer.readBytes(protobuf);
         // write out with protoc
-        final GetAccountDetailsResponse.AccountDetails accountDetailsProtoC = GetAccountDetailsResponse.AccountDetails.parseFrom(protobuf);
-//
-//        final ByteBuffer bbout = ByteBuffer.allocate(1024*1024);
+        final GetAccountDetailsResponse.AccountDetails accountDetailsProtoC =
+                GetAccountDetailsResponse.AccountDetails.parseFrom(protobuf);
+        //
+        //        final ByteBuffer bbout = ByteBuffer.allocate(1024*1024);
 
         for (int i = 0; i < 10_000_000; i++) {
-//            bbout.clear();
+            //            bbout.clear();
             final byte[] writtenData = accountDetailsProtoC.toByteArray();
             if (writtenData.length != protobuf.length) {
                 System.out.println("writtenData = " + Arrays.toString(writtenData));

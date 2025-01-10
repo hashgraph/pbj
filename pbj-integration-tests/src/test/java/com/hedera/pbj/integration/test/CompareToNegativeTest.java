@@ -18,25 +18,28 @@ class CompareToNegativeTest {
 
     @Test
     void testNonComparableSubObj() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-                getCompileFilesIn("non_compilable_comparable_sub_obj.proto"));
-        assertEquals("Field NonComparableSubObj.subObject specified in `pbj.comparable` option must implement `Comparable` interface but it doesn't.",
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class, () -> getCompileFilesIn("non_compilable_comparable_sub_obj.proto"));
+        assertEquals(
+                "Field NonComparableSubObj.subObject specified in `pbj.comparable` option must implement `Comparable` interface but it doesn't.",
                 exception.getMessage());
     }
 
     @Test
     void testRepeatedField() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-                getCompileFilesIn("non_compilable_comparable_repeated.proto"));
-        assertEquals("Field `int32List` specified in `pbj.comparable` option is repeated. Repeated fields are not supported by this option.",
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class, () -> getCompileFilesIn("non_compilable_comparable_repeated.proto"));
+        assertEquals(
+                "Field `int32List` specified in `pbj.comparable` option is repeated. Repeated fields are not supported by this option.",
                 exception.getMessage());
     }
 
     @Test
     void testNonComparableOneOfField() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-                getCompileFilesIn("non_compilable_comparable_oneOf.proto"));
-        assertEquals("Field NonComparableSubObj.subObject specified in `pbj.comparable` option must implement `Comparable` interface but it doesn't.",
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class, () -> getCompileFilesIn("non_compilable_comparable_oneOf.proto"));
+        assertEquals(
+                "Field NonComparableSubObj.subObject specified in `pbj.comparable` option must implement `Comparable` interface but it doesn't.",
                 exception.getMessage());
     }
 

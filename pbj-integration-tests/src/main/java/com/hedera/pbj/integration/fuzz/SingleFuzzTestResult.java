@@ -68,5 +68,4 @@ public enum SingleFuzzTestResult {
      * reveal any.
      */
     RESERIALIZATION_PASSED;
-
 }

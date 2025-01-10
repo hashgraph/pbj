@@ -2,7 +2,6 @@
 package com.hedera.pbj.integration.fuzz;
 
 import com.hedera.pbj.runtime.Codec;
-
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -48,10 +47,7 @@ public class FuzzTest {
      * @return the result of the fuzz test
      */
     public static <T> FuzzTestResult<T> fuzzTest(
-            final T object,
-            final double threshold,
-            final Random random,
-            final Class<?> protocModelClass) {
+            final T object, final double threshold, final Random random, final Class<?> protocModelClass) {
         final long startNanoTime = System.nanoTime();
 
         final Function<InputStream, ?> protocParser = getProtocParser(protocModelClass);
@@ -61,13 +57,7 @@ public class FuzzTest {
         if (repeatCount == 0) {
             // Certain objects result in zero-size payload, so there's nothing to test.
             // Mark it as passed.
-            return new FuzzTestResult<>(
-                    object,
-                    true,
-                    Map.of(),
-                    repeatCount,
-                    System.nanoTime() - startNanoTime
-            );
+            return new FuzzTestResult<>(object, true, Map.of(), repeatCount, System.nanoTime() - startNanoTime);
         }
 
         final Map<SingleFuzzTestResult, Long> resultCounts = IntStream.range(0, repeatCount)
@@ -83,8 +73,7 @@ public class FuzzTest {
                 statsMap.getOrDefault(SingleFuzzTestResult.DESERIALIZATION_FAILED, 0.) >= threshold,
                 statsMap,
                 repeatCount,
-                System.nanoTime() - startNanoTime
-        );
+                System.nanoTime() - startNanoTime);
     }
 
     private static Function<InputStream, ?> getProtocParser(Class<?> protocModelClass) {
@@ -99,8 +88,9 @@ public class FuzzTest {
                 }
             };
         } catch (NoSuchMethodException e) {
-            throw new FuzzTestException("Protoc model " + protocModelClass.getName()
-                    + " doesn't have the parseFrom(InputStream) method", e);
+            throw new FuzzTestException(
+                    "Protoc model " + protocModelClass.getName() + " doesn't have the parseFrom(InputStream) method",
+                    e);
         }
         return protocParser;
     }
@@ -117,12 +107,9 @@ public class FuzzTest {
     }
 
     private static Map<SingleFuzzTestResult, Double> computePercentageMap(
-            final Map<SingleFuzzTestResult, Long> resultCounts,
-            final int repeatCount) {
+            final Map<SingleFuzzTestResult, Long> resultCounts, final int repeatCount) {
         return resultCounts.entrySet().stream()
                 .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> entry.getValue().doubleValue() / (double) repeatCount)
-                );
+                        Map.Entry::getKey, entry -> entry.getValue().doubleValue() / (double) repeatCount));
     }
 }

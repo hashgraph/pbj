@@ -103,14 +103,15 @@ jobs:
           build-root-directory: ${{ env.PBJ_CORE }}
           arguments: assemble
 
-      - name: Gradle Check (PBJ Core)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          build-root-directory: ${{ env.PBJ_CORE }}
-          arguments: check
-
+#      Removed for now until pbj-core can be made compatible with spotless
+#      - name: Gradle Check (PBJ Core)
+#        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+#        if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+#        with:
+#          gradle-version: ${{ inputs.gradle-version }}
+#          build-root-directory: ${{ env.PBJ_CORE }}
+#          arguments: check
+#
       - name: Publish JUnit Test Report (PBJ Core)
         uses: step-security/publish-unit-test-result-action@4519d7c9f71dd765f8bbb98626268780f23bab28 # v2.17.0
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() && always() }}

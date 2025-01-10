@@ -107,6 +107,5 @@ public final class NonSynchronizedByteArrayOutputStream extends OutputStream {
      * {@inheritDoc}
      */
     @Override
-    public void close() {
-    }
+    public void close() {}
 }

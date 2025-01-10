@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.test;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -8,13 +10,12 @@ import com.hedera.pbj.test.proto.pbj.MessageWithBytes;
 import com.hedera.pbj.test.proto.pbj.MessageWithString;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
 public class MaxSizeTest {
     @Test
     void testBytesMaxSize() throws Exception {
         final Bytes bytes = Bytes.wrap("test string long enough to hold Integer.MAX_VALUE as VarInt");
-        final MessageWithBytes msg = MessageWithBytes.newBuilder().bytesField(bytes).build();
+        final MessageWithBytes msg =
+                MessageWithBytes.newBuilder().bytesField(bytes).build();
         final BufferedData data = BufferedData.allocate(MessageWithBytes.PROTOBUF.measureRecord(msg));
         MessageWithBytes.PROTOBUF.write(msg, data);
 
@@ -31,7 +32,8 @@ public class MaxSizeTest {
     @Test
     void testStringMaxSize() throws Exception {
         final String string = "test string long enough to hold Integer.MAX_VALUE as VarInt";
-        final MessageWithString msg = MessageWithString.newBuilder().aTestString(string).build();
+        final MessageWithString msg =
+                MessageWithString.newBuilder().aTestString(string).build();
         final BufferedData data = BufferedData.allocate(MessageWithString.PROTOBUF.measureRecord(msg));
         MessageWithString.PROTOBUF.write(msg, data);
 

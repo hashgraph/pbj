@@ -5,10 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-import org.junit.jupiter.api.Test;
-
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
 import com.hedera.pbj.test.proto.pbj.TimestampTest2;
+import org.junit.jupiter.api.Test;
 
 class HashEqualsTest {
     @Test

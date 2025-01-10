@@ -26,7 +26,7 @@ public class EverythingWriterPerfTest {
      * @throws Exception Thrown if there was a problem
      */
     public static void main(String[] args) throws Exception {
-        final BufferedData outDataBuffer = BufferedData.allocate(1024*1024);
+        final BufferedData outDataBuffer = BufferedData.allocate(1024 * 1024);
 
         for (int i = 0; i < 10_000_000; i++) {
             outDataBuffer.reset();
@@ -52,12 +52,13 @@ public class EverythingWriterPerfTest {
         final byte[] protobuf = new byte[(int) tempDataBuffer.remaining()];
         tempDataBuffer.readBytes(protobuf);
         // write out with protoc
-        final GetAccountDetailsResponse.AccountDetails accountDetailsProtoC = GetAccountDetailsResponse.AccountDetails.parseFrom(protobuf);
-//
-//        final ByteBuffer bbout = ByteBuffer.allocate(1024*1024);
+        final GetAccountDetailsResponse.AccountDetails accountDetailsProtoC =
+                GetAccountDetailsResponse.AccountDetails.parseFrom(protobuf);
+        //
+        // final ByteBuffer bbout = ByteBuffer.allocate(1024*1024);
 
         for (int i = 0; i < 10_000_000; i++) {
-//            bbout.clear();
+            // bbout.clear();
             final byte[] writtenData = accountDetailsProtoC.toByteArray();
             if (writtenData.length != protobuf.length) {
                 System.out.println("writtenData = " + HexFormat.of().formatHex(writtenData));

@@ -2,7 +2,6 @@
 package com.hedera.pbj.integration.fuzz;
 
 import com.hedera.pbj.runtime.test.Sneaky;
-
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -12,10 +11,7 @@ import java.util.concurrent.TimeUnit;
  * @param nanos the time the code took to run, in nanos
  * @param <T> the return type of the code, or Void for Runnables.
  */
-public final record Elapsed<T>(
-        T result,
-        long nanos
-) {
+public final record Elapsed<T>(T result, long nanos) {
 
     /**
      * Measure the time the provided Callable takes to run.
@@ -41,7 +37,10 @@ public final record Elapsed<T>(
      * @return an Elapsed record with the time. The result is set to null.
      */
     public static Elapsed<Void> time(final Runnable runnable) {
-        return time(() -> { runnable.run(); return null; });
+        return time(() -> {
+            runnable.run();
+            return null;
+        });
     }
 
     /**
@@ -59,5 +58,4 @@ public final record Elapsed<T>(
     public String format() {
         return TimeUnit.SECONDS.convert(nanos(), TimeUnit.NANOSECONDS) + " seconds";
     }
-
 }
