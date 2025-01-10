@@ -77,12 +77,12 @@ public final class CodecGenerator implements Generator {
 					 * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
 					 */
 					public final class $codecClass implements Codec<$modelClass> {
-					    $unsetOneOfConstants
-					    $parseMethod
-					    $writeMethod
-					    $measureDataMethod
-					    $measureRecordMethod
-					    $fastEqualsMethod
+					$unsetOneOfConstants
+					$parseMethod
+					$writeMethod
+					$measureDataMethod
+					$measureRecordMethod
+					$fastEqualsMethod
 					}
 					"""
 					.replace("$package", codecPackage)

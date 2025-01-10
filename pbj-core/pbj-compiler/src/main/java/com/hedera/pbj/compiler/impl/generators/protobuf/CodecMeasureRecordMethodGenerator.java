@@ -102,7 +102,7 @@ class CodecMeasureRecordMethodGenerator {
             return prefix + switch (field.type()) {
                 case ENUM -> "size += sizeOfEnumList(%s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case MESSAGE -> "size += sizeOfMessageList($fieldDef, $valueCode, $codec::measureRecord);"
+                case MESSAGE -> "size += sizeOfMessageList($fieldDef, $valueCode, $codec);"
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode)
                         .replace("$codec", ((SingleField) field).messageTypeModelPackage() + "." +
@@ -147,7 +147,7 @@ class CodecMeasureRecordMethodGenerator {
                         .formatted(fieldDef, getValueCode);
                 case STRING -> "size += sizeOfString(%s, %s, %s);"
                         .formatted(fieldDef, getValueCode, skipDefault);
-                case MESSAGE -> "size += sizeOfMessage($fieldDef, $valueCode, $codec::measureRecord);"
+                case MESSAGE -> "size += sizeOfMessage($fieldDef, $valueCode, $codec);"
                         .replace("$fieldDef", fieldDef)
                         .replace("$valueCode", getValueCode)
                         .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +
