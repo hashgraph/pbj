@@ -143,7 +143,7 @@ public final class Common {
 		return cleanDocStr(fieldComment
 				.replaceAll("/\\*\\*[\n\r\s\t]*\\*[\t\s]*|[\n\r\s\t]*\\*/","") // remove java doc
 				.replaceAll("\n\s+\\*\s+","\n") // remove indenting and *
-				.replaceAll("\n\s+\\*\s*\n","\n<p>\n") // remove indenting and *
+				.replaceAll("\n\s+\\*\s*\n","\n\n") // remove indenting and *
 				.replaceAll("/\\*\\*","") // remove indenting and /** at beginning of comment.
 				.trim() // Remove leading and trailing spaces.
 		);
@@ -162,12 +162,15 @@ public final class Common {
 				.replaceAll(" < ", " &lt; ") // escape loose less than
 				.replaceAll(" > ", " &gt; ") // escape loose less than
 				.replaceAll(" & ", " &amp; ") //
-				.replaceAll("<p>((.|\n)*?)</p>", "%%%%%$1%%%%") // replace closed paragraphs temporarily
-				.replaceAll("<p>((\s|\n)*?)($|<[^>]+>)","$1$2$3") // remove <p> at end of paragraph
-				.replaceAll("<p>((.|\n)*?)(<p>|$|<[^>]+>)","<p>$1</p>$2$3") // clean up loose paragraphs
+				.replaceAll("<p>([^<]*?)</p>", "%%%%%$1%%%%") // replace closed paragraphs temporarily
+				.replaceAll("<p>((\\s|\\n)*?)($|<[^>]+>)","$1$2$3") // remove <p> at end of paragraph
+				.replaceAll("<p>((.|\\n)*?)([\\s\\n]*)(%%%%%|<p>|\\n@\\w+ |$|<[^>]+>)","<p>$1</p>$3$4") // clean up loose paragraphs
+				// Do second pass as we can miss some <p> that were caught as closers in first pass
+				.replaceAll("<p>([^<]*?)</p>", "%%%%%$1%%%%") // replace closed paragraphs temporarily
+				.replaceAll("<p>((.|\\n)*?)([\\s\\n]*)(%%%%%|<p>|\\n@\\w+ |$|<[^>]+>)","<p>$1</p>$3$4") // clean up loose paragraphs
+				// restore completed paragraphs
 				.replaceAll("%%%%%", "<p>") // replace back to paragraphs
 				.replaceAll("%%%%", "</p>") // replace back to paragraphs
-
 		;
 	}
 
@@ -482,7 +485,8 @@ public final class Common {
 	@NonNull
 	private static String getPrimitiveWrapperEqualsGeneration(String generatedCodeSoFar, Field f) {
 		switch (f.messageType()) {
-			case "StringValue" ->
+			case "StringValue", "BoolValue", "Int32Value", "UInt32Value", "Int64Value", "UInt64Value", "FloatValue",
+                 "DoubleValue", "BytesValue" ->
 				generatedCodeSoFar += (
                 """
                 if (this.$fieldName == null && thatObj.$fieldName != null) {
@@ -492,38 +496,7 @@ public final class Common {
                     return false;
                 }
                 """).replace("$fieldName", f.nameCamelFirstLower());
-			case "BoolValue" ->
-
-				generatedCodeSoFar += (
-                """
-                if (this.$fieldName == null && thatObj.$fieldName != null) {
-                    return false;
-                }
-                if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
-                    return false;
-                }
-                """).replace("$fieldName", f.nameCamelFirstLower());
-			case "Int32Value", "UInt32Value", "Int64Value", "UInt64Value", "FloatValue", "DoubleValue" ->
-				generatedCodeSoFar += (
-                """
-                if (this.$fieldName == null && thatObj.$fieldName != null) {
-                    return false;
-                }
-                if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
-                    return false;
-                }
-                """).replace("$fieldName", f.nameCamelFirstLower());
-            case "BytesValue" ->
-				generatedCodeSoFar += (
-                """
-                if (this.$fieldName == null && thatObj.$fieldName != null) {
-                    return false;
-                }
-                if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
-                    return false;
-                }
-                """).replace("$fieldName", f.nameCamelFirstLower());
-			default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
+            default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
 		}
 		return generatedCodeSoFar;
 	}

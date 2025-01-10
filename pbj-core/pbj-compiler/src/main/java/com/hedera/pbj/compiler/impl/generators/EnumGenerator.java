@@ -57,7 +57,18 @@ public final class EnumGenerator {
 								.replaceAll("/n\s*/n","/n") //  remove empty lines
 				);
 				maxIndex = Math.max(maxIndex, enumNumber);
-				enumValues.put(enumNumber, new EnumValue(enumValueName, false,enumValueJavaDoc));
+				// extract if the enum is marks as deprecated
+				boolean deprecatedEnumValue = false;
+				if(item.enumField().enumValueOptions() != null && item.enumField().enumValueOptions().enumValueOption() != null) {
+					for(var option:item.enumField().enumValueOptions().enumValueOption()) {
+						if ("deprecated".equals(option.optionName().getText())) {
+							deprecatedEnumValue = true;
+						} else {
+							System.err.println("Unhandled Option: "+option.getText());
+						}
+					}
+				}
+				enumValues.put(enumNumber, new EnumValue(enumValueName, deprecatedEnumValue,enumValueJavaDoc));
 			} else if (item.optionStatement() != null){
 				if ("deprecated".equals(item.optionStatement().optionName().getText())) {
 					deprecated = "@Deprecated ";
@@ -102,10 +113,16 @@ public final class EnumGenerator {
 		for (int i = 0; i <= maxIndex; i++) {
 			final EnumValue enumValue = enumValues.get(i);
 			if (enumValue != null) {
-				final String cleanedEnumComment =
+				final String cleanedEnumComment = enumValue.javaDoc.contains("\n") ?
 				   """
-					/**$enumJavadoc
-					*/
+					/**
+					 * $enumJavadoc
+					 */
+					"""
+					.replace("$enumJavadoc",
+							enumValue.javaDoc.replaceAll("\n\s*","\n * ")) :
+				   """
+					/** $enumJavadoc */
 					"""
 					.replace("$enumJavadoc", enumValue.javaDoc);
 				final String deprecatedText = enumValue.deprecated ? "@Deprecated\n" : "";
