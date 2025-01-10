@@ -61,8 +61,11 @@ sourceSets {
 tasks.withType<Javadoc> {
     exclude("com/hederahashgraph/api/proto/**")
     exclude("com/hederahashgraph/service/proto/**")
+    exclude("com/hedera/hapi/**/legacy/**")
+    exclude("com/hedera/**/protoc/**")
     exclude("com/hedera/services/stream/proto/**")
     exclude("com/hedera/hashgraph/pbj/integration/**")
+    exclude("com/hedera/pbj/test/proto/java/**")
     exclude("pbj/**")
 }
 

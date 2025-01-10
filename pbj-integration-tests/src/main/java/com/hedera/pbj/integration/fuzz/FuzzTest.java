@@ -28,9 +28,23 @@ import java.util.stream.IntStream;
 public class FuzzTest {
 
     /**
+     * Empty constructor
+     */
+    public FuzzTest() {
+        // no-op
+    }
+
+    /**
      * Run a fuzz test for a given object and codec, and use the provided threshold
      * for the most desirable DESERIALIZATION_FAILED outcome to determine
      * if the test passed or not.
+     *
+     * @param object the object to test
+     * @param threshold the threshold for the DESERIALIZATION_FAILED outcome
+     * @param random the random number generator to use
+     * @param protocModelClass the class of the protoc model to use for parsing
+     * @param <T> the type of the object
+     * @return the result of the fuzz test
      */
     public static <T> FuzzTestResult<T> fuzzTest(
             final T object,

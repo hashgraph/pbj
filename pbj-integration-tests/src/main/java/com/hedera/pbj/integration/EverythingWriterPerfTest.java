@@ -3,10 +3,27 @@ package com.hedera.pbj.integration;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
+import java.util.HexFormat;
 
+/**
+ * Testing main class for profiling parser and writer performance for everything object
+ */
 @SuppressWarnings("DuplicatedCode")
 public class EverythingWriterPerfTest {
 
+    /**
+     * Empty constructor
+     */
+    public EverythingWriterPerfTest() {
+        // no-op
+    }
+
+    /**
+     * Simple test main method that writes everything object to buffer 10 million times
+     *
+     * @param args Not used
+     * @throws Exception Thrown if there was a problem
+     */
     public static void main(String[] args) throws Exception {
         final BufferedData outDataBuffer = BufferedData.allocate(1024*1024);
 
@@ -18,6 +35,14 @@ public class EverythingWriterPerfTest {
             }
         }
     }
+
+    /**
+     * Second simple test main method that writes everything object to buffer 10 million times using protoC
+     *
+     * @param args Not used
+     * @throws Exception Thrown if there was a problem
+     */
+    @SuppressWarnings({"unused", "MethodCanBeVariableArityMethod"})
     public static void main2(String[] args) throws Exception {
         // write to temp data buffer and then read into byte array
         BufferedData tempDataBuffer = BufferedData.allocate(5 * 1024 * 1024);
@@ -34,7 +59,7 @@ public class EverythingWriterPerfTest {
 //            bbout.clear();
             final byte[] writtenData = accountDetailsProtoC.toByteArray();
             if (writtenData.length != protobuf.length) {
-                System.out.println("writtenData = " + writtenData);
+                System.out.println("writtenData = " + HexFormat.of().formatHex(writtenData));
             }
         }
     }

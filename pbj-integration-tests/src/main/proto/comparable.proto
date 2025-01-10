@@ -78,6 +78,9 @@ message ComparableOneOfTest {
   }
 }
 
+/**
+  * Example of an enum with a limited set of values that are comparable.
+ */
 enum ComparableEnum {
   UNSPECIFIED = 0;
   ONE = 1;

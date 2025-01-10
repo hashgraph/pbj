@@ -128,6 +128,13 @@ public class AccountDetailsPbj {
                     ))
                     .build();
 
+    /**
+     * Empty constructor
+     */
+    public AccountDetailsPbj() {
+        // no-op
+    }
+
     private static long posLong() {
         return RANDOM.nextLong(0, Integer.MAX_VALUE);
     }

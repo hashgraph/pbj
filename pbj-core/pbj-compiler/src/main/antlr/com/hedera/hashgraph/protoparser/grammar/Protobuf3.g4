@@ -15,7 +15,8 @@
 grammar Protobuf3;
 
 proto
-  : syntax
+  : DOC_COMMENT?
+    syntax
     (
         importStatement
       | packageStatement
