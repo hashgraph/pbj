@@ -33,7 +33,7 @@ optionComment: OPTION_LINE_COMMENT;
 // Syntax
 
 syntax
-  : SYNTAX EQ (PROTO3_LIT_SINGLE | PROTO3_LIT_DOUBLE) SEMI
+  : DOC_COMMENT? SYNTAX EQ (PROTO3_LIT_SINGLE | PROTO3_LIT_DOUBLE) SEMI
   ;
 
 // Import Statement
@@ -78,9 +78,7 @@ fieldNumber
   ;
 
 // Oneof and oneof field
-
-// Note, oneOf isn't a message or field, so docComment is broken here, but the current
-// PBJ compiler requires docComment.
+// Note, oneOf isn't a message or field, so docComment is odd to include here...
 oneof
   : docComment ONEOF oneofName LC ( optionStatement | oneofField | emptyStatement_ )* RC
   ;

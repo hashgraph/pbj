@@ -14,90 +14,93 @@ import "google/protobuf/wrappers.proto";
  * Example protobuf containing examples of all types
  */
 message Everything {
-  int32 int32Number = 1;
-  sint32 sint32Number = 2;
-  uint32 uint32Number = 3;
-  fixed32 fixed32Number = 4;
-  sfixed32 sfixed32Number = 5;
-  float floatNumber = 6;
-  int64 int64Number = 7;
-  sint64 sint64Number = 8;
-  uint64 uint64Number = 9;
-  fixed64 fixed64Number = 10;
-  sfixed64 sfixed64Number = 11;
-  double doubleNumber = 12;
-  bool booleanField = 13;
-  Suit enumSuit = 14;
-  TimestampTest subObject = 15;
-  string text = 16;
-  bytes bytesField = 17;
+    // line comment for reserved keyword
+    reserved 18, 19;
 
-  InnerEverything innerEverything = 50;
+    int32 int32Number = 1;
+    sint32 sint32Number = 2;
+    uint32 uint32Number = 3;
+    fixed32 fixed32Number = 4;
+    sfixed32 sfixed32Number = 5;
+    float floatNumber = 6;
+    int64 int64Number = 7;
+    sint64 sint64Number = 8;
+    uint64 uint64Number = 9;
+    fixed64 fixed64Number = 10;
+    sfixed64 sfixed64Number = 11;
+    double doubleNumber = 12;
+    bool booleanField = 13;
+    Suit enumSuit = 14;
+    TimestampTest subObject = 15;
+    string text = 16;
+    bytes bytesField = 17;
 
-  map<int32, string> mapInt32ToString = 71;
-  map<bool, double> mapBoolToDouble = 72;
-  map<string, InnerEverything> mapStringToMessage = 73;
-  map<uint64, bytes> mapUInt64ToBytes = 74;
-  map<int64, bool> mapInt64ToBool = 75;
+    InnerEverything innerEverything = 50;
 
-  repeated int32 int32NumberList = 100;
-  repeated sint32 sint32NumberList = 102;
-  repeated uint32 uint32NumberList = 103;
-  repeated fixed32 fixed32NumberList = 104;
-  repeated sfixed32 sfixed32NumberList = 105;
-  repeated float floatNumberList = 106;
-  repeated int64 int64NumberList = 107;
-  repeated sint64 sint64NumberList = 108;
-  repeated uint64 uint64NumberList = 109;
-  repeated fixed64 fixed64NumberList = 110;
-  repeated sfixed64 sfixed64NumberList = 111;
-  repeated double doubleNumberList = 112;
-  repeated bool booleanList = 113;
-  repeated Suit enumSuitList = 114;
-  repeated TimestampTest subObjectList = 115;
-  repeated string textList = 116;
-  repeated bytes bytesExampleList = 117;
+    map<int32, string> mapInt32ToString = 71;
+    map<bool, double> mapBoolToDouble = 72;
+    map<string, InnerEverything> mapStringToMessage = 73;
+    map<uint64, bytes> mapUInt64ToBytes = 74;
+    map<int64, bool> mapInt64ToBool = 75;
 
-  // Boxed types
-  google.protobuf.Int32Value int32Boxed = 1001;
-  google.protobuf.UInt32Value uint32Boxed = 1002;
-  google.protobuf.Int64Value int64Boxed = 1004;
-  google.protobuf.UInt64Value uint64Boxed = 1005;
-  google.protobuf.FloatValue floatBoxed = 1007;
-  google.protobuf.DoubleValue doubleBoxed = 1008;
-  google.protobuf.BoolValue boolBoxed = 1009;
-  google.protobuf.BytesValue bytesBoxed = 10010;
-  google.protobuf.StringValue stringBoxed = 10011;
+    repeated int32 int32NumberList = 100;
+    repeated sint32 sint32NumberList = 102;
+    repeated uint32 uint32NumberList = 103;
+    repeated fixed32 fixed32NumberList = 104;
+    repeated sfixed32 sfixed32NumberList = 105;
+    repeated float floatNumberList = 106;
+    repeated int64 int64NumberList = 107;
+    repeated sint64 sint64NumberList = 108;
+    repeated uint64 uint64NumberList = 109;
+    repeated fixed64 fixed64NumberList = 110;
+    repeated sfixed64 sfixed64NumberList = 111;
+    repeated double doubleNumberList = 112;
+    repeated bool booleanList = 113;
+    repeated Suit enumSuitList = 114;
+    repeated TimestampTest subObjectList = 115;
+    repeated string textList = 116;
+    repeated bytes bytesExampleList = 117;
 
-  oneof oneofExample {
-    int32 int32NumberOneOf = 100001;
-    sint32 sint32NumberOneOf = 100002;
-    uint32 uint32NumberOneOf = 100003;
-    fixed32 fixed32NumberOneOf = 100004;
-    sfixed32 sfixed32NumberOneOf = 100005;
-    float floatNumberOneOf = 100006;
-    int64 int64NumberOneOf = 100007;
-    sint64 sint64NumberOneOf = 100008;
-    uint64 uint64NumberOneOf = 100009;
-    fixed64 fixed64NumberOneOf = 100010;
-    sfixed64 sfixed64NumberOneOf = 100011;
-    double doubleNumberOneOf = 100012;
-    bool booleanFieldOneOf = 100013;
-    Suit enumSuitOneOf = 100014;
-    TimestampTest subObjectOneOf = 100015;
-    string textOneOf = 100016;
-    bytes bytesFieldOneOf = 100017;
     // Boxed types
-    google.protobuf.Int32Value int32BoxedOneOf = 100018;
-    google.protobuf.UInt32Value uint32BoxedOneOf = 100019;
-    google.protobuf.Int64Value int64BoxedOneOf = 100020;
-    google.protobuf.UInt64Value uint64BoxedOneOf = 100021;
-    google.protobuf.FloatValue floatBoxedOneOf = 100022;
-    google.protobuf.DoubleValue doubleBoxedOneOf = 100023;
-    google.protobuf.BoolValue boolBoxedOneOf = 100024;
-    google.protobuf.BytesValue bytesBoxedOneOf = 100025;
-    google.protobuf.StringValue stringBoxedOneOf = 100026;
-  }
+    google.protobuf.Int32Value int32Boxed = 1001;
+    google.protobuf.UInt32Value uint32Boxed = 1002;
+    google.protobuf.Int64Value int64Boxed = 1004;
+    google.protobuf.UInt64Value uint64Boxed = 1005;
+    google.protobuf.FloatValue floatBoxed = 1007;
+    google.protobuf.DoubleValue doubleBoxed = 1008;
+    google.protobuf.BoolValue boolBoxed = 1009;
+    google.protobuf.BytesValue bytesBoxed = 10010;
+    google.protobuf.StringValue stringBoxed = 10011;
+
+    oneof oneofExample {
+        int32 int32NumberOneOf = 100001;
+        sint32 sint32NumberOneOf = 100002;
+        uint32 uint32NumberOneOf = 100003;
+        fixed32 fixed32NumberOneOf = 100004;
+        sfixed32 sfixed32NumberOneOf = 100005;
+        float floatNumberOneOf = 100006;
+        int64 int64NumberOneOf = 100007;
+        sint64 sint64NumberOneOf = 100008;
+        uint64 uint64NumberOneOf = 100009;
+        fixed64 fixed64NumberOneOf = 100010;
+        sfixed64 sfixed64NumberOneOf = 100011;
+        double doubleNumberOneOf = 100012;
+        bool booleanFieldOneOf = 100013;
+        Suit enumSuitOneOf = 100014;
+        TimestampTest subObjectOneOf = 100015;
+        string textOneOf = 100016;
+        bytes bytesFieldOneOf = 100017;
+        // Boxed types
+        google.protobuf.Int32Value int32BoxedOneOf = 100018;
+        google.protobuf.UInt32Value uint32BoxedOneOf = 100019;
+        google.protobuf.Int64Value int64BoxedOneOf = 100020;
+        google.protobuf.UInt64Value uint64BoxedOneOf = 100021;
+        google.protobuf.FloatValue floatBoxedOneOf = 100022;
+        google.protobuf.DoubleValue doubleBoxedOneOf = 100023;
+        google.protobuf.BoolValue boolBoxedOneOf = 100024;
+        google.protobuf.BytesValue bytesBoxedOneOf = 100025;
+        google.protobuf.StringValue stringBoxedOneOf = 100026;
+    }
 }
 
 /**
@@ -114,82 +117,105 @@ enum Suit {
  * Example protobuf containing examples of all types
  */
 message InnerEverything {
-  int32 int32Number = 1;
-  sint32 sint32Number = 2;
-  uint32 uint32Number = 3;
-  fixed32 fixed32Number = 4;
-  sfixed32 sfixed32Number = 5;
-  float floatNumber = 6;
-  int64 int64Number = 7;
-  sint64 sint64Number = 8;
-  uint64 uint64Number = 9;
-  fixed64 fixed64Number = 10;
-  sfixed64 sfixed64Number = 11;
-  double doubleNumber = 12;
-  bool booleanField = 13;
-  Suit enumSuit = 14;
-  TimestampTest subObject = 15;
-  string text = 16;
-  bytes bytesField = 17;
+    /**
+     * Reserved keyword with document comment
+     */
+    reserved 18, 19;
 
-  repeated int32 int32NumberList = 100;
-  repeated sint32 sint32NumberList = 102;
-  repeated uint32 uint32NumberList = 103;
-  repeated fixed32 fixed32NumberList = 104;
+    int32 int32Number = 1;
+    sint32 sint32Number = 2;
+    uint32 uint32Number = 3;
+    fixed32 fixed32Number = 4;
+    sfixed32 sfixed32Number = 5;
+    float floatNumber = 6;
+    int64 int64Number = 7;
+    sint64 sint64Number = 8;
+    uint64 uint64Number = 9;
+    fixed64 fixed64Number = 10;
+    sfixed64 sfixed64Number = 11;
+    double doubleNumber = 12;
+    bool booleanField = 13;
+    Suit enumSuit = 14;
+    TimestampTest subObject = 15;
+    string text = 16;
+    bytes bytesField = 17;
 
-  repeated sfixed32 sfixed32NumberList = 105;
-  repeated float floatNumberList = 106;
-  repeated int64 int64NumberList = 107;
-  repeated sint64 sint64NumberList = 108;
-  repeated uint64 uint64NumberList = 109;
-  repeated fixed64 fixed64NumberList = 110;
-  repeated sfixed64 sfixed64NumberList = 111;
-  repeated double doubleNumberList = 112;
+    repeated int32 int32NumberList = 100;
+    repeated sint32 sint32NumberList = 102;
+    repeated uint32 uint32NumberList = 103;
+    repeated fixed32 fixed32NumberList = 104;
 
-  repeated bool booleanList = 113;
-  repeated Suit enumSuitList = 114;
-  repeated TimestampTest subObjectList = 115;
-  repeated string textList = 116;
-  repeated bytes bytesExampleList = 117;
+    repeated sfixed32 sfixed32NumberList = 105;
+    repeated float floatNumberList = 106;
+    repeated int64 int64NumberList = 107;
+    repeated sint64 sint64NumberList = 108;
+    repeated uint64 uint64NumberList = 109;
+    repeated fixed64 fixed64NumberList = 110;
+    repeated sfixed64 sfixed64NumberList = 111;
+    repeated double doubleNumberList = 112;
 
-  // Boxed types
-  google.protobuf.Int32Value int32Boxed = 1001;
-  google.protobuf.UInt32Value uint32Boxed = 1002;
-  google.protobuf.Int64Value int64Boxed = 1004;
-  google.protobuf.UInt64Value uint64Boxed = 1005;
-  google.protobuf.FloatValue floatBoxed = 1007;
-  google.protobuf.DoubleValue doubleBoxed = 1008;
-  google.protobuf.BoolValue boolBoxed = 1009;
-  google.protobuf.BytesValue bytesBoxed = 10010;
-  google.protobuf.StringValue stringBoxed = 10011;
+    repeated bool booleanList = 113;
+    repeated Suit enumSuitList = 114;
+    repeated TimestampTest subObjectList = 115;
+    repeated string textList = 116;
+    repeated bytes bytesExampleList = 117;
 
-  oneof oneofExample {
-    int32 int32NumberOneOf = 100001;
-    sint32 sint32NumberOneOf = 100002;
-    uint32 uint32NumberOneOf = 100003;
-    fixed32 fixed32NumberOneOf = 100004;
-    sfixed32 sfixed32NumberOneOf = 100005;
-    float floatNumberOneOf = 100006;
-    int64 int64NumberOneOf = 100007;
-    sint64 sint64NumberOneOf = 100008;
-    uint64 uint64NumberOneOf = 100009;
-    fixed64 fixed64NumberOneOf = 100010;
-    sfixed64 sfixed64NumberOneOf = 100011;
-    double doubleNumberOneOf = 100012;
-    bool booleanFieldOneOf = 100013;
-    Suit enumSuitOneOf = 100014;
-    TimestampTest subObjectOneOf = 100015;
-    string textOneOf = 100016;
-    bytes bytesFieldOneOf = 100017;
     // Boxed types
-    google.protobuf.Int32Value int32BoxedOneOf = 100018;
-    google.protobuf.UInt32Value uint32BoxedOneOf = 100019;
-    google.protobuf.Int64Value int64BoxedOneOf = 100020;
-    google.protobuf.UInt64Value uint64BoxedOneOf = 100021;
-    google.protobuf.FloatValue floatBoxedOneOf = 100022;
-    google.protobuf.DoubleValue doubleBoxedOneOf = 100023;
-    google.protobuf.BoolValue boolBoxedOneOf = 100024;
-    google.protobuf.BytesValue bytesBoxedOneOf = 100025;
-    google.protobuf.StringValue stringBoxedOneOf = 100026;
-  }
+    google.protobuf.Int32Value int32Boxed = 1001;
+    google.protobuf.UInt32Value uint32Boxed = 1002;
+    google.protobuf.Int64Value int64Boxed = 1004;
+    google.protobuf.UInt64Value uint64Boxed = 1005;
+    google.protobuf.FloatValue floatBoxed = 1007;
+    google.protobuf.DoubleValue doubleBoxed = 1008;
+    google.protobuf.BoolValue boolBoxed = 1009;
+    google.protobuf.BytesValue bytesBoxed = 10010;
+    google.protobuf.StringValue stringBoxed = 10011;
+
+    /**
+     * Document comment on oneof.
+     */
+    oneof oneofExample {
+        int32 int32NumberOneOf = 100001;
+        sint32 sint32NumberOneOf = 100002;
+        uint32 uint32NumberOneOf = 100003;
+        fixed32 fixed32NumberOneOf = 100004;
+        sfixed32 sfixed32NumberOneOf = 100005;
+        float floatNumberOneOf = 100006;
+        int64 int64NumberOneOf = 100007;
+        sint64 sint64NumberOneOf = 100008;
+        uint64 uint64NumberOneOf = 100009;
+        fixed64 fixed64NumberOneOf = 100010;
+        sfixed64 sfixed64NumberOneOf = 100011;
+        double doubleNumberOneOf = 100012;
+        bool booleanFieldOneOf = 100013;
+        Suit enumSuitOneOf = 100014;
+        TimestampTest subObjectOneOf = 100015;
+        /**
+         * double doc comment with line comment between.
+         */
+        // commented out field
+        // string badField = 23;
+        /**
+         * A text field within a oneof, with high field number.
+         */
+        string textOneOf = 100016;
+        bytes bytesFieldOneOf = 100017;
+        // Boxed types
+        google.protobuf.Int32Value int32BoxedOneOf = 100018;
+        google.protobuf.UInt32Value uint32BoxedOneOf = 100019;
+        google.protobuf.Int64Value int64BoxedOneOf = 100020;
+        google.protobuf.UInt64Value uint64BoxedOneOf = 100021;
+        google.protobuf.FloatValue floatBoxedOneOf = 100022;
+        google.protobuf.DoubleValue doubleBoxedOneOf = 100023;
+        google.protobuf.BoolValue boolBoxedOneOf = 100024;
+        google.protobuf.BytesValue bytesBoxedOneOf = 100025;
+        google.protobuf.StringValue stringBoxedOneOf = 100026;
+        // remaining issue: cannot put a docComment here followed by a
+        // commented out field; it will fail to compile.
+        // remove `-` below to exercise the issue.
+        /*-*
+         * Commented out trailing field in oneof
+         */
+        // bool commented_out = 100027;
+    }
 }

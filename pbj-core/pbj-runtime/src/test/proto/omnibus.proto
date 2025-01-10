@@ -1,8 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
+/*
+  General test comment, to ensure comments before syntax are accepted properly
+ */
+/**
+ "doc" comment before syntax to test that all comment types are accepted without
+ warnings or errors.
+ */
 syntax = "proto3";
 
+/**
+  "doc" comment before package, to test grammar parsing.
+ */
 package test.proto;
 
+/**
+  "doc" comment before option, to test grammar parsing.
+ */
 option java_package = "test.proto";
 option java_multiple_files = true;
 
