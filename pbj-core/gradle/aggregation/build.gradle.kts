@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  */
 
 plugins {
-    id("java-library")
-    id("com.hedera.pbj.conventions")
+    id("org.hiero.gradle.base.lifecycle")
+    id("org.hiero.gradle.report.code-coverage")
+    id("org.hiero.gradle.check.spotless")
+    id("org.hiero.gradle.check.spotless-kotlin")
 }
 
-val maven = publishing.publications.create<MavenPublication>("maven") { from(components["java"]) }
-
-signing.sign(maven)
+dependencies { implementation(project(":pbj-grpc-helidon")) }

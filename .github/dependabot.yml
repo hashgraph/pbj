@@ -1,7 +1,17 @@
 version: 2
 updates:
   - package-ecosystem: "gradle"
-    directory: "/"
+    directory: "/pbj-core"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+  - package-ecosystem: "gradle"
+    directory: "/pbj-integration-tests"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+  - package-ecosystem: "gradle"
+    directory: "/pbj-core/hiero-dependency-versions"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10

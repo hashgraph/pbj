@@ -9,19 +9,25 @@ import io.helidon.common.features.api.Preview;
         description = "WebServer gRPC-PBJ Support",
         in = HelidonFlavor.SE,
         path = {"WebServer", "PBJ"})
-@SuppressWarnings({"requires-automatic"})
 module com.hedera.pbj.grpc.helidon {
-    requires static io.helidon.common.features.api;
-    requires static com.github.spotbugs.annotations;
-    requires static io.helidon.common.features.processor;
-    requires static io.helidon.codegen.apt;
-    requires static io.helidon.builder.codegen;
-    requires com.hedera.pbj.grpc.helidon.config;
-    requires com.hedera.pbj.runtime;
-    requires io.helidon.webserver;
-    requires io.helidon.webserver.http2;
+    requires transitive com.hedera.pbj.grpc.helidon.config;
+    requires transitive com.hedera.pbj.runtime;
+    requires transitive io.helidon.common.config;
+    requires transitive io.helidon.common;
+    requires transitive io.helidon.webserver.http2;
+    requires transitive io.helidon.webserver;
+    requires io.helidon.common.buffers;
+    requires io.helidon.common.media.type;
+    requires io.helidon.common.uri;
+    requires io.helidon.http.http2;
+    requires io.helidon.http;
     requires io.helidon.metrics.api;
     requires java.net.http;
+    requires static transitive com.github.spotbugs.annotations;
+    requires static io.helidon.builder.codegen;
+    requires static io.helidon.codegen.apt;
+    requires static io.helidon.common.features.api;
+    requires static io.helidon.common.features.processor;
 
     exports com.hedera.pbj.grpc.helidon;
 
