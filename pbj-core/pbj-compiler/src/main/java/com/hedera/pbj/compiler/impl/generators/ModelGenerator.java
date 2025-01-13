@@ -73,10 +73,6 @@ public final class ModelGenerator implements Generator {
 		final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
 		// The File to write the sources that we generate into
 		final File javaFile = getJavaFile(destinationSrcDir, modelPackage, javaRecordName);
-		// The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
-		// but is cleaned up and formatted for use in JavaDoc.
-		String javaDocComment = (msgDef.docComment()== null) ? "/**\\n * " + javaRecordName +" */" :
-				cleanDocStr(msgDef.docComment().getText().replaceAll("\n \\*\s*\n","\n * <p>\n"));
 		// The Javadoc "@Deprecated" tag, which is set if the protobuf schema says the field is deprecated
 		String deprecated = "";
 		// The list of fields, as defined in the protobuf schema & precomputed fields
@@ -130,6 +126,16 @@ public final class ModelGenerator implements Generator {
 		fields.add(new SingleField(false, FieldType.FIXED32, -1,
 				"$protobufEncodedSize", null, null,
 				null, null, "Computed protobuf encoded size, manual input ignored.", false, null));
+
+		// The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
+		// but is cleaned up and formatted for use in JavaDoc.
+		String docComment = (msgDef.docComment() == null || msgDef.docComment().getText().isBlank())
+				? javaRecordName :
+				cleanJavaDocComment(msgDef.docComment().getText());
+		if (docComment.endsWith("\n")) {
+			docComment = docComment.substring(0, docComment.length() - 1);
+		}
+		final String javaDocComment = "/**\n * " + docComment.replaceAll("\n", "\n * ") + "\n */";
 
 		// === Build Body Content
 		String bodyContent = "";

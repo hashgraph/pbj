@@ -1,7 +1,6 @@
 package com.hedera.pbj.intergration.jmh;
 
 import com.google.protobuf.GeneratedMessage;
-import com.google.protobuf.GeneratedMessageV3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.hedera.hapi.node.base.Timestamp;
@@ -14,6 +13,9 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -26,21 +28,17 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-
 @SuppressWarnings("unused")
 @Fork(1)
 @Warmup(iterations = 2, time = 2)
 @Measurement(iterations = 5, time = 2)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
-public abstract class JsonBench<P extends Record,G extends GeneratedMessage> {
+public abstract class JsonBench<P,G extends GeneratedMessage> {
 
 	@SuppressWarnings("rawtypes")
 	@State(Scope.Benchmark)
-	public static class JsonBenchmarkState<P extends Record,G extends GeneratedMessage> {
+	public static class JsonBenchmarkState<P,G extends GeneratedMessage> {
 		private JsonCodec<P> pbjJsonCodec;
 		private Supplier<GeneratedMessage.Builder> builderSupplier;
 		// input objects

@@ -42,12 +42,12 @@ import java.util.zip.GZIPInputStream;
 @Measurement(iterations = 7, time = 2)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
-public abstract class ProtobufObjectBench<P extends Record,G extends GeneratedMessage> {
+public abstract class ProtobufObjectBench<P,G extends GeneratedMessage> {
 	/** we repeat all operations 1000 times so that measured times are nig enough */
 	private static final int OPERATION_COUNT = 1000;
 
 	@State(Scope.Benchmark)
-	public static class BenchmarkState<P extends Record,G extends GeneratedMessage> {
+	public static class BenchmarkState<P,G extends GeneratedMessage> {
 		private Codec<P> pbjCodec;
 		private ProtobufParseFunction<byte[], G> googleByteArrayParseMethod;
 		private ProtobufParseFunction<ByteBuffer, G> googleByteBufferParseMethod;
