@@ -33,25 +33,25 @@ optionComment: OPTION_LINE_COMMENT;
 // Syntax
 
 syntax
-  : DOC_COMMENT? SYNTAX EQ (PROTO3_LIT_SINGLE | PROTO3_LIT_DOUBLE) SEMI
+  : SYNTAX EQ (PROTO3_LIT_SINGLE | PROTO3_LIT_DOUBLE) SEMI
   ;
 
 // Import Statement
 
 importStatement
-  : DOC_COMMENT? IMPORT ( WEAK | PUBLIC )? strLit SEMI
+  : IMPORT ( WEAK | PUBLIC )? strLit SEMI
   ;
 
 // Package
 
 packageStatement
-  : DOC_COMMENT? PACKAGE fullIdent SEMI
+  : PACKAGE fullIdent SEMI
   ;
 
 // Option
 
 optionStatement
-  : DOC_COMMENT? OPTION optionName EQ constant SEMI
+  : OPTION optionName EQ constant SEMI
   ;
 
 optionName
