@@ -26,22 +26,58 @@ import java.util.function.Function;
  * as long as the input parameters are immutable or thread-safe.
  */
 public final class SingleFuzzTest {
-    // When set to true, the test will print debugging info to System.out,
-    // including payloads, for every single run. This may produce a lot of console output.
-    private final static boolean debug = false;
 
+    /**
+     * When set to true, the test will print debugging info to <code>System.out</code>,
+     * including payloads, for every single run. This may produce a lot of console output.
+     */
+    private final static boolean debug = false;
+    /** A thread-safe counter for the next ID which is also the number of test runs performed so far. */
     private final static AtomicInteger TEST_ID_GENERATOR = new AtomicInteger(0);
 
+    /**
+     * Empty constructor
+     */
+    public SingleFuzzTest() {
+        // no-op
+    }
+
+    /**
+     * Get the number of test runs performed so far.
+     *
+     * @return the number of test runs
+     */
     public static int getNumberOfRuns() {
         return TEST_ID_GENERATOR.get();
     }
 
+    /**
+     * Write the object to a BufferedData buffer using codec.
+     *
+     * @param object the object to write
+     * @param codec the codec to use
+     * @param size the size of the object, used to size the buffer allocated
+     * @return a BufferedData buffer with the object written to it
+     * @param <T> the type of the object
+     * @throws Exception if the codec throws an exception
+     */
     private static <T> BufferedData write(final T object, final Codec<T> codec, final int size) throws Exception {
         final BufferedData dataBuffer = BufferedData.allocate(size);
         codec.write(object, dataBuffer);
         return dataBuffer;
     }
 
+    /**
+     * Try to parse the dataBuffer using protocParser and log the result.
+     *
+     * @param prefix the prefix for the log output
+     * @param originalObject the original object
+     * @param dataBuffer the data buffer to parse
+     * @param deserializedObject the deserialized object
+     * @param protocParser the protoc parser function
+     * @param pbjException the exception thrown by PBJ
+     * @param doThrow if true, throw an exception if protoc throws an exception
+     */
     private static void tryProtocParser(
             final String prefix,
             final Object originalObject,
@@ -58,7 +94,7 @@ public final class SingleFuzzTest {
                 System.out.println(prefix + "NOTE: Protoc was able to parse this payload w/o exceptions as "
                         + protocObject
                         + " , but PBJ errored out with "
-                        + pbjException.toString()
+                        + pbjException
                 );
             }
         } catch (Exception ex) {
@@ -79,6 +115,13 @@ public final class SingleFuzzTest {
         }
     }
 
+    /**
+     * Estimate the number of bytes to modify in the object.
+     *
+     * @param random the random numbers generator
+     * @param size the size of the object
+     * @return the number of bytes to modify
+     */
     private static int estimateNumberOfBytesToModify(final Random random, final int size) {
         // Ideally, we want to modify a random number of bytes from 1 to size:
         final int numberOfBytesToModify = (1 + random.nextInt(size - 1));
@@ -114,7 +157,12 @@ public final class SingleFuzzTest {
      * to this particular run, allowing one to identify all the debugging output related
      * to this specific run even if multiple runs are running concurrently.
      *
+     * @param object the input object of type T
+     * @param codec the codec for the input object
+     * @param random the random numbers generator
+     * @param protocParser the function that parses the input stream using Google Protoc
      * @return a SingleFuzzTestResult
+     * @param <T> the type of the input object
      */
     public static <T> SingleFuzzTestResult fuzzTest(
             final T object,
@@ -179,6 +227,13 @@ public final class SingleFuzzTest {
         return SingleFuzzTestResult.RESERIALIZATION_PASSED;
     }
 
+    /**
+     * Modify a random number of bytes in the dataBuffer.
+     *
+     * @param random the random numbers generator
+     * @param size the size of the object
+     * @param dataBuffer the data buffer to modify
+     */
     private static void modifyBufferedData(final Random random, final int size, final BufferedData dataBuffer) {
         final int actualNumberOfBytesToModify = estimateNumberOfBytesToModify(random, size);
         for (int i = 0; i < actualNumberOfBytesToModify; i++) {
@@ -190,6 +245,16 @@ public final class SingleFuzzTest {
         }
     }
 
+    /**
+     * Create a BufferedData buffer with the object written to it.
+     *
+     * @param object the object to write
+     * @param codec the codec to use
+     * @param size the size of the object, used to size the buffer allocated
+     * @param prefix the prefix for the log output
+     * @param <T> the type of the object
+     * @return a BufferedData buffer with the object written to it
+     */
     private static <T> BufferedData createBufferedData(
             final T object,
             final Codec<T> codec,
@@ -204,5 +269,4 @@ public final class SingleFuzzTest {
         }
         return dataBuffer;
     }
-
 }

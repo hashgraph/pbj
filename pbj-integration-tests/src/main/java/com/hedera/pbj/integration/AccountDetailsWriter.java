@@ -13,6 +13,13 @@ import static com.hedera.pbj.integration.AccountDetailsPbj.ACCOUNT_DETAILS;
 public class AccountDetailsWriter {
 
     /**
+     * Empty constructor
+     */
+    public AccountDetailsWriter() {
+        // no-op
+    }
+
+    /**
      * Testing main method for profiling parser and writer performance
      *
      * @param args command line args

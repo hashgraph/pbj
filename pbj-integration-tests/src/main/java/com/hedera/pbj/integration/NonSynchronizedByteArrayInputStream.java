@@ -21,26 +21,45 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Objects;
+import org.jetbrains.annotations.NotNull;
 
 /**
- * Faster non-synchronized ByteArrayInputStream
+ * Faster non-synchronized ByteArrayInputStream. This class is not thread safe, and does not require synchronization.
+ * It was created to avoid the synchronization overhead of the standard Java ByteArrayInputStream.
  */
 public final class NonSynchronizedByteArrayInputStream extends InputStream {
+    /** The byte array buffer we read from. */
     private final byte[] buf;
+    /** The current reading position in the buffer */
     private int pos;
+    /** The mark position in the buffer */
     private int mark = 0;
+    /** The number of bytes in the buffer */
     private final int count;
 
+    /**
+     * Creates a new byte array input stream, with the given buffer to read from
+     *
+     * @param buf the buffer to read from
+     */
     public NonSynchronizedByteArrayInputStream(byte[] buf) {
         this.buf = buf;
         this.pos = 0;
         this.count = buf.length;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public int read() {
         return (pos < count) ? (buf[pos++] & 0xff) : -1;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public int read(byte[] b, int off, int len) {
         Objects.checkFromIndexSize(off, len, b.length);
 
@@ -60,17 +79,29 @@ public final class NonSynchronizedByteArrayInputStream extends InputStream {
         return len;
     }
 
-    public byte[] readAllBytes() {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public byte @NotNull [] readAllBytes() {
         byte[] result = Arrays.copyOfRange(buf, pos, count);
         pos = count;
         return result;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public int readNBytes(byte[] b, int off, int len) {
         int n = read(b, off, len);
         return n == -1 ? 0 : n;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public long transferTo(OutputStream out) throws IOException {
         int len = count - pos;
         out.write(buf, pos, len);
@@ -78,6 +109,10 @@ public final class NonSynchronizedByteArrayInputStream extends InputStream {
         return len;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public long skip(long n) {
         long k = count - pos;
         if (n < k) {
@@ -88,26 +123,49 @@ public final class NonSynchronizedByteArrayInputStream extends InputStream {
         return k;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public int available() {
         return count - pos;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean markSupported() {
         return true;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void mark(int readAheadLimit) {
         mark = pos;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void reset() {
         pos = mark;
     }
 
+    /**
+     * Reset the position and mark to the beginning of the buffer.
+     */
     public void resetPosition() {
         pos = 0;
         mark = 0;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void close() {}
 }

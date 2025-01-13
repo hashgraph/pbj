@@ -19,7 +19,7 @@ import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 /**
  * Code for generating enum code
  */
-@SuppressWarnings({"InconsistentTextBlockIndent", "EscapedSpace"})
+@SuppressWarnings({"EscapedSpace"})
 public final class EnumGenerator {
 
 	/** Record for an enum value temporary storage */
@@ -38,7 +38,7 @@ public final class EnumGenerator {
 		final String enumName = enumDef.enumName().getText();
 		final String modelPackage = lookupHelper.getPackageForEnum(FileType.MODEL, enumDef);
 		final String javaDocComment = (enumDef.docComment()== null) ? "" :
-				cleanDocStr(enumDef.docComment().getText().replaceAll("\n \\*\s*\n","\n * <p>\n"));
+				cleanDocStr(enumDef.docComment().getText().replaceAll("\n \\*\s*\n","\n * <br>\n"));
 		String deprecated = "";
 		final Map<Integer, EnumValue> enumValues = new HashMap<>();
 		int maxIndex = 0;
@@ -57,7 +57,18 @@ public final class EnumGenerator {
 								.replaceAll("/n\s*/n","/n") //  remove empty lines
 				);
 				maxIndex = Math.max(maxIndex, enumNumber);
-				enumValues.put(enumNumber, new EnumValue(enumValueName, false,enumValueJavaDoc));
+				// extract if the enum is marks as deprecated
+				boolean deprecatedEnumValue = false;
+				if(item.enumField().enumValueOptions() != null && item.enumField().enumValueOptions().enumValueOption() != null) {
+					for(var option:item.enumField().enumValueOptions().enumValueOption()) {
+						if ("deprecated".equals(option.optionName().getText())) {
+							deprecatedEnumValue = true;
+						} else {
+							System.err.println("Unhandled Option: "+option.getText());
+						}
+					}
+				}
+				enumValues.put(enumNumber, new EnumValue(enumValueName, deprecatedEnumValue,enumValueJavaDoc));
 			} else if (item.optionStatement() != null){
 				if ("deprecated".equals(item.optionStatement().optionName().getText())) {
 					deprecated = "@Deprecated ";
@@ -102,10 +113,16 @@ public final class EnumGenerator {
 		for (int i = 0; i <= maxIndex; i++) {
 			final EnumValue enumValue = enumValues.get(i);
 			if (enumValue != null) {
-				final String cleanedEnumComment =
+				final String cleanedEnumComment = enumValue.javaDoc.contains("\n") ?
 				   """
-					/**$enumJavadoc
-					*/
+					/**
+					 * $enumJavadoc
+					 */
+					"""
+					.replace("$enumJavadoc",
+							enumValue.javaDoc.replaceAll("\n\s*","\n * ")) :
+				   """
+					/** $enumJavadoc */
 					"""
 					.replace("$enumJavadoc", enumValue.javaDoc);
 				final String deprecatedText = enumValue.deprecated ? "@Deprecated\n" : "";
@@ -117,16 +134,16 @@ public final class EnumGenerator {
 		}
 		return """
 				$javaDocComment
-				$deprecated$public enum $enumName 
+				$deprecated$public enum $enumName
 				        implements com.hedera.pbj.runtime.EnumWithProtoMetadata {
 				$enumValues;
-				    
+				
 				    /** The field ordinal in protobuf for this type */
 				    private final int protoOrdinal;
-				    
+				
 				    /** The original field name in protobuf for this type */
 				    private final String protoName;
-				    
+				
 				    /**
 				     * OneOf Type Enum Constructor
 				     *
@@ -137,7 +154,7 @@ public final class EnumGenerator {
 				        this.protoOrdinal = protoOrdinal;
 				        this.protoName = protoName;
 				    }
-				    
+				
 				    /**
 				     * Get the oneof field ordinal in protobuf for this type
 				     *
@@ -146,7 +163,7 @@ public final class EnumGenerator {
 				    public int protoOrdinal() {
 				        return protoOrdinal;
 				    }
-				    
+				
 				    /**
 				     * Get the original field name in protobuf for this type
 				     *
@@ -155,7 +172,7 @@ public final class EnumGenerator {
 				    public String protoName() {
 				        return protoName;
 				    }
-				    
+				
 				    /**
 				     * Get enum from protobuf ordinal
 				     *
@@ -169,7 +186,7 @@ public final class EnumGenerator {
 				            default -> throw new IllegalArgumentException("Unknown protobuf ordinal "+ordinal);
 				        };
 				    }
-				    
+				
 				    /**
 				     * Get enum from string name, supports the enum or protobuf format name
 				     *

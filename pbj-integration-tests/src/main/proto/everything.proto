@@ -99,13 +99,15 @@ message Everything {
   }
 }
 
+/**
+ * Example protobuf enum for suits of cards
+ */
 enum Suit {
     ACES = 0;
     SPADES = 1;
     CLUBS = 2;
     DIAMONDS = 3;
 }
-
 
 /**
  * Example protobuf containing examples of all types
