@@ -33,7 +33,7 @@ public final class Common {
 	public static final int TYPE_LENGTH_DELIMITED = 2;
 	/** Wire format code for fixed 32bit number */
 	public static final int TYPE_FIXED32 = 5;
-    private static final Pattern COMPARABLE_PATTERN = Pattern.compile("[)] implements Comparable<\\w+> [{]");
+    private static final Pattern COMPARABLE_PATTERN = Pattern.compile("implements Comparable<\\w+>\\s*\\{");
 
 
     /**
@@ -280,7 +280,7 @@ public final class Common {
                 }
             }
 		}
-		return generatedCodeSoFar.indent(DEFAULT_INDENT * 2);
+		return generatedCodeSoFar.indent(DEFAULT_INDENT * 3);
 	}
 
 	/**
@@ -651,7 +651,7 @@ public final class Common {
 			try (BufferedReader reader = new BufferedReader(new FileReader(javaFile))) {
 				String line;
 				while ((line = reader.readLine()) != null) {
-					if (COMPARABLE_PATTERN.matcher(line).matches()) {
+					if (COMPARABLE_PATTERN.matcher(line).find()) {
 						return;
 					}
 				}

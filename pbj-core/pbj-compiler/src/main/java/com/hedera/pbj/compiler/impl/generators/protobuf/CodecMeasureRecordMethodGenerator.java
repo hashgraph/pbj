@@ -34,7 +34,7 @@ class CodecMeasureRecordMethodGenerator {
                  * @return The length in bytes that would be written
                  */
                 public int measureRecord($modelClass data) {
-                    return data.protobufEncodedSize();
+                    return data.protobufSize();
                 }
                 """
                 .replace("$modelClass", modelClassName)
@@ -136,7 +136,7 @@ class CodecMeasureRecordMethodGenerator {
                     .replace("$map", getValueCode)
                     .replace("$javaFieldType", mapField.javaFieldType())
                     .replace("$K", mapField.keyField().type().boxedType)
-                    .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? ((SingleField)mapField.valueField()).messageType() : mapField.valueField().type().boxedType)
+                    .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? mapField.valueField().messageType() : mapField.valueField().type().boxedType)
                     .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
                     ;
         } else {

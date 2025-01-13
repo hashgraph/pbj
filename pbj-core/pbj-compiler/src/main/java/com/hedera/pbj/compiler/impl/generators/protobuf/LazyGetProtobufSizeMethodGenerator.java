@@ -17,32 +17,37 @@ import java.util.stream.Stream;
  * Code to generate the measure record method for Codec classes. This measures the number of bytes that would be
  * written if the record was serialized in protobuf format.
  */
-public class StaticMeasureRecordMethodGenerator {
+public class LazyGetProtobufSizeMethodGenerator {
 
-    public static String generateStaticMeasureMethod(final List<Field> fields) {
+    public static String generateLazyGetProtobufSize(final List<Field> fields) {
         final String fieldSizeOfLines = buildFieldSizeOfLines(
                 null,
                 fields,
-                field -> field.nameCamelFirstLower(),
+                Field::nameCamelFirstLower,
                 true);
         return """
                 /**
-                 * Compute number of bytes when serializing the object to protobuf binary.
+                 * Get number of bytes when serializing the object to protobuf binary.
                  *
                  * @return The length in bytes in protobuf encoding
                  */
-                private static int computeProtobufSize($params) {
-                    int _size = 0;
-                    $fieldSizeOfLines
-                    return _size;
+                public int protobufSize() {
+                    // The $protobufEncodedSize field is subject to a benign data race, making it crucial to ensure that any
+                    // observable result of the calculation in this method stays correct under any possible read of this
+                    // field. Necessary restrictions to allow this to be correct without explicit memory fences or similar
+                    // concurrency primitives is that we can ever only write to this field for a given Model object
+                    // instance, and that the computation is idempotent and derived from immutable state.
+                    // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
+                
+                    if ($protobufEncodedSize == -1) {
+                        int _size = 0;
+                $fieldSizeOfLines
+                        $protobufEncodedSize = _size;
+                    }
+                    return $protobufEncodedSize;
                 }
                 """
-                .replace("$params",fields.stream()
-                        .filter(f -> f.fieldNumber() != -1)
-                        .map(field ->
-                                "final " + field.javaFieldType() + " " + field.nameCamelFirstLower()
-                        ).collect(Collectors.joining(", ")))
-                .replace("$fieldSizeOfLines", fieldSizeOfLines)
+                .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
                 .indent(DEFAULT_INDENT);
     }
 
@@ -118,7 +123,7 @@ public class StaticMeasureRecordMethodGenerator {
             final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
             final Function<Field, String> getValueBuilder = mapEntryField ->
                     mapEntryField == mapField.keyField() ? "k" : (mapEntryField == mapField.valueField() ? "v" : null);
-            final String fieldSizeOfLines = StaticMeasureRecordMethodGenerator.buildFieldSizeOfLines(
+            final String fieldSizeOfLines = LazyGetProtobufSizeMethodGenerator.buildFieldSizeOfLines(
                     field.name(),
                     mapEntryFields,
                     getValueBuilder,
@@ -141,7 +146,7 @@ public class StaticMeasureRecordMethodGenerator {
                     .replace("$map", getValueCode)
                     .replace("$javaFieldType", mapField.javaFieldType())
                     .replace("$K", mapField.keyField().type().boxedType)
-                    .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? ((SingleField)mapField.valueField()).messageType() : mapField.valueField().type().boxedType)
+                    .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? mapField.valueField().messageType() : mapField.valueField().type().boxedType)
                     .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
                     ;
         } else {
