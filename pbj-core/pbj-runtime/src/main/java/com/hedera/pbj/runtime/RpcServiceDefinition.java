@@ -7,6 +7,7 @@ import java.util.Set;
  * Defines a single RPC Service. The protobuf schema can define messages, or services. A Service is a collection of
  * grpc endpoints, or methods. This class simply contains the definition of the service endpoint.
  */
+@SuppressWarnings("unused")
 public interface RpcServiceDefinition {
     /**
      * The base path of the service. This is the path that will be used to register the service with the grpc server.
@@ -22,5 +23,5 @@ public interface RpcServiceDefinition {
      * @return The set of methods
      */
     @SuppressWarnings("java:S1452")
-    @NonNull Set<RpcMethodDefinition<? extends Record, ? extends Record>> methods();
+    @NonNull Set<RpcMethodDefinition<?, ?>> methods();
 }
