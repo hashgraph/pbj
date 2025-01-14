@@ -26,10 +26,10 @@ group = "com.hedera.hashgraph"
 val antlr = "4.13.2"
 val grpc = "1.65.1"
 val helidon = "4.1.6"
-val protobuf = "4.28.2"
+val protobuf = "4.29.3"
 
 val junit5 = "5.11.4"
-val mockito = "5.10.0"
+val mockito = "5.15.2"
 
 dependencies.constraints {
     api("org.antlr:antlr4-runtime:$antlr") { because("org.antlr.antlr4.runtime") }
@@ -63,7 +63,7 @@ dependencies.constraints {
     // Code generation
     api("org.antlr:antlr4:$antlr")
     api("com.google.protobuf:protoc:$protobuf")
-    api("io.grpc:protoc-gen-grpc-java:1.66.0")
+    api("io.grpc:protoc-gen-grpc-java:1.69.0")
 
     // Testing only
     api("com.google.guava:guava:33.4.0-jre") { because("com.google.common") }
