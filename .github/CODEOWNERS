@@ -17,8 +17,9 @@
 # NOTE: Must be placed last to ensure enforcement over all other rules
 
 # Protection Rules for Github Configuration Files and Actions Workflows
-/.github/                                       @hashgraph/platform-ci @hashgraph/release-engineering-managers @hashgraph/pbj-maintainers
+/.github/                                       @hashgraph/platform-ci @hashgraph/release-engineering-managers
 /.github/workflows/                             @hashgraph/platform-ci @hashgraph/platform-ci-committers @hashgraph/release-engineering-managers
+/.github/dependabot.yml                         @hashgraph/platform-ci @hashgraph/platform-ci-committers @hashgraph/release-engineering-managers @hashgraph/pbj-maintainers
 
 # Gradle project files and inline plugins
 /gradle/                                        @hashgraph/platform-ci @hashgraph/platform-ci-committers @hashgraph/pbj-maintainers
