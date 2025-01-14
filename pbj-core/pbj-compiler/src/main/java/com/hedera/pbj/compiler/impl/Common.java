@@ -143,7 +143,7 @@ public final class Common {
 		return cleanDocStr(fieldComment
 				.replaceAll("/\\*\\*[\n\r\s\t]*\\*[\t\s]*|[\n\r\s\t]*\\*/","") // remove java doc
 				.replaceAll("(^|\n)\s+\\*(\s+|\n|$)","\n") // remove indenting and *
-				.replaceAll("\n\s+\\*\s*\n","\n\n") // remove indenting and *
+				.replaceAll("(^|\n)\s+\\*(\s+|\n|$)","\n\n") // remove lines starting with * as these were empty lines
 				.replaceAll("/\\*\\*","") // remove indenting and /** at beginning of comment.
 				.trim() // Remove leading and trailing spaces.
 		);
