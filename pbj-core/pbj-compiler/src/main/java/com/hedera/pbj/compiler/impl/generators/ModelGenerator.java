@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators;
 
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;

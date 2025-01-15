@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.fuzz;
 
 import java.text.NumberFormat;
@@ -16,12 +17,7 @@ import java.util.stream.Collectors;
  * @param <T> the type of the object for which the test was run
  */
 public record FuzzTestResult<T>(
-        T object,
-        boolean passed,
-        Map<SingleFuzzTestResult, Double> percentageMap,
-        int repeatCount,
-        long nanoDuration
-) {
+        T object, boolean passed, Map<SingleFuzzTestResult, Double> percentageMap, int repeatCount, long nanoDuration) {
     /** A number format for percentage values. */
     private static final NumberFormat PERCENTAGE_FORMAT = NumberFormat.getPercentInstance();
 

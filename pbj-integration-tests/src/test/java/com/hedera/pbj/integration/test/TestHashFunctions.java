@@ -1,20 +1,5 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-package com.hedera.pbj.intergration.test;
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.pbj.integration.test;
 
 import com.hedera.pbj.test.proto.pbj.Hasheval;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
@@ -84,10 +69,10 @@ public final class TestHashFunctions {
         }
         if (hashEval.subObject() != Hasheval.DEFAULT.subObject()) {
             TimestampTest sub = hashEval.subObject();
-            if (sub.nanos() != TimestampTest.DEFAULT.nanos()) {
+            if (sub.nanos() != sub.DEFAULT.nanos()) {
                 result = 31 * result + Integer.hashCode(sub.nanos());
             }
-            if (sub.seconds() != TimestampTest.DEFAULT.seconds()) {
+            if (sub.seconds() != sub.DEFAULT.seconds()) {
                 result = 31 * result + Long.hashCode(sub.seconds());
             }
         }

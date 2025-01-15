@@ -1,8 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.fuzz;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-
 import java.io.InputStream;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -31,9 +31,9 @@ public final class SingleFuzzTest {
      * When set to true, the test will print debugging info to <code>System.out</code>,
      * including payloads, for every single run. This may produce a lot of console output.
      */
-    private final static boolean debug = false;
+    private static final boolean debug = false;
     /** A thread-safe counter for the next ID which is also the number of test runs performed so far. */
-    private final static AtomicInteger TEST_ID_GENERATOR = new AtomicInteger(0);
+    private static final AtomicInteger TEST_ID_GENERATOR = new AtomicInteger(0);
 
     /**
      * Empty constructor
@@ -85,8 +85,7 @@ public final class SingleFuzzTest {
             final Object deserializedObject,
             final Function<InputStream, ?> protocParser,
             Exception pbjException,
-            boolean doThrow
-    ) {
+            boolean doThrow) {
         dataBuffer.reset();
         try {
             Object protocObject = protocParser.apply(dataBuffer.toInputStream());
@@ -94,8 +93,7 @@ public final class SingleFuzzTest {
                 System.out.println(prefix + "NOTE: Protoc was able to parse this payload w/o exceptions as "
                         + protocObject
                         + " , but PBJ errored out with "
-                        + pbjException
-                );
+                        + pbjException);
             }
         } catch (Exception ex) {
             // Protoc didn't like the bytes.
@@ -107,10 +105,8 @@ public final class SingleFuzzTest {
                                 + ", while PBJ didn't for original object: "
                                 + originalObject
                                 + " and fuzzBytes " + dataBuffer
-                                + " that PBJ parsed as: " + deserializedObject
-                        ,
-                        ex
-                );
+                                + " that PBJ parsed as: " + deserializedObject,
+                        ex);
             }
         }
     }
@@ -165,10 +161,7 @@ public final class SingleFuzzTest {
      * @param <T> the type of the input object
      */
     public static <T> SingleFuzzTestResult fuzzTest(
-            final T object,
-            final Codec<T> codec,
-            final Random random,
-            final Function<InputStream, ?> protocParser) {
+            final T object, final Codec<T> codec, final Random random, final Function<InputStream, ?> protocParser) {
         // Generate a unique test ID prefix for this particular run to tag debugging output:
         final String prefix = SingleFuzzTest.class.getSimpleName() + " " + TEST_ID_GENERATOR.getAndIncrement() + ": ";
 
@@ -256,10 +249,7 @@ public final class SingleFuzzTest {
      * @return a BufferedData buffer with the object written to it
      */
     private static <T> BufferedData createBufferedData(
-            final T object,
-            final Codec<T> codec,
-            final int size,
-            final String prefix) {
+            final T object, final Codec<T> codec, final int size, final String prefix) {
         final BufferedData dataBuffer;
         try {
             dataBuffer = write(object, codec, size);
