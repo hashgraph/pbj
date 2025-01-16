@@ -191,13 +191,39 @@ public class SampleBlockBench {
 	}
 
 	/**
+	 * Round trip by parsing from byte array and then writing back to byte array. This invalidates the caching of size
+	 * measuring between runs.
+	 */
+	@Benchmark
+	public void roundTripPbj(Blackhole blackhole) throws Exception {
+		var parsedBlock = com.hedera.hapi.block.stream.Block.PROTOBUF.parse(Bytes.wrap(TEST_BLOCK_PROTOBUF_BYTES));
+		blackhole.consume(com.hedera.hapi.block.stream.Block.PROTOBUF.toBytes(parsedBlock));
+	}
+
+	/**
+	 * Round trip by parsing from byte array and then writing back to byte array. This invalidates the caching of size
+	 * measuring between runs.
+	 */
+	@Benchmark
+	public void roundTripProtoC(Blackhole blackhole) throws IOException {
+		var parsedBlock = Block.parseFrom(TEST_BLOCK_PROTOBUF_BYTES);
+		blackhole.consume(parsedBlock.toByteArray());
+	}
+
+	/**
 	 * Handy test main method for performance profiling
 	 *
 	 * @param args no args needed
 	 */
 	public static void main(String[] args) {
-		for (int i = 0; i < 1000; i++) {
-			final Bytes result = com.hedera.hapi.block.stream.Block.PROTOBUF.toBytes(TEST_BLOCK);
+		for (int i = 0; i < 1_000_000; i++) {
+//			final Bytes result = com.hedera.hapi.block.stream.Block.PROTOBUF.toBytes(TEST_BLOCK);
+            try {
+                final var parsedBlock = com.hedera.hapi.block.stream.Block.PROTOBUF.parse(Bytes.wrap(TEST_BLOCK_PROTOBUF_BYTES));
+				com.hedera.hapi.block.stream.Block.PROTOBUF.toBytes(parsedBlock);
+			} catch (ParseException e) {
+				throw new RuntimeException(e);
+			}
 //			TEST_BLOCK_GOOGLE.toByteArray();
 		}
 //		var biggsetItem = TEST_BLOCK.items().stream().sorted(Comparator.comparingLong(BlockItem.PROTOBUF::measureRecord)).toList().getLast();
