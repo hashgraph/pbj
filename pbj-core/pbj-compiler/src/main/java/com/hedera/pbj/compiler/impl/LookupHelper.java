@@ -55,6 +55,21 @@ public final class LookupHelper {
     /** Extension for protobuf files */
     public static final String PROTO_EXTENSIION = ".proto";
 
+    // Exception message templates
+    private static final String METHOD_WRONG_CONTEXT_MESSAGE =
+            "%s only supports MessageDefContext or EnumDefContext";
+    private static final String FAILED_TO_FIND_LOCAL_MSG_MAP_MESSAGE =
+            "Failed to find messageMapLocal for proto file [%s]";
+    private static final String FAILED_TO_FIND_MSG_TYPE_MESSAGE =
+            "Failed to find fully qualified message type for [%s] in file [%s] imports = %s";
+    private static final String PACKAGE_NOT_FOUND_MESSAGE =
+            "Could not find %s package for message or enum [%s] in file [%s]";
+    private static final String LIMITED_CONTEXT_OPTIONS_SUPPORT_MESSAGE =
+            "%s only supports MessageDefContext, EnumDefContext or MessageTypeContext not [%s]";
+    private static final String FILE_MISSING_PACKAGE_OPTION_MESSAGE = "%sProto file [%s] does not contain \"%s\" or \"%s\" options.%n";
+    private static final String IMPORT_MATCHED_MULTIPLE_MESSAGE = "Import \"%s\" in proto file \"%s\" matched more than 1 file in src files [%s]";
+    private static final String IMPORT_NOT_FOUND_MESSAGE = "Import \"%s\" in proto file \"%s\" can not be found in src files.";
+
     /**
      * Map from fully qualified msgDef name to fully qualified pbj java package, not including java
      * class
@@ -115,9 +130,7 @@ public final class LookupHelper {
                     ? messageType.substring(messageType.lastIndexOf('.') + 1)
                     : messageType;
         } else {
-            throw new UnsupportedOperationException(
-                    "getUnqualifiedProtoNameForMsgOrEnum only supports MessageDefContext or"
-                            + " EnumDefContext");
+            throw new UnsupportedOperationException(METHOD_WRONG_CONTEXT_MESSAGE.formatted("getUnqualifiedProtoName"));
         }
     }
 
@@ -142,7 +155,7 @@ public final class LookupHelper {
             final var messageMapLocal = msgAndEnumByFile.get(protoSrcFile.getAbsolutePath());
             if (messageMapLocal == null) {
                 throw new PbjCompilerException(
-                        "Failed to find messageMapLocal for proto file [" + protoSrcFile + "]");
+                        FAILED_TO_FIND_LOCAL_MSG_MAP_MESSAGE.formatted(protoSrcFile));
             }
             final String nameFoundInLocalFile = messageMapLocal.get(messageType);
             if (nameFoundInLocalFile != null) {
@@ -153,9 +166,7 @@ public final class LookupHelper {
                 final var messageMap = msgAndEnumByFile.get(importedProtoFilePath);
                 if (messageMap == null) {
                     throw new PbjCompilerException(
-                            "Failed to find messageMap for proto file ["
-                                    + importedProtoFilePath
-                                    + "]");
+                            FAILED_TO_FIND_LOCAL_MSG_MAP_MESSAGE.formatted(importedProtoFilePath));
                 }
                 final var found = messageMap.get(messageType);
                 if (found != null) {
@@ -163,26 +174,17 @@ public final class LookupHelper {
                 }
             }
             // we failed to find
-            throw new PbjCompilerException(
-                    "Failed to find fully qualified message type for ["
-                            + messageType
-                            + "] in file ["
-                            + protoSrcFile
-                            + "] imports = "
-                            + Arrays.toString(
-                                    protoFileImports
-                                            .get(protoSrcFile.getAbsolutePath())
-                                            .toArray()));
+            final Object[] importsArray = protoFileImports.get(protoSrcFile.getAbsolutePath()).toArray();
+            final String importsString = Arrays.toString(importsArray);
+            throw new PbjCompilerException(FAILED_TO_FIND_MSG_TYPE_MESSAGE.formatted(messageType, protoSrcFile, importsString));
         } else if (context instanceof MessageDefContext || context instanceof EnumDefContext) {
             final Map<String, String> fileMap = msgAndEnumByFile.get(protoSrcFile.getAbsolutePath());
             if (fileMap == null) {
-                throw new PbjCompilerException(
-                        "Failed to find messageMapLocal for proto file [" + protoSrcFile + "]");
+                throw new PbjCompilerException(FAILED_TO_FIND_LOCAL_MSG_MAP_MESSAGE.formatted(protoSrcFile));
             }
             return fileMap.get(getUnqualifiedProtoName(context));
         } else {
-            throw new UnsupportedOperationException(
-                    "getPackageForMsgOrEnum only supports MessageDefContext or EnumDefContext");
+            throw new UnsupportedOperationException(METHOD_WRONG_CONTEXT_MESSAGE.formatted("getFullyQualifiedProtoName"));
         }
     }
 
@@ -210,8 +212,7 @@ public final class LookupHelper {
             name = enumDef.enumName().getText();
             isEnum = true;
         } else {
-            throw new UnsupportedOperationException(
-                    "getPackageForMsgOrEnum only supports MessageDefContext or EnumDefContext");
+            throw new UnsupportedOperationException(METHOD_WRONG_CONTEXT_MESSAGE.formatted("getUnqualifiedClass"));
         }
         if (isEnum) {
             return name;
@@ -246,23 +247,13 @@ public final class LookupHelper {
             } else if (fileType == FileType.PROTOC) {
                 final String protocPackage = protocPackageMap.get(qualifiedProtoName);
                 if (protocPackage == null) {
-                    throw new PbjCompilerException(
-                            "Not found protoc package for message or enum ["
-                                    + qualifiedProtoName
-                                    + "] in file ["
-                                    + protoSrcFile
-                                    + "]");
+                    throw new PbjCompilerException(PACKAGE_NOT_FOUND_MESSAGE.formatted("protoc", qualifiedProtoName, protoSrcFile));
                 }
                 return protocPackage;
             } else {
                 final String basePackage = pbjPackageMap.get(qualifiedProtoName);
                 if (basePackage == null) {
-                    throw new PbjCompilerException(
-                            "Not found pbj package for message or enum ["
-                                    + qualifiedProtoName
-                                    + "] in file ["
-                                    + protoSrcFile
-                                    + "]");
+                    throw new PbjCompilerException(PACKAGE_NOT_FOUND_MESSAGE.formatted("pbj", qualifiedProtoName, protoSrcFile));
                 }
                 return switch (fileType) {
                         //noinspection ConstantConditions
@@ -276,11 +267,7 @@ public final class LookupHelper {
             }
 
         } else {
-            throw new UnsupportedOperationException(
-                    "getPackageForMsgOrEnum only supports MessageDefContext, "
-                            + "EnumDefContext or MessageTypeContext not ["
-                            + context.getClass().getName()
-                            + "]");
+            throw new UnsupportedOperationException(LIMITED_CONTEXT_OPTIONS_SUPPORT_MESSAGE.formatted("getPackageForMsgOrEnum", context.getClass().getName()));
         }
     }
 
@@ -318,8 +305,7 @@ public final class LookupHelper {
             }
             return packageName + '.' + parentClasses + messageName;
         } else {
-            throw new UnsupportedOperationException(
-                    "getPackageForMsgOrEnum only supports MessageDefContext or EnumDefContext");
+            throw new UnsupportedOperationException(METHOD_WRONG_CONTEXT_MESSAGE.formatted("getFullyQualifiedClass"));
         }
     }
 
@@ -393,22 +379,13 @@ public final class LookupHelper {
                         continue;
                     } else if (pbjJavaPackage == null && protocJavaPackage == null) {
                         throw new PbjCompilerException(
-                                "Proto file ["
-                                        + file.getAbsolutePath()
-                                        + "] does not contain \""
-                                        + PBJ_PACKAGE_OPTION_NAME
-                                        + "\" or \""
-                                        + PROTOC_JAVA_PACKAGE_OPTION_NAME
-                                        + "\" options.");
+                                FILE_MISSING_PACKAGE_OPTION_MESSAGE.formatted(
+                                        "", file.getAbsolutePath(), PBJ_PACKAGE_OPTION_NAME,
+                                        PROTOC_JAVA_PACKAGE_OPTION_NAME));
                     } else if (pbjJavaPackage == null) {
-                        System.err.println(
-                                "WARNING, proto file ["
-                                        + file.getAbsolutePath()
-                                        + "] does not contain \""
-                                        + PBJ_PACKAGE_OPTION_NAME
-                                        + "\" or \""
-                                        + PROTOC_JAVA_PACKAGE_OPTION_NAME
-                                        + "\" options.");
+                        System.err.printf(FILE_MISSING_PACKAGE_OPTION_MESSAGE.formatted(
+                                        "WARNING, ", file.getAbsolutePath(), PBJ_PACKAGE_OPTION_NAME,
+                                        PROTOC_JAVA_PACKAGE_OPTION_NAME));
                     }
                     // process imports
                     final Set<String> fileImports =
@@ -438,20 +415,13 @@ public final class LookupHelper {
                             fileImports.add(matchingSrcFiles.get(0).getAbsolutePath());
                         } else if (matchingSrcFiles.size() > 1) {
                             throw new PbjCompilerException(
-                                    "Import \""
-                                            + importedFileName
-                                            + "\" in proto file \""
-                                            + file.getAbsolutePath()
-                                            + "\" matched more than 1 file in src files ["
-                                            + Arrays.toString(matchingSrcFiles.toArray())
-                                            + "]");
+                                    IMPORT_MATCHED_MULTIPLE_MESSAGE.formatted(
+                                            importedFileName, file.getAbsolutePath(),
+                                            Arrays.toString(matchingSrcFiles.toArray())));
                         } else {
                             throw new PbjCompilerException(
-                                    "Import \""
-                                            + importedFileName
-                                            + "\" in proto file \""
-                                            + file.getAbsolutePath()
-                                            + "\" can not be found in src files.");
+                                    IMPORT_NOT_FOUND_MESSAGE.formatted(
+                                            importedFileName, file.getAbsolutePath()));
                         }
                     }
                     // process message and enum defs
@@ -476,7 +446,6 @@ public final class LookupHelper {
                 }
             }
         }
-
         //		printDebug();
     }
 
@@ -488,35 +457,29 @@ public final class LookupHelper {
 
     /** Debug dump internal state */
     private void printDebug() {
-        System.out.println(
-                "== Package Map =================================================================");
+        System.out.println("== Package Map ================================================================");
         for (final var entry : pbjPackageMap.entrySet()) {
-            System.out.println("entry = " + entry.getKey() + " = " + entry.getValue());
+            System.out.printf("entry = %s = %s%n", entry.getKey(), entry.getValue());
         }
-        System.out.println(
-                "== Enum Names =================================================================");
+        System.out.println("== Enum Names =================================================================");
         for (final var enumName : enumNames) {
-            System.out.println("enumName = " + enumName);
+            System.out.printf("enumName = %s%n", enumName);
         }
-        System.out.println(
-                "== Proto File Imports"
-                        + " =================================================================");
+        System.out.println("== Proto File Imports =========================================================");
         for (final var entry : protoFileImports.entrySet()) {
-            System.out.println("FILE - " + entry.getKey());
+            System.out.printf("FILE - %s%n", entry.getKey());
             for (final var imp : entry.getValue()) {
-                System.out.println("    IMPORT - " + imp);
+                System.out.printf("    IMPORT - %s%n", imp);
             }
         }
-        System.out.println(
-                "== Message Imports"
-                        + " =================================================================");
+        System.out.println("== Message Imports ============================================================");
         for (final var entry : msgAndEnumByFile.entrySet()) {
-            System.out.println("FILE - " + entry.getKey());
+            System.out.printf("FILE - %s%n", entry.getKey());
             for (final var entry2 : entry.getValue().entrySet()) {
-                System.out.println("    " + entry2.getKey() + " -> " + entry2.getValue());
+                System.out.printf("    %s -> %s%n", entry2.getKey(), entry2.getValue());
             }
         }
-        System.out.println("===================================================================");
+        System.out.println("===============================================================================");
     }
 
     /**
@@ -564,22 +527,19 @@ public final class LookupHelper {
         // insert into maps
         pbjPackageMap.put(fullyQualifiedMessage, messagePbjPackage);
         protocPackageMap.put(fullyQualifiedMessage, fileLevelProtocJavaPackage);
-        msgAndEnumByFile
-                .computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>())
+        msgAndEnumByFile.computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>())
                 .put(msgName, fullyQualifiedMessage);
 
         // handle child messages and enums
         for (final var item : msgDef.messageBody().messageElement()) {
             if (item.messageDef() != null) {
-                buildMessage(
-                        fullQualifiedFile,
+                buildMessage(fullQualifiedFile,
                         messagePbjPackage,
                         fileLevelProtocJavaPackage,
                         item.messageDef());
             }
             if (item.enumDef() != null) {
-                buildEnum(
-                        fullQualifiedFile,
+                buildEnum(fullQualifiedFile,
                         messagePbjPackage,
                         fileLevelProtocJavaPackage,
                         item.enumDef());
@@ -682,8 +642,7 @@ public final class LookupHelper {
         pbjPackageMap.put(fullQualifiedEnumName, enumPbjPackage);
         protocPackageMap.put(fullQualifiedEnumName, fileLevelProtocJavaPackage);
         enumNames.add(fullQualifiedEnumName);
-        msgAndEnumByFile
-                .computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>())
+        msgAndEnumByFile.computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>())
                 .put(enumName, fullQualifiedEnumName);
     }
 
@@ -702,17 +661,14 @@ public final class LookupHelper {
         if (ruleContext instanceof final Protobuf3Parser.ProtoContext parsedDoc) {
             // get proto package
             final var packageStatement = parsedDoc.packageStatement().stream().findFirst();
-            thisName =
-                    packageStatement.isEmpty() ? "" : packageStatement.get().fullIdent().getText();
+            thisName = packageStatement.isEmpty() ? "" : packageStatement.get().fullIdent().getText();
         } else if (ruleContext instanceof final EnumDefContext enumDef) {
             final String parentPart = getFullyQualifiedProtoNameForMsgOrEnum(enumDef.getParent());
-            thisName =
-                    getFullyQualifiedProtoNameForMsgOrEnum(enumDef.getParent())
+            thisName = getFullyQualifiedProtoNameForMsgOrEnum(enumDef.getParent())
                             + "."
                             + enumDef.enumName().getText();
         } else if (ruleContext instanceof final MessageDefContext msgDef) {
-            thisName =
-                    getFullyQualifiedProtoNameForMsgOrEnum(msgDef.getParent())
+            thisName = getFullyQualifiedProtoNameForMsgOrEnum(msgDef.getParent())
                             + "."
                             + msgDef.messageName().getText();
         } else if (ruleContext.getParent() != null) {
