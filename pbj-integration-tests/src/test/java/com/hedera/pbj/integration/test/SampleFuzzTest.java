@@ -1,4 +1,8 @@
-package com.hedera.pbj.intergration.test;
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.pbj.integration.test;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import com.hedera.hapi.node.base.tests.AccountIDTest;
 import com.hedera.hapi.node.base.tests.ContractIDTest;
@@ -16,17 +20,13 @@ import com.hedera.pbj.test.proto.pbj.tests.TimestampTest2Test;
 import com.hedera.pbj.test.proto.pbj.tests.TimestampTestSeconds2Test;
 import com.hedera.pbj.test.proto.pbj.tests.TimestampTestSecondsTest;
 import com.hedera.pbj.test.proto.pbj.tests.TimestampTestTest;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-
 import java.text.NumberFormat;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 /**
  * This is a sample fuzz test just to demonstrate the usage of the FuzzTest class.
@@ -102,33 +102,20 @@ public class SampleFuzzTest {
             TimestampTest2Test.class,
             TimestampTestSeconds2Test.class,
             TimestampTestSecondsTest.class,
-            TimestampTestTest.class
-    );
+            TimestampTestTest.class);
 
-    private static record FuzzTestParams<T, P>(
-            T object,
-            Class<P> protocModelClass
-    ) {
-    }
+    private static record FuzzTestParams<T, P>(T object, Class<P> protocModelClass) {}
 
     private static Stream<? extends FuzzTestParams<?, ?>> testCases() {
-        return MODEL_TEST_CLASSES.stream()
-                .flatMap(clz -> {
-                    final Class<?> protocModelClass = FuzzUtil.getStaticFieldValue(clz, "PROTOC_MODEL_CLASS");
+        return MODEL_TEST_CLASSES.stream().flatMap(clz -> {
+            final Class<?> protocModelClass = FuzzUtil.getStaticFieldValue(clz, "PROTOC_MODEL_CLASS");
 
-                    return FuzzUtil.<List<?>>getStaticFieldValue(clz, "ARGUMENTS")
-                            .stream()
-                            .map(object -> new FuzzTestParams<>(
-                                    object,
-                                    protocModelClass
-                            ));
-                });
+            return FuzzUtil.<List<?>>getStaticFieldValue(clz, "ARGUMENTS").stream()
+                    .map(object -> new FuzzTestParams<>(object, protocModelClass));
+        });
     }
 
-    private static record ResultStats(
-            double passRate,
-            double deserializationFailedMean
-    ) {
+    private static record ResultStats(double passRate, double deserializationFailedMean) {
         private static final NumberFormat PERCENTAGE_FORMAT = NumberFormat.getPercentInstance();
 
         static {
@@ -152,8 +139,7 @@ public class SampleFuzzTest {
     void fuzzTest() {
         assumeFalse(
                 this.getClass().desiredAssertionStatus(),
-                "Fuzz tests run with assertions disabled only. Use the fuzzTest Gradle target."
-        );
+                "Fuzz tests run with assertions disabled only. Use the fuzzTest Gradle target.");
 
         final Random random = buildRandom();
 
@@ -161,32 +147,24 @@ public class SampleFuzzTest {
             final List<? extends FuzzTestResult<?>> results = testCases()
                     // Note that we must run this stream sequentially to enable
                     // reproducing the tests for a given random seed.
-                    .map(testCase -> FuzzTest.fuzzTest(
-                            testCase.object(),
-                            THRESHOLD,
-                            random,
-                            testCase.protocModelClass()))
-                    .peek(result -> { if (debug) System.out.println(result.format()); })
+                    .map(testCase ->
+                            FuzzTest.fuzzTest(testCase.object(), THRESHOLD, random, testCase.protocModelClass()))
+                    .peek(result -> {
+                        if (debug) System.out.println(result.format());
+                    })
                     .collect(Collectors.toList());
 
             return results.stream()
                     .map(result -> new ResultStats(
-                                    result.passed() ? 1. : 0.,
-                                    result.percentageMap().getOrDefault(SingleFuzzTestResult.DESERIALIZATION_FAILED, 0.)
-                            )
-                    )
-                    .reduce(
-                            (r1, r2) -> new ResultStats(
-                                    r1.passRate() + r2.passRate(),
-                                    r1.deserializationFailedMean() + r2.deserializationFailedMean())
-                    )
+                            result.passed() ? 1. : 0.,
+                            result.percentageMap().getOrDefault(SingleFuzzTestResult.DESERIALIZATION_FAILED, 0.)))
+                    .reduce((r1, r2) -> new ResultStats(
+                            r1.passRate() + r2.passRate(),
+                            r1.deserializationFailedMean() + r2.deserializationFailedMean()))
                     .map(stats -> new ResultStats(
-                                    stats.passRate() / (double) results.size(),
-                                    stats.deserializationFailedMean() / (double) results.size()
-                            )
-                    )
+                            stats.passRate() / (double) results.size(),
+                            stats.deserializationFailedMean() / (double) results.size()))
                     .orElse(new ResultStats(0., 0.));
-
         });
 
         final String statsMessage = elapsedResultStats.result().format();
@@ -198,17 +176,15 @@ public class SampleFuzzTest {
     }
 
     private Random buildRandom() {
-        final boolean useRandomSeed
-                = Boolean.valueOf(System.getProperty("com.hedera.pbj.intergration.test.fuzz.useRandomSeed"));
+        final boolean useRandomSeed =
+                Boolean.valueOf(System.getProperty("com.hedera.pbj.integration.test.fuzz.useRandomSeed"));
         final long seed = useRandomSeed ? new Random().nextLong() : FIXED_RANDOM_SEED;
 
         System.out.println("Fuzz tests are configured to use a "
                 + (useRandomSeed ? "RANDOM" : "FIXED")
                 + " seed for `new Random(seed)`, and the seed value for this run is: "
-                + seed
-        );
+                + seed);
 
         return new Random(seed);
     }
-
 }

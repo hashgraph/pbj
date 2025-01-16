@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * An implementation of gRPC for the Helidon webserver based on PBJ.
  *
