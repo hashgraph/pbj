@@ -33,7 +33,7 @@ val mockito = "5.15.2"
 
 dependencies.constraints {
     api("org.antlr:antlr4-runtime:$antlr") { because("org.antlr.antlr4.runtime") }
-    api("com.github.spotbugs:spotbugs-annotations:4.8.6") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.0") {
         because("com.github.spotbugs.annotations")
     }
 
