@@ -3,6 +3,8 @@ package com.hedera.pbj.compiler.impl;
 
 import java.util.Set;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 import static com.hedera.pbj.compiler.impl.SingleField.getDeprecatedOption;
 
 /**
@@ -18,9 +20,9 @@ import static com.hedera.pbj.compiler.impl.SingleField.getDeprecatedOption;
  * the map deterministically which is useful for serializing, computing the hash code, etc.
  */
 public record MapField(
-        /** A synthetic "key" field in a map entry. */
+        /* A synthetic "key" field in a map entry. */
         Field keyField,
-        /** A synthetic "value" field in a map entry. */
+        /* A synthetic "value" field in a map entry. */
         Field valueField,
         // The rest of the fields below simply implement the Field interface:
         boolean repeated,
@@ -46,27 +48,26 @@ public record MapField(
                         false,
                         FieldType.of(mapContext.keyType(), lookupHelper),
                         1,
-                        "___" + mapContext.mapName().getText() + "__key",
+                        "___%s__key".formatted(mapContext.mapName().getText()),
                         null,
                         null,
                         null,
                         null,
-                        "An internal, private map entry key for " + mapContext.mapName().getText(),
+                        "An internal, private map entry key for %s".formatted(mapContext.mapName().getText()),
                         false,
                         null),
                 new SingleField(
                         false,
                         FieldType.of(mapContext.type_(), lookupHelper),
                         2,
-                        "___" + mapContext.mapName().getText() + "__value",
+                        "___%s__value".formatted(mapContext.mapName().getText()),
                         Field.extractMessageTypeName(mapContext.type_()),
                         Field.extractMessageTypePackage(mapContext.type_(), FileType.MODEL, lookupHelper),
                         Field.extractMessageTypePackage(mapContext.type_(), FileType.CODEC, lookupHelper),
                         Field.extractMessageTypePackage(mapContext.type_(), FileType.TEST, lookupHelper),
-                        "An internal, private map entry value for " + mapContext.mapName().getText(),
+                        "An internal, private map entry value for %s".formatted(mapContext.mapName().getText()),
                         false,
                         null),
-
                 false, // maps cannot be repeated
                 Integer.parseInt(mapContext.fieldNumber().getText()),
                 mapContext.mapName().getText(),
@@ -86,9 +87,9 @@ public record MapField(
      * Composes the Java generic type of the map field, e.g. "&lt;Integer, String&gt;" for a Map&lt;Integer, String&gt;.
      */
     public String javaGenericType() {
-        return "<" + keyField.type().boxedType + ", " +
-                (valueField().type() == FieldType.MESSAGE ? ((SingleField)valueField()).messageType() : valueField().type().boxedType)
-                + ">";
+        final String fieldTypeName = valueField().type() == FieldType.MESSAGE ? ((SingleField)valueField()).messageType()
+                : valueField().type().boxedType;
+        return "<%s, %s>".formatted(keyField.type().boxedType, fieldTypeName);
     }
 
     /**
@@ -100,15 +101,18 @@ public record MapField(
     }
 
     private void composeFieldDef(StringBuilder sb, Field field) {
-        sb.append("""
-                    /**
-                     * $doc
-                     */
-                """
-                .replace("$doc", field.comment().replaceAll("\n","\n     * "))
-        );
-        sb.append("    public static final FieldDefinition %s = new FieldDefinition(\"%s\", FieldType.%s, %s, false, false, %d);\n"
-                .formatted(Common.camelToUpperSnake(field.name()), field.name(), field.type().fieldType(), field.repeated(), field.fieldNumber()));
+        // spotless:off
+        sb.append(
+            """
+            /**
+             * $doc
+             */
+            """.replace("$doc", field.comment().replaceAll("\n","\n* ")).indent(DEFAULT_INDENT));
+        sb.append(("    public static final FieldDefinition %s = new FieldDefinition(\"%s\"," +
+                   " FieldType.%s, %s, false, false, %d);%n")
+            .formatted(Common.camelToUpperSnake(field.name()), field.name(), field.type().fieldType(),
+                    field.repeated(), field.fieldNumber()));
+        // spotless:on
     }
 
     /**

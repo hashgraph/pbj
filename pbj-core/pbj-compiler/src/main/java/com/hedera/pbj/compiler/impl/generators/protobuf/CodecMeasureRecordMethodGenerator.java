@@ -27,6 +27,7 @@ class CodecMeasureRecordMethodGenerator {
                 fields,
                 field -> "data.%s()".formatted(field.nameCamelFirstLower()),
                 true);
+        // spotless:off
         return """
                 /**
                  * Compute number of bytes that would be written when calling {@code write()} method.
@@ -43,6 +44,7 @@ class CodecMeasureRecordMethodGenerator {
                 .replace("$modelClass", modelClassName)
                 .replace("$fieldSizeOfLines", fieldSizeOfLines)
                 .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 
     static String buildFieldSizeOfLines(
@@ -121,6 +123,7 @@ class CodecMeasureRecordMethodGenerator {
                     mapEntryFields,
                     getValueBuilder,
                     false);
+            // spotless:off
             return prefix + """
                         if (!$map.isEmpty()) {
                             final Pbj$javaFieldType pbjMap = (Pbj$javaFieldType) $map;
@@ -140,8 +143,8 @@ class CodecMeasureRecordMethodGenerator {
                     .replace("$javaFieldType", mapField.javaFieldType())
                     .replace("$K", mapField.keyField().type().boxedType)
                     .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? ((SingleField)mapField.valueField()).messageType() : mapField.valueField().type().boxedType)
-                    .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
-                    ;
+                    .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT));
+            // spotless:on
         } else {
             return prefix + switch(field.type()) {
                 case ENUM -> "size += sizeOfEnum(%s, %s);"

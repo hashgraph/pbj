@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
-import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.*;
-
 import java.io.File;
 import java.util.List;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.EnumDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageTypeContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.FieldContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.Type_Context;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.OneofFieldContext;
 
 /**
  * Wrapper around LookupHelper adding the context of which protobuf source file the lookup is happening within. This
