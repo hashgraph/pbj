@@ -43,11 +43,8 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
         // for the 'main' source set we:
         // 1) Add a new 'pbj' virtual directory mapping
         PbjSourceDirectorySet pbjSourceSet =
-                createPbjSourceDirectorySet(
-                        ((DefaultSourceSet) mainSrcSet).getDisplayName(), getObjectFactory());
-        mainSrcSet
-                .getExtensions()
-                .add(PbjSourceDirectorySet.class, PbjSourceDirectorySet.NAME, pbjSourceSet);
+                createPbjSourceDirectorySet(((DefaultSourceSet) mainSrcSet).getDisplayName(), getObjectFactory());
+        mainSrcSet.getExtensions().add(PbjSourceDirectorySet.class, PbjSourceDirectorySet.NAME, pbjSourceSet);
         pbjSourceSet.getFilter().include("**/*.proto");
         pbjSourceSet.srcDir("src/" + mainSrcSet.getName() + "/proto");
         mainSrcSet.getAllSource().source(pbjSourceSet);
@@ -56,31 +53,20 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
         //    naming conventions via call to sourceSet.getTaskName()
         final String taskName = mainSrcSet.getTaskName("generate", "PbjSource");
 
-        TaskProvider<PbjCompilerTask> pbjCompiler =
-                project.getTasks()
-                        .register(
-                                taskName,
-                                PbjCompilerTask.class,
-                                pbjTask -> {
-                                    pbjTask.setDescription(
-                                            "Processes the "
-                                                    + mainSrcSet.getName()
-                                                    + " Pbj grammars.");
-                                    // 4) set up convention mapping for default sources (allows user
-                                    // to not have to specify)
-                                    pbjTask.setSource(pbjSourceSet);
-                                    pbjTask.getJavaMainOutputDirectory().set(outputDirectoryMain);
-                                    pbjTask.getJavaTestOutputDirectory().set(outputDirectoryTest);
-                                });
+        TaskProvider<PbjCompilerTask> pbjCompiler = project.getTasks()
+                .register(taskName, PbjCompilerTask.class, pbjTask -> {
+                    pbjTask.setDescription("Processes the " + mainSrcSet.getName() + " Pbj grammars.");
+                    // 4) set up convention mapping for default sources (allows user
+                    // to not have to specify)
+                    pbjTask.setSource(pbjSourceSet);
+                    pbjTask.getJavaMainOutputDirectory().set(outputDirectoryMain);
+                    pbjTask.getJavaTestOutputDirectory().set(outputDirectoryTest);
+                });
 
         // 5) register fact that pbj should be run before compiling  by informing the 'java' part
         //    of the source set that it contains code produced by the pbj compiler
-        mainSrcSet
-                .getJava()
-                .srcDir(pbjCompiler.flatMap(PbjCompilerTask::getJavaMainOutputDirectory));
-        testSrcSet
-                .getJava()
-                .srcDir(pbjCompiler.flatMap(PbjCompilerTask::getJavaTestOutputDirectory));
+        mainSrcSet.getJava().srcDir(pbjCompiler.flatMap(PbjCompilerTask::getJavaMainOutputDirectory));
+        testSrcSet.getJava().srcDir(pbjCompiler.flatMap(PbjCompilerTask::getJavaTestOutputDirectory));
     }
 
     /**
@@ -94,10 +80,8 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
             String parentDisplayName, ObjectFactory objectFactory) {
         String name = parentDisplayName + ".pbj";
         String displayName = parentDisplayName + " Pbj source";
-        PbjSourceDirectorySet pbjSourceSet =
-                objectFactory.newInstance(
-                        DefaultPbjSourceDirectorySet.class,
-                        objectFactory.sourceDirectorySet(name, displayName));
+        PbjSourceDirectorySet pbjSourceSet = objectFactory.newInstance(
+                DefaultPbjSourceDirectorySet.class, objectFactory.sourceDirectorySet(name, displayName));
         pbjSourceSet.getFilter().include("**/*.proto");
         return pbjSourceSet;
     }

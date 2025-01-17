@@ -9,7 +9,6 @@ import static com.hedera.pbj.compiler.impl.Common.snakeToCamel;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.Set;
 
 /**
@@ -56,7 +55,7 @@ public interface Field {
      * @return this fields name converted
      */
     default String nameCamelFirstUpper() {
-        return snakeToCamel(name(),true);
+        return snakeToCamel(name(), true);
     }
 
     /**
@@ -66,7 +65,7 @@ public interface Field {
      */
     @NonNull
     default String nameCamelFirstLower() {
-        return snakeToCamel(name(),false);
+        return snakeToCamel(name(), false);
     }
 
     /**
@@ -113,8 +112,8 @@ public interface Field {
      * @param codecImports if imports for this field's generated codec classes should be added
      * @param testImports  if imports for this field's generated test classes should be added
      */
-    void addAllNeededImports(Set<String> imports, boolean modelImports,
-                             boolean codecImports, final boolean testImports);
+    void addAllNeededImports(
+            Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports);
 
     /**
      * Get the java code to parse the value for this field from input
@@ -199,7 +198,9 @@ public interface Field {
      * or null if the type is not a message.
      */
     static String extractMessageTypeName(final Protobuf3Parser.Type_Context typeContext) {
-        return typeContext.messageType() == null ? null : typeContext.messageType().messageName().getText();
+        return typeContext.messageType() == null
+                ? null
+                : typeContext.messageType().messageName().getText();
     }
 
     /**
@@ -210,8 +211,10 @@ public interface Field {
             final Protobuf3Parser.Type_Context typeContext,
             final com.hedera.pbj.compiler.impl.FileType fileType,
             final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
-        return typeContext.messageType() == null || typeContext.messageType().messageName().getText() == null ? null :
-                lookupHelper.getPackageFieldMessageType(fileType, typeContext);
+        return typeContext.messageType() == null
+                        || typeContext.messageType().messageName().getText() == null
+                ? null
+                : lookupHelper.getPackageFieldMessageType(fileType, typeContext);
     }
 
     /**
@@ -253,9 +256,9 @@ public interface Field {
         /** Protobuf bytes field type */
         BYTES("Bytes", "Bytes", "Bytes.EMPTY", TYPE_LENGTH_DELIMITED),
         /** Protobuf oneof field type, this is not a true field type in protobuf. Needed here for a few edge cases */
-        ONE_OF("OneOf", "OneOf", "null", 0 ),// BAD TYPE
+        ONE_OF("OneOf", "OneOf", "null", 0), // BAD TYPE
         // On the wire, a map is a repeated Message {key, value}, sorted in the natural order of keys for determinism.
-        MAP("Map", "Map", "Collections.EMPTY_MAP", TYPE_LENGTH_DELIMITED );
+        MAP("Map", "Map", "Collections.EMPTY_MAP", TYPE_LENGTH_DELIMITED);
 
         /** The type of field type in Java code */
         public final String javaType;
@@ -328,7 +331,9 @@ public interface Field {
          * @param lookupHelper Lookup helper with global context
          * @return The field type enum for parser context
          */
-        static FieldType of(Protobuf3Parser.Type_Context typeContext,  final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
+        static FieldType of(
+                Protobuf3Parser.Type_Context typeContext,
+                final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
             if (typeContext.enumType() != null) {
                 return FieldType.ENUM;
             } else if (typeContext.messageType() != null) {
@@ -365,7 +370,7 @@ public interface Field {
             } else if (typeContext.BYTES() != null) {
                 return FieldType.BYTES;
             } else {
-                throw new IllegalArgumentException("Unknown field type: "+typeContext);
+                throw new IllegalArgumentException("Unknown field type: " + typeContext);
             }
         }
 
@@ -376,7 +381,9 @@ public interface Field {
          * @param lookupHelper Lookup helper with global context
          * @return The field type enum for parser context
          */
-        static FieldType of(Protobuf3Parser.KeyTypeContext typeContext,  final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
+        static FieldType of(
+                Protobuf3Parser.KeyTypeContext typeContext,
+                final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
             if (typeContext.INT32() != null) {
                 return FieldType.INT32;
             } else if (typeContext.UINT32() != null) {

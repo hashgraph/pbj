@@ -4,9 +4,8 @@ package com.hedera.pbj.runtime.io.buffer;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.SequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
-import java.nio.BufferOverflowException;
 import java.io.OutputStream;
+import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -303,14 +302,14 @@ public interface RandomAccessData {
         final byte b6 = getByte(offset + 5);
         final byte b7 = getByte(offset + 6);
         final byte b8 = getByte(offset + 7);
-        return (((long)b1 << 56) +
-                ((long)(b2 & 255) << 48) +
-                ((long)(b3 & 255) << 40) +
-                ((long)(b4 & 255) << 32) +
-                ((long)(b5 & 255) << 24) +
-                ((b6 & 255) << 16) +
-                ((b7 & 255) <<  8) +
-                (b8 & 255));
+        return (((long) b1 << 56)
+                + ((long) (b2 & 255) << 48)
+                + ((long) (b3 & 255) << 40)
+                + ((long) (b4 & 255) << 32)
+                + ((long) (b5 & 255) << 24)
+                + ((b6 & 255) << 16)
+                + ((b7 & 255) << 8)
+                + (b8 & 255));
     }
 
     /**
@@ -339,14 +338,14 @@ public interface RandomAccessData {
             final byte b3 = getByte(offset + 5);
             final byte b2 = getByte(offset + 6);
             final byte b1 = getByte(offset + 7);
-            return (((long) b1 << 56) +
-                    ((long) (b2 & 255) << 48) +
-                    ((long) (b3 & 255) << 40) +
-                    ((long) (b4 & 255) << 32) +
-                    ((long) (b5 & 255) << 24) +
-                    ((b6 & 255) << 16) +
-                    ((b7 & 255) << 8) +
-                    (b8 & 255));
+            return (((long) b1 << 56)
+                    + ((long) (b2 & 255) << 48)
+                    + ((long) (b3 & 255) << 40)
+                    + ((long) (b4 & 255) << 32)
+                    + ((long) (b5 & 255) << 24)
+                    + ((b6 & 255) << 16)
+                    + ((b7 & 255) << 8)
+                    + (b8 & 255));
         } else {
             return getLong(offset);
         }

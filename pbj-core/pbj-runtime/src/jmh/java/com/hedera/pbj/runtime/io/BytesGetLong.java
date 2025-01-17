@@ -44,5 +44,4 @@ public class BytesGetLong {
             blackhole.consume(UnsafeUtils.getLong(array, i));
         }
     }
-
 }

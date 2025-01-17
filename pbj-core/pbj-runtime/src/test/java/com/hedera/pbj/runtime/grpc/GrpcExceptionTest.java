@@ -25,8 +25,8 @@ class GrpcExceptionTest {
         // If the status is OK, then the constructor should throw an IllegalArgumentException.
         //noinspection ThrowableNotThrown
         assertThatThrownBy(() -> new GrpcException(GrpcStatus.OK))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("status cannot be OK");
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("status cannot be OK");
     }
 
     @Test

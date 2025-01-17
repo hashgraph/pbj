@@ -59,8 +59,7 @@ class PbjProtocolHandlerTest {
 
     @BeforeEach
     void setUp() {
-        headers = Http2Headers.create(WritableHeaders.create()
-                .add(HeaderNames.CONTENT_TYPE, "application/grpc+proto"));
+        headers = Http2Headers.create(WritableHeaders.create().add(HeaderNames.CONTENT_TYPE, "application/grpc+proto"));
         streamWriter = new StreamWriterStub();
         streamId = 1;
         flowControl = new OutboundFlowControlStub();
@@ -112,13 +111,16 @@ class PbjProtocolHandlerTest {
         // Content-Type: application/grpc
         // Grpc-Message: invalid gRPC request content-type ""
         // Grpc-Status: 3
-        final var responseHeaders = responseHeaderFrame.httpHeaders().stream()
-                .collect(Collectors.toMap(Header::name, Header::values));
-        assertThat(responseHeaders).contains(
-                entry("grpc-status", "" + GrpcStatus.INVALID_ARGUMENT.ordinal()),
-                entry("grpc-message", UriEncoding.encodeUri("invalid gRPC request content-type \"" + contentType + "\"")),
-                entry("Content-Type", "application/grpc"),
-                entry("grpc-accept-encoding", "identity"));
+        final var responseHeaders =
+                responseHeaderFrame.httpHeaders().stream().collect(Collectors.toMap(Header::name, Header::values));
+        assertThat(responseHeaders)
+                .contains(
+                        entry("grpc-status", "" + GrpcStatus.INVALID_ARGUMENT.ordinal()),
+                        entry(
+                                "grpc-message",
+                                UriEncoding.encodeUri("invalid gRPC request content-type \"" + contentType + "\"")),
+                        entry("Content-Type", "application/grpc"),
+                        entry("grpc-accept-encoding", "identity"));
 
         // The stream should be closed
         assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
@@ -189,13 +191,17 @@ class PbjProtocolHandlerTest {
         // Content-Type: application/grpc
         // Grpc-Message: grpc: Decompressor is not installed for grpc-encoding "[bad encoding here]"
         // Grpc-Status: 12
-        final var responseHeaders = responseHeaderFrame.httpHeaders().stream()
-                .collect(Collectors.toMap(Header::name, Header::values));
-        assertThat(responseHeaders).contains(
-                entry("grpc-status", "" + GrpcStatus.UNIMPLEMENTED.ordinal()),
-                entry("grpc-message", UriEncoding.encodeUri("Decompressor is not installed for grpc-encoding \"" + encoding + "\"")),
-                entry("Content-Type", "application/grpc"),
-                entry("grpc-accept-encoding", "identity"));
+        final var responseHeaders =
+                responseHeaderFrame.httpHeaders().stream().collect(Collectors.toMap(Header::name, Header::values));
+        assertThat(responseHeaders)
+                .contains(
+                        entry("grpc-status", "" + GrpcStatus.UNIMPLEMENTED.ordinal()),
+                        entry(
+                                "grpc-message",
+                                UriEncoding.encodeUri(
+                                        "Decompressor is not installed for grpc-encoding \"" + encoding + "\"")),
+                        entry("Content-Type", "application/grpc"),
+                        entry("grpc-accept-encoding", "identity"));
 
         // The stream should be closed
         assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
@@ -209,16 +215,21 @@ class PbjProtocolHandlerTest {
      *
      * @param encoding
      */
-    @ValueSource(strings = {
-            // Simple identity strings with qualifiers
-            "identity", "identity;q=0.5", "identity;", "identity;nonsense",
-            // an identity with and without a qualifier in a list of encodings
-            "gzip, deflate;q=0.5, identity;q=0.1",
-            "gzip, deflate;q=0.5, identity",
-            "gzip, identity;q=0.1, deflate;q=0.5",
-            "gzip, identity, deflate;q=0.5",
-            "identity;q=.9, deflate;q=0.5, gzip;q=0.1, br;q=0.1",
-            "identity, deflate;q=0.5, gzip;q=0.1, br;q=0.1"})
+    @ValueSource(
+            strings = {
+                // Simple identity strings with qualifiers
+                "identity",
+                "identity;q=0.5",
+                "identity;",
+                "identity;nonsense",
+                // an identity with and without a qualifier in a list of encodings
+                "gzip, deflate;q=0.5, identity;q=0.1",
+                "gzip, deflate;q=0.5, identity",
+                "gzip, identity;q=0.1, deflate;q=0.5",
+                "gzip, identity, deflate;q=0.5",
+                "identity;q=.9, deflate;q=0.5, gzip;q=0.1, br;q=0.1",
+                "identity, deflate;q=0.5, gzip;q=0.1, br;q=0.1"
+            })
     @ParameterizedTest
     void supportedComplexEncodingsWithIdentity(String encoding) {
         final var h = WritableHeaders.create();
@@ -247,11 +258,10 @@ class PbjProtocolHandlerTest {
         final var responseHeaderFrame = streamWriter.writtenHeaders.getFirst();
         assertThat(responseHeaderFrame.status()).isEqualTo(Status.OK_200);
 
-        final var responseHeaders = responseHeaderFrame.httpHeaders().stream()
-                .collect(Collectors.toMap(Header::name, Header::values));
-        assertThat(responseHeaders).contains(
-                entry("Content-Type", "application/grpc+proto"),
-                entry("grpc-accept-encoding", "identity"));
+        final var responseHeaders =
+                responseHeaderFrame.httpHeaders().stream().collect(Collectors.toMap(Header::name, Header::values));
+        assertThat(responseHeaders)
+                .contains(entry("Content-Type", "application/grpc+proto"), entry("grpc-accept-encoding", "identity"));
 
         // The stream should be closed
         assertThat(handler.streamState()).isEqualTo(Http2StreamState.HALF_CLOSED_REMOTE);
@@ -274,14 +284,17 @@ class PbjProtocolHandlerTest {
         // Within this test, the replyRef will be set once when the setup is complete, and then
         // will be available for the test code to use to call onNext, onError, etc. as required.
         final var replyRef = new AtomicReference<Pipeline<? super HelloReply>>();
-        route = new PbjMethodRoute(new GreeterServiceImpl() {
-            @Override
-            public void sayHelloStreamReply(HelloRequest request, Pipeline<? super HelloReply> replies) {
-                replyRef.set(replies);
-            }
-        }, GreeterService.GreeterMethod.sayHelloStreamReply);
+        route = new PbjMethodRoute(
+                new GreeterServiceImpl() {
+                    @Override
+                    public void sayHelloStreamReply(HelloRequest request, Pipeline<? super HelloReply> replies) {
+                        replyRef.set(replies);
+                    }
+                },
+                GreeterService.GreeterMethod.sayHelloStreamReply);
 
-        final var handler = new PbjProtocolHandler(headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+        final var handler = new PbjProtocolHandler(
+                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
         handler.init();
         sendAllData(handler, createRequestData("Alice"));
 
@@ -292,8 +305,7 @@ class PbjProtocolHandlerTest {
         streamClosed.set(true);
 
         final var failingReply = HelloReply.newBuilder().setMessage("Bad").build();
-        assertThatThrownBy(() -> replies.onNext(failingReply))
-                .isInstanceOf(Exception.class);
+        assertThatThrownBy(() -> replies.onNext(failingReply)).isInstanceOf(Exception.class);
 
         assertThat(route.requestCounter().count()).isEqualTo(1);
         assertThat(route.failedGrpcRequestCounter().count()).isEqualTo(0);
@@ -330,7 +342,8 @@ class PbjProtocolHandlerTest {
     }
 
     private Http2FrameHeader createDataFrameHeader(int length) {
-        return Http2FrameHeader.create(length + 5, Http2FrameTypes.DATA, Http2Flag.DataFlags.create(Http2Flags.END_STREAM), streamId);
+        return Http2FrameHeader.create(
+                length + 5, Http2FrameTypes.DATA, Http2Flag.DataFlags.create(Http2Flags.END_STREAM), streamId);
     }
 
     private static final class OutboundFlowControlStub implements FlowControl.Outbound {
@@ -346,9 +359,7 @@ class PbjProtocolHandlerTest {
         }
 
         @Override
-        public void blockTillUpdate() {
-
-        }
+        public void blockTillUpdate() {}
 
         @Override
         public int maxFrameSize() {
@@ -356,14 +367,10 @@ class PbjProtocolHandlerTest {
         }
 
         @Override
-        public void decrementWindowSize(int decrement) {
-
-        }
+        public void decrementWindowSize(int decrement) {}
 
         @Override
-        public void resetStreamWindowSize(int size) {
-
-        }
+        public void resetStreamWindowSize(int size) {}
 
         @Override
         public int getRemainingWindowSize() {
@@ -374,7 +381,6 @@ class PbjProtocolHandlerTest {
     private static class StreamWriterStub implements Http2StreamWriter {
         private final List<Http2FrameData> writtenDataFrames = new ArrayList<>();
         private final List<Http2Headers> writtenHeaders = new ArrayList<>();
-
 
         @Override
         public void write(Http2FrameData frame) {
@@ -387,13 +393,19 @@ class PbjProtocolHandlerTest {
         }
 
         @Override
-        public int writeHeaders(Http2Headers headers, int streamId, Http2Flag.HeaderFlags flags, FlowControl.Outbound flowControl) {
+        public int writeHeaders(
+                Http2Headers headers, int streamId, Http2Flag.HeaderFlags flags, FlowControl.Outbound flowControl) {
             writtenHeaders.add(headers);
             return 0;
         }
 
         @Override
-        public int writeHeaders(Http2Headers headers, int streamId, Http2Flag.HeaderFlags flags, Http2FrameData dataFrame, FlowControl.Outbound flowControl) {
+        public int writeHeaders(
+                Http2Headers headers,
+                int streamId,
+                Http2Flag.HeaderFlags flags,
+                Http2FrameData dataFrame,
+                FlowControl.Outbound flowControl) {
             writtenHeaders.add(headers);
             writtenDataFrames.add(dataFrame);
             return 0;
@@ -486,9 +498,8 @@ class PbjProtocolHandlerTest {
         @NonNull
         @Override
         public Pipeline<? super Bytes> open(
-                @NonNull Method method,
-                @NonNull RequestOptions opts,
-                @NonNull Pipeline<? super Bytes> responses) throws GrpcException {
+                @NonNull Method method, @NonNull RequestOptions opts, @NonNull Pipeline<? super Bytes> responses)
+                throws GrpcException {
             this.calledMethod = method;
             this.opts = opts;
             return new Pipeline<>() {

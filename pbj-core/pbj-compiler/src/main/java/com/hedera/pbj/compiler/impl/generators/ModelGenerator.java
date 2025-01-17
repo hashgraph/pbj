@@ -55,7 +55,8 @@ public final class ModelGenerator implements Generator {
             hashCode += hashCode << 10;
             hashCode ^= hashCode >>> 24;
             hashCode += hashCode << 30;
-            """.indent(DEFAULT_INDENT);
+            """
+                    .indent(DEFAULT_INDENT);
 
     /**
      * Generating method that assembles all the previously generated pieces together
@@ -71,7 +72,8 @@ public final class ModelGenerator implements Generator {
      * @return the generated code
      */
     @NonNull
-    private static String generateClass(final String modelPackage,
+    private static String generateClass(
+            final String modelPackage,
             final Set<String> imports,
             final String javaDocComment,
             final String deprecated,
@@ -143,9 +145,8 @@ public final class ModelGenerator implements Generator {
      * @return the filtered fields
      */
     @NonNull
-    private static List<Field> filterComparableFields(final MessageDefContext msgDef,
-            final ContextualLookupHelper lookupHelper,
-            final List<Field> fields) {
+    private static List<Field> filterComparableFields(
+            final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper, final List<Field> fields) {
         final Map<String, Field> fieldByName = fields.stream().collect(toMap(Field::name, f -> f));
         final List<String> comparableFields = lookupHelper.getComparableFields(msgDef);
         return comparableFields.stream().map(fieldByName::get).collect(Collectors.toList());
@@ -161,8 +162,8 @@ public final class ModelGenerator implements Generator {
      * @return the generated code
      */
     @NonNull
-    private static String generateCompareTo(final List<Field> fields, final String javaRecordName,
-            final File destinationSrcDir) {
+    private static String generateCompareTo(
+            final List<Field> fields, final String javaRecordName, final File destinationSrcDir) {
         // spotless:off
         String bodyContent =
                 """
@@ -370,8 +371,8 @@ public final class ModelGenerator implements Generator {
      * @return the generated code
      */
     @NonNull
-    private static String generateCodecFields(final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper,
-            final String javaRecordName) {
+    private static String generateCodecFields(
+            final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper, final String javaRecordName) {
         // spotless:off
         return """
                /** Protobuf codec for reading and writing in protobuf format */
@@ -398,7 +399,8 @@ public final class ModelGenerator implements Generator {
      * @param imports the imports to use for the code generation
      * @param hasMethods the has methods to use for the code generation
      */
-    private static void generateCodeForField(final ContextualLookupHelper lookupHelper,
+    private static void generateCodeForField(
+            final ContextualLookupHelper lookupHelper,
             final Protobuf3Parser.MessageElementContext item,
             final List<Field> fields,
             final Set<String> imports,
@@ -474,7 +476,8 @@ public final class ModelGenerator implements Generator {
      *
      * @return the generated code
      */
-    private static List<String> generateCodeForOneOf(final ContextualLookupHelper lookupHelper,
+    private static List<String> generateCodeForOneOf(
+            final ContextualLookupHelper lookupHelper,
             final Protobuf3Parser.MessageElementContext item,
             final String javaRecordName,
             final Set<String> imports,
@@ -553,7 +556,8 @@ public final class ModelGenerator implements Generator {
                 """
                 /**
                  * Enum for the type of "%s" oneof value
-                 */""".formatted(oneOfField.name());
+                 */"""
+                        .formatted(oneOfField.name());
         final String enumString = createEnum(enumComment, "", enumName, maxIndex, enumValues, true)
                 .indent(DEFAULT_INDENT * 2);
         oneofEnums.add(enumString);
@@ -602,8 +606,8 @@ public final class ModelGenerator implements Generator {
         final OneOfField parentOneOfField = field.parent();
         final String fieldName = field.nameCamelFirstLower();
         if (parentOneOfField != null) {
-            final String oneOfEnumValue = "%s.%s"
-                    .formatted(parentOneOfField.getEnumClassRef(), camelToUpperSnake(field.name()));
+            final String oneOfEnumValue =
+                    "%s.%s".formatted(parentOneOfField.getEnumClassRef(), camelToUpperSnake(field.name()));
             prefix = "%s%s,".formatted(" new %s<>(".formatted(parentOneOfField.className()), oneOfEnumValue);
             postfix = ")";
             fieldToSet = parentOneOfField.nameCamelFirstLower();
@@ -721,13 +725,13 @@ public final class ModelGenerator implements Generator {
      *
      * @return the generated code
      */
-    private static String generateBuilder(final MessageDefContext msgDef, final List<Field> fields,
-            final ContextualLookupHelper lookupHelper) {
+    private static String generateBuilder(
+            final MessageDefContext msgDef, final List<Field> fields, final ContextualLookupHelper lookupHelper) {
         final String javaRecordName = msgDef.messageName().getText();
         final List<String> builderMethods = new ArrayList<>();
         for (final Field field : fields) {
             if (field.type() == Field.FieldType.ONE_OF) {
-                final OneOfField oneOfField = (OneOfField)field;
+                final OneOfField oneOfField = (OneOfField) field;
                 for (final Field subField : oneOfField.fields()) {
                     generateBuilderMethods(builderMethods, msgDef, subField, lookupHelper);
                 }
@@ -782,8 +786,8 @@ public final class ModelGenerator implements Generator {
      *
      * @return the generated code
      */
-    private static String getDefaultValue(final Field field, final MessageDefContext msgDef,
-            final ContextualLookupHelper lookupHelper) {
+    private static String getDefaultValue(
+            final Field field, final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
         if (field.type() == Field.FieldType.ONE_OF) {
             return lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef) + "." + field.javaDefault();
         } else {
@@ -796,9 +800,12 @@ public final class ModelGenerator implements Generator {
      *
      * <p>Generates a new model object, as a Java Record type.
      */
-    public void generate(final MessageDefContext msgDef,
+    public void generate(
+            final MessageDefContext msgDef,
             final File destinationSrcDir,
-            final File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+            final File destinationTestSrcDir,
+            final ContextualLookupHelper lookupHelper)
+            throws IOException {
 
         // The javaRecordName will be something like "AccountID".
         final var javaRecordName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
@@ -841,7 +848,8 @@ public final class ModelGenerator implements Generator {
                 if ("deprecated".equals(item.optionStatement().optionName().getText())) {
                     deprecated = "@Deprecated ";
                 } else {
-                    System.err.printf("Unhandled Option: %s%n", item.optionStatement().getText());
+                    System.err.printf(
+                            "Unhandled Option: %s%n", item.optionStatement().getText());
                 }
             } else if (item.reserved() == null) { // ignore reserved and warn about anything else
                 System.err.printf("ModelGenerator Warning - Unknown element: %s -- %s%n", item, item.getText());
@@ -852,9 +860,10 @@ public final class ModelGenerator implements Generator {
 
         // The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
         // but is cleaned up and formatted for use in JavaDoc.
-        final String docComment = (msgDef.docComment() == null || msgDef.docComment().getText().isBlank())
-                ? javaRecordName :
-                cleanJavaDocComment(msgDef.docComment().getText());
+        final String docComment =
+                (msgDef.docComment() == null || msgDef.docComment().getText().isBlank())
+                        ? javaRecordName
+                        : cleanJavaDocComment(msgDef.docComment().getText());
         String javaDocComment = "/**\n * " + docComment.replaceAll("\n", "\n * ");
         if (fields.isEmpty()) {
             javaDocComment += "\n */";
@@ -916,11 +925,15 @@ public final class ModelGenerator implements Generator {
 
         // === Build file
         try (final FileWriter javaWriter = new FileWriter(javaFile)) {
-            javaWriter.write(
-                    generateClass(modelPackage, imports, javaDocComment, deprecated, javaRecordName, fields,
-                            bodyContent, hasComparableFields)
-            );
+            javaWriter.write(generateClass(
+                    modelPackage,
+                    imports,
+                    javaDocComment,
+                    deprecated,
+                    javaRecordName,
+                    fields,
+                    bodyContent,
+                    hasComparableFields));
         }
     }
-
 }

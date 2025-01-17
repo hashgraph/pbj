@@ -7,13 +7,7 @@ import com.hedera.pbj.runtime.jsonparser.JSONLexer;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CodePointBuffer;
-import org.antlr.v4.runtime.CodePointCharStream;
-import org.antlr.v4.runtime.CommonTokenStream;
-
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.util.Base64;
 import java.util.List;
@@ -21,6 +15,10 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CodePointBuffer;
+import org.antlr.v4.runtime.CodePointCharStream;
+import org.antlr.v4.runtime.CommonTokenStream;
 
 /**
  * Class of static utility methods for working with JSON. All generated JSON is designed to be
@@ -83,7 +81,7 @@ public final class JsonTools {
      */
     public static String escape(@Nullable String string) {
         if (string == null) return null;
-        return string.replaceAll("\n","\\\\n").replaceAll("\r","\\\\r");
+        return string.replaceAll("\n", "\\\\n").replaceAll("\r", "\\\\r");
     }
 
     // ====================================================================================================
@@ -101,7 +99,7 @@ public final class JsonTools {
         final JSONParser parser = new JSONParser(new CommonTokenStream(lexer));
         final JSONParser.JsonContext jsonContext = parser.json();
         final JSONParser.ValueContext valueContext = jsonContext.value();
-        return  valueContext.obj();
+        return valueContext.obj();
     }
 
     /**
@@ -113,11 +111,12 @@ public final class JsonTools {
     public static JSONParser.ObjContext parseJson(@NonNull final CharBuffer input) {
         CodePointBuffer.Builder codePointBufferBuilder = CodePointBuffer.builder(input.remaining());
         codePointBufferBuilder.append(input);
-        final JSONLexer lexer = new JSONLexer(CodePointCharStream.fromBuffer(codePointBufferBuilder.build(), "CharBuffer"));
+        final JSONLexer lexer =
+                new JSONLexer(CodePointCharStream.fromBuffer(codePointBufferBuilder.build(), "CharBuffer"));
         final JSONParser parser = new JSONParser(new CommonTokenStream(lexer));
         final JSONParser.JsonContext jsonContext = parser.json();
         final JSONParser.ValueContext valueContext = jsonContext.value();
-        return  valueContext.obj();
+        return valueContext.obj();
     }
 
     /**
@@ -136,7 +135,8 @@ public final class JsonTools {
                     } catch (ParseException e) {
                         throw new UncheckedParseException(e);
                     }
-                }).toList();
+                })
+                .toList();
     }
 
     /**
@@ -146,7 +146,10 @@ public final class JsonTools {
      * @return the parsed integer
      */
     public static int parseInteger(JSONParser.ValueContext valueContext) {
-        return Integer.parseInt(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
+        return Integer.parseInt(
+                valueContext.STRING() != null
+                        ? valueContext.STRING().getText()
+                        : valueContext.NUMBER().getText());
     }
 
     /**
@@ -156,7 +159,10 @@ public final class JsonTools {
      * @return the parsed long
      */
     public static long parseLong(JSONParser.ValueContext valueContext) {
-        return Long.parseLong(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
+        return Long.parseLong(
+                valueContext.STRING() != null
+                        ? valueContext.STRING().getText()
+                        : valueContext.NUMBER().getText());
     }
 
     /**
@@ -166,7 +172,10 @@ public final class JsonTools {
      * @return the parsed float
      */
     public static float parseFloat(JSONParser.ValueContext valueContext) {
-        return Float.parseFloat(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
+        return Float.parseFloat(
+                valueContext.STRING() != null
+                        ? valueContext.STRING().getText()
+                        : valueContext.NUMBER().getText());
     }
 
     /**
@@ -176,7 +185,10 @@ public final class JsonTools {
      * @return the parsed double
      */
     public static double parseDouble(JSONParser.ValueContext valueContext) {
-        return Double.parseDouble(valueContext.STRING() != null ? valueContext.STRING().getText() : valueContext.NUMBER().getText());
+        return Double.parseDouble(
+                valueContext.STRING() != null
+                        ? valueContext.STRING().getText()
+                        : valueContext.NUMBER().getText());
     }
 
     /**
@@ -260,11 +272,9 @@ public final class JsonTools {
      * @param value the value of the field
      * @return the JSON string
      */
-    public static <T> String field(String indent, String fieldName,
-                                 JsonCodec<T> codec, @Nullable final T value) {
+    public static <T> String field(String indent, String fieldName, JsonCodec<T> codec, @Nullable final T value) {
         if (value != null) {
-            return '"' + toJsonFieldName(fieldName) + '"' + ": " +
-                    codec.toJSON(value, indent, true);
+            return '"' + toJsonFieldName(fieldName) + '"' + ": " + codec.toJSON(value, indent, true);
         } else {
             return '"' + toJsonFieldName(fieldName) + '"' + ": null";
         }
@@ -312,7 +322,8 @@ public final class JsonTools {
      * @param vComposer a composer of a "key":value strings - basically, a JsonTools::field method for the value type
      * @return the JSON string
      */
-    public static <K, V> String field(String fieldName, Map<K, V> value, Function<K, String> kEncoder, BiFunction<String, V, String> vComposer) {
+    public static <K, V> String field(
+            String fieldName, Map<K, V> value, Function<K, String> kEncoder, BiFunction<String, V, String> vComposer) {
         assert !value.isEmpty();
         StringBuilder sb = new StringBuilder();
         PbjMap<K, V> pbjMap = (PbjMap<K, V>) value;
@@ -373,9 +384,9 @@ public final class JsonTools {
         if (Float.isNaN(value)) {
             return rawFieldCode(fieldName, "\"NaN\"");
         } else if (Float.isInfinite(value)) {
-            return rawFieldCode(fieldName, "\""+(value < 0 ? "-Infinity" : "Infinity")+"\"");
+            return rawFieldCode(fieldName, "\"" + (value < 0 ? "-Infinity" : "Infinity") + "\"");
         } else {
-            return rawFieldCode(fieldName,  Float.toString(value) );
+            return rawFieldCode(fieldName, Float.toString(value));
         }
     }
 
@@ -390,7 +401,7 @@ public final class JsonTools {
         if (Double.isNaN(value)) {
             return rawFieldCode(fieldName, "\"NaN\"");
         } else if (Double.isInfinite(value)) {
-            return rawFieldCode(fieldName, "\""+(value < 0 ? "-Infinity" : "Infinity")+"\"");
+            return rawFieldCode(fieldName, "\"" + (value < 0 ? "-Infinity" : "Infinity") + "\"");
         } else {
             return rawFieldCode(fieldName, Double.toString(value));
         }
@@ -481,8 +492,7 @@ public final class JsonTools {
      * @return the JSON string
      * @param <T> the type of the items in the array
      */
-    public static <T> String arrayField(String fieldName,
-                                      FieldDefinition fieldDefinition, List<T> items) {
+    public static <T> String arrayField(String fieldName, FieldDefinition fieldDefinition, List<T> items) {
         if (items != null) {
             if (items.isEmpty()) {
                 return rawFieldCode(fieldName, "[]");
@@ -496,18 +506,21 @@ public final class JsonTools {
                                     case STRING -> '"' + escape((String) item) + '"';
                                     case BYTES -> '"' + ((Bytes) item).toBase64() + '"';
                                     case INT32, SINT32, UINT32, FIXED32, SFIXED32 -> Integer.toString((Integer) item);
-                                    case INT64, SINT64, UINT64, FIXED64, SFIXED64 -> '"' + Long.toString((Long) item) + '"';
+                                    case INT64, SINT64, UINT64, FIXED64, SFIXED64 -> '"'
+                                            + Long.toString((Long) item)
+                                            + '"';
                                     case FLOAT -> Float.toString((Float) item);
                                     case DOUBLE -> Double.toString((Double) item);
                                     case BOOL -> Boolean.toString((Boolean) item);
-                                    case ENUM -> '"' + ((EnumWithProtoMetadata)item).protoName() + '"';
-                                    case MESSAGE -> throw new UnsupportedOperationException("No expected here should have called other arrayField() method");
+                                    case ENUM -> '"' + ((EnumWithProtoMetadata) item).protoName() + '"';
+                                    case MESSAGE -> throw new UnsupportedOperationException(
+                                            "No expected here should have called other arrayField() method");
                                     case MAP -> throw new UnsupportedOperationException("Arrays of maps not supported");
                                 };
                             }
                         })
                         .collect(Collectors.joining(", "));
-                return rawFieldCode(fieldName, "["+values+"]");
+                return rawFieldCode(fieldName, "[" + values + "]");
             }
         }
         return null;
@@ -523,15 +536,14 @@ public final class JsonTools {
      * @return the JSON string
      * @param <T> the type of the items in the array
      */
-    public static <T> String arrayField(String indent, String fieldName,
-                                      JsonCodec<T> codec, List<T> items) {
+    public static <T> String arrayField(String indent, String fieldName, JsonCodec<T> codec, List<T> items) {
         if (items != null) {
             if (items.isEmpty()) {
                 return rawFieldCode(fieldName, "[]");
             } else {
                 StringBuilder code = new StringBuilder('"' + fieldName + '"' + ": [");
                 for (int i = 0; i < items.size(); i++) {
-                     var item = items.get(i);
+                    var item = items.get(i);
                     code.append(codec.toJSON(item, indent, true));
                     if (i < items.size() - 1) {
                         code.append(", ");
@@ -543,5 +555,4 @@ public final class JsonTools {
         }
         return null;
     }
-
 }

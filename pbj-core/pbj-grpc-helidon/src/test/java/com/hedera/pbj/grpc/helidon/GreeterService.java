@@ -100,8 +100,7 @@ public interface GreeterService extends ServiceInterface {
     }
 
     @NonNull
-    private HelloRequest parseRequest(
-            @NonNull final Bytes message, @NonNull final RequestOptions options)
+    private HelloRequest parseRequest(@NonNull final Bytes message, @NonNull final RequestOptions options)
             throws InvalidProtocolBufferException {
         Objects.requireNonNull(message);
 
@@ -119,8 +118,7 @@ public interface GreeterService extends ServiceInterface {
     }
 
     @NonNull
-    private Bytes createReply(
-            @NonNull final HelloReply reply, @NonNull final RequestOptions options)
+    private Bytes createReply(@NonNull final HelloReply reply, @NonNull final RequestOptions options)
             throws InvalidProtocolBufferException {
         Objects.requireNonNull(reply);
 

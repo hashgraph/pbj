@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import java.util.stream.Stream;
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Test for default methods on {@link SequentialData}.
@@ -20,7 +21,7 @@ final class SequentialDataTest {
                 Arguments.of(1, 2, 1), // One byte remaining
                 Arguments.of(1, 3, 2), // Two bytes remaining
                 Arguments.of(-1, -1, 0) // Negatives? (error that we handle)
-        );
+                );
     }
 
     @ParameterizedTest(name = "position={0}, limit={1}")

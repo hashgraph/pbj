@@ -26,7 +26,8 @@ public class PbjMap<K, V> implements Map<K, V> {
 
     private PbjMap(final Map<K, V> map) {
         this.map = Collections.unmodifiableMap(map);
-        this.sortedKeys = Collections.unmodifiableList(map.keySet().stream().sorted().toList());
+        this.sortedKeys =
+                Collections.unmodifiableList(map.keySet().stream().sorted().toList());
     }
 
     /**

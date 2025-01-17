@@ -3,7 +3,6 @@ package com.hedera.pbj.compiler.impl;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -33,6 +32,7 @@ public final class Common {
     public static final int TYPE_FIXED32 = 5;
     /** Number of bits used to represent the tag type */
     static final int TAG_TYPE_BITS = 3;
+
     private static final Pattern COMPARABLE_PATTERN = Pattern.compile("[)] implements Comparable<\\w+> [{]");
 
     /**
@@ -77,8 +77,9 @@ public final class Common {
      */
     @NonNull
     public static String snakeToCamel(@NonNull String name, boolean firstUpper) {
-        final String out = Arrays.stream(name.split("_")).map(Common::capitalizeFirstLetter).collect(
-                Collectors.joining(""));
+        final String out = Arrays.stream(name.split("_"))
+                .map(Common::capitalizeFirstLetter)
+                .collect(Collectors.joining(""));
         return (firstUpper ? Character.toUpperCase(out.charAt(0)) : Character.toLowerCase(out.charAt(0)))
                 + out.substring(1);
     }
@@ -136,8 +137,8 @@ public final class Common {
      *
      * @return clean comment
      */
-    public static String buildCleanFieldJavaDoc(List<Integer> fieldNumbers,
-            Protobuf3Parser.DocCommentContext docContext) {
+    public static String buildCleanFieldJavaDoc(
+            List<Integer> fieldNumbers, Protobuf3Parser.DocCommentContext docContext) {
         final String cleanedComment = docContext == null ? "" : cleanJavaDocComment(docContext.getText());
         final String fieldNumComment =
                 "<b>(" + fieldNumbers.stream().map(Objects::toString).collect(Collectors.joining(", ")) + ")</b> ";
@@ -152,13 +153,14 @@ public final class Common {
      * @return clean multi-line content of the comment
      */
     public static String cleanJavaDocComment(String fieldComment) {
-        return cleanDocStr(fieldComment
-                .replaceAll("/\\*\\*[\n\r\s\t]*\\*[\t\s]*|[\n\r\s\t]*\\*/", "") // remove java doc
-                .replaceAll("\n\s+\\*\s+", "\n") // remove indenting and *
-                .replaceAll("\n\s+\\*\s*\n", "\n\n") // remove indenting and *
-                .replaceAll("/\\*\\*", "") // remove indenting and /** at beginning of comment.
-                .trim() // Remove leading and trailing spaces.
-        );
+        return cleanDocStr(
+                fieldComment
+                        .replaceAll("/\\*\\*[\n\r\s\t]*\\*[\t\s]*|[\n\r\s\t]*\\*/", "") // remove java doc
+                        .replaceAll("\n\s+\\*\s+", "\n") // remove indenting and *
+                        .replaceAll("\n\s+\\*\s*\n", "\n\n") // remove indenting and *
+                        .replaceAll("/\\*\\*", "") // remove indenting and /** at beginning of comment.
+                        .trim() // Remove leading and trailing spaces.
+                );
     }
 
     /**
@@ -170,18 +172,19 @@ public final class Common {
      */
     @SuppressWarnings("RegExpSingleCharAlternation")
     public static String cleanDocStr(String docStr) {
-        return docStr
-                .replaceAll("<(/?)tt>", "<$1code>") // tt tags are not supported in javadoc
+        return docStr.replaceAll("<(/?)tt>", "<$1code>") // tt tags are not supported in javadoc
                 .replaceAll(" < ", " &lt; ") // escape loose less than
                 .replaceAll(" > ", " &gt; ") // escape loose less than
                 .replaceAll(" & ", " &amp; ") //
                 .replaceAll("<p>([^<]*?)</p>", "%%%%%$1%%%%") // replace closed paragraphs temporarily
                 .replaceAll("<p>((\\s|\\n)*?)($|<[^>]+>)", "$1$2$3") // remove <p> at end of paragraph
-                .replaceAll("<p>((.|\\n)*?)([\\s\\n]*)(%%%%%|<p>|\\n@\\w+ |$|<[^>]+>)",
+                .replaceAll(
+                        "<p>((.|\\n)*?)([\\s\\n]*)(%%%%%|<p>|\\n@\\w+ |$|<[^>]+>)",
                         "<p>$1</p>$3$4") // clean up loose paragraphs
                 // Do second pass as we can miss some <p> that were caught as closers in first pass
                 .replaceAll("<p>([^<]*?)</p>", "%%%%%$1%%%%") // replace closed paragraphs temporarily
-                .replaceAll("<p>((.|\\n)*?)([\\s\\n]*)(%%%%%|<p>|\\n@\\w+ |$|<[^>]+>)",
+                .replaceAll(
+                        "<p>((.|\\n)*?)([\\s\\n]*)(%%%%%|<p>|\\n@\\w+ |$|<[^>]+>)",
                         "<p>$1</p>$3$4") // clean up loose paragraphs
                 // restore completed paragraphs
                 .replaceAll("%%%%%", "<p>") // replace back to paragraphs
@@ -224,75 +227,83 @@ public final class Common {
             } else if (f.repeated()) {
                 generatedCodeSoFar = getRepeatedHashCodeGeneration(generatedCodeSoFar, f);
             } else {
-                if (f.type() == Field.FieldType.FIXED32 ||
-                        f.type() == Field.FieldType.INT32 ||
-                        f.type() == Field.FieldType.SFIXED32 ||
-                        f.type() == Field.FieldType.SINT32 ||
-                        f.type() == Field.FieldType.UINT32) {
-                    generatedCodeSoFar += (
-                            """
+                if (f.type() == Field.FieldType.FIXED32
+                        || f.type() == Field.FieldType.INT32
+                        || f.type() == Field.FieldType.SFIXED32
+                        || f.type() == Field.FieldType.SINT32
+                        || f.type() == Field.FieldType.UINT32) {
+                    generatedCodeSoFar +=
+                            ("""
                             if ($fieldName != DEFAULT.$fieldName) {
                                 result = 31 * result + Integer.hashCode($fieldName);
                             }
-                            """).replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == Field.FieldType.FIXED64 ||
-                        f.type() == Field.FieldType.INT64 ||
-                        f.type() == Field.FieldType.SFIXED64 ||
-                        f.type() == Field.FieldType.SINT64 ||
-                        f.type() == Field.FieldType.UINT64) {
-                    generatedCodeSoFar += (
-                            """
+                            """)
+                                    .replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.FIXED64
+                        || f.type() == Field.FieldType.INT64
+                        || f.type() == Field.FieldType.SFIXED64
+                        || f.type() == Field.FieldType.SINT64
+                        || f.type() == Field.FieldType.UINT64) {
+                    generatedCodeSoFar +=
+                            ("""
                             if ($fieldName != DEFAULT.$fieldName) {
                                 result = 31 * result + Long.hashCode($fieldName);
                             }
-                            """).replace("$fieldName", f.nameCamelFirstLower());
+                            """)
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.BOOL) {
-                    generatedCodeSoFar += (
-                            """
+                    generatedCodeSoFar +=
+                            ("""
                             if ($fieldName != DEFAULT.$fieldName) {
                                result = 31 * result + Boolean.hashCode($fieldName);
                             }
-                            """).replace("$fieldName", f.nameCamelFirstLower());
+                            """)
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.FLOAT) {
-                    generatedCodeSoFar += (
-                            """
+                    generatedCodeSoFar +=
+                            ("""
                             if ($fieldName != DEFAULT.$fieldName) {
                                result = 31 * result + Float.hashCode($fieldName);
                             }
-                            """).replace("$fieldName", f.nameCamelFirstLower());
+                            """)
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.DOUBLE) {
-                    generatedCodeSoFar += (
-                            """
+                    generatedCodeSoFar +=
+                            ("""
                             if ($fieldName != DEFAULT.$fieldName) {
                                result = 31 * result + Double.hashCode($fieldName);
                             }
-                            """).replace("$fieldName", f.nameCamelFirstLower());
+                            """)
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.BYTES) {
-                    generatedCodeSoFar += (
-                            """
+                    generatedCodeSoFar +=
+                            ("""
                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                                result = 31 * result + $fieldName.hashCode();
                             }
-                            """).replace("$fieldName", f.nameCamelFirstLower());
+                            """)
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.ENUM) {
-                    generatedCodeSoFar += (
-                            """
+                    generatedCodeSoFar +=
+                            ("""
                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                                result = 31 * result + Integer.hashCode($fieldName.protoOrdinal());
                             }
-                            """).replace("$fieldName", f.nameCamelFirstLower());
+                            """)
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.MAP) {
                     generatedCodeSoFar += getMapHashCodeGeneration(generatedCodeSoFar, f);
-                } else if (f.type() == Field.FieldType.STRING ||
-                        f.parent() == null) { // process sub message
-                    generatedCodeSoFar += (
-                            """
+                } else if (f.type() == Field.FieldType.STRING || f.parent() == null) { // process sub message
+                    generatedCodeSoFar +=
+                            ("""
                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                                result = 31 * result + $fieldName.hashCode();
                             }
-                            """).replace("$fieldName", f.nameCamelFirstLower());
+                            """)
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else {
-                    throw new RuntimeException("Unexpected field type for getting HashCode - " + f.type().toString());
+                    throw new RuntimeException("Unexpected field type for getting HashCode - "
+                            + f.type().toString());
                 }
             }
         }
@@ -310,48 +321,55 @@ public final class Common {
     @NonNull
     private static String getPrimitiveWrapperHashCodeGeneration(String generatedCodeSoFar, Field f) {
         switch (f.messageType()) {
-            case "StringValue" -> generatedCodeSoFar += (
-                    """
+            case "StringValue" -> generatedCodeSoFar +=
+                    ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + $fieldName.hashCode();
                     }
-                    """).replace("$fieldName", f.nameCamelFirstLower());
-            case "BoolValue" -> generatedCodeSoFar += (
-                    """
+                    """)
+                            .replace("$fieldName", f.nameCamelFirstLower());
+            case "BoolValue" -> generatedCodeSoFar +=
+                    ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + Boolean.hashCode($fieldName);
                     }
-                    """).replace("$fieldName", f.nameCamelFirstLower());
-            case "Int32Value", "UInt32Value" -> generatedCodeSoFar += (
-                    """
+                    """)
+                            .replace("$fieldName", f.nameCamelFirstLower());
+            case "Int32Value", "UInt32Value" -> generatedCodeSoFar +=
+                    ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + Integer.hashCode($fieldName);
                     }
-                    """).replace("$fieldName", f.nameCamelFirstLower());
-            case "Int64Value", "UInt64Value" -> generatedCodeSoFar += (
-                    """
+                    """)
+                            .replace("$fieldName", f.nameCamelFirstLower());
+            case "Int64Value", "UInt64Value" -> generatedCodeSoFar +=
+                    ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + Long.hashCode($fieldName);
                     }
-                    """).replace("$fieldName", f.nameCamelFirstLower());
-            case "FloatValue" -> generatedCodeSoFar += (
-                    """
+                    """)
+                            .replace("$fieldName", f.nameCamelFirstLower());
+            case "FloatValue" -> generatedCodeSoFar +=
+                    ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + Float.hashCode($fieldName);
                     }
-                    """).replace("$fieldName", f.nameCamelFirstLower());
-            case "DoubleValue" -> generatedCodeSoFar += (
-                    """
+                    """)
+                            .replace("$fieldName", f.nameCamelFirstLower());
+            case "DoubleValue" -> generatedCodeSoFar +=
+                    ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + Double.hashCode($fieldName);
                     }
-                    """).replace("$fieldName", f.nameCamelFirstLower());
-            case "BytesValue" -> generatedCodeSoFar += (
-                    """
+                    """)
+                            .replace("$fieldName", f.nameCamelFirstLower());
+            case "BytesValue" -> generatedCodeSoFar +=
+                    ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
                     }
-                    """).replace("$fieldName", f.nameCamelFirstLower());
+                    """)
+                            .replace("$fieldName", f.nameCamelFirstLower());
             default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
         }
         return generatedCodeSoFar;
@@ -367,8 +385,8 @@ public final class Common {
      */
     @NonNull
     private static String getRepeatedHashCodeGeneration(String generatedCodeSoFar, Field f) {
-        generatedCodeSoFar += (
-                """
+        generatedCodeSoFar +=
+                ("""
                 java.util.List list$$fieldName = $fieldName;
                 if (list$$fieldName != null) {
                     for (Object o : list$$fieldName) {
@@ -379,7 +397,8 @@ public final class Common {
                         }
                    }
                 }
-                """).replace("$fieldName", f.nameCamelFirstLower());
+                """)
+                        .replace("$fieldName", f.nameCamelFirstLower());
         return generatedCodeSoFar;
     }
 
@@ -393,8 +412,8 @@ public final class Common {
      */
     @NonNull
     private static String getMapHashCodeGeneration(String generatedCodeSoFar, final Field f) {
-        generatedCodeSoFar += (
-                """
+        generatedCodeSoFar +=
+                ("""
                 for (Object k : ((PbjMap) $fieldName).getSortedKeys()) {
                     if (k != null) {
                         result = 31 * result + k.hashCode();
@@ -408,7 +427,8 @@ public final class Common {
                         result = 31 * result;
                     }
                 }
-                """).replace("$fieldName", f.nameCamelFirstLower());
+                """)
+                        .replace("$fieldName", f.nameCamelFirstLower());
         return generatedCodeSoFar;
     }
 
@@ -433,66 +453,72 @@ public final class Common {
                 generatedCodeSoFar = getRepeatedEqualsGeneration(generatedCodeSoFar, f);
             } else {
                 f.nameCamelFirstLower();
-                if (f.type() == Field.FieldType.FIXED32 ||
-                        f.type() == Field.FieldType.INT32 ||
-                        f.type() == Field.FieldType.SFIXED32 ||
-                        f.type() == Field.FieldType.SINT32 ||
-                        f.type() == Field.FieldType.UINT32) {
+                if (f.type() == Field.FieldType.FIXED32
+                        || f.type() == Field.FieldType.INT32
+                        || f.type() == Field.FieldType.SFIXED32
+                        || f.type() == Field.FieldType.SINT32
+                        || f.type() == Field.FieldType.UINT32) {
                     generatedCodeSoFar +=
                             """
                             if ($fieldName != thatObj.$fieldName) {
                                 return false;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == Field.FieldType.FIXED64 ||
-                        f.type() == Field.FieldType.INT64 ||
-                        f.type() == Field.FieldType.SFIXED64 ||
-                        f.type() == Field.FieldType.SINT64 ||
-                        f.type() == Field.FieldType.UINT64) {
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.FIXED64
+                        || f.type() == Field.FieldType.INT64
+                        || f.type() == Field.FieldType.SFIXED64
+                        || f.type() == Field.FieldType.SINT64
+                        || f.type() == Field.FieldType.UINT64) {
                     generatedCodeSoFar +=
                             """
                             if ($fieldName != thatObj.$fieldName) {
                                 return false;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.BOOL) {
                     generatedCodeSoFar +=
                             """
                             if ($fieldName != thatObj.$fieldName) {
                                 return false;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.FLOAT) {
                     generatedCodeSoFar +=
                             """
                             if ($fieldName != thatObj.$fieldName) {
                                 return false;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.DOUBLE) {
                     generatedCodeSoFar +=
                             """
                             if ($fieldName != thatObj.$fieldName) {
                                 return false;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == Field.FieldType.STRING ||
-                        f.type() == Field.FieldType.BYTES ||
-                        f.type() == Field.FieldType.ENUM ||
-                        f.type() == Field.FieldType.MAP ||
-                        f.parent() == null /* Process a sub-message */) {
-                    generatedCodeSoFar += (
                             """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.STRING
+                        || f.type() == Field.FieldType.BYTES
+                        || f.type() == Field.FieldType.ENUM
+                        || f.type() == Field.FieldType.MAP
+                        || f.parent() == null /* Process a sub-message */) {
+                    generatedCodeSoFar +=
+                            ("""
                             if ($fieldName == null && thatObj.$fieldName != null) {
                                 return false;
                             }
                             if ($fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
                                 return false;
                             }
-                            """).replace("$fieldName", f.nameCamelFirstLower());
+                            """)
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else {
-                    throw new IllegalArgumentException(
-                            "Unexpected field type for getting Equals - " + f.type().toString());
+                    throw new IllegalArgumentException("Unexpected field type for getting Equals - "
+                            + f.type().toString());
                 }
             }
         }
@@ -510,16 +536,24 @@ public final class Common {
     @NonNull
     private static String getPrimitiveWrapperEqualsGeneration(String generatedCodeSoFar, Field f) {
         switch (f.messageType()) {
-            case "StringValue", "BoolValue", "Int32Value", "UInt32Value", "Int64Value", "UInt64Value", "FloatValue",
-                 "DoubleValue", "BytesValue" -> generatedCodeSoFar += (
-                    """
+            case "StringValue",
+                    "BoolValue",
+                    "Int32Value",
+                    "UInt32Value",
+                    "Int64Value",
+                    "UInt64Value",
+                    "FloatValue",
+                    "DoubleValue",
+                    "BytesValue" -> generatedCodeSoFar +=
+                    ("""
                     if (this.$fieldName == null && thatObj.$fieldName != null) {
                         return false;
                     }
                     if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
                         return false;
                     }
-                    """).replace("$fieldName", f.nameCamelFirstLower());
+                    """)
+                            .replace("$fieldName", f.nameCamelFirstLower());
             default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
         }
         return generatedCodeSoFar;
@@ -535,16 +569,17 @@ public final class Common {
      */
     @NonNull
     private static String getRepeatedEqualsGeneration(String generatedCodeSoFar, Field f) {
-        generatedCodeSoFar += (
-                """
+        generatedCodeSoFar +=
+                ("""
                 if (this.$fieldName == null && thatObj.$fieldName != null) {
                     return false;
                 }
-                
+
                 if (this.$fieldName != null && !$fieldName.equals(thatObj.$fieldName)) {
                     return false;
                 }
-                """).replace("$fieldName", f.nameCamelFirstLower());
+                """)
+                        .replace("$fieldName", f.nameCamelFirstLower());
         return generatedCodeSoFar;
     }
 
@@ -557,25 +592,26 @@ public final class Common {
      *
      * @return The generated code for compareTo method body
      */
-    public static String getFieldsCompareToStatements(final List<Field> fields, String generatedCodeSoFar,
-            File destinationSrcDir) {
+    public static String getFieldsCompareToStatements(
+            final List<Field> fields, String generatedCodeSoFar, File destinationSrcDir) {
         for (Field f : fields) {
             if (f.optionalValueType()) {
                 generatedCodeSoFar += getPrimitiveWrapperCompareToGeneration(f);
             } else if (f.repeated()) {
                 throw new UnsupportedOperationException("Repeated fields are not supported in compareTo method");
             } else {
-                if (f.type() == Field.FieldType.FIXED32 ||
-                        f.type() == Field.FieldType.INT32 ||
-                        f.type() == Field.FieldType.SFIXED32 ||
-                        f.type() == Field.FieldType.SINT32) {
+                if (f.type() == Field.FieldType.FIXED32
+                        || f.type() == Field.FieldType.INT32
+                        || f.type() == Field.FieldType.SFIXED32
+                        || f.type() == Field.FieldType.SINT32) {
                     generatedCodeSoFar +=
                             """
                             result = Integer.compare($fieldName, thatObj.$fieldName);
                             if (result != 0) {
                                 return result;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.UINT32) {
                     generatedCodeSoFar +=
                             """
@@ -583,19 +619,21 @@ public final class Common {
                             if (result != 0) {
                                 return result;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
 
-                } else if (f.type() == Field.FieldType.FIXED64 ||
-                        f.type() == Field.FieldType.INT64 ||
-                        f.type() == Field.FieldType.SFIXED64 ||
-                        f.type() == Field.FieldType.SINT64) {
+                } else if (f.type() == Field.FieldType.FIXED64
+                        || f.type() == Field.FieldType.INT64
+                        || f.type() == Field.FieldType.SFIXED64
+                        || f.type() == Field.FieldType.SINT64) {
                     generatedCodeSoFar +=
                             """
                             result = Long.compare($fieldName, thatObj.$fieldName);
                             if (result != 0) {
                                 return result;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.UINT64) {
                     generatedCodeSoFar +=
                             """
@@ -603,7 +641,8 @@ public final class Common {
                             if (result != 0) {
                                 return result;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.BOOL) {
                     generatedCodeSoFar +=
                             """
@@ -611,7 +650,8 @@ public final class Common {
                             if (result != 0) {
                                 return result;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.FLOAT) {
                     generatedCodeSoFar +=
                             """
@@ -619,7 +659,8 @@ public final class Common {
                             if (result != 0) {
                                 return result;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.DOUBLE) {
                     generatedCodeSoFar +=
                             """
@@ -627,17 +668,18 @@ public final class Common {
                             if (result != 0) {
                                  return result;
                             }
-                            """.replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == Field.FieldType.STRING ||
-                        f.type() == Field.FieldType.BYTES ||
-                        f.type() == Field.FieldType.ENUM) {
+                            """
+                                    .replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.STRING
+                        || f.type() == Field.FieldType.BYTES
+                        || f.type() == Field.FieldType.ENUM) {
                     generatedCodeSoFar += generateCompareToForObject(f);
                 } else if (f.type() == Field.FieldType.MESSAGE || f.type() == Field.FieldType.ONE_OF) {
                     verifyComparable(f, destinationSrcDir);
                     generatedCodeSoFar += generateCompareToForObject(f);
                 } else {
-                    throw new IllegalArgumentException(
-                            "Unexpected field type for getting CompareTo - " + f.type().toString());
+                    throw new IllegalArgumentException("Unexpected field type for getting CompareTo - "
+                            + f.type().toString());
                 }
             }
         }
@@ -659,7 +701,8 @@ public final class Common {
                if (result != 0) {
                    return result;
                }
-               """.replace("$fieldName", f.nameCamelFirstLower());
+               """
+                .replace("$fieldName", f.nameCamelFirstLower());
     }
 
     /**
@@ -684,8 +727,9 @@ public final class Common {
                         return;
                     }
                 }
-                throw new IllegalArgumentException(("Field %s.%s specified in `pbj.comparable` option must implement " +
-                        "`Comparable` interface but it doesn't.").formatted(className, field.nameCamelFirstLower()));
+                throw new IllegalArgumentException(("Field %s.%s specified in `pbj.comparable` option must implement "
+                                + "`Comparable` interface but it doesn't.")
+                        .formatted(className, field.nameCamelFirstLower()));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -719,21 +763,21 @@ public final class Common {
                 }
                 """;
 
-        final String compareStatement = switch (f.messageType()) {
-            case "StringValue", "BytesValue" -> "$fieldName.compareTo(thatObj.$fieldName)";
-            case "BoolValue" -> "java.lang.Boolean.compare($fieldName, thatObj.$fieldName)";
-            case "Int32Value" -> "java.lang.Integer.compare($fieldName, thatObj.$fieldName)";
-            case "UInt32Value" -> "java.lang.Integer.compareUnsigned($fieldName, thatObj.$fieldName)";
-            case "Int64Value" -> "java.lang.Long.compare($fieldName, thatObj.$fieldName)";
-            case "UInt64Value" -> "java.lang.Long.compareUnsigned($fieldName, thatObj.$fieldName)";
-            case "FloatValue" -> "java.lang.Float.compare($fieldName, thatObj.$fieldName)";
-            case "DoubleValue" -> "java.lang.Double.compare($fieldName, thatObj.$fieldName)";
-            default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
-        };
+        final String compareStatement =
+                switch (f.messageType()) {
+                    case "StringValue", "BytesValue" -> "$fieldName.compareTo(thatObj.$fieldName)";
+                    case "BoolValue" -> "java.lang.Boolean.compare($fieldName, thatObj.$fieldName)";
+                    case "Int32Value" -> "java.lang.Integer.compare($fieldName, thatObj.$fieldName)";
+                    case "UInt32Value" -> "java.lang.Integer.compareUnsigned($fieldName, thatObj.$fieldName)";
+                    case "Int64Value" -> "java.lang.Long.compare($fieldName, thatObj.$fieldName)";
+                    case "UInt64Value" -> "java.lang.Long.compareUnsigned($fieldName, thatObj.$fieldName)";
+                    case "FloatValue" -> "java.lang.Float.compare($fieldName, thatObj.$fieldName)";
+                    case "DoubleValue" -> "java.lang.Double.compare($fieldName, thatObj.$fieldName)";
+                    default -> throw new UnsupportedOperationException(
+                            "Unhandled optional message type:" + f.messageType());
+                };
 
-        return template
-                .replace("$compareStatement", compareStatement)
-                .replace("$fieldName", f.nameCamelFirstLower());
+        return template.replace("$compareStatement", compareStatement).replace("$fieldName", f.nameCamelFirstLower());
     }
 
     /**
@@ -761,8 +805,8 @@ public final class Common {
      * @return File object for java file
      */
     public static File getJavaFile(File srcDir, String javaPackage, String className) {
-        File packagePath = new File(
-                srcDir.getPath() + File.separatorChar + javaPackage.replaceAll("\\.", "\\" + File.separator));
+        File packagePath =
+                new File(srcDir.getPath() + File.separatorChar + javaPackage.replaceAll("\\.", "\\" + File.separator));
         //noinspection ResultOfMethodCallIgnored
         packagePath.mkdirs();
         return new File(packagePath, className + ".java");

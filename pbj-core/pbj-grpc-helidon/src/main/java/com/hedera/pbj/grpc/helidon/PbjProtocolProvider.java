@@ -36,8 +36,7 @@ public class PbjProtocolProvider implements Http2SubProtocolProvider<PbjConfig> 
 
     @Override
     @NonNull
-    public Http2SubProtocolSelector create(
-            @NonNull final PbjConfig config, @NonNull final ProtocolConfigs configs) {
+    public Http2SubProtocolSelector create(@NonNull final PbjConfig config, @NonNull final ProtocolConfigs configs) {
         return new PbjProtocolSelector(config);
     }
 }

@@ -79,5 +79,4 @@ public class ByteBufferGetByte {
             blackhole.consume(UnsafeUtils.getDirectBufferByte(directBuffer, i));
         }
     }
-
 }

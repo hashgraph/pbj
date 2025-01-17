@@ -9,7 +9,6 @@ import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -28,8 +27,12 @@ public final class SchemaGenerator implements Generator {
     /**
      * {@inheritDoc}
      */
-    public void generate(final Protobuf3Parser.MessageDefContext msgDef, final File destinationSrcDir,
-                         File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+    public void generate(
+            final Protobuf3Parser.MessageDefContext msgDef,
+            final File destinationSrcDir,
+            File destinationTestSrcDir,
+            final ContextualLookupHelper lookupHelper)
+            throws IOException {
         final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final String schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
         final String schemaPackage = lookupHelper.getPackageForMessage(FileType.SCHEMA, msgDef);
@@ -57,8 +60,8 @@ public final class SchemaGenerator implements Generator {
         }
 
         final List<Field> flattenedFields = fields.stream()
-                .flatMap(field -> field instanceof OneOfField ? ((OneOfField)field).fields().stream() :
-                        Stream.of(field))
+                .flatMap(field ->
+                        field instanceof OneOfField ? ((OneOfField) field).fields().stream() : Stream.of(field))
                 .collect(Collectors.toList());
         // spotless:off
         try (FileWriter javaWriter = new FileWriter(javaFile)) {
