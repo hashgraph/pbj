@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -182,7 +185,7 @@ public interface WritableSequentialData extends SequentialData {
      */
     default int writeBytes(@NonNull final InputStream src, final int maxLength) throws UncheckedIOException {
         // Check for a bad length or a null src
-        Objects.requireNonNull(src);
+        requireNonNull(src);
         if (maxLength < 0) {
             throw new IllegalArgumentException("The length must be >= 0");
         }
@@ -217,6 +220,15 @@ public interface WritableSequentialData extends SequentialData {
         } catch (IOException ex) {
             throw new UncheckedIOException("Failed to read from InputStream", ex);
         }
+    }
+
+    /**
+     * Writes the entire content of the given {@link Bytes} to this buffer.
+     * @param bytes The source {@link Bytes} to write
+     */
+    default void writeBytes(@NonNull final Bytes bytes) {
+        requireNonNull(bytes);
+        bytes.writeTo(this);
     }
 
     /**

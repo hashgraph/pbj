@@ -235,7 +235,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @param length The number of bytes to extract.
      */
     public void writeTo(@NonNull final ByteBuffer dstBuffer, final int offset, final int length) {
-        dstBuffer.put(buffer, Math.toIntExact(start + offset), length);
+        dstBuffer.put(buffer, Math.toIntExact(start + (long) offset), length);
     }
 
     /**
@@ -256,7 +256,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     @Override
     public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
         try {
-            outStream.write(buffer, Math.toIntExact(start + offset), length);
+            outStream.write(buffer, Math.toIntExact(start + (long) offset), length);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -281,7 +281,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @param length The number of bytes to extract.
      */
     public void writeTo(@NonNull final WritableSequentialData wsd, final int offset, final int length) {
-        wsd.writeBytes(buffer, Math.toIntExact(start + offset), length);
+        wsd.writeBytes(buffer, Math.toIntExact(start + (long) offset), length);
     }
 
     /**
@@ -303,7 +303,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @param length The number of bytes to extract.
      */
     public void writeTo(@NonNull final MessageDigest digest, final int offset, final int length) {
-        digest.update(buffer, Math.toIntExact(start + offset), length);
+        digest.update(buffer, Math.toIntExact(start + (long) offset), length);
     }
 
     /**
@@ -688,10 +688,10 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     public Bytes append(@NonNull final Bytes bytes) {
         // The length field of Bytes is int. The length() returns always an int,
         // so safe to cast.
-        long length = this.length();
-        byte[] newBytes = new byte[(int)(length + (int)bytes.length())];
-        this.getBytes(0, newBytes, 0, (int) length);
-        bytes.getBytes(0, newBytes, (int) length, (int)bytes.length());
+        final long len = this.length();
+        byte[] newBytes = new byte[(int)(len + (int)bytes.length())];
+        this.getBytes(0, newBytes, 0, (int) len);
+        bytes.getBytes(0, newBytes, (int) len, (int)bytes.length());
         return Bytes.wrap(newBytes);
     }
 
