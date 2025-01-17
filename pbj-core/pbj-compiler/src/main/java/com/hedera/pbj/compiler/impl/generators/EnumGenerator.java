@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators;
 
+import static com.hedera.pbj.compiler.impl.Common.*;
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
+
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.FileType;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -13,9 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static com.hedera.pbj.compiler.impl.Common.*;
-import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 /**
  * Code for generating enum code
@@ -34,34 +33,44 @@ public final class EnumGenerator {
      * @param lookupHelper Lookup helper for package information
      * @throws IOException if there was a problem writing generated code
      */
-    public static void generateEnumFile(Protobuf3Parser.EnumDefContext enumDef, File destinationSrcDir,
-                                 final ContextualLookupHelper lookupHelper) throws IOException {
+    public static void generateEnumFile(
+            Protobuf3Parser.EnumDefContext enumDef, File destinationSrcDir, final ContextualLookupHelper lookupHelper)
+            throws IOException {
         final String enumName = enumDef.enumName().getText();
         final String modelPackage = lookupHelper.getPackageForEnum(FileType.MODEL, enumDef);
-        final String javaDocComment = (enumDef.docComment()== null) ? "" :
-                cleanDocStr(enumDef.docComment().getText().replaceAll("\n \\*\s*\n","\n * <br>\n"));
+        final String javaDocComment = (enumDef.docComment() == null)
+                ? ""
+                : cleanDocStr(enumDef.docComment().getText().replaceAll("\n \\*\s*\n", "\n * <br>\n"));
         String deprecated = "";
         final Map<Integer, EnumValue> enumValues = new HashMap<>();
         int maxIndex = 0;
-        for (var item: enumDef.enumBody().enumElement()) {
+        for (var item : enumDef.enumBody().enumElement()) {
             if (item.enumField() != null && item.enumField().ident() != null) {
                 final var enumValueName = item.enumField().ident().getText();
-                final var enumNumber = Integer.parseInt(item.enumField().intLit().getText());
+                final var enumNumber =
+                        Integer.parseInt(item.enumField().intLit().getText());
                 final String enumValueJavaDoc = cleanDocStr(
-                        (item.enumField().docComment() == null || item.enumField().docComment().getText().isBlank()) ?
-                                enumValueName :
-                        item.enumField().docComment().getText()
-                                .replaceAll("[\t ]*/\\*\\*([\n\t ]+\\*\s+)?","") // remove doc start indenting
-                                .replaceAll("/\\*\\*","") //  remove doc start
-                                .replaceAll("[\n\t ]+\\*/","") //  remove doc end
-                                .replaceAll("\n[\t\s]+\\*\\*?","\n") // remove doc indenting
-                                .replaceAll("/n\s*/n","/n") //  remove empty lines
-                );
+                        (item.enumField().docComment() == null
+                                        || item.enumField()
+                                                .docComment()
+                                                .getText()
+                                                .isBlank())
+                                ? enumValueName
+                                : item.enumField()
+                                        .docComment()
+                                        .getText()
+                                        .replaceAll("[\t ]*/\\*\\*([\n\t ]+\\*\s+)?", "") // remove doc start indenting
+                                        .replaceAll("/\\*\\*", "") //  remove doc start
+                                        .replaceAll("[\n\t ]+\\*/", "") //  remove doc end
+                                        .replaceAll("\n[\t\s]+\\*\\*?", "\n") // remove doc indenting
+                                        .replaceAll("/n\s*/n", "/n") //  remove empty lines
+                        );
                 maxIndex = Math.max(maxIndex, enumNumber);
                 // extract if the enum is marks as deprecated
                 boolean deprecatedEnumValue = false;
-                if(item.enumField().enumValueOptions() != null && item.enumField().enumValueOptions().enumValueOption() != null) {
-                    for(var option:item.enumField().enumValueOptions().enumValueOption()) {
+                if (item.enumField().enumValueOptions() != null
+                        && item.enumField().enumValueOptions().enumValueOption() != null) {
+                    for (var option : item.enumField().enumValueOptions().enumValueOption()) {
                         if ("deprecated".equals(option.optionName().getText())) {
                             deprecatedEnumValue = true;
                         } else {
@@ -69,22 +78,23 @@ public final class EnumGenerator {
                         }
                     }
                 }
-                enumValues.put(enumNumber, new EnumValue(enumValueName, deprecatedEnumValue,enumValueJavaDoc));
-            } else if (item.optionStatement() != null){
+                enumValues.put(enumNumber, new EnumValue(enumValueName, deprecatedEnumValue, enumValueJavaDoc));
+            } else if (item.optionStatement() != null) {
                 if ("deprecated".equals(item.optionStatement().optionName().getText())) {
                     deprecated = "@Deprecated ";
                 } else {
-                    System.err.printf("Unhandled Option: %s%n", item.optionStatement().getText());
+                    System.err.printf(
+                            "Unhandled Option: %s%n", item.optionStatement().getText());
                 }
             } else {
                 System.err.printf("EnumGenerator Warning - Unknown element: %s -- %s%n", item, item.getText());
             }
         }
         try (FileWriter javaWriter = new FileWriter(getJavaFile(destinationSrcDir, modelPackage, enumName))) {
-            javaWriter.write(
-                    "package %s;\n\n%s".formatted(modelPackage, createEnum(javaDocComment, deprecated, enumName,
-                            maxIndex, enumValues, false))
-            );
+            javaWriter.write("package %s;\n\n%s"
+                    .formatted(
+                            modelPackage,
+                            createEnum(javaDocComment, deprecated, enumName, maxIndex, enumValues, false)));
         }
     }
 
@@ -99,8 +109,13 @@ public final class EnumGenerator {
      * @param addUnknown when true we add an enum value for one of
      * @return string code for enum
      */
-    static String createEnum(String javaDocComment, String deprecated, String enumName,
-                             int maxIndex, Map<Integer, EnumValue> enumValues, boolean addUnknown) {
+    static String createEnum(
+            String javaDocComment,
+            String deprecated,
+            String enumName,
+            int maxIndex,
+            Map<Integer, EnumValue> enumValues,
+            boolean addUnknown) {
         final List<String> enumValuesCode = new ArrayList<>(maxIndex);
         if (addUnknown) {
             // spotless:off

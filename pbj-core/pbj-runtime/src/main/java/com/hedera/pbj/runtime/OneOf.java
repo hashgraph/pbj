@@ -49,9 +49,7 @@ public record OneOf<E extends Enum<E>>(E kind, Object value) {
 
     @Override
     public int hashCode() {
-        return (31 + Integer.hashCode(((EnumWithProtoMetadata)kind).protoOrdinal())) * 31
+        return (31 + Integer.hashCode(((EnumWithProtoMetadata) kind).protoOrdinal())) * 31
                 + (value == null ? 0 : value.hashCode());
     }
-
 }
-

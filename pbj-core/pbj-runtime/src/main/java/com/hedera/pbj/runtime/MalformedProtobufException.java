@@ -8,16 +8,16 @@ import java.io.IOException;
  */
 public class MalformedProtobufException extends IOException {
 
-	/**
-	 * Construct new MalformedProtobufException
-	 *
-	 * @param message error message
-	 */
-	public MalformedProtobufException(final String message) {
-		super(message);
-	}
+    /**
+     * Construct new MalformedProtobufException
+     *
+     * @param message error message
+     */
+    public MalformedProtobufException(final String message) {
+        super(message);
+    }
 
-	public MalformedProtobufException(final String message, final Throwable cause) {
-		super(message, cause);
-	}
+    public MalformedProtobufException(final String message, final Throwable cause) {
+        super(message, cause);
+    }
 }

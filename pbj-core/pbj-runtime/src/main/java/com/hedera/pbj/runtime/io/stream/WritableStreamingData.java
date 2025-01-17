@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
@@ -121,7 +120,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
             // Each byte skipped is a "zero" byte written to the output stream. To make this faster, we will support
             // writing in chunks instead of a single byte at a time. We will keep writing chunks until we're done.
             final byte[] zeros = new byte[1024];
-            for (int i = 0; i < count;) {
+            for (int i = 0; i < count; ) {
                 final var toWrite = (int) Math.min(zeros.length, count - i);
                 out.write(zeros, 0, toWrite);
                 i += toWrite;

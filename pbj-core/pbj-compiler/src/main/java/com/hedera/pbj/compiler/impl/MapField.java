@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
-import java.util.Set;
-import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 import static com.hedera.pbj.compiler.impl.SingleField.getDeprecatedOption;
+
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+import java.util.Set;
 
 /**
  * A field of type map.
@@ -36,8 +36,8 @@ public record MapField(
         String javaDefault,
         String parserFieldsSetMethodCase,
         String comment,
-        boolean deprecated
-) implements Field {
+        boolean deprecated)
+        implements Field {
 
     /**
      * Construct a MapField instance out of a MapFieldContext and a lookup helper.
@@ -53,7 +53,8 @@ public record MapField(
                         null,
                         null,
                         null,
-                        "An internal, private map entry key for %s".formatted(mapContext.mapName().getText()),
+                        "An internal, private map entry key for %s"
+                                .formatted(mapContext.mapName().getText()),
                         false,
                         null),
                 new SingleField(
@@ -65,7 +66,8 @@ public record MapField(
                         Field.extractMessageTypePackage(mapContext.type_(), FileType.MODEL, lookupHelper),
                         Field.extractMessageTypePackage(mapContext.type_(), FileType.CODEC, lookupHelper),
                         Field.extractMessageTypePackage(mapContext.type_(), FileType.TEST, lookupHelper),
-                        "An internal, private map entry value for %s".formatted(mapContext.mapName().getText()),
+                        "An internal, private map entry value for %s"
+                                .formatted(mapContext.mapName().getText()),
                         false,
                         null),
                 false, // maps cannot be repeated
@@ -78,16 +80,17 @@ public record MapField(
                 null,
                 "PbjMap.EMPTY",
                 "",
-                Common.buildCleanFieldJavaDoc(Integer.parseInt(mapContext.fieldNumber().getText()), mapContext.docComment()),
-                getDeprecatedOption(mapContext.fieldOptions())
-        );
+                Common.buildCleanFieldJavaDoc(
+                        Integer.parseInt(mapContext.fieldNumber().getText()), mapContext.docComment()),
+                getDeprecatedOption(mapContext.fieldOptions()));
     }
 
     /**
      * Composes the Java generic type of the map field, e.g. "&lt;Integer, String&gt;" for a Map&lt;Integer, String&gt;.
      */
     public String javaGenericType() {
-        final String fieldTypeName = valueField().type() == FieldType.MESSAGE ? ((SingleField)valueField()).messageType()
+        final String fieldTypeName = valueField().type() == FieldType.MESSAGE
+                ? ((SingleField) valueField()).messageType()
                 : valueField().type().boxedType;
         return "<%s, %s>".formatted(keyField.type().boxedType, fieldTypeName);
     }

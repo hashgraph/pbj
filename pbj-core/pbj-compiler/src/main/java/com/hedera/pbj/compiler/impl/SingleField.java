@@ -18,10 +18,19 @@ import java.util.Set;
  * @param messageTypeCodecPackage
  */
 @SuppressWarnings("DuplicatedCode")
-public record SingleField(boolean repeated, FieldType type, int fieldNumber, String name, String messageType,
-                          String messageTypeModelPackage,
-                          String messageTypeCodecPackage, String messageTypeTestPackage,
-                          String comment, boolean deprecated, OneOfField parent) implements Field {
+public record SingleField(
+        boolean repeated,
+        FieldType type,
+        int fieldNumber,
+        String name,
+        String messageType,
+        String messageTypeModelPackage,
+        String messageTypeCodecPackage,
+        String messageTypeTestPackage,
+        String comment,
+        boolean deprecated,
+        OneOfField parent)
+        implements Field {
 
     /**
      * Construct a SingleField from a parsed field context
@@ -30,7 +39,8 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
      * @param lookupHelper lookup helper for finding packages and other global context data
      */
     public SingleField(Protobuf3Parser.FieldContext fieldContext, final ContextualLookupHelper lookupHelper) {
-        this(fieldContext.REPEATED() != null,
+        this(
+                fieldContext.REPEATED() != null,
                 FieldType.of(fieldContext.type_(), lookupHelper),
                 Integer.parseInt(fieldContext.fieldNumber().getText()),
                 fieldContext.fieldName().getText(),
@@ -38,10 +48,10 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
                 Field.extractMessageTypePackage(fieldContext.type_(), FileType.MODEL, lookupHelper),
                 Field.extractMessageTypePackage(fieldContext.type_(), FileType.CODEC, lookupHelper),
                 Field.extractMessageTypePackage(fieldContext.type_(), FileType.TEST, lookupHelper),
-                Common.buildCleanFieldJavaDoc(Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
+                Common.buildCleanFieldJavaDoc(
+                        Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
                 getDeprecatedOption(fieldContext.fieldOptions()),
-                null
-        );
+                null);
     }
 
     /**
@@ -50,21 +60,31 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
      * @param fieldContext the field context to extra field data from
      * @param lookupHelper lookup helper for finding packages and other global context data
      */
-    public SingleField(Protobuf3Parser.OneofFieldContext fieldContext, final OneOfField parent,  final ContextualLookupHelper lookupHelper) {
-        this(false,
+    public SingleField(
+            Protobuf3Parser.OneofFieldContext fieldContext,
+            final OneOfField parent,
+            final ContextualLookupHelper lookupHelper) {
+        this(
+                false,
                 FieldType.of(fieldContext.type_(), lookupHelper),
-                Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.fieldName().getText(),
-                (fieldContext.type_().messageType() == null) ? null :
-                        fieldContext.type_().messageType().messageName().getText(),
-                (fieldContext.type_().messageType() == null) ? null :
-                        lookupHelper.getPackageOneofFieldMessageType(FileType.MODEL, fieldContext),
-                (fieldContext.type_().messageType() == null) ? null :
-                        lookupHelper.getPackageOneofFieldMessageType(FileType.CODEC, fieldContext), (fieldContext.type_().messageType() == null) ? null :
-                        lookupHelper.getPackageOneofFieldMessageType(FileType.TEST, fieldContext),
-                Common.buildCleanFieldJavaDoc(Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
+                Integer.parseInt(fieldContext.fieldNumber().getText()),
+                fieldContext.fieldName().getText(),
+                (fieldContext.type_().messageType() == null)
+                        ? null
+                        : fieldContext.type_().messageType().messageName().getText(),
+                (fieldContext.type_().messageType() == null)
+                        ? null
+                        : lookupHelper.getPackageOneofFieldMessageType(FileType.MODEL, fieldContext),
+                (fieldContext.type_().messageType() == null)
+                        ? null
+                        : lookupHelper.getPackageOneofFieldMessageType(FileType.CODEC, fieldContext),
+                (fieldContext.type_().messageType() == null)
+                        ? null
+                        : lookupHelper.getPackageOneofFieldMessageType(FileType.TEST, fieldContext),
+                Common.buildCleanFieldJavaDoc(
+                        Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
                 getDeprecatedOption(fieldContext.fieldOptions()),
-                parent
-        );
+                parent);
     }
 
     /**
@@ -72,17 +92,16 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
      */
     @Override
     public boolean optionalValueType() { // Move logic for checking built in types to common
-        return type == SingleField.FieldType.MESSAGE && (
-                messageType.equals("StringValue") ||
-                messageType.equals("Int32Value") ||
-                messageType.equals("UInt32Value") ||
-                messageType.equals("Int64Value") ||
-                messageType.equals("UInt64Value") ||
-                messageType.equals("FloatValue") ||
-                messageType.equals("DoubleValue") ||
-                messageType.equals("BoolValue") ||
-                messageType.equals("BytesValue")
-        );
+        return type == SingleField.FieldType.MESSAGE
+                && (messageType.equals("StringValue")
+                        || messageType.equals("Int32Value")
+                        || messageType.equals("UInt32Value")
+                        || messageType.equals("Int64Value")
+                        || messageType.equals("UInt64Value")
+                        || messageType.equals("FloatValue")
+                        || messageType.equals("DoubleValue")
+                        || messageType.equals("BoolValue")
+                        || messageType.equals("BytesValue"));
     }
 
     /**
@@ -108,11 +127,12 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
 
     @NonNull
     private String javaFieldType(boolean considerRepeated) {
-        String fieldType = switch(type) {
-            case MESSAGE -> messageType;
-            case ENUM -> Common.snakeToCamel(messageType, true);
-            default -> type.javaType;
-        };
+        String fieldType =
+                switch (type) {
+                    case MESSAGE -> messageType;
+                    case ENUM -> Common.snakeToCamel(messageType, true);
+                    default -> type.javaType;
+                };
         fieldType = switch (fieldType) {
             case "StringValue" -> "String";
             case "Int32Value", "UInt32Value" -> "Integer";
@@ -121,8 +141,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
             case "DoubleValue" -> "Double";
             case "BoolValue" -> "Boolean";
             case "BytesValue" -> "Bytes";
-            default -> fieldType;
-        };
+            default -> fieldType;};
         if (considerRepeated && repeated) {
             fieldType = switch (fieldType) {
                 case "int" -> "List<Integer>";
@@ -130,14 +149,13 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
                 case "float" -> "List<Float>";
                 case "double" -> "List<Double>";
                 case "boolean" -> "List<Boolean>";
-                default -> "List<%s>".formatted(fieldType);
-            };
+                default -> "List<%s>".formatted(fieldType);};
         }
         return fieldType;
     }
 
     public String javaFieldTypeForTest() {
-        return switch(type) {
+        return switch (type) {
             case MESSAGE -> messageType;
             case ENUM -> Common.snakeToCamel(messageType, true);
             default -> type.javaType;
@@ -149,7 +167,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
      */
     @Override
     public String methodNameType() {
-        return switch(type()) {
+        return switch (type()) {
             case BOOL -> "Boolean";
             case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> "Integer";
             case INT64, SINT64, UINT64, FIXED64, SFIXED64 -> "Long";
@@ -167,7 +185,8 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
      * {@inheritDoc}
      */
     @Override
-    public void addAllNeededImports(Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
+    public void addAllNeededImports(
+            Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
         if (repeated || optionalValueType()) imports.add("java.util");
         if (type == FieldType.BYTES) imports.add("com.hedera.pbj.runtime.io.buffer");
         if (messageTypeModelPackage != null && modelImports) imports.add(messageTypeModelPackage);
@@ -197,7 +216,7 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
         } else if (repeated) {
             return "Collections.emptyList()";
         } else if (type == FieldType.ENUM) {
-            return messageType+".fromProtobufOrdinal(0)";
+            return messageType + ".fromProtobufOrdinal(0)";
         } else {
             return type.javaDefault;
         }
@@ -218,19 +237,20 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
         // spotless:on
         boolean isPartOfOneOf = parent != null;
         if (optionalValueType()) {
-            final String optionalBaseFieldType = switch (messageType) {
-                case "StringValue" -> "STRING";
-                case "Int32Value" -> "INT32";
-                case "UInt32Value" -> "UINT32";
-                case "Int64Value" -> "INT64";
-                case "UInt64Value" -> "UINT64";
-                case "FloatValue" -> "FLOAT";
-                case "DoubleValue" -> "DOUBLE";
-                case "BoolValue" -> "BOOL";
-                case "BytesValue" -> "BYTES";
-                default -> throw new UnsupportedOperationException(
-                        "Unsupported optional field type found: %s in %s".formatted(type.javaType, this));
-            };
+            final String optionalBaseFieldType =
+                    switch (messageType) {
+                        case "StringValue" -> "STRING";
+                        case "Int32Value" -> "INT32";
+                        case "UInt32Value" -> "UINT32";
+                        case "Int64Value" -> "INT64";
+                        case "UInt64Value" -> "UINT64";
+                        case "FloatValue" -> "FLOAT";
+                        case "DoubleValue" -> "DOUBLE";
+                        case "BoolValue" -> "BOOL";
+                        case "BytesValue" -> "BYTES";
+                        default -> throw new UnsupportedOperationException(
+                                "Unsupported optional field type found: %s in %s".formatted(type.javaType, this));
+                    };
             // spotless:off
             return ("%s    public static final FieldDefinition %s =" +
                     " new FieldDefinition(\"%s\", FieldType.%s, %s, %s, %s, %d);%n")
@@ -263,16 +283,24 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
         if (optionalValueType()) {
             if (parent != null) { // one of
                 return "case %d -> this.%s = new %s<>(%s.%sOneOfType.%s, input);"
-                        .formatted(fieldNumber, fieldNameToSet, parent.className(), parent.parentMessageName(),
-                                Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name));
+                        .formatted(
+                                fieldNumber,
+                                fieldNameToSet,
+                                parent.className(),
+                                parent.parentMessageName(),
+                                Common.snakeToCamel(parent.name(), true),
+                                Common.camelToUpperSnake(name));
             } else {
                 return "case %d -> this.%s = input;".formatted(fieldNumber, fieldNameToSet);
             }
         } else if (type == FieldType.MESSAGE) {
-            final String valueToSet = parent != null ?
-                    "new %s<>(%s.%3$sOneOfType.%3$s, %%modelClass.PROTOBUF.parse(input))"
-                            .formatted(parent.className(), parent.parentMessageName(), Common.snakeToCamel(parent.name(), true))
-                            : parseCode();
+            final String valueToSet = parent != null
+                    ? "new %s<>(%s.%3$sOneOfType.%3$s, %%modelClass.PROTOBUF.parse(input))"
+                            .formatted(
+                                    parent.className(),
+                                    parent.parentMessageName(),
+                                    Common.snakeToCamel(parent.name(), true))
+                    : parseCode();
             if (repeated) {
                 // spotless:off
                 return
@@ -287,21 +315,25 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
                    .formatted(fieldNumber, fieldNameToSet, fieldNameToSet, fieldNameToSet, valueToSet);
                 // spotless:on
             } else {
-                return "case %d -> this.%s = %s;".formatted(fieldNumber, fieldNameToSet,valueToSet);
+                return "case %d -> this.%s = %s;".formatted(fieldNumber, fieldNameToSet, valueToSet);
             }
         } else if (type == FieldType.ENUM) {
             if (repeated) {
-                return "case %d -> this.%s = input.stream().map(%s::fromProtobufOrdinal).toList();".formatted(fieldNumber, fieldNameToSet,
-                        Common.snakeToCamel(messageType, true));
+                return "case %d -> this.%s = input.stream().map(%s::fromProtobufOrdinal).toList();"
+                        .formatted(fieldNumber, fieldNameToSet, Common.snakeToCamel(messageType, true));
             } else {
-                return "case %d -> this.%s = %s.fromProtobufOrdinal(input);".formatted(fieldNumber, fieldNameToSet,
-                        Common.snakeToCamel(messageType, true));
+                return "case %d -> this.%s = %s.fromProtobufOrdinal(input);"
+                        .formatted(fieldNumber, fieldNameToSet, Common.snakeToCamel(messageType, true));
             }
         } else if (repeated && (type == FieldType.STRING || type == FieldType.BYTES)) {
-            final String valueToSet = parent != null ?
-                    "new %s<>(%s.%sOneOfType.%s,input)".formatted(parent.className(), parent.parentMessageName(),
-                            Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name)) :
-                    "input";
+            final String valueToSet = parent != null
+                    ? "new %s<>(%s.%sOneOfType.%s,input)"
+                            .formatted(
+                                    parent.className(),
+                                    parent.parentMessageName(),
+                                    Common.snakeToCamel(parent.name(), true),
+                                    Common.camelToUpperSnake(name))
+                    : "input";
             // spotless:off
             return
                     """
@@ -315,11 +347,15 @@ public record SingleField(boolean repeated, FieldType type, int fieldNumber, Str
                     .formatted(fieldNumber, fieldNameToSet, fieldNameToSet, fieldNameToSet, valueToSet);
             // spotless:on
         } else {
-            final String valueToSet = parent != null ?
-                    "new %s<>(%s.%sOneOfType.%s,input)".formatted(parent.className(), parent.parentMessageName(),
-                            Common.snakeToCamel(parent.name(), true), Common.camelToUpperSnake(name)) :
-                    "input";
-            return "case %d -> this.%s = %s;".formatted(fieldNumber, fieldNameToSet,valueToSet);
+            final String valueToSet = parent != null
+                    ? "new %s<>(%s.%sOneOfType.%s,input)"
+                            .formatted(
+                                    parent.className(),
+                                    parent.parentMessageName(),
+                                    Common.snakeToCamel(parent.name(), true),
+                                    Common.camelToUpperSnake(name))
+                    : "input";
+            return "case %d -> this.%s = %s;".formatted(fieldNumber, fieldNameToSet, valueToSet);
         }
     }
 

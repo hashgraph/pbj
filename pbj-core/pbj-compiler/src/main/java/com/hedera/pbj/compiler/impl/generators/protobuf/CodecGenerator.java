@@ -10,7 +10,6 @@ import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.generators.Generator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -29,8 +28,12 @@ public final class CodecGenerator implements Generator {
     /**
      * {@inheritDoc}
      */
-    public void generate(Protobuf3Parser.MessageDefContext msgDef, final File destinationSrcDir,
-                         File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+    public void generate(
+            Protobuf3Parser.MessageDefContext msgDef,
+            final File destinationSrcDir,
+            File destinationTestSrcDir,
+            final ContextualLookupHelper lookupHelper)
+            throws IOException {
         final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final String codecClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.CODEC, msgDef);
         final String codecPackage = lookupHelper.getPackageForMessage(FileType.CODEC, msgDef);
@@ -41,7 +44,7 @@ public final class CodecGenerator implements Generator {
         imports.add(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef));
         imports.add(lookupHelper.getPackageForMessage(FileType.SCHEMA, msgDef));
 
-        for(var item: msgDef.messageBody().messageElement()) {
+        for (var item : msgDef.messageBody().messageElement()) {
             if (item.messageDef() != null) { // process sub messages
                 generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
             } else if (item.oneof() != null) { // process one ofs

@@ -121,8 +121,6 @@ public interface ServiceInterface {
      */
     @NonNull
     Pipeline<? super Bytes> open(
-            @NonNull Method method,
-            @NonNull RequestOptions opts,
-            @NonNull Pipeline<? super Bytes> responses)
+            @NonNull Method method, @NonNull RequestOptions opts, @NonNull Pipeline<? super Bytes> responses)
             throws GrpcException;
 }

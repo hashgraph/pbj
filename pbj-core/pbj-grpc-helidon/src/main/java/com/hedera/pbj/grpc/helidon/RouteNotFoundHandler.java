@@ -14,14 +14,12 @@ import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
-
 import java.util.Objects;
 
 /**
  * A handler for the case where the path is not found.
  */
-final class RouteNotFoundHandler
-        implements Http2SubProtocolSelector.SubProtocolHandler {
+final class RouteNotFoundHandler implements Http2SubProtocolSelector.SubProtocolHandler {
     private final Http2StreamWriter streamWriter;
     private final int streamId;
     private Http2StreamState currentStreamState;
@@ -50,8 +48,7 @@ final class RouteNotFoundHandler
         streamWriter.writeHeaders(
                 http2Headers,
                 streamId,
-                Http2Flag.HeaderFlags.create(
-                        Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
+                Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
                 FlowControl.Outbound.NOOP);
         currentStreamState = Http2StreamState.HALF_CLOSED_LOCAL;
     }

@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package tests;
 
-import com.hedera.pbj.runtime.EnumWithProtoMetadata;
-import com.hedera.pbj.runtime.OneOf;
-import org.junit.jupiter.api.Test;
-
-import java.util.Objects;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import com.hedera.pbj.runtime.EnumWithProtoMetadata;
+import com.hedera.pbj.runtime.OneOf;
+import org.junit.jupiter.api.Test;
 
 class OneOfTest {
     @Test
@@ -32,7 +30,8 @@ class OneOfTest {
     @Test
     void hashCodeReturnsHashCode() {
         final var oneOf = new OneOf<>(TestEnum.KIND1, "Value");
-        assertEquals((31 + Integer.hashCode(TestEnum.KIND1.protoOrdinal())) * 31 + "Value".hashCode(), oneOf.hashCode());
+        assertEquals(
+                (31 + Integer.hashCode(TestEnum.KIND1.protoOrdinal())) * 31 + "Value".hashCode(), oneOf.hashCode());
     }
 
     @Test
@@ -64,5 +63,4 @@ class OneOfTest {
             return name();
         }
     }
-
 }

@@ -10,9 +10,7 @@ import java.util.function.Function;
  * @param <T> function argument type
  * @param <R> function return type
  */
-public final record UncheckedThrowingFunction<T, R>(
-        ThrowingFunction<T, R> function
-) implements Function<T, R>  {
+public final record UncheckedThrowingFunction<T, R>(ThrowingFunction<T, R> function) implements Function<T, R> {
 
     /** A function that can throw checked exceptions. */
     public static interface ThrowingFunction<T, R> {

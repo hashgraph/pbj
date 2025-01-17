@@ -68,7 +68,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws UncheckedIOException if an I/O error occurs
      */
     default void writeUnsignedByte(final int b) throws BufferOverflowException, UncheckedIOException {
-        writeByte((byte)b);
+        writeByte((byte) b);
     }
 
     /**
@@ -414,8 +414,7 @@ public interface WritableSequentialData extends SequentialData {
      * @throws BufferOverflowException If there are fewer than eight bytes remaining before {@link #limit()}
      * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeVarLong(long value, final boolean zigZag)
-            throws BufferOverflowException, UncheckedIOException {
+    default void writeVarLong(long value, final boolean zigZag) throws BufferOverflowException, UncheckedIOException {
         if (zigZag) {
             value = (value << 1) ^ (value >> 63);
         }

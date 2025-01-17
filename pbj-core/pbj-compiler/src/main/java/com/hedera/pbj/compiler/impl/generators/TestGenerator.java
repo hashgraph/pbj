@@ -12,7 +12,6 @@ import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -31,25 +30,30 @@ public final class TestGenerator implements Generator {
     /**
      * {@inheritDoc}
      */
-    public void generate(Protobuf3Parser.MessageDefContext msgDef, File destinationSrcDir,
-                         File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+    public void generate(
+            Protobuf3Parser.MessageDefContext msgDef,
+            File destinationSrcDir,
+            File destinationTestSrcDir,
+            final ContextualLookupHelper lookupHelper)
+            throws IOException {
         final var modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final var testClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.TEST, msgDef);
         final String testPackage = lookupHelper.getPackageForMessage(FileType.TEST, msgDef);
-        final String protoCJavaFullQualifiedClass = lookupHelper.getFullyQualifiedMessageClassname(FileType.PROTOC,msgDef);
+        final String protoCJavaFullQualifiedClass =
+                lookupHelper.getFullyQualifiedMessageClassname(FileType.PROTOC, msgDef);
         final File javaFile = Common.getJavaFile(destinationTestSrcDir, testPackage, testClassName);
         final List<Field> fields = new ArrayList<>();
         final Set<String> imports = new TreeSet<>();
         imports.add("com.hedera.pbj.runtime.io.buffer");
         imports.add(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef));
-        for (final var item: msgDef.messageBody().messageElement()) {
+        for (final var item : msgDef.messageBody().messageElement()) {
             if (item.messageDef() != null) { // process sub messages
                 generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
             } else if (item.oneof() != null) { // process one ofs
                 final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
                 fields.add(field);
                 field.addAllNeededImports(imports, true, false, true);
-                for(var subField : field.fields()) {
+                for (var subField : field.fields()) {
                     subField.addAllNeededImports(imports, true, false, true);
                 }
             } else if (item.mapField() != null) { // process map fields
@@ -215,16 +219,19 @@ public final class TestGenerator implements Generator {
             // spotless:on
         } else if (field instanceof final MapField mapField) {
             // e.g. INTEGER_TESTS_LIST
-            final String keyOptions = getOptionsForFieldType(mapField.keyField().type(), mapField.keyField().javaFieldType());
+            final String keyOptions = getOptionsForFieldType(
+                    mapField.keyField().type(), mapField.keyField().javaFieldType());
             // e.g. STRING_TESTS_LIST, or, say, CustomMessageTest.ARGUMENTS
-            final String valueOptions = getOptionsForFieldType(mapField.valueField().type(), mapField.valueField().javaFieldType());
+            final String valueOptions = getOptionsForFieldType(
+                    mapField.valueField().type(), mapField.valueField().javaFieldType());
 
             // A cartesian product is nice to use, but it doesn't seem reasonable from the performance perspective.
             // Instead, we want to test three cases:
             // 1. Empty map
             // 2. Map with a single entry
             // 3. Map with multiple (e.g. two) entries
-            // Note that keys and value options lists may be pretty small. E.g. Boolean would only have 2 elements. So we use mod.
+            // Note that keys and value options lists may be pretty small. E.g. Boolean would only have 2 elements. So
+            // we use mod.
             // Also note that we assume there's at least one element in each list.
             // spotless:off
             return """
@@ -241,7 +248,7 @@ public final class TestGenerator implements Generator {
                     .replace("$valueOptions", valueOptions);
             // spotless:on
         } else {
-            return getOptionsForFieldType(field.type(), ((SingleField)field).javaFieldTypeForTest());
+            return getOptionsForFieldType(field.type(), ((SingleField) field).javaFieldTypeForTest());
         }
     }
 
@@ -272,9 +279,11 @@ public final class TestGenerator implements Generator {
             case STRING -> "STRING_TESTS_LIST";
             case BYTES -> "BYTES_TESTS_LIST";
             case ENUM -> "Arrays.asList(%s.values())".formatted(javaFieldType);
-            case ONE_OF -> throw new RuntimeException("Should never happen, should have been caught in generateTestData()");
+            case ONE_OF -> throw new RuntimeException(
+                    "Should never happen, should have been caught in generateTestData()");
             case MESSAGE -> "%s%s.ARGUMENTS".formatted(javaFieldType, FileAndPackageNamesConfig.TEST_JAVA_FILE_SUFFIX);
-            case MAP -> throw new RuntimeException("Should never happen, should have been caught in generateTestData()");
+            case MAP -> throw new RuntimeException(
+                    "Should never happen, should have been caught in generateTestData()");
         };
     }
 

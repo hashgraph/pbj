@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.buffer;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
@@ -15,16 +17,13 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.HexFormat;
-
-import java.security.MessageDigest;
 import java.util.Comparator;
-
-import static java.util.Objects.requireNonNull;
+import java.util.HexFormat;
 
 /**
  * An immutable representation of a byte array. This class is designed to be efficient and usable across threads.
@@ -36,17 +35,17 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     public static final Bytes EMPTY = new Bytes(new byte[0]);
 
     /** Sorts {@link Bytes} according to their length, shorter first. */
-    public static final Comparator<Bytes> SORT_BY_LENGTH = (Bytes o1, Bytes o2) ->
-            Comparator.comparingLong(Bytes::length).compare(o1, o2);
+    public static final Comparator<Bytes> SORT_BY_LENGTH =
+            (Bytes o1, Bytes o2) -> Comparator.comparingLong(Bytes::length).compare(o1, o2);
 
     /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
-      * Bytes are compared on a signed basis.
-      */
+     * Bytes are compared on a signed basis.
+     */
     public static final Comparator<Bytes> SORT_BY_SIGNED_VALUE = valueSorter(Byte::compare);
 
     /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
-      * Bytes are compared on an unsigned basis
-      */
+     * Bytes are compared on an unsigned basis
+     */
     public static final Comparator<Bytes> SORT_BY_UNSIGNED_VALUE = valueSorter(Byte::compareUnsigned);
 
     /** byte[] used as backing buffer */
@@ -88,8 +87,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         this.length = length;
 
         if (offset < 0 || offset > data.length) {
-            throw new IndexOutOfBoundsException("Offset " + offset + " is out of bounds for buffer of length "
-                    + data.length);
+            throw new IndexOutOfBoundsException(
+                    "Offset " + offset + " is out of bounds for buffer of length " + data.length);
         }
 
         if (length < 0) {
@@ -97,8 +96,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         }
 
         if (offset + length > data.length) {
-            throw new IllegalArgumentException("Length " + length + " is too large buffer of length "
-                    + data.length + " starting at offset " + offset);
+            throw new IllegalArgumentException("Length " + length + " is too large buffer of length " + data.length
+                    + " starting at offset " + offset);
         }
     }
 
@@ -376,6 +375,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     public InputStream toInputStream() {
         return new InputStream() {
             private long pos = 0;
+
             @Override
             public int read() throws IOException {
                 if (length - pos <= 0) {
@@ -431,7 +431,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
             return Base64.getEncoder().encodeToString(buffer);
         } else {
             byte[] bytes = new byte[length];
-            getBytes(0,bytes);
+            getBytes(0, bytes);
             return Base64.getEncoder().encodeToString(bytes);
         }
     }
@@ -442,7 +442,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @return Hex encoded string of the bytes in this object.
      */
     public String toHex() {
-        return HexFormat.of().formatHex(buffer,start,start+length);
+        return HexFormat.of().formatHex(buffer, start, start + length);
     }
 
     /**
@@ -585,7 +585,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
             return false;
         }
         validateOffset(offset);
-        return Arrays.equals(buffer, Math.toIntExact(start + offset), Math.toIntExact(start + offset + len), bytes, 0, len);
+        return Arrays.equals(
+                buffer, Math.toIntExact(start + offset), Math.toIntExact(start + offset + len), bytes, 0, len);
     }
 
     /** {@inheritDoc} */
@@ -639,8 +640,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         if (suppliedOffset + suppliedLength > length) {
             throw new IndexOutOfBoundsException(
                     "The offset(%d) and length(%d) provided are out of bounds for this Bytes object, which has a length of %d"
-                            .formatted(suppliedOffset, suppliedLength, length)
-            );
+                            .formatted(suppliedOffset, suppliedLength, length));
         }
     }
 
@@ -655,8 +655,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /** Sorts {@link Bytes} according to their byte values, lower valued bytes first.
-      * Bytes are compared using the passed in Byte Comparator
-      */
+     * Bytes are compared using the passed in Byte Comparator
+     */
     private static Comparator<Bytes> valueSorter(@NonNull final Comparator<Byte> byteComparator) {
         return (Bytes o1, Bytes o2) -> {
             final var val = Math.min(o1.length(), o2.length());
@@ -689,9 +689,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         // The length field of Bytes is int. The length() returns always an int,
         // so safe to cast.
         long length = this.length();
-        byte[] newBytes = new byte[(int)(length + (int)bytes.length())];
+        byte[] newBytes = new byte[(int) (length + (int) bytes.length())];
         this.getBytes(0, newBytes, 0, (int) length);
-        bytes.getBytes(0, newBytes, (int) length, (int)bytes.length());
+        bytes.getBytes(0, newBytes, (int) length, (int) bytes.length());
         return Bytes.wrap(newBytes);
     }
 
@@ -706,10 +706,10 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     public Bytes append(@NonNull final RandomAccessData data) {
         // The length field of Bytes is int. The length(0 returns always an int,
         // so safe to cast.
-        byte[] newBytes = new byte[(int)(this.length() + (int)data.length())];
+        byte[] newBytes = new byte[(int) (this.length() + (int) data.length())];
         int length1 = (int) this.length();
         this.getBytes(0, newBytes, 0, length1);
-        data.getBytes(0, newBytes, length1, (int)data.length());
+        data.getBytes(0, newBytes, length1, (int) data.length());
         return Bytes.wrap(newBytes);
     }
 
@@ -751,5 +751,4 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         }
         throw new DataEncodingException("Malformed var int");
     }
-
 }

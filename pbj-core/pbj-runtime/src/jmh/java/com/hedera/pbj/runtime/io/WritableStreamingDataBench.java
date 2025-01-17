@@ -63,5 +63,4 @@ public class WritableStreamingDataBench {
         assert out.position() == SIZE;
         assert bout.toByteArray().length == SIZE;
     }
-
 }

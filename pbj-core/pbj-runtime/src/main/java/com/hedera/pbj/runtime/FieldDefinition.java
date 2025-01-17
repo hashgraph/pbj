@@ -24,7 +24,8 @@ package com.hedera.pbj.runtime;
  * @param oneOf    Whether this is a field is part of a oneOf
  * @param number   The field number. Must be &gt;= 0.
  */
-public record FieldDefinition(String name, FieldType type, boolean repeated, boolean optional, boolean oneOf, int number) {
+public record FieldDefinition(
+        String name, FieldType type, boolean repeated, boolean optional, boolean oneOf, int number) {
     /**
      * Construct new FieldDefinition, standard record all args constructor with extra checks
      *

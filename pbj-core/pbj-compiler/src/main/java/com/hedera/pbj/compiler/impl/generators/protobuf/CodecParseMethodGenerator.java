@@ -9,7 +9,6 @@ import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.PbjCompilerException;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -172,10 +171,10 @@ class CodecParseMethodGenerator {
      */
     private static String generateCaseStatements(final List<Field> fields) {
         StringBuilder sb = new StringBuilder();
-        for (Field field: fields) {
+        for (Field field : fields) {
             if (field instanceof final OneOfField oneOfField) {
-                for (final Field subField: oneOfField.fields()) {
-                    generateFieldCaseStatement(sb,subField);
+                for (final Field subField : oneOfField.fields()) {
+                    generateFieldCaseStatement(sb, subField);
                 }
             } else if (field.repeated() && field.type().wireType() != Common.TYPE_LENGTH_DELIMITED) {
                 // for repeated fields that are not length encoded there are 2 forms they can be stored in file.
@@ -239,7 +238,9 @@ class CodecParseMethodGenerator {
      * @param sb StringBuilder to append code to
      */
     private static void generateFieldCaseStatement(final StringBuilder sb, final Field field) {
-        final int wireType = field.optionalValueType() ? Common.TYPE_LENGTH_DELIMITED : field.type().wireType();
+        final int wireType = field.optionalValueType()
+                ? Common.TYPE_LENGTH_DELIMITED
+                : field.type().wireType();
         final int fieldNum = field.fieldNumber();
         final int tag = Common.getTag(wireType, fieldNum);
         // spotless:off

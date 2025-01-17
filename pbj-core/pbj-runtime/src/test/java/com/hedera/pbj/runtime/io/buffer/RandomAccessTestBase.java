@@ -28,17 +28,53 @@ public abstract class RandomAccessTestBase extends ReadableTestBase {
     protected abstract RandomAccessData randomAccessData(@NonNull final byte[] bytes);
 
     static IntStream testIntegers() {
-        return IntStream.of(Integer.MIN_VALUE, Integer.MIN_VALUE + 1,
-                -65536, -65535, -101, -9, -1, 0, 1, 4, 59, 255, 1023, 1024, 1025, 10000,
-                Integer.MAX_VALUE - 1, Integer.MAX_VALUE);
+        return IntStream.of(
+                Integer.MIN_VALUE,
+                Integer.MIN_VALUE + 1,
+                -65536,
+                -65535,
+                -101,
+                -9,
+                -1,
+                0,
+                1,
+                4,
+                59,
+                255,
+                1023,
+                1024,
+                1025,
+                10000,
+                Integer.MAX_VALUE - 1,
+                Integer.MAX_VALUE);
     }
 
     static LongStream testLongs() {
-        return LongStream.of(Long.MIN_VALUE, Long.MIN_VALUE + 1,
-                (long) Integer.MIN_VALUE - 1, Integer.MIN_VALUE, Integer.MIN_VALUE + 1,
-                -65536, -65535, -101, -9, -1, 0, 1, 4, 59, 255, 1023, 1024, 1025, 10000,
-                Integer.MAX_VALUE - 1, Integer.MAX_VALUE, (long) Integer.MAX_VALUE + 1,
-                Long.MAX_VALUE - 1, Long.MAX_VALUE);
+        return LongStream.of(
+                Long.MIN_VALUE,
+                Long.MIN_VALUE + 1,
+                (long) Integer.MIN_VALUE - 1,
+                Integer.MIN_VALUE,
+                Integer.MIN_VALUE + 1,
+                -65536,
+                -65535,
+                -101,
+                -9,
+                -1,
+                0,
+                1,
+                4,
+                59,
+                255,
+                1023,
+                1024,
+                1025,
+                10000,
+                Integer.MAX_VALUE - 1,
+                Integer.MAX_VALUE,
+                (long) Integer.MAX_VALUE + 1,
+                Long.MAX_VALUE - 1,
+                Long.MAX_VALUE);
     }
 
     @Test
@@ -48,7 +84,7 @@ public abstract class RandomAccessTestBase extends ReadableTestBase {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = { "", "a", "ab", "abc", "✅" })
+    @ValueSource(strings = {"", "a", "ab", "abc", "✅"})
     void utf8Strings(final String s) {
         final var buf = randomAccessData(s.getBytes(StandardCharsets.UTF_8));
         assertThat(buf.asUtf8String()).isEqualTo(s);
@@ -83,29 +119,36 @@ public abstract class RandomAccessTestBase extends ReadableTestBase {
 
     @Test
     void matchesPrefixByteArray() {
-        final RandomAccessData data = randomAccessData(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09});
+        final RandomAccessData data =
+                randomAccessData(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09});
 
-        assertTrue(data.matchesPrefix(new byte[]{0x01}));
-        assertTrue(data.matchesPrefix(new byte[]{0x01,0x02}));
-        assertTrue(data.matchesPrefix(new byte[]{0x01,0x02,0x03,0x04,}));
-        assertTrue(data.matchesPrefix(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09}));
+        assertTrue(data.matchesPrefix(new byte[] {0x01}));
+        assertTrue(data.matchesPrefix(new byte[] {0x01, 0x02}));
+        assertTrue(data.matchesPrefix(new byte[] {
+            0x01, 0x02, 0x03, 0x04,
+        }));
+        assertTrue(data.matchesPrefix(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09}));
 
-        assertFalse(data.matchesPrefix(new byte[]{0x02}));
-        assertFalse(data.matchesPrefix(new byte[]{0x01,0x02,0x03,0x02}));
-        assertFalse(data.matchesPrefix(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x00}));
+        assertFalse(data.matchesPrefix(new byte[] {0x02}));
+        assertFalse(data.matchesPrefix(new byte[] {0x01, 0x02, 0x03, 0x02}));
+        assertFalse(data.matchesPrefix(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x00}));
     }
 
     @Test
     void matchesPrefixBytes() {
-        final RandomAccessData data = randomAccessData(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09});
-        assertTrue(data.matchesPrefix(Bytes.wrap(new byte[]{0x01})));
-        assertTrue(data.matchesPrefix(Bytes.wrap(new byte[]{0x01,0x02})));
-        assertTrue(data.matchesPrefix(Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,})));
-        assertTrue(data.matchesPrefix(Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09})));
+        final RandomAccessData data =
+                randomAccessData(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09});
+        assertTrue(data.matchesPrefix(Bytes.wrap(new byte[] {0x01})));
+        assertTrue(data.matchesPrefix(Bytes.wrap(new byte[] {0x01, 0x02})));
+        assertTrue(data.matchesPrefix(Bytes.wrap(new byte[] {
+            0x01, 0x02, 0x03, 0x04,
+        })));
+        assertTrue(data.matchesPrefix(Bytes.wrap(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09})));
 
-        assertFalse(data.matchesPrefix(Bytes.wrap(new byte[]{0x02})));
-        assertFalse(data.matchesPrefix(Bytes.wrap(new byte[]{0x01,0x02,0x03,0x02})));
-        assertFalse(data.matchesPrefix(Bytes.wrap(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x00})));
+        assertFalse(data.matchesPrefix(Bytes.wrap(new byte[] {0x02})));
+        assertFalse(data.matchesPrefix(Bytes.wrap(new byte[] {0x01, 0x02, 0x03, 0x02})));
+        assertFalse(data.matchesPrefix(
+                Bytes.wrap(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x00})));
     }
 
     @Test
@@ -117,45 +160,45 @@ public abstract class RandomAccessTestBase extends ReadableTestBase {
 
     @Test
     void containsZeroOffset() {
-        final RandomAccessData data = randomAccessData(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06});
-        assertTrue(data.contains(0, new byte[]{0x01}));
-        assertTrue(data.contains(0, new byte[]{0x01,0x02}));
-        assertTrue(data.contains(0, new byte[]{0x01,0x02,0x03,0x04,0x05,0x06}));
-        assertFalse(data.contains(0, new byte[]{0x01,0x02,0x02}));
-        assertFalse(data.contains(0, new byte[]{0x02,0x02}));
-        assertFalse(data.contains(0, new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07}));
+        final RandomAccessData data = randomAccessData(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06});
+        assertTrue(data.contains(0, new byte[] {0x01}));
+        assertTrue(data.contains(0, new byte[] {0x01, 0x02}));
+        assertTrue(data.contains(0, new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06}));
+        assertFalse(data.contains(0, new byte[] {0x01, 0x02, 0x02}));
+        assertFalse(data.contains(0, new byte[] {0x02, 0x02}));
+        assertFalse(data.contains(0, new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}));
 
         final RandomAccessData slice = data.slice(1, 4);
-        assertTrue(slice.contains(0, new byte[]{0x02}));
-        assertTrue(slice.contains(0, new byte[]{0x02,0x03}));
-        assertTrue(slice.contains(0, new byte[]{0x02,0x03,0x04,0x05}));
-        assertFalse(slice.contains(0, new byte[]{0x01}));
-        assertFalse(slice.contains(0, new byte[]{0x02,0x02}));
-        assertFalse(slice.contains(0, new byte[]{0x02,0x03,0x04,0x05,0x06}));
+        assertTrue(slice.contains(0, new byte[] {0x02}));
+        assertTrue(slice.contains(0, new byte[] {0x02, 0x03}));
+        assertTrue(slice.contains(0, new byte[] {0x02, 0x03, 0x04, 0x05}));
+        assertFalse(slice.contains(0, new byte[] {0x01}));
+        assertFalse(slice.contains(0, new byte[] {0x02, 0x02}));
+        assertFalse(slice.contains(0, new byte[] {0x02, 0x03, 0x04, 0x05, 0x06}));
     }
 
     @Test
     void containsNonZeroOffset() {
-        final RandomAccessData data = randomAccessData(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06});
-        assertTrue(data.contains(1, new byte[]{0x02}));
-        assertTrue(data.contains(1, new byte[]{0x02,0x03}));
-        assertTrue(data.contains(1, new byte[]{0x02,0x03,0x04,0x05,0x06}));
-        assertFalse(data.contains(1, new byte[]{0x02,0x03,0x03}));
-        assertFalse(data.contains(1, new byte[]{0x03,0x03}));
-        assertFalse(data.contains(1, new byte[]{0x02,0x03,0x04,0x05,0x06,0x07}));
+        final RandomAccessData data = randomAccessData(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06});
+        assertTrue(data.contains(1, new byte[] {0x02}));
+        assertTrue(data.contains(1, new byte[] {0x02, 0x03}));
+        assertTrue(data.contains(1, new byte[] {0x02, 0x03, 0x04, 0x05, 0x06}));
+        assertFalse(data.contains(1, new byte[] {0x02, 0x03, 0x03}));
+        assertFalse(data.contains(1, new byte[] {0x03, 0x03}));
+        assertFalse(data.contains(1, new byte[] {0x02, 0x03, 0x04, 0x05, 0x06, 0x07}));
 
         final RandomAccessData slice = data.slice(1, 4);
-        assertTrue(slice.contains(1, new byte[]{0x03}));
-        assertTrue(slice.contains(1, new byte[]{0x03,0x04}));
-        assertTrue(slice.contains(1, new byte[]{0x03,0x04,0x05}));
-        assertFalse(slice.contains(1, new byte[]{0x02}));
-        assertFalse(slice.contains(1, new byte[]{0x03,0x03}));
-        assertFalse(slice.contains(1, new byte[]{0x03,0x04,0x05,0x06}));
+        assertTrue(slice.contains(1, new byte[] {0x03}));
+        assertTrue(slice.contains(1, new byte[] {0x03, 0x04}));
+        assertTrue(slice.contains(1, new byte[] {0x03, 0x04, 0x05}));
+        assertFalse(slice.contains(1, new byte[] {0x02}));
+        assertFalse(slice.contains(1, new byte[] {0x03, 0x03}));
+        assertFalse(slice.contains(1, new byte[] {0x03, 0x04, 0x05, 0x06}));
     }
 
     @Test
     void getInt() {
-        final RandomAccessData data = randomAccessData(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06});
+        final RandomAccessData data = randomAccessData(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06});
         assertEquals(0x01020304, data.getInt(0));
         assertEquals(0x02030405, data.getInt(1));
 
@@ -166,7 +209,8 @@ public abstract class RandomAccessTestBase extends ReadableTestBase {
 
     @Test
     void getLong() {
-        final RandomAccessData data = randomAccessData(new byte[]{0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A});
+        final RandomAccessData data =
+                randomAccessData(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A});
         assertEquals(0x0102030405060708L, data.getLong(0));
         assertEquals(0x0203040506070809L, data.getLong(1));
 
@@ -238,5 +282,4 @@ public abstract class RandomAccessTestBase extends ReadableTestBase {
         data = randomAccessData(writtenBytes);
         assertEquals(num, data.getVarLong(0, true));
     }
-
 }

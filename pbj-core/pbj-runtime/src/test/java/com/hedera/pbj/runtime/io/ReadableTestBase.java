@@ -1,11 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
+import static java.nio.ByteOrder.BIG_ENDIAN;
+import static java.nio.ByteOrder.LITTLE_ENDIAN;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,16 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
-
-import java.nio.BufferOverflowException;
-import java.nio.BufferUnderflowException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import static java.nio.ByteOrder.BIG_ENDIAN;
-import static java.nio.ByteOrder.LITTLE_ENDIAN;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Base test class for testing {@link ReadableSequentialData} and {@link RandomAccessData}. Both classes
@@ -144,7 +144,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @DisplayName("Reading an unsigned byte")
         void read() {
             // Given a sequence of bytes (with a single byte that could be interpreted as negative if signed)
-            final var seq = sequence(new byte[] { (byte) 0b1110_0011 });
+            final var seq = sequence(new byte[] {(byte) 0b1110_0011});
             // When we read the byte, then we get the expected byte and move the position forward by a single byte
             final var pos = seq.position();
             assertThat(seq.readUnsignedByte()).isEqualTo(0b1110_0011);
@@ -181,7 +181,8 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         void negativeOffsetThrows() {
             // Given a sequence of bytes
             final var seq = sequence(TEST_BYTES);
-            // When we try to read bytes using a byte array with a negative offset, then we get an IndexOutOfBoundsException
+            // When we try to read bytes using a byte array with a negative offset, then we get an
+            // IndexOutOfBoundsException
             assertThatThrownBy(() -> seq.readBytes(new byte[10], -1, 10)).isInstanceOf(IndexOutOfBoundsException.class);
         }
 
@@ -192,8 +193,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             final var seq = sequence(TEST_BYTES);
             // When we try to read bytes using a byte array with an offset that is too large,
             // then we get an IndexOutOfBoundsException
-            assertThatThrownBy(() -> seq.readBytes(new byte[10], 11, 10))
-                    .isInstanceOf(IndexOutOfBoundsException.class);
+            assertThatThrownBy(() -> seq.readBytes(new byte[10], 11, 10)).isInstanceOf(IndexOutOfBoundsException.class);
             // When we try to read bytes using a byte array with an offset + maxLength that is too large,
             // then we get an IndexOutOfBoundsException
             assertThatThrownBy(() -> seq.readBytes(new byte[10], 9, 2))
@@ -205,7 +205,8 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         void negativeLengthThrows() {
             // Given a sequence of bytes
             final var seq = sequence(TEST_BYTES);
-            // When we try to read bytes using a byte array with a negative length, then we get an IllegalArgumentException
+            // When we try to read bytes using a byte array with a negative length, then we get an
+            // IllegalArgumentException
             assertThatThrownBy(() -> seq.readBytes(new byte[10], 0, -1)).isInstanceOf(IllegalArgumentException.class);
             assertThatThrownBy(() -> seq.readBytes(-1)).isInstanceOf(IllegalArgumentException.class);
         }
@@ -317,7 +318,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             final var pos = seq.position();
             // When we try to read bytes into the dst but with a 0 length, then the position does not change,
             // and the destination array is empty
-            assertThat(seq.readBytes(dst, 5,0)).isZero();
+            assertThat(seq.readBytes(dst, 5, 0)).isZero();
             assertThat(seq.position()).isEqualTo(pos);
             assertThat(dst).containsExactly(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
@@ -498,7 +499,8 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         }
 
         @Test
-        @DisplayName("Reading bytes into a dst BufferedData with offset where the dst is the same length as the sequence")
+        @DisplayName(
+                "Reading bytes into a dst BufferedData with offset where the dst is the same length as the sequence")
         void readDstBufferedDataWithOffset() {
             final var seq = sequence(TEST_BYTES);
             final var dst = BufferedData.allocate(TEST_BYTES.length + 10);
@@ -511,7 +513,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest
-        @ValueSource(ints = { 1, 5, 26 })
+        @ValueSource(ints = {1, 5, 26})
         @DisplayName("Reading a number of bytes into Bytes where the length is > 0 and <= remaining")
         void readBytes(final int length) {
             final var seq = sequence(TEST_BYTES);
@@ -546,7 +548,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             // Then the sequence is exhausted and the array is filled starting at index 5
             assertThat(seq.remaining()).isZero();
             assertThat(seq.hasRemaining()).isFalse();
-            assertThat(Arrays.copyOfRange(arr, 5, TEST_BYTES.length + 5 )).containsExactly(TEST_BYTES);
+            assertThat(Arrays.copyOfRange(arr, 5, TEST_BYTES.length + 5)).containsExactly(TEST_BYTES);
         }
 
         @Test
@@ -576,7 +578,8 @@ public abstract class ReadableTestBase extends SequentialTestBase {
             // Then the sequence is exhausted and the buffer is filled starting at index 5
             assertThat(seq.remaining()).isZero();
             assertThat(seq.hasRemaining()).isFalse();
-            assertThat(Arrays.copyOfRange(buffer.array(), 5, TEST_BYTES.length + 5 )).containsExactly(TEST_BYTES);
+            assertThat(Arrays.copyOfRange(buffer.array(), 5, TEST_BYTES.length + 5))
+                    .containsExactly(TEST_BYTES);
         }
 
         @Test
@@ -611,9 +614,9 @@ public abstract class ReadableTestBase extends SequentialTestBase {
 
         @ParameterizedTest(name = "offset={0}, length={1}")
         @CsvSource({
-                "-1, 1", // Negative offset
-                "100, 10", // Offset larger than the dst array size
-                "5, 10", // Offset+Length larger than the dst array size
+            "-1, 1", // Negative offset
+            "100, 10", // Offset larger than the dst array size
+            "5, 10", // Offset+Length larger than the dst array size
         })
         @DisplayName("Reading bytes where the dst offset and length are bad")
         void badOffsetLength(int offset, int length) {
@@ -1011,7 +1014,19 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(floats = {Float.NaN, Float.NEGATIVE_INFINITY, Float.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Float.MAX_VALUE, Float.POSITIVE_INFINITY})
+        @ValueSource(
+                floats = {
+                    Float.NaN,
+                    Float.NEGATIVE_INFINITY,
+                    Float.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Float.MAX_VALUE,
+                    Float.POSITIVE_INFINITY
+                })
         @DisplayName("Reading a float")
         void read(float value) {
             final var seq = sequence(asBytes(c -> c.putFloat(value)));
@@ -1026,7 +1041,19 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(floats = {Float.NaN, Float.NEGATIVE_INFINITY, Float.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Float.MAX_VALUE, Float.POSITIVE_INFINITY})
+        @ValueSource(
+                floats = {
+                    Float.NaN,
+                    Float.NEGATIVE_INFINITY,
+                    Float.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Float.MAX_VALUE,
+                    Float.POSITIVE_INFINITY
+                })
         @DisplayName("Reading a float in Little Endian")
         void readLittleEndian(float value) {
             final var seq = sequence(asBytes(c -> c.putFloat(value), LITTLE_ENDIAN));
@@ -1041,7 +1068,19 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(floats = {Float.NaN, Float.NEGATIVE_INFINITY, Float.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Float.MAX_VALUE, Float.POSITIVE_INFINITY})
+        @ValueSource(
+                floats = {
+                    Float.NaN,
+                    Float.NEGATIVE_INFINITY,
+                    Float.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Float.MAX_VALUE,
+                    Float.POSITIVE_INFINITY
+                })
         @DisplayName("Reading a float in Big Endian")
         void readBigEndian(float value) {
             final var seq = sequence(asBytes(c -> c.putFloat(value), BIG_ENDIAN));
@@ -1114,7 +1153,19 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(doubles = {Double.NaN, Double.NEGATIVE_INFINITY, Double.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Double.MAX_VALUE, Double.POSITIVE_INFINITY})
+        @ValueSource(
+                doubles = {
+                    Double.NaN,
+                    Double.NEGATIVE_INFINITY,
+                    Double.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Double.MAX_VALUE,
+                    Double.POSITIVE_INFINITY
+                })
         @DisplayName("Reading a double")
         void read(double value) {
             final var seq = sequence(asBytes(c -> c.putDouble(value)));
@@ -1129,7 +1180,19 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(doubles = {Double.NaN, Double.NEGATIVE_INFINITY, Double.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Double.MAX_VALUE, Double.POSITIVE_INFINITY})
+        @ValueSource(
+                doubles = {
+                    Double.NaN,
+                    Double.NEGATIVE_INFINITY,
+                    Double.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Double.MAX_VALUE,
+                    Double.POSITIVE_INFINITY
+                })
         @DisplayName("Reading a double in Little Endian")
         void readLittleEndian(double value) {
             final var seq = sequence(asBytes(c -> c.putDouble(value), LITTLE_ENDIAN));
@@ -1144,7 +1207,19 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(doubles = {Double.NaN, Double.NEGATIVE_INFINITY, Double.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Double.MAX_VALUE, Double.POSITIVE_INFINITY})
+        @ValueSource(
+                doubles = {
+                    Double.NaN,
+                    Double.NEGATIVE_INFINITY,
+                    Double.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Double.MAX_VALUE,
+                    Double.POSITIVE_INFINITY
+                })
         @DisplayName("Reading a double in Big Endian")
         void readBigEndian(double value) {
             final var seq = sequence(asBytes(c -> c.putDouble(value), BIG_ENDIAN));
@@ -1212,14 +1287,14 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @ValueSource(booleans = {false, true})
         @DisplayName("Reading a varint when less than 4 bytes are available throws BufferUnderflowException")
         void readInsufficientDataThrows(final boolean zigZag) {
-            final var seq = sequence(new byte[] { (byte) 0b10101100 });
+            final var seq = sequence(new byte[] {(byte) 0b10101100});
             assertThatThrownBy(() -> seq.readVarInt(zigZag)).isInstanceOf(BufferUnderflowException.class);
         }
 
         @Test
         @DisplayName("Read a varint")
         void read() {
-            final var seq = sequence(new byte[] { (byte) 0b10101100, 0b00000010 });
+            final var seq = sequence(new byte[] {(byte) 0b10101100, 0b00000010});
             final var pos = seq.position();
             final var value = seq.readVarInt(false);
             assertThat(value).isEqualTo(300);
@@ -1229,7 +1304,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @Test
         @DisplayName("Read a 3 bytes varint")
         void read3Bytes() {
-            final var seq = sequence(new byte[] { (byte) 0b10101100, (byte) 0b10101100, 0b00000010 });
+            final var seq = sequence(new byte[] {(byte) 0b10101100, (byte) 0b10101100, 0b00000010});
             final var pos = seq.position();
             final var value = seq.readVarInt(false);
             assertThat(value).isEqualTo(38444);
@@ -1239,12 +1314,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @Test
         @DisplayName("Read a 4 bytes varint")
         void read4Bytes() {
-            final var seq = sequence(new byte[] {
-                    (byte) 0b10101100,
-                    (byte) 0b10101100,
-                    (byte) 0b10101100,
-                    0b00000010
-            });
+            final var seq = sequence(new byte[] {(byte) 0b10101100, (byte) 0b10101100, (byte) 0b10101100, 0b00000010});
             final var pos = seq.position();
             final var value = seq.readVarInt(false);
             assertThat(value).isEqualTo(4920876);
@@ -1254,13 +1324,9 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @Test
         @DisplayName("Read a 5 bytes varint")
         void read5Bytes() {
-            final var seq = sequence(new byte[] {
-                    (byte) 0b10101100,
-                    (byte) 0b10101100,
-                    (byte) 0b10101100,
-                    (byte) 0b10101100,
-                    0b00000010
-            });
+            final var seq = sequence(
+                    new byte[] {(byte) 0b10101100, (byte) 0b10101100, (byte) 0b10101100, (byte) 0b10101100, 0b00000010
+                    });
             final var pos = seq.position();
             final var value = seq.readVarInt(false);
             assertThat(value).isEqualTo(629872172);
@@ -1270,7 +1336,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @Test
         @DisplayName("Read a varint with zig zag encoding")
         void readZigZag() {
-            final var seq = sequence(new byte[] { (byte) 0b10101101, 0b00000010 });
+            final var seq = sequence(new byte[] {(byte) 0b10101101, 0b00000010});
             final var pos = seq.position();
             final var value = seq.readVarInt(true);
             assertThat(value).isEqualTo(-151);
@@ -1313,14 +1379,14 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @ValueSource(booleans = {false, true})
         @DisplayName("Reading a varlong when less than 4 bytes are available throws BufferUnderflowException")
         void readInsufficientDataThrows(final boolean zigZag) {
-            final var seq = sequence(new byte[] { (byte) 0b10101100 });
+            final var seq = sequence(new byte[] {(byte) 0b10101100});
             assertThatThrownBy(() -> seq.readVarLong(zigZag)).isInstanceOf(BufferUnderflowException.class);
         }
 
         @Test
         @DisplayName("Read a varlong")
         void read() {
-            final var seq = sequence(new byte[] { (byte) 0b10101100, 0b00000010 });
+            final var seq = sequence(new byte[] {(byte) 0b10101100, 0b00000010});
             final var pos = seq.position();
             final var value = seq.readVarLong(false);
             assertThat(value).isEqualTo(300);
@@ -1330,7 +1396,7 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         @Test
         @DisplayName("Read a varlong with zig zag encoding")
         void readZigZag() {
-            final var seq = sequence(new byte[] { (byte) 0b10101101, 0b00000010 });
+            final var seq = sequence(new byte[] {(byte) 0b10101101, 0b00000010});
             final var pos = seq.position();
             final var value = seq.readVarLong(true);
             assertThat(value).isEqualTo(-151);
@@ -1342,16 +1408,16 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         void readInvalidVarInt() {
             // Given a very long sequence of bytes all with the "continuation" bit set
             final var seq = sequence(new byte[] {
-                    (byte) 0b10101101,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010
+                (byte) 0b10101101,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010
             });
             // When we try to decode an int, the lack of a "terminator" bit causes a DataEncodingException
             assertThatThrownBy(() -> seq.readVarInt(false)).isInstanceOf(DataEncodingException.class);
@@ -1362,16 +1428,16 @@ public abstract class ReadableTestBase extends SequentialTestBase {
         void readInvalidVarLong() {
             // Given a very long sequence of bytes all with the "continuation" bit set
             final var seq = sequence(new byte[] {
-                    (byte) 0b10101101,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010,
-                    (byte) 0b10000010
+                (byte) 0b10101101,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010,
+                (byte) 0b10000010
             });
             // When we try to decode a long, the lack of a "terminator" bit causes a DataEncodingException
             assertThatThrownBy(() -> seq.readVarLong(false)).isInstanceOf(DataEncodingException.class);
