@@ -3,13 +3,11 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Static tools and test cases used by generated test classes.
@@ -21,10 +19,10 @@ import java.util.Map;
 public final class ProtoTestTools {
 
     /** Size for reusable test buffers */
-    private static final int BUFFER_SIZE = 1024*1024;
+    private static final int BUFFER_SIZE = 1024 * 1024;
 
     /** Size for reusable test char buffers */
-    private static final int CHAR_BUFFER_SIZE = 2*1024*1024;
+    private static final int CHAR_BUFFER_SIZE = 2 * 1024 * 1024;
 
     /** Instance should never be created */
     private ProtoTestTools() {}
@@ -129,12 +127,12 @@ public final class ProtoTestTools {
      * @param <T> the type for lists
      */
     public static <T> List<List<T>> generateListArguments(final List<T> list) {
-        ArrayList<List<T>> outputList = new ArrayList<>((list.size()/5)+1);
+        ArrayList<List<T>> outputList = new ArrayList<>((list.size() / 5) + 1);
         outputList.add(Collections.emptyList());
         int i = 0;
         while (i < list.size()) {
-            final int itemsToUse = Math.min(5, list.size()-i);
-            outputList.add(list.subList(i, i+itemsToUse));
+            final int itemsToUse = Math.min(5, list.size() - i);
+            outputList.add(list.subList(i, i + itemsToUse));
             i += itemsToUse;
         }
         return outputList;
@@ -144,7 +142,8 @@ public final class ProtoTestTools {
     // Standard lists of values to test with
 
     /** integer type test cases */
-    public static final List<Integer> INTEGER_TESTS_LIST = List.of(Integer.MIN_VALUE, -42, -21, 0, 21, 42, Integer.MAX_VALUE);
+    public static final List<Integer> INTEGER_TESTS_LIST =
+            List.of(Integer.MIN_VALUE, -42, -21, 0, 21, 42, Integer.MAX_VALUE);
     /** unsigned integer type test cases */
     public static final List<Integer> UNSIGNED_INTEGER_TESTS_LIST = List.of(0, 1, 2, Integer.MAX_VALUE);
     /** long type test cases */
@@ -152,17 +151,18 @@ public final class ProtoTestTools {
     /** unsigned long type test cases */
     public static final List<Long> UNSIGNED_LONG_TESTS_LIST = List.of(0L, 21L, 42L, Long.MAX_VALUE);
     /** bytes float test cases */
-    public static final List<Float> FLOAT_TESTS_LIST = List.of(Float.MIN_NORMAL, -102.7f, -5f, 1.7f, 0f, 3f, 5.2f, 42.1f, Float.MAX_VALUE);
+    public static final List<Float> FLOAT_TESTS_LIST =
+            List.of(Float.MIN_NORMAL, -102.7f, -5f, 1.7f, 0f, 3f, 5.2f, 42.1f, Float.MAX_VALUE);
     /** double type test cases */
-    public static final List<Double> DOUBLE_TESTS_LIST = List.of(Double.MIN_NORMAL, -102.7d, -5d, 1.7d, 0d, 3d, 5.2d, 42.1d, Double.MAX_VALUE);
+    public static final List<Double> DOUBLE_TESTS_LIST =
+            List.of(Double.MIN_NORMAL, -102.7d, -5d, 1.7d, 0d, 3d, 5.2d, 42.1d, Double.MAX_VALUE);
     /** boolean type test cases */
     public static final List<Boolean> BOOLEAN_TESTS_LIST = List.of(true, false);
     /** bytes type test cases */
-    public static final List<Bytes> BYTES_TESTS_LIST = List.of(
-            Bytes.wrap(new byte[0]),
-            Bytes.wrap(new byte[]{0b001}),
-            Bytes.wrap(new byte[]{0b001, 0b010, 0b011, (byte)0xFF, Byte.MIN_VALUE, Byte.MAX_VALUE})
-    );
+    public static final List<Bytes> BYTES_TESTS_LIST =
+            List.of(Bytes.wrap(new byte[0]), Bytes.wrap(new byte[] {0b001}), Bytes.wrap(new byte[] {
+                0b001, 0b010, 0b011, (byte) 0xFF, Byte.MIN_VALUE, Byte.MAX_VALUE
+            }));
 
     /** string type test cases, small as possible to make tests fast, there is a separate integration test with extra tests  */
     public static final List<String> STRING_TESTS_LIST = List.of(
@@ -170,6 +170,5 @@ public final class ProtoTestTools {
             """
             This a small to speed tests
             Couple extended chars ©« あめ بِها
-            """
-    );
+            """);
 }

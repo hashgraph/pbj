@@ -8,7 +8,6 @@ import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
-
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
@@ -22,10 +21,7 @@ final class CodecWriteMethodGenerator {
 
     static String generateWriteMethod(final String modelClassName, final List<Field> fields) {
         final String fieldWriteLines = buildFieldWriteLines(
-                modelClassName,
-                fields,
-                field -> "data.%s()".formatted(field.nameCamelFirstLower()),
-                true);
+                modelClassName, fields, field -> "data.%s()".formatted(field.nameCamelFirstLower()), true);
         // spotless:off
         return
             """
@@ -52,7 +48,9 @@ final class CodecWriteMethodGenerator {
             final Function<Field, String> getValueBuilder,
             final boolean skipDefault) {
         return fields.stream()
-                .flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
+                .flatMap(field -> field.type() == Field.FieldType.ONE_OF
+                        ? ((OneOfField) field).fields().stream()
+                        : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldWriteLines(field, modelClassName, getValueBuilder.apply(field), skipDefault))
                 .collect(Collectors.joining("\n"))
@@ -68,7 +66,8 @@ final class CodecWriteMethodGenerator {
      * @param skipDefault skip writing the field if it has default value (for non-oneOf only)
      * @return java code to write field to output
      */
-    private static String generateFieldWriteLines(final Field field, final String modelClassName, String getValueCode, boolean skipDefault) {
+    private static String generateFieldWriteLines(
+            final Field field, final String modelClassName, String getValueCode, boolean skipDefault) {
         final String fieldDef = Common.camelToUpperSnake(field.name());
         String prefix = "// [%d] - %s%n".formatted(field.fieldNumber(), field.name());
 

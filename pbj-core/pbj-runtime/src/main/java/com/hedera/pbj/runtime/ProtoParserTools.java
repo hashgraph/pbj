@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -76,7 +75,7 @@ public final class ProtoParserTools {
      * @param input The input data to read from
      * @return the read int
      */
-    public static int readInt32(final ReadableSequentialData input)  {
+    public static int readInt32(final ReadableSequentialData input) {
         return input.readVarInt(false);
     }
 
@@ -255,7 +254,8 @@ public final class ProtoParserTools {
 
         try {
             // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
-            return StandardCharsets.UTF_8.newDecoder()
+            return StandardCharsets.UTF_8
+                    .newDecoder()
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
                     .decode(bb)
@@ -334,9 +334,9 @@ public final class ProtoParserTools {
         switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
-            // The value for "zigZag" when calling varint doesn't matter because we are just reading past
-            // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
-            // the bytes, not how many of them there are)
+                // The value for "zigZag" when calling varint doesn't matter because we are just reading past
+                // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
+                // the bytes, not how many of them there are)
             case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
             case WIRE_TYPE_DELIMITED -> {
                 final int length = input.readVarInt(false);

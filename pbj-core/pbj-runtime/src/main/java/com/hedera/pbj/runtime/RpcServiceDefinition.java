@@ -15,7 +15,8 @@ public interface RpcServiceDefinition {
      *
      * @return The base path of the service
      */
-    @NonNull String basePath();
+    @NonNull
+    String basePath();
 
     /**
      * The set of methods that are defined for this service.
@@ -23,5 +24,6 @@ public interface RpcServiceDefinition {
      * @return The set of methods
      */
     @SuppressWarnings("java:S1452")
-    @NonNull Set<RpcMethodDefinition<? extends Record, ? extends Record>> methods();
+    @NonNull
+    Set<RpcMethodDefinition<? extends Record, ? extends Record>> methods();
 }

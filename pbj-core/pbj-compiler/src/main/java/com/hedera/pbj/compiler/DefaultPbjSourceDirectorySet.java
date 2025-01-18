@@ -7,12 +7,10 @@ import org.gradle.api.internal.file.DefaultSourceDirectorySet;
 import org.gradle.api.internal.tasks.TaskDependencyFactory;
 
 /** Source directory set for PBJ, a directory full of .proto source files */
-public abstract class DefaultPbjSourceDirectorySet extends DefaultSourceDirectorySet
-        implements PbjSourceDirectorySet {
+public abstract class DefaultPbjSourceDirectorySet extends DefaultSourceDirectorySet implements PbjSourceDirectorySet {
 
     @Inject
-    public DefaultPbjSourceDirectorySet(
-            SourceDirectorySet sourceSet, TaskDependencyFactory taskDependencyFactory) {
+    public DefaultPbjSourceDirectorySet(SourceDirectorySet sourceSet, TaskDependencyFactory taskDependencyFactory) {
         super(sourceSet, taskDependencyFactory);
     }
 }

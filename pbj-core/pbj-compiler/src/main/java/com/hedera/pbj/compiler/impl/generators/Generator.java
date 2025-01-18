@@ -5,7 +5,6 @@ import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.generators.json.JsonCodecGenerator;
 import com.hedera.pbj.compiler.impl.generators.protobuf.CodecGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -23,8 +22,7 @@ public interface Generator {
             SchemaGenerator.class,
             CodecGenerator.class,
             JsonCodecGenerator.class,
-            TestGenerator.class
-    );
+            TestGenerator.class);
 
     /**
      * Generate a code from protobuf message type
@@ -35,7 +33,10 @@ public interface Generator {
      * @param lookupHelper          Lookup helper for global context lookups
      * @throws IOException if there was a problem writing generated code
      */
-    void generate(final Protobuf3Parser.MessageDefContext msgDef, final File destinationSrcDir,
-                  File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException;
-
+    void generate(
+            final Protobuf3Parser.MessageDefContext msgDef,
+            final File destinationSrcDir,
+            File destinationTestSrcDir,
+            final ContextualLookupHelper lookupHelper)
+            throws IOException;
 }

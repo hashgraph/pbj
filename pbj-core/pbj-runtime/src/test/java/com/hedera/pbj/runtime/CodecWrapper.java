@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
@@ -23,8 +24,7 @@ class CodecWrapper<T> implements Codec<T> {
 
     @NonNull
     @Override
-    public T parse(@NonNull ReadableSequentialData input, boolean strictMode, int maxDepth)
-            throws ParseException {
+    public T parse(@NonNull ReadableSequentialData input, boolean strictMode, int maxDepth) throws ParseException {
         throw new UnsupportedOperationException();
     }
 

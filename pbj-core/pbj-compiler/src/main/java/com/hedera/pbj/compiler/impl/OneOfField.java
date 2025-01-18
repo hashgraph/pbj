@@ -2,7 +2,6 @@
 package com.hedera.pbj.compiler.impl;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -18,8 +17,8 @@ public record OneOfField(
         List<Field> fields,
         boolean repeated,
         boolean deprecated,
-        boolean comparable
-) implements Field {
+        boolean comparable)
+        implements Field {
     /**
      * Create a OneOf field from parser context
      *
@@ -27,23 +26,30 @@ public record OneOfField(
      * @param parentMessageName the name of the parent message
      * @param lookupHelper helper for accessing global context
      */
-    public OneOfField(final Protobuf3Parser.OneofContext oneOfContext, final String parentMessageName, final ContextualLookupHelper lookupHelper) {
-        this(parentMessageName,
-            oneOfContext.oneofName().getText(),
-            Common.buildCleanFieldJavaDoc(
-                    oneOfContext.oneofField().stream().map(field -> Integer.parseInt(field.fieldNumber().getText())).toList(),
-                    oneOfContext.docComment()),
-            new ArrayList<>(oneOfContext.oneofField().size()),
-            false,
-            getDeprecatedOption(oneOfContext.optionStatement()),
-            isComparable(oneOfContext, lookupHelper)
-        );
-        for (var field: oneOfContext.oneofField()) {
+    public OneOfField(
+            final Protobuf3Parser.OneofContext oneOfContext,
+            final String parentMessageName,
+            final ContextualLookupHelper lookupHelper) {
+        this(
+                parentMessageName,
+                oneOfContext.oneofName().getText(),
+                Common.buildCleanFieldJavaDoc(
+                        oneOfContext.oneofField().stream()
+                                .map(field ->
+                                        Integer.parseInt(field.fieldNumber().getText()))
+                                .toList(),
+                        oneOfContext.docComment()),
+                new ArrayList<>(oneOfContext.oneofField().size()),
+                false,
+                getDeprecatedOption(oneOfContext.optionStatement()),
+                isComparable(oneOfContext, lookupHelper));
+        for (var field : oneOfContext.oneofField()) {
             fields.add(new SingleField(field, this, lookupHelper));
         }
     }
 
-    private static boolean isComparable(Protobuf3Parser.OneofContext oneOfContext, ContextualLookupHelper lookupHelper) {
+    private static boolean isComparable(
+            Protobuf3Parser.OneofContext oneOfContext, ContextualLookupHelper lookupHelper) {
         final boolean comparable;
         final List<String> comparableFields = lookupHelper.getComparableFields(((Protobuf3Parser.MessageDefContext)
                 oneOfContext.getParent().getParent().getParent()));
@@ -97,17 +103,17 @@ public record OneOfField(
      */
     @Override
     public String methodNameType() {
-        throw new UnsupportedOperationException("mapToWriteMethod can not handle "+type());
+        throw new UnsupportedOperationException("mapToWriteMethod can not handle " + type());
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void addAllNeededImports(final Set<String> imports, boolean modelImports,
-                                    boolean codecImports, final boolean testImports) {
+    public void addAllNeededImports(
+            final Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
         imports.add("com.hedera.pbj.runtime");
-        for (var field:fields) {
+        for (var field : fields) {
             field.addAllNeededImports(imports, modelImports, codecImports, testImports);
         }
     }
@@ -125,7 +131,7 @@ public record OneOfField(
      */
     @Override
     public String javaDefault() {
-        return Common.camelToUpperSnake(name)+"_UNSET";
+        return Common.camelToUpperSnake(name) + "_UNSET";
     }
 
     /**
@@ -187,7 +193,9 @@ public record OneOfField(
                 if ("deprecated".equals(option.optionName().getText())) {
                     deprecated = true;
                 } else {
-                    System.err.printf("Unhandled Option on oneof: %s%n", option.optionName().getText());
+                    System.err.printf(
+                            "Unhandled Option on oneof: %s%n",
+                            option.optionName().getText());
                 }
             }
         }

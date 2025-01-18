@@ -39,7 +39,8 @@ public interface Codec<T /*extends Record*/> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth) throws ParseException;
+    @NonNull
+    T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth) throws ParseException;
 
     /**
      * Parses an object from the {@link Bytes} and returns it.
@@ -59,7 +60,8 @@ public interface Codec<T /*extends Record*/> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull default T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
+    @NonNull
+    default T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
         return parse(bytes.toReadableSequentialData(), strictMode, maxDepth);
     }
 
@@ -70,7 +72,8 @@ public interface Codec<T /*extends Record*/> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull default T parse(@NonNull ReadableSequentialData input) throws ParseException {
+    @NonNull
+    default T parse(@NonNull ReadableSequentialData input) throws ParseException {
         return parse(input, false, Integer.MAX_VALUE);
     }
 
@@ -81,7 +84,8 @@ public interface Codec<T /*extends Record*/> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull default T parse(@NonNull Bytes bytes) throws ParseException {
+    @NonNull
+    default T parse(@NonNull Bytes bytes) throws ParseException {
         return parse(bytes.toReadableSequentialData());
     }
 
@@ -96,7 +100,8 @@ public interface Codec<T /*extends Record*/> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
+    @NonNull
+    default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
         return parse(input, true, Integer.MAX_VALUE);
     }
 
@@ -111,7 +116,8 @@ public interface Codec<T /*extends Record*/> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull default T parseStrict(@NonNull Bytes bytes) throws ParseException {
+    @NonNull
+    default T parseStrict(@NonNull Bytes bytes) throws ParseException {
         return parseStrict(bytes.toReadableSequentialData());
     }
 

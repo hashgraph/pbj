@@ -39,73 +39,74 @@ import org.openjdk.jmh.infra.Blackhole;
 @BenchmarkMode(Mode.Throughput)
 public class WriteBytesBench {
 
-	public static final FieldDefinition BYTES_FIELD = new FieldDefinition("bytesField", FieldType.BYTES, false, false, false, 17);
-	final static Bytes sampleData;
-	final static byte[] sampleWrittenData;
+    public static final FieldDefinition BYTES_FIELD =
+            new FieldDefinition("bytesField", FieldType.BYTES, false, false, false, 17);
+    static final Bytes sampleData;
+    static final byte[] sampleWrittenData;
 
-	static {
-		final Random random = new Random(6262266);
-		byte[] data = new byte[1024*16];
-		random.nextBytes(data);
-		sampleData = Bytes.wrap(data);
+    static {
+        final Random random = new Random(6262266);
+        byte[] data = new byte[1024 * 16];
+        random.nextBytes(data);
+        sampleData = Bytes.wrap(data);
 
-		ByteArrayOutputStream bout = new ByteArrayOutputStream();
-		try (WritableStreamingData out = new WritableStreamingData(bout)) {
-			for (int i = 0; i < 100; i++) {
-				random.nextBytes(data);
-				ProtoWriterTools.writeBytes(out, BYTES_FIELD, sampleData);
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		sampleWrittenData = bout.toByteArray();
-	}
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        try (WritableStreamingData out = new WritableStreamingData(bout)) {
+            for (int i = 0; i < 100; i++) {
+                random.nextBytes(data);
+                ProtoWriterTools.writeBytes(out, BYTES_FIELD, sampleData);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        sampleWrittenData = bout.toByteArray();
+    }
 
-	Path tempFileWriting;
-	Path tempFileReading;
-	OutputStream fout;
-	WritableStreamingData dataOut;
+    Path tempFileWriting;
+    Path tempFileReading;
+    OutputStream fout;
+    WritableStreamingData dataOut;
 
-	@Setup
-	public void prepare() {
-		try {
-			tempFileWriting = Files.createTempFile("WriteBytesBench", "dat");
-			tempFileWriting.toFile().deleteOnExit();
-			fout = Files.newOutputStream(tempFileWriting);
-			dataOut = new WritableStreamingData(fout);
-			tempFileReading = Files.createTempFile("WriteBytesBench", "dat");
-			tempFileReading.toFile().deleteOnExit();
-			Files.write(tempFileReading, sampleWrittenData);
-		} catch (IOException e) {
-			e.printStackTrace();
-			throw new UncheckedIOException(e);
-		}
-	}
+    @Setup
+    public void prepare() {
+        try {
+            tempFileWriting = Files.createTempFile("WriteBytesBench", "dat");
+            tempFileWriting.toFile().deleteOnExit();
+            fout = Files.newOutputStream(tempFileWriting);
+            dataOut = new WritableStreamingData(fout);
+            tempFileReading = Files.createTempFile("WriteBytesBench", "dat");
+            tempFileReading.toFile().deleteOnExit();
+            Files.write(tempFileReading, sampleWrittenData);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new UncheckedIOException(e);
+        }
+    }
 
-	@TearDown
-	public void cleanUp() {
-		try {
-			dataOut.close();
-			fout.close();
-		} catch (IOException e){
-			e.printStackTrace();
-			throw new UncheckedIOException(e);
-		}
-	}
+    @TearDown
+    public void cleanUp() {
+        try {
+            dataOut.close();
+            fout.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new UncheckedIOException(e);
+        }
+    }
 
-	@Benchmark
-	public void writeBytes(Blackhole blackhole) throws IOException {
-		ProtoWriterTools.writeBytes(dataOut, BYTES_FIELD, sampleData);
-	}
+    @Benchmark
+    public void writeBytes(Blackhole blackhole) throws IOException {
+        ProtoWriterTools.writeBytes(dataOut, BYTES_FIELD, sampleData);
+    }
 
-	@Benchmark
-	@OperationsPerInvocation(100)
-	public void readBytes(Blackhole blackhole) throws IOException {
-		try (ReadableStreamingData in = new ReadableStreamingData(Files.newInputStream(tempFileReading)) ) {
-			for (int i = 0; i < 100; i++) {
-				blackhole.consume(in.readVarInt(false));
-				blackhole.consume(ProtoParserTools.readBytes(in));
-			}
-		}
-	}
+    @Benchmark
+    @OperationsPerInvocation(100)
+    public void readBytes(Blackhole blackhole) throws IOException {
+        try (ReadableStreamingData in = new ReadableStreamingData(Files.newInputStream(tempFileReading))) {
+            for (int i = 0; i < 100; i++) {
+                blackhole.consume(in.readVarInt(false));
+                blackhole.consume(ProtoParserTools.readBytes(in));
+            }
+        }
+    }
 }

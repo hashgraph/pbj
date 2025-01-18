@@ -19,7 +19,6 @@ import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeString;
 import static com.hedera.pbj.runtime.ProtoWriterToolsTest.createFieldDefinition;
 import static com.hedera.pbj.runtime.ProtoWriterToolsTest.randomVarSizeString;
-import static java.lang.Integer.MAX_VALUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -27,13 +26,6 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
-import net.bytebuddy.utility.RandomString;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
-import test.proto.Apple;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
@@ -42,6 +34,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.random.RandomGenerator;
+import net.bytebuddy.utility.RandomString;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import test.proto.Apple;
 
 class ProtoParserToolsTest {
 
@@ -49,7 +47,8 @@ class ProtoParserToolsTest {
 
     @Test
     void testReadInt32() {
-        testRead(rng::nextInt,
+        testRead(
+                rng::nextInt,
                 (d, v) -> d.writeVarInt(v, false),
                 ProtoParserTools::readInt32,
                 // in this case the size may up to 10 bytes in case of negative numbers,
@@ -59,7 +58,8 @@ class ProtoParserToolsTest {
 
     @Test
     void testReadInt64() {
-        testRead(rng::nextLong,
+        testRead(
+                rng::nextLong,
                 (d, v) -> d.writeVarLong(v, false),
                 ProtoParserTools::readInt64,
                 // in this case the size may be 10 bytes, because we don't use zigzag encoding
@@ -68,8 +68,8 @@ class ProtoParserToolsTest {
 
     @Test
     void testReadUint32() {
-        testRead(() ->
-                rng.nextInt(0, Integer.MAX_VALUE),
+        testRead(
+                () -> rng.nextInt(0, Integer.MAX_VALUE),
                 (d, v) -> d.writeVarInt(v, false),
                 ProtoParserTools::readUint32,
                 // the size may vary from 1 to 5 bytes
@@ -78,7 +78,8 @@ class ProtoParserToolsTest {
 
     @Test
     void testReadUint64() {
-        testRead(rng::nextLong,
+        testRead(
+                rng::nextLong,
                 (d, v) -> d.writeVarLong(v, false),
                 ProtoParserTools::readUint64,
                 // the size may vary from 1 to 10 bytes
@@ -88,13 +89,17 @@ class ProtoParserToolsTest {
     @ParameterizedTest
     @ValueSource(ints = {0, 1})
     void testReadBool(final int value) {
-        testRead(() -> value != 0, (d, v) -> d.writeVarInt(value, false), input -> {
-            try {
-                return ProtoParserTools.readBool(input);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }, 1);
+        testRead(
+                () -> value != 0,
+                (d, v) -> d.writeVarInt(value, false),
+                input -> {
+                    try {
+                        return ProtoParserTools.readBool(input);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                1);
     }
 
     @ParameterizedTest
@@ -103,26 +108,20 @@ class ProtoParserToolsTest {
         testRead(() -> value, (d, v) -> d.writeVarInt(value, false), ProtoParserTools::readEnum, 1);
     }
 
-
     @Test
     void testReadSignedInt32() {
-        testRead(rng::nextInt,
-                (d, v) -> d.writeVarInt(v, true),
-                ProtoParserTools::readSignedInt32,
-                Integer.BYTES + 1);
+        testRead(rng::nextInt, (d, v) -> d.writeVarInt(v, true), ProtoParserTools::readSignedInt32, Integer.BYTES + 1);
     }
 
     @Test
     void testReadSignedInt64() {
-        testRead(rng::nextLong,
-                (d, v) -> d.writeVarLong(v, true),
-                ProtoParserTools::readSignedInt64,
-                Long.BYTES + 2);
+        testRead(rng::nextLong, (d, v) -> d.writeVarLong(v, true), ProtoParserTools::readSignedInt64, Long.BYTES + 2);
     }
 
     @Test
     void testReadSignedFixedInt32() {
-        testRead(rng::nextInt,
+        testRead(
+                rng::nextInt,
                 (d, v) -> d.writeInt(v, ByteOrder.LITTLE_ENDIAN),
                 ProtoParserTools::readSignedFixed32,
                 Integer.BYTES);
@@ -130,7 +129,8 @@ class ProtoParserToolsTest {
 
     @Test
     void testReadFixedInt32() {
-        testRead(rng::nextInt,
+        testRead(
+                rng::nextInt,
                 (d, v) -> d.writeInt(v, ByteOrder.LITTLE_ENDIAN),
                 ProtoParserTools::readFixed32,
                 Integer.BYTES);
@@ -138,7 +138,8 @@ class ProtoParserToolsTest {
 
     @Test
     void testReadSginedFixed64() {
-        testRead(rng::nextLong,
+        testRead(
+                rng::nextLong,
                 (d, v) -> d.writeLong(v, ByteOrder.LITTLE_ENDIAN),
                 ProtoParserTools::readSignedFixed64,
                 Long.BYTES);
@@ -146,7 +147,8 @@ class ProtoParserToolsTest {
 
     @Test
     void testReadFixed64() {
-        testRead(rng::nextLong,
+        testRead(
+                rng::nextLong,
                 (d, v) -> d.writeLong(v, ByteOrder.LITTLE_ENDIAN),
                 ProtoParserTools::readFixed64,
                 Long.BYTES);
@@ -154,7 +156,8 @@ class ProtoParserToolsTest {
 
     @Test
     void testReadFloat() {
-        testRead(rng::nextFloat,
+        testRead(
+                rng::nextFloat,
                 (d, v) -> d.writeFloat(v, ByteOrder.LITTLE_ENDIAN),
                 ProtoParserTools::readFloat,
                 Long.BYTES);
@@ -162,7 +165,8 @@ class ProtoParserToolsTest {
 
     @Test
     void testReadDouble() {
-        testRead(rng::nextDouble,
+        testRead(
+                rng::nextDouble,
                 (d, v) -> d.writeDouble(v, ByteOrder.LITTLE_ENDIAN),
                 ProtoParserTools::readDouble,
                 Long.BYTES);
@@ -173,7 +177,8 @@ class ProtoParserToolsTest {
         final int length = rng.nextInt(0, 100);
         final RandomString randomString = new RandomString(length);
 
-        testRead(randomString::nextString,
+        testRead(
+                randomString::nextString,
                 (d, v) -> {
                     d.writeVarInt(length, false); // write the size first
                     d.writeUTF8(v);
@@ -208,7 +213,6 @@ class ProtoParserToolsTest {
         System.arraycopy(bytes, 0, incompleteCopy, 0, bytes.length - 1);
         final ReadableStreamingData streamingData = new ReadableStreamingData(new ByteArrayInputStream(incompleteCopy));
         assertThrows(BufferUnderflowException.class, () -> ProtoParserTools.readString(streamingData));
-
     }
 
     @Test
@@ -218,7 +222,8 @@ class ProtoParserToolsTest {
         rng.nextBytes(byteArray);
         final Bytes bytes = Bytes.wrap(byteArray);
 
-        testRead(() -> bytes,
+        testRead(
+                () -> bytes,
                 (d, v) -> {
                     d.writeVarInt(length, false); // write the size first
                     d.writeBytes(v);
@@ -251,12 +256,13 @@ class ProtoParserToolsTest {
         final byte[] bytes = data.toInputStream().readAllBytes();
         final byte[] incompleteCopy = new byte[bytes.length - 1];
         System.arraycopy(bytes, 0, incompleteCopy, 0, bytes.length - 1);
-        assertThrows(BufferUnderflowException.class,
+        assertThrows(
+                BufferUnderflowException.class,
                 () -> ProtoParserTools.readString(new ReadableStreamingData(new ByteArrayInputStream(incompleteCopy))));
-        assertThrows(BufferUnderflowException.class,
+        assertThrows(
+                BufferUnderflowException.class,
                 () -> ProtoParserTools.readBytes(new ReadableStreamingData(new ByteArrayInputStream(incompleteCopy))));
     }
-
 
     @Test
     void testReadNextFieldNumber() throws IOException {
@@ -265,13 +271,15 @@ class ProtoParserToolsTest {
         final String appleStr = randomVarSizeString();
         final Apple apple = Apple.newBuilder().setVariety(appleStr).build();
 
-        writeMessage(bufferedData, definition, apple,
+        writeMessage(
+                bufferedData,
+                definition,
+                apple,
                 new CodecWrapper<>((data, out) -> out.writeBytes(data.toByteArray()), Apple::getSerializedSize));
         bufferedData.flip();
 
         assertEquals(definition.number(), readNextFieldNumber(bufferedData));
     }
-
 
     @Test
     void testSkipField() throws IOException {
@@ -308,7 +316,8 @@ class ProtoParserToolsTest {
         data.writeVarInt(maxSize + 1, false); // write the size first
         data.writeBytes(byteArray);
         final ReadableStreamingData streamingData = new ReadableStreamingData(data.toInputStream());
-        assertThrows(ParseException.class, () -> ProtoParserTools.skipField(streamingData, WIRE_TYPE_DELIMITED, maxSize));
+        assertThrows(
+                ParseException.class, () -> ProtoParserTools.skipField(streamingData, WIRE_TYPE_DELIMITED, maxSize));
     }
 
     @ParameterizedTest
@@ -322,15 +331,15 @@ class ProtoParserToolsTest {
         data.readVarInt(false);
     }
 
-    private static <T> void testRead(final Supplier<? extends T> valueSupplier,
-                                     final BiConsumer<BufferedData, ? super T> valueWriter,
-                                     final Function<? super BufferedData, T> reader,
-                                     final int size) {
+    private static <T> void testRead(
+            final Supplier<? extends T> valueSupplier,
+            final BiConsumer<BufferedData, ? super T> valueWriter,
+            final Function<? super BufferedData, T> reader,
+            final int size) {
         final T value = valueSupplier.get();
         final BufferedData data = BufferedData.allocate(size);
         valueWriter.accept(data, value);
         data.flip();
         assertEquals(value, reader.apply(data));
     }
-
 }
