@@ -97,14 +97,14 @@ jobs:
 
       - name: Gradle Assemble (PBJ Core)
         id: gradle-build
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6 # v4.2.2
         with:
           gradle-version: ${{ inputs.gradle-version }}
           build-root-directory: ${{ env.PBJ_CORE }}
           arguments: assemble
 
       - name: Gradle Check (PBJ Core)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6 # v4.2.2
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -128,7 +128,7 @@ jobs:
 
       - name: Gradle Assemble (PBJ Integration)
         id: gradle-integration-build
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6 # v4.2.2
         if: ${{ (inputs.enable-integration-tests || inputs.enable-jmh-tests) && steps.gradle-publish-local.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -136,7 +136,7 @@ jobs:
           arguments: assemble
 
       - name: Gradle Check (PBJ Integration)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6 # v4.2.2
         if: ${{ inputs.enable-integration-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -152,7 +152,7 @@ jobs:
           junit_files: "${{ env.PBJ_INTEGRATION_TESTS }}/**/build/test-results/**/*.xml"
 
       - name: Gradle JMH Jars (PBJ Integration)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6 # v4.2.2
         if: ${{ inputs.enable-jmh-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
@@ -160,7 +160,7 @@ jobs:
           arguments: jmhJar
 
       - name: Gradle JMH Benchmarks (PBJ Integration)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6 # v4.2.2
         if: ${{ inputs.enable-jmh-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           gradle-version: ${{ inputs.gradle-version }}
