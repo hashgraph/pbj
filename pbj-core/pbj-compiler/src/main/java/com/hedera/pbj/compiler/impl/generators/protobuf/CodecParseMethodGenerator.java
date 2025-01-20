@@ -9,7 +9,6 @@ import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.PbjCompilerException;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,6 +26,7 @@ class CodecParseMethodGenerator {
      * @return code for constants
      */
     static String generateUnsetOneOfConstants(final List<Field> fields) {
+        // spotless:off
         return "\n" + fields.stream()
             .filter(f -> f instanceof OneOfField)
             .map(f -> {
@@ -42,9 +42,11 @@ class CodecParseMethodGenerator {
                         .replace("$unsetFieldName", field.getEnumClassRef());
             })
             .collect(Collectors.joining("\n"));
+        // spotless:on
     }
 
     static String generateParseMethod(final String modelClassName, final List<Field> fields) {
+        // spotless:off
         return """
                 /**
                  * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
@@ -86,10 +88,12 @@ class CodecParseMethodGenerator {
         .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields), ""))
         .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
         .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 
     // prefix is pre-pended to variable names to support a nested parsing loop.
     static String generateParseLoop(final String caseStatements, @NonNull final String prefix) {
+        // spotless:off
         return """
                         // -- PARSE LOOP ---------------------------------------------
                         // Continue to parse bytes out of the input stream until we get to the end.
@@ -155,6 +159,7 @@ class CodecParseMethodGenerator {
                 .replace("$prefix",prefix)
                 .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
                 .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 
     /**
@@ -166,10 +171,10 @@ class CodecParseMethodGenerator {
      */
     private static String generateCaseStatements(final List<Field> fields) {
         StringBuilder sb = new StringBuilder();
-        for (Field field: fields) {
+        for (Field field : fields) {
             if (field instanceof final OneOfField oneOfField) {
-                for (final Field subField: oneOfField.fields()) {
-                    generateFieldCaseStatement(sb,subField);
+                for (final Field subField : oneOfField.fields()) {
+                    generateFieldCaseStatement(sb, subField);
                 }
             } else if (field.repeated() && field.type().wireType() != Common.TYPE_LENGTH_DELIMITED) {
                 // for repeated fields that are not length encoded there are 2 forms they can be stored in file.
@@ -194,27 +199,28 @@ class CodecParseMethodGenerator {
         final int wireType = Common.TYPE_LENGTH_DELIMITED;
         final int fieldNum = field.fieldNumber();
         final int tag = Common.getTag(wireType, fieldNum);
-        sb.append("case " + tag +" /* type=" + wireType + " [" + field.type() + "] packed-repeated " +
-                "field=" + fieldNum + " [" + field.name() + "] */ -> {\n");
+        // spotless:off
+        sb.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] */ -> {%n"
+                .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         sb.append("""
-				// Read the length of packed repeated field data
-				final long length = input.readVarInt(false);
-				if (length > $maxSize) {
-				    throw new ParseException("$fieldName size " + length + " is greater than max " + $maxSize);
-				}
-				if (input.remaining() < length) {
-				    throw new BufferUnderflowException();
-				}
-				final var beforeLimit = input.limit();
-				final long beforePosition = input.position();
-				input.limit(input.position() + length);
-				while (input.hasRemaining()) {
-				    $tempFieldName = addToList($tempFieldName,$readMethod);
-				}
-				input.limit(beforeLimit);
-				if (input.position() != beforePosition + length) {
-				    throw new BufferUnderflowException();
-				}"""
+                // Read the length of packed repeated field data
+                final long length = input.readVarInt(false);
+                if (length > $maxSize) {
+                    throw new ParseException("$fieldName size " + length + " is greater than max " + $maxSize);
+                }
+                if (input.remaining() < length) {
+                    throw new BufferUnderflowException();
+                }
+                final var beforeLimit = input.limit();
+                final long beforePosition = input.position();
+                input.limit(input.position() + length);
+                while (input.hasRemaining()) {
+                    $tempFieldName = addToList($tempFieldName,$readMethod);
+                }
+                input.limit(beforeLimit);
+                if (input.position() != beforePosition + length) {
+                    throw new BufferUnderflowException();
+                }"""
                 .replace("$tempFieldName", "temp_" + field.name())
                 .replace("$readMethod", readMethod(field))
                 .replace("$maxSize", String.valueOf(field.maxSize()))
@@ -222,6 +228,7 @@ class CodecParseMethodGenerator {
                 .indent(DEFAULT_INDENT)
         );
         sb.append("\n}\n");
+        // spotless:on
     }
 
     /**
@@ -231,31 +238,34 @@ class CodecParseMethodGenerator {
      * @param sb StringBuilder to append code to
      */
     private static void generateFieldCaseStatement(final StringBuilder sb, final Field field) {
-        final int wireType = field.optionalValueType() ? Common.TYPE_LENGTH_DELIMITED : field.type().wireType();
+        final int wireType = field.optionalValueType()
+                ? Common.TYPE_LENGTH_DELIMITED
+                : field.type().wireType();
         final int fieldNum = field.fieldNumber();
         final int tag = Common.getTag(wireType, fieldNum);
-        sb.append("case " + tag +" /* type=" + wireType + " [" + field.type() + "] " +
-                "field=" + fieldNum + " [" + field.name() + "] */ -> {\n");
+        // spotless:off
+        sb.append("case %d /* type=%d [%s] field=%d [%s] */ -> {%n"
+                .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         if (field.optionalValueType()) {
             sb.append("""
-							// Read the message size, it is not needed
-							final var valueTypeMessageSize = input.readVarInt(false);
-							final $fieldType value;
-							if (valueTypeMessageSize > 0) {
-							    final var beforeLimit = input.limit();
-							    input.limit(input.position() + valueTypeMessageSize);
-							    // read inner tag
-							    final int valueFieldTag = input.readVarInt(false);
-							    // assert tag is as expected
-							    assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
-							    assert (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
-							    // read value
-							    value = $readMethod;
-							    input.limit(beforeLimit);
-							} else {
-							    // means optional is default value
-							    value = $defaultValue;
-							}"""
+                            // Read the message size, it is not needed
+                            final var valueTypeMessageSize = input.readVarInt(false);
+                            final $fieldType value;
+                            if (valueTypeMessageSize > 0) {
+                                final var beforeLimit = input.limit();
+                                input.limit(input.position() + valueTypeMessageSize);
+                                // read inner tag
+                                final int valueFieldTag = input.readVarInt(false);
+                                // assert tag is as expected
+                                assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
+                                assert (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
+                                // read value
+                                value = $readMethod;
+                                input.limit(beforeLimit);
+                            } else {
+                                // means optional is default value
+                                value = $defaultValue;
+                            }"""
                     .replace("$fieldType", field.javaFieldType())
                     .replace("$readMethod", readMethod(field))
                     .replace("$defaultValue",
@@ -280,121 +290,134 @@ class CodecParseMethodGenerator {
                     .indent(DEFAULT_INDENT)
             );
             sb.append('\n');
+            // spotless:on
         } else if (field.type() == Field.FieldType.MESSAGE) {
+            // spotless:off
             sb.append("""
-						final var messageLength = input.readVarInt(false);
-						final $fieldType value;
-						if (messageLength == 0) {
-							value = $fieldType.DEFAULT;
-						} else {
-							if (messageLength > $maxSize) {
-								throw new ParseException("$fieldName size " + messageLength + " is greater than max " + $maxSize);
-							}
-							final var limitBefore = input.limit();
-							// Make sure that we have enough bytes in the message
-							// to read the subObject.
-							// If the buffer is truncated on the boundary of a subObject,
-							// we will not throw.
-							final var startPos = input.position();
-							try {
-								if ((startPos + messageLength) > limitBefore) {
-									throw new BufferUnderflowException();
-								}
-								input.limit(startPos + messageLength);
-								value = $readMethod;
-								// Make sure we read the full number of bytes. for the types
-								if ((startPos + messageLength) != input.position()) {
-									throw new BufferOverflowException();
-								}
-							} finally {
-								input.limit(limitBefore);
-							}
-						}
-						"""
+                        final var messageLength = input.readVarInt(false);
+                        final $fieldType value;
+                        if (messageLength == 0) {
+                            value = $fieldType.DEFAULT;
+                        } else {
+                            if (messageLength > $maxSize) {
+                                throw new ParseException("$fieldName size " + messageLength + " is greater than max " + $maxSize);
+                            }
+                            final var limitBefore = input.limit();
+                            // Make sure that we have enough bytes in the message
+                            // to read the subObject.
+                            // If the buffer is truncated on the boundary of a subObject,
+                            // we will not throw.
+                            final var startPos = input.position();
+                            try {
+                                if ((startPos + messageLength) > limitBefore) {
+                                    throw new BufferUnderflowException();
+                                }
+                                input.limit(startPos + messageLength);
+                                value = $readMethod;
+                                // Make sure we read the full number of bytes. for the types
+                                if ((startPos + messageLength) != input.position()) {
+                                    throw new BufferOverflowException();
+                                }
+                            } finally {
+                                input.limit(limitBefore);
+                            }
+                        }
+                        """
                     .replace("$readMethod", readMethod(field))
                     .replace("$fieldType", field.javaFieldTypeBase())
                     .replace("$fieldName", field.name())
                     .replace("$maxSize", String.valueOf(field.maxSize()))
                     .indent(DEFAULT_INDENT)
             );
+            // spotless:on
         } else if (field.type() == Field.FieldType.MAP) {
             // This is almost like reading a message above because that's how Protobuf encodes map entries.
             // However(!), we read the key and value fields explicitly to avoid creating temporary entry objects.
             final MapField mapField = (MapField) field;
             final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
+            // spotless:off
             sb.append("""
-						final var __map_messageLength = input.readVarInt(false);
-						
-						$fieldDefs
-						if (__map_messageLength != 0) {
-							if (__map_messageLength > $maxSize) {
-								throw new ParseException("$fieldName size " + __map_messageLength + " is greater than max " + $maxSize);
-							}
-							final var __map_limitBefore = input.limit();
-							// Make sure that we have enough bytes in the message
-							// to read the subObject.
-							// If the buffer is truncated on the boundary of a subObject,
-							// we will not throw.
-							final var __map_startPos = input.position();
-							try {
-								if ((__map_startPos + __map_messageLength) > __map_limitBefore) {
-									throw new BufferUnderflowException();
-								}
-								input.limit(__map_startPos + __map_messageLength);
-								$mapParseLoop
-								// Make sure we read the full number of bytes. for the types
-								if ((__map_startPos + __map_messageLength) != input.position()) {
-									throw new BufferOverflowException();
-								}
-							} finally {
-								input.limit(__map_limitBefore);
-							}
-						}
-						"""
+                        final var __map_messageLength = input.readVarInt(false);
+                        
+                        $fieldDefs
+                        if (__map_messageLength != 0) {
+                            if (__map_messageLength > $maxSize) {
+                                throw new ParseException("$fieldName size " + __map_messageLength + " is greater than max " + $maxSize);
+                            }
+                            final var __map_limitBefore = input.limit();
+                            // Make sure that we have enough bytes in the message
+                            // to read the subObject.
+                            // If the buffer is truncated on the boundary of a subObject,
+                            // we will not throw.
+                            final var __map_startPos = input.position();
+                            try {
+                                if ((__map_startPos + __map_messageLength) > __map_limitBefore) {
+                                    throw new BufferUnderflowException();
+                                }
+                                input.limit(__map_startPos + __map_messageLength);
+                                $mapParseLoop
+                                // Make sure we read the full number of bytes. for the types
+                                if ((__map_startPos + __map_messageLength) != input.position()) {
+                                    throw new BufferOverflowException();
+                                }
+                            } finally {
+                                input.limit(__map_limitBefore);
+                            }
+                        }
+                        """
                     .replace("$fieldName", field.name())
-                    .replace("$fieldDefs",mapEntryFields.stream().map(mapEntryField -> "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
+                    .replace("$fieldDefs",mapEntryFields.stream().map(mapEntryField ->
+                            "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
                             mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
-                    .replace("$mapParseLoop", generateParseLoop(generateCaseStatements(mapEntryFields), "map_entry_").indent(-DEFAULT_INDENT))
+                    .replace("$mapParseLoop", generateParseLoop(generateCaseStatements(mapEntryFields), "map_entry_")
+                            .indent(-DEFAULT_INDENT))
                     .replace("$maxSize", String.valueOf(field.maxSize()))
             );
+            // spotless:on
         } else {
             sb.append(("final var value = " + readMethod(field) + ";\n").indent(DEFAULT_INDENT));
         }
         // set value to temp var
+        // spotless:off
         sb.append(Common.FIELD_INDENT);
         if (field.parent() != null && field.repeated()) {
             throw new PbjCompilerException("Fields can not be oneof and repeated ["+field+"]");
         } else if (field.parent() != null) {
             final var oneOfField = field.parent();
-            sb.append("temp_" + oneOfField.name() + " =  new %s<>(".formatted(oneOfField.className()) +
-                    oneOfField.getEnumClassRef() + '.' + Common.camelToUpperSnake(field.name()) + ", value);\n");
+            sb.append("temp_%s =  new %s<>(%s.%s, value);%n"
+                    .formatted(oneOfField.name(), oneOfField.className(), oneOfField.getEnumClassRef(),
+                            Common.camelToUpperSnake(field.name())));
         } else if (field.repeated()) {
-            sb.append("if (temp_" + field.name() + ".size() >= " + field.maxSize() + ") {\n");
-            sb.append("		throw new ParseException(\"" + field.name() + " size \" + temp_" + field.name() + ".size() + \" is greater than max \" + " + field.maxSize() + ");\n");
-            sb.append("	}\n");
-            sb.append("	temp_" + field.name() + " = addToList(temp_" + field.name() + ",value);\n");
+            sb.append(
+                """
+                if (temp_%s.size() >= %d) {
+                    throw new ParseException("%1$s size %%d is greater than max %2$d".formatted(temp_%1$s.size()));
+                }
+                temp_%1$s = addToList(temp_%1$s,value);
+                """.formatted(field.name(), field.maxSize()));
         } else if (field.type() == Field.FieldType.MAP) {
             final MapField mapField = (MapField) field;
-
-            sb.append("if (__map_messageLength != 0) {\n");
-            sb.append("		if (temp_" + field.name() + ".size() >= " + field.maxSize() + ") {\n");
-            sb.append("				throw new ParseException(\"" + field.name() + " size \" + temp_" + field.name() + ".size() + \" is greater than max \" + " + field.maxSize() + ");\n");
-            sb.append("			}\n");
-            sb.append("			temp_" + field.name() + " = addToMap(temp_" + field.name() + ", temp_$key, temp_$value);\n"
-                    .replace("$key", mapField.keyField().name())
-                    .replace("$value", mapField.valueField().name())
-            );
-            sb.append("		}\n");
+            sb.append(
+                """
+                if (__map_messageLength != 0) {
+                    if (temp_%s.size() >= %d) {
+                        throw new ParseException("%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
+                    }
+                    temp_%1$s = addToMap(temp_%1$s, temp_%s, temp_%s);
+                }
+                """.formatted(field.name(), field.maxSize(),
+                        mapField.keyField().name(), mapField.valueField().name()));
         } else {
-            sb.append("temp_" + field.name() + " = value;\n");
+            sb.append("temp_%s = value;\n".formatted(field.name()));
         }
         sb.append("}\n");
+        // spotless:on
     }
 
     static String readMethod(Field field) {
         if (field.optionalValueType()) {
             return switch (field.messageType()) {
-                case "StringValue" -> "readString(input, " + field.maxSize() + ")";
+                case "StringValue" -> "readString(input, %d)".formatted(field.maxSize());
                 case "Int32Value" -> "readInt32(input)";
                 case "UInt32Value" -> "readUint32(input)";
                 case "Int64Value" -> "readInt64(input)";
@@ -402,12 +425,14 @@ class CodecParseMethodGenerator {
                 case "FloatValue" -> "readFloat(input)";
                 case "DoubleValue" -> "readDouble(input)";
                 case "BoolValue" -> "readBool(input)";
-                case "BytesValue" -> "readBytes(input, " + field.maxSize() + ")";
-                default -> throw new PbjCompilerException("Optional message type [" + field.messageType() + "] not supported");
+                case "BytesValue" -> "readBytes(input, %d)".formatted(field.maxSize());
+                default -> throw new PbjCompilerException(
+                        "Optional message type [%s] not supported".formatted(field.messageType()));
             };
         }
         return switch (field.type()) {
-            case ENUM ->  Common.snakeToCamel(field.messageType(), true) + ".fromProtobufOrdinal(readEnum(input))";
+            case ENUM -> "%s.fromProtobufOrdinal(readEnum(input))"
+                    .formatted(Common.snakeToCamel(field.messageType(), true));
             case INT32 -> "readInt32(input)";
             case UINT32 -> "readUint32(input)";
             case SINT32 -> "readSignedInt32(input)";
@@ -420,9 +445,9 @@ class CodecParseMethodGenerator {
             case DOUBLE -> "readDouble(input)";
             case FIXED64 -> "readFixed64(input)";
             case SFIXED64 -> "readSignedFixed64(input)";
-            case STRING -> "readString(input, " + field.maxSize() + ")";
+            case STRING -> "readString(input, %d)".formatted(field.maxSize());
             case BOOL -> "readBool(input)";
-            case BYTES -> "readBytes(input, " + field.maxSize() + ")";
+            case BYTES -> "readBytes(input, %d)".formatted(field.maxSize());
             case MESSAGE -> field.parseCode();
             case ONE_OF -> throw new PbjCompilerException("Should never happen, oneOf handled elsewhere");
             case MAP -> throw new PbjCompilerException("Should never happen, map handled elsewhere");

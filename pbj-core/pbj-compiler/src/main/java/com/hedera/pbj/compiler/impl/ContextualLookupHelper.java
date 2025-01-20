@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
-import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.*;
-
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.EnumDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.FieldContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageTypeContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.OneofFieldContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.Type_Context;
 import java.io.File;
 import java.util.List;
 
@@ -89,7 +93,8 @@ public class ContextualLookupHelper {
      * @return java package to put model class in
      */
     public String getPackageFieldMessageType(final FileType fileType, final FieldContext fieldContext) {
-        return lookupHelper.getPackage(srcProtoFileContext, fileType, fieldContext.type_().messageType());
+        return lookupHelper.getPackage(
+                srcProtoFileContext, fileType, fieldContext.type_().messageType());
     }
 
     /**
@@ -111,7 +116,8 @@ public class ContextualLookupHelper {
      * @return java package to put model class in
      */
     public String getPackageOneofFieldMessageType(final FileType fileType, final OneofFieldContext fieldContext) {
-        return lookupHelper.getPackage(srcProtoFileContext, fileType, fieldContext.type_().messageType());
+        return lookupHelper.getPackage(
+                srcProtoFileContext, fileType, fieldContext.type_().messageType());
     }
 
     /**

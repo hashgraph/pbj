@@ -51,7 +51,8 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
         this.limit = this.capacity;
 
         if (this.start > delegate.length()) {
-            throw new IllegalArgumentException("Start " + start + " is greater than the delegate length " + delegate.length());
+            throw new IllegalArgumentException(
+                    "Start " + start + " is greater than the delegate length " + delegate.length());
         }
     }
 

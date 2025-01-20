@@ -24,7 +24,7 @@ plugins {
 group = "com.hedera.hashgraph"
 
 val antlr = "4.13.2"
-val grpc = "1.65.1"
+val grpc = "1.69.1"
 val helidon = "4.1.6"
 val protobuf = "4.29.3"
 
@@ -63,7 +63,7 @@ dependencies.constraints {
     // Code generation
     api("org.antlr:antlr4:$antlr")
     api("com.google.protobuf:protoc:$protobuf")
-    api("io.grpc:protoc-gen-grpc-java:1.69.0")
+    api("io.grpc:protoc-gen-grpc-java:1.69.1")
 
     // Testing only
     api("com.google.guava:guava:33.4.0-jre") { because("com.google.common") }

@@ -24,28 +24,20 @@ final class GrpcHeaders {
     static final Header OK = createCached(GRPC_STATUS, GrpcStatus.OK.ordinal());
     static final Header CANCELLED = createCached(GRPC_STATUS, GrpcStatus.CANCELLED.ordinal());
     static final Header UNKNOWN = createCached(GRPC_STATUS, GrpcStatus.UNKNOWN.ordinal());
-    static final Header INVALID_ARGUMENT =
-            createCached(GRPC_STATUS, GrpcStatus.INVALID_ARGUMENT.ordinal());
-    static final Header DEADLINE_EXCEEDED =
-            createCached(GRPC_STATUS, GrpcStatus.DEADLINE_EXCEEDED.ordinal());
+    static final Header INVALID_ARGUMENT = createCached(GRPC_STATUS, GrpcStatus.INVALID_ARGUMENT.ordinal());
+    static final Header DEADLINE_EXCEEDED = createCached(GRPC_STATUS, GrpcStatus.DEADLINE_EXCEEDED.ordinal());
     static final Header NOT_FOUND = createCached(GRPC_STATUS, GrpcStatus.NOT_FOUND.ordinal());
-    static final Header ALREADY_EXISTS =
-            createCached(GRPC_STATUS, GrpcStatus.ALREADY_EXISTS.ordinal());
-    static final Header PERMISSION_DENIED =
-            createCached(GRPC_STATUS, GrpcStatus.PERMISSION_DENIED.ordinal());
-    static final Header RESOURCE_EXHAUSTED =
-            createCached(GRPC_STATUS, GrpcStatus.RESOURCE_EXHAUSTED.ordinal());
-    static final Header FAILED_PRECONDITION =
-            createCached(GRPC_STATUS, GrpcStatus.FAILED_PRECONDITION.ordinal());
+    static final Header ALREADY_EXISTS = createCached(GRPC_STATUS, GrpcStatus.ALREADY_EXISTS.ordinal());
+    static final Header PERMISSION_DENIED = createCached(GRPC_STATUS, GrpcStatus.PERMISSION_DENIED.ordinal());
+    static final Header RESOURCE_EXHAUSTED = createCached(GRPC_STATUS, GrpcStatus.RESOURCE_EXHAUSTED.ordinal());
+    static final Header FAILED_PRECONDITION = createCached(GRPC_STATUS, GrpcStatus.FAILED_PRECONDITION.ordinal());
     static final Header ABORTED = createCached(GRPC_STATUS, GrpcStatus.ABORTED.ordinal());
     static final Header OUT_OF_RANGE = createCached(GRPC_STATUS, GrpcStatus.OUT_OF_RANGE.ordinal());
-    static final Header UNIMPLEMENTED =
-            createCached(GRPC_STATUS, GrpcStatus.UNIMPLEMENTED.ordinal());
+    static final Header UNIMPLEMENTED = createCached(GRPC_STATUS, GrpcStatus.UNIMPLEMENTED.ordinal());
     static final Header INTERNAL = createCached(GRPC_STATUS, GrpcStatus.INTERNAL.ordinal());
     static final Header UNAVAILABLE = createCached(GRPC_STATUS, GrpcStatus.UNAVAILABLE.ordinal());
     static final Header DATA_LOSS = createCached(GRPC_STATUS, GrpcStatus.DATA_LOSS.ordinal());
-    static final Header UNAUTHENTICATED =
-            createCached(GRPC_STATUS, GrpcStatus.UNAUTHENTICATED.ordinal());
+    static final Header UNAUTHENTICATED = createCached(GRPC_STATUS, GrpcStatus.UNAUTHENTICATED.ordinal());
 
     private GrpcHeaders() {
         // prevent instantiation

@@ -6,7 +6,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
@@ -352,14 +351,14 @@ public interface ReadableSequentialData extends SequentialData {
         final byte b6 = readByte();
         final byte b7 = readByte();
         final byte b8 = readByte();
-        return (((long)b1 << 56) +
-                ((long)(b2 & 255) << 48) +
-                ((long)(b3 & 255) << 40) +
-                ((long)(b4 & 255) << 32) +
-                ((long)(b5 & 255) << 24) +
-                ((b6 & 255) << 16) +
-                ((b7 & 255) <<  8) +
-                (b8 & 255));
+        return (((long) b1 << 56)
+                + ((long) (b2 & 255) << 48)
+                + ((long) (b3 & 255) << 40)
+                + ((long) (b4 & 255) << 32)
+                + ((long) (b5 & 255) << 24)
+                + ((b6 & 255) << 16)
+                + ((b7 & 255) << 8)
+                + (b8 & 255));
     }
 
     /**
@@ -386,14 +385,14 @@ public interface ReadableSequentialData extends SequentialData {
             final byte b3 = readByte();
             final byte b2 = readByte();
             final byte b1 = readByte();
-            return (((long) b1 << 56) +
-                    ((long) (b2 & 255) << 48) +
-                    ((long) (b3 & 255) << 40) +
-                    ((long) (b4 & 255) << 32) +
-                    ((long) (b5 & 255) << 24) +
-                    ((b6 & 255) << 16) +
-                    ((b7 & 255) << 8) +
-                    (b8 & 255));
+            return (((long) b1 << 56)
+                    + ((long) (b2 & 255) << 48)
+                    + ((long) (b3 & 255) << 40)
+                    + ((long) (b4 & 255) << 32)
+                    + ((long) (b5 & 255) << 24)
+                    + ((b6 & 255) << 16)
+                    + ((b7 & 255) << 8)
+                    + (b8 & 255));
         } else {
             return readLong();
         }

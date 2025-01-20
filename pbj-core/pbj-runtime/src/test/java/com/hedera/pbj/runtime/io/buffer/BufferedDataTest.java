@@ -14,7 +14,7 @@ final class BufferedDataTest extends BufferedDataTestBase {
 
     @NonNull
     @Override
-    protected  BufferedData wrap(final byte[] arr) {
+    protected BufferedData wrap(final byte[] arr) {
         return new BufferedData(ByteBuffer.wrap(arr));
     }
 

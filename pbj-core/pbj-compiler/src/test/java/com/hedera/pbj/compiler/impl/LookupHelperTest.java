@@ -13,18 +13,19 @@ import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageBodyContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageElementContext;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.util.List;
-
 class LookupHelperTest {
     @Mock
     MessageDefContext defContext;
+
     @Mock
     Protobuf3Parser.OptionCommentContext optionComment;
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
@@ -45,6 +46,7 @@ class LookupHelperTest {
         String fileName = "common.proto";
         assertEquals(fileName, normalizeFileName(fileName));
     }
+
     private static void normalizeAndVerify(String fileName) {
         if (System.getProperty("os.name").toLowerCase().contains("windows")) {
             String expected = "state\\common.proto";
@@ -84,17 +86,18 @@ class LookupHelperTest {
 
     @Test
     void testExtractComparableFields_commentWithUnkownField() {
-        when(optionComment.getText()).thenReturn("// <<<pbj.comparable = \"int32Number, int64Number, unknown, text\" >>>");
+        when(optionComment.getText())
+                .thenReturn("// <<<pbj.comparable = \"int32Number, int64Number, unknown, text\" >>>");
         when(defContext.optionComment()).thenReturn(optionComment);
         final var messageBody = mock(MessageBodyContext.class);
         final var int32Number = createMessageElement("int32Number");
         final var int64Number = createMessageElement("int64Number");
         final var text = createMessageElement("text");
-        when(messageBody.messageElement()).thenReturn(asList(
-                int32Number, int64Number, text
-        ));
+        when(messageBody.messageElement()).thenReturn(asList(int32Number, int64Number, text));
         when(defContext.messageBody()).thenReturn(messageBody);
-        assertThrows(IllegalArgumentException.class, () -> extractComparableFields(defContext),
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> extractComparableFields(defContext),
                 "Should throw IllegalArgumentException");
     }
 
@@ -106,9 +109,7 @@ class LookupHelperTest {
         final var int32Number = createMessageElement("int32Number");
         final var int64Number = createMessageElement("int64Number");
         final var text = createMessageElement("text");
-        when(messageBody.messageElement()).thenReturn(asList(
-                int32Number, int64Number, text
-        ));
+        when(messageBody.messageElement()).thenReturn(asList(int32Number, int64Number, text));
         when(defContext.messageBody()).thenReturn(messageBody);
         List<String> comparableFields = extractComparableFields(defContext);
         assertEquals(3, comparableFields.size(), "Should return 3 fields");
@@ -127,6 +128,4 @@ class LookupHelperTest {
 
         return messageElement;
     }
-
-
 }

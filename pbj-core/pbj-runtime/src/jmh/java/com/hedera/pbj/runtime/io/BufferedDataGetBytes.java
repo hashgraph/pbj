@@ -105,5 +105,4 @@ public class BufferedDataGetBytes {
             blackhole.consume(bytes);
         }
     }
-
 }

@@ -23,7 +23,8 @@ import java.util.List;
  */
 public class PbjRouting implements Routing {
     /** The list of routes. */
-    @NonNull private final List<PbjRoute> routes;
+    @NonNull
+    private final List<PbjRoute> routes;
 
     /**
      * Create a new instance. This is private, so it can only be created using the builder method.

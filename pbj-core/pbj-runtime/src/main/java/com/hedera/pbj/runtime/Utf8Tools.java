@@ -46,8 +46,7 @@ public final class Utf8Tools {
 
         if (utf8Length < utf16Length) {
             // Necessary and sufficient condition for overflow because of maximum 3x expansion
-            throw new IllegalArgumentException(
-                    "UTF-8 length does not fit in int: " + (utf8Length + (1L << 32)));
+            throw new IllegalArgumentException("UTF-8 length does not fit in int: " + (utf8Length + (1L << 32)));
         }
         return utf8Length;
     }
@@ -97,9 +96,7 @@ public final class Utf8Tools {
 
                 // Benchmarks show put performs better than putShort here (for HotSpot).
                 out.writeByte3(
-                        (byte) (0xE0 | (c >>> 12)),
-                        (byte) (0x80 | (0x3F & (c >>> 6))),
-                        (byte) (0x80 | (0x3F & c)));
+                        (byte) (0xE0 | (c >>> 12)), (byte) (0x80 | (0x3F & (c >>> 6))), (byte) (0x80 | (0x3F & c)));
             } else {
                 // Four bytes (1111 xxxx 10xx xxxx 10xx xxxx 10xx xxxx)
                 // Minimum code point represented by a surrogate pair is 0x10000, 17 bits, four UTF-8 bytes

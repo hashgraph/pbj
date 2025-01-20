@@ -24,10 +24,9 @@ class PbjServiceRoute extends PbjRoute {
      */
     PbjServiceRoute(@NonNull final ServiceInterface service) {
         this.serviceName = requireNonNull(service).serviceName();
-        this.routes =
-                service.methods().stream()
-                        .map(method -> new PbjMethodRoute(service, method))
-                        .toList();
+        this.routes = service.methods().stream()
+                .map(method -> new PbjMethodRoute(service, method))
+                .toList();
     }
 
     @Override
@@ -40,11 +39,7 @@ class PbjServiceRoute extends PbjRoute {
             }
         }
         throw new IllegalStateException(
-                "PbjServiceRoute("
-                        + serviceName
-                        + ") accepted prologue, "
-                        + "but cannot provide route: "
-                        + prologue);
+                "PbjServiceRoute(" + serviceName + ") accepted prologue, " + "but cannot provide route: " + prologue);
     }
 
     @Override

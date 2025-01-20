@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.DisplayName;
@@ -25,7 +24,7 @@ public abstract class ReadableSequentialTestBase extends ReadableTestBase {
 
     @Override
     @NonNull
-    protected abstract ReadableSequentialData sequence(@NonNull byte [] arr);
+    protected abstract ReadableSequentialData sequence(@NonNull byte[] arr);
 
     @Test
     @DisplayName("Stream with no data")
@@ -160,5 +159,4 @@ public abstract class ReadableSequentialTestBase extends ReadableTestBase {
         final var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8));
         assertThrows(BufferUnderflowException.class, () -> stream.skip(20));
     }
-
 }

@@ -2,7 +2,6 @@
 package com.hedera.pbj.runtime.io;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
@@ -38,7 +37,6 @@ final class WritableSequentialDataTest extends WritableTestBase {
             this.bytes = bytes;
             this.limit = this.bytes.length;
         }
-
 
         @Override
         public long capacity() {
