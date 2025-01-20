@@ -27,8 +27,8 @@ import java.util.stream.Stream;
  */
 public final class TestGenerator implements Generator {
 
-    private static final List<String> CIRCULAR_DEPENDENCIES_FIELDS = List.of(
-            "THRESHOLD_KEY", "KEY_LIST", "THRESHOLD_SIGNATURE", "SIGNATURE_LIST", "ATOMIC_BATCH");
+    private static final List<String> CIRCULAR_DEPENDENCIES_FIELDS =
+            List.of("THRESHOLD_KEY", "KEY_LIST", "THRESHOLD_SIGNATURE", "SIGNATURE_LIST", "ATOMIC_BATCH");
 
     /**
      * {@inheritDoc}
