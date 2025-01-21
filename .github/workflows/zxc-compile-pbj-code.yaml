@@ -74,7 +74,7 @@ jobs:
     runs-on: network-node-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -112,7 +112,7 @@ jobs:
           arguments: check
 
       - name: Publish JUnit Test Report (PBJ Core)
-        uses: step-security/publish-unit-test-result-action@4519d7c9f71dd765f8bbb98626268780f23bab28 # v2.17.0
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           check_name: JUnit Test Report
@@ -144,7 +144,7 @@ jobs:
           arguments: check
 
       - name: Publish Integration Test Report (PBJ Integration)
-        uses: step-security/publish-unit-test-result-action@4519d7c9f71dd765f8bbb98626268780f23bab28 # v2.3.0
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.3.0
         if: ${{ inputs.enable-integration-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           check_name: Integration Test Report
