@@ -27,6 +27,9 @@ import java.util.stream.Stream;
  */
 public final class TestGenerator implements Generator {
 
+    private static final List<String> CIRCULAR_DEPENDENCIES_FIELDS =
+            List.of("THRESHOLD_KEY", "KEY_LIST", "THRESHOLD_SIGNATURE", "SIGNATURE_LIST", "ATOMIC_BATCH");
+
     /**
      * {@inheritDoc}
      */
@@ -185,8 +188,7 @@ public final class TestGenerator implements Generator {
                 if (subField instanceof SingleField) {
                     final String enumValueName = Common.camelToUpperSnake(subField.name());
                     // special cases to break cyclic dependencies
-                    if (!("THRESHOLD_KEY".equals(enumValueName) || "KEY_LIST".equals(enumValueName)
-                            || "THRESHOLD_SIGNATURE".equals(enumValueName) || "SIGNATURE_LIST".equals(enumValueName))) {
+                    if (!(CIRCULAR_DEPENDENCIES_FIELDS.contains(enumValueName))) {
                         final String listStr;
                         if (subField.optionalValueType()) {
                             Field.FieldType convertedSubFieldType = getOptionalConvertedFieldType(subField);
