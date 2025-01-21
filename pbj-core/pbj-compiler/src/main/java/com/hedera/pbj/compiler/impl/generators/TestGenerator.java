@@ -27,6 +27,9 @@ import java.util.stream.Stream;
  */
 public final class TestGenerator implements Generator {
 
+    private static final List<String> CIRCULAR_DEPENDENCIES_FIELDS =
+            List.of("THRESHOLD_KEY", "KEY_LIST", "THRESHOLD_SIGNATURE", "SIGNATURE_LIST", "ATOMIC_BATCH");
+
     /**
      * {@inheritDoc}
      */
@@ -107,11 +110,11 @@ public final class TestGenerator implements Generator {
                     %s
                     }
                     """.formatted(testPackage, imports.isEmpty() ? "" : imports.stream()
-                                .filter(input -> !input.equals(testPackage))
-                                .collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
-                        modelClassName, testClassName,
-                        generateTestMethod(modelClassName, protoCJavaFullQualifiedClass).indent(DEFAULT_INDENT),
-                        generateModelTestArgumentsMethod(modelClassName, fields).indent(DEFAULT_INDENT)
+                                    .filter(input -> !input.equals(testPackage))
+                                    .collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
+                            modelClassName, testClassName,
+                            generateTestMethod(modelClassName, protoCJavaFullQualifiedClass).indent(DEFAULT_INDENT),
+                            generateModelTestArgumentsMethod(modelClassName, fields).indent(DEFAULT_INDENT)
                     )
             );
         }
@@ -150,22 +153,22 @@ public final class TestGenerator implements Generator {
                     return ARGUMENTS.stream().map(NoToStringWrapper::new);
                 }
                 """.formatted(modelClassName,fields.stream()
-                            .filter(field -> !field.javaFieldType().equals(modelClassName))
-                            .map(f -> "final var %sList = %s;".formatted(f.nameCamelFirstLower(),
-                                    generateTestData(modelClassName, f, f.optionalValueType(), f.repeated())))
-                            .collect(Collectors.joining("\n")).indent(DEFAULT_INDENT),
-                    fields.stream().filter(field -> !field.javaFieldType().equals(modelClassName))
-                            .map(f -> f.nameCamelFirstLower()+"List.size()")
-                            .collect(Collectors.collectingAndThen(Collectors.toList(),
-                                    list -> list.isEmpty() ? Stream.of("0") : list.stream()))
-                            .collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 2),
-                    modelClassName,
-                    fields.stream().map(field -> field.javaFieldType().equals(modelClassName)
-                            ? field.javaFieldType() + ".newBuilder().build()"
-                            : "$nameList.get(Math.min(i, $nameList.size()-1))"
-                                    .replace("$name", field.nameCamelFirstLower()))
-                            .collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 4),
-                    modelClassName, modelClassName
+                                .filter(field -> !field.javaFieldType().equals(modelClassName))
+                                .map(f -> "final var %sList = %s;".formatted(f.nameCamelFirstLower(),
+                                        generateTestData(modelClassName, f, f.optionalValueType(), f.repeated())))
+                                .collect(Collectors.joining("\n")).indent(DEFAULT_INDENT),
+                        fields.stream().filter(field -> !field.javaFieldType().equals(modelClassName))
+                                .map(f -> f.nameCamelFirstLower()+"List.size()")
+                                .collect(Collectors.collectingAndThen(Collectors.toList(),
+                                        list -> list.isEmpty() ? Stream.of("0") : list.stream()))
+                                .collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 2),
+                        modelClassName,
+                        fields.stream().map(field -> field.javaFieldType().equals(modelClassName)
+                                        ? field.javaFieldType() + ".newBuilder().build()"
+                                        : "$nameList.get(Math.min(i, $nameList.size()-1))"
+                                        .replace("$name", field.nameCamelFirstLower()))
+                                .collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 4),
+                        modelClassName, modelClassName
                 );
         // spotless:on
     }
@@ -185,8 +188,7 @@ public final class TestGenerator implements Generator {
                 if (subField instanceof SingleField) {
                     final String enumValueName = Common.camelToUpperSnake(subField.name());
                     // special cases to break cyclic dependencies
-                    if (!("THRESHOLD_KEY".equals(enumValueName) || "KEY_LIST".equals(enumValueName)
-                            || "THRESHOLD_SIGNATURE".equals(enumValueName) || "SIGNATURE_LIST".equals(enumValueName))) {
+                    if (!(CIRCULAR_DEPENDENCIES_FIELDS.contains(enumValueName))) {
                         final String listStr;
                         if (subField.optionalValueType()) {
                             Field.FieldType convertedSubFieldType = getOptionalConvertedFieldType(subField);
@@ -215,7 +217,7 @@ public final class TestGenerator implements Generator {
                         %s
                     ).flatMap(List::stream).toList()"""
                     .formatted(((OneOfField) field).className(), classDotField,
-                        String.join(",\n", options).indent(DEFAULT_INDENT)).indent(DEFAULT_INDENT * 2);
+                            String.join(",\n", options).indent(DEFAULT_INDENT)).indent(DEFAULT_INDENT * 2);
             // spotless:on
         } else if (field instanceof final MapField mapField) {
             // e.g. INTEGER_TESTS_LIST
