@@ -101,6 +101,9 @@ public final class ModelGenerator implements Generator {
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
             if (item.messageDef() != null) { // process sub messages
+                // @todo(issue=263) Add to "children" here so the new model knows it is an inner class
+                //     and gets added to the parent type, instead of its own top level class file.
+                // children.add(generateChildClass(item.messageDef(), msgDef, lookupHelper));
                 generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
             } else if (item.oneof() != null) { // process one ofs
                 oneofGetters.addAll(
@@ -110,6 +113,8 @@ public final class ModelGenerator implements Generator {
                 fields.add(field);
                 field.addAllNeededImports(imports, true, false, false);
             } else if (item.field() != null && item.field().fieldName() != null) {
+                // @todo(issue=263) Pass the "children" to the field method so that
+                //     fields of the "inner" type are correctly processed.
                 generateCodeForField(lookupHelper, item, fields, imports, hasMethods);
             } else if (item.optionStatement() != null) {
                 if ("deprecated".equals(item.optionStatement().optionName().getText())) {
@@ -240,6 +245,8 @@ public final class ModelGenerator implements Generator {
 
         // oneof enums
         bodyContent += String.join("\n    ", oneofEnums);
+
+        // @todo(issue=263) Add the "children" to the message class body content here.
 
         // === Build file
         try (final FileWriter javaWriter = new FileWriter(javaFile)) {

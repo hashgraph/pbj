@@ -44,6 +44,9 @@ public abstract class PbjCompiler {
                         }
                         final Protobuf3Parser.EnumDefContext enumDef = topLevelDef.enumDef();
                         if (enumDef != null) {
+                            // @todo(issue=263) Add the child enum type to the "children" here so the
+                            //      new enum knows it's a child class and is added to the parent type instead
+                            //      of it's own top level class file.
                             // run just enum generators for enum
                             EnumGenerator.generateEnumFile(enumDef, mainOutputDir, contextualLookupHelper);
                         }
