@@ -100,9 +100,11 @@ final class CodecWriteMethodGenerator {
                         "Unhandled optional message type:%s".formatted(field.messageType()));
             };
         } else {
-            final String codecReference = "%s.%s.PROTOBUF"
-                    .formatted(((SingleField)field).messageTypeModelPackage(),
-                            Common.capitalizeFirstLetter(field.messageType()));
+            String codecReference = "";
+            if (Field.FieldType.MESSAGE.equals(field.type())) {
+                codecReference = "%s.%s.PROTOBUF".formatted(((SingleField) field).messageTypeModelPackage(),
+                        Common.capitalizeFirstLetter(field.messageType()));
+            }
             if (field.repeated()) {
                 return prefix + switch(field.type()) {
                     case ENUM -> "writeEnumList(out, %s, %s);"
