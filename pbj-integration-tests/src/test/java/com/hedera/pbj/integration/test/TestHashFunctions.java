@@ -69,13 +69,14 @@ public final class TestHashFunctions {
         }
         if (hashEval.subObject() != Hasheval.DEFAULT.subObject()) {
             TimestampTest sub = hashEval.subObject();
-            if (sub.nanos() != sub.DEFAULT.nanos()) {
+            if (sub.nanos() != TimestampTest.DEFAULT.nanos()) {
                 result = 31 * result + Integer.hashCode(sub.nanos());
             }
-            if (sub.seconds() != sub.DEFAULT.seconds()) {
+            if (sub.seconds() != TimestampTest.DEFAULT.seconds()) {
                 result = 31 * result + Long.hashCode(sub.seconds());
             }
         }
+        //noinspection StringEquality
         if (hashEval.text() != Hasheval.DEFAULT.text()) {
             result = 31 * result + hashEval.text().hashCode();
         }

@@ -6,7 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Objects;
-import org.jetbrains.annotations.NotNull;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Faster non-synchronized ByteArrayInputStream. This class is not thread safe, and does not require synchronization.
@@ -68,7 +68,7 @@ public final class NonSynchronizedByteArrayInputStream extends InputStream {
      * {@inheritDoc}
      */
     @Override
-    public byte @NotNull [] readAllBytes() {
+    public @NonNull byte[] readAllBytes() {
         byte[] result = Arrays.copyOfRange(buf, pos, count);
         pos = count;
         return result;
