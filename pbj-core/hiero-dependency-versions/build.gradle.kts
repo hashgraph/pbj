@@ -9,7 +9,7 @@ plugins {
 group = "com.hedera.hashgraph"
 
 val antlr = "4.13.2"
-val grpc = "1.69.1"
+val grpc = "1.70.0"
 val helidon = "4.1.6"
 val protobuf = "4.29.3"
 
