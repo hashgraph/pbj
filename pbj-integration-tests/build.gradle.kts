@@ -27,7 +27,6 @@ mainModuleInfo {
 
     requires("com.google.common")
     requires("com.google.protobuf")
-    requires("com.google.protobuf.util")
     requires("io.grpc")
     requires("io.grpc.protobuf")
     requires("io.grpc.stub")
@@ -38,10 +37,14 @@ mainModuleInfo {
 testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+    requires("com.google.protobuf.util")
     runtimeOnly("org.junit.jupiter.engine")
 }
 
-jmhModuleInfo { requires("com.hedera.pbj.runtime") }
+jmhModuleInfo {
+    requires("com.hedera.pbj.runtime")
+    requires("com.google.protobuf.util")
+}
 
 // IMPROVE: Disable module-info transform for 'testRuntimeClasspath' which leads to an error
 // possible caused by a cycle produced by depending on 'pbj-compiler' in multiple ways which
