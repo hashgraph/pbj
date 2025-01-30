@@ -27,7 +27,6 @@ testModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-    requiresStatic("com.github.spotbugs.annotations")
     requiresStatic("java.annotation")
     runtimeOnly("io.grpc.netty")
     runtimeOnly("io.helidon.webserver.observe.metrics")
