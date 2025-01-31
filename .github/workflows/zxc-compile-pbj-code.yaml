@@ -139,11 +139,6 @@ jobs:
           time_unit: seconds
           junit_files: "${{ env.PBJ_INTEGRATION_TESTS }}/**/build/test-results/**/*.xml"
 
-      - name: Gradle JMH Jars (PBJ Integration)
-        if: ${{ inputs.enable-jmh-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
-        working-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
-        run: ./gradlew jmhJar
-
       - name: Gradle JMH Benchmarks (PBJ Integration)
         if: ${{ inputs.enable-jmh-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         working-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
