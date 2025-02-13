@@ -37,6 +37,9 @@ dependencies.constraints {
     api("io.helidon.common.features:helidon-common-features-processor:$helidon") {
         because("io.helidon.common.features.processor")
     }
+    api("io.helidon.config.metadata:helidon-config-metadata-codegen:$helidon") {
+        because("io.helidon.config.metadata.codegen")
+    }
     api("io.helidon.config:helidon-config-metadata-processor:$helidon") {
         because("io.helidon.config.metadata.processor")
     }

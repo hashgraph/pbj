@@ -33,7 +33,7 @@ public final class Common {
     /** Number of bits used to represent the tag type */
     static final int TAG_TYPE_BITS = 3;
 
-    private static final Pattern COMPARABLE_PATTERN = Pattern.compile("[)] implements Comparable<\\w+> [{]");
+    private static final Pattern COMPARABLE_PATTERN = Pattern.compile("implements Comparable<\\w+>\\s*\\{");
 
     /**
      * Makes a tag value given a field number and wire type.
@@ -156,8 +156,10 @@ public final class Common {
         return cleanDocStr(
                 fieldComment
                         .replaceAll("/\\*\\*[\n\r\s\t]*\\*[\t\s]*|[\n\r\s\t]*\\*/", "") // remove java doc
-                        .replaceAll("\n\s+\\*\s+", "\n") // remove indenting and *
-                        .replaceAll("\n\s+\\*\s*\n", "\n\n") // remove indenting and *
+                        .replaceAll("(^|\n)\s+\\*(\s+|\n|$)", "\n") // remove indenting and *
+                        .replaceAll(
+                                "(^|\n)\s+\\*(\s+|\n|$)",
+                                "\n\n") // remove lines starting with * as these were empty lines
                         .replaceAll("/\\*\\*", "") // remove indenting and /** at beginning of comment.
                         .trim() // Remove leading and trailing spaces.
                 );
@@ -307,7 +309,7 @@ public final class Common {
                 }
             }
         }
-        return generatedCodeSoFar.indent(DEFAULT_INDENT * 2);
+        return generatedCodeSoFar.indent(DEFAULT_INDENT * 3);
     }
 
     /**
@@ -723,7 +725,7 @@ public final class Common {
             try (BufferedReader reader = new BufferedReader(new FileReader(javaFile))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    if (COMPARABLE_PATTERN.matcher(line).matches()) {
+                    if (COMPARABLE_PATTERN.matcher(line).find()) {
                         return;
                     }
                 }

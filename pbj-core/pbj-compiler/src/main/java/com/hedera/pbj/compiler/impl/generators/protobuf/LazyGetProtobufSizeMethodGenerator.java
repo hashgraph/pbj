@@ -18,27 +18,34 @@ import java.util.stream.Stream;
  * Code to generate the measure record method for Codec classes. This measures the number of bytes that would be
  * written if the record was serialized in protobuf format.
  */
-class CodecMeasureRecordMethodGenerator {
+public class LazyGetProtobufSizeMethodGenerator {
 
-    static String generateMeasureMethod(final String modelClassName, final List<Field> fields) {
-        final String fieldSizeOfLines = buildFieldSizeOfLines(
-                modelClassName, fields, field -> "data.%s()".formatted(field.nameCamelFirstLower()), true);
-        // spotless:off
+    public static String generateLazyGetProtobufSize(final List<Field> fields) {
+        final String fieldSizeOfLines = buildFieldSizeOfLines(null, fields, Field::nameCamelFirstLower, true);
         return """
                 /**
-                 * Compute number of bytes that would be written when calling {@code write()} method.
+                 * Get number of bytes when serializing the object to protobuf binary.
                  *
-                 * @param data The input model data to measure write bytes for
-                 * @return The length in bytes that would be written
+                 * @return The length in bytes in protobuf encoding
                  */
-                public int measureRecord($modelClass data) {
-                    return data.protobufSize();
+                public int protobufSize() {
+                    // The $protobufEncodedSize field is subject to a benign data race, making it crucial to ensure that any
+                    // observable result of the calculation in this method stays correct under any possible read of this
+                    // field. Necessary restrictions to allow this to be correct without explicit memory fences or similar
+                    // concurrency primitives is that we can ever only write to this field for a given Model object
+                    // instance, and that the computation is idempotent and derived from immutable state.
+                    // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
+
+                    if ($protobufEncodedSize == -1) {
+                        int _size = 0;
+                $fieldSizeOfLines
+                        $protobufEncodedSize = _size;
+                    }
+                    return $protobufEncodedSize;
                 }
                 """
-                .replace("$modelClass", modelClassName)
-                .replace("$fieldSizeOfLines", fieldSizeOfLines)
+                .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
                 .indent(DEFAULT_INDENT);
-        // spotless:on
     }
 
     static String buildFieldSizeOfLines(
@@ -74,9 +81,11 @@ class CodecMeasureRecordMethodGenerator {
 
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
-            final String oneOfType = modelClassName + "." + oneOfField.nameCamelFirstUpper() + "OneOfType";
-            getValueCode = "data." + oneOfField.nameCamelFirstLower() + "().as()";
-            prefix += "if (data." + oneOfField.nameCamelFirstLower() + "().kind() == " + oneOfType + "."
+            final String oneOfType = modelClassName == null
+                    ? oneOfField.nameCamelFirstUpper() + "OneOfType"
+                    : modelClassName + "." + oneOfField.nameCamelFirstUpper() + "OneOfType";
+            getValueCode = oneOfField.nameCamelFirstLower() + ".as()";
+            prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
                     + Common.camelToUpperSnake(field.name()) + ")";
             prefix += "\n";
         }
@@ -85,75 +94,79 @@ class CodecMeasureRecordMethodGenerator {
         if (field.optionalValueType()) {
             return prefix
                     + switch (field.messageType()) {
-                        case "StringValue" -> "size += sizeOfOptionalString(%s, %s);".formatted(fieldDef, getValueCode);
-                        case "BoolValue" -> "size += sizeOfOptionalBoolean(%s, %s);".formatted(fieldDef, getValueCode);
-                        case "Int32Value", "UInt32Value" -> "size += sizeOfOptionalInteger(%s, %s);"
+                        case "StringValue" -> "_size += sizeOfOptionalString(%s, %s);"
                                 .formatted(fieldDef, getValueCode);
-                        case "Int64Value", "UInt64Value" -> "size += sizeOfOptionalLong(%s, %s);"
+                        case "BoolValue" -> "_size += sizeOfOptionalBoolean(%s, %s);".formatted(fieldDef, getValueCode);
+                        case "Int32Value", "UInt32Value" -> "_size += sizeOfOptionalInteger(%s, %s);"
                                 .formatted(fieldDef, getValueCode);
-                        case "FloatValue" -> "size += sizeOfOptionalFloat(%s, %s);".formatted(fieldDef, getValueCode);
-                        case "DoubleValue" -> "size += sizeOfOptionalDouble(%s, %s);".formatted(fieldDef, getValueCode);
-                        case "BytesValue" -> "size += sizeOfOptionalBytes(%s, %s);".formatted(fieldDef, getValueCode);
+                        case "Int64Value", "UInt64Value" -> "_size += sizeOfOptionalLong(%s, %s);"
+                                .formatted(fieldDef, getValueCode);
+                        case "FloatValue" -> "_size += sizeOfOptionalFloat(%s, %s);".formatted(fieldDef, getValueCode);
+                        case "DoubleValue" -> "_size += sizeOfOptionalDouble(%s, %s);"
+                                .formatted(fieldDef, getValueCode);
+                        case "BytesValue" -> "_size += sizeOfOptionalBytes(%s, %s);".formatted(fieldDef, getValueCode);
                         default -> throw new UnsupportedOperationException(
                                 "Unhandled optional message type:" + field.messageType());
                     };
         } else if (field.repeated()) {
             return prefix
                     + switch (field.type()) {
-                        case ENUM -> "size += sizeOfEnumList(%s, %s);".formatted(fieldDef, getValueCode);
-                        case MESSAGE -> "size += sizeOfMessageList($fieldDef, $valueCode, $codec);"
+                        case ENUM -> "_size += sizeOfEnumList(%s, %s);".formatted(fieldDef, getValueCode);
+                        case MESSAGE -> "_size += sizeOfMessageList($fieldDef, $valueCode, $codec);"
                                 .replace("$fieldDef", fieldDef)
                                 .replace("$valueCode", getValueCode)
                                 .replace(
                                         "$codec",
                                         ((SingleField) field).messageTypeModelPackage() + "."
                                                 + Common.capitalizeFirstLetter(field.messageType()) + ".PROTOBUF");
-                        default -> "size += sizeOf%sList(%s, %s);".formatted(writeMethodName, fieldDef, getValueCode);
+                        default -> "_size += sizeOf%sList(%s, %s);".formatted(writeMethodName, fieldDef, getValueCode);
                     };
         } else if (field.type() == Field.FieldType.MAP) {
             final MapField mapField = (MapField) field;
             final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
             final Function<Field, String> getValueBuilder = mapEntryField ->
                     mapEntryField == mapField.keyField() ? "k" : (mapEntryField == mapField.valueField() ? "v" : null);
-            final String fieldSizeOfLines = CodecMeasureRecordMethodGenerator.buildFieldSizeOfLines(
+            final String fieldSizeOfLines = LazyGetProtobufSizeMethodGenerator.buildFieldSizeOfLines(
                     field.name(), mapEntryFields, getValueBuilder, false);
-            // spotless:off
-            return prefix + """
+            return prefix
+                    + """
                         if (!$map.isEmpty()) {
                             final Pbj$javaFieldType pbjMap = (Pbj$javaFieldType) $map;
                             final int mapSize = pbjMap.size();
                             for (int i = 0; i < mapSize; i++) {
-                                size += sizeOfTag($fieldDef, WIRE_TYPE_DELIMITED);
-                                final int sizePre = size;
+                                _size += sizeOfTag($fieldDef, WIRE_TYPE_DELIMITED);
+                                final int sizePre = _size;
                                 $K k = pbjMap.getSortedKeys().get(i);
                                 $V v = pbjMap.get(k);
                                 $fieldSizeOfLines
-                                size += sizeOfVarInt32(size - sizePre);
+                                _size += sizeOfVarInt32(_size - sizePre);
                             }
                         }
                         """
-                    .replace("$fieldDef", fieldDef)
-                    .replace("$map", getValueCode)
-                    .replace("$javaFieldType", mapField.javaFieldType())
-                    .replace("$K", mapField.keyField().type().boxedType)
-                    .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? mapField.valueField().messageType() : mapField.valueField().type().boxedType)
-                    .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
-                    ;
-            // spotless:on
+                            .replace("$fieldDef", fieldDef)
+                            .replace("$map", getValueCode)
+                            .replace("$javaFieldType", mapField.javaFieldType())
+                            .replace("$K", mapField.keyField().type().boxedType)
+                            .replace(
+                                    "$V",
+                                    mapField.valueField().type() == Field.FieldType.MESSAGE
+                                            ? mapField.valueField().messageType()
+                                            : mapField.valueField().type().boxedType)
+                            .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT));
         } else {
             return prefix
                     + switch (field.type()) {
-                        case ENUM -> "size += sizeOfEnum(%s, %s);".formatted(fieldDef, getValueCode);
-                        case STRING -> "size += sizeOfString(%s, %s, %s);"
+                        case ENUM -> "_size += sizeOfEnum(%s, %s);".formatted(fieldDef, getValueCode);
+                        case STRING -> "_size += sizeOfString(%s, %s, %s);"
                                 .formatted(fieldDef, getValueCode, skipDefault);
-                        case MESSAGE -> "size += sizeOfMessage($fieldDef, $valueCode, $codec);"
+                        case MESSAGE -> "_size += sizeOfMessage($fieldDef, $valueCode, $codec);"
                                 .replace("$fieldDef", fieldDef)
                                 .replace("$valueCode", getValueCode)
                                 .replace(
                                         "$codec",
                                         ((SingleField) field).messageTypeModelPackage() + "."
                                                 + Common.capitalizeFirstLetter(field.messageType()) + ".PROTOBUF");
-                        case BOOL -> "size += sizeOfBoolean(%s, %s, %s);"
+                        case BOOL -> "_size += sizeOfBoolean(%s, %s, %s);"
                                 .formatted(fieldDef, getValueCode, skipDefault);
                         case INT32,
                                 UINT32,
@@ -165,9 +178,9 @@ class CodecMeasureRecordMethodGenerator {
                                 UINT64,
                                 FIXED64,
                                 SFIXED64,
-                                BYTES -> "size += sizeOf%s(%s, %s, %s);"
+                                BYTES -> "_size += sizeOf%s(%s, %s, %s);"
                                 .formatted(writeMethodName, fieldDef, getValueCode, skipDefault);
-                        default -> "size += sizeOf%s(%s, %s);".formatted(writeMethodName, fieldDef, getValueCode);
+                        default -> "_size += sizeOf%s(%s, %s);".formatted(writeMethodName, fieldDef, getValueCode);
                     };
         }
     }

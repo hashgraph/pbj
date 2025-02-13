@@ -35,11 +35,11 @@ import org.openjdk.jmh.infra.Blackhole;
 @Measurement(iterations = 5, time = 2)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
-public abstract class JsonBench<P extends Record, G extends GeneratedMessage> {
+public abstract class JsonBench<P, G extends GeneratedMessage> {
 
     @SuppressWarnings("rawtypes")
     @State(Scope.Benchmark)
-    public static class JsonBenchmarkState<P extends Record, G extends GeneratedMessage> {
+    public static class JsonBenchmarkState<P, G extends GeneratedMessage> {
         private JsonCodec<P> pbjJsonCodec;
         private Supplier<GeneratedMessage.Builder> builderSupplier;
         // input objects
