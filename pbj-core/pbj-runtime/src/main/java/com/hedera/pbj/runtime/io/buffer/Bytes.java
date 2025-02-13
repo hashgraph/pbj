@@ -467,8 +467,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     @Override
     public int hashCode() {
         int h = 1;
-        for (long i = length() - 1; i >= 0; i--) {
-            h = 31 * h + getByte(i);
+        for (int i = start + length - 1; i >= start; i--) {
+            h = 31 * h + UnsafeUtils.getArrayByteNoChecks(buffer, i);
         }
         return h;
     }
