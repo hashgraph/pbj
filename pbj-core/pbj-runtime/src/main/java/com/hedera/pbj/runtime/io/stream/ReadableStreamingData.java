@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.stream;
+
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
@@ -14,8 +17,6 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * <p>A {@code ReadableSequentialData} backed by an input stream. If the instance is closed,
@@ -238,7 +239,6 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
         return bytesRead;
     }
 
-
     @Override
     public long readVarLong(final boolean zigZag) {
         if (!hasRemaining()) {
@@ -267,5 +267,4 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
             throw new UncheckedIOException(e);
         }
     }
-
 }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
 import java.lang.reflect.Field;
@@ -45,8 +46,7 @@ public class UnsafeUtils {
         }
     }
 
-    private UnsafeUtils() {
-    }
+    private UnsafeUtils() {}
 
     /**
      * Get byte array element at a given offset. Identical to arr[offset].
@@ -149,8 +149,8 @@ public class UnsafeUtils {
      */
     public static void getHeapBufferToArray(
             final ByteBuffer buffer, final long offset, final byte[] dst, final int dstOffset, final int length) {
-        UNSAFE.copyMemory(buffer.array(), BYTE_ARRAY_BASE_OFFSET + offset,
-                dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
+        UNSAFE.copyMemory(
+                buffer.array(), BYTE_ARRAY_BASE_OFFSET + offset, dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
     }
 
     /**
@@ -160,8 +160,7 @@ public class UnsafeUtils {
     public static void getDirectBufferToArray(
             final ByteBuffer buffer, final long offset, final byte[] dst, final int dstOffset, final int length) {
         final long address = UNSAFE.getLong(buffer, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
-        UNSAFE.copyMemory(null, address + offset,
-                dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
+        UNSAFE.copyMemory(null, address + offset, dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
     }
 
     /**

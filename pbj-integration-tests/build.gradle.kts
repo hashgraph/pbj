@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 import org.hiero.gradle.tasks.GitClone
 
 plugins {
@@ -42,7 +27,6 @@ mainModuleInfo {
 
     requires("com.google.common")
     requires("com.google.protobuf")
-    requires("com.google.protobuf.util")
     requires("io.grpc")
     requires("io.grpc.protobuf")
     requires("io.grpc.stub")
@@ -53,10 +37,14 @@ mainModuleInfo {
 testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+    requires("com.google.protobuf.util")
     runtimeOnly("org.junit.jupiter.engine")
 }
 
-jmhModuleInfo { requires("com.hedera.pbj.runtime") }
+jmhModuleInfo {
+    requires("com.hedera.pbj.runtime")
+    requires("com.google.protobuf.util")
+}
 
 // IMPROVE: Disable module-info transform for 'testRuntimeClasspath' which leads to an error
 // possible caused by a cycle produced by depending on 'pbj-compiler' in multiple ways which
@@ -126,7 +114,7 @@ testing {
             classpath = sources.runtimeClasspath
             useJUnitPlatform { includeTags("FUZZ_TEST") }
             enableAssertions = false
-            systemProperties["com.hedera.pbj.intergration.test.fuzz.useRandomSeed"] = true
+            systemProperties["com.hedera.pbj.integration.test.fuzz.useRandomSeed"] = true
         }
         targets.named("test") {
             testTask {

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
@@ -50,7 +51,8 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
         this.limit = this.capacity;
 
         if (this.start > delegate.length()) {
-            throw new IllegalArgumentException("Start " + start + " is greater than the delegate length " + delegate.length());
+            throw new IllegalArgumentException(
+                    "Start " + start + " is greater than the delegate length " + delegate.length());
         }
     }
 

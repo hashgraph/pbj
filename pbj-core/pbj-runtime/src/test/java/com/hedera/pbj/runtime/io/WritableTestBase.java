@@ -1,16 +1,20 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
+
+import static java.nio.ByteOrder.BIG_ENDIAN;
+import static java.nio.ByteOrder.LITTLE_ENDIAN;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,14 +24,12 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import static java.nio.ByteOrder.BIG_ENDIAN;
-import static java.nio.ByteOrder.LITTLE_ENDIAN;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Base test class for testing {@link WritableSequentialData}.
@@ -123,7 +125,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // then the position forward by a single byte
             assertThat(seq.position()).isEqualTo(pos + 1);
             // and the byte was written unmodified
-            final var expected = new byte[] { (byte) 0b1110_0011 };
+            final var expected = new byte[] {(byte) 0b1110_0011};
             assertThat(extractWrittenBytes(seq)).isEqualTo(expected);
         }
     }
@@ -165,8 +167,10 @@ public abstract class WritableTestBase extends SequentialTestBase {
         void negativeOffsetThrows() {
             // Given a sequence
             final var seq = sequence();
-            // When we try to write bytes using a byte array with a negative offset, then we get an IndexOutOfBoundsException
-            assertThatThrownBy(() -> seq.writeBytes(new byte[10], -1, 10)).isInstanceOf(IndexOutOfBoundsException.class);
+            // When we try to write bytes using a byte array with a negative offset, then we get an
+            // IndexOutOfBoundsException
+            assertThatThrownBy(() -> seq.writeBytes(new byte[10], -1, 10))
+                    .isInstanceOf(IndexOutOfBoundsException.class);
         }
 
         @Test
@@ -189,11 +193,13 @@ public abstract class WritableTestBase extends SequentialTestBase {
         void negativeLengthThrows() {
             // Given a sequence
             final var seq = sequence();
-            // When we try to write bytes using a byte array with a negative length, then we get an IllegalArgumentException
+            // When we try to write bytes using a byte array with a negative length, then we get an
+            // IllegalArgumentException
             assertThatThrownBy(() -> seq.writeBytes(new byte[10], 0, -1)).isInstanceOf(IllegalArgumentException.class);
-            // When we try to write bytes using an input stream with a negative length, then we get an IllegalArgumentException
+            // When we try to write bytes using an input stream with a negative length, then we get an
+            // IllegalArgumentException
             final var stream = new ByteArrayInputStream(new byte[10]);
-            assertThatThrownBy(() -> seq.writeBytes(stream,  -1)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> seq.writeBytes(stream, -1)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
@@ -244,13 +250,13 @@ public abstract class WritableTestBase extends SequentialTestBase {
             assertThatThrownBy(() -> seq.writeBytes(bytes)).isInstanceOf(BufferOverflowException.class);
         }
 
-
         @Test
-        @DisplayName("Writing bytes from an InputStream with less data than the maxLength returns number of bytes written")
+        @DisplayName(
+                "Writing bytes from an InputStream with less data than the maxLength returns number of bytes written")
         void writingFromInputStreamWithInsufficientData() {
             // Given a sequence and an input stream with some data
             final var seq = sequence();
-            final var bytes = new byte[] { 1, 2, 3, 4, 5 };
+            final var bytes = new byte[] {1, 2, 3, 4, 5};
             final var stream = new ByteArrayInputStream(bytes);
             // When we write the stream data to the sequence, and the max length is larger than the number
             // of bytes we have to write,
@@ -265,7 +271,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
         void writingFromInputStreamWithNoData() {
             // Given a sequence and an input stream with no data
             final var seq = sequence();
-            final var bytes = new byte[] { };
+            final var bytes = new byte[] {};
             final var stream = new ByteArrayInputStream(bytes);
             // When we write the stream data to the sequence
             final var numBytesWritten = seq.writeBytes(stream, 10);
@@ -278,7 +284,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
         void writingFromInputStreamWithLotsOfData() {
             // Given a sequence and an input stream with lots of data
             final var seq = sequence();
-            final var bytes = new byte[1024*1024];
+            final var bytes = new byte[1024 * 1024];
             for (int i = 0; i < bytes.length; i++) {
                 bytes[i] = (byte) i;
             }
@@ -333,7 +339,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             assertThat(extractWrittenBytes(seq)).isEmpty();
         }
 
-        @Test 
+        @Test
         @DisplayName("Writing bytes from a src BufferedData where the src has length of 0")
         void writeZeroSrcBufferedData() {
             // Given a sequence and an empty src BufferedData
@@ -354,7 +360,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             final var seq = sequence();
             seq.limit(10);
             // When we try writing bytes from the src
-            final var src = new byte[] { 1, 2, 3, 4, 5 };
+            final var src = new byte[] {1, 2, 3, 4, 5};
             final var pos = seq.position();
             seq.writeBytes(src);
             // Then the sequence received those bytes and the position is updated
@@ -368,12 +374,12 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // Given a sequence with a src byte array who's size is less than the limit
             final var seq = sequence();
             seq.limit(10);
-            final var src = new byte[] { 1, 2, 3, 4, 5 };
+            final var src = new byte[] {1, 2, 3, 4, 5};
             // When we try writing bytes from the src
             final var pos = seq.position();
             seq.writeBytes(src, 2, 2);
             // Then the sequence received those bytes and the position is updated
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 3, 4 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {3, 4});
             assertThat(seq.position()).isEqualTo(pos + 2);
         }
 
@@ -384,7 +390,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             final var seq = sequence();
             seq.limit(10);
             // When we try writing bytes from the src
-            final var src = ByteBuffer.wrap(new byte[] { 1, 2, 3, 4, 5 });
+            final var src = ByteBuffer.wrap(new byte[] {1, 2, 3, 4, 5});
             final var pos = seq.position();
             seq.writeBytes(src);
             // Then the sequence received those bytes and the position is updated
@@ -398,13 +404,13 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // Given a sequence with a src ByteBuffer who's size is less than the limit
             final var seq = sequence();
             seq.limit(10);
-            final var src = ByteBuffer.wrap(new byte[] { 1, 2, 3, 4, 5 });
+            final var src = ByteBuffer.wrap(new byte[] {1, 2, 3, 4, 5});
             src.position(2);
             // When we try writing bytes from the src
             final var pos = seq.position();
             seq.writeBytes(src);
             // Then the sequence received those bytes and the position is updated
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 3, 4, 5 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {3, 4, 5});
             assertThat(seq.position()).isEqualTo(pos + 3);
         }
 
@@ -415,29 +421,31 @@ public abstract class WritableTestBase extends SequentialTestBase {
             final var seq = sequence();
             seq.limit(10);
             // When we try writing bytes from the src
-            final var src = BufferedData.wrap(new byte[] { 1, 2, 3, 4, 5 });
+            final var src = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5});
             final var pos = seq.position();
             seq.writeBytes(src);
             // Then the sequence received those bytes and the position is updated
-            final var writtenBytes = new byte[1024]; // make large enough to hold extra bytes should they have been written
+            final var writtenBytes =
+                    new byte[1024]; // make large enough to hold extra bytes should they have been written
             assertThat(src.getBytes(0, writtenBytes)).isEqualTo(5);
             assertThat(extractWrittenBytes(seq)).isEqualTo(Arrays.copyOfRange(writtenBytes, 0, 5));
             assertThat(seq.position()).isEqualTo(pos + 5);
         }
 
         @Test
-        @DisplayName("Writing bytes from a src BufferedData with offset where the src is smaller than the sequence limit")
+        @DisplayName(
+                "Writing bytes from a src BufferedData with offset where the src is smaller than the sequence limit")
         void writeSmallerSrcBufferedDataWithOffset() {
             // Given a sequence with a src ByteBuffer who's size is less than the limit
             final var seq = sequence();
             seq.limit(10);
-            final var src = BufferedData.wrap(new byte[] { 1, 2, 3, 4, 5 });
+            final var src = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5});
             src.position(2);
             // When we try writing bytes from the src
             final var pos = seq.position();
             seq.writeBytes(src);
             // Then the sequence received those bytes and the position is updated
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 3, 4, 5 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {3, 4, 5});
             assertThat(seq.position()).isEqualTo(pos + 3);
         }
 
@@ -448,11 +456,12 @@ public abstract class WritableTestBase extends SequentialTestBase {
             final var seq = sequence();
             seq.limit(10);
             // When we try writing bytes from the src
-            final var src = Bytes.wrap(new byte[] { 1, 2, 3, 4, 5 });
+            final var src = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
             final var pos = seq.position();
             seq.writeBytes(src);
             // Then the sequence received those bytes and the position is updated
-            final var writtenBytes = new byte[1024]; // make large enough to hold extra bytes should they have been written
+            final var writtenBytes =
+                    new byte[1024]; // make large enough to hold extra bytes should they have been written
             assertThat(src.getBytes(0, writtenBytes)).isEqualTo(5);
             assertThat(extractWrittenBytes(seq)).isEqualTo(Arrays.copyOfRange(writtenBytes, 0, 5));
             assertThat(seq.position()).isEqualTo(pos + 5);
@@ -464,13 +473,13 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // Given a sequence with a src InputStream with lots of items
             final var seq = sequence();
             seq.limit(10);
-            final var srcBytes = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
+            final var srcBytes = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
             final var stream = new ByteArrayInputStream(srcBytes);
             // When we try writing bytes from the src with a maxLength less than the limit
             final var pos = seq.position();
             seq.writeBytes(stream, 5);
             // Then the sequence received those fewer bytes and the position is updated
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 1, 2, 3, 4, 5 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {1, 2, 3, 4, 5});
             assertThat(seq.position()).isEqualTo(pos + 5);
         }
 
@@ -479,7 +488,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
         void writeSrcByteArray() {
             final var seq = sequence();
             seq.limit(10);
-            final var src = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+            final var src = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
             final var pos = seq.position();
             seq.writeBytes(src);
             assertThat(extractWrittenBytes(seq)).isEqualTo(src);
@@ -487,14 +496,15 @@ public abstract class WritableTestBase extends SequentialTestBase {
         }
 
         @Test
-        @DisplayName("Writing bytes from a src byte array with offset where the src is the same length as the sequence limit")
+        @DisplayName(
+                "Writing bytes from a src byte array with offset where the src is the same length as the sequence limit")
         void writeSrcByteArrayWithOffset() {
             final var seq = sequence();
             seq.limit(5);
-            final var src = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+            final var src = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
             final var pos = seq.position();
             seq.writeBytes(src, 5, 5);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 6, 7, 8, 9, 10 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {6, 7, 8, 9, 10});
             assertThat(seq.position()).isEqualTo(pos + 5);
         }
 
@@ -503,7 +513,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
         void writeSrcByteBuffer() {
             final var seq = sequence();
             seq.limit(10);
-            final var src = ByteBuffer.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var src = ByteBuffer.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             final var pos = seq.position();
             seq.writeBytes(src);
             assertThat(extractWrittenBytes(seq)).isEqualTo(src.array());
@@ -511,16 +521,17 @@ public abstract class WritableTestBase extends SequentialTestBase {
         }
 
         @Test
-        @DisplayName("Writing bytes from a src ByteBuffer with offset where the src is the same length as the sequence limit")
+        @DisplayName(
+                "Writing bytes from a src ByteBuffer with offset where the src is the same length as the sequence limit")
         void writeSrcByteBufferWithOffset() {
             final var seq = sequence();
             seq.limit(5);
-            final var src = ByteBuffer.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var src = ByteBuffer.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             src.position(2);
             src.limit(7);
             final var pos = seq.position();
             seq.writeBytes(src);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 3, 4, 5, 6, 7 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {3, 4, 5, 6, 7});
             assertThat(seq.position()).isEqualTo(pos + 5);
         }
 
@@ -531,11 +542,11 @@ public abstract class WritableTestBase extends SequentialTestBase {
             final int LEN = 10;
             seq.limit(LEN);
             final var src = ByteBuffer.allocateDirect(LEN);
-            src.put(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            src.put(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             src.flip();
             final var pos = seq.position();
             seq.writeBytes(src);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             assertThat(seq.position()).isEqualTo(pos + 10);
         }
 
@@ -544,24 +555,25 @@ public abstract class WritableTestBase extends SequentialTestBase {
         void writeSrcBufferedData() {
             final var seq = sequence();
             seq.limit(10);
-            final var src = BufferedData.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var src = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             final var pos = seq.position();
             seq.writeBytes(src);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             assertThat(seq.position()).isEqualTo(pos + 10);
         }
 
         @Test
-        @DisplayName("Writing bytes from a src BufferedData with offset where the src is the same length as the sequence limit")
+        @DisplayName(
+                "Writing bytes from a src BufferedData with offset where the src is the same length as the sequence limit")
         void writeSrcBufferedDataWithOffset() {
             final var seq = sequence();
             seq.limit(5);
-            final var src = BufferedData.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var src = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             src.position(2);
             src.limit(7);
             final var pos = seq.position();
             seq.writeBytes(src);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 3, 4, 5, 6, 7 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {3, 4, 5, 6, 7});
             assertThat(seq.position()).isEqualTo(pos + 5);
         }
 
@@ -570,26 +582,27 @@ public abstract class WritableTestBase extends SequentialTestBase {
         void writeSrcRandomAccessData() {
             final var seq = sequence();
             seq.limit(10);
-            final var src = Bytes.wrap(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            final var src = Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             final var pos = seq.position();
             seq.writeBytes(src);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             assertThat(seq.position()).isEqualTo(pos + 10);
         }
 
         @Test
-        @DisplayName("Writing bytes from a src InputStream where the maxLength is the same length as the sequence limit")
+        @DisplayName(
+                "Writing bytes from a src InputStream where the maxLength is the same length as the sequence limit")
         void writeSrcInputStream() {
             // Given a sequence with a src InputStream with the same number of items as the limit
             final var seq = sequence();
             seq.limit(10);
-            final var srcBytes = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+            final var srcBytes = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
             final var stream = new ByteArrayInputStream(srcBytes);
             // When we try writing bytes from the src with a maxLength equal to limit
             final var pos = seq.position();
             seq.writeBytes(stream, 10);
             // Then the sequence received those bytes and the position is updated
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             assertThat(seq.position()).isEqualTo(pos + 10);
         }
 
@@ -599,13 +612,13 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // Given a sequence with a src InputStream with more items than the limit
             final var seq = sequence();
             seq.limit(10);
-            final var srcBytes = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
+            final var srcBytes = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
             final var stream = new ByteArrayInputStream(srcBytes);
             // When we try writing bytes from the src with a maxLength greater than the limit
             final var pos = seq.position();
             seq.writeBytes(stream, 15);
             // Then the sequence received only up to `limit` bytes and the position is updated
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             assertThat(seq.position()).isEqualTo(pos + 10);
         }
 
@@ -614,7 +627,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
         void writeSrcInputStreamWithTooSmallMaxLength() {
             // Given a sequence with a src input stream
             final var seq = sequence();
-            final var arr = new byte[] { 1, 2, 3, 4, 5 };
+            final var arr = new byte[] {1, 2, 3, 4, 5};
             final var src = new ByteArrayInputStream(arr);
             // When we try writing bytes from the src with a maxLength that is == 0
             final var pos = seq.position();
@@ -630,7 +643,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // Given a sequence with a src input stream and a seq with nothing remaining
             final var seq = sequence();
             seq.limit(0);
-            final var arr = new byte[] { 1, 2, 3, 4, 5 };
+            final var arr = new byte[] {1, 2, 3, 4, 5};
             final var src = new ByteArrayInputStream(arr);
             // When we try writing bytes from the src with a maxLength that is > 0
             final var pos = seq.position();
@@ -653,9 +666,9 @@ public abstract class WritableTestBase extends SequentialTestBase {
 
         @ParameterizedTest(name = "offset={0}, length={1}")
         @CsvSource({
-                "-1, 1", // Negative offset
-                "100, 10", // Offset larger than the src array size
-                "5, 10", // Offset+Length larger than the src array size
+            "-1, 1", // Negative offset
+            "100, 10", // Offset larger than the src array size
+            "5, 10", // Offset+Length larger than the src array size
         })
         @DisplayName("Writing bytes where the src offset and length are bad")
         void badOffsetLength(int offset, int length) {
@@ -776,7 +789,8 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // When we try to write an unsigned int, then we get a BufferOverflowException
             seq.skip(4); // Only 1 byte left, not enough
             assertThatThrownBy(() -> seq.writeUnsignedInt(1)).isInstanceOf(BufferOverflowException.class);
-            assertThatThrownBy(() -> seq.writeUnsignedInt(1234, LITTLE_ENDIAN)).isInstanceOf(BufferOverflowException.class);
+            assertThatThrownBy(() -> seq.writeUnsignedInt(1234, LITTLE_ENDIAN))
+                    .isInstanceOf(BufferOverflowException.class);
         }
 
         @Test
@@ -973,7 +987,19 @@ public abstract class WritableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(floats = {Float.NaN, Float.NEGATIVE_INFINITY, Float.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Float.MAX_VALUE, Float.POSITIVE_INFINITY})
+        @ValueSource(
+                floats = {
+                    Float.NaN,
+                    Float.NEGATIVE_INFINITY,
+                    Float.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Float.MAX_VALUE,
+                    Float.POSITIVE_INFINITY
+                })
         @DisplayName("Writing a float")
         void write(float value) {
             final var seq = sequence();
@@ -984,7 +1010,19 @@ public abstract class WritableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(floats = {Float.NaN, Float.NEGATIVE_INFINITY, Float.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Float.MAX_VALUE, Float.POSITIVE_INFINITY})
+        @ValueSource(
+                floats = {
+                    Float.NaN,
+                    Float.NEGATIVE_INFINITY,
+                    Float.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Float.MAX_VALUE,
+                    Float.POSITIVE_INFINITY
+                })
         @DisplayName("Writing a float in Little Endian")
         void writeLittleEndian(float value) {
             final var seq = sequence();
@@ -995,7 +1033,19 @@ public abstract class WritableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(floats = {Float.NaN, Float.NEGATIVE_INFINITY, Float.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Float.MAX_VALUE, Float.POSITIVE_INFINITY})
+        @ValueSource(
+                floats = {
+                    Float.NaN,
+                    Float.NEGATIVE_INFINITY,
+                    Float.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Float.MAX_VALUE,
+                    Float.POSITIVE_INFINITY
+                })
         @DisplayName("Writing a float in Big Endian")
         void writeBigEndian(float value) {
             final var seq = sequence();
@@ -1063,7 +1113,19 @@ public abstract class WritableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(doubles = {Double.NaN, Double.NEGATIVE_INFINITY, Double.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Double.MAX_VALUE, Double.POSITIVE_INFINITY})
+        @ValueSource(
+                doubles = {
+                    Double.NaN,
+                    Double.NEGATIVE_INFINITY,
+                    Double.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Double.MAX_VALUE,
+                    Double.POSITIVE_INFINITY
+                })
         @DisplayName("Writing a double")
         void write(double value) {
             final var seq = sequence();
@@ -1074,7 +1136,19 @@ public abstract class WritableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(doubles = {Double.NaN, Double.NEGATIVE_INFINITY, Double.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Double.MAX_VALUE, Double.POSITIVE_INFINITY})
+        @ValueSource(
+                doubles = {
+                    Double.NaN,
+                    Double.NEGATIVE_INFINITY,
+                    Double.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Double.MAX_VALUE,
+                    Double.POSITIVE_INFINITY
+                })
         @DisplayName("Writing a double in Little Endian")
         void writeLittleEndian(double value) {
             final var seq = sequence();
@@ -1085,7 +1159,19 @@ public abstract class WritableTestBase extends SequentialTestBase {
         }
 
         @ParameterizedTest(name = "value={0}")
-        @ValueSource(doubles = {Double.NaN, Double.NEGATIVE_INFINITY, Double.MIN_VALUE, -8.2f, -1.3f, 0, 1.4f, 8.5f, Double.MAX_VALUE, Double.POSITIVE_INFINITY})
+        @ValueSource(
+                doubles = {
+                    Double.NaN,
+                    Double.NEGATIVE_INFINITY,
+                    Double.MIN_VALUE,
+                    -8.2f,
+                    -1.3f,
+                    0,
+                    1.4f,
+                    8.5f,
+                    Double.MAX_VALUE,
+                    Double.POSITIVE_INFINITY
+                })
         @DisplayName("Writing a double in Big Endian")
         void writeBigEndian(double value) {
             final var seq = sequence();
@@ -1114,7 +1200,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             }));
         }
     }
-    
+
     @Nested
     @DisplayName("writeVarInt()")
     final class WriteVarIntTest {
@@ -1150,10 +1236,8 @@ public abstract class WritableTestBase extends SequentialTestBase {
             seq.skip(pos);
             assertThatThrownBy(() -> seq.writeVarInt(1234, zigZag)).isInstanceOf(BufferOverflowException.class);
             // A subsequent skip() will also throw an exception now that we hit the end of buffer
-            assertThatThrownBy(() -> seq.skip(1)).isInstanceOfAny(
-                    BufferUnderflowException.class,
-                    BufferOverflowException.class
-            );
+            assertThatThrownBy(() -> seq.skip(1))
+                    .isInstanceOfAny(BufferUnderflowException.class, BufferOverflowException.class);
         }
 
         @Test
@@ -1162,7 +1246,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             final var seq = sequence();
             final var pos = seq.position();
             seq.writeVarInt(300, false);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { (byte) 0b10101100, 0b00000010 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {(byte) 0b10101100, 0b00000010});
             assertThat(seq.position()).isEqualTo(pos + 2);
         }
 
@@ -1172,13 +1256,36 @@ public abstract class WritableTestBase extends SequentialTestBase {
             final var seq = sequence();
             final var pos = seq.position();
             seq.writeVarInt(-151, true);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { (byte) 0b10101101, 0b00000010 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {(byte) 0b10101101, 0b00000010});
             assertThat(seq.position()).isEqualTo(pos + 2);
         }
 
         @ParameterizedTest
-        @ValueSource(ints = {0, 1, 2, 3, 7, 8, 9, 1023, 1024, 1025, 65535, 65536, 0x7FFFFFFF,
-                -1, -2, -7, -1023, -1024, -65535, -65536, -0x7FFFFFFF, -0x80000000})
+        @ValueSource(
+                ints = {
+                    0,
+                    1,
+                    2,
+                    3,
+                    7,
+                    8,
+                    9,
+                    1023,
+                    1024,
+                    1025,
+                    65535,
+                    65536,
+                    0x7FFFFFFF,
+                    -1,
+                    -2,
+                    -7,
+                    -1023,
+                    -1024,
+                    -65535,
+                    -65536,
+                    -0x7FFFFFFF,
+                    -0x80000000
+                })
         @DisplayName("Varints must be encoded with less than 5 bytes")
         void checkVarIntLen(final int num) {
             final var seq = sequence();
@@ -1232,10 +1339,8 @@ public abstract class WritableTestBase extends SequentialTestBase {
             seq.skip(pos);
             assertThatThrownBy(() -> seq.writeVarLong(3882918382L, zigZag)).isInstanceOf(BufferOverflowException.class);
             // A subsequent skip() will also throw an exception now that we hit the end of buffer
-            assertThatThrownBy(() -> seq.skip(1)).isInstanceOfAny(
-                    BufferUnderflowException.class,
-                    BufferOverflowException.class
-            );
+            assertThatThrownBy(() -> seq.skip(1))
+                    .isInstanceOfAny(BufferUnderflowException.class, BufferOverflowException.class);
         }
 
         @Test
@@ -1244,7 +1349,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             final var seq = sequence();
             final var pos = seq.position();
             seq.writeVarLong(300, false);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { (byte) 0b10101100, 0b00000010 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {(byte) 0b10101100, 0b00000010});
             assertThat(seq.position()).isEqualTo(pos + 2);
         }
 
@@ -1254,7 +1359,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             final var seq = sequence();
             final var pos = seq.position();
             seq.writeVarLong(-151, true);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] { (byte) 0b10101101, 0b00000010 });
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {(byte) 0b10101101, 0b00000010});
             assertThat(seq.position()).isEqualTo(pos + 2);
         }
     }

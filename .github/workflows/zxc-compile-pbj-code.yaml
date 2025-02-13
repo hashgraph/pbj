@@ -26,7 +26,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.3"
+        default: "21.0.5"
       gradle-version:
         description: "Gradle Version:"
         type: string
@@ -74,45 +74,39 @@ jobs:
     runs-on: network-node-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Setup Java
-        uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
           gradle-home-cache-strict-match: false
 
       - name: Gradle Assemble (PBJ Core)
         id: gradle-build
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          build-root-directory: ${{ env.PBJ_CORE }}
-          arguments: assemble --scan
+        working-directory: ${{ env.PBJ_CORE }}
+        run: ./gradlew assemble
 
       - name: Gradle Check (PBJ Core)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          build-root-directory: ${{ env.PBJ_CORE }}
-          arguments: check --scan
+        working-directory: ${{ env.PBJ_CORE }}
+        run: ./gradlew check
 
       - name: Publish JUnit Test Report (PBJ Core)
-        uses: step-security/publish-unit-test-result-action@4519d7c9f71dd765f8bbb98626268780f23bab28 # v2.17.0
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           check_name: JUnit Test Report
@@ -128,41 +122,24 @@ jobs:
 
       - name: Gradle Assemble (PBJ Integration)
         id: gradle-integration-build
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        if: ${{ (inputs.enable-integration-tests || inputs.enable-jmh-tests) && steps.gradle-publish-local.conclusion == 'success' && !cancelled() }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          build-root-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
-          arguments: assemble --scan
+        if: ${{ (inputs.enable-integration-tests || inputs.enable-jmh-tests) && !cancelled() }}
+        working-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
+        run: ./gradlew assemble
 
       - name: Gradle Check (PBJ Integration)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
         if: ${{ inputs.enable-integration-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          build-root-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
-          arguments: check --scan
+        working-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
+        run: ./gradlew check
 
       - name: Publish Integration Test Report (PBJ Integration)
-        uses: step-security/publish-unit-test-result-action@4519d7c9f71dd765f8bbb98626268780f23bab28 # v2.3.0
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.3.0
         if: ${{ inputs.enable-integration-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           check_name: Integration Test Report
           time_unit: seconds
           junit_files: "${{ env.PBJ_INTEGRATION_TESTS }}/**/build/test-results/**/*.xml"
 
-      - name: Gradle JMH Jars (PBJ Integration)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        if: ${{ inputs.enable-jmh-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          build-root-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
-          arguments: jmhJar --scan
-
       - name: Gradle JMH Benchmarks (PBJ Integration)
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
         if: ${{ inputs.enable-jmh-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          build-root-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
-          arguments: jmh --scan
+        working-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
+        run: ./gradlew jmh

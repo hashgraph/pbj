@@ -1,4 +1,5 @@
-package com.hedera.pbj.intergration.jmh;
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.pbj.integration.jmh;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.Hasheval;
@@ -57,8 +58,7 @@ public class ComplexEqualsHashCodeBench {
             Suit enumSuit,
             @Nullable TimestampTest subObject,
             String text,
-            Bytes bytesField
-    ){}
+            Bytes bytesField) {}
 
     private final Hasheval hasheval;
     private final Hasheval hasheval1;
@@ -68,42 +68,114 @@ public class ComplexEqualsHashCodeBench {
     private final HashevalJavaRecord hashevalJavaRecordDifferent;
 
     public ComplexEqualsHashCodeBench() {
-        hasheval = new Hasheval(123, 123, 123,
-                123, 123, 1.23f, 123L, 123L,
-                123L, 123L, 123L, 1.23D, true,
-                Suit.ACES, new TimestampTest(987L, 123),
+        hasheval = new Hasheval(
+                123,
+                123,
+                123,
+                123,
+                123,
+                1.23f,
+                123L,
+                123L,
+                123L,
+                123L,
+                123L,
+                1.23D,
+                true,
+                Suit.ACES,
+                new TimestampTest(987L, 123),
                 "FooBarKKKKHHHHOIOIOI",
-                Bytes.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, (byte)255}));
-        hasheval1 = new Hasheval(123, 123, 123,
-                123, 123, 1.23f, 123L, 123L,
-                123L, 123L, 123L, 1.23D, true,
-                Suit.ACES, new TimestampTest(987L, 123),
+                Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, (byte) 255}));
+        hasheval1 = new Hasheval(
+                123,
+                123,
+                123,
+                123,
+                123,
+                1.23f,
+                123L,
+                123L,
+                123L,
+                123L,
+                123L,
+                1.23D,
+                true,
+                Suit.ACES,
+                new TimestampTest(987L, 123),
                 "FooBarKKKKHHHHOIOIOI",
-                Bytes.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, (byte)255}));
-        hashevalDifferent = new Hasheval(123, 123, 123,
-                123, 123, 1.23f, 123L, 123L,
-                123L, 123L, 123L, 1.23D, true,
-                Suit.ACES, new TimestampTest(987L, 123),
+                Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, (byte) 255}));
+        hashevalDifferent = new Hasheval(
+                123,
+                123,
+                123,
+                123,
+                123,
+                1.23f,
+                123L,
+                123L,
+                123L,
+                123L,
+                123L,
+                1.23D,
+                true,
+                Suit.ACES,
+                new TimestampTest(987L, 123),
                 "Different",
-                Bytes.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, (byte)255}));
-        hashevalJavaRecord = new HashevalJavaRecord(123, 123, 123,
-                123, 123, 1.23f, 123L, 123L,
-                123L, 123L, 123L, 1.23D, true,
-                Suit.ACES, new TimestampTest(987L, 123),
+                Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, (byte) 255}));
+        hashevalJavaRecord = new HashevalJavaRecord(
+                123,
+                123,
+                123,
+                123,
+                123,
+                1.23f,
+                123L,
+                123L,
+                123L,
+                123L,
+                123L,
+                1.23D,
+                true,
+                Suit.ACES,
+                new TimestampTest(987L, 123),
                 "FooBarKKKKHHHHOIOIOI",
-                Bytes.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, (byte)255}));
-        hashevalJavaRecord1 = new HashevalJavaRecord(123, 123, 123,
-                123, 123, 1.23f, 123L, 123L,
-                123L, 123L, 123L, 1.23D, true,
-                Suit.ACES, new TimestampTest(987L, 123),
+                Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, (byte) 255}));
+        hashevalJavaRecord1 = new HashevalJavaRecord(
+                123,
+                123,
+                123,
+                123,
+                123,
+                1.23f,
+                123L,
+                123L,
+                123L,
+                123L,
+                123L,
+                1.23D,
+                true,
+                Suit.ACES,
+                new TimestampTest(987L, 123),
                 "FooBarKKKKHHHHOIOIOI",
-                Bytes.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, (byte)255}));
-        hashevalJavaRecordDifferent = new HashevalJavaRecord(123, 123, 123,
-                123, 123, 1.23f, 123L, 123L,
-                123L, 123L, 123L, 1.23D, true,
-                Suit.ACES, new TimestampTest(987L, 123),
+                Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, (byte) 255}));
+        hashevalJavaRecordDifferent = new HashevalJavaRecord(
+                123,
+                123,
+                123,
+                123,
+                123,
+                1.23f,
+                123L,
+                123L,
+                123L,
+                123L,
+                123L,
+                1.23D,
+                true,
+                Suit.ACES,
+                new TimestampTest(987L, 123),
                 "Different",
-                Bytes.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, (byte)255}));
+                Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, (byte) 255}));
     }
 
     @Benchmark
@@ -129,6 +201,7 @@ public class ComplexEqualsHashCodeBench {
             blackhole.consume(hasheval.equals(hasheval1));
         }
     }
+
     @Benchmark
     @OperationsPerInvocation(1050)
     public void benchJavaRecordEquals(Blackhole blackhole) {

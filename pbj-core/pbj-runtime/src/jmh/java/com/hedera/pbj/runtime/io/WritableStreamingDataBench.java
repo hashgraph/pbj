@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -62,5 +63,4 @@ public class WritableStreamingDataBench {
         assert out.position() == SIZE;
         assert bout.toByteArray().length == SIZE;
     }
-
 }

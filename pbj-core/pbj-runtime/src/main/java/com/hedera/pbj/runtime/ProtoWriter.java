@@ -1,7 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-
 import java.io.IOException;
 
 /**

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
 /**
@@ -10,9 +11,7 @@ package com.hedera.pbj.runtime;
  * @param <R> The type of the response message
  */
 public record RpcMethodDefinition<T, R>(
-        String path,
-        Class<T> requestType,
-        Class<R> responseType) {
+        String path, Class<T> requestType, Class<R> responseType) {
 
     /**
      * Create a new builder for a {@link RpcMethodDefinition}.

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.grpc;
 
 import static java.util.Objects.requireNonNull;
@@ -401,8 +386,7 @@ public final class Pipelines {
      * @param <T> The type of the request message.
      * @param <R> The type of the response message.
      */
-    public interface BidiStreamingMethod<T, R>
-            extends ExceptionalFunction<Pipeline<? super R>, Pipeline<? super T>> {}
+    public interface BidiStreamingMethod<T, R> extends ExceptionalFunction<Pipeline<? super R>, Pipeline<? super T>> {}
 
     /**
      * A convenient base class for the different builders. All builders have to hold state for request and
@@ -538,7 +522,7 @@ public final class Pipelines {
                 final var replyBytes = responseMapper.apply(reply);
                 replies.onNext(replyBytes);
                 onComplete();
-            } catch (RuntimeException e)  {
+            } catch (RuntimeException e) {
                 replies.onError(e);
                 throw e;
             } catch (Exception e) {
@@ -566,32 +550,28 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public BidiStreamingBuilderImpl<T, R> mapRequest(
-                @NonNull final ExceptionalFunction<Bytes, T> mapper) {
+        public BidiStreamingBuilderImpl<T, R> mapRequest(@NonNull final ExceptionalFunction<Bytes, T> mapper) {
             this.requestMapper = mapper;
             return this;
         }
 
         @Override
         @NonNull
-        public BidiStreamingBuilderImpl<T, R> method(
-                @NonNull final BidiStreamingMethod<T, R> method) {
+        public BidiStreamingBuilderImpl<T, R> method(@NonNull final BidiStreamingMethod<T, R> method) {
             this.method = method;
             return this;
         }
 
         @Override
         @NonNull
-        public BidiStreamingBuilderImpl<T, R> mapResponse(
-                @NonNull final ExceptionalFunction<R, Bytes> mapper) {
+        public BidiStreamingBuilderImpl<T, R> mapResponse(@NonNull final ExceptionalFunction<R, Bytes> mapper) {
             this.responseMapper = mapper;
             return this;
         }
 
         @Override
         @NonNull
-        public BidiStreamingBuilderImpl<T, R> respondTo(
-                @NonNull final Pipeline<? super Bytes> replies) {
+        public BidiStreamingBuilderImpl<T, R> respondTo(@NonNull final Pipeline<? super Bytes> replies) {
             this.replies = replies;
             return this;
         }
@@ -629,7 +609,7 @@ public final class Pipelines {
             try {
                 final var request = requestMapper.apply(message);
                 incoming.onNext(request);
-            } catch (RuntimeException e)  {
+            } catch (RuntimeException e) {
                 replies.onError(e);
                 throw e;
             } catch (Exception e) {
@@ -664,32 +644,28 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public ClientStreamingBuilderImpl<T, R> mapRequest(
-                @NonNull final ExceptionalFunction<Bytes, T> mapper) {
+        public ClientStreamingBuilderImpl<T, R> mapRequest(@NonNull final ExceptionalFunction<Bytes, T> mapper) {
             this.requestMapper = mapper;
             return this;
         }
 
         @Override
         @NonNull
-        public ClientStreamingBuilderImpl<T, R> method(
-                @NonNull final ClientStreamingMethod<T, R> method) {
+        public ClientStreamingBuilderImpl<T, R> method(@NonNull final ClientStreamingMethod<T, R> method) {
             this.method = method;
             return this;
         }
 
         @Override
         @NonNull
-        public ClientStreamingBuilderImpl<T, R> mapResponse(
-                @NonNull final ExceptionalFunction<R, Bytes> mapper) {
+        public ClientStreamingBuilderImpl<T, R> mapResponse(@NonNull final ExceptionalFunction<R, Bytes> mapper) {
             this.responseMapper = mapper;
             return this;
         }
 
         @Override
         @NonNull
-        public ClientStreamingBuilderImpl<T, R> respondTo(
-                @NonNull final Pipeline<? super Bytes> replies) {
+        public ClientStreamingBuilderImpl<T, R> respondTo(@NonNull final Pipeline<? super Bytes> replies) {
             this.replies = replies;
             return this;
         }
@@ -702,8 +678,7 @@ public final class Pipelines {
                 throw new IllegalStateException("The method must be specified.");
             }
             replies.onSubscribe(this);
-            final var responseConverter =
-                    new MapSubscriber<R, Bytes>(replies, item -> responseMapper.apply(item));
+            final var responseConverter = new MapSubscriber<R, Bytes>(replies, item -> responseMapper.apply(item));
 
             try {
                 incoming = method.apply(responseConverter);
@@ -723,7 +698,7 @@ public final class Pipelines {
             try {
                 final var request = requestMapper.apply(message);
                 incoming.onNext(request);
-            } catch (RuntimeException e)  {
+            } catch (RuntimeException e) {
                 replies.onError(e);
                 throw e;
             } catch (Exception e) {
@@ -757,32 +732,28 @@ public final class Pipelines {
 
         @Override
         @NonNull
-        public ServerStreamingBuilderImpl<T, R> mapRequest(
-                @NonNull final ExceptionalFunction<Bytes, T> mapper) {
+        public ServerStreamingBuilderImpl<T, R> mapRequest(@NonNull final ExceptionalFunction<Bytes, T> mapper) {
             this.requestMapper = mapper;
             return this;
         }
 
         @Override
         @NonNull
-        public ServerStreamingBuilderImpl<T, R> method(
-                @NonNull final ServerStreamingMethod<T, R> method) {
+        public ServerStreamingBuilderImpl<T, R> method(@NonNull final ServerStreamingMethod<T, R> method) {
             this.method = method;
             return this;
         }
 
         @Override
         @NonNull
-        public ServerStreamingBuilderImpl<T, R> mapResponse(
-                @NonNull final ExceptionalFunction<R, Bytes> mapper) {
+        public ServerStreamingBuilderImpl<T, R> mapResponse(@NonNull final ExceptionalFunction<R, Bytes> mapper) {
             this.responseMapper = mapper;
             return this;
         }
 
         @Override
         @NonNull
-        public ServerStreamingBuilderImpl<T, R> respondTo(
-                @NonNull final Pipeline<? super Bytes> replies) {
+        public ServerStreamingBuilderImpl<T, R> respondTo(@NonNull final Pipeline<? super Bytes> replies) {
             this.replies = replies;
             return this;
         }
@@ -811,7 +782,7 @@ public final class Pipelines {
             try {
                 final var request = requestMapper.apply(message);
                 method.apply(request, responseConverter);
-            } catch (RuntimeException e)  {
+            } catch (RuntimeException e) {
                 replies.onError(e);
                 throw e;
             } catch (Exception e) {
@@ -863,7 +834,7 @@ public final class Pipelines {
             try {
                 final var r = mapper.apply(item);
                 next.onNext(r);
-            } catch (RuntimeException e)  {
+            } catch (RuntimeException e) {
                 next.onError(e);
                 throw e;
             } catch (Throwable t) {

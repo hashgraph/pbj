@@ -1,11 +1,12 @@
-package com.hedera.pbj.intergration.test;
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.pbj.integration.test;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.MessageWithMessage;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class MaxDepthTest {
     @Test

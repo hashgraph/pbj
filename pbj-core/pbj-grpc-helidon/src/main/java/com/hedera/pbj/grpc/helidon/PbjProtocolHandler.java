@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.grpc.helidon;
 
 import static com.hedera.pbj.grpc.helidon.GrpcHeaders.APPLICATION_GRPC_PROTO_TYPE;
@@ -74,15 +59,13 @@ import java.util.regex.Pattern;
  * created for each new connection, and each connection is made to a specific method endpoint.
  */
 final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler {
-    private static final System.Logger LOGGER =
-            System.getLogger(PbjProtocolHandler.class.getName());
+    private static final System.Logger LOGGER = System.getLogger(PbjProtocolHandler.class.getName());
 
     /** The only grpc-encoding supported by this implementation. */
     private static final String IDENTITY = "identity";
 
     /** A pre-created and cached *response* header for "grpc-encoding: identity". */
-    private static final Header GRPC_ENCODING_IDENTITY =
-            HeaderValues.createCached("grpc-encoding", IDENTITY);
+    private static final Header GRPC_ENCODING_IDENTITY = HeaderValues.createCached("grpc-encoding", IDENTITY);
 
     /** The regular expression used to parse the grpc-timeout header. */
     private static final String GRPC_TIMEOUT_REGEX = "(\\d{1,8})([HMSmun])";
@@ -209,8 +192,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // See https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
             // In addition, "application/grpc" is interpreted as "application/grpc+proto".
             final var requestHeaders = headers.httpHeaders();
-            final var requestContentType =
-                    requestHeaders.contentType().orElse(null);
+            final var requestContentType = requestHeaders.contentType().orElse(null);
             final var ct = requestContentType == null ? "" : requestContentType.text();
             final var contentType =
                     switch (ct) {
@@ -275,8 +257,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // If the grpc-timeout header is present, determine when that timeout would occur, or
             // default to a future that is so far in the future it will never happen.
             final var timeout = requestHeaders.value(GRPC_TIMEOUT);
-            deadlineFuture =
-                    timeout.map(this::scheduleDeadline).orElse(new NoopScheduledFuture<>());
+            deadlineFuture = timeout.map(this::scheduleDeadline).orElse(new NoopScheduledFuture<>());
 
             // At this point, the request itself is valid. Maybe it will still fail to be handled by
             // the service interface, but as far as the protocol is concerned, this was a valid
@@ -294,12 +275,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
             // Create the "options" to make available to the ServiceInterface. These options are
             // used to decide on the best way to parse or handle the request.
-            final var options =
-                    new Options(
-                            Optional.ofNullable(headers.authority()), // the client (see http2 spec)
-                            contentType.equals(APPLICATION_GRPC_PROTO),
-                            contentType.equals(APPLICATION_GRPC_JSON),
-                            contentType);
+            final var options = new Options(
+                    Optional.ofNullable(headers.authority()), // the client (see http2 spec)
+                    contentType.equals(APPLICATION_GRPC_PROTO),
+                    contentType.equals(APPLICATION_GRPC_JSON),
+                    contentType);
 
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
@@ -362,82 +342,72 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // bytes before the stream is closed.
             while (data.available() > 0) {
                 switch (currentReadState) {
-                    case START:
-                        {
-                            // Read whether this message is compressed. We do not currently support
-                            // compression.
-                            final var isCompressed = (data.read() == 1);
-                            if (isCompressed) {
-                                // The error will eventually result in the stream being closed
+                    case START: {
+                        // Read whether this message is compressed. We do not currently support
+                        // compression.
+                        final var isCompressed = (data.read() == 1);
+                        if (isCompressed) {
+                            // The error will eventually result in the stream being closed
+                            throw new GrpcException(GrpcStatus.UNIMPLEMENTED, "Compression is not supported");
+                        }
+                        currentReadState = ReadState.READ_LENGTH;
+                        numOfPartReadBytes = 0;
+                        break;
+                    }
+                    case READ_LENGTH: {
+                        // if I have not read a full int yet then read more from available bytes
+                        if (numOfPartReadBytes < Integer.BYTES) {
+                            // we do not have enough bytes yet to read a 4 byte int
+                            // read the bytes we do have and store them for next time
+                            final int bytesToRead = Math.min(data.available(), Integer.BYTES - numOfPartReadBytes);
+                            data.read(partReadLengthBytes, numOfPartReadBytes, bytesToRead);
+                            numOfPartReadBytes += bytesToRead;
+                        }
+                        // check if we have read all the 4 bytes of the length int32
+                        if (numOfPartReadBytes == Integer.BYTES) {
+                            final long length = ((long) partReadLengthBytes[0] & 0xFF) << 24
+                                    | ((long) partReadLengthBytes[1] & 0xFF) << 16
+                                    | ((long) partReadLengthBytes[2] & 0xFF) << 8
+                                    | ((long) partReadLengthBytes[3] & 0xFF);
+                            if (length > config.maxMessageSizeBytes()) {
                                 throw new GrpcException(
-                                        GrpcStatus.UNIMPLEMENTED, "Compression is not supported");
+                                        GrpcStatus.INVALID_ARGUMENT, "Message size exceeds maximum allowed size");
                             }
-                            currentReadState = ReadState.READ_LENGTH;
-                            numOfPartReadBytes = 0;
-                            break;
+                            // Create a buffer to hold the message. We sadly cannot reuse this buffer
+                            // because once we have filled it and wrapped it in Bytes and sent it to the
+                            // handler, some user code may grab and hold that Bytes object for an arbitrary
+                            // amount of time, and if we were to scribble into the same byte array, we
+                            // would break the application. So we need a new buffer each time :-(
+                            entityBytes = new byte[(int) length];
+                            entityBytesIndex = 0;
+                            // done with length now, so move on to next state
+                            currentReadState = ReadState.READ_ENTITY_BYTES;
                         }
-                    case READ_LENGTH:
-                        {
-                            // if I have not read a full int yet then read more from available bytes
-                            if (numOfPartReadBytes < Integer.BYTES) {
-                                // we do not have enough bytes yet to read a 4 byte int
-                                // read the bytes we do have and store them for next time
-                                final int bytesToRead =
-                                        Math.min(
-                                                data.available(),
-                                                Integer.BYTES - numOfPartReadBytes);
-                                data.read(partReadLengthBytes, numOfPartReadBytes, bytesToRead);
-                                numOfPartReadBytes += bytesToRead;
-                            }
-                            // check if we have read all the 4 bytes of the length int32
-                            if (numOfPartReadBytes == Integer.BYTES) {
-                                final long length =
-                                        ((long) partReadLengthBytes[0] & 0xFF) << 24
-                                                | ((long) partReadLengthBytes[1] & 0xFF) << 16
-                                                | ((long) partReadLengthBytes[2] & 0xFF) << 8
-                                                | ((long) partReadLengthBytes[3] & 0xFF);
-                                if (length > config.maxMessageSizeBytes()) {
-                                    throw new GrpcException(
-                                            GrpcStatus.INVALID_ARGUMENT,
-                                            "Message size exceeds maximum allowed size");
-                                }
-                                // Create a buffer to hold the message. We sadly cannot reuse this buffer
-                                // because once we have filled it and wrapped it in Bytes and sent it to the
-                                // handler, some user code may grab and hold that Bytes object for an arbitrary
-                                // amount of time, and if we were to scribble into the same byte array, we
-                                // would break the application. So we need a new buffer each time :-(
-                                entityBytes = new byte[(int) length];
-                                entityBytesIndex = 0;
-                                // done with length now, so move on to next state
-                                currentReadState = ReadState.READ_ENTITY_BYTES;
-                            }
-                            break;
-                        }
-                    case READ_ENTITY_BYTES:
-                        {
-                            // By the time we get here, entityBytes is no longer null. It may be empty, or it
-                            // may already have been partially populated from a previous iteration. It may be
-                            // that the number of bytes available to be read is larger than just this one
-                            // message. So we need to be careful to read, from what is available, only up to
-                            // the message length, and to leave the rest for the next iteration.
-                            final int available = data.available();
-                            final int numBytesToRead =
-                                    Math.min(entityBytes.length - entityBytesIndex, available);
-                            data.read(entityBytes, entityBytesIndex, numBytesToRead);
-                            entityBytesIndex += numBytesToRead;
+                        break;
+                    }
+                    case READ_ENTITY_BYTES: {
+                        // By the time we get here, entityBytes is no longer null. It may be empty, or it
+                        // may already have been partially populated from a previous iteration. It may be
+                        // that the number of bytes available to be read is larger than just this one
+                        // message. So we need to be careful to read, from what is available, only up to
+                        // the message length, and to leave the rest for the next iteration.
+                        final int available = data.available();
+                        final int numBytesToRead = Math.min(entityBytes.length - entityBytesIndex, available);
+                        data.read(entityBytes, entityBytesIndex, numBytesToRead);
+                        entityBytesIndex += numBytesToRead;
 
-                            // If we have completed reading the message, then we can proceed.
-                            if (entityBytesIndex == entityBytes.length) {
-                                currentReadState = ReadState.START;
-                                // Grab and wrap the bytes and reset to being reading the next
-                                // message
-                                final var bytes = Bytes.wrap(entityBytes);
-                                pipeline.onNext(bytes);
-                                entityBytesIndex = 0;
-                                entityBytes = null;
-                            }
-                            break;
+                        // If we have completed reading the message, then we can proceed.
+                        if (entityBytesIndex == entityBytes.length) {
+                            currentReadState = ReadState.START;
+                            // Grab and wrap the bytes and reset to being reading the next
+                            // message
+                            final var bytes = Bytes.wrap(entityBytes);
+                            pipeline.onNext(bytes);
+                            entityBytesIndex = 0;
+                            entityBytes = null;
                         }
+                        break;
+                    }
                 }
             }
 
@@ -503,28 +473,24 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         if (matcher.matches()) {
             final var num = Integer.parseInt(matcher.group(1));
             final var unit = matcher.group(2);
-            final var deadline =
-                    System.nanoTime()
-                            * TimeUnit.NANOSECONDS.convert(
-                                    num,
-                                    switch (unit) {
-                                        case "H" -> TimeUnit.HOURS;
-                                        case "M" -> TimeUnit.MINUTES;
-                                        case "S" -> TimeUnit.SECONDS;
-                                        case "m" -> TimeUnit.MILLISECONDS;
-                                        case "u" -> TimeUnit.MICROSECONDS;
-                                        case "n" -> TimeUnit.NANOSECONDS;
-                                            // This should NEVER be reachable, because the matcher
-                                            // would not have matched.
-                                        default -> throw new GrpcException(
-                                                GrpcStatus.INTERNAL, "Invalid unit: " + unit);
-                                    });
-            return deadlineDetector.scheduleDeadline(
-                    deadline,
-                    () -> {
-                        route.deadlineExceededCounter().increment();
-                        pipeline.onError(new GrpcException(GrpcStatus.DEADLINE_EXCEEDED));
-                    });
+            final var deadline = System.nanoTime()
+                    * TimeUnit.NANOSECONDS.convert(
+                            num,
+                            switch (unit) {
+                                case "H" -> TimeUnit.HOURS;
+                                case "M" -> TimeUnit.MINUTES;
+                                case "S" -> TimeUnit.SECONDS;
+                                case "m" -> TimeUnit.MILLISECONDS;
+                                case "u" -> TimeUnit.MICROSECONDS;
+                                case "n" -> TimeUnit.NANOSECONDS;
+                                    // This should NEVER be reachable, because the matcher
+                                    // would not have matched.
+                                default -> throw new GrpcException(GrpcStatus.INTERNAL, "Invalid unit: " + unit);
+                            });
+            return deadlineDetector.scheduleDeadline(deadline, () -> {
+                route.deadlineExceededCounter().increment();
+                pipeline.onError(new GrpcException(GrpcStatus.DEADLINE_EXCEEDED));
+            });
         }
 
         return new NoopScheduledFuture<>();
@@ -564,10 +530,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         final var http2Headers = Http2Headers.create(grpcHeaders);
 
         streamWriter.writeHeaders(
-                http2Headers,
-                streamId,
-                Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS),
-                flowControl);
+                http2Headers, streamId, Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS), flowControl);
     }
 
     /**
@@ -583,9 +546,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * </pre>
      */
     private class TrailerBuilder {
-        @NonNull private GrpcStatus grpcStatus = GrpcStatus.OK;
-        @Nullable private String statusMessage;
-        @NonNull private final List<Header> customMetadata = emptyList(); // Never set
+        @NonNull
+        private GrpcStatus grpcStatus = GrpcStatus.OK;
+
+        @Nullable
+        private String statusMessage;
+
+        @NonNull
+        private final List<Header> customMetadata = emptyList(); // Never set
 
         /**
          * Sets the gRPC status to return. Normally, the HTTP status will always be 200, while the
@@ -615,9 +583,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
          * Actually sends the headers. This method exists so that "trailers-only" can call it to
          * send the normal headers.
          */
-        protected void send(
-                @NonNull final WritableHeaders<?> httpHeaders,
-                @NonNull final Http2Headers http2Headers) {
+        protected void send(@NonNull final WritableHeaders<?> httpHeaders, @NonNull final Http2Headers http2Headers) {
             httpHeaders.set(requireNonNull(GrpcHeaders.header(requireNonNull(grpcStatus))));
             httpHeaders.set(GRPC_ACCEPT_ENCODING, IDENTITY);
             customMetadata.forEach(httpHeaders::set);
@@ -629,8 +595,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             streamWriter.writeHeaders(
                     http2Headers,
                     streamId,
-                    Http2Flag.HeaderFlags.create(
-                            Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
+                    Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
                     flowControl);
         }
     }
@@ -666,9 +631,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
          * @param http2Headers The HTTP2 pseudo-headers
          */
         @Override
-        protected void send(
-                @NonNull final WritableHeaders<?> httpHeaders,
-                @NonNull final Http2Headers http2Headers) {
+        protected void send(@NonNull final WritableHeaders<?> httpHeaders, @NonNull final Http2Headers http2Headers) {
             http2Headers.status(httpStatus);
             httpHeaders.contentType(requireNonNull(contentType));
             super.send(httpHeaders, http2Headers);
@@ -694,12 +657,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 bufferData.write(0); // 0 means no compression
                 bufferData.writeUnsignedInt32(length);
                 bufferData.write(response.toByteArray());
-                final var header =
-                        Http2FrameHeader.create(
-                                bufferData.available(),
-                                Http2FrameTypes.DATA,
-                                Http2Flag.DataFlags.create(0),
-                                streamId);
+                final var header = Http2FrameHeader.create(
+                        bufferData.available(), Http2FrameTypes.DATA, Http2Flag.DataFlags.create(0), streamId);
 
                 // This method may throw an UncheckedIOException. If this happens, the connection with the client
                 // has been violently terminated, and we should raise the error, and we should throw an exception
@@ -737,19 +696,17 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
             deadlineFuture.cancel(false);
 
-            currentStreamState.getAndUpdate(
-                    currentValue -> {
-                        if (requireNonNull(currentValue) == Http2StreamState.OPEN) {
-                            return Http2StreamState.HALF_CLOSED_LOCAL;
-                        }
-                        return Http2StreamState.CLOSED;
-                    });
+            currentStreamState.getAndUpdate(currentValue -> {
+                if (requireNonNull(currentValue) == Http2StreamState.OPEN) {
+                    return Http2StreamState.HALF_CLOSED_LOCAL;
+                }
+                return Http2StreamState.CLOSED;
+            });
         }
     }
 
     /** Simple implementation of the {@link ServiceInterface.RequestOptions} interface. */
-    private record Options(
-            Optional<String> authority, boolean isProtobuf, boolean isJson, String contentType)
+    private record Options(Optional<String> authority, boolean isProtobuf, boolean isJson, String contentType)
             implements ServiceInterface.RequestOptions {}
 
     /**

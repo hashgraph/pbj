@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.grpc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,14 +28,14 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class NoopTest {
-        @Mock Flow.Subscription subscription;
+        @Mock
+        Flow.Subscription subscription;
 
         @Test
         void noopWithNullSubscriptionThrowsNPE() {
             final var noop = Pipelines.noop();
             assertThat(noop).isNotNull();
-            assertThatThrownBy(() -> noop.onSubscribe(null))
-                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> noop.onSubscribe(null)).isInstanceOf(NullPointerException.class);
         }
 
         @Test
@@ -86,8 +71,11 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class UnaryTest {
-        @Mock Pipeline<Bytes> replies;
-        @Mock Flow.Subscription subscription;
+        @Mock
+        Pipeline<Bytes> replies;
+
+        @Mock
+        Flow.Subscription subscription;
 
         @Test
         void requestMapperIsRequired() {
@@ -146,8 +134,7 @@ class PipelinesTest {
                     .respondTo(replies)
                     .build();
 
-            assertThatThrownBy(() -> pipeline.onSubscribe(null))
-                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> pipeline.onSubscribe(null)).isInstanceOf(NullPointerException.class);
         }
 
         @Test
@@ -200,9 +187,14 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class BidiTest {
-        @Mock Pipeline<String> client;
-        @Mock Pipeline<Bytes> replies;
-        @Mock Flow.Subscription subscription;
+        @Mock
+        Pipeline<String> client;
+
+        @Mock
+        Pipeline<Bytes> replies;
+
+        @Mock
+        Flow.Subscription subscription;
 
         @Test
         void requestMapperIsRequired() {
@@ -261,8 +253,7 @@ class PipelinesTest {
                     .respondTo(replies)
                     .build();
 
-            assertThatThrownBy(() -> pipeline.onSubscribe(null))
-                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> pipeline.onSubscribe(null)).isInstanceOf(NullPointerException.class);
         }
 
         @Test
@@ -270,11 +261,14 @@ class PipelinesTest {
             final var pipeline = Pipelines.<String, String>bidiStreaming()
                     .mapRequest(Bytes::asUtf8String)
                     .method(sink -> {
-                        lenient().doAnswer(invocation -> {
-                            final var msg = invocation.getArgument(0, String.class);
-                            sink.onNext(msg.toUpperCase());
-                            return null;
-                        }).when(client).onNext(any());
+                        lenient()
+                                .doAnswer(invocation -> {
+                                    final var msg = invocation.getArgument(0, String.class);
+                                    sink.onNext(msg.toUpperCase());
+                                    return null;
+                                })
+                                .when(client)
+                                .onNext(any());
                         return client;
                     })
                     .mapResponse(Bytes::wrap)
@@ -320,7 +314,9 @@ class PipelinesTest {
             final var ex = new RuntimeException("Some exception");
             Pipelines.<String, String>bidiStreaming()
                     .mapRequest(Bytes::asUtf8String)
-                    .method(sink -> { throw ex; })
+                    .method(sink -> {
+                        throw ex;
+                    })
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies)
                     .build();
@@ -334,10 +330,12 @@ class PipelinesTest {
                     .mapRequest(Bytes::asUtf8String)
                     .method(sink -> {
                         doAnswer(invocation -> {
-                            final var msg = invocation.getArgument(0, String.class);
-                            sink.onNext(msg.toUpperCase());
-                            return null;
-                        }).when(client).onNext(any());
+                                    final var msg = invocation.getArgument(0, String.class);
+                                    sink.onNext(msg.toUpperCase());
+                                    return null;
+                                })
+                                .when(client)
+                                .onNext(any());
                         return client;
                     })
                     .mapResponse(Bytes::wrap)
@@ -349,17 +347,18 @@ class PipelinesTest {
             pipeline.onNext(Bytes.wrap("hello"));
             pipeline.onNext(Bytes.wrap("world"));
             verify(replies, times(2)).onNext(argCaptor.capture());
-            assertThat(argCaptor.getAllValues()).containsExactly(
-                    Bytes.wrap("HELLO"),
-                    Bytes.wrap("WORLD"));
+            assertThat(argCaptor.getAllValues()).containsExactly(Bytes.wrap("HELLO"), Bytes.wrap("WORLD"));
         }
     }
 
     @Nested
     @ExtendWith(MockitoExtension.class)
     class ServerStreamingTest {
-        @Mock Pipeline<Bytes> replies;
-        @Mock Flow.Subscription subscription;
+        @Mock
+        Pipeline<Bytes> replies;
+
+        @Mock
+        Flow.Subscription subscription;
 
         @Test
         void requestMapperIsRequired() {
@@ -418,8 +417,7 @@ class PipelinesTest {
                     .respondTo(replies)
                     .build();
 
-            assertThatThrownBy(() -> pipeline.onSubscribe(null))
-                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> pipeline.onSubscribe(null)).isInstanceOf(NullPointerException.class);
         }
 
         @Test
@@ -443,7 +441,9 @@ class PipelinesTest {
         void badRequestMapperCallsOnError() {
             final var ex = new RuntimeException("Bad bad bad");
             final var pipeline = Pipelines.<String, String>serverStreaming()
-                    .mapRequest(bytes -> { throw ex; })
+                    .mapRequest(bytes -> {
+                        throw ex;
+                    })
                     .method((msg, sink) -> sink.onNext(msg.toUpperCase()))
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies)
@@ -460,7 +460,9 @@ class PipelinesTest {
             final var ex = new RuntimeException("Bad bad bad");
             final var pipeline = Pipelines.<String, String>serverStreaming()
                     .mapRequest(Bytes::asUtf8String)
-                    .method((msg, sink) -> { throw ex; })
+                    .method((msg, sink) -> {
+                        throw ex;
+                    })
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies)
                     .build();
@@ -489,8 +491,11 @@ class PipelinesTest {
     @Nested
     @ExtendWith(MockitoExtension.class)
     class ClientStreamingTest {
-        @Mock Pipeline<Bytes> replies;
-        @Mock Flow.Subscription subscription;
+        @Mock
+        Pipeline<Bytes> replies;
+
+        @Mock
+        Flow.Subscription subscription;
 
         @Test
         void requestMapperIsRequired() {
@@ -549,8 +554,7 @@ class PipelinesTest {
                     .respondTo(replies)
                     .build();
 
-            assertThatThrownBy(() -> pipeline.onSubscribe(null))
-                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> pipeline.onSubscribe(null)).isInstanceOf(NullPointerException.class);
         }
 
         @Test
@@ -574,7 +578,9 @@ class PipelinesTest {
         void badRequestMapperCallsOnError() {
             final var ex = new RuntimeException("Bad bad bad");
             final var pipeline = Pipelines.<String, String>clientStreaming()
-                    .mapRequest(bytes -> { throw ex; })
+                    .mapRequest(bytes -> {
+                        throw ex;
+                    })
                     .method(ConcatenatingHandler::new)
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies)
@@ -591,7 +597,9 @@ class PipelinesTest {
             final var ex = new RuntimeException("Bad bad bad");
             Pipelines.<String, String>clientStreaming()
                     .mapRequest(Bytes::asUtf8String)
-                    .method(sink -> { throw ex; })
+                    .method(sink -> {
+                        throw ex;
+                    })
                     .mapResponse(Bytes::wrap)
                     .respondTo(replies)
                     .build();

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 syntax = "proto3";
 import "greeter/hello_reply.proto";
 import "greeter/hello_request.proto";

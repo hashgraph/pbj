@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.fuzz;
 
 /**
@@ -67,5 +68,4 @@ public enum SingleFuzzTestResult {
      * reveal any.
      */
     RESERIALIZATION_PASSED;
-
 }

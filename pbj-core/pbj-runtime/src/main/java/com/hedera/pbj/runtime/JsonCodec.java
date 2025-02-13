@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
@@ -6,7 +7,6 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Objects;
@@ -21,9 +21,9 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
     // then we should strongly enforce Codec works with Records. This will reduce bugs
     // where people try to use a mutable object.
 
-
     /** {@inheritDoc} */
-    default @NonNull T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth) throws ParseException {
+    default @NonNull T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth)
+            throws ParseException {
         try {
             return parse(JsonTools.parseJson(input), strictMode, maxDepth);
         } catch (IOException ex) {
@@ -38,10 +38,9 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
      * @return Parsed HashObject model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
-    @NonNull T parse(
-            @Nullable final JSONParser.ObjContext root,
-            final boolean strictMode,
-            final int maxDepth) throws ParseException;
+    @NonNull
+    T parse(@Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth)
+            throws ParseException;
 
     /**
      * Writes an item to the given {@link WritableSequentialData}.
@@ -87,7 +86,7 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
     default int measure(@NonNull ReadableSequentialData input) throws ParseException {
         final long startPosition = input.position();
         parse(input);
-        return (int)(input.position() - startPosition);
+        return (int) (input.position() - startPosition);
     }
 
     /**

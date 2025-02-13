@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,14 +26,14 @@ public class UnsafeUtilsTest {
         final byte b6 = arr[offset + 5];
         final byte b7 = arr[offset + 6];
         final byte b8 = arr[offset + 7];
-        return (((long)b1 << 56) +
-                ((long)(b2 & 255) << 48) +
-                ((long)(b3 & 255) << 40) +
-                ((long)(b4 & 255) << 32) +
-                ((long)(b5 & 255) << 24) +
-                ((b6 & 255) << 16) +
-                ((b7 & 255) <<  8) +
-                (b8 & 255));
+        return (((long) b1 << 56)
+                + ((long) (b2 & 255) << 48)
+                + ((long) (b3 & 255) << 40)
+                + ((long) (b4 & 255) << 32)
+                + ((long) (b5 & 255) << 24)
+                + ((b6 & 255) << 16)
+                + ((b7 & 255) << 8)
+                + (b8 & 255));
     }
 
     // Tests that UnsafeUtils.getInt() and RandomAccessData.getInt() produce the same results
@@ -60,5 +61,4 @@ public class UnsafeUtilsTest {
             assertEquals(getLong(src, i), UnsafeUtils.getLong(src, i));
         }
     }
-    
 }

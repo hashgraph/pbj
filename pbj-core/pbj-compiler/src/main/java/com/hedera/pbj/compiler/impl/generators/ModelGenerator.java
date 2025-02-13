@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators;
 
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
@@ -43,18 +44,18 @@ public final class ModelGenerator implements Generator {
 
     private static final String NON_NULL_ANNOTATION = "@NonNull";
 
-	private static final String HASH_CODE_MANIPULATION =
-		"""
-		// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-		hashCode += hashCode << 30;
-		hashCode ^= hashCode >>> 27;
-		hashCode += hashCode << 16;
-		hashCode ^= hashCode >>> 20;
-		hashCode += hashCode << 5;
-		hashCode ^= hashCode >>> 18;
-		hashCode += hashCode << 10;
-		hashCode ^= hashCode >>> 24;
-		hashCode += hashCode << 30;
+    private static final String HASH_CODE_MANIPULATION =
+            """
+            // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+            hashCode += hashCode << 30;
+            hashCode ^= hashCode >>> 27;
+            hashCode += hashCode << 16;
+            hashCode ^= hashCode >>> 20;
+            hashCode += hashCode << 5;
+            hashCode ^= hashCode >>> 18;
+            hashCode += hashCode << 10;
+            hashCode ^= hashCode >>> 24;
+            hashCode += hashCode << 30;
 		""".indent(DEFAULT_INDENT*2);
 
 	/**
@@ -328,7 +329,8 @@ public final class ModelGenerator implements Generator {
 	 */
 	@NonNull
 	private static String generateCompareTo(final List<Field> fields, final String javaRecordName, final File destinationSrcDir) {
-		String bodyContent =
+        // spotless:off
+        String bodyContent =
 			"""
 			/**
 			 * Implementation of Comparable interface
@@ -348,6 +350,7 @@ public final class ModelGenerator implements Generator {
 				return result;
 			}
 			""".indent(DEFAULT_INDENT);
+        // spotless:on
 		return bodyContent;
 	}
 
@@ -363,7 +366,7 @@ public final class ModelGenerator implements Generator {
 		// Generate a call to private method that iterates through fields
 		// and calculates the hashcode.
 		equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
-
+        // spotless:off
 		String bodyContent =
 		"""
 		/**
@@ -382,34 +385,22 @@ public final class ModelGenerator implements Generator {
 		"""
 		    return true;
 		}""".indent(DEFAULT_INDENT);
+        // spotless:on
 		return bodyContent;
 	}
 
-	public static void main(String[] args) {
-
-		long hashCode = -1;
-		// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-		hashCode += hashCode << 30;
-		hashCode ^= hashCode >>> 27;
-		hashCode += hashCode << 16;
-		hashCode ^= hashCode >>> 20;
-		hashCode += hashCode << 5;
-		hashCode ^= hashCode >>> 18;
-		hashCode += hashCode << 10;
-		hashCode ^= hashCode >>> 24;
-		hashCode += hashCode << 30;
-		System.out.println("hashCode = " + hashCode);
-	}
 	/**
 	 * Generates the hashCode method
-	 * @param fields the fields to use for the code generation
+     *
+     * @param fields the fields to use for the code generation
+     *
 	 * @return the generated code
 	 */
 	@NonNull
 	private static String generateHashCode(final List<Field> fields) {
 		// Generate a call to private method that iterates through fields and calculates the hashcode
 		final String statements = getFieldsHashCode(fields, "");
-
+        // spotless:off
 		String bodyContent =
 			"""
 			/**
@@ -442,11 +433,12 @@ public final class ModelGenerator implements Generator {
 			}
 			""".replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
 				.indent(DEFAULT_INDENT);
+        // spotless:on
 		return bodyContent;
 	}
 
-	/**
-	 * Generates a pre-populated constructor for a class.
+    /**
+     * Generates a pre-populated constructor for a class.
 	 * @param fields the fields to use for the code generation
 	 * @return the generated code
 	 */
@@ -460,6 +452,7 @@ public final class ModelGenerator implements Generator {
 		if (fields.isEmpty()) {
 			return "";
 		}
+        // spotless:off
 		return """
 			    /**
 			     * Create a pre-populated $constructorName.
@@ -506,6 +499,7 @@ public final class ModelGenerator implements Generator {
 					}
 					return sb.toString();
 				}).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2));
+        // spotless:on
 	}
 
 	/**
@@ -514,7 +508,8 @@ public final class ModelGenerator implements Generator {
 	 * @return the generated code
 	 */
 	private static String generateConstructorCodeForField(final Field f) {
-		final StringBuilder sb = new StringBuilder("""
+        // spotless:off
+        final StringBuilder sb = new StringBuilder("""
 								if ($fieldName == null) {
 								    throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
 								}""".replace("$fieldName", f.nameCamelFirstLower()));
@@ -536,6 +531,7 @@ public final class ModelGenerator implements Generator {
 				}
 			}
 		}
+        // spotless:on
 		return sb.toString().indent(DEFAULT_INDENT);
 	}
 
@@ -548,7 +544,8 @@ public final class ModelGenerator implements Generator {
 	 */
 	@NonNull
 	private static String generateCodecFields(final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper, final String javaRecordName) {
-		return """
+        // spotless:off
+        return """
 				/** Protobuf codec for reading and writing in protobuf format */
 				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
 				/** JSON codec for reading and writing in JSON format */
@@ -560,6 +557,7 @@ public final class ModelGenerator implements Generator {
 				.replace("$qualifiedCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
 				.replace("$qualifiedJsonCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.JSON_CODEC, msgDef))
 				.indent(DEFAULT_INDENT);
+        // spotless:on
 	}
 
 	/**
@@ -579,6 +577,7 @@ public final class ModelGenerator implements Generator {
 		field.addAllNeededImports(imports, true, false, false);
 		// Note that repeated fields default to empty list, so technically they always have a non-null value,
 		// and therefore the additional convenience methods, especially when they throw an NPE, don't make sense.
+        // spotless:off
 		if (field.type() == FieldType.MESSAGE && !field.repeated()) {
 			hasMethods.add("""
 					/**
@@ -629,6 +628,7 @@ public final class ModelGenerator implements Generator {
 					.indent(DEFAULT_INDENT)
 			);
 		}
+        // spotless:on
 	}
 
 	/**
@@ -652,6 +652,7 @@ public final class ModelGenerator implements Generator {
 		final var enumName = oneOfField.nameCamelFirstUpper() + "OneOfType";
 		final int maxIndex = oneOfField.fields().getLast().fieldNumber();
 		final Map<Integer, EnumValue> enumValues = new HashMap<>();
+        // spotless:off
 		for (final var field : oneOfField.fields()) {
 			final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
 			final String enumComment = cleanDocStr(field.comment())
@@ -713,6 +714,7 @@ public final class ModelGenerator implements Generator {
 				field.addAllNeededImports(imports, true, false, false);
 			}
 		}
+        // spotless:on
 		final String enumComment = """
 							/**
 							 * Enum for the type of "%s" oneof value
@@ -727,7 +729,8 @@ public final class ModelGenerator implements Generator {
 
 	@NonNull
 	private static String genrateBuilderFactoryMethods(String bodyContent, final List<Field> fields) {
-		bodyContent +=
+        // spotless:off
+        bodyContent +=
     		"""
 			/**
 			 * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this
@@ -750,6 +753,7 @@ public final class ModelGenerator implements Generator {
 			"""
 			.formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
 			.indent(DEFAULT_INDENT);
+        // spotless:on
 		return bodyContent;
 	}
 
@@ -776,30 +780,32 @@ public final class ModelGenerator implements Generator {
 			postfix = "";
 			fieldToSet = fieldName;
 		}
+        // spotless:off
 		builderMethods.add("""
-						/**
-						 * $fieldDoc
-						 *
-						 * @param $fieldName value to set
-						 * @return builder to continue building with
-						 */
-						public Builder $fieldName($fieldAnnotations$fieldType $fieldName) {
-						    this.$fieldToSet = $prefix$fieldName$postfix;
-						    return this;
-						}"""
-				.replace("$fieldDoc",field.comment()
-						.replaceAll("\n", "\n * "))
-				.replace("$fieldName", fieldName)
-				.replace("$fieldToSet",fieldToSet)
-				.replace("$prefix",prefix)
-				.replace("$postfix",postfix)
-				.replace("$fieldAnnotations", fieldAnnotations)
-				.replace("$fieldType",field.javaFieldType())
-				.indent(DEFAULT_INDENT)
-		);
-		// add nice method for simple message fields so can just set using un-built builder
-		if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType() && !field.repeated()) {
-			builderMethods.add("""
+                /**
+                 * $fieldDoc
+                 *
+                 * @param $fieldName value to set
+                 * @return builder to continue building with
+                 */
+                public Builder $fieldName($fieldAnnotations$fieldType $fieldName) {
+                    this.$fieldToSet = $prefix$fieldName$postfix;
+                    return this;
+                }"""
+                .replace("$fieldDoc", field.comment()
+                        .replaceAll("\n", "\n * "))
+                .replace("$fieldName", fieldName)
+                .replace("$fieldToSet", fieldToSet)
+                .replace("$prefix", prefix)
+                .replace("$postfix", postfix)
+                .replace("$fieldAnnotations", fieldAnnotations)
+                .replace("$fieldType", field.javaFieldType())
+                .indent(DEFAULT_INDENT)
+        );
+        // add nice method for simple message fields so can just set using un-built builder
+        if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType() && !field.repeated()) {
+            builderMethods.add(
+                    """
 						/**
 						 * $fieldDoc
 						 *
@@ -820,6 +826,7 @@ public final class ModelGenerator implements Generator {
 					.replace("$fieldType",field.javaFieldType())
 					.indent(DEFAULT_INDENT)
 			);
+            // spotless:on
 		}
 
 		// add nice method for message fields with list types for varargs
@@ -828,6 +835,7 @@ public final class ModelGenerator implements Generator {
 			// but wrap it in List.of(values) instead, so the simple definitions above don't work here.
 			final String repeatedPrefix;
 			final String repeatedPostfix;
+            // spotless:off
 			if (parentOneOfField != null) {
 				repeatedPrefix = prefix + " values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
 				repeatedPostfix = postfix;
@@ -859,6 +867,7 @@ public final class ModelGenerator implements Generator {
 					.replace("$repeatedPostfix",repeatedPostfix)
 					.indent(DEFAULT_INDENT)
 			);
+            // spotless:on
 		}
 	}
 
@@ -882,6 +891,7 @@ public final class ModelGenerator implements Generator {
 				generateBuilderMethods(builderMethods, msgDef, field, lookupHelper);
 			}
 		}
+        // spotless:off
 		return """
 			/**
 			 * Builder class for easy creation, ideal for clean code where performance is not critical. In critical performance
@@ -917,6 +927,7 @@ public final class ModelGenerator implements Generator {
 				.replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
 				.replace("$builderMethods", String.join("\n", builderMethods))
 				.indent(DEFAULT_INDENT);
+        // spotless:on
 	}
 
 	/**
