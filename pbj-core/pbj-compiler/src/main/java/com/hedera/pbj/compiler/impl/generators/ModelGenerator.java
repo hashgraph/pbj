@@ -46,204 +46,236 @@ public final class ModelGenerator implements Generator {
 
     private static final String HASH_CODE_MANIPULATION =
             """
-            // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-            hashCode += hashCode << 30;
-            hashCode ^= hashCode >>> 27;
-            hashCode += hashCode << 16;
-            hashCode ^= hashCode >>> 20;
-            hashCode += hashCode << 5;
-            hashCode ^= hashCode >>> 18;
-            hashCode += hashCode << 10;
-            hashCode ^= hashCode >>> 24;
-            hashCode += hashCode << 30;
-		""".indent(DEFAULT_INDENT*2);
+			// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+			hashCode += hashCode << 30;
+			hashCode ^= hashCode >>> 27;
+			hashCode += hashCode << 16;
+			hashCode ^= hashCode >>> 20;
+			hashCode += hashCode << 5;
+			hashCode ^= hashCode >>> 18;
+			hashCode += hashCode << 10;
+			hashCode ^= hashCode >>> 24;
+			hashCode += hashCode << 30;
+		"""
+                    .indent(DEFAULT_INDENT * 2);
 
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>Generates a new model object, as a Java Record type.
-	 */
-	public void generate(final MessageDefContext msgDef,
-                         final File destinationSrcDir,
-                         final File destinationTestSrcDir, final ContextualLookupHelper lookupHelper) throws IOException {
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Generates a new model object, as a Java Record type.
+     */
+    public void generate(
+            final MessageDefContext msgDef,
+            final File destinationSrcDir,
+            final File destinationTestSrcDir,
+            final ContextualLookupHelper lookupHelper)
+            throws IOException {
 
-
-		// The javaRecordName will be something like "AccountID".
-		final var javaRecordName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
-		// The modelPackage is the Java package to put the model class into.
-		final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
-		// The File to write the sources that we generate into
-		final File javaFile = getJavaFile(destinationSrcDir, modelPackage, javaRecordName);
-		// The Javadoc "@Deprecated" tag, which is set if the protobuf schema says the field is deprecated
-		String deprecated = "";
-		// The list of fields, as defined in the protobuf schema & precomputed fields
-		final List<Field> fields = new ArrayList<>();
-		// The list of fields, as defined in the protobuf schema
+        // The javaRecordName will be something like "AccountID".
+        final var javaRecordName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
+        // The modelPackage is the Java package to put the model class into.
+        final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
+        // The File to write the sources that we generate into
+        final File javaFile = getJavaFile(destinationSrcDir, modelPackage, javaRecordName);
+        // The Javadoc "@Deprecated" tag, which is set if the protobuf schema says the field is deprecated
+        String deprecated = "";
+        // The list of fields, as defined in the protobuf schema & precomputed fields
+        final List<Field> fields = new ArrayList<>();
+        // The list of fields, as defined in the protobuf schema
         // The generated Java code for an enum field if OneOf is used
-		final List<String> oneofEnums = new ArrayList<>();
-		// The generated Java code for getters if OneOf is used
-		final List<String> oneofGetters = new ArrayList<>();
-		// The generated Java code for has methods for normal fields
-		final List<String> hasMethods = new ArrayList<>();
-		// The generated Java import statements. We'll build this up as we go.
-		final Set<String> imports = new TreeSet<>();
-		imports.add("com.hedera.pbj.runtime");
-		imports.add("com.hedera.pbj.runtime.io");
-		imports.add("com.hedera.pbj.runtime.io.buffer");
-		imports.add("com.hedera.pbj.runtime.io.stream");
-		imports.add("edu.umd.cs.findbugs.annotations");
-		imports.add("static "+modelPackage+".schema."+javaRecordName+"Schema");
+        final List<String> oneofEnums = new ArrayList<>();
+        // The generated Java code for getters if OneOf is used
+        final List<String> oneofGetters = new ArrayList<>();
+        // The generated Java code for has methods for normal fields
+        final List<String> hasMethods = new ArrayList<>();
+        // The generated Java import statements. We'll build this up as we go.
+        final Set<String> imports = new TreeSet<>();
+        imports.add("com.hedera.pbj.runtime");
+        imports.add("com.hedera.pbj.runtime.io");
+        imports.add("com.hedera.pbj.runtime.io.buffer");
+        imports.add("com.hedera.pbj.runtime.io.stream");
+        imports.add("edu.umd.cs.findbugs.annotations");
+        imports.add("static " + modelPackage + ".schema." + javaRecordName + "Schema");
 
-		// Iterate over all the items in the protobuf schema
-		for (final var item : msgDef.messageBody().messageElement()) {
-			if (item.messageDef() != null) { // process sub messages
-				generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
-			} else if (item.oneof() != null) { // process one ofs
-				oneofGetters.addAll(generateCodeForOneOf(lookupHelper, item, javaRecordName, imports, oneofEnums, fields));
-			} else if (item.mapField() != null) { // process map fields
-				final MapField field = new MapField(item.mapField(), lookupHelper);
-				fields.add(field);
-				field.addAllNeededImports(imports, true, false, false);
-			} else if (item.field() != null && item.field().fieldName() != null) {
-				generateCodeForField(lookupHelper, item, fields, imports, hasMethods);
-			} else if (item.optionStatement() != null){
-				if ("deprecated".equals(item.optionStatement().optionName().getText())) {
-					deprecated = "@Deprecated ";
-				} else {
-					System.err.println("Unhandled Option: "+item.optionStatement().getText());
-				}
-			} else if (item.reserved() == null){ // ignore reserved and warn about anything else
-				System.err.println("ModelGenerator Warning - Unknown element: "+item+" -- "+item.getText());
-			}
-		}
+        // Iterate over all the items in the protobuf schema
+        for (final var item : msgDef.messageBody().messageElement()) {
+            if (item.messageDef() != null) { // process sub messages
+                generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
+            } else if (item.oneof() != null) { // process one ofs
+                oneofGetters.addAll(
+                        generateCodeForOneOf(lookupHelper, item, javaRecordName, imports, oneofEnums, fields));
+            } else if (item.mapField() != null) { // process map fields
+                final MapField field = new MapField(item.mapField(), lookupHelper);
+                fields.add(field);
+                field.addAllNeededImports(imports, true, false, false);
+            } else if (item.field() != null && item.field().fieldName() != null) {
+                generateCodeForField(lookupHelper, item, fields, imports, hasMethods);
+            } else if (item.optionStatement() != null) {
+                if ("deprecated".equals(item.optionStatement().optionName().getText())) {
+                    deprecated = "@Deprecated ";
+                } else {
+                    System.err.println(
+                            "Unhandled Option: " + item.optionStatement().getText());
+                }
+            } else if (item.reserved() == null) { // ignore reserved and warn about anything else
+                System.err.println("ModelGenerator Warning - Unknown element: " + item + " -- " + item.getText());
+            }
+        }
 
-		// collect all non precomputed fields
+        // collect all non precomputed fields
         final List<Field> fieldsNoPrecomputed = new ArrayList<>(fields);
 
-		// add precomputed fields to fields
-		fields.add(new SingleField(false, FieldType.FIXED32, -1,
-				"$hashCode", null, null,
-				null, null, "Computed hash code, manual input ignored.", false, null));
-		fields.add(new SingleField(false, FieldType.FIXED32, -1,
-				"$protobufEncodedSize", null, null,
-				null, null, "Computed protobuf encoded size, manual input ignored.", false, null));
+        // add precomputed fields to fields
+        fields.add(new SingleField(
+                false,
+                FieldType.FIXED32,
+                -1,
+                "$hashCode",
+                null,
+                null,
+                null,
+                null,
+                "Computed hash code, manual input ignored.",
+                false,
+                null));
+        fields.add(new SingleField(
+                false,
+                FieldType.FIXED32,
+                -1,
+                "$protobufEncodedSize",
+                null,
+                null,
+                null,
+                null,
+                "Computed protobuf encoded size, manual input ignored.",
+                false,
+                null));
 
-		// The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
-		// but is cleaned up and formatted for use in JavaDoc.
-		String docComment = (msgDef.docComment() == null || msgDef.docComment().getText().isBlank())
-				? javaRecordName :
-				cleanJavaDocComment(msgDef.docComment().getText());
-		if (docComment.endsWith("\n")) {
-			docComment = docComment.substring(0, docComment.length() - 1);
-		}
-		final String javaDocComment = "/**\n * " + docComment.replaceAll("\n", "\n * ") + "\n */";
+        // The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
+        // but is cleaned up and formatted for use in JavaDoc.
+        String docComment =
+                (msgDef.docComment() == null || msgDef.docComment().getText().isBlank())
+                        ? javaRecordName
+                        : cleanJavaDocComment(msgDef.docComment().getText());
+        if (docComment.endsWith("\n")) {
+            docComment = docComment.substring(0, docComment.length() - 1);
+        }
+        final String javaDocComment = "/**\n * " + docComment.replaceAll("\n", "\n * ") + "\n */";
 
-		// === Build Body Content
-		String bodyContent = "";
+        // === Build Body Content
+        String bodyContent = "";
 
-		// static codec and default instance
-		bodyContent +=
-				generateCodecFields(msgDef, lookupHelper, javaRecordName);
-		bodyContent += "\n";
+        // static codec and default instance
+        bodyContent += generateCodecFields(msgDef, lookupHelper, javaRecordName);
+        bodyContent += "\n";
 
-		// add class fields
-		bodyContent += fields.stream().map(field -> {
-			String fieldPrefix = field.fieldNumber() != -1 ? "Field " : "";
-			String fieldComment = field.comment();
-			if (fieldComment.contains("\n")) {
-				fieldComment = "/**\n * " + fieldPrefix + fieldComment.replaceAll("\n", "\n * ") + "\n */\n";
-			} else {
-				fieldComment = "/** " + fieldPrefix + fieldComment + " */\n";
-			}
-			return fieldComment
-					+ "private "
-					+ (field.fieldNumber() != -1 ? "final " : "")
-					+ getFieldAnnotations(field)
-					+ field.javaFieldType() + " " + field.nameCamelFirstLower()
-					+ (field.fieldNumber() == -1 ? " = -1" : "")
-					+ ";";
-		}).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT);
-		bodyContent += "\n";
+        // add class fields
+        bodyContent += fields.stream()
+                .map(field -> {
+                    String fieldPrefix = field.fieldNumber() != -1 ? "Field " : "";
+                    String fieldComment = field.comment();
+                    if (fieldComment.contains("\n")) {
+                        fieldComment = "/**\n * " + fieldPrefix + fieldComment.replaceAll("\n", "\n * ") + "\n */\n";
+                    } else {
+                        fieldComment = "/** " + fieldPrefix + fieldComment + " */\n";
+                    }
+                    return fieldComment
+                            + "private "
+                            + (field.fieldNumber() != -1 ? "final " : "")
+                            + getFieldAnnotations(field)
+                            + field.javaFieldType() + " " + field.nameCamelFirstLower()
+                            + (field.fieldNumber() == -1 ? " = -1" : "")
+                            + ";";
+                })
+                .collect(Collectors.joining("\n"))
+                .indent(DEFAULT_INDENT);
+        bodyContent += "\n";
 
-		// constructor
-		bodyContent += generateConstructor(javaRecordName, fields, fieldsNoPrecomputed, true, msgDef, lookupHelper);
-		bodyContent += "\n";
+        // constructor
+        bodyContent += generateConstructor(javaRecordName, fields, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+        bodyContent += "\n";
 
-		// record style getters
-		bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed);
-		bodyContent += "\n";
+        // record style getters
+        bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed);
+        bodyContent += "\n";
 
-		// protobuf size method
-		bodyContent += LazyGetProtobufSizeMethodGenerator.generateLazyGetProtobufSize(fieldsNoPrecomputed);
-		bodyContent += "\n";
+        // protobuf size method
+        bodyContent += LazyGetProtobufSizeMethodGenerator.generateLazyGetProtobufSize(fieldsNoPrecomputed);
+        bodyContent += "\n";
 
-		// hashCode method
-		bodyContent += generateHashCode(fieldsNoPrecomputed);
-		bodyContent += "\n";
+        // hashCode method
+        bodyContent += generateHashCode(fieldsNoPrecomputed);
+        bodyContent += "\n";
 
-		// equals method
-		bodyContent += generateEquals(fieldsNoPrecomputed, javaRecordName);
+        // equals method
+        bodyContent += generateEquals(fieldsNoPrecomputed, javaRecordName);
 
-		final List<Field> comparableFields = filterComparableFields(msgDef, lookupHelper, fields);
-		final boolean hasComparableFields = !comparableFields.isEmpty();
-		if (hasComparableFields) {
-			bodyContent += generateCompareTo(comparableFields, javaRecordName, destinationSrcDir);
-		}
+        final List<Field> comparableFields = filterComparableFields(msgDef, lookupHelper, fields);
+        final boolean hasComparableFields = !comparableFields.isEmpty();
+        if (hasComparableFields) {
+            bodyContent += generateCompareTo(comparableFields, javaRecordName, destinationSrcDir);
+        }
 
-		// Has methods
-		bodyContent += String.join("\n", hasMethods);
-		bodyContent += "\n";
+        // Has methods
+        bodyContent += String.join("\n", hasMethods);
+        bodyContent += "\n";
 
-		// oneof getters
-		bodyContent += String.join("\n    ", oneofGetters);
-		bodyContent += "\n";
+        // oneof getters
+        bodyContent += String.join("\n    ", oneofGetters);
+        bodyContent += "\n";
 
-		// builder copy & new builder methods
-		bodyContent = genrateBuilderFactoryMethods(bodyContent, fieldsNoPrecomputed);
-		bodyContent += "\n";
+        // builder copy & new builder methods
+        bodyContent = genrateBuilderFactoryMethods(bodyContent, fieldsNoPrecomputed);
+        bodyContent += "\n";
 
-		// generate builder
-		bodyContent += generateBuilder(msgDef, fieldsNoPrecomputed, lookupHelper);
+        // generate builder
+        bodyContent += generateBuilder(msgDef, fieldsNoPrecomputed, lookupHelper);
         if (!oneofEnums.isEmpty()) bodyContent += "\n";
 
-		// oneof enums
-		bodyContent += String.join("\n    ", oneofEnums);
+        // oneof enums
+        bodyContent += String.join("\n    ", oneofEnums);
 
-		// === Build file
-		try (final FileWriter javaWriter = new FileWriter(javaFile)) {
-			javaWriter.write(
-					generateClass(modelPackage, imports, javaDocComment, deprecated, javaRecordName, bodyContent, hasComparableFields)
-			);
-		}
-	}
+        // === Build file
+        try (final FileWriter javaWriter = new FileWriter(javaFile)) {
+            javaWriter.write(generateClass(
+                    modelPackage,
+                    imports,
+                    javaDocComment,
+                    deprecated,
+                    javaRecordName,
+                    bodyContent,
+                    hasComparableFields));
+        }
+    }
 
-	/**
-	 * Generating method that assembles all the previously generated pieces together
-	 * @param modelPackage the model package to use for the code generation
-	 * @param imports the imports to use for the code generation
-	 * @param javaDocComment the java doc comment to use for the code generation
-	 * @param deprecated the deprecated annotation to add
-	 * @param javaRecordName the name of the class
-	 * @param bodyContent the body content to use for the code generation
-	 * @return the generated code
-	 */
-	@NonNull
-	private static String generateClass(final String modelPackage,
-										final Set<String> imports,
-										final String javaDocComment,
-										final String deprecated,
-										final String javaRecordName,
-										final String bodyContent,
-										final boolean isComparable) {
-		final String implementsComparable;
-		if (isComparable) {
-			imports.add("java.lang.Comparable");
-			implementsComparable = "implements Comparable<$javaRecordName> ";
-		} else {
-			implementsComparable = "";
-		}
+    /**
+     * Generating method that assembles all the previously generated pieces together
+     * @param modelPackage the model package to use for the code generation
+     * @param imports the imports to use for the code generation
+     * @param javaDocComment the java doc comment to use for the code generation
+     * @param deprecated the deprecated annotation to add
+     * @param javaRecordName the name of the class
+     * @param bodyContent the body content to use for the code generation
+     * @return the generated code
+     */
+    @NonNull
+    private static String generateClass(
+            final String modelPackage,
+            final Set<String> imports,
+            final String javaDocComment,
+            final String deprecated,
+            final String javaRecordName,
+            final String bodyContent,
+            final boolean isComparable) {
+        final String implementsComparable;
+        if (isComparable) {
+            imports.add("java.lang.Comparable");
+            implementsComparable = "implements Comparable<$javaRecordName> ";
+        } else {
+            implementsComparable = "";
+        }
 
-		return """
+        return """
 				package $package;
 				$imports
 				import com.hedera.pbj.runtime.Codec;
@@ -258,20 +290,26 @@ public final class ModelGenerator implements Generator {
 				public final class $javaRecordName $implementsComparable{
 				$bodyContent}
 				"""
-				.replace("$package", modelPackage)
-				.replace("$imports", imports.isEmpty() ? "" : imports.stream().collect(Collectors.joining(".*;\nimport ", "\nimport ", ".*;\n")))
-				.replace("$javaDocComment", javaDocComment)
-				.replace("$deprecated", deprecated)
-				.replace("$implementsComparable", implementsComparable)
-				.replace("$javaRecordName", javaRecordName)
-				.replace("$bodyContent", bodyContent);
-	}
+                .replace("$package", modelPackage)
+                .replace(
+                        "$imports",
+                        imports.isEmpty()
+                                ? ""
+                                : imports.stream().collect(Collectors.joining(".*;\nimport ", "\nimport ", ".*;\n")))
+                .replace("$javaDocComment", javaDocComment)
+                .replace("$deprecated", deprecated)
+                .replace("$implementsComparable", implementsComparable)
+                .replace("$javaRecordName", javaRecordName)
+                .replace("$bodyContent", bodyContent);
+    }
 
-	private static String generateRecordStyleGetters(final List<Field> fields) {
-		return fields.stream().map(field -> {
-			String fieldComment = field.comment();
-			String fieldCommentLowerFirst = fieldComment.substring(0, 1).toLowerCase() + fieldComment.substring(1);
-            return """
+    private static String generateRecordStyleGetters(final List<Field> fields) {
+        return fields.stream()
+                .map(field -> {
+                    String fieldComment = field.comment();
+                    String fieldCommentLowerFirst =
+                            fieldComment.substring(0, 1).toLowerCase() + fieldComment.substring(1);
+                    return """
 					/**
 					 * Get field $fieldCommentLowerFirst
 					 *
@@ -281,54 +319,55 @@ public final class ModelGenerator implements Generator {
 						return $fieldName;
 					}
 					"""
-					.replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
-					.replace("$fieldName", field.nameCamelFirstLower())
-					.replace("$fieldType", field.javaFieldType())
-					.indent(DEFAULT_INDENT);
-		}).collect(Collectors.joining("\n"));
-	}
+                            .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
+                            .replace("$fieldName", field.nameCamelFirstLower())
+                            .replace("$fieldType", field.javaFieldType())
+                            .indent(DEFAULT_INDENT);
+                })
+                .collect(Collectors.joining("\n"));
+    }
 
-	/**
-	 * Returns a set of annotations for a given field.
-	 * @param field a field
-	 * @return an empty string, or a string with Java annotations ending with a space
-	 */
-	private static String getFieldAnnotations(final Field field) {
-		if (field.repeated()) return NON_NULL_ANNOTATION + " ";
+    /**
+     * Returns a set of annotations for a given field.
+     * @param field a field
+     * @return an empty string, or a string with Java annotations ending with a space
+     */
+    private static String getFieldAnnotations(final Field field) {
+        if (field.repeated()) return NON_NULL_ANNOTATION + " ";
 
-		return switch (field.type()) {
-			case MESSAGE -> "@Nullable ";
-			case BYTES, STRING -> NON_NULL_ANNOTATION + " ";
-			default -> "";
-		};
-	}
+        return switch (field.type()) {
+            case MESSAGE -> "@Nullable ";
+            case BYTES, STRING -> NON_NULL_ANNOTATION + " ";
+            default -> "";
+        };
+    }
 
-	/**
-	 * Filter the fields to only include those that are comparable
-	 * @param msgDef The message definition
-	 * @param lookupHelper The lookup helper
-	 * @param fields The fields to filter
-	 * @return the filtered fields
-	 */
-	@NonNull
-	private static List<Field> filterComparableFields(final MessageDefContext msgDef,
-													final ContextualLookupHelper lookupHelper,
-													final List<Field> fields) {
-		final Map<String, Field> fieldByName = fields.stream().collect(toMap(Field::name, f -> f));
-		final List<String> comparableFields = lookupHelper.getComparableFields(msgDef);
-		return comparableFields.stream().map(fieldByName::get).collect(Collectors.toList());
-	}
+    /**
+     * Filter the fields to only include those that are comparable
+     * @param msgDef The message definition
+     * @param lookupHelper The lookup helper
+     * @param fields The fields to filter
+     * @return the filtered fields
+     */
+    @NonNull
+    private static List<Field> filterComparableFields(
+            final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper, final List<Field> fields) {
+        final Map<String, Field> fieldByName = fields.stream().collect(toMap(Field::name, f -> f));
+        final List<String> comparableFields = lookupHelper.getComparableFields(msgDef);
+        return comparableFields.stream().map(fieldByName::get).collect(Collectors.toList());
+    }
 
-	/**
-	 * Generates the compareTo method
-	 *
-	 * @param fields                the fields to use for the code generation
-	 * @param javaRecordName        the name of the class
-	 * @param destinationSrcDir    the destination source directory
-	 * @return the generated code
-	 */
-	@NonNull
-	private static String generateCompareTo(final List<Field> fields, final String javaRecordName, final File destinationSrcDir) {
+    /**
+     * Generates the compareTo method
+     *
+     * @param fields                the fields to use for the code generation
+     * @param javaRecordName        the name of the class
+     * @param destinationSrcDir    the destination source directory
+     * @return the generated code
+     */
+    @NonNull
+    private static String generateCompareTo(
+            final List<Field> fields, final String javaRecordName, final File destinationSrcDir) {
         // spotless:off
         String bodyContent =
 			"""
@@ -351,21 +390,21 @@ public final class ModelGenerator implements Generator {
 			}
 			""".indent(DEFAULT_INDENT);
         // spotless:on
-		return bodyContent;
-	}
+        return bodyContent;
+    }
 
-	/**
-	 * Generates the equals method
-	 * @param fields the fields to use for the code generation
-	 * @param javaRecordName the name of the class
-	 * @return the generated code
-	 */
-	@NonNull
-	private static String generateEquals(final List<Field> fields, final String javaRecordName) {
-		String equalsStatements = "";
-		// Generate a call to private method that iterates through fields
-		// and calculates the hashcode.
-		equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
+    /**
+     * Generates the equals method
+     * @param fields the fields to use for the code generation
+     * @param javaRecordName the name of the class
+     * @return the generated code
+     */
+    @NonNull
+    private static String generateEquals(final List<Field> fields, final String javaRecordName) {
+        String equalsStatements = "";
+        // Generate a call to private method that iterates through fields
+        // and calculates the hashcode.
+        equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
         // spotless:off
 		String bodyContent =
 		"""
@@ -386,20 +425,20 @@ public final class ModelGenerator implements Generator {
 		    return true;
 		}""".indent(DEFAULT_INDENT);
         // spotless:on
-		return bodyContent;
-	}
+        return bodyContent;
+    }
 
-	/**
-	 * Generates the hashCode method
+    /**
+     * Generates the hashCode method
      *
      * @param fields the fields to use for the code generation
      *
-	 * @return the generated code
-	 */
-	@NonNull
-	private static String generateHashCode(final List<Field> fields) {
-		// Generate a call to private method that iterates through fields and calculates the hashcode
-		final String statements = getFieldsHashCode(fields, "");
+     * @return the generated code
+     */
+    @NonNull
+    private static String generateHashCode(final List<Field> fields) {
+        // Generate a call to private method that iterates through fields and calculates the hashcode
+        final String statements = getFieldsHashCode(fields, "");
         // spotless:off
 		String bodyContent =
 			"""
@@ -434,24 +473,24 @@ public final class ModelGenerator implements Generator {
 			""".replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
 				.indent(DEFAULT_INDENT);
         // spotless:on
-		return bodyContent;
-	}
+        return bodyContent;
+    }
 
     /**
      * Generates a pre-populated constructor for a class.
-	 * @param fields the fields to use for the code generation
-	 * @return the generated code
-	 */
-	private static String generateConstructor(
-			final String constructorName,
-			final List<Field> fields,
-			final List<Field> fieldsNoPrecomputed,
-			final boolean shouldThrowOnOneOfNull,
-			final MessageDefContext msgDef,
-			final ContextualLookupHelper lookupHelper) {
-		if (fields.isEmpty()) {
-			return "";
-		}
+     * @param fields the fields to use for the code generation
+     * @return the generated code
+     */
+    private static String generateConstructor(
+            final String constructorName,
+            final List<Field> fields,
+            final List<Field> fieldsNoPrecomputed,
+            final boolean shouldThrowOnOneOfNull,
+            final MessageDefContext msgDef,
+            final ContextualLookupHelper lookupHelper) {
+        if (fields.isEmpty()) {
+            return "";
+        }
         // spotless:off
 		return """
 			    /**
@@ -500,14 +539,14 @@ public final class ModelGenerator implements Generator {
 					return sb.toString();
 				}).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2));
         // spotless:on
-	}
+    }
 
-	/**
-	 * Generates the constructor code for the class
-	 * @param f the field to use for the code generation
-	 * @return the generated code
-	 */
-	private static String generateConstructorCodeForField(final Field f) {
+    /**
+     * Generates the constructor code for the class
+     * @param f the field to use for the code generation
+     * @return the generated code
+     */
+    private static String generateConstructorCodeForField(final Field f) {
         // spotless:off
         final StringBuilder sb = new StringBuilder("""
 								if ($fieldName == null) {
@@ -532,18 +571,19 @@ public final class ModelGenerator implements Generator {
 			}
 		}
         // spotless:on
-		return sb.toString().indent(DEFAULT_INDENT);
-	}
+        return sb.toString().indent(DEFAULT_INDENT);
+    }
 
-	/**
-	 * Generates codec fields for the calss
-	 * @param msgDef the message definition
-	 * @param lookupHelper the lookup helper
-	 * @param javaRecordName the name of the class
-	 * @return the generated code
-	 */
-	@NonNull
-	private static String generateCodecFields(final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper, final String javaRecordName) {
+    /**
+     * Generates codec fields for the calss
+     * @param msgDef the message definition
+     * @param lookupHelper the lookup helper
+     * @param javaRecordName the name of the class
+     * @return the generated code
+     */
+    @NonNull
+    private static String generateCodecFields(
+            final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper, final String javaRecordName) {
         // spotless:off
         return """
 				/** Protobuf codec for reading and writing in protobuf format */
@@ -558,25 +598,26 @@ public final class ModelGenerator implements Generator {
 				.replace("$qualifiedJsonCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.JSON_CODEC, msgDef))
 				.indent(DEFAULT_INDENT);
         // spotless:on
-	}
+    }
 
-	/**
-	 * Generates accessor fields for the class
-	 * @param item message element context provided by the parser
-	 * @param fields the fields to use for the code generation
-	 * @param imports the imports to use for the code generation
-	 * @param hasMethods the has methods to use for the code generation
-	 */
-	private static void generateCodeForField(final ContextualLookupHelper lookupHelper,
-                                             final Protobuf3Parser.MessageElementContext item,
-                                             final List<Field> fields,
-                                             final Set<String> imports,
-                                             final List<String> hasMethods) {
-		final SingleField field = new SingleField(item.field(), lookupHelper);
-		fields.add(field);
-		field.addAllNeededImports(imports, true, false, false);
-		// Note that repeated fields default to empty list, so technically they always have a non-null value,
-		// and therefore the additional convenience methods, especially when they throw an NPE, don't make sense.
+    /**
+     * Generates accessor fields for the class
+     * @param item message element context provided by the parser
+     * @param fields the fields to use for the code generation
+     * @param imports the imports to use for the code generation
+     * @param hasMethods the has methods to use for the code generation
+     */
+    private static void generateCodeForField(
+            final ContextualLookupHelper lookupHelper,
+            final Protobuf3Parser.MessageElementContext item,
+            final List<Field> fields,
+            final Set<String> imports,
+            final List<String> hasMethods) {
+        final SingleField field = new SingleField(item.field(), lookupHelper);
+        fields.add(field);
+        field.addAllNeededImports(imports, true, false, false);
+        // Note that repeated fields default to empty list, so technically they always have a non-null value,
+        // and therefore the additional convenience methods, especially when they throw an NPE, don't make sense.
         // spotless:off
 		if (field.type() == FieldType.MESSAGE && !field.repeated()) {
 			hasMethods.add("""
@@ -629,29 +670,30 @@ public final class ModelGenerator implements Generator {
 			);
 		}
         // spotless:on
-	}
+    }
 
-	/**
-	 * Generates the code related to the oneof field
-	 * @param lookupHelper the lookup helper
-	 * @param item message element context provided by the parser
-	 * @param javaRecordName the name of the class
-	 * @param imports the imports to use for the code generation
-	 * @param oneofEnums the oneof enums to use for the code generation
-	 * @param fields the fields to use for the code generation
-	 * @return the generated code
-	 */
-	private static List<String>  generateCodeForOneOf(final ContextualLookupHelper lookupHelper,
-                                                      final Protobuf3Parser.MessageElementContext item,
-                                                      final String javaRecordName,
-                                                      final Set<String> imports,
-                                                      final List<String> oneofEnums,
-                                                      final List<Field> fields) {
-		final List<String> oneofGetters = new ArrayList<>();
-		final var oneOfField = new OneOfField(item.oneof(), javaRecordName, lookupHelper);
-		final var enumName = oneOfField.nameCamelFirstUpper() + "OneOfType";
-		final int maxIndex = oneOfField.fields().getLast().fieldNumber();
-		final Map<Integer, EnumValue> enumValues = new HashMap<>();
+    /**
+     * Generates the code related to the oneof field
+     * @param lookupHelper the lookup helper
+     * @param item message element context provided by the parser
+     * @param javaRecordName the name of the class
+     * @param imports the imports to use for the code generation
+     * @param oneofEnums the oneof enums to use for the code generation
+     * @param fields the fields to use for the code generation
+     * @return the generated code
+     */
+    private static List<String> generateCodeForOneOf(
+            final ContextualLookupHelper lookupHelper,
+            final Protobuf3Parser.MessageElementContext item,
+            final String javaRecordName,
+            final Set<String> imports,
+            final List<String> oneofEnums,
+            final List<Field> fields) {
+        final List<String> oneofGetters = new ArrayList<>();
+        final var oneOfField = new OneOfField(item.oneof(), javaRecordName, lookupHelper);
+        final var enumName = oneOfField.nameCamelFirstUpper() + "OneOfType";
+        final int maxIndex = oneOfField.fields().getLast().fieldNumber();
+        final Map<Integer, EnumValue> enumValues = new HashMap<>();
         // spotless:off
 		for (final var field : oneOfField.fields()) {
 			final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
@@ -715,20 +757,21 @@ public final class ModelGenerator implements Generator {
 			}
 		}
         // spotless:on
-		final String enumComment = """
+        final String enumComment = """
 							/**
 							 * Enum for the type of "%s" oneof value
-							 */""".formatted(oneOfField.name());
-		final String enumString = createEnum(enumComment ,"",enumName,maxIndex,enumValues, true)
-				.indent(DEFAULT_INDENT * 2);
-		oneofEnums.add(enumString);
-		fields.add(oneOfField);
-		imports.add("com.hedera.pbj.runtime");
-		return oneofGetters;
-	}
+							 */"""
+                .formatted(oneOfField.name());
+        final String enumString = createEnum(enumComment, "", enumName, maxIndex, enumValues, true)
+                .indent(DEFAULT_INDENT * 2);
+        oneofEnums.add(enumString);
+        fields.add(oneOfField);
+        imports.add("com.hedera.pbj.runtime");
+        return oneofGetters;
+    }
 
-	@NonNull
-	private static String genrateBuilderFactoryMethods(String bodyContent, final List<Field> fields) {
+    @NonNull
+    private static String genrateBuilderFactoryMethods(String bodyContent, final List<Field> fields) {
         // spotless:off
         bodyContent +=
     		"""
@@ -754,32 +797,32 @@ public final class ModelGenerator implements Generator {
 			.formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
 			.indent(DEFAULT_INDENT);
         // spotless:on
-		return bodyContent;
-	}
+        return bodyContent;
+    }
 
-	private static void generateBuilderMethods(
-			final List<String> builderMethods,
-			final MessageDefContext msgDef,
-			final Field field,
-			final ContextualLookupHelper lookupHelper) {
-		final String prefix, postfix, fieldToSet;
-		final String fieldAnnotations = getFieldAnnotations(field);
-		final OneOfField parentOneOfField = field.parent();
-		final String fieldName = field.nameCamelFirstLower();
-		if (parentOneOfField != null) {
-			final String oneOfEnumValue = parentOneOfField.getEnumClassRef() + "." + camelToUpperSnake(field.name());
-			prefix = " new %s<>(".formatted(parentOneOfField.className()) + oneOfEnumValue + ",";
-			postfix = ")";
-			fieldToSet = parentOneOfField.nameCamelFirstLower();
-		} else if (fieldAnnotations.contains(NON_NULL_ANNOTATION)) {
-			prefix = "";
-			postfix = " != null ? " + fieldName + " : " + getDefaultValue(field, msgDef, lookupHelper);
-			fieldToSet = fieldName;
-		} else {
-			prefix = "";
-			postfix = "";
-			fieldToSet = fieldName;
-		}
+    private static void generateBuilderMethods(
+            final List<String> builderMethods,
+            final MessageDefContext msgDef,
+            final Field field,
+            final ContextualLookupHelper lookupHelper) {
+        final String prefix, postfix, fieldToSet;
+        final String fieldAnnotations = getFieldAnnotations(field);
+        final OneOfField parentOneOfField = field.parent();
+        final String fieldName = field.nameCamelFirstLower();
+        if (parentOneOfField != null) {
+            final String oneOfEnumValue = parentOneOfField.getEnumClassRef() + "." + camelToUpperSnake(field.name());
+            prefix = " new %s<>(".formatted(parentOneOfField.className()) + oneOfEnumValue + ",";
+            postfix = ")";
+            fieldToSet = parentOneOfField.nameCamelFirstLower();
+        } else if (fieldAnnotations.contains(NON_NULL_ANNOTATION)) {
+            prefix = "";
+            postfix = " != null ? " + fieldName + " : " + getDefaultValue(field, msgDef, lookupHelper);
+            fieldToSet = fieldName;
+        } else {
+            prefix = "";
+            postfix = "";
+            fieldToSet = fieldName;
+        }
         // spotless:off
 		builderMethods.add("""
                 /**
@@ -827,14 +870,14 @@ public final class ModelGenerator implements Generator {
 					.indent(DEFAULT_INDENT)
 			);
             // spotless:on
-		}
+        }
 
-		// add nice method for message fields with list types for varargs
-		if (field.repeated()) {
-			// Need to re-define the prefix and postfix for repeated fields because they don't use `values` directly
-			// but wrap it in List.of(values) instead, so the simple definitions above don't work here.
-			final String repeatedPrefix;
-			final String repeatedPostfix;
+        // add nice method for message fields with list types for varargs
+        if (field.repeated()) {
+            // Need to re-define the prefix and postfix for repeated fields because they don't use `values` directly
+            // but wrap it in List.of(values) instead, so the simple definitions above don't work here.
+            final String repeatedPrefix;
+            final String repeatedPostfix;
             // spotless:off
 			if (parentOneOfField != null) {
 				repeatedPrefix = prefix + " values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
@@ -868,29 +911,30 @@ public final class ModelGenerator implements Generator {
 					.indent(DEFAULT_INDENT)
 			);
             // spotless:on
-		}
-	}
+        }
+    }
 
-	/**
-	 * Generates the builder for the class
-	 * @param msgDef the message definition
-	 * @param fields the fields to use for the code generation
-	 * @param lookupHelper the lookup helper
-	 * @return the generated code
-	 */
-	private static String generateBuilder(final MessageDefContext msgDef, final List<Field> fields, final ContextualLookupHelper lookupHelper) {
-		final String javaRecordName = msgDef.messageName().getText();
-		final List<String> builderMethods = new ArrayList<>();
-		for (final Field field: fields) {
-			if (field.type() == Field.FieldType.ONE_OF) {
-				final OneOfField oneOfField = (OneOfField) field;
-				for (final Field subField: oneOfField.fields()) {
-					generateBuilderMethods(builderMethods, msgDef, subField, lookupHelper);
-				}
-			} else {
-				generateBuilderMethods(builderMethods, msgDef, field, lookupHelper);
-			}
-		}
+    /**
+     * Generates the builder for the class
+     * @param msgDef the message definition
+     * @param fields the fields to use for the code generation
+     * @param lookupHelper the lookup helper
+     * @return the generated code
+     */
+    private static String generateBuilder(
+            final MessageDefContext msgDef, final List<Field> fields, final ContextualLookupHelper lookupHelper) {
+        final String javaRecordName = msgDef.messageName().getText();
+        final List<String> builderMethods = new ArrayList<>();
+        for (final Field field : fields) {
+            if (field.type() == Field.FieldType.ONE_OF) {
+                final OneOfField oneOfField = (OneOfField) field;
+                for (final Field subField : oneOfField.fields()) {
+                    generateBuilderMethods(builderMethods, msgDef, subField, lookupHelper);
+                }
+            } else {
+                generateBuilderMethods(builderMethods, msgDef, field, lookupHelper);
+            }
+        }
         // spotless:off
 		return """
 			/**
@@ -928,21 +972,21 @@ public final class ModelGenerator implements Generator {
 				.replace("$builderMethods", String.join("\n", builderMethods))
 				.indent(DEFAULT_INDENT);
         // spotless:on
-	}
+    }
 
-	/**
-	 * Gets the default value for the field
-	 * @param field the field to use for the code generation
-	 * @param msgDef the message definition
-	 * @param lookupHelper the lookup helper
-	 * @return the generated code
-	 */
-	private static String getDefaultValue(final Field field, final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
-		if (field.type() == Field.FieldType.ONE_OF) {
-			return lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef)+"."+field.javaDefault();
-		} else {
-			return field.javaDefault();
-		}
-	}
-
+    /**
+     * Gets the default value for the field
+     * @param field the field to use for the code generation
+     * @param msgDef the message definition
+     * @param lookupHelper the lookup helper
+     * @return the generated code
+     */
+    private static String getDefaultValue(
+            final Field field, final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
+        if (field.type() == Field.FieldType.ONE_OF) {
+            return lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef) + "." + field.javaDefault();
+        } else {
+            return field.javaDefault();
+        }
+    }
 }
