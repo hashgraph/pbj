@@ -156,8 +156,10 @@ public final class Common {
         return cleanDocStr(
                 fieldComment
                         .replaceAll("/\\*\\*[\n\r\s\t]*\\*[\t\s]*|[\n\r\s\t]*\\*/", "") // remove java doc
-				.replaceAll("(^|\n)\s+\\*(\s+|\n|$)","\n") // remove indenting and *
-				.replaceAll("(^|\n)\s+\\*(\s+|\n|$)","\n\n") // remove lines starting with * as these were empty lines
+                        .replaceAll("(^|\n)\s+\\*(\s+|\n|$)", "\n") // remove indenting and *
+                        .replaceAll(
+                                "(^|\n)\s+\\*(\s+|\n|$)",
+                                "\n\n") // remove lines starting with * as these were empty lines
                         .replaceAll("/\\*\\*", "") // remove indenting and /** at beginning of comment.
                         .trim() // Remove leading and trailing spaces.
                 );
@@ -307,7 +309,7 @@ public final class Common {
                 }
             }
         }
-		return generatedCodeSoFar.indent(DEFAULT_INDENT * 3);
+        return generatedCodeSoFar.indent(DEFAULT_INDENT * 3);
     }
 
     /**
@@ -723,7 +725,7 @@ public final class Common {
             try (BufferedReader reader = new BufferedReader(new FileReader(javaFile))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
-					if (COMPARABLE_PATTERN.matcher(line).find()) {
+                    if (COMPARABLE_PATTERN.matcher(line).find()) {
                         return;
                     }
                 }
