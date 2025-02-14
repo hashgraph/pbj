@@ -274,7 +274,7 @@ public final class ModelGenerator implements Generator {
         } else {
             implementsComparable = "";
         }
-
+        // spotless:off
         return """
 				package $package;
 				$imports
@@ -301,8 +301,15 @@ public final class ModelGenerator implements Generator {
                 .replace("$implementsComparable", implementsComparable)
                 .replace("$javaRecordName", javaRecordName)
                 .replace("$bodyContent", bodyContent);
+		// spotless:on
     }
 
+    /**
+     * Generating method that generates getters for the record style accessors. Needed now we use class not record.
+     *
+     * @param fields the fields to use for the code generation
+     * @return the generated code
+     */
     private static String generateRecordStyleGetters(final List<Field> fields) {
         return fields.stream()
                 .map(field -> {
@@ -409,8 +416,8 @@ public final class ModelGenerator implements Generator {
 		String bodyContent =
 		"""
 		/**
-		* Override the default equals method for
-		*/
+		 * Override the default equals method for
+		 */
 		@Override
 		public boolean equals(Object that) {
 		    if (that == null || this.getClass() != that.getClass()) {
