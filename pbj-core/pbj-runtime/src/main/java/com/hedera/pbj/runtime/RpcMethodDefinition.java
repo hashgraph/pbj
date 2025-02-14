@@ -10,8 +10,7 @@ package com.hedera.pbj.runtime;
  * @param <T> The type of the request message
  * @param <R> The type of the response message
  */
-public record RpcMethodDefinition<T extends Record, R extends Record>(
-        String path, Class<T> requestType, Class<R> responseType) {
+public record RpcMethodDefinition<T, R>(String path, Class<T> requestType, Class<R> responseType) {
 
     /**
      * Create a new builder for a {@link RpcMethodDefinition}.
@@ -20,7 +19,7 @@ public record RpcMethodDefinition<T extends Record, R extends Record>(
      * @param <T> The type of the request message
      * @param <R> The type of the response message
      */
-    public static <T extends Record, R extends Record> Builder<T, R> newBuilder() {
+    public static <T, R> Builder<T, R> newBuilder() {
         return new Builder<>();
     }
 
@@ -30,7 +29,7 @@ public record RpcMethodDefinition<T extends Record, R extends Record>(
      * @param <T> The type of the request message
      * @param <R> The type of the response message
      */
-    public static final class Builder<T extends Record, R extends Record> {
+    public static final class Builder<T, R> {
         private String path;
         private Class<T> requestType;
         private Class<R> responseType;
