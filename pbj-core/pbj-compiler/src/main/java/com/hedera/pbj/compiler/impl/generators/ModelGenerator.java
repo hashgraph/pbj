@@ -46,17 +46,17 @@ public final class ModelGenerator implements Generator {
 
     private static final String HASH_CODE_MANIPULATION =
             """
-			// Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-			hashCode += hashCode << 30;
-			hashCode ^= hashCode >>> 27;
-			hashCode += hashCode << 16;
-			hashCode ^= hashCode >>> 20;
-			hashCode += hashCode << 5;
-			hashCode ^= hashCode >>> 18;
-			hashCode += hashCode << 10;
-			hashCode ^= hashCode >>> 24;
-			hashCode += hashCode << 30;
-		"""
+            // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+            hashCode += hashCode << 30;
+            hashCode ^= hashCode >>> 27;
+            hashCode += hashCode << 16;
+            hashCode ^= hashCode >>> 20;
+            hashCode += hashCode << 5;
+            hashCode ^= hashCode >>> 18;
+            hashCode += hashCode << 10;
+            hashCode ^= hashCode >>> 24;
+            hashCode += hashCode << 30;
+        """
                     .indent(DEFAULT_INDENT * 2);
 
     /**
@@ -114,11 +114,11 @@ public final class ModelGenerator implements Generator {
                 if ("deprecated".equals(item.optionStatement().optionName().getText())) {
                     deprecated = "@Deprecated ";
                 } else {
-                    System.err.println(
-                            "Unhandled Option: " + item.optionStatement().getText());
+                    System.err.printf(
+                            "Unhandled Option: %s\n", item.optionStatement().getText());
                 }
             } else if (item.reserved() == null) { // ignore reserved and warn about anything else
-                System.err.println("ModelGenerator Warning - Unknown element: " + item + " -- " + item.getText());
+                System.err.printf("ModelGenerator Warning - Unknown element: %s  -- %s\n", item, item.getText());
             }
         }
 
@@ -276,20 +276,20 @@ public final class ModelGenerator implements Generator {
         }
         // spotless:off
         return """
-				package $package;
-				$imports
-				import com.hedera.pbj.runtime.Codec;
-				import java.util.function.Consumer;
-				import edu.umd.cs.findbugs.annotations.Nullable;
-				import edu.umd.cs.findbugs.annotations.NonNull;
-				import static java.util.Objects.requireNonNull;
-				import static com.hedera.pbj.runtime.ProtoWriterTools.*;
-				import static com.hedera.pbj.runtime.ProtoConstants.*;
-				
-				$javaDocComment$deprecated
-				public final class $javaRecordName $implementsComparable{
-				$bodyContent}
-				"""
+                package $package;
+                $imports
+                import com.hedera.pbj.runtime.Codec;
+                import java.util.function.Consumer;
+                import edu.umd.cs.findbugs.annotations.Nullable;
+                import edu.umd.cs.findbugs.annotations.NonNull;
+                import static java.util.Objects.requireNonNull;
+                import static com.hedera.pbj.runtime.ProtoWriterTools.*;
+                import static com.hedera.pbj.runtime.ProtoConstants.*;
+                
+                $javaDocComment$deprecated
+                public final class $javaRecordName $implementsComparable{
+                $bodyContent}
+                """
                 .replace("$package", modelPackage)
                 .replace(
                         "$imports",
@@ -301,7 +301,7 @@ public final class ModelGenerator implements Generator {
                 .replace("$implementsComparable", implementsComparable)
                 .replace("$javaRecordName", javaRecordName)
                 .replace("$bodyContent", bodyContent);
-		// spotless:on
+        // spotless:on
     }
 
     /**
@@ -317,15 +317,15 @@ public final class ModelGenerator implements Generator {
                     String fieldCommentLowerFirst =
                             fieldComment.substring(0, 1).toLowerCase() + fieldComment.substring(1);
                     return """
-					/**
-					 * Get field $fieldCommentLowerFirst
-					 *
-					 * @return the value of the $fieldName field
-					 */
-					public $fieldType $fieldName() {
-						return $fieldName;
-					}
-					"""
+                    /**
+                     * Get field $fieldCommentLowerFirst
+                     *
+                     * @return the value of the $fieldName field
+                     */
+                    public $fieldType $fieldName() {
+                        return $fieldName;
+                    }
+                    """
                             .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
                             .replace("$fieldName", field.nameCamelFirstLower())
                             .replace("$fieldType", field.javaFieldType())
@@ -377,25 +377,25 @@ public final class ModelGenerator implements Generator {
             final List<Field> fields, final String javaRecordName, final File destinationSrcDir) {
         // spotless:off
         String bodyContent =
-			"""
-			/**
-			 * Implementation of Comparable interface
-			 */
-			@Override
-			public int compareTo($javaRecordName thatObj) {
-				if (thatObj == null) {
-					return 1;
-				}
-				int result = 0;
-			""".replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
+            """
+            /**
+             * Implementation of Comparable interface
+             */
+            @Override
+            public int compareTo($javaRecordName thatObj) {
+                if (thatObj == null) {
+                    return 1;
+                }
+                int result = 0;
+            """.replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
 
-		bodyContent += Common.getFieldsCompareToStatements(fields, "", destinationSrcDir);
+        bodyContent += Common.getFieldsCompareToStatements(fields, "", destinationSrcDir);
 
-		bodyContent +=
-			"""
-				return result;
-			}
-			""".indent(DEFAULT_INDENT);
+        bodyContent +=
+            """
+                return result;
+            }
+            """.indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }
@@ -413,24 +413,24 @@ public final class ModelGenerator implements Generator {
         // and calculates the hashcode.
         equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
         // spotless:off
-		String bodyContent =
-		"""
-		/**
-		 * Override the default equals method for
-		 */
-		@Override
-		public boolean equals(Object that) {
-		    if (that == null || this.getClass() != that.getClass()) {
-		        return false;
-		    }
-		    $javaRecordName thatObj = ($javaRecordName)that;
-		""".replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
+        String bodyContent =
+        """
+        /**
+         * Override the default equals method for
+         */
+        @Override
+        public boolean equals(Object that) {
+            if (that == null || this.getClass() != that.getClass()) {
+                return false;
+            }
+            $javaRecordName thatObj = ($javaRecordName)that;
+        """.replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
 
-		bodyContent += equalsStatements.indent(DEFAULT_INDENT);
-		bodyContent +=
-		"""
-		    return true;
-		}""".indent(DEFAULT_INDENT);
+        bodyContent += equalsStatements.indent(DEFAULT_INDENT);
+        bodyContent +=
+        """
+            return true;
+        }""".indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }
@@ -447,38 +447,38 @@ public final class ModelGenerator implements Generator {
         // Generate a call to private method that iterates through fields and calculates the hashcode
         final String statements = getFieldsHashCode(fields, "");
         // spotless:off
-		String bodyContent =
-			"""
-			/**
-			* Override the default hashCode method for to make hashCode better distributed and follows protobuf rules
-			* for default values. This is important for backward compatibility. This also lazy computes and caches the
-			* hashCode for future calls. It is designed to be thread safe.
-			*/
-			@Override
-			public int hashCode() {
-				// The $hashCode field is subject to a benign data race, making it crucial to ensure that any
-				// observable result of the calculation in this method stays correct under any possible read of this
-				// field. Necessary restrictions to allow this to be correct without explicit memory fences or similar
-				// concurrency primitives is that we can ever only write to this field for a given Model object
-				// instance, and that the computation is idempotent and derived from immutable state.
-				// This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
-			
-			    if($hashCode == -1) {
-				    int result = 1;
-			""".indent(DEFAULT_INDENT);
+        String bodyContent =
+            """
+            /**
+            * Override the default hashCode method for to make hashCode better distributed and follows protobuf rules
+            * for default values. This is important for backward compatibility. This also lazy computes and caches the
+            * hashCode for future calls. It is designed to be thread safe.
+            */
+            @Override
+            public int hashCode() {
+                // The $hashCode field is subject to a benign data race, making it crucial to ensure that any
+                // observable result of the calculation in this method stays correct under any possible read of this
+                // field. Necessary restrictions to allow this to be correct without explicit memory fences or similar
+                // concurrency primitives is that we can ever only write to this field for a given Model object
+                // instance, and that the computation is idempotent and derived from immutable state.
+                // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
+            
+                if($hashCode == -1) {
+                    int result = 1;
+            """.indent(DEFAULT_INDENT);
 
-		bodyContent += statements;
+        bodyContent += statements;
 
-		bodyContent +=
-			"""
-				    long hashCode = result;
-			$hashCodeManipulation
-					$hashCode = (int)hashCode;
-				}
-				return $hashCode;
-			}
-			""".replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-				.indent(DEFAULT_INDENT);
+        bodyContent +=
+            """
+                    long hashCode = result;
+            $hashCodeManipulation
+                    $hashCode = (int)hashCode;
+                }
+                return $hashCode;
+            }
+            """.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
+                .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }
@@ -499,52 +499,52 @@ public final class ModelGenerator implements Generator {
             return "";
         }
         // spotless:off
-		return """
-			    /**
-			     * Create a pre-populated $constructorName.
-			     * $constructorParamDocs
-			     */
-			    public $constructorName($constructorParams) {
-			$constructorCode    }
-			"""
-				.replace("$constructorParamDocs",fieldsNoPrecomputed.stream().map(field ->
-						"\n     * @param "+field.nameCamelFirstLower()+" "+
-								field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
-				).collect(Collectors.joining(" ")))
-				.replace("$constructorName", constructorName)
-				.replace("$constructorParams",fieldsNoPrecomputed.stream().map(field ->
-						field.javaFieldType() + " " + field.nameCamelFirstLower()
-				).collect(Collectors.joining(", ")))
-				.replace("$constructorCode",fieldsNoPrecomputed.stream().map(field -> {
-					StringBuilder sb = new StringBuilder();
-					if (shouldThrowOnOneOfNull && field instanceof OneOfField) {
-						sb.append(generateConstructorCodeForField(field)).append('\n');
-					}
-					switch (field.type()) {
-						case BYTES, STRING: {
-							sb.append("this.$name = $name != null ? $name : $default;"
-									.replace("$name", field.nameCamelFirstLower())
-									.replace("$default", getDefaultValue(field, msgDef, lookupHelper))
-							);
-							break;
-						}
-						case MAP: {
-							sb.append("this.$name = PbjMap.of($name);"
-									.replace("$name", field.nameCamelFirstLower())
-							);
-							break;
-						}
-						default:
-							if (field.repeated()) {
-								sb.append("this.$name = $name == null ? Collections.emptyList() : $name;".replace(
-										"$name", field.nameCamelFirstLower()));
-							} else {
-								sb.append("this.$name = $name;".replace("$name", field.nameCamelFirstLower()));
-							}
-							break;
-					}
-					return sb.toString();
-				}).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2));
+        return """
+                /**
+                 * Create a pre-populated $constructorName.
+                 * $constructorParamDocs
+                 */
+                public $constructorName($constructorParams) {
+            $constructorCode    }
+            """
+                .replace("$constructorParamDocs",fieldsNoPrecomputed.stream().map(field ->
+                        "\n     * @param "+field.nameCamelFirstLower()+" "+
+                                field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
+                ).collect(Collectors.joining(" ")))
+                .replace("$constructorName", constructorName)
+                .replace("$constructorParams",fieldsNoPrecomputed.stream().map(field ->
+                        field.javaFieldType() + " " + field.nameCamelFirstLower()
+                ).collect(Collectors.joining(", ")))
+                .replace("$constructorCode",fieldsNoPrecomputed.stream().map(field -> {
+                    StringBuilder sb = new StringBuilder();
+                    if (shouldThrowOnOneOfNull && field instanceof OneOfField) {
+                        sb.append(generateConstructorCodeForField(field)).append('\n');
+                    }
+                    switch (field.type()) {
+                        case BYTES, STRING: {
+                            sb.append("this.$name = $name != null ? $name : $default;"
+                                    .replace("$name", field.nameCamelFirstLower())
+                                    .replace("$default", getDefaultValue(field, msgDef, lookupHelper))
+                            );
+                            break;
+                        }
+                        case MAP: {
+                            sb.append("this.$name = PbjMap.of($name);"
+                                    .replace("$name", field.nameCamelFirstLower())
+                            );
+                            break;
+                        }
+                        default:
+                            if (field.repeated()) {
+                                sb.append("this.$name = $name == null ? Collections.emptyList() : $name;".replace(
+                                        "$name", field.nameCamelFirstLower()));
+                            } else {
+                                sb.append("this.$name = $name;".replace("$name", field.nameCamelFirstLower()));
+                            }
+                            break;
+                    }
+                    return sb.toString();
+                }).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2));
         // spotless:on
     }
 
@@ -556,27 +556,27 @@ public final class ModelGenerator implements Generator {
     private static String generateConstructorCodeForField(final Field f) {
         // spotless:off
         final StringBuilder sb = new StringBuilder("""
-								if ($fieldName == null) {
-								    throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
-								}""".replace("$fieldName", f.nameCamelFirstLower()));
-		if (f instanceof final OneOfField oof) {
-			for (final Field subField: oof.fields()) {
-				if (subField.optionalValueType()) {
-					sb.append("""
+                                if ($fieldName == null) {
+                                    throw new NullPointerException("Parameter '$fieldName' must be supplied and can not be null");
+                                }""".replace("$fieldName", f.nameCamelFirstLower()));
+        if (f instanceof final OneOfField oof) {
+            for (final Field subField: oof.fields()) {
+                if (subField.optionalValueType()) {
+                    sb.append("""
        
-							// handle special case where protobuf does not have destination between a OneOf with optional
-							// value of empty vs an unset OneOf.
-							if ($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldName.value() == null) {
-								$fieldName = new $className<>($fieldUpperNameOneOfType.UNSET, null);
-							}"""
-							.replace("$className", oof.className())
-							.replace("$fieldName", f.nameCamelFirstLower())
-							.replace("$fieldUpperName", f.nameCamelFirstUpper())
-							.replace("$subFieldNameUpper", camelToUpperSnake(subField.name()))
-					);
-				}
-			}
-		}
+                            // handle special case where protobuf does not have destination between a OneOf with optional
+                            // value of empty vs an unset OneOf.
+                            if ($fieldName.kind() == $fieldUpperNameOneOfType.$subFieldNameUpper && $fieldName.value() == null) {
+                                $fieldName = new $className<>($fieldUpperNameOneOfType.UNSET, null);
+                            }"""
+                            .replace("$className", oof.className())
+                            .replace("$fieldName", f.nameCamelFirstLower())
+                            .replace("$fieldUpperName", f.nameCamelFirstUpper())
+                            .replace("$subFieldNameUpper", camelToUpperSnake(subField.name()))
+                    );
+                }
+            }
+        }
         // spotless:on
         return sb.toString().indent(DEFAULT_INDENT);
     }
@@ -593,17 +593,17 @@ public final class ModelGenerator implements Generator {
             final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper, final String javaRecordName) {
         // spotless:off
         return """
-				/** Protobuf codec for reading and writing in protobuf format */
-				public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
-				/** JSON codec for reading and writing in JSON format */
-				public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
-				/** Default instance with all fields set to default values */
-				public static final $modelClass DEFAULT = newBuilder().build();
-				"""
-				.replace("$modelClass", javaRecordName)
-				.replace("$qualifiedCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
-				.replace("$qualifiedJsonCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.JSON_CODEC, msgDef))
-				.indent(DEFAULT_INDENT);
+                /** Protobuf codec for reading and writing in protobuf format */
+                public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
+                /** JSON codec for reading and writing in JSON format */
+                public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
+                /** Default instance with all fields set to default values */
+                public static final $modelClass DEFAULT = newBuilder().build();
+                """
+                .replace("$modelClass", javaRecordName)
+                .replace("$qualifiedCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
+                .replace("$qualifiedJsonCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.JSON_CODEC, msgDef))
+                .indent(DEFAULT_INDENT);
         // spotless:on
     }
 
@@ -626,56 +626,56 @@ public final class ModelGenerator implements Generator {
         // Note that repeated fields default to empty list, so technically they always have a non-null value,
         // and therefore the additional convenience methods, especially when they throw an NPE, don't make sense.
         // spotless:off
-		if (field.type() == FieldType.MESSAGE && !field.repeated()) {
-			hasMethods.add("""
-					/**
-					 * Convenience method to check if the $fieldName has a value
-					 *
-					 * @return true of the $fieldName has a value
-					 */
-					public boolean has$fieldNameUpperFirst() {
-						return $fieldName != null;
-					}
-					
-					/**
-					 * Gets the value for $fieldName if it has a value, or else returns the default
-					 * value for the type.
-					 *
-					 * @param defaultValue the default value to return if $fieldName is null
-					 * @return the value for $fieldName if it has a value, or else returns the default value
-					 */
-					public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
-						return has$fieldNameUpperFirst() ? $fieldName : defaultValue;
-					}
-					
-					/**
-					 * Gets the value for $fieldName if it has a value, or else throws an NPE.
-					 * value for the type.
-					 *
-					 * @return the value for $fieldName if it has a value
-					 * @throws NullPointerException if $fieldName is null
-					 */
-					public @NonNull $javaFieldType $fieldNameOrThrow() {
-						return requireNonNull($fieldName, "Field $fieldName is null");
-					}
-					
-					/**
-					 * Executes the supplied {@link Consumer} if, and only if, the $fieldName has a value
-					 *
-					 * @param ifPresent the {@link Consumer} to execute
-					 */
-					public void if$fieldNameUpperFirst(@NonNull final Consumer<$javaFieldType> ifPresent) {
-						if (has$fieldNameUpperFirst()) {
-							ifPresent.accept($fieldName);
-						}
-					}
-					"""
-					.replace("$fieldNameUpperFirst", field.nameCamelFirstUpper())
-					.replace("$javaFieldType", field.javaFieldType())
-					.replace("$fieldName", field.nameCamelFirstLower())
-					.indent(DEFAULT_INDENT)
-			);
-		}
+        if (field.type() == FieldType.MESSAGE && !field.repeated()) {
+            hasMethods.add("""
+                    /**
+                     * Convenience method to check if the $fieldName has a value
+                     *
+                     * @return true of the $fieldName has a value
+                     */
+                    public boolean has$fieldNameUpperFirst() {
+                        return $fieldName != null;
+                    }
+                    
+                    /**
+                     * Gets the value for $fieldName if it has a value, or else returns the default
+                     * value for the type.
+                     *
+                     * @param defaultValue the default value to return if $fieldName is null
+                     * @return the value for $fieldName if it has a value, or else returns the default value
+                     */
+                    public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
+                        return has$fieldNameUpperFirst() ? $fieldName : defaultValue;
+                    }
+                    
+                    /**
+                     * Gets the value for $fieldName if it has a value, or else throws an NPE.
+                     * value for the type.
+                     *
+                     * @return the value for $fieldName if it has a value
+                     * @throws NullPointerException if $fieldName is null
+                     */
+                    public @NonNull $javaFieldType $fieldNameOrThrow() {
+                        return requireNonNull($fieldName, "Field $fieldName is null");
+                    }
+                    
+                    /**
+                     * Executes the supplied {@link Consumer} if, and only if, the $fieldName has a value
+                     *
+                     * @param ifPresent the {@link Consumer} to execute
+                     */
+                    public void if$fieldNameUpperFirst(@NonNull final Consumer<$javaFieldType> ifPresent) {
+                        if (has$fieldNameUpperFirst()) {
+                            ifPresent.accept($fieldName);
+                        }
+                    }
+                    """
+                    .replace("$fieldNameUpperFirst", field.nameCamelFirstUpper())
+                    .replace("$javaFieldType", field.javaFieldType())
+                    .replace("$fieldName", field.nameCamelFirstLower())
+                    .indent(DEFAULT_INDENT)
+            );
+        }
         // spotless:on
     }
 
@@ -702,72 +702,72 @@ public final class ModelGenerator implements Generator {
         final int maxIndex = oneOfField.fields().getLast().fieldNumber();
         final Map<Integer, EnumValue> enumValues = new HashMap<>();
         // spotless:off
-		for (final var field : oneOfField.fields()) {
-			final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
-			final String enumComment = cleanDocStr(field.comment())
-				.replaceAll("[\t\s]*/\\*\\*","") // remove doc start indenting
-				.replaceAll("\n[\t\s]+\\*","\n") // remove doc indenting
-				.replaceAll("/\\*\\*","") //  remove doc start
-				.replaceAll("\\*\\*/",""); //  remove doc end
-			enumValues.put(field.fieldNumber(), new EnumValue(field.name(), field.deprecated(), enumComment));
-			// generate getters for one ofs
-			oneofGetters.add("""
-					/**
-					 * Direct typed getter for one of field $fieldName.
-					 *
-					 * @return one of value or null if one of is not set or a different one of value
-					 */
-					public @Nullable $javaFieldType $fieldName() {
-						return $oneOfField.kind() == $enumName.$enumValue ? ($javaFieldType)$oneOfField.value() : null;
-					}
-					
-					/**
-					 * Convenience method to check if the $oneOfField has a one-of with type $enumValue
-					 *
-					 * @return true of the one of kind is $enumValue
-					 */
-					public boolean has$fieldNameUpperFirst() {
-						return $oneOfField.kind() == $enumName.$enumValue;
-					}
-					
-					/**
-					 * Gets the value for $fieldName if it has a value, or else returns the default
-					 * value for the type.
-					 *
-					 * @param defaultValue the default value to return if $fieldName is null
-					 * @return the value for $fieldName if it has a value, or else returns the default value
-					 */
-					public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
-						return has$fieldNameUpperFirst() ? $fieldName() : defaultValue;
-					}
-					
-					/**
-					 * Gets the value for $fieldName if it was set, or throws a NullPointerException if it was not set.
-					 *
-					 * @return the value for $fieldName if it has a value
-					 * @throws NullPointerException if $fieldName is null
-					 */
-					public @NonNull $javaFieldType $fieldNameOrThrow() {
-						return requireNonNull($fieldName(), "Field $fieldName is null");
-					}
-					"""
-					.replace("$fieldNameUpperFirst",field.nameCamelFirstUpper())
-					.replace("$fieldName",field.nameCamelFirstLower())
-					.replace("$javaFieldType",javaFieldType)
-					.replace("$oneOfField",oneOfField.nameCamelFirstLower())
-					.replace("$enumName",enumName)
-					.replace("$enumValue",camelToUpperSnake(field.name()))
-					.indent(DEFAULT_INDENT)
-			);
-			if (field.type() == FieldType.MESSAGE) {
-				field.addAllNeededImports(imports, true, false, false);
-			}
-		}
+        for (final var field : oneOfField.fields()) {
+            final String javaFieldType = javaPrimitiveToObjectType(field.javaFieldType());
+            final String enumComment = cleanDocStr(field.comment())
+                .replaceAll("[\t\s]*/\\*\\*","") // remove doc start indenting
+                .replaceAll("\n[\t\s]+\\*","\n") // remove doc indenting
+                .replaceAll("/\\*\\*","") //  remove doc start
+                .replaceAll("\\*\\*/",""); //  remove doc end
+            enumValues.put(field.fieldNumber(), new EnumValue(field.name(), field.deprecated(), enumComment));
+            // generate getters for one ofs
+            oneofGetters.add("""
+                    /**
+                     * Direct typed getter for one of field $fieldName.
+                     *
+                     * @return one of value or null if one of is not set or a different one of value
+                     */
+                    public @Nullable $javaFieldType $fieldName() {
+                        return $oneOfField.kind() == $enumName.$enumValue ? ($javaFieldType)$oneOfField.value() : null;
+                    }
+                    
+                    /**
+                     * Convenience method to check if the $oneOfField has a one-of with type $enumValue
+                     *
+                     * @return true of the one of kind is $enumValue
+                     */
+                    public boolean has$fieldNameUpperFirst() {
+                        return $oneOfField.kind() == $enumName.$enumValue;
+                    }
+                    
+                    /**
+                     * Gets the value for $fieldName if it has a value, or else returns the default
+                     * value for the type.
+                     *
+                     * @param defaultValue the default value to return if $fieldName is null
+                     * @return the value for $fieldName if it has a value, or else returns the default value
+                     */
+                    public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
+                        return has$fieldNameUpperFirst() ? $fieldName() : defaultValue;
+                    }
+                    
+                    /**
+                     * Gets the value for $fieldName if it was set, or throws a NullPointerException if it was not set.
+                     *
+                     * @return the value for $fieldName if it has a value
+                     * @throws NullPointerException if $fieldName is null
+                     */
+                    public @NonNull $javaFieldType $fieldNameOrThrow() {
+                        return requireNonNull($fieldName(), "Field $fieldName is null");
+                    }
+                    """
+                    .replace("$fieldNameUpperFirst",field.nameCamelFirstUpper())
+                    .replace("$fieldName",field.nameCamelFirstLower())
+                    .replace("$javaFieldType",javaFieldType)
+                    .replace("$oneOfField",oneOfField.nameCamelFirstLower())
+                    .replace("$enumName",enumName)
+                    .replace("$enumValue",camelToUpperSnake(field.name()))
+                    .indent(DEFAULT_INDENT)
+            );
+            if (field.type() == FieldType.MESSAGE) {
+                field.addAllNeededImports(imports, true, false, false);
+            }
+        }
         // spotless:on
         final String enumComment = """
-							/**
-							 * Enum for the type of "%s" oneof value
-							 */"""
+                            /**
+                             * Enum for the type of "%s" oneof value
+                             */"""
                 .formatted(oneOfField.name());
         final String enumString = createEnum(enumComment, "", enumName, maxIndex, enumValues, true)
                 .indent(DEFAULT_INDENT * 2);
@@ -781,28 +781,28 @@ public final class ModelGenerator implements Generator {
     private static String genrateBuilderFactoryMethods(String bodyContent, final List<Field> fields) {
         // spotless:off
         bodyContent +=
-    		"""
-			/**
-			 * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this
-			 * model object.
-			 *
-			 * @return a pre-populated builder
-			 */
-			public Builder copyBuilder() {
-			    return new Builder(%s);
-			}
-			
-			/**
-			 * Return a new builder for building a model object. This is just a shortcut for <code>new Model.Builder()</code>.
-			 *
-			 * @return a new builder
-			 */
-			public static Builder newBuilder() {
-			    return new Builder();
-			}
-			"""
-			.formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
-			.indent(DEFAULT_INDENT);
+            """
+            /**
+             * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this
+             * model object.
+             *
+             * @return a pre-populated builder
+             */
+            public Builder copyBuilder() {
+                return new Builder(%s);
+            }
+            
+            /**
+             * Return a new builder for building a model object. This is just a shortcut for <code>new Model.Builder()</code>.
+             *
+             * @return a new builder
+             */
+            public static Builder newBuilder() {
+                return new Builder();
+            }
+            """
+            .formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
+            .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }
@@ -831,7 +831,7 @@ public final class ModelGenerator implements Generator {
             fieldToSet = fieldName;
         }
         // spotless:off
-		builderMethods.add("""
+        builderMethods.add("""
                 /**
                  * $fieldDoc
                  *
@@ -856,26 +856,26 @@ public final class ModelGenerator implements Generator {
         if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType() && !field.repeated()) {
             builderMethods.add(
                     """
-						/**
-						 * $fieldDoc
-						 *
-						 * @param builder A pre-populated builder
-						 * @return builder to continue building with
-						 */
-						public Builder $fieldName($messageClass.Builder builder) {
-						    this.$fieldToSet =$prefix builder.build() $postfix;
-						    return this;
-						}"""
-					.replace("$messageClass",field.messageType())
-					.replace("$fieldDoc",field.comment()
-							.replaceAll("\n", "\n * "))
-					.replace("$fieldName", fieldName)
-					.replace("$fieldToSet",fieldToSet)
-					.replace("$prefix",prefix)
-					.replace("$postfix",postfix)
-					.replace("$fieldType",field.javaFieldType())
-					.indent(DEFAULT_INDENT)
-			);
+                        /**
+                         * $fieldDoc
+                         *
+                         * @param builder A pre-populated builder
+                         * @return builder to continue building with
+                         */
+                        public Builder $fieldName($messageClass.Builder builder) {
+                            this.$fieldToSet =$prefix builder.build() $postfix;
+                            return this;
+                        }"""
+                    .replace("$messageClass",field.messageType())
+                    .replace("$fieldDoc",field.comment()
+                            .replaceAll("\n", "\n * "))
+                    .replace("$fieldName", fieldName)
+                    .replace("$fieldToSet",fieldToSet)
+                    .replace("$prefix",prefix)
+                    .replace("$postfix",postfix)
+                    .replace("$fieldType",field.javaFieldType())
+                    .indent(DEFAULT_INDENT)
+            );
             // spotless:on
         }
 
@@ -886,37 +886,37 @@ public final class ModelGenerator implements Generator {
             final String repeatedPrefix;
             final String repeatedPostfix;
             // spotless:off
-			if (parentOneOfField != null) {
-				repeatedPrefix = prefix + " values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
-				repeatedPostfix = postfix;
-			} else if (fieldAnnotations.contains(NON_NULL_ANNOTATION)) {
-				repeatedPrefix = "values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
-				repeatedPostfix = "";
-			} else {
-				repeatedPrefix = prefix;
-				repeatedPostfix = postfix;
-			}
-			builderMethods.add("""
-						/**
-						 * $fieldDoc
-						 *
-						 * @param values varargs value to be built into a list
-						 * @return builder to continue building with
-						 */
-						public Builder $fieldName($baseType ... values) {
-						    this.$fieldToSet = $repeatedPrefix List.of(values) $repeatedPostfix;
-						    return this;
-						}"""
-					.replace("$baseType",field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1))
-					.replace("$fieldDoc",field.comment()
-							.replaceAll("\n", "\n * "))
-					.replace("$fieldName", fieldName)
-					.replace("$fieldToSet",fieldToSet)
-					.replace("$fieldType",field.javaFieldType())
-					.replace("$repeatedPrefix",repeatedPrefix)
-					.replace("$repeatedPostfix",repeatedPostfix)
-					.indent(DEFAULT_INDENT)
-			);
+            if (parentOneOfField != null) {
+                repeatedPrefix = prefix + " values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
+                repeatedPostfix = postfix;
+            } else if (fieldAnnotations.contains(NON_NULL_ANNOTATION)) {
+                repeatedPrefix = "values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
+                repeatedPostfix = "";
+            } else {
+                repeatedPrefix = prefix;
+                repeatedPostfix = postfix;
+            }
+            builderMethods.add("""
+                        /**
+                         * $fieldDoc
+                         *
+                         * @param values varargs value to be built into a list
+                         * @return builder to continue building with
+                         */
+                        public Builder $fieldName($baseType ... values) {
+                            this.$fieldToSet = $repeatedPrefix List.of(values) $repeatedPostfix;
+                            return this;
+                        }"""
+                    .replace("$baseType",field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1))
+                    .replace("$fieldDoc",field.comment()
+                            .replaceAll("\n", "\n * "))
+                    .replace("$fieldName", fieldName)
+                    .replace("$fieldToSet",fieldToSet)
+                    .replace("$fieldType",field.javaFieldType())
+                    .replace("$repeatedPrefix",repeatedPrefix)
+                    .replace("$repeatedPostfix",repeatedPostfix)
+                    .indent(DEFAULT_INDENT)
+            );
             // spotless:on
         }
     }
@@ -943,41 +943,41 @@ public final class ModelGenerator implements Generator {
             }
         }
         // spotless:off
-		return """
-			/**
-			 * Builder class for easy creation, ideal for clean code where performance is not critical. In critical performance
-			 * paths use the constructor directly.
-			 */
-			public static final class Builder {
-			    $fields;
-		
-			    /**
-			     * Create an empty builder
-			     */
-			    public Builder() {}
-			
-			$prePopulatedBuilder
-			    /**
-			     * Build a new model record with data set on builder
-			     *
-			     * @return new model record with data set
-			     */
-			    public $javaRecordName build() {
-			        return new $javaRecordName($recordParams);
-			    }
+        return """
+            /**
+             * Builder class for easy creation, ideal for clean code where performance is not critical. In critical performance
+             * paths use the constructor directly.
+             */
+            public static final class Builder {
+                $fields;
+        
+                /**
+                 * Create an empty builder
+                 */
+                public Builder() {}
+            
+            $prePopulatedBuilder
+                /**
+                 * Build a new model record with data set on builder
+                 *
+                 * @return new model record with data set
+                 */
+                public $javaRecordName build() {
+                    return new $javaRecordName($recordParams);
+                }
 
-			$builderMethods}"""
-				.replace("$fields", fields.stream().map(field ->
-						getFieldAnnotations(field)
-								+ "private " + field.javaFieldType()
-								+ " " + field.nameCamelFirstLower()
-								+ " = " + getDefaultValue(field, msgDef, lookupHelper)
-						).collect(Collectors.joining(";\n    ")))
-				.replace("$prePopulatedBuilder", generateConstructor("Builder", fields, fields, false, msgDef, lookupHelper))
-				.replace("$javaRecordName",javaRecordName)
-				.replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
-				.replace("$builderMethods", String.join("\n", builderMethods))
-				.indent(DEFAULT_INDENT);
+            $builderMethods}"""
+                .replace("$fields", fields.stream().map(field ->
+                        getFieldAnnotations(field)
+                                + "private " + field.javaFieldType()
+                                + " " + field.nameCamelFirstLower()
+                                + " = " + getDefaultValue(field, msgDef, lookupHelper)
+                        ).collect(Collectors.joining(";\n    ")))
+                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, fields, false, msgDef, lookupHelper))
+                .replace("$javaRecordName",javaRecordName)
+                .replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
+                .replace("$builderMethods", String.join("\n", builderMethods))
+                .indent(DEFAULT_INDENT);
         // spotless:on
     }
 
