@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 plugins {
     id("org.hiero.gradle.base.lifecycle")
     id("org.hiero.gradle.base.jpms-modules")
@@ -24,16 +9,16 @@ plugins {
 group = "com.hedera.hashgraph"
 
 val antlr = "4.13.2"
-val grpc = "1.65.1"
+val grpc = "1.70.0"
 val helidon = "4.1.6"
-val protobuf = "4.28.2"
+val protobuf = "4.29.3"
 
-val junit5 = "5.8.2"
-val mockito = "5.10.0"
+val junit5 = "5.11.4"
+val mockito = "5.15.2"
 
 dependencies.constraints {
     api("org.antlr:antlr4-runtime:$antlr") { because("org.antlr.antlr4.runtime") }
-    api("com.github.spotbugs:spotbugs-annotations:4.8.6") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.1") {
         because("com.github.spotbugs.annotations")
     }
 
@@ -63,13 +48,13 @@ dependencies.constraints {
     // Code generation
     api("org.antlr:antlr4:$antlr")
     api("com.google.protobuf:protoc:$protobuf")
-    api("io.grpc:protoc-gen-grpc-java:1.66.0")
+    api("io.grpc:protoc-gen-grpc-java:1.70.0")
 
     // Testing only
-    api("com.google.guava:guava:33.3.1-jre") { because("com.google.common") }
+    api("com.google.guava:guava:33.4.0-jre") { because("com.google.common") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
-    api("org.assertj:assertj-core:3.27.2") { because("org.assertj.core") }
+    api("org.assertj:assertj-core:3.27.3") { because("org.assertj.core") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
 

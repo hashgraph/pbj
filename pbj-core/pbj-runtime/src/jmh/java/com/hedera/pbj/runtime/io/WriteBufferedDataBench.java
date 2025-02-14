@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.FieldDefinition;
@@ -7,6 +8,14 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -21,15 +30,6 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
-
 @SuppressWarnings("unused")
 @State(Scope.Benchmark)
 @Fork(1)
@@ -39,73 +39,74 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 public class WriteBufferedDataBench {
 
-	public static final FieldDefinition BYTES_FIELD = new FieldDefinition("bytesField", FieldType.BYTES, false, false, false, 17);
-	final static BufferedData sampleData;
-	final static byte[] sampleWrittenData;
+    public static final FieldDefinition BYTES_FIELD =
+            new FieldDefinition("bytesField", FieldType.BYTES, false, false, false, 17);
+    static final BufferedData sampleData;
+    static final byte[] sampleWrittenData;
 
-	static {
-		final Random random = new Random(6262266);
-		byte[] data = new byte[1024*16];
-		random.nextBytes(data);
-		sampleData = BufferedData.wrap(data);
+    static {
+        final Random random = new Random(6262266);
+        byte[] data = new byte[1024 * 16];
+        random.nextBytes(data);
+        sampleData = BufferedData.wrap(data);
 
-		ByteArrayOutputStream bout = new ByteArrayOutputStream();
-		try (WritableStreamingData out = new WritableStreamingData(bout)) {
-			for (int i = 0; i < 100; i++) {
-				random.nextBytes(data);
-				ProtoWriterTools.writeBytes(out, BYTES_FIELD, sampleData);
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		sampleWrittenData = bout.toByteArray();
-	}
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        try (WritableStreamingData out = new WritableStreamingData(bout)) {
+            for (int i = 0; i < 100; i++) {
+                random.nextBytes(data);
+                ProtoWriterTools.writeBytes(out, BYTES_FIELD, sampleData);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        sampleWrittenData = bout.toByteArray();
+    }
 
-	Path tempFileWriting;
-	Path tempFileReading;
-	OutputStream fout;
-	WritableStreamingData dataOut;
+    Path tempFileWriting;
+    Path tempFileReading;
+    OutputStream fout;
+    WritableStreamingData dataOut;
 
-	@Setup
-	public void prepare() {
-		try {
-			tempFileWriting = Files.createTempFile("WriteBytesBench", "dat");
-			tempFileWriting.toFile().deleteOnExit();
-			fout = Files.newOutputStream(tempFileWriting);
-			dataOut = new WritableStreamingData(fout);
-			tempFileReading = Files.createTempFile("WriteBytesBench", "dat");
-			tempFileReading.toFile().deleteOnExit();
-			Files.write(tempFileReading, sampleWrittenData);
-		} catch (IOException e) {
-			e.printStackTrace();
-			throw new UncheckedIOException(e);
-		}
-	}
+    @Setup
+    public void prepare() {
+        try {
+            tempFileWriting = Files.createTempFile("WriteBytesBench", "dat");
+            tempFileWriting.toFile().deleteOnExit();
+            fout = Files.newOutputStream(tempFileWriting);
+            dataOut = new WritableStreamingData(fout);
+            tempFileReading = Files.createTempFile("WriteBytesBench", "dat");
+            tempFileReading.toFile().deleteOnExit();
+            Files.write(tempFileReading, sampleWrittenData);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new UncheckedIOException(e);
+        }
+    }
 
-	@TearDown
-	public void cleanUp() {
-		try {
-			dataOut.close();
-			fout.close();
-		} catch (IOException e){
-			e.printStackTrace();
-			throw new UncheckedIOException(e);
-		}
-	}
+    @TearDown
+    public void cleanUp() {
+        try {
+            dataOut.close();
+            fout.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new UncheckedIOException(e);
+        }
+    }
 
-	@Benchmark
-	public void writeBytes(Blackhole blackhole) throws IOException {
-		ProtoWriterTools.writeBytes(dataOut, BYTES_FIELD, sampleData);
-	}
+    @Benchmark
+    public void writeBytes(Blackhole blackhole) throws IOException {
+        ProtoWriterTools.writeBytes(dataOut, BYTES_FIELD, sampleData);
+    }
 
-	@Benchmark
-	@OperationsPerInvocation(100)
-	public void readBytes(Blackhole blackhole) throws IOException {
-		try (ReadableStreamingData in = new ReadableStreamingData(Files.newInputStream(tempFileReading)) ) {
-			for (int i = 0; i < 100; i++) {
-				blackhole.consume(in.readVarInt(false));
-				blackhole.consume(ProtoParserTools.readBytes(in));
-			}
-		}
-	}
+    @Benchmark
+    @OperationsPerInvocation(100)
+    public void readBytes(Blackhole blackhole) throws IOException {
+        try (ReadableStreamingData in = new ReadableStreamingData(Files.newInputStream(tempFileReading))) {
+            for (int i = 0; i < 100; i++) {
+                blackhole.consume(in.readVarInt(false));
+                blackhole.consume(ProtoParserTools.readBytes(in));
+            }
+        }
+    }
 }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.buffer;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -78,7 +79,7 @@ final class BytesTest {
 
     @Test
     void testReplicate() {
-        byte[] arr = new byte[] { 0, 1, 2 };
+        byte[] arr = new byte[] {0, 1, 2};
 
         // Only wrap the last two elements:
         Bytes bytes = Bytes.wrap(arr, 1, 2);
@@ -111,11 +112,9 @@ final class BytesTest {
     @DisplayName("Tests wrapping of byte arrays")
     final class ByteWrappingTest {
         static Stream<byte[]> byteArraysTestCases() {
-            return Stream.of(
-                    new byte[0],
-                    new byte[] { 0 },
-                    new byte[] { Byte.MIN_VALUE, -100, -66, -7, -1, 0, 1, 9, 12, 51, 101, Byte.MAX_VALUE }
-            );
+            return Stream.of(new byte[0], new byte[] {0}, new byte[] {
+                Byte.MIN_VALUE, -100, -66, -7, -1, 0, 1, 9, 12, 51, 101, Byte.MAX_VALUE
+            });
         }
 
         @Test
@@ -129,7 +128,7 @@ final class BytesTest {
         @DisplayName("Getting a byte with a negative offset throws")
         void getByteWithNegativeOffsetThrows() {
             // Given a Bytes instance
-            final RandomAccessData bytes = Bytes.wrap(new byte[] { 1, 2, 3, 4 });
+            final RandomAccessData bytes = Bytes.wrap(new byte[] {1, 2, 3, 4});
             // When getting a byte with a negative offset
             // Then an IndexOutOfBoundsException is thrown
             assertThrows(IndexOutOfBoundsException.class, () -> bytes.getByte(-1));
@@ -167,17 +166,17 @@ final class BytesTest {
             assertNotEquals(byteArray, bytes.toByteArray(0, 5));
         }
 
-//        @Test
-//        @DisplayName("Getting a byte with to large of an offset throws")
-//        void getByteWithLargeOffsetThrows() {
-//            // Given a Bytes instance
-//            final RandomAccessData bytes = Bytes.wrap(new byte[] { 1, 2, 3, 4 });
-//            // When getting a byte from an offset that is too large
-//            // Then an IndexOutOfBoundsException is thrown
-//            assertThrows(IndexOutOfBoundsException.class, () -> bytes.getByte(4));
-//            assertThrows(IndexOutOfBoundsException.class, () -> bytes.getByte(5));
-//            assertThrows(IndexOutOfBoundsException.class, () -> bytes.getByte(Integer.MAX_VALUE));
-//        }
+        //        @Test
+        //        @DisplayName("Getting a byte with to large of an offset throws")
+        //        void getByteWithLargeOffsetThrows() {
+        //            // Given a Bytes instance
+        //            final RandomAccessData bytes = Bytes.wrap(new byte[] { 1, 2, 3, 4 });
+        //            // When getting a byte from an offset that is too large
+        //            // Then an IndexOutOfBoundsException is thrown
+        //            assertThrows(IndexOutOfBoundsException.class, () -> bytes.getByte(4));
+        //            assertThrows(IndexOutOfBoundsException.class, () -> bytes.getByte(5));
+        //            assertThrows(IndexOutOfBoundsException.class, () -> bytes.getByte(Integer.MAX_VALUE));
+        //        }
 
         @ParameterizedTest
         @MethodSource("byteArraysTestCases")
@@ -218,7 +217,7 @@ final class BytesTest {
         void notEqual(final byte[] value) {
             // Given two byte arrays with different bytes, when wrapped
             final RandomAccessData bytes1 = Bytes.wrap(value);
-            final RandomAccessData bytes2 = Bytes.wrap(new byte[]{ 1, 39, 28, 92 });
+            final RandomAccessData bytes2 = Bytes.wrap(new byte[] {1, 39, 28, 92});
             // Then they have different lengths
             assertNotEquals(bytes1.length(), bytes2.length());
             // And they are not equal
@@ -236,10 +235,7 @@ final class BytesTest {
     final class StringWrappingTest {
         static Stream<String> stringTestCases() {
             return Stream.of(
-                    "",
-                    "This is a test of the emergency broadcast system",
-                    "Some crazy unicode characters here 🤪"
-            );
+                    "", "This is a test of the emergency broadcast system", "Some crazy unicode characters here 🤪");
         }
 
         @Test
@@ -298,12 +294,14 @@ final class BytesTest {
             assertNotEquals(bytes1.hashCode(), bytes2.hashCode());
         }
     }
+
     @Test
     @DisplayName("Get Unsigned Bytes")
     void getUnsignedBytes() {
         // Given a Bytes instance with bytes that are within the range of signed bytes and some that are
         // outside the range of signed bytes but within the range of unsigned bytes
-        final RandomAccessData bytes = Bytes.wrap(new byte[]{0b0000_0000, 0b0000_0001, (byte) 0b1000_0000, (byte) 0b1111_1111});
+        final RandomAccessData bytes =
+                Bytes.wrap(new byte[] {0b0000_0000, 0b0000_0001, (byte) 0b1000_0000, (byte) 0b1111_1111});
         // Then reading them as unsigned bytes returns the expected values
         assertEquals(0, bytes.getUnsignedByte(0));
         assertEquals(1, bytes.getUnsignedByte(1));
@@ -351,6 +349,7 @@ final class BytesTest {
         byte[] comp = {0, 1, 2, 3, 4};
         assertArrayEquals(comp, res);
     }
+
     @Test
     @DisplayName("Write to OutputStream")
     void writeToWritableSequentialData() throws IOException {
@@ -556,7 +555,7 @@ final class BytesTest {
     @Test
     @DisplayName("Tests the signature verification without a mock")
     void realSignatureTest() throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
-        final Bytes bytes = Bytes.wrap(new byte[]{1, 2, 3, 4, 5});
+        final Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final KeyPair keyPair = KeyPairGenerator.getInstance("RSA").generateKeyPair();
         // sign the data
         final Signature signer = Signature.getInstance("SHA256withRSA");
@@ -571,7 +570,7 @@ final class BytesTest {
         // test a bad signature
         final Signature verifier2 = Signature.getInstance("SHA256withRSA");
         verifier2.initVerify(keyPair.getPublic());
-        Bytes.wrap(new byte[]{123, 1, 2, 3}).updateSignature(verifier2);
+        Bytes.wrap(new byte[] {123, 1, 2, 3}).updateSignature(verifier2);
         assertFalse(signature.verifySignature(verifier2));
     }
 
@@ -580,148 +579,151 @@ final class BytesTest {
 
     // matches prefix....
 
-//
-//
-//
-//
-//    static Stream<Byte> bytesTestCases() {
-//        return Stream.of(Byte.MIN_VALUE,-100,-66,-7,-1,0,1,9,51,101,Byte.MAX_VALUE).map(Number::byteValue);
-//    }
-//
-//    @ParameterizedTest
-//    @MethodSource("bytesTestCases")
-//    void byteTest(Byte value) {
-//        final int length = Byte.BYTES;
-//        DataBuffer db = DataBuffer.allocate(length, false);
-//        db.writeByte(value);
-//        db.reset();
-//        final Bytes bytes = db.readBytes(length);
-//        assertEquals(value, bytes.getByte(0));
-//    }
-//
-//    static Stream<Integer> unsignedBytesTestCases() {
-//        return Stream.of(0,1,9,51,101,127,128,255).map(Number::intValue);
-//    }
-//
-//    @ParameterizedTest
-//    @MethodSource("unsignedBytesTestCases")
-//    void unsignedByteTest(Integer value) {
-//        final int length = Byte.BYTES;
-//        DataBuffer db = DataBuffer.allocate(length, false);
-//        db.writeUnsignedByte(value);
-//        db.reset();
-//        final Bytes bytes = db.readBytes(length);
-//        assertEquals(value, bytes.getUnsignedByte(0));
-//    }
-//
-//    static Stream<Integer> intsTestCases() {
-//        return Stream.of(Integer.MIN_VALUE,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE).map(Number::intValue);
-//    }
-//
-//    @ParameterizedTest
-//    @MethodSource("intsTestCases")
-//    void intTest(Integer value) {
-//        final int length = Integer.BYTES*2;
-//        DataBuffer db = DataBuffer.allocate(length, false);
-//        db.writeInt(value);
-//        db.writeInt(value, ByteOrder.LITTLE_ENDIAN);
-//        db.reset();
-//        final Bytes bytes = db.readBytes(length);
-//        assertEquals(value, bytes.getInt(0));
-//        assertEquals(value, bytes.getInt(Integer.BYTES, ByteOrder.LITTLE_ENDIAN));
-//    }
-//
-//    @ParameterizedTest
-//    @MethodSource("intsTestCases")
-//    void varIntTest(Integer value) {
-//        DataBuffer db = DataBuffer.allocate(20, false);
-//        db.writeVarInt(value, false);
-//        final int varInt1Size = (int)db.position();
-//        db.writeVarInt(value, true);
-//        db.flip();
-//        final Bytes bytes = db.readBytes((int)db.remaining());
-//        assertEquals(value, bytes.getVarInt(0, false));
-//        assertEquals(value, bytes.getVarInt(varInt1Size, true));
-//    }
-//
-//    static Stream<Long> unsignedIntsTestCases() {
-//        return Stream.of(0,1,9,51,127,Integer.MAX_VALUE*2L).map(Number::longValue);
-//    }
-//
-//    @ParameterizedTest
-//    @MethodSource("unsignedIntsTestCases")
-//    void unsignedIntTest(Long value) {
-//        final int length = Integer.BYTES*2;
-//        DataBuffer db = DataBuffer.allocate(length, false);
-//        db.writeUnsignedInt(value);
-//        db.writeUnsignedInt(value, ByteOrder.LITTLE_ENDIAN);
-//        db.reset();
-//        final Bytes bytes = db.readBytes(length);
-//        assertEquals(value, bytes.getUnsignedInt(0));
-//        assertEquals(value, bytes.getUnsignedInt(Integer.BYTES, ByteOrder.LITTLE_ENDIAN));
-//    }
-//
-//    static Stream<Long> longsTestCases() {
-//        return Stream.of(Long.MIN_VALUE, Integer.MIN_VALUE-1L,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE+1L,Long.MAX_VALUE).map(Number::longValue);
-//    }
-//    @ParameterizedTest
-//    @MethodSource("longsTestCases")
-//    void longTest(Long value) {
-//        final int length = Long.BYTES*2;
-//        DataBuffer db = DataBuffer.allocate(length, false);
-//        db.writeLong(value);
-//        db.writeLong(value, ByteOrder.LITTLE_ENDIAN);
-//        db.reset();
-//        final Bytes bytes = db.readBytes(length);
-//        assertEquals(value, bytes.getLong(0));
-//        assertEquals(value, bytes.getLong(Long.BYTES, ByteOrder.LITTLE_ENDIAN));
-//    }
-//
-//    @ParameterizedTest
-//    @MethodSource("longsTestCases")
-//    void varLongTest(Long value) {
-//        DataBuffer db = DataBuffer.allocate(20, false);
-//        db.writeVarLong(value, false);
-//        final int varInt1Size = (int)db.position();
-//        db.writeVarLong(value, true);
-//        db.flip();
-//        final Bytes bytes = db.readBytes((int)db.remaining());
-//        assertEquals(value, bytes.getVarLong(0, false));
-//        assertEquals(value, bytes.getVarLong(varInt1Size, true));
-//    }
-//
-//    static Stream<Float> floatsTestCases() {
-//        return Stream.of(Float.MIN_VALUE, Integer.MIN_VALUE-1L,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE+1L,Float.MAX_VALUE).map(Number::floatValue);
-//    }
-//    @ParameterizedTest
-//    @MethodSource("floatsTestCases")
-//    void floatTest(Float value) {
-//        final int length = Float.BYTES*2;
-//        DataBuffer db = DataBuffer.allocate(length, false);
-//        db.writeFloat(value);
-//        db.writeFloat(value, ByteOrder.LITTLE_ENDIAN);
-//        db.reset();
-//        final Bytes bytes = db.readBytes(length);
-//        assertEquals(value, bytes.getFloat(0));
-//        assertEquals(value, bytes.getFloat(Float.BYTES, ByteOrder.LITTLE_ENDIAN));
-//    }
-//
-//    static Stream<Double> doublesTestCases() {
-//        return Stream.of(Double.MIN_VALUE, Integer.MIN_VALUE-1L,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE+1L,Double.MAX_VALUE).map(Number::doubleValue);
-//    }
-//
-//    @ParameterizedTest
-//    @MethodSource("doublesTestCases")
-//    void doubleTest(Double value) {
-//        final int length = Double.BYTES * 2;
-//        DataBuffer db = DataBuffer.allocate(length, false);
-//        db.writeDouble(value);
-//        db.writeDouble(value, ByteOrder.LITTLE_ENDIAN);
-//        db.reset();
-//        final Bytes bytes = db.readBytes(length);
-//        assertEquals(value, bytes.getDouble(0));
-//        assertEquals(value, bytes.getDouble(Double.BYTES, ByteOrder.LITTLE_ENDIAN));
-//    }
+    //
+    //
+    //
+    //
+    //    static Stream<Byte> bytesTestCases() {
+    //        return Stream.of(Byte.MIN_VALUE,-100,-66,-7,-1,0,1,9,51,101,Byte.MAX_VALUE).map(Number::byteValue);
+    //    }
+    //
+    //    @ParameterizedTest
+    //    @MethodSource("bytesTestCases")
+    //    void byteTest(Byte value) {
+    //        final int length = Byte.BYTES;
+    //        DataBuffer db = DataBuffer.allocate(length, false);
+    //        db.writeByte(value);
+    //        db.reset();
+    //        final Bytes bytes = db.readBytes(length);
+    //        assertEquals(value, bytes.getByte(0));
+    //    }
+    //
+    //    static Stream<Integer> unsignedBytesTestCases() {
+    //        return Stream.of(0,1,9,51,101,127,128,255).map(Number::intValue);
+    //    }
+    //
+    //    @ParameterizedTest
+    //    @MethodSource("unsignedBytesTestCases")
+    //    void unsignedByteTest(Integer value) {
+    //        final int length = Byte.BYTES;
+    //        DataBuffer db = DataBuffer.allocate(length, false);
+    //        db.writeUnsignedByte(value);
+    //        db.reset();
+    //        final Bytes bytes = db.readBytes(length);
+    //        assertEquals(value, bytes.getUnsignedByte(0));
+    //    }
+    //
+    //    static Stream<Integer> intsTestCases() {
+    //        return Stream.of(Integer.MIN_VALUE,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE).map(Number::intValue);
+    //    }
+    //
+    //    @ParameterizedTest
+    //    @MethodSource("intsTestCases")
+    //    void intTest(Integer value) {
+    //        final int length = Integer.BYTES*2;
+    //        DataBuffer db = DataBuffer.allocate(length, false);
+    //        db.writeInt(value);
+    //        db.writeInt(value, ByteOrder.LITTLE_ENDIAN);
+    //        db.reset();
+    //        final Bytes bytes = db.readBytes(length);
+    //        assertEquals(value, bytes.getInt(0));
+    //        assertEquals(value, bytes.getInt(Integer.BYTES, ByteOrder.LITTLE_ENDIAN));
+    //    }
+    //
+    //    @ParameterizedTest
+    //    @MethodSource("intsTestCases")
+    //    void varIntTest(Integer value) {
+    //        DataBuffer db = DataBuffer.allocate(20, false);
+    //        db.writeVarInt(value, false);
+    //        final int varInt1Size = (int)db.position();
+    //        db.writeVarInt(value, true);
+    //        db.flip();
+    //        final Bytes bytes = db.readBytes((int)db.remaining());
+    //        assertEquals(value, bytes.getVarInt(0, false));
+    //        assertEquals(value, bytes.getVarInt(varInt1Size, true));
+    //    }
+    //
+    //    static Stream<Long> unsignedIntsTestCases() {
+    //        return Stream.of(0,1,9,51,127,Integer.MAX_VALUE*2L).map(Number::longValue);
+    //    }
+    //
+    //    @ParameterizedTest
+    //    @MethodSource("unsignedIntsTestCases")
+    //    void unsignedIntTest(Long value) {
+    //        final int length = Integer.BYTES*2;
+    //        DataBuffer db = DataBuffer.allocate(length, false);
+    //        db.writeUnsignedInt(value);
+    //        db.writeUnsignedInt(value, ByteOrder.LITTLE_ENDIAN);
+    //        db.reset();
+    //        final Bytes bytes = db.readBytes(length);
+    //        assertEquals(value, bytes.getUnsignedInt(0));
+    //        assertEquals(value, bytes.getUnsignedInt(Integer.BYTES, ByteOrder.LITTLE_ENDIAN));
+    //    }
+    //
+    //    static Stream<Long> longsTestCases() {
+    //        return Stream.of(Long.MIN_VALUE,
+    // Integer.MIN_VALUE-1L,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE+1L,Long.MAX_VALUE).map(Number::longValue);
+    //    }
+    //    @ParameterizedTest
+    //    @MethodSource("longsTestCases")
+    //    void longTest(Long value) {
+    //        final int length = Long.BYTES*2;
+    //        DataBuffer db = DataBuffer.allocate(length, false);
+    //        db.writeLong(value);
+    //        db.writeLong(value, ByteOrder.LITTLE_ENDIAN);
+    //        db.reset();
+    //        final Bytes bytes = db.readBytes(length);
+    //        assertEquals(value, bytes.getLong(0));
+    //        assertEquals(value, bytes.getLong(Long.BYTES, ByteOrder.LITTLE_ENDIAN));
+    //    }
+    //
+    //    @ParameterizedTest
+    //    @MethodSource("longsTestCases")
+    //    void varLongTest(Long value) {
+    //        DataBuffer db = DataBuffer.allocate(20, false);
+    //        db.writeVarLong(value, false);
+    //        final int varInt1Size = (int)db.position();
+    //        db.writeVarLong(value, true);
+    //        db.flip();
+    //        final Bytes bytes = db.readBytes((int)db.remaining());
+    //        assertEquals(value, bytes.getVarLong(0, false));
+    //        assertEquals(value, bytes.getVarLong(varInt1Size, true));
+    //    }
+    //
+    //    static Stream<Float> floatsTestCases() {
+    //        return Stream.of(Float.MIN_VALUE,
+    // Integer.MIN_VALUE-1L,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE+1L,Float.MAX_VALUE).map(Number::floatValue);
+    //    }
+    //    @ParameterizedTest
+    //    @MethodSource("floatsTestCases")
+    //    void floatTest(Float value) {
+    //        final int length = Float.BYTES*2;
+    //        DataBuffer db = DataBuffer.allocate(length, false);
+    //        db.writeFloat(value);
+    //        db.writeFloat(value, ByteOrder.LITTLE_ENDIAN);
+    //        db.reset();
+    //        final Bytes bytes = db.readBytes(length);
+    //        assertEquals(value, bytes.getFloat(0));
+    //        assertEquals(value, bytes.getFloat(Float.BYTES, ByteOrder.LITTLE_ENDIAN));
+    //    }
+    //
+    //    static Stream<Double> doublesTestCases() {
+    //        return Stream.of(Double.MIN_VALUE,
+    // Integer.MIN_VALUE-1L,-100,-66,-7,-1,0,1,9,51,101,Integer.MAX_VALUE+1L,Double.MAX_VALUE).map(Number::doubleValue);
+    //    }
+    //
+    //    @ParameterizedTest
+    //    @MethodSource("doublesTestCases")
+    //    void doubleTest(Double value) {
+    //        final int length = Double.BYTES * 2;
+    //        DataBuffer db = DataBuffer.allocate(length, false);
+    //        db.writeDouble(value);
+    //        db.writeDouble(value, ByteOrder.LITTLE_ENDIAN);
+    //        db.reset();
+    //        final Bytes bytes = db.readBytes(length);
+    //        assertEquals(value, bytes.getDouble(0));
+    //        assertEquals(value, bytes.getDouble(Double.BYTES, ByteOrder.LITTLE_ENDIAN));
+    //    }
 
     @Test
     void malformedVarTest() {
@@ -760,7 +762,9 @@ final class BytesTest {
     }
 
     @ParameterizedTest
-    @CsvSource(textBlock = """
+    @CsvSource(
+            textBlock =
+                    """
             "", "", 0
             "a", "", 1
             "", "a", -1
@@ -789,18 +793,17 @@ final class BytesTest {
     static Stream<Arguments> compareByUnsignedBytes() {
         return Stream.of(
                 Arguments.of(new byte[0], new byte[0], 0),
-                Arguments.of(new byte[0], new byte[]{1}, -1),
-                Arguments.of(new byte[]{1}, new byte[0], 1),
-                Arguments.of(new byte[]{1}, new byte[]{2}, -1),
-                Arguments.of(new byte[]{2}, new byte[]{1}, 1),
-                Arguments.of(new byte[]{-1}, new byte[]{2}, 253),
-                Arguments.of(new byte[]{2}, new byte[]{-1}, -253),
-                Arguments.of(new byte[]{-1}, new byte[]{-2}, 1),
-                Arguments.of(new byte[]{-2}, new byte[]{-1}, -1),
-                Arguments.of(new byte[]{-2, -1}, new byte[]{-2, -1}, 0),
-                Arguments.of(new byte[]{-2}, new byte[]{-2, -1}, -1),
-                Arguments.of(new byte[]{-2, -1}, new byte[]{-1, -2}, -1)
-        );
+                Arguments.of(new byte[0], new byte[] {1}, -1),
+                Arguments.of(new byte[] {1}, new byte[0], 1),
+                Arguments.of(new byte[] {1}, new byte[] {2}, -1),
+                Arguments.of(new byte[] {2}, new byte[] {1}, 1),
+                Arguments.of(new byte[] {-1}, new byte[] {2}, 253),
+                Arguments.of(new byte[] {2}, new byte[] {-1}, -253),
+                Arguments.of(new byte[] {-1}, new byte[] {-2}, 1),
+                Arguments.of(new byte[] {-2}, new byte[] {-1}, -1),
+                Arguments.of(new byte[] {-2, -1}, new byte[] {-2, -1}, 0),
+                Arguments.of(new byte[] {-2}, new byte[] {-2, -1}, -1),
+                Arguments.of(new byte[] {-2, -1}, new byte[] {-1, -2}, -1));
     }
 
     @ParameterizedTest
@@ -815,68 +818,67 @@ final class BytesTest {
     static Stream<Arguments> compareBySignedBytes() {
         return Stream.of(
                 Arguments.of(new byte[0], new byte[0], 0),
-                Arguments.of(new byte[0], new byte[]{1}, -1),
-                Arguments.of(new byte[]{1}, new byte[0], 1),
-                Arguments.of(new byte[]{1}, new byte[]{2}, -1),
-                Arguments.of(new byte[]{2}, new byte[]{1}, 1),
-                Arguments.of(new byte[]{-1}, new byte[]{2}, -3),
-                Arguments.of(new byte[]{2}, new byte[]{-1}, 3),
-                Arguments.of(new byte[]{-1}, new byte[]{-2}, 1),
-                Arguments.of(new byte[]{-2}, new byte[]{-1}, -1),
-                Arguments.of(new byte[]{-2, -1}, new byte[]{-2, -1}, 0),
-                Arguments.of(new byte[]{-2}, new byte[]{-2, -1}, -1),
-                Arguments.of(new byte[]{-2, -1}, new byte[]{-1, -2}, -1)
-        );
+                Arguments.of(new byte[0], new byte[] {1}, -1),
+                Arguments.of(new byte[] {1}, new byte[0], 1),
+                Arguments.of(new byte[] {1}, new byte[] {2}, -1),
+                Arguments.of(new byte[] {2}, new byte[] {1}, 1),
+                Arguments.of(new byte[] {-1}, new byte[] {2}, -3),
+                Arguments.of(new byte[] {2}, new byte[] {-1}, 3),
+                Arguments.of(new byte[] {-1}, new byte[] {-2}, 1),
+                Arguments.of(new byte[] {-2}, new byte[] {-1}, -1),
+                Arguments.of(new byte[] {-2, -1}, new byte[] {-2, -1}, 0),
+                Arguments.of(new byte[] {-2}, new byte[] {-2, -1}, -1),
+                Arguments.of(new byte[] {-2, -1}, new byte[] {-1, -2}, -1));
     }
 
     @Test
     @DisplayName("Appends two Bytes objects")
     void appendBytes() {
-        Bytes b1 = Bytes.wrap(new byte[]{0, 1, 2, 3});
-        Bytes b2 = Bytes.wrap(new byte[]{4, 5, 6});
+        Bytes b1 = Bytes.wrap(new byte[] {0, 1, 2, 3});
+        Bytes b2 = Bytes.wrap(new byte[] {4, 5, 6});
         Bytes appended = b1.append(b2);
         byte[] res = new byte[7];
         appended.getBytes(0, res);
-        assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5, 6}, res);
+        assertArrayEquals(new byte[] {0, 1, 2, 3, 4, 5, 6}, res);
     }
 
     @Test
     @DisplayName("Appends two Bytes objects, one empty")
     void appendEmptyBytes() {
-        Bytes b1 = Bytes.wrap(new byte[]{0, 1, 2, 3});
+        Bytes b1 = Bytes.wrap(new byte[] {0, 1, 2, 3});
         Bytes appended = b1.append(Bytes.EMPTY);
         byte[] res = new byte[4];
         appended.getBytes(0, res);
-        assertArrayEquals(new byte[]{0, 1, 2, 3}, res);
+        assertArrayEquals(new byte[] {0, 1, 2, 3}, res);
     }
 
     @Test
     @DisplayName("Appends RandomAccessData")
     void appendRandomAccessData() {
-        Bytes b1 = Bytes.wrap(new byte[]{0, 1, 2, 3});
-        RandomAccessData rad = BufferedData.wrap(new byte[]{4, 5, 6});
+        Bytes b1 = Bytes.wrap(new byte[] {0, 1, 2, 3});
+        RandomAccessData rad = BufferedData.wrap(new byte[] {4, 5, 6});
         Bytes appended = b1.append(rad);
         byte[] res = new byte[7];
         appended.getBytes(0, res);
-        assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5, 6}, res);
+        assertArrayEquals(new byte[] {0, 1, 2, 3, 4, 5, 6}, res);
     }
 
     @Test
     @DisplayName("Changed toString")
     void changedToString() {
-        Bytes b1 = Bytes.wrap(new byte[]{0, 0, (byte)0xFF});
+        Bytes b1 = Bytes.wrap(new byte[] {0, 0, (byte) 0xFF});
         assertEquals("0000ff", b1.toString());
     }
 
     @Test
     @DisplayName("Changed toString2")
     void changedToString2() {
-        Bytes b1 = Bytes.wrap(new byte[]{(byte)0x0f, 0, (byte)0x0a});
+        Bytes b1 = Bytes.wrap(new byte[] {(byte) 0x0f, 0, (byte) 0x0a});
         assertEquals("0f000a", b1.toString());
     }
 
     @ParameterizedTest
-    @ValueSource(strings = { "", "a", "ab", "abc", "abc123", "✅" })
+    @ValueSource(strings = {"", "a", "ab", "abc", "abc123", "✅"})
     @DisplayName("Overridden asUtf8String")
     void asUtf8StringTest(final String value) {
         final Bytes bytes = Bytes.wrap(value.getBytes(StandardCharsets.UTF_8));
@@ -904,11 +906,7 @@ final class BytesTest {
     void writeToByteBufferTest() {
         final ByteBuffer bb = ByteBuffer.allocate(1);
 
-        testWriteToFromOffset(
-                bb,
-                (b, d) -> b.writeTo(d, 1, 1),
-                ByteBuffer::position,
-                d -> d.get(0));
+        testWriteToFromOffset(bb, (b, d) -> b.writeTo(d, 1, 1), ByteBuffer::position, d -> d.get(0));
     }
 
     @Test
@@ -921,11 +919,8 @@ final class BytesTest {
             }
         };
 
-        testWriteToFromOffset(
-                os,
-                (b, d) -> b.writeTo(d, 1, 1),
-                d -> data.size(),
-                d -> data.get(0).byteValue());
+        testWriteToFromOffset(os, (b, d) -> b.writeTo(d, 1, 1), d -> data.size(), d -> data.get(0)
+                .byteValue());
     }
 
     @Test
@@ -951,7 +946,6 @@ final class BytesTest {
                     ai.set(md.digest()[0]);
                 },
                 d -> ai.get() == 0 ? 0 : 1,
-                d -> (byte) (ai.get() + 121)
-        );
+                d -> (byte) (ai.get() + 121));
     }
 }

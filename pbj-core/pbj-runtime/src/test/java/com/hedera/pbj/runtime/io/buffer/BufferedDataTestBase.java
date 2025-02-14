@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.buffer;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -89,9 +90,47 @@ abstract class BufferedDataTestBase {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 2, 4, 7, 8, 15, 16, 31, 32, 33, 127, 128, 512, 1000, 1024, 4000,
-                16384, 65535, 65536, 65537, 0xFFFFFF, 0x1000000, 0x1000001, 0x7FFFFFFF,
-                -1, -7, -8, -9, -127, -128, -129, -65535, -65536, -0xFFFFFF, -0x1000000, -0x1000001, -0x80000000})
+    @ValueSource(
+            ints = {
+                0,
+                1,
+                2,
+                4,
+                7,
+                8,
+                15,
+                16,
+                31,
+                32,
+                33,
+                127,
+                128,
+                512,
+                1000,
+                1024,
+                4000,
+                16384,
+                65535,
+                65536,
+                65537,
+                0xFFFFFF,
+                0x1000000,
+                0x1000001,
+                0x7FFFFFFF,
+                -1,
+                -7,
+                -8,
+                -9,
+                -127,
+                -128,
+                -129,
+                -65535,
+                -65536,
+                -0xFFFFFF,
+                -0x1000000,
+                -0x1000001,
+                -0x80000000
+            })
     @DisplayName("readVarInt() works with views")
     void sliceThenReadVarInt(final int num) {
         final var buf = allocate(100);
@@ -107,9 +146,47 @@ abstract class BufferedDataTestBase {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 2, 4, 7, 8, 15, 16, 31, 32, 33, 127, 128, 512, 1000, 1024, 4000,
-            16384, 65535, 65536, 65537, 0xFFFFFF, 0x1000000, 0x1000001, 0x7FFFFFFF,
-            -1, -7, -8, -9, -127, -128, -129, -65535, -65536, -0xFFFFFF, -0x1000000, -0x1000001, -0x80000000})
+    @ValueSource(
+            ints = {
+                0,
+                1,
+                2,
+                4,
+                7,
+                8,
+                15,
+                16,
+                31,
+                32,
+                33,
+                127,
+                128,
+                512,
+                1000,
+                1024,
+                4000,
+                16384,
+                65535,
+                65536,
+                65537,
+                0xFFFFFF,
+                0x1000000,
+                0x1000001,
+                0x7FFFFFFF,
+                -1,
+                -7,
+                -8,
+                -9,
+                -127,
+                -128,
+                -129,
+                -65535,
+                -65536,
+                -0xFFFFFF,
+                -0x1000000,
+                -0x1000001,
+                -0x80000000
+            })
     @DisplayName("readVar() won't read beyond 10 bytes")
     void readVarFromLargeBuffer(final int num) {
         final var buf = allocate(100);
@@ -123,9 +200,42 @@ abstract class BufferedDataTestBase {
     }
 
     @ParameterizedTest
-    @ValueSource(longs = {0, 1, 7, 8, 9, 127, 128, 129, 1023, 1024, 1025, 65534, 65535, 65536,
-                0xFFFFFFFFL, 0x100000000L, 0x100000001L, 0xFFFFFFFFFFFFL, 0x1000000000000L, 0x1000000000001L,
-                -1, -7, -8, -9, -127, -128, -129, -65534, -65535, -65536, -0xFFFFFFFFL, -0x100000000L, -0x100000001L})
+    @ValueSource(
+            longs = {
+                0,
+                1,
+                7,
+                8,
+                9,
+                127,
+                128,
+                129,
+                1023,
+                1024,
+                1025,
+                65534,
+                65535,
+                65536,
+                0xFFFFFFFFL,
+                0x100000000L,
+                0x100000001L,
+                0xFFFFFFFFFFFFL,
+                0x1000000000000L,
+                0x1000000000001L,
+                -1,
+                -7,
+                -8,
+                -9,
+                -127,
+                -128,
+                -129,
+                -65534,
+                -65535,
+                -65536,
+                -0xFFFFFFFFL,
+                -0x100000000L,
+                -0x100000001L
+            })
     @DisplayName("readVarLong() works with views")
     void sliceThenReadVarLong(final long num) {
         final var buf = allocate(256);

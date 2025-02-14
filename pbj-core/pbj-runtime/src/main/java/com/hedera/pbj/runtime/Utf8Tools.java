@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
 import static java.lang.Character.*;
@@ -61,8 +46,7 @@ public final class Utf8Tools {
 
         if (utf8Length < utf16Length) {
             // Necessary and sufficient condition for overflow because of maximum 3x expansion
-            throw new IllegalArgumentException(
-                    "UTF-8 length does not fit in int: " + (utf8Length + (1L << 32)));
+            throw new IllegalArgumentException("UTF-8 length does not fit in int: " + (utf8Length + (1L << 32)));
         }
         return utf8Length;
     }
@@ -112,9 +96,7 @@ public final class Utf8Tools {
 
                 // Benchmarks show put performs better than putShort here (for HotSpot).
                 out.writeByte3(
-                        (byte) (0xE0 | (c >>> 12)),
-                        (byte) (0x80 | (0x3F & (c >>> 6))),
-                        (byte) (0x80 | (0x3F & c)));
+                        (byte) (0xE0 | (c >>> 12)), (byte) (0x80 | (0x3F & (c >>> 6))), (byte) (0x80 | (0x3F & c)));
             } else {
                 // Four bytes (1111 xxxx 10xx xxxx 10xx xxxx 10xx xxxx)
                 // Minimum code point represented by a surrogate pair is 0x10000, 17 bits, four UTF-8 bytes

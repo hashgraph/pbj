@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.grpc.helidon;
 
 import com.hedera.pbj.runtime.grpc.GrpcException;
@@ -38,8 +23,7 @@ class GreeterServiceImpl implements GreeterService {
 
     // Streams of stuff coming from the client, with a single response.
     @Override
-    public Pipeline<? super HelloRequest> sayHelloStreamRequest(
-            Pipeline<? super HelloReply> replies) {
+    public Pipeline<? super HelloRequest> sayHelloStreamRequest(Pipeline<? super HelloReply> replies) {
         final var names = new ArrayList<String>();
         return new Pipeline<>() {
             @Override
@@ -64,10 +48,9 @@ class GreeterServiceImpl implements GreeterService {
 
             @Override
             public void onComplete() {
-                final var reply =
-                        HelloReply.newBuilder()
-                                .setMessage("Hello " + String.join(", ", names))
-                                .build();
+                final var reply = HelloReply.newBuilder()
+                        .setMessage("Hello " + String.join(", ", names))
+                        .build();
                 replies.onNext(reply);
                 replies.onComplete();
             }
@@ -75,8 +58,7 @@ class GreeterServiceImpl implements GreeterService {
     }
 
     @Override
-    public void sayHelloStreamReply(
-            HelloRequest request, Pipeline<? super HelloReply> replies) {
+    public void sayHelloStreamReply(HelloRequest request, Pipeline<? super HelloReply> replies) {
         for (int i = 0; i < 10; i++) {
             replies.onNext(HelloReply.newBuilder().setMessage("Hello!").build());
         }
@@ -85,8 +67,7 @@ class GreeterServiceImpl implements GreeterService {
     }
 
     @Override
-    public Pipeline<? super HelloRequest> sayHelloStreamBidi(
-            Pipeline<? super HelloReply> replies) {
+    public Pipeline<? super HelloRequest> sayHelloStreamBidi(Pipeline<? super HelloReply> replies) {
         // Here we receive info from the client. In this case, it is a stream of requests with
         // names. We will respond with a stream of replies.
         return new Pipeline<>() {
@@ -102,8 +83,9 @@ class GreeterServiceImpl implements GreeterService {
 
             @Override
             public void onNext(HelloRequest item) {
-                replies.onNext(
-                        HelloReply.newBuilder().setMessage("Hello " + item.getName()).build());
+                replies.onNext(HelloReply.newBuilder()
+                        .setMessage("Hello " + item.getName())
+                        .build());
             }
 
             @Override

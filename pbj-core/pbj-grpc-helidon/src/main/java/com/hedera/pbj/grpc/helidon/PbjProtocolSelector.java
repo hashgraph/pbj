@@ -1,39 +1,16 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.grpc.helidon;
 
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.helidon.common.buffers.BufferData;
 import io.helidon.http.HttpPrologue;
 import io.helidon.http.Method;
-import io.helidon.http.Status;
-import io.helidon.http.WritableHeaders;
-import io.helidon.http.http2.FlowControl;
-import io.helidon.http.http2.Http2Flag;
-import io.helidon.http.http2.Http2FrameHeader;
 import io.helidon.http.http2.Http2Headers;
-import io.helidon.http.http2.Http2RstStream;
 import io.helidon.http.http2.Http2Settings;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
-import io.helidon.http.http2.Http2WindowUpdate;
 import io.helidon.http.http2.StreamFlowControl;
 import io.helidon.metrics.api.Counter;
 import io.helidon.metrics.api.Metrics;
@@ -57,8 +34,7 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
 
     private final PbjConfig config;
     private final DeadlineDetector deadlineDetector;
-    private final ScheduledExecutorService deadlineExecutorService =
-            Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService deadlineExecutorService = Executors.newSingleThreadScheduledExecutor();
     private final Counter requestCounter;
     private final Counter failedRequestCounter;
 
@@ -68,22 +44,15 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
      */
     PbjProtocolSelector(@NonNull final PbjConfig config) {
         this.config = requireNonNull(config);
-        this.deadlineDetector =
-                (deadline, onDeadlineExceeded) ->
-                        deadlineExecutorService.schedule(
-                                onDeadlineExceeded, deadline, TimeUnit.NANOSECONDS);
+        this.deadlineDetector = (deadline, onDeadlineExceeded) ->
+                deadlineExecutorService.schedule(onDeadlineExceeded, deadline, TimeUnit.NANOSECONDS);
 
         final var metricRegistry = Metrics.globalRegistry();
-        this.requestCounter =
-                metricRegistry.getOrCreate(
-                        Counter.builder("pbj.grpc.requests")
-                                .scope("vendor")
-                                .description("The number of gRPC requests"));
-        this.failedRequestCounter =
-                metricRegistry.getOrCreate(
-                        Counter.builder("pbj.grpc.request.failures")
-                                .scope("vendor")
-                                .description("The number of failed gRPC requests"));
+        this.requestCounter = metricRegistry.getOrCreate(
+                Counter.builder("pbj.grpc.requests").scope("vendor").description("The number of gRPC requests"));
+        this.failedRequestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.request.failures")
+                .scope("vendor")
+                .description("The number of failed gRPC requests"));
     }
 
     /**
@@ -129,8 +98,7 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
         final var route = routing.findRoute(prologue);
         if (route == null) {
             this.failedRequestCounter.increment();
-            return new SubProtocolResult(
-                    true, new RouteNotFoundHandler(streamWriter, streamId, currentStreamState));
+            return new SubProtocolResult(true, new RouteNotFoundHandler(streamWriter, streamId, currentStreamState));
         }
 
         // This is a valid call!

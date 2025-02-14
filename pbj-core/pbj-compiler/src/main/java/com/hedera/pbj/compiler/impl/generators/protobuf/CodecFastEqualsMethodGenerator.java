@@ -1,9 +1,9 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.Field;
-
 import java.util.List;
 
 /**

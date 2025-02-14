@@ -1,16 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.util.function.Supplier;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
 
@@ -22,7 +22,7 @@ final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
 
     @NonNull
     private ReadableSequentialData throwingSequence() {
-        return new StubbedSequence(new byte[] { 1 }, () -> new EOFException());
+        return new StubbedSequence(new byte[] {1}, () -> new EOFException());
     }
 
     @Test
@@ -41,7 +41,7 @@ final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
     @Test
     @DisplayName("Verify asInputStream()")
     void testAsInputStream() throws IOException {
-        ReadableSequentialData sequence = sequence(new byte[]{1, 2, 3, (byte) 254, (byte) 255});
+        ReadableSequentialData sequence = sequence(new byte[] {1, 2, 3, (byte) 254, (byte) 255});
         InputStream inputStream = sequence.asInputStream();
 
         assertThat(inputStream.read()).isEqualTo(1);
@@ -60,7 +60,7 @@ final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
     @NonNull
     @Override
     protected ReadableSequentialData fullyUsedSequence() {
-        final var seq = new StubbedSequence(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+        final var seq = new StubbedSequence(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
         seq.skip(10);
         return seq;
     }
@@ -89,7 +89,6 @@ final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
         private StubbedSequence(@NonNull final byte[] bytes) {
             this(bytes, null);
         }
-
 
         @Override
         public long capacity() {
@@ -133,6 +132,5 @@ final class ReadableSequentialDataTest extends ReadableSequentialTestBase {
 
             return bytes[(int) position++];
         }
-
     }
 }

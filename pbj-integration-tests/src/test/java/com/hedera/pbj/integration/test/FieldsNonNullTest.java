@@ -1,4 +1,9 @@
-package com.hedera.pbj.intergration.test;
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.pbj.integration.test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.FeeSchedule;
 import com.hedera.hapi.node.base.TransactionFeeSchedule;
@@ -6,10 +11,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.MessageWithBytes;
 import com.hedera.pbj.test.proto.pbj.MessageWithString;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class FieldsNonNullTest {
     @Test
@@ -70,7 +71,9 @@ public class FieldsNonNullTest {
         assertNotNull(msg.transactionFeeSchedule());
         assertTrue(msg.transactionFeeSchedule().isEmpty());
 
-        msg = FeeSchedule.newBuilder().transactionFeeSchedule((TransactionFeeSchedule[])null).build();
+        msg = FeeSchedule.newBuilder()
+                .transactionFeeSchedule((TransactionFeeSchedule[]) null)
+                .build();
         assertNotNull(msg.transactionFeeSchedule());
         assertTrue(msg.transactionFeeSchedule().isEmpty());
     }

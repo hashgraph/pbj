@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
 import java.util.Objects;
@@ -45,7 +46,7 @@ public record ComparableOneOf<E extends Enum<E>>(E kind, Comparable value) imple
 
     @Override
     public int hashCode() {
-        return (31 + Integer.hashCode(((EnumWithProtoMetadata)kind).protoOrdinal())) * 31
+        return (31 + Integer.hashCode(((EnumWithProtoMetadata) kind).protoOrdinal())) * 31
                 + (value == null ? 0 : value.hashCode());
     }
 
@@ -62,4 +63,3 @@ public record ComparableOneOf<E extends Enum<E>>(E kind, Comparable value) imple
         return value.compareTo(thatObj.value);
     }
 }
-

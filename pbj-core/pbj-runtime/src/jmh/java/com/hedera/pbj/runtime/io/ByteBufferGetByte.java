@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
 import java.nio.ByteBuffer;
@@ -78,5 +79,4 @@ public class ByteBufferGetByte {
             blackhole.consume(UnsafeUtils.getDirectBufferByte(directBuffer, i));
         }
     }
-
 }

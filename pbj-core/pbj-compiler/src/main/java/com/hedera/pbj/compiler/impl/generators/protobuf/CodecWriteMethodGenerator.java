@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
@@ -20,12 +21,10 @@ final class CodecWriteMethodGenerator {
 
     static String generateWriteMethod(final String modelClassName, final List<Field> fields) {
         final String fieldWriteLines = buildFieldWriteLines(
-                modelClassName,
-                fields,
-                field -> "data.%s()".formatted(field.nameCamelFirstLower()),
-                true);
-
-        return """     
+                modelClassName, fields, field -> "data.%s()".formatted(field.nameCamelFirstLower()), true);
+        // spotless:off
+        return
+            """
             /**
              * Write out a $modelClass model to output stream in protobuf format.
              *
@@ -40,6 +39,7 @@ final class CodecWriteMethodGenerator {
             .replace("$modelClass", modelClassName)
             .replace("$fieldWriteLines", fieldWriteLines)
             .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 
     private static String buildFieldWriteLines(
@@ -48,7 +48,9 @@ final class CodecWriteMethodGenerator {
             final Function<Field, String> getValueBuilder,
             final boolean skipDefault) {
         return fields.stream()
-                .flatMap(field -> field.type() == Field.FieldType.ONE_OF ? ((OneOfField)field).fields().stream() : Stream.of(field))
+                .flatMap(field -> field.type() == Field.FieldType.ONE_OF
+                        ? ((OneOfField) field).fields().stream()
+                        : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldWriteLines(field, modelClassName, getValueBuilder.apply(field), skipDefault))
                 .collect(Collectors.joining("\n"))
@@ -64,7 +66,8 @@ final class CodecWriteMethodGenerator {
      * @param skipDefault skip writing the field if it has default value (for non-oneOf only)
      * @return java code to write field to output
      */
-    private static String generateFieldWriteLines(final Field field, final String modelClassName, String getValueCode, boolean skipDefault) {
+    private static String generateFieldWriteLines(
+            final Field field, final String modelClassName, String getValueCode, boolean skipDefault) {
         final String fieldDef = Common.camelToUpperSnake(field.name());
         String prefix = "// ["+field.fieldNumber()+"] - "+field.name();
         prefix += "\n";
@@ -80,7 +83,7 @@ final class CodecWriteMethodGenerator {
             postFix += "}\n";
             indent ++;
         }
-
+        // spotless:off
         final String writeMethodName = field.methodNameType();
         if (field.optionalValueType()) {
             return prefix + (switch (field.messageType()) {
@@ -102,81 +105,78 @@ final class CodecWriteMethodGenerator {
             }).indent(indent) + postFix;
         } else if (field.repeated()) {
             return prefix + (switch(field.type()) {
-                case ENUM -> "writeEnumList(out, %s, %s);"
-                        .formatted(fieldDef, getValueCode);
-                case MESSAGE -> "writeMessageList(out, $fieldDef, $valueCode, $codec);"
-                        .replace("$fieldDef", fieldDef)
-                        .replace("$valueCode", getValueCode)
-                        .replace("$codec", ((SingleField)field).messageTypeModelPackage() + "." +
-                                Common.capitalizeFirstLetter(field.messageType())+ ".PROTOBUF");
-                default -> "write%sList(out, %s, %s);"
-                        .formatted(writeMethodName, fieldDef, getValueCode);
+                    case ENUM -> "writeEnumList(out, %s, %s);"
+                            .formatted(fieldDef, getValueCode);
+                    case MESSAGE -> "writeMessageList(out, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, codecReference);
+                    default -> "write%sList(out, %s, %s);"
+                            .formatted(writeMethodName, fieldDef, getValueCode);
             }).indent(indent) + postFix;
-        } else if (field.type() == Field.FieldType.MAP) {
-            // https://protobuf.dev/programming-guides/proto3/#maps
-            // On the wire, a map is equivalent to:
-            //    message MapFieldEntry {
-            //      key_type key = 1;
-            //      value_type value = 2;
-            //    }
-            //    repeated MapFieldEntry map_field = N;
-            // NOTE: we serialize the map in the natural order of keys by design,
-            //       so that the binary representation of the map is deterministic.
-            // NOTE: protoc serializes default values (e.g. "") in maps, so we should too.
-            final MapField mapField = (MapField) field;
-            final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
-            final Function<Field, String> getValueBuilder = mapEntryField ->
-                    mapEntryField == mapField.keyField() ? "k" : (mapEntryField == mapField.valueField() ? "v" : null);
-            final String fieldWriteLines = buildFieldWriteLines(
-                    field.name(),
-                    mapEntryFields,
-                    getValueBuilder,
-                    false);
-            final String fieldSizeOfLines = CodecMeasureRecordMethodGenerator.buildFieldSizeOfLines(
-                    field.name(),
-                    mapEntryFields,
-                    getValueBuilder,
-                    false);
-            return prefix + """
-                        if (!$map.isEmpty()) {
-                            final Pbj$javaFieldType pbjMap = (Pbj$javaFieldType) $map;
-                            final int mapSize = pbjMap.size();
-                            for (int i = 0; i < mapSize; i++) {
-                                writeTag(out, $fieldDef, WIRE_TYPE_DELIMITED);
-                                $K k = pbjMap.getSortedKeys().get(i);
-                                $V v = pbjMap.get(k);
-                                int size = 0;
-                                $fieldSizeOfLines
-                                out.writeVarInt(size, false);
-                                $fieldWriteLines
+            } else if (field.type() == Field.FieldType.MAP) {
+                // https://protobuf.dev/programming-guides/proto3/#maps
+                // On the wire, a map is equivalent to:
+                //    message MapFieldEntry {
+                //      key_type key = 1;
+                //      value_type value = 2;
+                //    }
+                //    repeated MapFieldEntry map_field = N;
+                // NOTE: we serialize the map in the natural order of keys by design,
+                //       so that the binary representation of the map is deterministic.
+                // NOTE: protoc serializes default values (e.g. "") in maps, so we should too.
+                final MapField mapField = (MapField) field;
+                final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
+                final Function<Field, String> getValueBuilder = mapEntryField ->
+                        mapEntryField == mapField.keyField() ? "k" : (mapEntryField == mapField.valueField() ? "v" : null);
+                final String fieldWriteLines = buildFieldWriteLines(
+                        field.name(),
+                        mapEntryFields,
+                        getValueBuilder,
+                        false);
+                final String fieldSizeOfLines = CodecMeasureRecordMethodGenerator.buildFieldSizeOfLines(
+                        field.name(),
+                        mapEntryFields,
+                        getValueBuilder,
+                        false);
+                return prefix + """
+                            if (!$map.isEmpty()) {
+                                final Pbj$javaFieldType pbjMap = (Pbj$javaFieldType) $map;
+                                final int mapSize = pbjMap.size();
+                                for (int i = 0; i < mapSize; i++) {
+                                    writeTag(out, $fieldDef, WIRE_TYPE_DELIMITED);
+                                    $K k = pbjMap.getSortedKeys().get(i);
+                                    $V v = pbjMap.get(k);
+                                    int size = 0;
+                                    $fieldSizeOfLines
+                                    out.writeVarInt(size, false);
+                                    $fieldWriteLines
+                                }
                             }
-                        }
-                        """
-                    .replace("$fieldDef", fieldDef)
-                    .replace("$map", getValueCode)
-                    .replace("$javaFieldType", mapField.javaFieldType())
-                    .replace("$K", mapField.keyField().type().boxedType)
-                    .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? ((SingleField)mapField.valueField()).messageType() : mapField.valueField().type().boxedType)
-                    .replace("$fieldWriteLines", fieldWriteLines.indent(DEFAULT_INDENT))
+                            """
+                        .replace("$fieldDef", fieldDef)
+                        .replace("$map", getValueCode)
+                        .replace("$javaFieldType", mapField.javaFieldType())
+                        .replace("$K", mapField.keyField().type().boxedType)
+                        .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? ((SingleField)mapField.valueField()).messageType() : mapField.valueField().type().boxedType)
+                        .replace("$fieldWriteLines", fieldWriteLines.indent(DEFAULT_INDENT))
                     .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
                     .indent(indent) + postFix
                     ;
-        } else {
+            } else {
             return prefix + (switch(field.type()) {
-                case ENUM -> "writeEnum(out, %s, %s);"
-                        .formatted(fieldDef, getValueCode);
-                case STRING -> "writeString(out, %s, %s, %s);"
-                        .formatted(fieldDef, getValueCode, skipDefault);
+                    case ENUM -> "writeEnum(out, %s, %s);"
+                            .formatted(fieldDef, getValueCode);
+                    case STRING -> "writeString(out, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, skipDefault);
                 case MESSAGE -> writeMessageCode(field, fieldDef, getValueCode);
-                case BOOL -> "writeBoolean(out, %s, %s, %s);"
-                        .formatted(fieldDef, getValueCode, skipDefault);
+                    case BOOL -> "writeBoolean(out, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, skipDefault);
                 case INT32, UINT32, SINT32, FIXED32, SFIXED32, INT64, SINT64, UINT64, FIXED64, SFIXED64 ->
                         writeNumberCode(field, getValueCode, skipDefault);
                 case BYTES ->
                         "write%s(out, %s, %s, %s);"
                                 .formatted(writeMethodName, fieldDef, getValueCode, skipDefault);
-                default -> "write%s(out, %s, %s);"
-                        .formatted(writeMethodName, fieldDef, getValueCode);
+                    default -> "write%s(out, %s, %s);"
+                            .formatted(writeMethodName, fieldDef, getValueCode);
             }).indent(indent) + postFix;
         }
     }
@@ -317,6 +317,8 @@ final class CodecWriteMethodGenerator {
 
         public static ProtoConstants get(int ordinal) {
             return values[ordinal];
+            }
         }
+        // spotless:on
     }
 }

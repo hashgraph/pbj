@@ -6,7 +6,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.3"
+        default: "21.0.5"
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
@@ -41,7 +41,7 @@ jobs:
       prerelease: ${{ steps.info.outputs.prerelease }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -90,23 +90,23 @@ jobs:
         (needs.prepare-release.outputs.mode == 'specified' && needs.prepare-release.outputs.prerelease != 'true') || needs.prepare-release.outputs.mode == 'snapshot'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Setup Java
-        uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-          java-version: ${{ github.event.inputs.java-version || '21.0.3' }}
+          java-version: ${{ github.event.inputs.java-version || '21.0.5' }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
         with:
           gradle-home-cache-strict-match: false
 
@@ -135,20 +135,20 @@ jobs:
       - name: Gradle Update Version (As Specified)
         if: ${{ needs.prepare-release.outputs.mode == 'specified' && !cancelled() && !failure() }}
         working-directory: ${{ env.PBJ_CORE }}
-        run: ./gradlew versionAsSpecified -PnewVersion=${{ needs.prepare-release.outputs.version }} --scan
+        run: ./gradlew versionAsSpecified -PnewVersion=${{ needs.prepare-release.outputs.version }}
 
       - name: Gradle Update Version (Snapshot)
         if: ${{ needs.prepare-release.outputs.mode == 'snapshot' && !cancelled() && !failure() }}
         working-directory: ${{ env.PBJ_CORE }}
-        run: ./gradlew versionAsSnapshot --scan
+        run: ./gradlew versionAsSnapshot
 
       - name: Gradle Version Summary
         working-directory: ${{ env.PBJ_CORE }}
-        run: ./gradlew githubVersionSummary --scan
+        run: ./gradlew githubVersionSummary
 
       - name: Gradle Assemble
         working-directory: ${{ env.PBJ_CORE }}
-        run: ./gradlew assemble --scan
+        run: ./gradlew assemble
 
       - name: Gradle Release Maven Central
         if: ${{ !cancelled() && !failure() }}
@@ -158,7 +158,7 @@ jobs:
           NEXUS_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
         # The 'releaseMavenCentral' task will select if Release or Snapshot based on the version
         run: |
-          ./gradlew releaseMavenCentral -PpublishingPackageGroup=com.hedera.pbj -PpublishSigningEnabled=true --no-configuration-cache --scan
+          ./gradlew releaseMavenCentral -PpublishingPackageGroup=com.hedera.pbj -PpublishSigningEnabled=true --no-configuration-cache
 
       - name: Gradle Plugin Portal Release
         if: ${{ needs.prepare-release.outputs.mode == 'specified' && !cancelled() && !failure() }}
@@ -167,4 +167,4 @@ jobs:
           GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
         run: |
-          ./gradlew publishPlugins -PpublishSigningEnabled=true --no-configuration-cache --scan
+          ./gradlew publishPlugins -PpublishSigningEnabled=true --no-configuration-cache

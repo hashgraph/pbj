@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
 /**
@@ -9,5 +10,4 @@ package com.hedera.pbj.runtime;
  *     <li><code>public static FieldDefinition getField(final int fieldNumber) {...}</code></li>
  *</ul>
  */
-public interface Schema {
-}
+public interface Schema {}
