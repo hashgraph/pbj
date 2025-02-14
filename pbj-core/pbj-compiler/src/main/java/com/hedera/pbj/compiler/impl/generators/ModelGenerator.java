@@ -763,12 +763,12 @@ public final class ModelGenerator implements Generator {
                 field.addAllNeededImports(imports, true, false, false);
             }
         }
-        // spotless:on
         final String enumComment = """
                             /**
                              * Enum for the type of "%s" oneof value
                              */"""
-                .formatted(oneOfField.name());
+                        .formatted(oneOfField.name());
+        // spotless:on
         final String enumString = createEnum(enumComment, "", enumName, maxIndex, enumValues, true)
                 .indent(DEFAULT_INDENT * 2);
         oneofEnums.add(enumString);
