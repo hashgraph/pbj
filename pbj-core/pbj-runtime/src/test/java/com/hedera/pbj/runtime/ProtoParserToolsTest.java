@@ -341,20 +341,20 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesNullInput() {
         final FieldDefinition field = createFieldDefinition(BYTES);
-        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractRawFieldBytes(null, field));
+        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes(null, field));
     }
 
     @Test
     void testExtractBytesNullField() {
         final ReadableSequentialData input = Bytes.EMPTY.toReadableSequentialData();
-        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractRawFieldBytes(input, null));
+        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes(input, null));
     }
 
     @Test
     void testExtractBytesRepeatedField() {
         final ReadableSequentialData input = Bytes.EMPTY.toReadableSequentialData();
         final FieldDefinition field = new FieldDefinition("field", FieldType.BYTES, true, true, false, 1);
-        assertThrows(IllegalArgumentException.class, () -> ProtoParserTools.extractRawFieldBytes(input, field));
+        assertThrows(IllegalArgumentException.class, () -> ProtoParserTools.extractFieldBytes(input, field));
     }
 
     private static final FieldDefinition INT32_F =
@@ -400,7 +400,7 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesStringField() throws IOException, ParseException {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
-        final Bytes bytes = ProtoParserTools.extractRawFieldBytes(input, STRING_F);
+        final Bytes bytes = ProtoParserTools.extractFieldBytes(input, STRING_F);
         assertNotNull(bytes);
         assertEquals(STRING_V, new String(bytes.toByteArray(), StandardCharsets.UTF_8));
     }
@@ -408,7 +408,7 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesBytesField() throws IOException, ParseException {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
-        final Bytes bytes = ProtoParserTools.extractRawFieldBytes(input, BYTES_F);
+        final Bytes bytes = ProtoParserTools.extractFieldBytes(input, BYTES_F);
         assertNotNull(bytes);
         assertEquals(BYTES_V, bytes);
     }
@@ -416,7 +416,7 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesMessageField() throws IOException, ParseException {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
-        final Bytes bytes = ProtoParserTools.extractRawFieldBytes(input, MESSAGE_F);
+        final Bytes bytes = ProtoParserTools.extractFieldBytes(input, MESSAGE_F);
         assertNotNull(bytes);
         final TestMessage value = TestMessageCodec.INSTANCE.parse(bytes.toReadableSequentialData());
         assertNotNull(value);
@@ -426,7 +426,7 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesUnknownField() throws IOException, ParseException {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
-        final Bytes bytes = ProtoParserTools.extractRawFieldBytes(input, UNKNOWN_F);
+        final Bytes bytes = ProtoParserTools.extractFieldBytes(input, UNKNOWN_F);
         assertNull(bytes);
     }
 

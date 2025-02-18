@@ -311,8 +311,11 @@ public final class ProtoParserTools {
     /**
      * Reads a requested length-delimited protobuf field from the input and returns it as a
      * {@link Bytes} object. If the requested field is repeated or not length-delimited, this
-     * method throws an {@link IllegalArgumentException}. If the field is not found in the
-     * input, {@code null} is returned.
+     * method throws an {@link IllegalArgumentException}. .
+     *
+     * <p>The input must contain valid protobuf encoded bytes. If the field is not found in
+     * the input {@code null} is returned. If the field occurs multiple time in the input, bytes
+     * for the first occurrence are returned.
      *
      * <p>The returned Bytes object, if not null, will not contain the tag or the length.
      *
@@ -325,7 +328,7 @@ public final class ProtoParserTools {
      *      in the input with the same field ID
      */
     @Nullable
-    public static Bytes extractRawFieldBytes(
+    public static Bytes extractFieldBytes(
             @NonNull final ReadableSequentialData input, @NonNull final FieldDefinition field)
             throws IOException, ParseException {
         Objects.requireNonNull(input);
