@@ -3,6 +3,8 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -15,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This class is full of parse helper methods, they depend on a DataInput as input with position and limit set
@@ -303,6 +306,64 @@ public final class ProtoParserTools {
             throw new BufferUnderflowException();
         }
         return bytes;
+    }
+
+    /**
+     * Reads a requested length-delimited protobuf field from the input and returns it as a
+     * {@link Bytes} object. If the requested field is repeated or not length-delimited, this
+     * method throws an {@link IllegalArgumentException}. .
+     *
+     * <p>The input must contain valid protobuf encoded bytes. If the field is not found in
+     * the input {@code null} is returned. If the field occurs multiple time in the input, bytes
+     * for the first occurrence are returned.
+     *
+     * <p>The returned Bytes object, if not null, will not contain the tag or the length.
+     *
+     * @param input The input to read from
+     * @param field Field definition to extract bytes for
+     * @return Field bytes without tag or length, or {@code null} if the field is not found
+     *      in the input
+     * @throws IOException If an I/O error occurred
+     * @throws ParseException If there is a mismatch between the requested field and the field
+     *      in the input with the same field ID
+     */
+    @Nullable
+    public static Bytes extractFieldBytes(
+            @NonNull final ReadableSequentialData input, @NonNull final FieldDefinition field)
+            throws IOException, ParseException {
+        Objects.requireNonNull(input);
+        Objects.requireNonNull(field);
+        if (field.repeated()) {
+            throw new IllegalArgumentException("Cannot extract field bytes for a repeated field: " + field);
+        }
+        if (ProtoWriterTools.wireType(field) != ProtoConstants.WIRE_TYPE_DELIMITED) {
+            throw new IllegalArgumentException("Cannot extract field bytes for a non-length-delimited field: " + field);
+        }
+        while (input.hasRemaining()) {
+            final int tag;
+            // hasRemaining() doesn't work very well for streaming data, it returns false only when
+            // the end of input is already reached using a read operation. Let's catch an underflow
+            // (actually, EOF) exception here and exit cleanly. Underflow exception in any other
+            // place means malformed input and should be rethrown
+            try {
+                tag = input.readVarInt(false);
+            } catch (final BufferUnderflowException e) {
+                // No more fields
+                break;
+            }
+            final int fieldNum = tag >> TAG_FIELD_OFFSET;
+            final ProtoConstants wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+            if (fieldNum == field.number()) {
+                if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
+                    throw new ParseException("Unexpected wire type: " + tag);
+                }
+                final int length = input.readVarInt(false);
+                return input.readBytes(length);
+            } else {
+                skipField(input, wireType);
+            }
+        }
+        return null;
     }
 
     /**
