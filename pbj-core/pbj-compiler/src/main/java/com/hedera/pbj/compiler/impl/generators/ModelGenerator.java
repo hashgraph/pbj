@@ -2,6 +2,7 @@
 package com.hedera.pbj.compiler.impl.generators;
 
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
+import static com.hedera.pbj.compiler.impl.Common.FIELD_INDENT;
 import static com.hedera.pbj.compiler.impl.Common.camelToUpperSnake;
 import static com.hedera.pbj.compiler.impl.Common.cleanDocStr;
 import static com.hedera.pbj.compiler.impl.Common.cleanJavaDocComment;
@@ -39,7 +40,7 @@ import java.util.stream.Collectors;
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
  */
-@SuppressWarnings({"EscapedSpace"})
+@SuppressWarnings({"EscapedSpace", "StringConcatenationInLoop"})
 public final class ModelGenerator implements Generator {
 
     private static final String NON_NULL_ANNOTATION = "@NonNull";
@@ -215,6 +216,11 @@ public final class ModelGenerator implements Generator {
         if (hasComparableFields) {
             bodyContent += generateCompareTo(comparableFields, javaRecordName, destinationSrcDir);
         }
+        bodyContent += "\n";
+
+        // toString method
+        bodyContent += generateToString(javaRecordName, fieldsNoPrecomputed);
+        bodyContent += "\n";
 
         // Has methods
         bodyContent += String.join("\n", hasMethods);
@@ -225,7 +231,7 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         // builder copy & new builder methods
-        bodyContent = genrateBuilderFactoryMethods(bodyContent, fieldsNoPrecomputed);
+        bodyContent = generateBuilderFactoryMethods(bodyContent, fieldsNoPrecomputed);
         bodyContent += "\n";
 
         // generate builder
@@ -481,6 +487,45 @@ public final class ModelGenerator implements Generator {
                 .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
+    }
+
+    /**
+     * Generates the toString method, based on how Java records generate toStrings
+     *
+     * @param fields the fields to use for the code generation
+     *
+     * @return the generated code
+     */
+    @NonNull
+    private static String generateToString(final String modelClassName, final List<Field> fields) {
+        // spotless:off
+        String bodyContent =
+            """
+            /**
+             * Override the default toString method for $modelClassName to match the format of a Java record.
+             */
+            @Override
+            public String toString() {
+                return "$modelClassName["
+            """.replace("$modelClassName", modelClassName);
+        // spotless:on
+        for (int i = 0; i < fields.size(); i++) {
+            Field f = fields.get(i);
+            bodyContent +=
+                    FIELD_INDENT + FIELD_INDENT + "+ \"" + f.nameCamelFirstLower() + "=\" + " + f.nameCamelFirstLower();
+            if (i < fields.size() - 1) {
+                bodyContent += " + \", \"";
+            }
+            bodyContent += "\n";
+        }
+        // spotless:off
+        bodyContent +=
+            """
+                    +"]";
+            }
+            """;
+        // spotless:on
+        return bodyContent.indent(DEFAULT_INDENT);
     }
 
     /**
@@ -777,8 +822,15 @@ public final class ModelGenerator implements Generator {
         return oneofGetters;
     }
 
+    /**
+     * Generates the builder methods for the model class
+     *
+     * @param bodyContent the body content to append to
+     * @param fields the fields to use for the code generation
+     * @return the body content with new code appended
+     */
     @NonNull
-    private static String genrateBuilderFactoryMethods(String bodyContent, final List<Field> fields) {
+    private static String generateBuilderFactoryMethods(String bodyContent, final List<Field> fields) {
         // spotless:off
         bodyContent +=
             """
@@ -807,6 +859,14 @@ public final class ModelGenerator implements Generator {
         return bodyContent;
     }
 
+    /**
+     * Generates the builder class methods
+     *
+     * @param builderMethods the builder methods code to append to
+     * @param msgDef the message definition
+     * @param field the field to generate method for
+     * @param lookupHelper the lookup helper
+     */
     private static void generateBuilderMethods(
             final List<String> builderMethods,
             final MessageDefContext msgDef,
