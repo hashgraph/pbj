@@ -406,6 +406,13 @@ public final class TestGenerator implements Generator {
                         assertNotEquals(item2HashCode, item3HashCode);
                     }
                 }
+
+                @Test
+                public void testCodecGetDefaultValueMethod(){
+                    final var codec = $modelClassName.PROTOBUF;
+                    final var codecDefaultValue = codec.getDefaultValue();
+                    assertEquals($modelClassName.DEFAULT, codecDefaultValue);
+                }
                 """
                 .replace("$modelClassName",modelClassName)
                 .replace("$protocModelClass",protoCJavaFullQualifiedClass)

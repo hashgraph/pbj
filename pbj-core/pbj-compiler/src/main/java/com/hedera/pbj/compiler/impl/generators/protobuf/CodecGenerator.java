@@ -19,6 +19,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static com.hedera.pbj.compiler.impl.generators.protobuf.CodecDefaultInstanceMethodGenerator.generateGetDefaultInstanceMethod;
+
 /**
  * Code generator that parses protobuf files and generates writers for each message type.
  */
@@ -105,6 +107,7 @@ public final class CodecGenerator implements Generator {
                     $measureDataMethod
                     $measureRecordMethod
                     $fastEqualsMethod
+                    $getDefaultInstanceMethod
                     }
                     """
                     .replace("$package", codecPackage)
@@ -121,6 +124,7 @@ public final class CodecGenerator implements Generator {
                     .replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))
                     .replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
                     .replace("$fastEqualsMethod", CodecFastEqualsMethodGenerator.generateFastEqualsMethod(modelClassName, fields))
+                    .replace("$getDefaultInstanceMethod", generateGetDefaultInstanceMethod())
             );
         // spotless:on
         }
