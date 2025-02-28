@@ -8,7 +8,7 @@ import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
  */
 public class CodecDefaultInstanceMethodGenerator {
 
-    static String generateGetDefaultInstanceMethod() {
+    static String generateGetDefaultInstanceMethod(String modelClassName) {
         return """
             /**
              * Get the default value for the model class.
@@ -19,6 +19,7 @@ public class CodecDefaultInstanceMethodGenerator {
                 return $modelClass.getDefaultInstance();
             }
             """
+                .replace("$modelClass", modelClassName)
                 .indent(DEFAULT_INDENT);
     }
 }

@@ -124,7 +124,7 @@ public final class CodecGenerator implements Generator {
                     .replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))
                     .replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
                     .replace("$fastEqualsMethod", CodecFastEqualsMethodGenerator.generateFastEqualsMethod(modelClassName, fields))
-                    .replace("$getDefaultInstanceMethod", generateGetDefaultInstanceMethod())
+                    .replace("$getDefaultInstanceMethod", generateGetDefaultInstanceMethod(modelClassName))
             );
         // spotless:on
         }
