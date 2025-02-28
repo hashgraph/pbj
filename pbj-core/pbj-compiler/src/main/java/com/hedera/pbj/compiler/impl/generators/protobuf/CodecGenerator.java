@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
+import static com.hedera.pbj.compiler.impl.generators.protobuf.CodecDefaultInstanceMethodGenerator.generateGetDefaultInstanceMethod;
+
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
@@ -18,8 +20,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-
-import static com.hedera.pbj.compiler.impl.generators.protobuf.CodecDefaultInstanceMethodGenerator.generateGetDefaultInstanceMethod;
 
 /**
  * Code generator that parses protobuf files and generates writers for each message type.

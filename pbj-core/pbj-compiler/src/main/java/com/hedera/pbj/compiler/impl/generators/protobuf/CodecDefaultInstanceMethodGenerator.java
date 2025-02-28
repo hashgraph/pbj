@@ -1,7 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
-
 
 /**
  * Generates the getDefaultInstance method for the codec.
@@ -19,6 +19,6 @@ public class CodecDefaultInstanceMethodGenerator {
                 return $modelClass.getDefaultInstance();
             }
             """
-            .indent(DEFAULT_INDENT);
+                .indent(DEFAULT_INDENT);
     }
 }
