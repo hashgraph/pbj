@@ -3,7 +3,7 @@ pluginManagement {
     includeBuild("../pbj-core") // use locally built 'pbj-core' (Gradle plugin)
 }
 
-plugins { id("org.hiero.gradle.build") version "0.3.4" }
+plugins { id("org.hiero.gradle.build") version "0.3.5" }
 
 // Downgrade 'dependency-analysis-gradle-plugin' due to regression in 2.7.0
 // https://github.com/autonomousapps/dependency-analysis-gradle-plugin/issues/1364
