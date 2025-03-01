@@ -125,4 +125,9 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
     default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
         return Objects.equals(item, parse(input));
     }
+
+    @Override
+    default T getDefaultInstance() {
+        return null;
+    }
 }

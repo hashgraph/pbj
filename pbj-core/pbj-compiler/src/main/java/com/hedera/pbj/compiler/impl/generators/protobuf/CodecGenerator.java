@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
+import static com.hedera.pbj.compiler.impl.generators.protobuf.CodecDefaultInstanceMethodGenerator.generateGetDefaultInstanceMethod;
+
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
@@ -105,6 +107,7 @@ public final class CodecGenerator implements Generator {
                     $measureDataMethod
                     $measureRecordMethod
                     $fastEqualsMethod
+                    $getDefaultInstanceMethod
                     }
                     """
                     .replace("$package", codecPackage)
@@ -121,6 +124,7 @@ public final class CodecGenerator implements Generator {
                     .replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))
                     .replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
                     .replace("$fastEqualsMethod", CodecFastEqualsMethodGenerator.generateFastEqualsMethod(modelClassName, fields))
+                    .replace("$getDefaultInstanceMethod", generateGetDefaultInstanceMethod(modelClassName))
             );
         // spotless:on
         }
