@@ -47,4 +47,9 @@ class CodecWrapper<T> implements Codec<T> {
     public boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public T getDefaultInstance() {
+        throw new UnsupportedOperationException();
+    }
 }

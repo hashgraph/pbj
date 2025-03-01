@@ -531,5 +531,10 @@ class ProtoParserToolsTest {
                 throws ParseException {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public TestMessage getDefaultInstance() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

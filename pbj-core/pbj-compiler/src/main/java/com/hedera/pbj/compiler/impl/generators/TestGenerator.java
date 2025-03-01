@@ -410,8 +410,8 @@ public final class TestGenerator implements Generator {
                 @Test
                 public void testCodecGetDefaultValueMethod(){
                     final var codec = $modelClassName.PROTOBUF;
-                    final var codecDefaultValue = codec.getDefaultValue();
-                    assertEquals($modelClassName.DEFAULT, codecDefaultValue);
+                    final var codecDefaultInstance = codec.getDefaultInstance();
+                    assertEquals($modelClassName.DEFAULT, codecDefaultInstance);
                 }
                 """
                 .replace("$modelClassName",modelClassName)

@@ -15,8 +15,9 @@ public class CodecDefaultInstanceMethodGenerator {
              *
              * @return The default value for the model class
              */
+            @Override
             public $modelClass getDefaultInstance() {
-                return $modelClass.getDefaultInstance();
+                return $modelClass.DEFAULT;
             }
             """
                 .replace("$modelClass", modelClassName)

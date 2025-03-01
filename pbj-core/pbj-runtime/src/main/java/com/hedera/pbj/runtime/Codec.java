@@ -182,4 +182,11 @@ public interface Codec<T /*extends Record*/> {
         }
         return Bytes.wrap(bytes);
     }
+
+    /**
+     * Get the default value for the model class.
+     *
+     * @return The default value for the model class
+     */
+    T getDefaultInstance();
 }
