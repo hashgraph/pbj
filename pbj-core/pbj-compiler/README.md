@@ -123,5 +123,5 @@ For each generated model object there is a unit test generated that tests the pr
 
 ## Generated Code Formatting
 The generated code is formatted with clean indenting and comments, just like you would write by hand. Engineers working 
-on compiler should put the effort in to keep generated code clean. A future option might be to add a post-processing 
+on the compiler should put the effort in to keep generated code clean. A future option might be to add a post-processing
 step with spotify or similar to auto format generated code.
