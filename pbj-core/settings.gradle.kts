@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.3.5" }
+plugins { id("org.hiero.gradle.build") version "0.3.6" }
 
 javaModules {
     directory(".") {
