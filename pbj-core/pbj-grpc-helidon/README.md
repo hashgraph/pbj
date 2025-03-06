@@ -1,6 +1,6 @@
 # PBJ GRPC Helidon
 
-This project produces a module for Helidon that enables native support for PBJ gRPC services. The aim is to have full 
+This project produces a module for Helidon that enables native support for PBJ gRPC services. The aim is to have full
 GRPC support going directly to PBJ model objects and not via protoc objects. This is also designed around a security
 philosophy of fail fast. With the aim of minimizing the server resources an attacker might consume on a single bad request.
 
