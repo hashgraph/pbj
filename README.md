@@ -1,4 +1,4 @@
-# pbj Protobuf Library
+# PBJ Protobuf Java Library
 An alternative Google Protocol Buffers code generator, parser, and Gradle module. The project has these design goals:
  * **Modern Nice Java Objects** - parse the proto files into nice clean Java objects. With as clean as API as possible. 
      Using the newer Java Record style getters and setters. Support latest LTS Java version features.
