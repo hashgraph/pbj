@@ -113,7 +113,7 @@ The generated code includes the schema class for each model object that provides
 messages fields and their types. This is used by the codecs to encode and decode the messages. It could be useful for
 other use cases in the future.
 ### Generated Builders
-A builder class is generated for each model object that provides a fluent API for building the model object. There is 
+A builder class is generated for each model object that provides a fluent API for building the model object. There are
 two static convenience methods generated `MyModelObject.newBuilder()` and `MyModelObject.copyBuilder()`. The 
 `copyBuilder()` provides an easy way to create a modified version of this model object as the model objects are 
 immutable.
