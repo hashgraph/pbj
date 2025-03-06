@@ -14,9 +14,9 @@ An alternative Google Protocol Buffers code generator, parser, and Gradle module
      serialized objects and signatures of objects are dependable.
  * **Stable hashCode() and equals()** - produce stable hashCode() and equals() methods for generated model objects that 
      are suitable for long term storage of objects in hash maps. This includes handling of new fields being added to 
-     objects so just like wire format fields with default value are not included in hashCode() and equals() methods. 
-     This allows new fields with default values to be added to key objects without effecting hashcode or equals. 
- * **Keep "[JEP 401: Value Classes and Objects](https://openjdk.org/jeps/401)" in mind** If possible design generated 
+     objects so, just like wire format, fields with default value are not included in hashCode() and equals() methods. 
+     This allows new fields with default values to be added to key objects without affecting hashcode or equals. 
+ * **Keep "[JEP 401: Value Classes and Objects](https://openjdk.org/jeps/401)" in mind** - If possible design generated 
      model objects to work as Value Classes when available.
  * **Minimal 3rd party dependencies** - only use 3rd party libraries when they are really needed and are well maintained
  * **Low level protobuf read/write API** - provide low level API for manually reading/writing protobuf in buffers, byte 
@@ -28,7 +28,7 @@ An alternative Google Protocol Buffers code generator, parser, and Gradle module
 
 These design goals often compete with each other so this project tries to strike the right balance for use in the 
 [Hiero Consensus Node](https://github.com/hiero-ledger/hiero-consensus-node) project. The hope is that balance might well be useful in many other projects. There is still plenty of work 
-to achieve these goals and will probably always we improvements that can be made but this is what the project is 
+to achieve these goals, and will probably always be improvements that can be made, but this is what the project is 
 striving for.
 
 ### There are 2 top level gradle projects, click any project to see more details:
@@ -41,7 +41,7 @@ striving for.
   * ### [**Integration Tests** `pbj-integration-tests`](pbj-integration-tests/README.md) 
 
 ## Build Libraries
-Running `gradle build` in `pbj-core` directory will build the libraries for compiler, runtime & grpc.
+Running `gradle build` in `pbj-core` directory will build the libraries for compiler, runtime, and grpc.
 
 ## Run Integration Tests
 Running `gradle build` in `pbj-integration-tests` will check out the latest proto source files from the
