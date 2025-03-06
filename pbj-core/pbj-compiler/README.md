@@ -118,7 +118,7 @@ two static convenience methods generated `MyModelObject.newBuilder()` and `MyMod
 `copyBuilder()` provides an easy way to create a modified version of this model object as the model objects are 
 immutable.
 ### Generated Unit Tests
-For each generated model object there is a unit test generate that tests the protobuf and JSON codecs against the
+For each generated model object there is a unit test generated that tests the protobuf and JSON codecs against the
 *protoc* generated code to make sure they are 100% byte for byte binary compatible.
 
 ## Generated Code Formatting
