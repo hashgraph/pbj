@@ -1,9 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.test;
 
 import static com.hedera.pbj.compiler.PbjCompiler.compileFilesIn;
-
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.net.URI;
@@ -11,6 +9,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class SubTypesTest {
     @TempDir
