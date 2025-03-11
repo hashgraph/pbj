@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>> This comment is special code for setting PBJ Compiler java package
+
+import "sub_types_import.proto";
+
+message PartitionResponse {
+  oneof response {
+    // Verify if we're able to reference inner and imported types w/o using fully qualified names
+    FullResponse.Acknowledgement acknowledgement = 1;
+    FullResponse.EndOfStream status = 2;
+    ImportedChildAcknowledgement imported_ack = 3;
+    OuterImportedMessage.InnerImportedMessage inner_imported_ack = 4;
+  }
+}
+
+message FullResponse {
+  message Acknowledgement {
+    oneof acknowledgements {
+      FullResponse.ChildAcknowledgement child_ack = 271;
+      FullResponse.ParentAcknowledgement parent_ack = 272;
+    }
+  }
+  message ParentAcknowledgement {
+    uint32 child_count = 872;
+  }
+  message ChildAcknowledgement {
+    uint32 partition_count = 1438;
+  }
+  enum EndOfStream {
+    UNKNOWN = 0;
+    CANCELED = 1;
+  }
+}
