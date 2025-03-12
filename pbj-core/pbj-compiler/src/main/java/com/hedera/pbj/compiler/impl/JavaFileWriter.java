@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
  * This abstraction provides support for maintaining a set of import statements that may be required by any java
  * entities being generated using this abstraction.
  *
- * Note: the `generate()` method currently hard-codes a particular license header by design. It may be made configurable
+ * Note: the `writeFile()` method currently hard-codes a particular license header by design. It may be made configurable
  * in the future if required.
  */
 public final class JavaFileWriter {
@@ -70,7 +70,7 @@ public final class JavaFileWriter {
      * It's technically possible to call this method multiple times. It's even possible to add more imports
      * or append more text between the calls. However, it will overwrite the exact same file each time,
      * although it will write all the latest updates to the imports and the text on each invocation.
-     * If the imports and/or text are updated and this `generate()` method is not invoked after the update,
+     * If the imports and/or text are updated and this `writeFile()` method is not invoked after the update,
      * then the latest updates will not be persisted.
      *
      * @throws IOException if an I/O error occurs
