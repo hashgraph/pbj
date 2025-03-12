@@ -10,7 +10,7 @@ import java.io.IOException;
  * There's not a lot of logic around the set of JavaFileWriter objects, and for this reason they
  * are exposed as `public final` fields directly.
  */
-public class FileSetWriter {
+public final class FileSetWriter {
     public final JavaFileWriter modelWriter;
     public final JavaFileWriter schemaWriter;
     public final JavaFileWriter codecWriter;
