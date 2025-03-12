@@ -132,6 +132,48 @@ public final class LookupHelper {
         }
     }
 
+    private String getFullyQualifiedProtoMessageName(final String messageType, final ParserRuleContext context) {
+        // messageType can be a fully qualified name already, or it may be an unqualified, or partially qualified name.
+        // Check all known fully qualified names, both local and imported:
+        if (pbjPackageMap.containsKey(messageType)) {
+            // It's a known fully-qualified name already
+            return messageType;
+        }
+
+        // We know this is a partial, non-fully-qualified name at this point. It may be defined
+        // as an inner type in the current message that we're parsing, or as an inner type
+        // in the next-level-outer-message and so on recursively, or it can be a top-level
+        // type in the current file.
+        // It can also be an imported type from another file that is in the same proto package.
+        // Just walk up the parsing tree recursively and try every level as a prefix:
+        ParserRuleContext parentContext = context;
+        while ((parentContext = parentContext.getParent()) != null) {
+            if (parentContext instanceof MessageDefContext ctx) {
+                final String msgName = ctx.messageName().getText();
+                final String tryName = getFullyQualifiedProtoMessageName(msgName + "." + messageType, ctx);
+                if (tryName != null) {
+                    return tryName;
+                }
+            } else if (parentContext instanceof Protobuf3Parser.ProtoContext ctx) {
+                // We've reached the top-level context. Weirdly, the grammar allows for multiple package
+                // statements, so simply try each:
+                for (final Protobuf3Parser.PackageStatementContext psc : ctx.packageStatement()) {
+                    final String packageName = psc.fullIdent().getText();
+                    if (packageName == null || packageName.isBlank()) {
+                        continue;
+                    }
+                    final String tryName = getFullyQualifiedProtoMessageName(packageName + "." + messageType, ctx);
+                    if (tryName != null) {
+                        return tryName;
+                    }
+                }
+            }
+        }
+
+        // Well, we searched everywhere and couldn't find any matching names.
+        return null;
+    }
+
     /**
      * Get the fully qualified proto name for a message, enum or a message type. For example
      * "proto.GetAccountDetailsResponse.AccountDetails" would return
@@ -144,31 +186,20 @@ public final class LookupHelper {
     public String getFullyQualifiedProtoName(final File protoSrcFile, final ParserRuleContext context) {
         if (context instanceof final MessageTypeContext msgTypeContext) {
             final String messageType = msgTypeContext.getText();
-            // check if fully qualified
-            if (messageType.contains(".")) {
+
+            // Ugly, but this is how PBJ implements the built-in "support" for Google Protobuf boxed types...
+            // Imports for "google/protobuf/wrappers.proto" are ignored elsewhere in PBJ,
+            // so we cannot really refer to the real Google types that we refuse to import physically.
+            // This is the only option for now:
+            if (messageType.startsWith("google.protobuf.")) {
                 return messageType;
             }
-            // check local file message types
-            final var messageMapLocal = msgAndEnumByFile.get(protoSrcFile.getAbsolutePath());
-            if (messageMapLocal == null) {
-                throw new PbjCompilerException(FAILED_TO_FIND_LOCAL_MSG_MAP_MESSAGE.formatted(protoSrcFile));
+
+            final String fullyQualifiedProtoMessageName = getFullyQualifiedProtoMessageName(messageType, context);
+            if (fullyQualifiedProtoMessageName != null) {
+                return fullyQualifiedProtoMessageName;
             }
-            final String nameFoundInLocalFile = messageMapLocal.get(messageType);
-            if (nameFoundInLocalFile != null) {
-                return nameFoundInLocalFile;
-            }
-            // message type is not from local file so check imported files
-            for (final var importedProtoFilePath : protoFileImports.get(protoSrcFile.getAbsolutePath())) {
-                final var messageMap = msgAndEnumByFile.get(importedProtoFilePath);
-                if (messageMap == null) {
-                    throw new PbjCompilerException(
-                            FAILED_TO_FIND_LOCAL_MSG_MAP_MESSAGE.formatted(importedProtoFilePath));
-                }
-                final var found = messageMap.get(messageType);
-                if (found != null) {
-                    return found;
-                }
-            }
+
             // we failed to find
             final Object[] importsArray =
                     protoFileImports.get(protoSrcFile.getAbsolutePath()).toArray();
@@ -176,6 +207,10 @@ public final class LookupHelper {
             throw new PbjCompilerException(
                     FAILED_TO_FIND_MSG_TYPE_MESSAGE.formatted(messageType, protoSrcFile, importsString));
         } else if (context instanceof MessageDefContext || context instanceof EnumDefContext) {
+            // It's unclear what exactly is being handled in this branch. However, the symbol maps
+            // inside msgAndEnumByFile use unqualified names as keys, meaning that this code doesn't support
+            // having multiple inner classes with the same name located in different outer classes.
+            // We'll get back to fixing this in the second part of https://github.com/hashgraph/pbj/issues/263
             final Map<String, String> fileMap = msgAndEnumByFile.get(protoSrcFile.getAbsolutePath());
             if (fileMap == null) {
                 throw new PbjCompilerException(FAILED_TO_FIND_LOCAL_MSG_MAP_MESSAGE.formatted(protoSrcFile));
