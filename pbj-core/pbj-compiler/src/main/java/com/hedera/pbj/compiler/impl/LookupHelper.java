@@ -132,8 +132,7 @@ public final class LookupHelper {
         }
     }
 
-    private String getFullyQualifiedProtoMessageName(
-            final String messageType, final File protoSrcFile, final ParserRuleContext context) {
+    private String getFullyQualifiedProtoMessageName(final String messageType, final ParserRuleContext context) {
         // messageType can be a fully qualified name already, or it may be an unqualified, or partially qualified name.
         // Check all known fully qualified names, both local and imported:
         if (pbjPackageMap.containsKey(messageType)) {
@@ -151,8 +150,7 @@ public final class LookupHelper {
         while ((parentContext = parentContext.getParent()) != null) {
             if (parentContext instanceof MessageDefContext ctx) {
                 final String msgName = ctx.messageName().getText();
-                final String tryName =
-                        getFullyQualifiedProtoMessageName(msgName + "." + messageType, protoSrcFile, ctx);
+                final String tryName = getFullyQualifiedProtoMessageName(msgName + "." + messageType, ctx);
                 if (tryName != null) {
                     return tryName;
                 }
@@ -161,8 +159,10 @@ public final class LookupHelper {
                 // statements, so simply try each:
                 for (final Protobuf3Parser.PackageStatementContext psc : ctx.packageStatement()) {
                     final String packageName = psc.fullIdent().getText();
-                    final String prefix = (packageName == null || packageName.isBlank()) ? "" : (packageName + ".");
-                    final String tryName = getFullyQualifiedProtoMessageName(prefix + messageType, protoSrcFile, ctx);
+                    if (packageName == null || packageName.isBlank()) {
+                        continue;
+                    }
+                    final String tryName = getFullyQualifiedProtoMessageName(packageName + "." + messageType, ctx);
                     if (tryName != null) {
                         return tryName;
                     }
@@ -195,8 +195,7 @@ public final class LookupHelper {
                 return messageType;
             }
 
-            final String fullyQualifiedProtoMessageName =
-                    getFullyQualifiedProtoMessageName(messageType, protoSrcFile, context);
+            final String fullyQualifiedProtoMessageName = getFullyQualifiedProtoMessageName(messageType, context);
             if (fullyQualifiedProtoMessageName != null) {
                 return fullyQualifiedProtoMessageName;
             }
