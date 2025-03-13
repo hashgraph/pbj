@@ -5,10 +5,8 @@ import static com.hedera.pbj.compiler.impl.Common.*;
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
-import com.hedera.pbj.compiler.impl.FileType;
+import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,15 +27,16 @@ public final class EnumGenerator {
      * Generate a Java enum from protobuf enum
      *
      * @param enumDef the parsed enum def
-     * @param destinationSrcDir The destination source directory to generate into
+     * @param writer the writer to append the generated enum to
      * @param lookupHelper Lookup helper for package information
      * @throws IOException if there was a problem writing generated code
      */
-    public static void generateEnumFile(
-            Protobuf3Parser.EnumDefContext enumDef, File destinationSrcDir, final ContextualLookupHelper lookupHelper)
+    public static void generateEnum(
+            final Protobuf3Parser.EnumDefContext enumDef,
+            final JavaFileWriter writer,
+            final ContextualLookupHelper lookupHelper)
             throws IOException {
         final String enumName = enumDef.enumName().getText();
-        final String modelPackage = lookupHelper.getPackageForEnum(FileType.MODEL, enumDef);
         final String javaDocComment = (enumDef.docComment() == null)
                 ? ""
                 : cleanDocStr(enumDef.docComment().getText().replaceAll("\n \\*\s*\n", "\n * <br>\n"));
@@ -90,12 +89,8 @@ public final class EnumGenerator {
                 System.err.printf("EnumGenerator Warning - Unknown element: %s -- %s%n", item, item.getText());
             }
         }
-        try (FileWriter javaWriter = new FileWriter(getJavaFile(destinationSrcDir, modelPackage, enumName))) {
-            javaWriter.write("package %s;\n\n%s"
-                    .formatted(
-                            modelPackage,
-                            createEnum(javaDocComment, deprecated, enumName, maxIndex, enumValues, false)));
-        }
+
+        writer.append(createEnum(javaDocComment, deprecated, enumName, maxIndex, enumValues, false));
     }
 
     /**
