@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler;
 
+import static com.hedera.pbj.compiler.impl.Common.getJavaFile;
+
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
+import com.hedera.pbj.compiler.impl.FileType;
+import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.LookupHelper;
 import com.hedera.pbj.compiler.impl.generators.EnumGenerator;
 import com.hedera.pbj.compiler.impl.generators.Generator;
@@ -45,7 +49,16 @@ public abstract class PbjCompiler {
                         final Protobuf3Parser.EnumDefContext enumDef = topLevelDef.enumDef();
                         if (enumDef != null) {
                             // run just enum generators for enum
-                            EnumGenerator.generateEnumFile(enumDef, mainOutputDir, contextualLookupHelper);
+                            final String javaPackage =
+                                    contextualLookupHelper.getPackageForEnum(FileType.MODEL, enumDef);
+                            final JavaFileWriter writer = new JavaFileWriter(
+                                    getJavaFile(
+                                            mainOutputDir,
+                                            javaPackage,
+                                            enumDef.enumName().getText()),
+                                    javaPackage);
+                            EnumGenerator.generateEnum(enumDef, writer, contextualLookupHelper);
+                            writer.writeFile();
                         }
                     }
                 } catch (Exception e) {
