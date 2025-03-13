@@ -17,14 +17,14 @@ public class JavaFileWriterTest {
     @Test
     void testWriteFile() throws IOException {
         final File file = new File(outputDir, UUID.randomUUID().toString());
-        final JavaFileWriter generator = new JavaFileWriter(file, "my.test.java.package");
+        final JavaFileWriter writer = new JavaFileWriter(file, "my.test.java.package");
 
-        generator.addImport("java.util.*");
-        generator.addImport("java.io.File");
+        writer.addImport("java.util.*");
+        writer.addImport("java.io.File");
 
-        generator.append("class MyTestJavaClass { /* blah */ }");
+        writer.append("class MyTestJavaClass { /* blah */ }");
 
-        generator.writeFile();
+        writer.writeFile();
 
         final String string = Files.readString(file.toPath());
         assertEquals(
