@@ -5,7 +5,7 @@ import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 import static com.hedera.pbj.compiler.impl.SingleField.getDeprecatedOption;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * A field of type map.
@@ -143,16 +143,16 @@ public record MapField(
      */
     @Override
     public void addAllNeededImports(
-            final Set<String> imports,
+            final Consumer<String> imports,
             final boolean modelImports,
             final boolean codecImports,
             final boolean testImports) {
         if (modelImports) {
-            imports.add("java.util");
+            imports.accept("java.util.*");
         }
         if (codecImports) {
-            imports.add("java.util.stream");
-            imports.add("com.hedera.pbj.runtime.test");
+            imports.accept("java.util.stream.*");
+            imports.accept("com.hedera.pbj.runtime.test.*");
         }
     }
 }

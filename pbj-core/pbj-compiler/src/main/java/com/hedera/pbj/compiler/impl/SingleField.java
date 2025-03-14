@@ -5,7 +5,7 @@ import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Record for Field in Protobuf file. Contains all logic and special cases for fields
@@ -186,12 +186,12 @@ public record SingleField(
      */
     @Override
     public void addAllNeededImports(
-            Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
-        if (repeated || optionalValueType()) imports.add("java.util");
-        if (type == FieldType.BYTES) imports.add("com.hedera.pbj.runtime.io.buffer");
-        if (messageTypeModelPackage != null && modelImports) imports.add(messageTypeModelPackage);
-        if (messageTypeCodecPackage != null && codecImports) imports.add(messageTypeCodecPackage);
-        if (messageTypeTestPackage != null && testImports) imports.add(messageTypeTestPackage);
+            Consumer<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
+        if (repeated || optionalValueType()) imports.accept("java.util.*");
+        if (type == FieldType.BYTES) imports.accept("com.hedera.pbj.runtime.io.buffer.*");
+        if (messageTypeModelPackage != null && modelImports) imports.accept(messageTypeModelPackage + ".*");
+        if (messageTypeCodecPackage != null && codecImports) imports.accept(messageTypeCodecPackage + ".*");
+        if (messageTypeTestPackage != null && testImports) imports.accept(messageTypeTestPackage + ".*");
     }
 
     /**

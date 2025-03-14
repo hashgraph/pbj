@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
+import static com.hedera.pbj.compiler.impl.Common.getJavaFile;
+
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -47,6 +50,19 @@ public final class JavaFileWriter {
         if (javaPackage.isBlank()) {
             throw new IllegalArgumentException("javaPackage must not be blank, instead got: `" + javaPackage + "`");
         }
+    }
+
+    /** A factory to create JavaFileWriter for messages. */
+    public static JavaFileWriter create(
+            final FileType fileType,
+            final File outputDir,
+            final Protobuf3Parser.MessageDefContext msgDef,
+            final ContextualLookupHelper contextualLookupHelper) {
+        final String javaPackage = contextualLookupHelper.getPackageForMessage(fileType, msgDef);
+        return new JavaFileWriter(
+                getJavaFile(
+                        outputDir, javaPackage, contextualLookupHelper.getUnqualifiedClassForMessage(fileType, msgDef)),
+                javaPackage);
     }
 
     /**
