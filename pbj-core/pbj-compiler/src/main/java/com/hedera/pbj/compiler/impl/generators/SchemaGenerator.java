@@ -1,21 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators;
 
-import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.FileType;
+import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -29,27 +26,29 @@ public final class SchemaGenerator implements Generator {
      */
     public void generate(
             final Protobuf3Parser.MessageDefContext msgDef,
+            final JavaFileWriter writer,
             final File destinationSrcDir,
             File destinationTestSrcDir,
             final ContextualLookupHelper lookupHelper)
             throws IOException {
         final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final String schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
-        final String schemaPackage = lookupHelper.getPackageForMessage(FileType.SCHEMA, msgDef);
-        final File javaFile = Common.getJavaFile(destinationSrcDir, schemaPackage, schemaClassName);
         final List<Field> fields = new ArrayList<>();
-        final Set<String> imports = new TreeSet<>();
         for (final var item : msgDef.messageBody().messageElement()) {
             if (item.messageDef() != null) { // process sub messages
-                generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
+                // FUTURE WORK: reuse the current `writer` to inline inner messages
+                final JavaFileWriter subWriter =
+                        JavaFileWriter.create(FileType.SCHEMA, destinationSrcDir, item.messageDef(), lookupHelper);
+                generate(item.messageDef(), subWriter, destinationSrcDir, destinationTestSrcDir, lookupHelper);
+                subWriter.writeFile();
             } else if (item.oneof() != null) { // process one ofs
                 final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
                 fields.add(field);
-                field.addAllNeededImports(imports, true, false, false);
+                field.addAllNeededImports(writer::addImport, true, false, false);
             } else if (item.mapField() != null) { // process map flattenedFields
                 final MapField field = new MapField(item.mapField(), lookupHelper);
                 fields.add(field);
-                field.addAllNeededImports(imports, true, false, false);
+                field.addAllNeededImports(writer::addImport, true, false, false);
             } else if (item.field() != null && item.field().fieldName() != null) {
                 final var field = new SingleField(item.field(), lookupHelper);
                 fields.add(field);
@@ -63,58 +62,50 @@ public final class SchemaGenerator implements Generator {
                 .flatMap(field ->
                         field instanceof OneOfField ? ((OneOfField) field).fields().stream() : Stream.of(field))
                 .collect(Collectors.toList());
+
+        writer.addImport("com.hedera.pbj.runtime.FieldDefinition");
+        writer.addImport("com.hedera.pbj.runtime.FieldType");
+        writer.addImport("com.hedera.pbj.runtime.Schema");
+
         // spotless:off
-        try (FileWriter javaWriter = new FileWriter(javaFile)) {
-            javaWriter.write("""
-                    package $schemaPackage;
-                    
-                    import com.hedera.pbj.runtime.FieldDefinition;
-                    import com.hedera.pbj.runtime.FieldType;
-                    import com.hedera.pbj.runtime.Schema;
-                    $imports
-                    
+        writer.append("""
+                /**
+                 * Schema for $modelClassName model object. Generate based on protobuf schema.
+                 */
+                public final class $schemaClassName implements Schema {
+
                     /**
-                     * Schema for $modelClassName model object. Generate based on protobuf schema.
+                     * Private constructor to prevent instantiation.
                      */
-                    public final class $schemaClassName implements Schema {
-                    
-                        /**
-                         * Private constructor to prevent instantiation.
-                         */
-                         private $schemaClassName() {
-                             // no-op
-                         }
-                    
-                        // -- FIELD DEFINITIONS ---------------------------------------------
-                    
-                    $fields
-                    
-                        // -- OTHER METHODS -------------------------------------------------
-                    
-                        /**
-                         * Check if a field definition belongs to this schema.
-                         *
-                         * @param f field def to check
-                         * @return true if it belongs to this schema
-                         */
-                        public static boolean valid(FieldDefinition f) {
-                            return f != null && getField(f.number()) == f;
-                        }
-                    
-                    $getMethods
+                     private $schemaClassName() {
+                         // no-op
+                     }
+
+                    // -- FIELD DEFINITIONS ---------------------------------------------
+
+                $fields
+
+                    // -- OTHER METHODS -------------------------------------------------
+
+                    /**
+                     * Check if a field definition belongs to this schema.
+                     *
+                     * @param f field def to check
+                     * @return true if it belongs to this schema
+                     */
+                    public static boolean valid(FieldDefinition f) {
+                        return f != null && getField(f.number()) == f;
                     }
-                    """
-                    .replace("$schemaPackage", schemaPackage)
-                    .replace("$imports", imports.isEmpty() ? "" : imports.stream()
-                            .filter(input -> !input.equals(schemaPackage))
-                            .collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")))
-                    .replace("$modelClassName", modelClassName)
-                    .replace("$schemaClassName", schemaClassName)
-                    .replace("$fields", fields.stream().map(Field::schemaFieldsDef)
-                            .collect(Collectors.joining("\n\n")))
-                    .replace("$getMethods", generateGetField(flattenedFields))
-            );
-        }
+
+                $getMethods
+                }
+                """
+                .replace("$modelClassName", modelClassName)
+                .replace("$schemaClassName", schemaClassName)
+                .replace("$fields", fields.stream().map(Field::schemaFieldsDef)
+                        .collect(Collectors.joining("\n\n")))
+                .replace("$getMethods", generateGetField(flattenedFields))
+        );
         // spotless:on
     }
 

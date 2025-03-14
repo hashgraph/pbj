@@ -8,17 +8,15 @@ import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.FileAndPackageNamesConfig;
 import com.hedera.pbj.compiler.impl.FileType;
+import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,6 +33,7 @@ public final class TestGenerator implements Generator {
      */
     public void generate(
             Protobuf3Parser.MessageDefContext msgDef,
+            final JavaFileWriter writer,
             File destinationSrcDir,
             File destinationTestSrcDir,
             final ContextualLookupHelper lookupHelper)
@@ -44,80 +43,77 @@ public final class TestGenerator implements Generator {
         final String testPackage = lookupHelper.getPackageForMessage(FileType.TEST, msgDef);
         final String protoCJavaFullQualifiedClass =
                 lookupHelper.getFullyQualifiedMessageClassname(FileType.PROTOC, msgDef);
-        final File javaFile = Common.getJavaFile(destinationTestSrcDir, testPackage, testClassName);
         final List<Field> fields = new ArrayList<>();
-        final Set<String> imports = new TreeSet<>();
-        imports.add("com.hedera.pbj.runtime.io.buffer");
-        imports.add(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef));
+
+        writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
+        writer.addImport(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef) + ".*");
+
         for (final var item : msgDef.messageBody().messageElement()) {
             if (item.messageDef() != null) { // process sub messages
-                generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
+                // FUTURE WORK: reuse the current `writer` to inline inner messages
+                final JavaFileWriter subWriter =
+                        JavaFileWriter.create(FileType.TEST, destinationTestSrcDir, item.messageDef(), lookupHelper);
+                generate(item.messageDef(), subWriter, destinationSrcDir, destinationTestSrcDir, lookupHelper);
+                subWriter.writeFile();
             } else if (item.oneof() != null) { // process one ofs
                 final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
                 fields.add(field);
-                field.addAllNeededImports(imports, true, false, true);
+                field.addAllNeededImports(writer::addImport, true, false, true);
                 for (var subField : field.fields()) {
-                    subField.addAllNeededImports(imports, true, false, true);
+                    subField.addAllNeededImports(writer::addImport, true, false, true);
                 }
             } else if (item.mapField() != null) { // process map fields
                 final MapField field = new MapField(item.mapField(), lookupHelper);
                 fields.add(field);
-                field.addAllNeededImports(imports, true, false, true);
+                field.addAllNeededImports(writer::addImport, true, false, true);
             } else if (item.field() != null && item.field().fieldName() != null) {
                 final var field = new SingleField(item.field(), lookupHelper);
                 fields.add(field);
                 if (field.type() == Field.FieldType.MESSAGE || field.type() == Field.FieldType.ENUM) {
-                    field.addAllNeededImports(imports, true, false, true);
+                    field.addAllNeededImports(writer::addImport, true, false, true);
                 }
             } else if (item.reserved() == null && item.optionStatement() == null) {
                 System.err.printf("TestGenerator Warning - Unknown element: %s -- %s%n", item, item.getText());
             }
         }
-        imports.add("java.util");
+
+        writer.addImport("java.util.*");
+        writer.addImport("com.google.protobuf.util.JsonFormat");
+        writer.addImport("com.google.protobuf.CodedOutputStream");
+        writer.addImport("com.hedera.pbj.runtime.io.buffer.BufferedData");
+        writer.addImport("com.hedera.pbj.runtime.JsonTools");
+        writer.addImport("org.junit.jupiter.api.Test");
+        writer.addImport("org.junit.jupiter.params.ParameterizedTest");
+        writer.addImport("org.junit.jupiter.params.provider.MethodSource");
+        writer.addImport("com.hedera.pbj.runtime.test.*");
+        writer.addImport("java.util.stream.IntStream");
+        writer.addImport("java.util.stream.Stream");
+        writer.addImport("java.nio.ByteBuffer");
+        writer.addImport("java.nio.CharBuffer");
+        writer.addImport("com.google.protobuf.CodedInputStream");
+        writer.addImport("com.google.protobuf.WireFormat");
+        writer.addImport("java.io.IOException");
+        writer.addImport("java.nio.charset.StandardCharsets");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoTestTools.*");
+        writer.addImport("static org.junit.jupiter.api.Assertions.*");
+
         // spotless:off
-        try (FileWriter javaWriter = new FileWriter(javaFile)) {
-            javaWriter.write(
-                    """
-                    package %s;
-                    
-                    import com.google.protobuf.util.JsonFormat;
-                    import com.google.protobuf.CodedOutputStream;
-                    import com.hedera.pbj.runtime.io.buffer.BufferedData;
-                    import com.hedera.pbj.runtime.JsonTools;
-                    import org.junit.jupiter.api.Test;
-                    import org.junit.jupiter.params.ParameterizedTest;
-                    import org.junit.jupiter.params.provider.MethodSource;
-                    import com.hedera.pbj.runtime.test.*;
-                    import java.util.stream.IntStream;
-                    import java.util.stream.Stream;
-                    import java.nio.ByteBuffer;
-                    import java.nio.CharBuffer;
-                    %s
-                    
-                    import com.google.protobuf.CodedInputStream;
-                    import com.google.protobuf.WireFormat;
-                    import java.io.IOException;
-                    import java.nio.charset.StandardCharsets;
-                    
-                    import static com.hedera.pbj.runtime.ProtoTestTools.*;
-                    import static org.junit.jupiter.api.Assertions.*;
-                    
-                    /**
-                     * Unit Test for %s model object. Generate based on protobuf schema.
-                     */
-                    public final class %s {
-                    %s
-                    %s
-                    }
-                    """.formatted(testPackage, imports.isEmpty() ? "" : imports.stream()
-                                .filter(input -> !input.equals(testPackage))
-                                .collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
-                        modelClassName, testClassName,
+        writer.append(
+                """
+                /**
+                 * Unit Test for %s model object. Generate based on protobuf schema.
+                 */
+                public final class %s {
+                %s
+                %s
+                }
+                """.formatted(
+                        modelClassName,
+                        testClassName,
                         generateTestMethod(modelClassName, protoCJavaFullQualifiedClass).indent(DEFAULT_INDENT),
                         generateModelTestArgumentsMethod(modelClassName, fields).indent(DEFAULT_INDENT)
-                    )
-            );
-        }
+                )
+        );
         // spotless:on
     }
 

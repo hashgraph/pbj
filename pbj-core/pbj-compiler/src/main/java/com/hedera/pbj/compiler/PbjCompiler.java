@@ -4,6 +4,7 @@ package com.hedera.pbj.compiler;
 import static com.hedera.pbj.compiler.impl.Common.getJavaFile;
 
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
+import com.hedera.pbj.compiler.impl.FileSetWriter;
 import com.hedera.pbj.compiler.impl.FileType;
 import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.LookupHelper;
@@ -13,6 +14,8 @@ import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.File;
 import java.io.FileInputStream;
+import java.util.Map;
+import java.util.function.Function;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 
@@ -39,12 +42,20 @@ public abstract class PbjCompiler {
                     for (final var topLevelDef : parsedDoc.topLevelDef()) {
                         final Protobuf3Parser.MessageDefContext msgDef = topLevelDef.messageDef();
                         if (msgDef != null) {
-                            // run all generators for message
-                            for (final var generatorClass : Generator.GENERATORS) {
+                            final FileSetWriter writer =
+                                    FileSetWriter.create(mainOutputDir, testOutputDir, msgDef, contextualLookupHelper);
+                            for (Map.Entry<Class<? extends Generator>, Function<FileSetWriter, JavaFileWriter>> entry :
+                                    Generator.GENERATORS.entrySet()) {
                                 final var generator =
-                                        generatorClass.getDeclaredConstructor().newInstance();
-                                generator.generate(msgDef, mainOutputDir, testOutputDir, contextualLookupHelper);
+                                        entry.getKey().getDeclaredConstructor().newInstance();
+                                generator.generate(
+                                        msgDef,
+                                        entry.getValue().apply(writer),
+                                        mainOutputDir,
+                                        testOutputDir,
+                                        contextualLookupHelper);
                             }
+                            writer.writeAllFiles();
                         }
                         final Protobuf3Parser.EnumDefContext enumDef = topLevelDef.enumDef();
                         if (enumDef != null) {

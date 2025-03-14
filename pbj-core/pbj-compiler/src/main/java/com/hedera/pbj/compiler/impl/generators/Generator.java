@@ -2,12 +2,15 @@
 package com.hedera.pbj.compiler.impl.generators;
 
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
+import com.hedera.pbj.compiler.impl.FileSetWriter;
+import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.generators.json.JsonCodecGenerator;
 import com.hedera.pbj.compiler.impl.generators.protobuf.CodecGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Interface for a code generator from protobuf message definition
@@ -15,14 +18,14 @@ import java.util.List;
 public interface Generator {
 
     /**
-     * List of all generator classes
+     * All generators.
      */
-    List<Class<? extends Generator>> GENERATORS = List.of(
-            ModelGenerator.class,
-            SchemaGenerator.class,
-            CodecGenerator.class,
-            JsonCodecGenerator.class,
-            TestGenerator.class);
+    Map<Class<? extends Generator>, Function<FileSetWriter, JavaFileWriter>> GENERATORS = Map.of(
+            ModelGenerator.class, FileSetWriter::modelWriter,
+            SchemaGenerator.class, FileSetWriter::schemaWriter,
+            CodecGenerator.class, FileSetWriter::codecWriter,
+            JsonCodecGenerator.class, FileSetWriter::jsonCodecWriter,
+            TestGenerator.class, FileSetWriter::testWriter);
 
     /**
      * Generate a code from protobuf message type
@@ -35,6 +38,7 @@ public interface Generator {
      */
     void generate(
             final Protobuf3Parser.MessageDefContext msgDef,
+            final JavaFileWriter writer,
             final File destinationSrcDir,
             File destinationTestSrcDir,
             final ContextualLookupHelper lookupHelper)

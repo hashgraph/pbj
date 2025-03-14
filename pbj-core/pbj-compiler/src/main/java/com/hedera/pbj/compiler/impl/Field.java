@@ -9,7 +9,7 @@ import static com.hedera.pbj.compiler.impl.Common.snakeToCamel;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Interface for SingleFields and OneOfFields
@@ -107,13 +107,13 @@ public interface Field {
     /**
      * Add all the needed imports for this field to the supplied set.
      *
-     * @param imports      set of imports to add to, this contains packages not classes. They are always imported as ".*".
+     * @param imports      collector of imports
      * @param modelImports if imports for this field's generated model classes should be added
      * @param codecImports if imports for this field's generated codec classes should be added
      * @param testImports  if imports for this field's generated test classes should be added
      */
     void addAllNeededImports(
-            Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports);
+            Consumer<String> imports, boolean modelImports, boolean codecImports, final boolean testImports);
 
     /**
      * Get the java code to parse the value for this field from input
