@@ -16,9 +16,10 @@ public record FileSetWriter(
         JavaFileWriter jsonCodecWriter,
         JavaFileWriter testWriter) {
 
+    /** A factory to create a FileSetWriter instance for a given MessageDefContext. */
     public static FileSetWriter create(
-            File mainOutputDir,
-            File testOutputDir,
+            final File mainOutputDir,
+            final File testOutputDir,
             final Protobuf3Parser.MessageDefContext msgDef,
             final ContextualLookupHelper contextualLookupHelper) {
         return new FileSetWriter(
