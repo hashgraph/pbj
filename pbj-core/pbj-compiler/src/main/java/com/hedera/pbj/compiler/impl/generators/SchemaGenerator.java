@@ -9,7 +9,6 @@ import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,20 +26,13 @@ public final class SchemaGenerator implements Generator {
     public void generate(
             final Protobuf3Parser.MessageDefContext msgDef,
             final JavaFileWriter writer,
-            final File destinationSrcDir,
-            File destinationTestSrcDir,
             final ContextualLookupHelper lookupHelper)
             throws IOException {
         final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final String schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
         final List<Field> fields = new ArrayList<>();
         for (final var item : msgDef.messageBody().messageElement()) {
-            if (item.messageDef() != null) { // process sub messages
-                // FUTURE WORK: reuse the current `writer` to inline inner messages
-                final JavaFileWriter subWriter =
-                        JavaFileWriter.create(FileType.SCHEMA, destinationSrcDir, item.messageDef(), lookupHelper);
-                generate(item.messageDef(), subWriter, destinationSrcDir, destinationTestSrcDir, lookupHelper);
-                subWriter.writeFile();
+            if (item.messageDef() != null) { // process sub messages down below
             } else if (item.oneof() != null) { // process one ofs
                 final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
                 fields.add(field);
@@ -63,6 +55,8 @@ public final class SchemaGenerator implements Generator {
                         field instanceof OneOfField ? ((OneOfField) field).fields().stream() : Stream.of(field))
                 .collect(Collectors.toList());
 
+        final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
+
         writer.addImport("com.hedera.pbj.runtime.FieldDefinition");
         writer.addImport("com.hedera.pbj.runtime.FieldType");
         writer.addImport("com.hedera.pbj.runtime.Schema");
@@ -72,7 +66,7 @@ public final class SchemaGenerator implements Generator {
                 /**
                  * Schema for $modelClassName model object. Generate based on protobuf schema.
                  */
-                public final class $schemaClassName implements Schema {
+                public final$staticModifier class $schemaClassName implements Schema {
 
                     /**
                      * Private constructor to prevent instantiation.
@@ -98,15 +92,24 @@ public final class SchemaGenerator implements Generator {
                     }
 
                 $getMethods
-                }
+
                 """
                 .replace("$modelClassName", modelClassName)
+                .replace("$staticModifier", staticModifier)
                 .replace("$schemaClassName", schemaClassName)
                 .replace("$fields", fields.stream().map(Field::schemaFieldsDef)
                         .collect(Collectors.joining("\n\n")))
                 .replace("$getMethods", generateGetField(flattenedFields))
         );
         // spotless:on
+
+        for (final var item : msgDef.messageBody().messageElement()) {
+            if (item.messageDef() != null) { // process sub messages
+                generate(item.messageDef(), writer, lookupHelper);
+            }
+        }
+
+        writer.append("}");
     }
 
     /**

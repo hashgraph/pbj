@@ -13,7 +13,6 @@ import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,13 +33,10 @@ public final class TestGenerator implements Generator {
     public void generate(
             Protobuf3Parser.MessageDefContext msgDef,
             final JavaFileWriter writer,
-            File destinationSrcDir,
-            File destinationTestSrcDir,
             final ContextualLookupHelper lookupHelper)
             throws IOException {
         final var modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final var testClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.TEST, msgDef);
-        final String testPackage = lookupHelper.getPackageForMessage(FileType.TEST, msgDef);
         final String protoCJavaFullQualifiedClass =
                 lookupHelper.getFullyQualifiedMessageClassname(FileType.PROTOC, msgDef);
         final List<Field> fields = new ArrayList<>();
@@ -49,12 +45,7 @@ public final class TestGenerator implements Generator {
         writer.addImport(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef) + ".*");
 
         for (final var item : msgDef.messageBody().messageElement()) {
-            if (item.messageDef() != null) { // process sub messages
-                // FUTURE WORK: reuse the current `writer` to inline inner messages
-                final JavaFileWriter subWriter =
-                        JavaFileWriter.create(FileType.TEST, destinationTestSrcDir, item.messageDef(), lookupHelper);
-                generate(item.messageDef(), subWriter, destinationSrcDir, destinationTestSrcDir, lookupHelper);
-                subWriter.writeFile();
+            if (item.messageDef() != null) { // process sub messages down below
             } else if (item.oneof() != null) { // process one ofs
                 final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
                 fields.add(field);
@@ -75,6 +66,15 @@ public final class TestGenerator implements Generator {
             } else if (item.reserved() == null && item.optionStatement() == null) {
                 System.err.printf("TestGenerator Warning - Unknown element: %s -- %s%n", item, item.getText());
             }
+        }
+
+        final String testClassAnnotations;
+        if (Generator.isInner(msgDef)) {
+            // NOTE: nested Test classes shouldn't be static, otherwise @Nested doesn't work.
+            writer.addImport("org.junit.jupiter.api.Nested");
+            testClassAnnotations = "\n@Nested";
+        } else {
+            testClassAnnotations = "";
         }
 
         writer.addImport("java.util.*");
@@ -101,20 +101,27 @@ public final class TestGenerator implements Generator {
         writer.append(
                 """
                 /**
-                 * Unit Test for %s model object. Generate based on protobuf schema.
-                 */
-                public final class %s {
-                %s
-                %s
-                }
-                """.formatted(
-                        modelClassName,
-                        testClassName,
-                        generateTestMethod(modelClassName, protoCJavaFullQualifiedClass).indent(DEFAULT_INDENT),
-                        generateModelTestArgumentsMethod(modelClassName, fields).indent(DEFAULT_INDENT)
-                )
+                 * Unit Test for $modelClass model object. Generate based on protobuf schema.
+                 */$testClassAnnotations
+                public final class $testClassName {
+                $testMethod
+                $testArguments
+                """
+                .replace("$testClassAnnotations", testClassAnnotations)
+                .replace("$modelClass", modelClassName)
+                .replace("$testClassName", testClassName)
+                .replace("$testMethod", generateTestMethod(modelClassName, protoCJavaFullQualifiedClass).indent(DEFAULT_INDENT))
+                .replace("$testArguments", generateModelTestArgumentsMethod(modelClassName, fields).indent(DEFAULT_INDENT))
         );
         // spotless:on
+
+        for (final var item : msgDef.messageBody().messageElement()) {
+            if (item.messageDef() != null) { // process sub messages
+                generate(item.messageDef(), writer, lookupHelper);
+            }
+        }
+
+        writer.append("}");
     }
 
     private static String generateModelTestArgumentsMethod(final String modelClassName, final List<Field> fields) {

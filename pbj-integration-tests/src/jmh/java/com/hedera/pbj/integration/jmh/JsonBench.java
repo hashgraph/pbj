@@ -5,7 +5,7 @@ import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.token.AccountDetails;
+import com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails;
 import com.hedera.pbj.integration.AccountDetailsPbj;
 import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.runtime.Codec;
@@ -151,10 +151,14 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
 
     @State(Scope.Benchmark)
     public static class AccountDetailsBench
-            extends JsonBench<com.hedera.hapi.node.token.AccountDetails, GetAccountDetailsResponse.AccountDetails> {
+            extends JsonBench<
+                    com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails,
+                    GetAccountDetailsResponse.AccountDetails> {
         @Setup
         public void setup(
-                JsonBenchmarkState<com.hedera.hapi.node.token.AccountDetails, GetAccountDetailsResponse.AccountDetails>
+                JsonBenchmarkState<
+                                com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails,
+                                GetAccountDetailsResponse.AccountDetails>
                         benchmarkState) {
             benchmarkState.configure(
                     AccountDetailsPbj.ACCOUNT_DETAILS,

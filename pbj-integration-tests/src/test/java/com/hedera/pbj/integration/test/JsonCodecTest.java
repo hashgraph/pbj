@@ -7,7 +7,7 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.util.JsonFormat;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.token.AccountDetails;
+import com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails;
 import com.hedera.pbj.integration.AccountDetailsPbj;
 import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;

@@ -3,7 +3,7 @@ package com.hedera.pbj.integration;
 
 import static com.hedera.pbj.integration.AccountDetailsPbj.ACCOUNT_DETAILS;
 
-import com.hedera.hapi.node.token.AccountDetails;
+import com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 import java.util.Arrays;

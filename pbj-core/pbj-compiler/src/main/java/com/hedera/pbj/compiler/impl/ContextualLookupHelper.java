@@ -9,6 +9,7 @@ import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.OneofFieldContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.Type_Context;
 import java.io.File;
 import java.util.List;
+import org.antlr.v4.runtime.ParserRuleContext;
 
 /**
  * Wrapper around LookupHelper adding the context of which protobuf source file the lookup is happening within. This
@@ -109,6 +110,17 @@ public class ContextualLookupHelper {
     }
 
     /**
+     * Get the complete Java class name for a given message and file type, including outer classes names,
+     * but w/o the package name.
+     *
+     * @param typeContext The field to get package for message type for
+     * @return java package to put model class in
+     */
+    public String getCompleteClass(final ParserRuleContext typeContext) {
+        return lookupHelper.getCompleteClass(srcProtoFileContext, typeContext);
+    }
+
+    /**
      * Get the PBJ Java package a class should be generated into for a given fieldContext and file type.
      *
      * @param fileType The type of file we want the package for
@@ -128,5 +140,15 @@ public class ContextualLookupHelper {
      */
     public boolean isEnum(MessageTypeContext messageType) {
         return lookupHelper.isEnum(srcProtoFileContext, messageType);
+    }
+
+    /**
+     * Check if the given messageType is comparable.
+     *
+     * @param messageType to check if enum
+     * @return true if comparable
+     */
+    public boolean isComparable(MessageTypeContext messageType) {
+        return lookupHelper.isComparable(srcProtoFileContext, messageType);
     }
 }

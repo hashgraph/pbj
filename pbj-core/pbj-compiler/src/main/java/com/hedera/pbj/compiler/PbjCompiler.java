@@ -48,12 +48,7 @@ public abstract class PbjCompiler {
                                     Generator.GENERATORS.entrySet()) {
                                 final var generator =
                                         entry.getKey().getDeclaredConstructor().newInstance();
-                                generator.generate(
-                                        msgDef,
-                                        entry.getValue().apply(writer),
-                                        mainOutputDir,
-                                        testOutputDir,
-                                        contextualLookupHelper);
+                                generator.generate(msgDef, entry.getValue().apply(writer), contextualLookupHelper);
                             }
                             writer.writeAllFiles();
                         }

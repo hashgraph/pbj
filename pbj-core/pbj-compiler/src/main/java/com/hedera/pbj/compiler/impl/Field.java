@@ -203,6 +203,24 @@ public interface Field {
                 : typeContext.messageType().messageName().getText();
     }
 
+    /** Check if the given Type_Context is a comparable message. */
+    static boolean isMessageComparable(
+            final Protobuf3Parser.Type_Context typeContext,
+            final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
+        return typeContext.messageType() == null ? false : lookupHelper.isComparable(typeContext.messageType());
+    }
+
+    /**
+     * Extract the complete name of the Java model class for a message type, including outer classes names,
+     * or null if the type is not a message.
+     */
+    static String extractCompleteClassName(
+            final Protobuf3Parser.Type_Context typeContext,
+            final com.hedera.pbj.compiler.impl.FileType fileType,
+            final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
+        return typeContext.messageType() == null ? null : lookupHelper.getCompleteClass(typeContext.messageType());
+    }
+
     /**
      * Extract the name of the Java package for a given FileType for a message type,
      * or null if the type is not a message.

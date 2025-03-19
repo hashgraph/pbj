@@ -12,7 +12,6 @@ import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.generators.Generator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,11 +28,10 @@ public final class CodecGenerator implements Generator {
     public void generate(
             Protobuf3Parser.MessageDefContext msgDef,
             final JavaFileWriter writer,
-            final File destinationSrcDir,
-            File destinationTestSrcDir,
             final ContextualLookupHelper lookupHelper)
             throws IOException {
         final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
+        final String schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
         final String codecClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.CODEC, msgDef);
         final String codecPackage = lookupHelper.getPackageForMessage(FileType.CODEC, msgDef);
 
@@ -42,12 +40,7 @@ public final class CodecGenerator implements Generator {
         writer.addImport(lookupHelper.getPackageForMessage(FileType.SCHEMA, msgDef) + ".*");
 
         for (var item : msgDef.messageBody().messageElement()) {
-            if (item.messageDef() != null) { // process sub messages
-                // FUTURE WORK: reuse the current `writer` to inline inner messages
-                final JavaFileWriter subWriter =
-                        JavaFileWriter.create(FileType.CODEC, destinationSrcDir, item.messageDef(), lookupHelper);
-                generate(item.messageDef(), subWriter, destinationSrcDir, destinationTestSrcDir, lookupHelper);
-                subWriter.writeFile();
+            if (item.messageDef() != null) { // process sub messages down below
             } else if (item.oneof() != null) { // process one ofs
                 final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
                 fields.add(field);
@@ -64,7 +57,10 @@ public final class CodecGenerator implements Generator {
                 System.err.printf("WriterGenerator Warning - Unknown element: %s -- %s%n", item, item.getText());
             }
         }
-        final String writeMethod = CodecWriteMethodGenerator.generateWriteMethod(modelClassName, fields);
+        final String writeMethod =
+                CodecWriteMethodGenerator.generateWriteMethod(modelClassName, schemaClassName, fields);
+
+        final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
 
         writer.addImport("com.hedera.pbj.runtime.*");
         writer.addImport("com.hedera.pbj.runtime.io.*");
@@ -86,7 +82,7 @@ public final class CodecGenerator implements Generator {
                 /**
                  * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
                  */
-                public final class $codecClass implements Codec<$modelClass> {
+                public final$staticModifier class $codecClass implements Codec<$modelClass> {
                 
                     /**
                      * Empty constructor
@@ -102,12 +98,13 @@ public final class CodecGenerator implements Generator {
                 $measureRecordMethod
                 $fastEqualsMethod
                 $getDefaultInstanceMethod
-                }
+
                 """
                 .replace("$modelClass", modelClassName)
+                .replace("$staticModifier", staticModifier)
                 .replace("$codecClass", codecClassName)
                 .replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
-                .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, fields))
+                .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, schemaClassName, fields))
                 .replace("$writeMethod", writeMethod)
                 .replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))
                 .replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
@@ -115,5 +112,13 @@ public final class CodecGenerator implements Generator {
                 .replace("$getDefaultInstanceMethod", generateGetDefaultInstanceMethod(modelClassName))
         );
         // spotless:on
+
+        for (final var item : msgDef.messageBody().messageElement()) {
+            if (item.messageDef() != null) { // process sub messages
+                generate(item.messageDef(), writer, lookupHelper);
+            }
+        }
+
+        writer.append("}");
     }
 }
