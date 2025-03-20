@@ -64,6 +64,11 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     private final int length;
 
     /**
+     * The hash code of this {@link Bytes}. This is cached to avoid recomputing it multiple times.
+     */
+    private int hashCode = 0;
+
+    /**
      * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps so
      * any changes to arrays contents will be effected here.
      *
@@ -466,11 +471,20 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      */
     @Override
     public int hashCode() {
-        int h = 1;
-        for (int i = start + length - 1; i >= start; i--) {
-            h = 31 * h + UnsafeUtils.getArrayByteNoChecks(buffer, i);
+        if (hashCode == 0 && length > 0) {
+            if (length == 1) {
+                hashCode = 31 + (int) buffer[start];
+            } else if (start == 0 && length == buffer.length) {
+                hashCode = Arrays.hashCode(buffer);
+            } else {
+                int h = 1;
+                for (int i = start + length - 1; i >= start; i--) {
+                    h = 31 * h + UnsafeUtils.getArrayByteNoChecks(buffer, i);
+                }
+                hashCode = h;
+            }
         }
-        return h;
+        return hashCode;
     }
 
     // ================================================================================================================
