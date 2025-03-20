@@ -133,7 +133,7 @@ final class JsonCodecWriteMethodGenerator {
                         .replace(
                                 "$codec",
                                 ((SingleField) field).messageTypeModelPackage() + "."
-                                        + Common.capitalizeFirstLetter(field.messageType()) + ".JSON");
+                                        + ((SingleField) field).completeClassName() + ".JSON");
                 default -> "arrayField($fieldName, $fieldDef, $valueCode)"
                         .replace("$fieldName", fieldName)
                         .replace("$fieldDef", fieldDef)
@@ -168,7 +168,7 @@ final class JsonCodecWriteMethodGenerator {
                         .replace(
                                 "$codec",
                                 ((SingleField) field).messageTypeModelPackage() + "."
-                                        + Common.capitalizeFirstLetter(field.messageType()) + ".JSON");
+                                        + ((SingleField) field).completeClassName() + ".JSON");
                 default -> "field(%s, %s)".formatted(fieldName, getValueCode);
             };
         }

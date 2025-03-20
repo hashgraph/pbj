@@ -19,9 +19,14 @@ import java.util.stream.Stream;
  */
 final class CodecWriteMethodGenerator {
 
-    static String generateWriteMethod(final String modelClassName, final List<Field> fields) {
+    static String generateWriteMethod(
+            final String modelClassName, final String schemaClassName, final List<Field> fields) {
         final String fieldWriteLines = buildFieldWriteLines(
-                modelClassName, fields, field -> "data.%s()".formatted(field.nameCamelFirstLower()), true);
+                modelClassName,
+                schemaClassName,
+                fields,
+                field -> "data.%s()".formatted(field.nameCamelFirstLower()),
+                true);
         // spotless:off
         return
             """
@@ -44,6 +49,7 @@ final class CodecWriteMethodGenerator {
 
     private static String buildFieldWriteLines(
             final String modelClassName,
+            final String schemaClassName,
             final List<Field> fields,
             final Function<Field, String> getValueBuilder,
             final boolean skipDefault) {
@@ -52,7 +58,8 @@ final class CodecWriteMethodGenerator {
                         ? ((OneOfField) field).fields().stream()
                         : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
-                .map(field -> generateFieldWriteLines(field, modelClassName, getValueBuilder.apply(field), skipDefault))
+                .map(field -> generateFieldWriteLines(
+                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
                 .collect(Collectors.joining("\n"))
                 .indent(DEFAULT_INDENT);
     }
@@ -67,8 +74,12 @@ final class CodecWriteMethodGenerator {
      * @return java code to write field to output
      */
     private static String generateFieldWriteLines(
-            final Field field, final String modelClassName, String getValueCode, boolean skipDefault) {
-        final String fieldDef = Common.camelToUpperSnake(field.name());
+            final Field field,
+            final String modelClassName,
+            final String schemaClassName,
+            String getValueCode,
+            boolean skipDefault) {
+        final String fieldDef = schemaClassName + "." + Common.camelToUpperSnake(field.name());
         String prefix = "// [%d] - %s%n".formatted(field.fieldNumber(), field.name());
 
         if (field.parent() != null) {
@@ -103,7 +114,7 @@ final class CodecWriteMethodGenerator {
             String codecReference = "";
             if (Field.FieldType.MESSAGE.equals(field.type())) {
                 codecReference = "%s.%s.PROTOBUF".formatted(((SingleField) field).messageTypeModelPackage(),
-                        Common.capitalizeFirstLetter(field.messageType()));
+                        ((SingleField) field).completeClassName());
             }
             if (field.repeated()) {
                 return prefix + switch(field.type()) {
@@ -131,6 +142,7 @@ final class CodecWriteMethodGenerator {
                         mapEntryField == mapField.keyField() ? "k" : (mapEntryField == mapField.valueField() ? "v" : null);
                 final String fieldWriteLines = buildFieldWriteLines(
                         field.name(),
+                        schemaClassName,
                         mapEntryFields,
                         getValueBuilder,
                         false);

@@ -24,6 +24,8 @@ public record SingleField(
         int fieldNumber,
         String name,
         String messageType,
+        boolean comparable,
+        String completeClassName,
         String messageTypeModelPackage,
         String messageTypeCodecPackage,
         String messageTypeTestPackage,
@@ -45,6 +47,8 @@ public record SingleField(
                 Integer.parseInt(fieldContext.fieldNumber().getText()),
                 fieldContext.fieldName().getText(),
                 Field.extractMessageTypeName(fieldContext.type_()),
+                Field.isMessageComparable(fieldContext.type_(), lookupHelper),
+                Field.extractCompleteClassName(fieldContext.type_(), FileType.MODEL, lookupHelper),
                 Field.extractMessageTypePackage(fieldContext.type_(), FileType.MODEL, lookupHelper),
                 Field.extractMessageTypePackage(fieldContext.type_(), FileType.CODEC, lookupHelper),
                 Field.extractMessageTypePackage(fieldContext.type_(), FileType.TEST, lookupHelper),
@@ -72,6 +76,12 @@ public record SingleField(
                 (fieldContext.type_().messageType() == null)
                         ? null
                         : fieldContext.type_().messageType().messageName().getText(),
+                (fieldContext.type_().messageType() == null)
+                        ? false
+                        : Field.isMessageComparable(fieldContext.type_(), lookupHelper),
+                (fieldContext.type_().messageType() == null)
+                        ? null
+                        : lookupHelper.getCompleteClass(fieldContext.type_().messageType()),
                 (fieldContext.type_().messageType() == null)
                         ? null
                         : lookupHelper.getPackageOneofFieldMessageType(FileType.MODEL, fieldContext),
@@ -190,6 +200,8 @@ public record SingleField(
         if (repeated || optionalValueType()) imports.accept("java.util.*");
         if (type == FieldType.BYTES) imports.accept("com.hedera.pbj.runtime.io.buffer.*");
         if (messageTypeModelPackage != null && modelImports) imports.accept(messageTypeModelPackage + ".*");
+        if (messageTypeModelPackage != null && completeClassName != null && modelImports)
+            imports.accept(messageTypeModelPackage + "." + completeClassName);
         if (messageTypeCodecPackage != null && codecImports) imports.accept(messageTypeCodecPackage + ".*");
         if (messageTypeTestPackage != null && testImports) imports.accept(messageTypeTestPackage + ".*");
     }

@@ -77,6 +77,12 @@ public final class LookupHelper {
     private final Map<String, String> pbjPackageMap = new HashMap<>();
 
     /**
+     * Map from fully qualified msgDef name to complete Java class name, including outer classes names,
+     * but w/o a java package prefix.
+     */
+    private final Map<String, String> pbjCompleteClassMap = new HashMap<>();
+
+    /**
      * Map from fully qualified msgDef name to fully qualified protoc java package, not including
      * java class
      */
@@ -250,14 +256,18 @@ public final class LookupHelper {
         if (isEnum) {
             return name;
         } else {
-            return switch (fileType) {
-                case MODEL, PROTOC -> name;
-                case SCHEMA -> name + FileAndPackageNamesConfig.SCHEMA_JAVA_FILE_SUFFIX;
-                case CODEC -> name + FileAndPackageNamesConfig.CODEC_JAVA_FILE_SUFFIX;
-                case JSON_CODEC -> name + FileAndPackageNamesConfig.JSON_CODEC_JAVA_FILE_SUFFIX;
-                case TEST -> name + FileAndPackageNamesConfig.TEST_JAVA_FILE_SUFFIX;
-            };
+            return formatFileTypeName(name, fileType);
         }
+    }
+
+    String formatFileTypeName(final String name, final FileType fileType) {
+        return switch (fileType) {
+            case MODEL, PROTOC -> name;
+            case SCHEMA -> name + FileAndPackageNamesConfig.SCHEMA_JAVA_FILE_SUFFIX;
+            case CODEC -> name + FileAndPackageNamesConfig.CODEC_JAVA_FILE_SUFFIX;
+            case JSON_CODEC -> name + FileAndPackageNamesConfig.JSON_CODEC_JAVA_FILE_SUFFIX;
+            case TEST -> name + FileAndPackageNamesConfig.TEST_JAVA_FILE_SUFFIX;
+        };
     }
 
     /**
@@ -316,17 +326,39 @@ public final class LookupHelper {
         if (context instanceof MessageDefContext
                 || context instanceof EnumDefContext
                 || context instanceof MessageTypeContext) {
-            final String packageName = getPackage(protoSrcFile, fileType, context);
+            return getPackage(protoSrcFile, fileType, context)
+                    + '.'
+                    + formatCompleteClass(protoSrcFile, fileType, context);
+        } else {
+            throw new UnsupportedOperationException(METHOD_WRONG_CONTEXT_MESSAGE.formatted("getFullyQualifiedClass"));
+        }
+    }
+
+    /**
+     * Format the complete Java class name for a given message/enum being parsed and file type, including outer classes names,
+     * but w/o the package name.
+     *
+     * @param protoSrcFile the proto source file that the message or enum is in
+     * @param fileType The type of file we want the class name for
+     * @param context Parser Context, a message or enum
+     * @return fully qualified Java class name
+     */
+    String formatCompleteClass(final File protoSrcFile, final FileType fileType, final ParserRuleContext context) {
+        if (context instanceof MessageDefContext
+                || context instanceof EnumDefContext
+                || context instanceof MessageTypeContext) {
             final String messageName = getUnqualifiedClass(protoSrcFile, fileType, context);
             // protoc supports nested classes so need parent classes/messages
             final String parentClasses;
-            if (fileType == FileType.PROTOC && context.getParent() instanceof MessageElementContext) {
+            if (context.getParent() instanceof MessageElementContext) {
                 final StringBuilder sb = new StringBuilder();
                 ParserRuleContext parent = context.getParent();
                 while (!(parent instanceof TopLevelDefContext)) {
                     if (parent instanceof MessageDefContext) {
                         sb.insert(0, '.');
-                        sb.insert(0, ((MessageDefContext) parent).messageName().getText());
+                        final String name =
+                                ((MessageDefContext) parent).messageName().getText();
+                        sb.insert(0, fileType == FileType.PROTOC ? name : formatFileTypeName(name, fileType));
                     }
                     parent = parent.getParent();
                 }
@@ -334,10 +366,22 @@ public final class LookupHelper {
             } else {
                 parentClasses = "";
             }
-            return packageName + '.' + parentClasses + messageName;
+            return parentClasses + messageName;
         } else {
-            throw new UnsupportedOperationException(METHOD_WRONG_CONTEXT_MESSAGE.formatted("getFullyQualifiedClass"));
+            throw new UnsupportedOperationException(METHOD_WRONG_CONTEXT_MESSAGE.formatted("formatCompleteClass"));
         }
+    }
+
+    /**
+     * Get the complete Java class name for a given message, including outer classes names,
+     * but w/o the package name.
+     *
+     * @param protoSrcFile the proto source file that the message or enum is in
+     * @param context Parser Context, a message
+     * @return fully qualified Java class name, or null
+     */
+    String getCompleteClass(final File protoSrcFile, final ParserRuleContext context) {
+        return pbjCompleteClassMap.get(getFullyQualifiedProtoName(protoSrcFile, context));
     }
 
     /**
@@ -358,6 +402,27 @@ public final class LookupHelper {
      */
     boolean isEnum(final File protoSrcFile, final MessageTypeContext messageType) {
         return isEnum(getFullyQualifiedProtoName(protoSrcFile, messageType));
+    }
+
+    /**
+     * Check if the given fullyQualifiedMessageOrEnumName is comparable
+     *
+     * @param fullyQualifiedMessageOrEnumName to check if enum
+     * @return true if comparable
+     */
+    private boolean isComparable(final String fullyQualifiedMessageOrEnumName) {
+        return comparableFieldsByMsg.get(fullyQualifiedMessageOrEnumName) != null
+                && !comparableFieldsByMsg.get(fullyQualifiedMessageOrEnumName).isEmpty();
+    }
+
+    /**
+     * Check if the given fullyQualifiedMessageOrEnumName is comparable
+     *
+     * @param messageType field message type to check if enum
+     * @return true if comparable
+     */
+    boolean isComparable(final File protoSrcFile, final MessageTypeContext messageType) {
+        return isComparable(getFullyQualifiedProtoName(protoSrcFile, messageType));
     }
 
     // =================================================================================================================
@@ -475,6 +540,10 @@ public final class LookupHelper {
         for (final var entry : pbjPackageMap.entrySet()) {
             System.out.printf("entry = %s = %s%n", entry.getKey(), entry.getValue());
         }
+        System.out.println("== Complete Class Map =========================================================");
+        for (final var entry : pbjCompleteClassMap.entrySet()) {
+            System.out.printf("    %s => %s%n", entry.getKey(), entry.getValue());
+        }
         System.out.println("== Enum Names =================================================================");
         for (final var enumName : enumNames) {
             System.out.printf("enumName = %s%n", enumName);
@@ -540,6 +609,8 @@ public final class LookupHelper {
         }
         // insert into maps
         pbjPackageMap.put(fullyQualifiedMessage, messagePbjPackage);
+        pbjCompleteClassMap.put(
+                fullyQualifiedMessage, formatCompleteClass(new File(fullQualifiedFile), FileType.MODEL, msgDef));
         protocPackageMap.put(fullyQualifiedMessage, fileLevelProtocJavaPackage);
         msgAndEnumByFile
                 .computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>())

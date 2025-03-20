@@ -10,7 +10,6 @@ import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.generators.Generator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,8 +26,6 @@ public final class JsonCodecGenerator implements Generator {
     public void generate(
             Protobuf3Parser.MessageDefContext msgDef,
             final JavaFileWriter writer,
-            final File destinationSrcDir,
-            File destinationTestSrcDir,
             final ContextualLookupHelper lookupHelper)
             throws IOException {
         final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
@@ -39,12 +36,7 @@ public final class JsonCodecGenerator implements Generator {
         writer.addImport(lookupHelper.getPackageForMessage(FileType.SCHEMA, msgDef) + ".*");
 
         for (var item : msgDef.messageBody().messageElement()) {
-            if (item.messageDef() != null) { // process sub messages
-                // FUTURE WORK: reuse the current `writer` to inline inner messages
-                final JavaFileWriter subWriter =
-                        JavaFileWriter.create(FileType.JSON_CODEC, destinationSrcDir, item.messageDef(), lookupHelper);
-                generate(item.messageDef(), subWriter, destinationSrcDir, destinationTestSrcDir, lookupHelper);
-                subWriter.writeFile();
+            if (item.messageDef() != null) { // process sub messages down below
             } else if (item.oneof() != null) { // process one ofs
                 final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
                 fields.add(field);
@@ -62,6 +54,8 @@ public final class JsonCodecGenerator implements Generator {
             }
         }
         final String writeMethod = JsonCodecWriteMethodGenerator.generateWriteMethod(modelClassName, fields);
+
+        final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
 
         writer.addImport("com.hedera.pbj.runtime.*");
         writer.addImport("com.hedera.pbj.runtime.io.*");
@@ -82,7 +76,7 @@ public final class JsonCodecGenerator implements Generator {
                 /**
                  * JSON Codec for $modelClass model object. Generated based on protobuf schema.
                  */
-                public final class $codecClass implements JsonCodec<$modelClass> {
+                public final$staticModifier class $codecClass implements JsonCodec<$modelClass> {
 
                     /**
                      * Empty constructor
@@ -94,15 +88,24 @@ public final class JsonCodecGenerator implements Generator {
                     $unsetOneOfConstants
                     $parseObject
                     $writeMethod
-                }
+
                 """
                 .replace("$modelClass", modelClassName)
+                .replace("$staticModifier", staticModifier)
                 .replace("$codecClass", codecClassName)
                 .replace("$unsetOneOfConstants", JsonCodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
                 .replace("$writeMethod", writeMethod)
                 .replace("$parseObject", JsonCodecParseMethodGenerator.generateParseObjectMethod(modelClassName, fields))
         );
         // spotless:on
+
+        for (final var item : msgDef.messageBody().messageElement()) {
+            if (item.messageDef() != null) { // process sub messages
+                generate(item.messageDef(), writer, lookupHelper);
+            }
+        }
+
+        writer.append("}");
     }
 
     /**
