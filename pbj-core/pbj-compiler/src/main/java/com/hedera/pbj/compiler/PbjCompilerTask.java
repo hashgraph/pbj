@@ -45,6 +45,7 @@ public abstract class PbjCompilerTask extends SourceTask {
         PbjCompiler.compileFilesIn(
                 getSource(),
                 getJavaMainOutputDirectory().get().getAsFile(),
-                getJavaTestOutputDirectory().get().getAsFile());
+                getJavaTestOutputDirectory().get().getAsFile(),
+                null);
     }
 }

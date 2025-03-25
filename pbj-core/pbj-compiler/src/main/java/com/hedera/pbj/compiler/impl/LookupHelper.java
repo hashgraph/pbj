@@ -71,6 +71,13 @@ public final class LookupHelper {
             "Import \"%s\" in proto file \"%s\" can not be found in src files.";
 
     /**
+     * A non-null suffix to add to the Java package name of generated PBJ classes when an explicit `pbj.java_package`
+     * is missing and PBJ instead derives the Java package for PBJ models from the standard `java_package` option
+     * or otherwise. May be empty.
+     */
+    private final String javaPackageSuffix;
+
+    /**
      * Map from fully qualified msgDef name to fully qualified pbj java package, not including java
      * class
      */
@@ -113,8 +120,10 @@ public final class LookupHelper {
      * protobuf files extracting what is needed.
      *
      * @param allSrcFiles collection of all proto src files
+     * @param javaPackageSuffix an optional, nullable suffix to add to the Java package name in generated classes, e.g. ".pbj"
      */
-    public LookupHelper(final Iterable<File> allSrcFiles) {
+    public LookupHelper(final Iterable<File> allSrcFiles, final String javaPackageSuffix) {
+        this.javaPackageSuffix = javaPackageSuffix == null ? "" : javaPackageSuffix.trim();
         build(allSrcFiles);
     }
 
@@ -513,7 +522,8 @@ public final class LookupHelper {
                         }
                     }
                     // process message and enum defs
-                    final String fileLevelJavaPackage = (pbjJavaPackage != null) ? pbjJavaPackage : protocJavaPackage;
+                    final String fileLevelJavaPackage =
+                            (pbjJavaPackage != null) ? pbjJavaPackage : (protocJavaPackage + javaPackageSuffix);
                     for (final var item : parsedDoc.topLevelDef()) {
                         if (item.messageDef() != null)
                             buildMessage(fullQualifiedFile, fileLevelJavaPackage, protocJavaPackage, item.messageDef());
