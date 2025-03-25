@@ -61,7 +61,7 @@ dependencyAnalysis { issues { all { onAny { exclude("com.hedera.pbj:pbj-compiler
 // IMPROVE: JMH code should not depend on test code
 jmh { includeTests = true }
 
-// Avoid a clash with Google protoc models when .ptoto files don't specify `pbj.java_package`:
+// Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
 pbj { javaPackageSuffix = ".pbj.integration.tests" }
 
 // Add downloaded HAPI repo protobuf files into build directory and add to sources to build them
