@@ -24,10 +24,20 @@ public abstract class PbjCompiler {
     private static final int MAX_TRACE_FRAMES = 8;
     private static final String STACK_ELEMENT_INDENT = "    ";
 
-    public static void compileFilesIn(Iterable<File> sourceFiles, File mainOutputDir, File testOutputDir)
+    /**
+     * Compile source files and generate PBJ models.
+     *
+     * @param sourceFiles all the source files to compile
+     * @param mainOutputDir output directory for generated model, codecs, and schema ("main" files)
+     * @param testOutputDir output directory for generated tests ("test" files)
+     * @param javaPackageSuffix an optional, nullable suffix to add to the Java package name in generated classes, e.g. ".pbj",
+     *                          when an explicit `pbj.java_package` option is missing
+     * @throws Exception
+     */
+    public static void compileFilesIn(Iterable<File> sourceFiles, File mainOutputDir, File testOutputDir, String javaPackageSuffix)
             throws Exception {
         // first we do a scan of files to build lookup tables for imports, packages etc.
-        final LookupHelper lookupHelper = new LookupHelper(sourceFiles);
+        final LookupHelper lookupHelper = new LookupHelper(sourceFiles, javaPackageSuffix);
         // for each proto src directory generate code
         for (final File protoFile : sourceFiles) {
             if (protoFile.exists()
