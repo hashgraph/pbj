@@ -34,7 +34,8 @@ public abstract class PbjCompiler {
      *                          when an explicit `pbj.java_package` option is missing
      * @throws Exception
      */
-    public static void compileFilesIn(Iterable<File> sourceFiles, File mainOutputDir, File testOutputDir, String javaPackageSuffix)
+    public static void compileFilesIn(
+            Iterable<File> sourceFiles, File mainOutputDir, File testOutputDir, String javaPackageSuffix)
             throws Exception {
         // first we do a scan of files to build lookup tables for imports, packages etc.
         final LookupHelper lookupHelper = new LookupHelper(sourceFiles, javaPackageSuffix);

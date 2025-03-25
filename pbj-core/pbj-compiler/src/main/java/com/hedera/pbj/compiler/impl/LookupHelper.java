@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -523,7 +522,8 @@ public final class LookupHelper {
                         }
                     }
                     // process message and enum defs
-                    final String fileLevelJavaPackage = (pbjJavaPackage != null) ? pbjJavaPackage : (protocJavaPackage + javaPackageSuffix);
+                    final String fileLevelJavaPackage =
+                            (pbjJavaPackage != null) ? pbjJavaPackage : (protocJavaPackage + javaPackageSuffix);
                     for (final var item : parsedDoc.topLevelDef()) {
                         if (item.messageDef() != null)
                             buildMessage(fullQualifiedFile, fileLevelJavaPackage, protocJavaPackage, item.messageDef());
