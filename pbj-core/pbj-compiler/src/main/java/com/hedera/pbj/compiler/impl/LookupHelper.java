@@ -483,14 +483,26 @@ public final class LookupHelper {
                         // ignore pbj_custom_options.proto file
                         continue;
                     } else if (pbjJavaPackage == null && protocJavaPackage == null) {
-                        throw new PbjCompilerException(FILE_MISSING_PACKAGE_OPTION_MESSAGE.formatted(
-                                "", file.getAbsolutePath(), PBJ_PACKAGE_OPTION_NAME, PROTOC_JAVA_PACKAGE_OPTION_NAME));
-                    } else if (pbjJavaPackage == null) {
-                        System.err.printf(FILE_MISSING_PACKAGE_OPTION_MESSAGE.formatted(
-                                "WARNING, ",
-                                file.getAbsolutePath(),
-                                PBJ_PACKAGE_OPTION_NAME,
-                                PROTOC_JAVA_PACKAGE_OPTION_NAME));
+                        if (parsedDoc.packageStatement() == null
+                                || parsedDoc.packageStatement().isEmpty()) {
+                            throw new PbjCompilerException(
+                                    "ERROR: Proto file $file doesn't specify pbj.java_package, java_package, or package values. Unable to infer the Java package."
+                                            .replace("$file", file.getAbsolutePath()));
+                        }
+                        if (parsedDoc.packageStatement().size() > 1) {
+                            System.err.println(
+                                    "WARNING: Proto file $file specifies package several times. PBJ will use the first value only. All specified values: $values"
+                                            .replace("$file", file.getAbsolutePath())
+                                            .replace(
+                                                    "$values",
+                                                    parsedDoc.packageStatement().stream()
+                                                            .map(psc -> psc.fullIdent()
+                                                                    .getText())
+                                                            .collect(Collectors.joining(", "))));
+                        }
+                        // Protoc would use this package, so we pretend this is a protoc package:
+                        protocJavaPackage =
+                                parsedDoc.packageStatement().get(0).fullIdent().getText();
                     }
                     // process imports
                     final Set<String> fileImports =
