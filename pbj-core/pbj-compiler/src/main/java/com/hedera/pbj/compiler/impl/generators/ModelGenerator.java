@@ -305,9 +305,10 @@ public final class ModelGenerator implements Generator {
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
-            // FUTURE WORK: support inner enums
             if (item.messageDef() != null) { // process sub messages
                 generate(item.messageDef(), writer, lookupHelper);
+            } else if (item.enumDef() != null) {
+                EnumGenerator.generateEnum(item.enumDef(), writer, lookupHelper);
             }
         }
 

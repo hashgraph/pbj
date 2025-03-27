@@ -49,9 +49,9 @@ public record SingleField(
                 Field.extractMessageTypeName(fieldContext.type_()),
                 Field.isMessageComparable(fieldContext.type_(), lookupHelper),
                 Field.extractCompleteClassName(fieldContext.type_(), FileType.MODEL, lookupHelper),
-                Field.extractMessageTypePackage(fieldContext.type_(), FileType.MODEL, lookupHelper),
-                Field.extractMessageTypePackage(fieldContext.type_(), FileType.CODEC, lookupHelper),
-                Field.extractMessageTypePackage(fieldContext.type_(), FileType.TEST, lookupHelper),
+                Field.extractTypePackage(fieldContext.type_(), FileType.MODEL, lookupHelper),
+                Field.extractTypePackage(fieldContext.type_(), FileType.CODEC, lookupHelper),
+                Field.extractTypePackage(fieldContext.type_(), FileType.TEST, lookupHelper),
                 Common.buildCleanFieldJavaDoc(
                         Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
                 getDeprecatedOption(fieldContext.fieldOptions()),

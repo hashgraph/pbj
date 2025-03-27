@@ -99,14 +99,20 @@ public class ContextualLookupHelper {
     }
 
     /**
-     * Get the Java package a class should be generated into for a given typeContext and file type.
+     * Get the Java package a class should be generated into for a given message or enum typeContext and file type.
      *
      * @param fileType The type of file we want the package for
      * @param typeContext The field to get package for message type for
      * @return java package to put model class in
      */
-    public String getPackageFieldMessageType(final FileType fileType, final Type_Context typeContext) {
-        return lookupHelper.getPackage(srcProtoFileContext, fileType, typeContext.messageType());
+    public String getPackageFieldType(final FileType fileType, final Type_Context typeContext) {
+        if (typeContext.messageType() != null) {
+            return lookupHelper.getPackage(srcProtoFileContext, fileType, typeContext.messageType());
+        } else if (typeContext.enumType() != null) {
+            return lookupHelper.getPackage(srcProtoFileContext, fileType, typeContext.enumType());
+        } else {
+            return null;
+        }
     }
 
     /**

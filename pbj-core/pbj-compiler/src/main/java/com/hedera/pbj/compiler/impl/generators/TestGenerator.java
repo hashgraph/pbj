@@ -110,8 +110,8 @@ public final class TestGenerator implements Generator {
                 .replace("$testClassAnnotations", testClassAnnotations)
                 .replace("$modelClass", modelClassName)
                 .replace("$testClassName", testClassName)
-                .replace("$testMethod", generateTestMethod(modelClassName, protoCJavaFullQualifiedClass).indent(DEFAULT_INDENT))
-                .replace("$testArguments", generateModelTestArgumentsMethod(modelClassName, fields).indent(DEFAULT_INDENT))
+                .replace("$testMethod", generateTestMethod(lookupHelper.getCompleteClass(msgDef), protoCJavaFullQualifiedClass).indent(DEFAULT_INDENT))
+                .replace("$testArguments", generateModelTestArgumentsMethod(lookupHelper.getCompleteClass(msgDef), fields).indent(DEFAULT_INDENT))
         );
         // spotless:on
 
@@ -311,7 +311,7 @@ public final class TestGenerator implements Generator {
 
                 @ParameterizedTest
                 @MethodSource("createModelTestArguments")
-                public void test$modelClassNameAgainstProtoC(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
+                public void test$simpleModelClassNameAgainstProtoC(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
                     final $modelClassName modelObj = modelObjWrapper.getValue();
                     // get reusable thread buffers
                     final var dataBuffer = getThreadLocalDataBuffer();
@@ -417,9 +417,9 @@ public final class TestGenerator implements Generator {
                     assertEquals($modelClassName.DEFAULT, codecDefaultInstance);
                 }
                 """
+                .replace("$simpleModelClassName", modelClassName.replace(".", ""))
                 .replace("$modelClassName",modelClassName)
-                .replace("$protocModelClass",protoCJavaFullQualifiedClass)
-                .replace("$modelClassName",modelClassName);
+                .replace("$protocModelClass",protoCJavaFullQualifiedClass);
         // spotless:on
     }
 }

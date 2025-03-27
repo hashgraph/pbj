@@ -291,7 +291,8 @@ public final class LookupHelper {
     String getPackage(final File protoSrcFile, final FileType fileType, final ParserRuleContext context) {
         if (context instanceof MessageDefContext
                 || context instanceof EnumDefContext
-                || context instanceof MessageTypeContext) {
+                || context instanceof MessageTypeContext
+                || context instanceof Protobuf3Parser.EnumTypeContext) {
             final String qualifiedProtoName = getFullyQualifiedProtoName(protoSrcFile, context);
             if (qualifiedProtoName.startsWith("google.protobuf")) {
                 return null;
@@ -537,10 +538,12 @@ public final class LookupHelper {
                     final String fileLevelJavaPackage =
                             (pbjJavaPackage != null) ? pbjJavaPackage : (protocJavaPackage + javaPackageSuffix);
                     for (final var item : parsedDoc.topLevelDef()) {
-                        if (item.messageDef() != null)
+                        if (item.messageDef() != null) {
                             buildMessage(fullQualifiedFile, fileLevelJavaPackage, protocJavaPackage, item.messageDef());
-                        if (item.enumDef() != null)
+                        }
+                        if (item.enumDef() != null) {
                             buildEnum(fullQualifiedFile, fileLevelJavaPackage, protocJavaPackage, item.enumDef());
+                        }
                     }
                 } catch (final IOException e) {
                     throw new RuntimeException(e);
@@ -744,6 +747,8 @@ public final class LookupHelper {
         // insert into maps
         final var fullQualifiedEnumName = getFullyQualifiedProtoNameForMsgOrEnum(enumDef);
         pbjPackageMap.put(fullQualifiedEnumName, enumPbjPackage);
+        pbjCompleteClassMap.put(
+                fullQualifiedEnumName, formatCompleteClass(new File(fullQualifiedFile), FileType.MODEL, enumDef));
         protocPackageMap.put(fullQualifiedEnumName, fileLevelProtocJavaPackage);
         enumNames.add(fullQualifiedEnumName);
         msgAndEnumByFile
