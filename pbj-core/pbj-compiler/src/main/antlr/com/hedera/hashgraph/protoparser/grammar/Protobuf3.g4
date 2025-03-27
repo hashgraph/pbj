@@ -78,9 +78,9 @@ fieldNumber
   ;
 
 // Oneof and oneof field
-// Note, oneOf isn't a message or field, so docComment is odd to include here...
+// The DOC_COMMENT option in the list below is to support commented-out oneof variants, or just random doc comments inside oneofs.
 oneof
-  : docComment ONEOF oneofName LC ( optionStatement | oneofField | emptyStatement_ )* RC
+  : docComment ONEOF oneofName LC ( optionStatement | oneofField | emptyStatement_ | DOC_COMMENT )* RC
   ;
 
 oneofField
