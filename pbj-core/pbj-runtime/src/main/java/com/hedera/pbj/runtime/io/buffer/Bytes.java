@@ -471,18 +471,12 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      */
     @Override
     public int hashCode() {
-        if (hashCode == 0 && length > 0) {
-            if (length == 1) {
-                hashCode = 31 + (int) buffer[start];
-            } else if (start == 0 && length == buffer.length) {
-                hashCode = Arrays.hashCode(buffer);
-            } else {
-                int h = 1;
-                for (int i = start + length - 1; i >= start; i--) {
-                    h = 31 * h + UnsafeUtils.getArrayByteNoChecks(buffer, i);
-                }
-                hashCode = h;
+        if (hashCode == 0) {
+            int h = 1;
+            for (int i = start + length - 1; i >= start; i--) {
+                h = 31 * h + UnsafeUtils.getArrayByteNoChecks(buffer, i);
             }
+            hashCode = h;
         }
         return hashCode;
     }

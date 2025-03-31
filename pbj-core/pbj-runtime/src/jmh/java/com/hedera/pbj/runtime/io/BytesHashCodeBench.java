@@ -1,19 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
-import com.hedera.pbj.runtime.FieldDefinition;
-import com.hedera.pbj.runtime.FieldType;
-import com.hedera.pbj.runtime.ProtoParserTools;
-import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -24,9 +12,7 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OperationsPerInvocation;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -39,74 +25,47 @@ import org.openjdk.jmh.infra.Blackhole;
 @BenchmarkMode(Mode.Throughput)
 public class BytesHashCodeBench {
 
-    public static final FieldDefinition BYTES_FIELD =
-            new FieldDefinition("bytesField", FieldType.BYTES, false, false, false, 17);
-    static final Bytes sampleData;
-    static final byte[] sampleWrittenData;
+    static final Bytes smallBytes;
+    static final Bytes mediumBytes;
+    static final Bytes largeBytes;
 
     static {
         final Random random = new Random(6262266);
-        byte[] data = new byte[1024 * 16];
+
+        byte[] data = new byte[16];
         random.nextBytes(data);
-        sampleData = Bytes.wrap(data);
+        smallBytes = Bytes.wrap(data);
 
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        try (WritableStreamingData out = new WritableStreamingData(bout)) {
-            for (int i = 0; i < 100; i++) {
-                random.nextBytes(data);
-                ProtoWriterTools.writeBytes(out, BYTES_FIELD, sampleData);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        sampleWrittenData = bout.toByteArray();
+        data = new byte[16 * 1024];
+        random.nextBytes(data);
+        mediumBytes = Bytes.wrap(data);
+
+        data = new byte[16 * 1024 * 1024];
+        random.nextBytes(data);
+        largeBytes = Bytes.wrap(data);
     }
 
-    Path tempFileWriting;
-    Path tempFileReading;
-    OutputStream fout;
-    WritableStreamingData dataOut;
-
-    @Setup
-    public void prepare() {
-        try {
-            tempFileWriting = Files.createTempFile("WriteBytesBench", "dat");
-            tempFileWriting.toFile().deleteOnExit();
-            fout = Files.newOutputStream(tempFileWriting);
-            dataOut = new WritableStreamingData(fout);
-            tempFileReading = Files.createTempFile("WriteBytesBench", "dat");
-            tempFileReading.toFile().deleteOnExit();
-            Files.write(tempFileReading, sampleWrittenData);
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new UncheckedIOException(e);
+    private void benchHashCode(final Bytes bytes, final Blackhole blackhole) {
+        for (int i = 0; i < 100; i++) {
+            blackhole.consume(bytes.hashCode());
         }
-    }
-
-    @TearDown
-    public void cleanUp() {
-        try {
-            dataOut.close();
-            fout.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    @Benchmark
-    public void writeBytes(Blackhole blackhole) throws IOException {
-        ProtoWriterTools.writeBytes(dataOut, BYTES_FIELD, sampleData);
     }
 
     @Benchmark
     @OperationsPerInvocation(100)
-    public void readBytes(Blackhole blackhole) throws IOException {
-        try (ReadableStreamingData in = new ReadableStreamingData(Files.newInputStream(tempFileReading))) {
-            for (int i = 0; i < 100; i++) {
-                blackhole.consume(in.readVarInt(false));
-                blackhole.consume(ProtoParserTools.readBytes(in));
-            }
-        }
+    public void hashSmallBytes(Blackhole blackhole) {
+        benchHashCode(smallBytes, blackhole);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(100)
+    public void hashMediumBytes(Blackhole blackhole) {
+        benchHashCode(mediumBytes, blackhole);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(100)
+    public void hashLargeBytes(Blackhole blackhole) {
+        benchHashCode(largeBytes, blackhole);
     }
 }
