@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler;
 
+import static com.hedera.pbj.compiler.impl.Common.getJavaFile;
+
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
+import com.hedera.pbj.compiler.impl.FileSetWriter;
+import com.hedera.pbj.compiler.impl.FileType;
+import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.LookupHelper;
 import com.hedera.pbj.compiler.impl.generators.EnumGenerator;
 import com.hedera.pbj.compiler.impl.generators.Generator;
@@ -9,6 +14,8 @@ import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.File;
 import java.io.FileInputStream;
+import java.util.Map;
+import java.util.function.Function;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 
@@ -17,10 +24,21 @@ public abstract class PbjCompiler {
     private static final int MAX_TRACE_FRAMES = 8;
     private static final String STACK_ELEMENT_INDENT = "    ";
 
-    public static void compileFilesIn(Iterable<File> sourceFiles, File mainOutputDir, File testOutputDir)
+    /**
+     * Compile source files and generate PBJ models.
+     *
+     * @param sourceFiles all the source files to compile
+     * @param mainOutputDir output directory for generated model, codecs, and schema ("main" files)
+     * @param testOutputDir output directory for generated tests ("test" files)
+     * @param javaPackageSuffix an optional, nullable suffix to add to the Java package name in generated classes, e.g. ".pbj",
+     *                          when an explicit `pbj.java_package` option is missing
+     * @throws Exception
+     */
+    public static void compileFilesIn(
+            Iterable<File> sourceFiles, File mainOutputDir, File testOutputDir, String javaPackageSuffix)
             throws Exception {
         // first we do a scan of files to build lookup tables for imports, packages etc.
-        final LookupHelper lookupHelper = new LookupHelper(sourceFiles);
+        final LookupHelper lookupHelper = new LookupHelper(sourceFiles, javaPackageSuffix);
         // for each proto src directory generate code
         for (final File protoFile : sourceFiles) {
             if (protoFile.exists()
@@ -35,17 +53,29 @@ public abstract class PbjCompiler {
                     for (final var topLevelDef : parsedDoc.topLevelDef()) {
                         final Protobuf3Parser.MessageDefContext msgDef = topLevelDef.messageDef();
                         if (msgDef != null) {
-                            // run all generators for message
-                            for (final var generatorClass : Generator.GENERATORS) {
+                            final FileSetWriter writer =
+                                    FileSetWriter.create(mainOutputDir, testOutputDir, msgDef, contextualLookupHelper);
+                            for (Map.Entry<Class<? extends Generator>, Function<FileSetWriter, JavaFileWriter>> entry :
+                                    Generator.GENERATORS.entrySet()) {
                                 final var generator =
-                                        generatorClass.getDeclaredConstructor().newInstance();
-                                generator.generate(msgDef, mainOutputDir, testOutputDir, contextualLookupHelper);
+                                        entry.getKey().getDeclaredConstructor().newInstance();
+                                generator.generate(msgDef, entry.getValue().apply(writer), contextualLookupHelper);
                             }
+                            writer.writeAllFiles();
                         }
                         final Protobuf3Parser.EnumDefContext enumDef = topLevelDef.enumDef();
                         if (enumDef != null) {
                             // run just enum generators for enum
-                            EnumGenerator.generateEnumFile(enumDef, mainOutputDir, contextualLookupHelper);
+                            final String javaPackage =
+                                    contextualLookupHelper.getPackageForEnum(FileType.MODEL, enumDef);
+                            final JavaFileWriter writer = new JavaFileWriter(
+                                    getJavaFile(
+                                            mainOutputDir,
+                                            javaPackage,
+                                            enumDef.enumName().getText()),
+                                    javaPackage);
+                            EnumGenerator.generateEnum(enumDef, writer, contextualLookupHelper);
+                            writer.writeFile();
                         }
                     }
                 } catch (Exception e) {

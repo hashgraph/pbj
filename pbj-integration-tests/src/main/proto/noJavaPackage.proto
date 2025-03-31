@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto.test.pkg;
+// Do not specify the java_package and the pbj.java_package options.
+// Test if PBJ can infer the Java package from the proto package specified above.
+option java_multiple_files = true;
+
+/**
+ * Sample protobuf.
+ */
+message MessageInProtoPackage {
+  bytes bytesField = 1;
+}

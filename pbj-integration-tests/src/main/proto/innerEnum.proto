@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto";
+option java_multiple_files = true;
+
+/**
+ * Sample protobuf.
+ */
+enum OuterEnum {
+  CONSTANT = 0;
+  ANOTHER_ONE = 1;
+}
+
+message MessageWithEnums {
+  bytes bytesField = 1;
+  OuterEnum outerEnumField = 2;
+  InnerEnum innerEnumField = 3;
+  InnerMessage.DoubleInnerEnum doubleInnerEnumField = 4;
+  AnotherMessage.AnotherInnerEnum anotherEnum = 5;
+
+  enum InnerEnum {
+    VALUE1 = 0;
+    VALUE2 = 1;
+  }
+
+  message InnerMessage {
+    InnerEnum outerInnerEnumField = 1;
+    OuterEnum outerEnumField = 2;
+    DoubleInnerEnum doubleInnerEnumField = 3;
+    AnotherMessage.AnotherInnerEnum anotherEnum = 4;
+
+    enum DoubleInnerEnum {
+      A = 0;
+      B = 1;
+    }
+  }
+}
+
+message AnotherMessage {
+  MessageWithEnums.InnerMessage.DoubleInnerEnum funnyDoubleInnerEnumFromOuterClass = 1;
+
+  enum InnerEnum {
+    VALUE3 = 0;
+    VALUE4 = 1;
+  }
+
+  enum AnotherInnerEnum {
+    ANOTHER_CONSTANT = 0;
+    JUST_ONE_MORE = 1;
+  }
+}

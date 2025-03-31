@@ -8,17 +8,14 @@ import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.FileAndPackageNamesConfig;
 import com.hedera.pbj.compiler.impl.FileType;
+import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,90 +32,96 @@ public final class TestGenerator implements Generator {
      */
     public void generate(
             Protobuf3Parser.MessageDefContext msgDef,
-            File destinationSrcDir,
-            File destinationTestSrcDir,
+            final JavaFileWriter writer,
             final ContextualLookupHelper lookupHelper)
             throws IOException {
         final var modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final var testClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.TEST, msgDef);
-        final String testPackage = lookupHelper.getPackageForMessage(FileType.TEST, msgDef);
         final String protoCJavaFullQualifiedClass =
                 lookupHelper.getFullyQualifiedMessageClassname(FileType.PROTOC, msgDef);
-        final File javaFile = Common.getJavaFile(destinationTestSrcDir, testPackage, testClassName);
         final List<Field> fields = new ArrayList<>();
-        final Set<String> imports = new TreeSet<>();
-        imports.add("com.hedera.pbj.runtime.io.buffer");
-        imports.add(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef));
+
+        writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
+        writer.addImport(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef) + ".*");
+
         for (final var item : msgDef.messageBody().messageElement()) {
-            if (item.messageDef() != null) { // process sub messages
-                generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
+            if (item.messageDef() != null) { // process sub messages down below
             } else if (item.oneof() != null) { // process one ofs
                 final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
                 fields.add(field);
-                field.addAllNeededImports(imports, true, false, true);
+                field.addAllNeededImports(writer::addImport, true, false, true);
                 for (var subField : field.fields()) {
-                    subField.addAllNeededImports(imports, true, false, true);
+                    subField.addAllNeededImports(writer::addImport, true, false, true);
                 }
             } else if (item.mapField() != null) { // process map fields
                 final MapField field = new MapField(item.mapField(), lookupHelper);
                 fields.add(field);
-                field.addAllNeededImports(imports, true, false, true);
+                field.addAllNeededImports(writer::addImport, true, false, true);
             } else if (item.field() != null && item.field().fieldName() != null) {
                 final var field = new SingleField(item.field(), lookupHelper);
                 fields.add(field);
                 if (field.type() == Field.FieldType.MESSAGE || field.type() == Field.FieldType.ENUM) {
-                    field.addAllNeededImports(imports, true, false, true);
+                    field.addAllNeededImports(writer::addImport, true, false, true);
                 }
             } else if (item.reserved() == null && item.optionStatement() == null) {
                 System.err.printf("TestGenerator Warning - Unknown element: %s -- %s%n", item, item.getText());
             }
         }
-        imports.add("java.util");
-        // spotless:off
-        try (FileWriter javaWriter = new FileWriter(javaFile)) {
-            javaWriter.write(
-                    """
-                    package %s;
-                    
-                    import com.google.protobuf.util.JsonFormat;
-                    import com.google.protobuf.CodedOutputStream;
-                    import com.hedera.pbj.runtime.io.buffer.BufferedData;
-                    import com.hedera.pbj.runtime.JsonTools;
-                    import org.junit.jupiter.api.Test;
-                    import org.junit.jupiter.params.ParameterizedTest;
-                    import org.junit.jupiter.params.provider.MethodSource;
-                    import com.hedera.pbj.runtime.test.*;
-                    import java.util.stream.IntStream;
-                    import java.util.stream.Stream;
-                    import java.nio.ByteBuffer;
-                    import java.nio.CharBuffer;
-                    %s
-                    
-                    import com.google.protobuf.CodedInputStream;
-                    import com.google.protobuf.WireFormat;
-                    import java.io.IOException;
-                    import java.nio.charset.StandardCharsets;
-                    
-                    import static com.hedera.pbj.runtime.ProtoTestTools.*;
-                    import static org.junit.jupiter.api.Assertions.*;
-                    
-                    /**
-                     * Unit Test for %s model object. Generate based on protobuf schema.
-                     */
-                    public final class %s {
-                    %s
-                    %s
-                    }
-                    """.formatted(testPackage, imports.isEmpty() ? "" : imports.stream()
-                                .filter(input -> !input.equals(testPackage))
-                                .collect(Collectors.joining(".*;\nimport ","\nimport ",".*;\n")),
-                        modelClassName, testClassName,
-                        generateTestMethod(modelClassName, protoCJavaFullQualifiedClass).indent(DEFAULT_INDENT),
-                        generateModelTestArgumentsMethod(modelClassName, fields).indent(DEFAULT_INDENT)
-                    )
-            );
+
+        final String testClassAnnotations;
+        if (Generator.isInner(msgDef)) {
+            // NOTE: nested Test classes shouldn't be static, otherwise @Nested doesn't work.
+            writer.addImport("org.junit.jupiter.api.Nested");
+            testClassAnnotations = "\n@Nested";
+        } else {
+            testClassAnnotations = "";
         }
+
+        writer.addImport("java.util.*");
+        writer.addImport("com.google.protobuf.util.JsonFormat");
+        writer.addImport("com.google.protobuf.CodedOutputStream");
+        writer.addImport("com.hedera.pbj.runtime.io.buffer.BufferedData");
+        writer.addImport("com.hedera.pbj.runtime.JsonTools");
+        writer.addImport("org.junit.jupiter.api.Test");
+        writer.addImport("org.junit.jupiter.params.ParameterizedTest");
+        writer.addImport("org.junit.jupiter.params.provider.MethodSource");
+        writer.addImport("com.hedera.pbj.runtime.test.*");
+        writer.addImport("java.util.stream.IntStream");
+        writer.addImport("java.util.stream.Stream");
+        writer.addImport("java.nio.ByteBuffer");
+        writer.addImport("java.nio.CharBuffer");
+        writer.addImport("com.google.protobuf.CodedInputStream");
+        writer.addImport("com.google.protobuf.WireFormat");
+        writer.addImport("java.io.IOException");
+        writer.addImport("java.nio.charset.StandardCharsets");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoTestTools.*");
+        writer.addImport("static org.junit.jupiter.api.Assertions.*");
+
+        // spotless:off
+        writer.append(
+                """
+                /**
+                 * Unit Test for $modelClass model object. Generate based on protobuf schema.
+                 */$testClassAnnotations
+                public final class $testClassName {
+                $testMethod
+                $testArguments
+                """
+                .replace("$testClassAnnotations", testClassAnnotations)
+                .replace("$modelClass", modelClassName)
+                .replace("$testClassName", testClassName)
+                .replace("$testMethod", generateTestMethod(lookupHelper.getCompleteClass(msgDef), protoCJavaFullQualifiedClass).indent(DEFAULT_INDENT))
+                .replace("$testArguments", generateModelTestArgumentsMethod(lookupHelper.getCompleteClass(msgDef), fields).indent(DEFAULT_INDENT))
+        );
         // spotless:on
+
+        for (final var item : msgDef.messageBody().messageElement()) {
+            if (item.messageDef() != null) { // process sub messages
+                generate(item.messageDef(), writer, lookupHelper);
+            }
+        }
+
+        writer.append("}");
     }
 
     private static String generateModelTestArgumentsMethod(final String modelClassName, final List<Field> fields) {
@@ -308,7 +311,7 @@ public final class TestGenerator implements Generator {
 
                 @ParameterizedTest
                 @MethodSource("createModelTestArguments")
-                public void test$modelClassNameAgainstProtoC(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
+                public void test$simpleModelClassNameAgainstProtoC(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
                     final $modelClassName modelObj = modelObjWrapper.getValue();
                     // get reusable thread buffers
                     final var dataBuffer = getThreadLocalDataBuffer();
@@ -414,9 +417,9 @@ public final class TestGenerator implements Generator {
                     assertEquals($modelClassName.DEFAULT, codecDefaultInstance);
                 }
                 """
+                .replace("$simpleModelClassName", modelClassName.replace(".", ""))
                 .replace("$modelClassName",modelClassName)
-                .replace("$protocModelClass",protoCJavaFullQualifiedClass)
-                .replace("$modelClassName",modelClassName);
+                .replace("$protocModelClass",protoCJavaFullQualifiedClass);
         // spotless:on
     }
 }

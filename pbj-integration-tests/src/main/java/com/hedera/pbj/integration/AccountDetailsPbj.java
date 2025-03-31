@@ -2,7 +2,7 @@
 package com.hedera.pbj.integration;
 
 import com.hedera.hapi.node.base.*;
-import com.hedera.hapi.node.token.AccountDetails;
+import com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails;
 import com.hedera.hapi.node.token.GrantedCryptoAllowance;
 import com.hedera.hapi.node.token.GrantedNftAllowance;
 import com.hedera.hapi.node.token.GrantedTokenAllowance;

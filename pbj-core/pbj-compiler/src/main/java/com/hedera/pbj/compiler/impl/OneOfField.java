@@ -4,7 +4,7 @@ package com.hedera.pbj.compiler.impl;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -111,8 +111,8 @@ public record OneOfField(
      */
     @Override
     public void addAllNeededImports(
-            final Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
-        imports.add("com.hedera.pbj.runtime");
+            final Consumer<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
+        imports.accept("com.hedera.pbj.runtime.*");
         for (var field : fields) {
             field.addAllNeededImports(imports, modelImports, codecImports, testImports);
         }

@@ -7,7 +7,6 @@ import static com.hedera.pbj.compiler.impl.Common.camelToUpperSnake;
 import static com.hedera.pbj.compiler.impl.Common.cleanDocStr;
 import static com.hedera.pbj.compiler.impl.Common.cleanJavaDocComment;
 import static com.hedera.pbj.compiler.impl.Common.getFieldsHashCode;
-import static com.hedera.pbj.compiler.impl.Common.getJavaFile;
 import static com.hedera.pbj.compiler.impl.Common.javaPrimitiveToObjectType;
 import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.EnumValue;
 import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
@@ -18,6 +17,7 @@ import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.Field.FieldType;
 import com.hedera.pbj.compiler.impl.FileType;
+import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
@@ -25,15 +25,12 @@ import com.hedera.pbj.compiler.impl.generators.protobuf.LazyGetProtobufSizeMetho
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -63,21 +60,18 @@ public final class ModelGenerator implements Generator {
     /**
      * {@inheritDoc}
      *
-     * <p>Generates a new model object, as a Java Record type.
+     * <p>Generates a new model object.
      */
+    @Override
     public void generate(
-            final MessageDefContext msgDef,
-            final File destinationSrcDir,
-            final File destinationTestSrcDir,
-            final ContextualLookupHelper lookupHelper)
+            final MessageDefContext msgDef, final JavaFileWriter writer, final ContextualLookupHelper lookupHelper)
             throws IOException {
 
         // The javaRecordName will be something like "AccountID".
         final var javaRecordName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
+        final var schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
         // The modelPackage is the Java package to put the model class into.
         final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
-        // The File to write the sources that we generate into
-        final File javaFile = getJavaFile(destinationSrcDir, modelPackage, javaRecordName);
         // The Javadoc "@Deprecated" tag, which is set if the protobuf schema says the field is deprecated
         String deprecated = "";
         // The list of fields, as defined in the protobuf schema & precomputed fields
@@ -90,27 +84,26 @@ public final class ModelGenerator implements Generator {
         // The generated Java code for has methods for normal fields
         final List<String> hasMethods = new ArrayList<>();
         // The generated Java import statements. We'll build this up as we go.
-        final Set<String> imports = new TreeSet<>();
-        imports.add("com.hedera.pbj.runtime");
-        imports.add("com.hedera.pbj.runtime.io");
-        imports.add("com.hedera.pbj.runtime.io.buffer");
-        imports.add("com.hedera.pbj.runtime.io.stream");
-        imports.add("edu.umd.cs.findbugs.annotations");
-        imports.add("static " + modelPackage + ".schema." + javaRecordName + "Schema");
+        writer.addImport("com.hedera.pbj.runtime.*");
+        writer.addImport("com.hedera.pbj.runtime.io.*");
+        writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
+        writer.addImport("com.hedera.pbj.runtime.io.stream.*");
+        writer.addImport("edu.umd.cs.findbugs.annotations.*");
+        writer.addImport(lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef));
+        writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
-            if (item.messageDef() != null) { // process sub messages
-                generate(item.messageDef(), destinationSrcDir, destinationTestSrcDir, lookupHelper);
+            if (item.messageDef() != null) { // process sub messages down below in generateClass()
             } else if (item.oneof() != null) { // process one ofs
-                oneofGetters.addAll(
-                        generateCodeForOneOf(lookupHelper, item, javaRecordName, imports, oneofEnums, fields));
+                oneofGetters.addAll(generateCodeForOneOf(
+                        lookupHelper, item, javaRecordName, writer::addImport, oneofEnums, fields));
             } else if (item.mapField() != null) { // process map fields
                 final MapField field = new MapField(item.mapField(), lookupHelper);
                 fields.add(field);
-                field.addAllNeededImports(imports, true, false, false);
+                field.addAllNeededImports(writer::addImport, true, false, false);
             } else if (item.field() != null && item.field().fieldName() != null) {
-                generateCodeForField(lookupHelper, item, fields, imports, hasMethods);
+                generateCodeForField(lookupHelper, item, fields, writer::addImport, hasMethods);
             } else if (item.optionStatement() != null) {
                 if ("deprecated".equals(item.optionStatement().optionName().getText())) {
                     deprecated = "@Deprecated ";
@@ -133,6 +126,8 @@ public final class ModelGenerator implements Generator {
                 -1,
                 "$hashCode",
                 null,
+                false,
+                null,
                 null,
                 null,
                 null,
@@ -144,6 +139,8 @@ public final class ModelGenerator implements Generator {
                 FieldType.FIXED32,
                 -1,
                 "$protobufEncodedSize",
+                null,
+                false,
                 null,
                 null,
                 null,
@@ -201,7 +198,8 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         // protobuf size method
-        bodyContent += LazyGetProtobufSizeMethodGenerator.generateLazyGetProtobufSize(fieldsNoPrecomputed);
+        bodyContent +=
+                LazyGetProtobufSizeMethodGenerator.generateLazyGetProtobufSize(fieldsNoPrecomputed, schemaClassName);
         bodyContent += "\n";
 
         // hashCode method
@@ -214,7 +212,7 @@ public final class ModelGenerator implements Generator {
         final List<Field> comparableFields = filterComparableFields(msgDef, lookupHelper, fields);
         final boolean hasComparableFields = !comparableFields.isEmpty();
         if (hasComparableFields) {
-            bodyContent += generateCompareTo(comparableFields, javaRecordName, destinationSrcDir);
+            bodyContent += generateCompareTo(comparableFields, javaRecordName);
         }
         bodyContent += "\n";
 
@@ -241,23 +239,21 @@ public final class ModelGenerator implements Generator {
         // oneof enums
         bodyContent += String.join("\n    ", oneofEnums);
 
-        // === Build file
-        try (final FileWriter javaWriter = new FileWriter(javaFile)) {
-            javaWriter.write(generateClass(
-                    modelPackage,
-                    imports,
-                    javaDocComment,
-                    deprecated,
-                    javaRecordName,
-                    bodyContent,
-                    hasComparableFields));
-        }
+        // === Generate code
+        generateClass(
+                msgDef,
+                writer,
+                javaDocComment,
+                deprecated,
+                javaRecordName,
+                bodyContent,
+                hasComparableFields,
+                lookupHelper);
     }
 
     /**
      * Generating method that assembles all the previously generated pieces together
-     * @param modelPackage the model package to use for the code generation
-     * @param imports the imports to use for the code generation
+     * @param writer the writer to append generated code to
      * @param javaDocComment the java doc comment to use for the code generation
      * @param deprecated the deprecated annotation to add
      * @param javaRecordName the name of the class
@@ -265,49 +261,58 @@ public final class ModelGenerator implements Generator {
      * @return the generated code
      */
     @NonNull
-    private static String generateClass(
-            final String modelPackage,
-            final Set<String> imports,
+    private void generateClass(
+            final MessageDefContext msgDef,
+            final JavaFileWriter writer,
             final String javaDocComment,
             final String deprecated,
             final String javaRecordName,
             final String bodyContent,
-            final boolean isComparable) {
+            final boolean isComparable,
+            final ContextualLookupHelper lookupHelper)
+            throws IOException {
         final String implementsComparable;
         if (isComparable) {
-            imports.add("java.lang.Comparable");
             implementsComparable = "implements Comparable<$javaRecordName> ";
         } else {
             implementsComparable = "";
         }
+
+        final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
+
+        writer.addImport("com.hedera.pbj.runtime.Codec");
+        writer.addImport("java.util.function.Consumer");
+        writer.addImport("edu.umd.cs.findbugs.annotations.Nullable");
+        writer.addImport("edu.umd.cs.findbugs.annotations.NonNull");
+        writer.addImport("static java.util.Objects.requireNonNull");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoWriterTools.*");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoConstants.*");
+
         // spotless:off
-        return """
-                package $package;
-                $imports
-                import com.hedera.pbj.runtime.Codec;
-                import java.util.function.Consumer;
-                import edu.umd.cs.findbugs.annotations.Nullable;
-                import edu.umd.cs.findbugs.annotations.NonNull;
-                import static java.util.Objects.requireNonNull;
-                import static com.hedera.pbj.runtime.ProtoWriterTools.*;
-                import static com.hedera.pbj.runtime.ProtoConstants.*;
-                
+        writer.append("""
                 $javaDocComment$deprecated
-                public final class $javaRecordName $implementsComparable{
-                $bodyContent}
+                public final$staticModifier class $javaRecordName $implementsComparable{
+                $bodyContent
+
                 """
-                .replace("$package", modelPackage)
-                .replace(
-                        "$imports",
-                        imports.isEmpty()
-                                ? ""
-                                : imports.stream().collect(Collectors.joining(".*;\nimport ", "\nimport ", ".*;\n")))
                 .replace("$javaDocComment", javaDocComment)
                 .replace("$deprecated", deprecated)
+                .replace("$staticModifier", staticModifier)
                 .replace("$implementsComparable", implementsComparable)
                 .replace("$javaRecordName", javaRecordName)
-                .replace("$bodyContent", bodyContent);
+                .replace("$bodyContent", bodyContent));
         // spotless:on
+
+        // Iterate over all the items in the protobuf schema
+        for (final var item : msgDef.messageBody().messageElement()) {
+            if (item.messageDef() != null) { // process sub messages
+                generate(item.messageDef(), writer, lookupHelper);
+            } else if (item.enumDef() != null) {
+                EnumGenerator.generateEnum(item.enumDef(), writer, lookupHelper);
+            }
+        }
+
+        writer.append("}");
     }
 
     /**
@@ -375,12 +380,10 @@ public final class ModelGenerator implements Generator {
      *
      * @param fields                the fields to use for the code generation
      * @param javaRecordName        the name of the class
-     * @param destinationSrcDir    the destination source directory
      * @return the generated code
      */
     @NonNull
-    private static String generateCompareTo(
-            final List<Field> fields, final String javaRecordName, final File destinationSrcDir) {
+    private static String generateCompareTo(final List<Field> fields, final String javaRecordName) {
         // spotless:off
         String bodyContent =
             """
@@ -395,7 +398,7 @@ public final class ModelGenerator implements Generator {
                 int result = 0;
             """.replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
 
-        bodyContent += Common.getFieldsCompareToStatements(fields, "", destinationSrcDir);
+        bodyContent += Common.getFieldsCompareToStatements(fields, "");
 
         bodyContent +=
             """
@@ -663,7 +666,7 @@ public final class ModelGenerator implements Generator {
             final ContextualLookupHelper lookupHelper,
             final Protobuf3Parser.MessageElementContext item,
             final List<Field> fields,
-            final Set<String> imports,
+            final Consumer<String> imports,
             final List<String> hasMethods) {
         final SingleField field = new SingleField(item.field(), lookupHelper);
         fields.add(field);
@@ -738,7 +741,7 @@ public final class ModelGenerator implements Generator {
             final ContextualLookupHelper lookupHelper,
             final Protobuf3Parser.MessageElementContext item,
             final String javaRecordName,
-            final Set<String> imports,
+            final Consumer<String> imports,
             final List<String> oneofEnums,
             final List<Field> fields) {
         final List<String> oneofGetters = new ArrayList<>();
@@ -818,7 +821,7 @@ public final class ModelGenerator implements Generator {
                 .indent(DEFAULT_INDENT * 2);
         oneofEnums.add(enumString);
         fields.add(oneOfField);
-        imports.add("com.hedera.pbj.runtime");
+        imports.accept("com.hedera.pbj.runtime.*");
         return oneofGetters;
     }
 

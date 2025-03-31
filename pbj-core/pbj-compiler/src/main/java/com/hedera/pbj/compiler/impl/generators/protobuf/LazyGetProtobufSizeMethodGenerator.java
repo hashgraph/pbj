@@ -20,8 +20,9 @@ import java.util.stream.Stream;
  */
 public class LazyGetProtobufSizeMethodGenerator {
 
-    public static String generateLazyGetProtobufSize(final List<Field> fields) {
-        final String fieldSizeOfLines = buildFieldSizeOfLines(null, fields, Field::nameCamelFirstLower, true);
+    public static String generateLazyGetProtobufSize(final List<Field> fields, final String schemaClassName) {
+        final String fieldSizeOfLines =
+                buildFieldSizeOfLines(null, schemaClassName, fields, Field::nameCamelFirstLower, true);
         return """
                 /**
                  * Get number of bytes when serializing the object to protobuf binary.
@@ -50,6 +51,7 @@ public class LazyGetProtobufSizeMethodGenerator {
 
     static String buildFieldSizeOfLines(
             final String modelClassName,
+            final String schemaClassName,
             final List<Field> fields,
             final Function<Field, String> getValueBuilder,
             boolean skipDefault) {
@@ -58,8 +60,8 @@ public class LazyGetProtobufSizeMethodGenerator {
                         ? ((OneOfField) field).fields().stream()
                         : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
-                .map(field ->
-                        generateFieldSizeOfLines(field, modelClassName, getValueBuilder.apply(field), skipDefault))
+                .map(field -> generateFieldSizeOfLines(
+                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
                 .collect(Collectors.joining("\n"))
                 .indent(DEFAULT_INDENT);
     }
@@ -74,8 +76,12 @@ public class LazyGetProtobufSizeMethodGenerator {
      * @return java code for adding fields size to "size" variable
      */
     private static String generateFieldSizeOfLines(
-            final Field field, final String modelClassName, String getValueCode, boolean skipDefault) {
-        final String fieldDef = Common.camelToUpperSnake(field.name());
+            final Field field,
+            final String modelClassName,
+            final String schemaClassName,
+            String getValueCode,
+            boolean skipDefault) {
+        final String fieldDef = schemaClassName + "." + Common.camelToUpperSnake(field.name());
         String prefix = "// [" + field.fieldNumber() + "] - " + field.name();
         prefix += "\n";
 
@@ -118,7 +124,7 @@ public class LazyGetProtobufSizeMethodGenerator {
                                 .replace(
                                         "$codec",
                                         ((SingleField) field).messageTypeModelPackage() + "."
-                                                + Common.capitalizeFirstLetter(field.messageType()) + ".PROTOBUF");
+                                                + ((SingleField) field).completeClassName() + ".PROTOBUF");
                         default -> "_size += sizeOf%sList(%s, %s);".formatted(writeMethodName, fieldDef, getValueCode);
                     };
         } else if (field.type() == Field.FieldType.MAP) {
@@ -127,7 +133,7 @@ public class LazyGetProtobufSizeMethodGenerator {
             final Function<Field, String> getValueBuilder = mapEntryField ->
                     mapEntryField == mapField.keyField() ? "k" : (mapEntryField == mapField.valueField() ? "v" : null);
             final String fieldSizeOfLines = LazyGetProtobufSizeMethodGenerator.buildFieldSizeOfLines(
-                    field.name(), mapEntryFields, getValueBuilder, false);
+                    field.name(), schemaClassName, mapEntryFields, getValueBuilder, false);
             return prefix
                     + """
                         if (!$map.isEmpty()) {
@@ -165,7 +171,7 @@ public class LazyGetProtobufSizeMethodGenerator {
                                 .replace(
                                         "$codec",
                                         ((SingleField) field).messageTypeModelPackage() + "."
-                                                + Common.capitalizeFirstLetter(field.messageType()) + ".PROTOBUF");
+                                                + ((SingleField) field).completeClassName() + ".PROTOBUF");
                         case BOOL -> "_size += sizeOfBoolean(%s, %s, %s);"
                                 .formatted(fieldDef, getValueCode, skipDefault);
                         case INT32,

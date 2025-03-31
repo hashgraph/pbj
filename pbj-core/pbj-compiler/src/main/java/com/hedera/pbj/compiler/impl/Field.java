@@ -9,7 +9,7 @@ import static com.hedera.pbj.compiler.impl.Common.snakeToCamel;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Interface for SingleFields and OneOfFields
@@ -107,13 +107,13 @@ public interface Field {
     /**
      * Add all the needed imports for this field to the supplied set.
      *
-     * @param imports      set of imports to add to, this contains packages not classes. They are always imported as ".*".
+     * @param imports      collector of imports
      * @param modelImports if imports for this field's generated model classes should be added
      * @param codecImports if imports for this field's generated codec classes should be added
      * @param testImports  if imports for this field's generated test classes should be added
      */
     void addAllNeededImports(
-            Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports);
+            Consumer<String> imports, boolean modelImports, boolean codecImports, final boolean testImports);
 
     /**
      * Get the java code to parse the value for this field from input
@@ -203,18 +203,42 @@ public interface Field {
                 : typeContext.messageType().messageName().getText();
     }
 
+    /** Check if the given Type_Context is a comparable message. */
+    static boolean isMessageComparable(
+            final Protobuf3Parser.Type_Context typeContext,
+            final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
+        return typeContext.messageType() == null ? false : lookupHelper.isComparable(typeContext.messageType());
+    }
+
     /**
-     * Extract the name of the Java package for a given FileType for a message type,
-     * or null if the type is not a message.
+     * Extract the complete name of the Java model class for a message/enum type, including outer classes names,
+     * or null if the type is not a message/enum.
      */
-    static String extractMessageTypePackage(
+    static String extractCompleteClassName(
             final Protobuf3Parser.Type_Context typeContext,
             final com.hedera.pbj.compiler.impl.FileType fileType,
             final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
-        return typeContext.messageType() == null
-                        || typeContext.messageType().messageName().getText() == null
-                ? null
-                : lookupHelper.getPackageFieldMessageType(fileType, typeContext);
+        if (typeContext.messageType() != null) return lookupHelper.getCompleteClass(typeContext.messageType());
+        else if (typeContext.enumType() != null) return lookupHelper.getCompleteClass(typeContext.enumType());
+        else return null;
+    }
+
+    /**
+     * Extract the name of the Java package for a given FileType for a message/enum type,
+     * or null if the type is not a message/enum.
+     */
+    static String extractTypePackage(
+            final Protobuf3Parser.Type_Context typeContext,
+            final com.hedera.pbj.compiler.impl.FileType fileType,
+            final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
+        if ((typeContext.messageType() != null
+                        && typeContext.messageType().messageName().getText() != null)
+                || (typeContext.enumType() != null
+                        && typeContext.enumType().enumName().getText() != null)) {
+            return lookupHelper.getPackageFieldType(fileType, typeContext);
+        } else {
+            return null;
+        }
     }
 
     /**

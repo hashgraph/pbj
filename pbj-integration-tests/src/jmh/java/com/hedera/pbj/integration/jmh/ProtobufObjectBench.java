@@ -4,7 +4,7 @@ package com.hedera.pbj.integration.jmh;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.GeneratedMessage;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.token.AccountDetails;
+import com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails;
 import com.hedera.pbj.integration.AccountDetailsPbj;
 import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayInputStream;
@@ -303,10 +303,13 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
     @State(Scope.Benchmark)
     public static class AccountDetailsBench
             extends ProtobufObjectBench<
-                    com.hedera.hapi.node.token.AccountDetails, GetAccountDetailsResponse.AccountDetails> {
+                    com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails,
+                    GetAccountDetailsResponse.AccountDetails> {
         @Setup
         public void setup(
-                BenchmarkState<com.hedera.hapi.node.token.AccountDetails, GetAccountDetailsResponse.AccountDetails>
+                BenchmarkState<
+                                com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails,
+                                GetAccountDetailsResponse.AccountDetails>
                         benchmarkState) {
             benchmarkState.configure(
                     AccountDetailsPbj.ACCOUNT_DETAILS,

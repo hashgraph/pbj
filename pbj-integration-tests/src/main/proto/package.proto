@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+// Test when only the java_package is specified. Do not specify the pbj.java_package option.
+option java_package = "com.hedera.pbj.test.proto";
+option java_multiple_files = true;
+
+/**
+ * Sample protobuf.
+ */
+message MessageInAPackage {
+  bytes bytesField = 1;
+}

@@ -5,7 +5,7 @@ import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 import static com.hedera.pbj.compiler.impl.SingleField.getDeprecatedOption;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
-import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * A field of type map.
@@ -50,6 +50,8 @@ public record MapField(
                         1,
                         "___%s__key".formatted(mapContext.mapName().getText()),
                         null,
+                        false,
+                        null,
                         null,
                         null,
                         null,
@@ -63,9 +65,11 @@ public record MapField(
                         2,
                         "___%s__value".formatted(mapContext.mapName().getText()),
                         Field.extractMessageTypeName(mapContext.type_()),
-                        Field.extractMessageTypePackage(mapContext.type_(), FileType.MODEL, lookupHelper),
-                        Field.extractMessageTypePackage(mapContext.type_(), FileType.CODEC, lookupHelper),
-                        Field.extractMessageTypePackage(mapContext.type_(), FileType.TEST, lookupHelper),
+                        Field.isMessageComparable(mapContext.type_(), lookupHelper),
+                        Field.extractCompleteClassName(mapContext.type_(), FileType.MODEL, lookupHelper),
+                        Field.extractTypePackage(mapContext.type_(), FileType.MODEL, lookupHelper),
+                        Field.extractTypePackage(mapContext.type_(), FileType.CODEC, lookupHelper),
+                        Field.extractTypePackage(mapContext.type_(), FileType.TEST, lookupHelper),
                         "An internal, private map entry value for %s"
                                 .formatted(mapContext.mapName().getText()),
                         false,
@@ -143,16 +147,16 @@ public record MapField(
      */
     @Override
     public void addAllNeededImports(
-            final Set<String> imports,
+            final Consumer<String> imports,
             final boolean modelImports,
             final boolean codecImports,
             final boolean testImports) {
         if (modelImports) {
-            imports.add("java.util");
+            imports.accept("java.util.*");
         }
         if (codecImports) {
-            imports.add("java.util.stream");
-            imports.add("com.hedera.pbj.runtime.test");
+            imports.accept("java.util.stream.*");
+            imports.accept("com.hedera.pbj.runtime.test.*");
         }
     }
 }

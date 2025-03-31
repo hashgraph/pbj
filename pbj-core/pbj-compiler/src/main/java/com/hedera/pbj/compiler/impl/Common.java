@@ -3,10 +3,7 @@ package com.hedera.pbj.compiler.impl;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -590,12 +587,10 @@ public final class Common {
      *
      * @param fields The fields of this object.
      * @param generatedCodeSoFar the generated code so far (non-empty in case of nested objects)
-     * @param destinationSrcDir a directory where the previously generated code is saved
      *
      * @return The generated code for compareTo method body
      */
-    public static String getFieldsCompareToStatements(
-            final List<Field> fields, String generatedCodeSoFar, File destinationSrcDir) {
+    public static String getFieldsCompareToStatements(final List<Field> fields, String generatedCodeSoFar) {
         for (Field f : fields) {
             if (f.optionalValueType()) {
                 generatedCodeSoFar += getPrimitiveWrapperCompareToGeneration(f);
@@ -677,7 +672,7 @@ public final class Common {
                         || f.type() == Field.FieldType.ENUM) {
                     generatedCodeSoFar += generateCompareToForObject(f);
                 } else if (f.type() == Field.FieldType.MESSAGE || f.type() == Field.FieldType.ONE_OF) {
-                    verifyComparable(f, destinationSrcDir);
+                    verifyComparable(f);
                     generatedCodeSoFar += generateCompareToForObject(f);
                 } else {
                     throw new IllegalArgumentException("Unexpected field type for getting CompareTo - "
@@ -711,33 +706,23 @@ public final class Common {
      * Verify that the field is comparable.
      *
      * @param field The field to verify.
-     * @param destinationSrcDir The directory where the previously generated code is saved.
      */
-    private static void verifyComparable(final Field field, File destinationSrcDir) {
+    private static void verifyComparable(final Field field) {
         if (field instanceof final SingleField singleField) {
             if (singleField.type() != Field.FieldType.MESSAGE) {
                 // everything else except message and bytes is comparable for sure
                 return;
             }
-            // let's check if the message implements Comparable
-            final String className = singleField.javaFieldType();
-            final File javaFile = getJavaFile(destinationSrcDir, singleField.messageTypeModelPackage(), className);
-            try (BufferedReader reader = new BufferedReader(new FileReader(javaFile))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (COMPARABLE_PATTERN.matcher(line).find()) {
-                        return;
-                    }
-                }
+            if (!singleField.comparable()) {
+                final String className = singleField.javaFieldType();
                 throw new IllegalArgumentException(("Field %s.%s specified in `pbj.comparable` option must implement "
                                 + "`Comparable` interface but it doesn't.")
                         .formatted(className, field.nameCamelFirstLower()));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
+            return;
         }
         if (field instanceof final OneOfField oneOfField) {
-            oneOfField.fields().forEach(v -> verifyComparable(v, destinationSrcDir));
+            oneOfField.fields().forEach(v -> verifyComparable(v));
         } else {
             throw new UnsupportedOperationException("Unexpected field type - " + field.getClass());
         }

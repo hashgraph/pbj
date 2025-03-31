@@ -5,7 +5,7 @@ import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Record for Field in Protobuf file. Contains all logic and special cases for fields
@@ -24,6 +24,8 @@ public record SingleField(
         int fieldNumber,
         String name,
         String messageType,
+        boolean comparable,
+        String completeClassName,
         String messageTypeModelPackage,
         String messageTypeCodecPackage,
         String messageTypeTestPackage,
@@ -45,9 +47,11 @@ public record SingleField(
                 Integer.parseInt(fieldContext.fieldNumber().getText()),
                 fieldContext.fieldName().getText(),
                 Field.extractMessageTypeName(fieldContext.type_()),
-                Field.extractMessageTypePackage(fieldContext.type_(), FileType.MODEL, lookupHelper),
-                Field.extractMessageTypePackage(fieldContext.type_(), FileType.CODEC, lookupHelper),
-                Field.extractMessageTypePackage(fieldContext.type_(), FileType.TEST, lookupHelper),
+                Field.isMessageComparable(fieldContext.type_(), lookupHelper),
+                Field.extractCompleteClassName(fieldContext.type_(), FileType.MODEL, lookupHelper),
+                Field.extractTypePackage(fieldContext.type_(), FileType.MODEL, lookupHelper),
+                Field.extractTypePackage(fieldContext.type_(), FileType.CODEC, lookupHelper),
+                Field.extractTypePackage(fieldContext.type_(), FileType.TEST, lookupHelper),
                 Common.buildCleanFieldJavaDoc(
                         Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
                 getDeprecatedOption(fieldContext.fieldOptions()),
@@ -72,6 +76,12 @@ public record SingleField(
                 (fieldContext.type_().messageType() == null)
                         ? null
                         : fieldContext.type_().messageType().messageName().getText(),
+                (fieldContext.type_().messageType() == null)
+                        ? false
+                        : Field.isMessageComparable(fieldContext.type_(), lookupHelper),
+                (fieldContext.type_().messageType() == null)
+                        ? null
+                        : lookupHelper.getCompleteClass(fieldContext.type_().messageType()),
                 (fieldContext.type_().messageType() == null)
                         ? null
                         : lookupHelper.getPackageOneofFieldMessageType(FileType.MODEL, fieldContext),
@@ -186,12 +196,14 @@ public record SingleField(
      */
     @Override
     public void addAllNeededImports(
-            Set<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
-        if (repeated || optionalValueType()) imports.add("java.util");
-        if (type == FieldType.BYTES) imports.add("com.hedera.pbj.runtime.io.buffer");
-        if (messageTypeModelPackage != null && modelImports) imports.add(messageTypeModelPackage);
-        if (messageTypeCodecPackage != null && codecImports) imports.add(messageTypeCodecPackage);
-        if (messageTypeTestPackage != null && testImports) imports.add(messageTypeTestPackage);
+            Consumer<String> imports, boolean modelImports, boolean codecImports, final boolean testImports) {
+        if (repeated || optionalValueType()) imports.accept("java.util.*");
+        if (type == FieldType.BYTES) imports.accept("com.hedera.pbj.runtime.io.buffer.*");
+        if (messageTypeModelPackage != null && modelImports) imports.accept(messageTypeModelPackage + ".*");
+        if (messageTypeModelPackage != null && completeClassName != null && modelImports)
+            imports.accept(messageTypeModelPackage + "." + completeClassName);
+        if (messageTypeCodecPackage != null && codecImports) imports.accept(messageTypeCodecPackage + ".*");
+        if (messageTypeTestPackage != null && testImports) imports.accept(messageTypeTestPackage + ".*");
     }
 
     /**

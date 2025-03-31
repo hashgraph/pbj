@@ -4,6 +4,9 @@ package com.hedera.pbj.compiler;
 import javax.inject.Inject;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.internal.file.FileOperations;
+import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SourceTask;
 import org.gradle.api.tasks.TaskAction;
@@ -33,6 +36,11 @@ public abstract class PbjCompilerTask extends SourceTask {
     @Inject
     protected abstract FileOperations getFileOperations();
 
+    /** An optional Java package suffix for PBJ-generated classes when `pbj.java_package` is missing. */
+    @Optional
+    @Input
+    public abstract Property<String> getJavaPackageSuffix();
+
     /**
      * Perform task action - Generates all the PBJ java source files
      *
@@ -45,6 +53,7 @@ public abstract class PbjCompilerTask extends SourceTask {
         PbjCompiler.compileFilesIn(
                 getSource(),
                 getJavaMainOutputDirectory().get().getAsFile(),
-                getJavaTestOutputDirectory().get().getAsFile());
+                getJavaTestOutputDirectory().get().getAsFile(),
+                getJavaPackageSuffix().getOrNull());
     }
 }
