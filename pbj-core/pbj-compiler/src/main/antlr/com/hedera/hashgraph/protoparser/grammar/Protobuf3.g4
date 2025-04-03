@@ -215,15 +215,20 @@ serviceDef
 
 serviceElement
   : optionStatement
+  | optionComment
   | rpc
   | emptyStatement_
   ;
 
 rpc
-  : docComment RPC rpcName LP ( STREAM )? messageType RP
-        RETURNS LP ( STREAM )? messageType RP
+  : docComment RPC rpcName LP rpcRequestType RP
+        RETURNS LP rpcReplyType RP
         (LC ( optionStatement | emptyStatement_ )* RC | SEMI)
   ;
+
+rpcRequestType: rpcType;
+rpcReplyType: rpcType;
+rpcType: ( STREAM )? messageType;
 
 // lexical
 

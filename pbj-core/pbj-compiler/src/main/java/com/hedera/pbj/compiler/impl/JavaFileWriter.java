@@ -58,7 +58,7 @@ public final class JavaFileWriter {
             final File outputDir,
             final Protobuf3Parser.MessageDefContext msgDef,
             final ContextualLookupHelper contextualLookupHelper) {
-        final String javaPackage = contextualLookupHelper.getPackageForMessage(fileType, msgDef);
+        final String javaPackage = contextualLookupHelper.getPackage(fileType, msgDef);
         return new JavaFileWriter(
                 getJavaFile(
                         outputDir, javaPackage, contextualLookupHelper.getUnqualifiedClassForMessage(fileType, msgDef)),
