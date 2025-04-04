@@ -33,11 +33,11 @@ public final class CodecGenerator implements Generator {
         final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final String schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
         final String codecClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.CODEC, msgDef);
-        final String codecPackage = lookupHelper.getPackageForMessage(FileType.CODEC, msgDef);
+        final String codecPackage = lookupHelper.getPackage(FileType.CODEC, msgDef);
 
         final List<Field> fields = new ArrayList<>();
-        writer.addImport(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef) + ".*");
-        writer.addImport(lookupHelper.getPackageForMessage(FileType.SCHEMA, msgDef) + ".*");
+        writer.addImport(lookupHelper.getPackage(FileType.MODEL, msgDef) + ".*");
+        writer.addImport(lookupHelper.getPackage(FileType.SCHEMA, msgDef) + ".*");
 
         for (var item : msgDef.messageBody().messageElement()) {
             if (item.messageDef() != null) { // process sub messages down below

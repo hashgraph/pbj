@@ -71,7 +71,7 @@ public final class ModelGenerator implements Generator {
         final var javaRecordName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final var schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
         // The modelPackage is the Java package to put the model class into.
-        final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
+        final String modelPackage = lookupHelper.getPackage(FileType.MODEL, msgDef);
         // The Javadoc "@Deprecated" tag, which is set if the protobuf schema says the field is deprecated
         String deprecated = "";
         // The list of fields, as defined in the protobuf schema & precomputed fields

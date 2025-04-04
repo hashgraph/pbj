@@ -42,7 +42,7 @@ public final class TestGenerator implements Generator {
         final List<Field> fields = new ArrayList<>();
 
         writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
-        writer.addImport(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef) + ".*");
+        writer.addImport(lookupHelper.getPackage(FileType.MODEL, msgDef) + ".*");
 
         for (final var item : msgDef.messageBody().messageElement()) {
             if (item.messageDef() != null) { // process sub messages down below

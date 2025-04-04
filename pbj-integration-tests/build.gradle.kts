@@ -71,6 +71,8 @@ val cloneHederaProtobufs =
         url = "https://github.com/hashgraph/hedera-protobufs.git"
         // choose tag or branch of HAPI you would like to test with
         // branch = "main"
+        // See a comment below where we work around a javadoc bug in v0.55.0. Remove it once we can
+        // upgrade.
         tag = "v0.55.0"
     }
 
@@ -101,6 +103,16 @@ tasks.javadoc {
     exclude("com/hedera/hashgraph/pbj/integration/**")
     exclude("com/hedera/pbj/test/proto/java/**")
     exclude("pbj/**")
+
+    // This <h3> issue in javadoc:
+    //
+    //         error: unexpected heading used: <H3>, compared to implicit preceding heading: <H3>
+    //
+    // is fixed in hedera-protobufs v0.57.2. However, this new version produces many other
+    // errors when we try to use it in PBJ integration tests. So for now we stick to v0.55.0 (see
+    // above in cloneHederaProtobufs) and work around the problem by excluding this particular file
+    // from javadoc processing:
+    exclude("com/hedera/hapi/node/token/TokenServiceInterface.java")
 }
 
 testing {
