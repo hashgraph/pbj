@@ -14,7 +14,7 @@ val helidon = "4.1.7"
 val protobuf = "4.30.2"
 
 val junit5 = "5.12.1"
-val mockito = "5.16.0"
+val mockito = "5.17.0"
 
 dependencies.constraints {
     api("org.antlr:antlr4-runtime:$antlr") { because("org.antlr.antlr4.runtime") }
