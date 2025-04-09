@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package pbj.integ.tests;
+option java_multiple_files = true;
+
+message DocumentCommentTest {
+  /**
+   * This will fail "cannot find type [reserved]".
+   * Actually, it will no longer fail because `reserved` allows a docCommnet prefix now.
+   */
+  reserved 5;
+
+  /**
+   * This is fine.
+   */
+  uint32 number = 1;
+
+  /**
+   * This is fine, too. One can have random doc comments inside messages.
+   */
+
+  /**
+   * oneof with a commented field; this will fail compilation
+   * "OneofFieldContext.fieldNumber is null".
+   * This will no longer fail as well as oneof now allows one to add random doc comments inside.
+   */
+  oneof sample {
+    /**
+     * A text field
+     */
+    string text = 2;
+
+    /**
+     * A flag indicating FCOJ futures bids are enabled.
+     */
+    // removed for now.
+    // bool futures_enabled = 3;
+  }
+
+  /**
+   * And this is fine, as well. Let's finish with a doc comment.
+   */
+}
+
+/**
+ * One can have doc comments even here, because why not?
+ */

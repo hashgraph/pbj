@@ -71,7 +71,7 @@ public final class ModelGenerator implements Generator {
         final var javaRecordName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final var schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
         // The modelPackage is the Java package to put the model class into.
-        final String modelPackage = lookupHelper.getPackageForMessage(FileType.MODEL, msgDef);
+        final String modelPackage = lookupHelper.getPackage(FileType.MODEL, msgDef);
         // The Javadoc "@Deprecated" tag, which is set if the protobuf schema says the field is deprecated
         String deprecated = "";
         // The list of fields, as defined in the protobuf schema & precomputed fields
@@ -305,9 +305,10 @@ public final class ModelGenerator implements Generator {
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
-            // FUTURE WORK: support inner enums
             if (item.messageDef() != null) { // process sub messages
                 generate(item.messageDef(), writer, lookupHelper);
+            } else if (item.enumDef() != null) {
+                EnumGenerator.generateEnum(item.enumDef(), writer, lookupHelper);
             }
         }
 

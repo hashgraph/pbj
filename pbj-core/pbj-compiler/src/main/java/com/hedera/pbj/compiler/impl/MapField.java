@@ -67,9 +67,9 @@ public record MapField(
                         Field.extractMessageTypeName(mapContext.type_()),
                         Field.isMessageComparable(mapContext.type_(), lookupHelper),
                         Field.extractCompleteClassName(mapContext.type_(), FileType.MODEL, lookupHelper),
-                        Field.extractMessageTypePackage(mapContext.type_(), FileType.MODEL, lookupHelper),
-                        Field.extractMessageTypePackage(mapContext.type_(), FileType.CODEC, lookupHelper),
-                        Field.extractMessageTypePackage(mapContext.type_(), FileType.TEST, lookupHelper),
+                        Field.extractTypePackage(mapContext.type_(), FileType.MODEL, lookupHelper),
+                        Field.extractTypePackage(mapContext.type_(), FileType.CODEC, lookupHelper),
+                        Field.extractTypePackage(mapContext.type_(), FileType.TEST, lookupHelper),
                         "An internal, private map entry value for %s"
                                 .formatted(mapContext.mapName().getText()),
                         false,

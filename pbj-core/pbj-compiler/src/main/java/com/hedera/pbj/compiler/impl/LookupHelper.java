@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -44,6 +45,8 @@ public final class LookupHelper {
     private static final String PBJ_MESSAGE_PACKAGE_OPTION_NAME = "pbj.message_java_package";
     /** The option name for PBJ package at msgDef level */
     private static final String PBJ_ENUM_PACKAGE_OPTION_NAME = "pbj.enum_java_package";
+    /** The option name for PBJ package at msgDef level */
+    private static final String PBJ_SERVICE_PACKAGE_OPTION_NAME = "pbj.service_java_package";
 
     private static final String PBJ_COMPARABLE_OPTION_NAME = "pbj.comparable";
 
@@ -107,7 +110,7 @@ public final class LookupHelper {
      * allows us to lookup for a given protobuf file an unqualified message name and get back the
      * qualified message name.
      */
-    private final Map<String, Map<String, String>> msgAndEnumByFile = new HashMap<>();
+    private final Map<String, Map<String, String>> msgEnumServiceByFile = new HashMap<>();
 
     /**
      * Set of all fully qualified message names that are enums, so we can check if a message is an
@@ -139,6 +142,8 @@ public final class LookupHelper {
             return msgDef.messageName().getText();
         } else if (context instanceof final EnumDefContext enumDef) {
             return enumDef.enumName().getText();
+        } else if (context instanceof final Protobuf3Parser.ServiceDefContext serviceDef) {
+            return serviceDef.serviceName().getText();
         } else if (context instanceof final MessageTypeContext msgTypeContext) {
             final String messageType = msgTypeContext.getText();
             return messageType.contains(".") ? messageType.substring(messageType.lastIndexOf('.') + 1) : messageType;
@@ -221,12 +226,14 @@ public final class LookupHelper {
             final String importsString = Arrays.toString(importsArray);
             throw new PbjCompilerException(
                     FAILED_TO_FIND_MSG_TYPE_MESSAGE.formatted(messageType, protoSrcFile, importsString));
-        } else if (context instanceof MessageDefContext || context instanceof EnumDefContext) {
+        } else if (context instanceof MessageDefContext
+                || context instanceof EnumDefContext
+                || context instanceof Protobuf3Parser.ServiceDefContext) {
             // It's unclear what exactly is being handled in this branch. However, the symbol maps
             // inside msgAndEnumByFile use unqualified names as keys, meaning that this code doesn't support
             // having multiple inner classes with the same name located in different outer classes.
             // We'll get back to fixing this in the second part of https://github.com/hashgraph/pbj/issues/263
-            final Map<String, String> fileMap = msgAndEnumByFile.get(protoSrcFile.getAbsolutePath());
+            final Map<String, String> fileMap = msgEnumServiceByFile.get(protoSrcFile.getAbsolutePath());
             if (fileMap == null) {
                 throw new PbjCompilerException(FAILED_TO_FIND_LOCAL_MSG_MAP_MESSAGE.formatted(protoSrcFile));
             }
@@ -259,6 +266,9 @@ public final class LookupHelper {
         } else if (context instanceof final EnumDefContext enumDef) {
             name = enumDef.enumName().getText();
             isEnum = true;
+        } else if (context instanceof final Protobuf3Parser.ServiceDefContext serviceDef) {
+            name = serviceDef.serviceName().getText();
+            isEnum = false;
         } else {
             throw new UnsupportedOperationException(METHOD_WRONG_CONTEXT_MESSAGE.formatted("getUnqualifiedClass"));
         }
@@ -280,18 +290,20 @@ public final class LookupHelper {
     }
 
     /**
-     * Get the Java package a class should be generated into for a given msgDef and file type.
+     * Get the Java package a class should be generated into for a given context and file type.
      *
-     * @param protoSrcFile the proto source file that the message or enum is in
+     * @param protoSrcFile the proto source file that the message/enum/service is in
      * @param fileType The type of file we want the package for
-     * @param context Parser Context, a message or enum
+     * @param context Parser Context, a message, or enum, or service
      * @return java package to put model class in
      */
     @Nullable
     String getPackage(final File protoSrcFile, final FileType fileType, final ParserRuleContext context) {
         if (context instanceof MessageDefContext
                 || context instanceof EnumDefContext
-                || context instanceof MessageTypeContext) {
+                || context instanceof Protobuf3Parser.ServiceDefContext
+                || context instanceof MessageTypeContext
+                || context instanceof Protobuf3Parser.EnumTypeContext) {
             final String qualifiedProtoName = getFullyQualifiedProtoName(protoSrcFile, context);
             if (qualifiedProtoName.startsWith("google.protobuf")) {
                 return null;
@@ -319,7 +331,7 @@ public final class LookupHelper {
 
         } else {
             throw new UnsupportedOperationException(LIMITED_CONTEXT_OPTIONS_SUPPORT_MESSAGE.formatted(
-                    "getPackageForMsgOrEnum", context.getClass().getName()));
+                    "getPackage", context.getClass().getName()));
         }
     }
 
@@ -355,6 +367,7 @@ public final class LookupHelper {
     String formatCompleteClass(final File protoSrcFile, final FileType fileType, final ParserRuleContext context) {
         if (context instanceof MessageDefContext
                 || context instanceof EnumDefContext
+                || context instanceof Protobuf3Parser.ServiceDefContext
                 || context instanceof MessageTypeContext) {
             final String messageName = getUnqualifiedClass(protoSrcFile, fileType, context);
             // protoc supports nested classes so need parent classes/messages
@@ -455,7 +468,7 @@ public final class LookupHelper {
                     final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
                     final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
                     // create entry in map for file
-                    msgAndEnumByFile.computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>());
+                    msgEnumServiceByFile.computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>());
                     // look for PBJ package option
                     String pbjJavaPackage = null;
                     String protocJavaPackage = null;
@@ -483,14 +496,26 @@ public final class LookupHelper {
                         // ignore pbj_custom_options.proto file
                         continue;
                     } else if (pbjJavaPackage == null && protocJavaPackage == null) {
-                        throw new PbjCompilerException(FILE_MISSING_PACKAGE_OPTION_MESSAGE.formatted(
-                                "", file.getAbsolutePath(), PBJ_PACKAGE_OPTION_NAME, PROTOC_JAVA_PACKAGE_OPTION_NAME));
-                    } else if (pbjJavaPackage == null) {
-                        System.err.printf(FILE_MISSING_PACKAGE_OPTION_MESSAGE.formatted(
-                                "WARNING, ",
-                                file.getAbsolutePath(),
-                                PBJ_PACKAGE_OPTION_NAME,
-                                PROTOC_JAVA_PACKAGE_OPTION_NAME));
+                        if (parsedDoc.packageStatement() == null
+                                || parsedDoc.packageStatement().isEmpty()) {
+                            throw new PbjCompilerException(
+                                    "ERROR: Proto file $file doesn't specify pbj.java_package, java_package, or package values. Unable to infer the Java package."
+                                            .replace("$file", file.getAbsolutePath()));
+                        }
+                        if (parsedDoc.packageStatement().size() > 1) {
+                            System.err.println(
+                                    "WARNING: Proto file $file specifies package several times. PBJ will use the first value only. All specified values: $values"
+                                            .replace("$file", file.getAbsolutePath())
+                                            .replace(
+                                                    "$values",
+                                                    parsedDoc.packageStatement().stream()
+                                                            .map(psc -> psc.fullIdent()
+                                                                    .getText())
+                                                            .collect(Collectors.joining(", "))));
+                        }
+                        // Protoc would use this package, so we pretend this is a protoc package:
+                        protocJavaPackage =
+                                parsedDoc.packageStatement().get(0).fullIdent().getText();
                     }
                     // process imports
                     final Set<String> fileImports =
@@ -525,10 +550,15 @@ public final class LookupHelper {
                     final String fileLevelJavaPackage =
                             (pbjJavaPackage != null) ? pbjJavaPackage : (protocJavaPackage + javaPackageSuffix);
                     for (final var item : parsedDoc.topLevelDef()) {
-                        if (item.messageDef() != null)
+                        if (item.messageDef() != null) {
                             buildMessage(fullQualifiedFile, fileLevelJavaPackage, protocJavaPackage, item.messageDef());
-                        if (item.enumDef() != null)
+                        }
+                        if (item.enumDef() != null) {
                             buildEnum(fullQualifiedFile, fileLevelJavaPackage, protocJavaPackage, item.enumDef());
+                        }
+                        if (item.serviceDef() != null) {
+                            buildService(fullQualifiedFile, fileLevelJavaPackage, protocJavaPackage, item.serviceDef());
+                        }
                     }
                 } catch (final IOException e) {
                     throw new RuntimeException(e);
@@ -566,7 +596,7 @@ public final class LookupHelper {
             }
         }
         System.out.println("== Message Imports ============================================================");
-        for (final var entry : msgAndEnumByFile.entrySet()) {
+        for (final var entry : msgEnumServiceByFile.entrySet()) {
             System.out.printf("FILE - %s%n", entry.getKey());
             for (final var entry2 : entry.getValue().entrySet()) {
                 System.out.printf("    %s -> %s%n", entry2.getKey(), entry2.getValue());
@@ -593,36 +623,21 @@ public final class LookupHelper {
             final MessageDefContext msgDef) {
         final var msgName = msgDef.messageName().getText();
         // check for msgDef/enum level pbj package level override option
-        String messagePbjPackage = fileLevelPbjJavaPackage;
+        final String messagePbjPackage = computePbjPackage(
+                fileLevelPbjJavaPackage,
+                msgDef.messageBody().messageElement(),
+                Protobuf3Parser.MessageElementContext::optionStatement,
+                Protobuf3Parser.MessageElementContext::optionComment,
+                PBJ_MESSAGE_PACKAGE_OPTION_NAME);
 
-        final String fullyQualifiedMessage = getFullyQualifiedProtoNameForMsgOrEnum(msgDef);
+        final String fullyQualifiedMessage = getFullyQualifiedProtoNameForContext(msgDef);
         comparableFieldsByMsg.computeIfAbsent(fullyQualifiedMessage, v -> extractComparableFields(msgDef));
-        for (final var element : msgDef.messageBody().messageElement()) {
-            final var option = element.optionStatement();
-            if (option != null) {
-                if (PBJ_MESSAGE_PACKAGE_OPTION_NAME.equals(
-                        option.optionName().getText().replaceAll("[()]", ""))) {
-                    messagePbjPackage = option.constant().getText().replaceAll("\"", "");
-                }
-            }
-            final var optionComment = element.optionComment();
-            if (optionComment != null) {
-                final var matcher = OPTION_COMMENT.matcher(optionComment.getText());
-                if (matcher.find()) {
-                    final String optionName = matcher.group(1);
-                    final String optionValue = matcher.group(2);
-                    if (optionName.equals(PBJ_PACKAGE_OPTION_NAME)) {
-                        messagePbjPackage = optionValue;
-                    }
-                }
-            }
-        }
         // insert into maps
         pbjPackageMap.put(fullyQualifiedMessage, messagePbjPackage);
         pbjCompleteClassMap.put(
                 fullyQualifiedMessage, formatCompleteClass(new File(fullQualifiedFile), FileType.MODEL, msgDef));
         protocPackageMap.put(fullyQualifiedMessage, fileLevelProtocJavaPackage);
-        msgAndEnumByFile
+        msgEnumServiceByFile
                 .computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>())
                 .put(msgName, fullyQualifiedMessage);
 
@@ -706,37 +721,86 @@ public final class LookupHelper {
             final String fileLevelProtocJavaPackage,
             final EnumDefContext enumDef) {
         final var enumName = enumDef.enumName().getText();
-        // check for msgDef/enum level pbj package level override option
-        String enumPbjPackage = fileLevelPbjJavaPackage;
-        for (final var element : enumDef.enumBody().enumElement()) {
-            final var option = element.optionStatement();
+        final String enumPbjPackage = computePbjPackage(
+                fileLevelPbjJavaPackage,
+                enumDef.enumBody().enumElement(),
+                Protobuf3Parser.EnumElementContext::optionStatement,
+                Protobuf3Parser.EnumElementContext::optionComment,
+                PBJ_ENUM_PACKAGE_OPTION_NAME);
+
+        // insert into maps
+        final var fullQualifiedEnumName = getFullyQualifiedProtoNameForContext(enumDef);
+        pbjPackageMap.put(fullQualifiedEnumName, enumPbjPackage);
+        pbjCompleteClassMap.put(
+                fullQualifiedEnumName, formatCompleteClass(new File(fullQualifiedFile), FileType.MODEL, enumDef));
+        protocPackageMap.put(fullQualifiedEnumName, fileLevelProtocJavaPackage);
+        enumNames.add(fullQualifiedEnumName);
+        msgEnumServiceByFile
+                .computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>())
+                .put(enumName, fullQualifiedEnumName);
+    }
+
+    /**
+     * Walk a service def and build packages and services lists
+     *
+     * @param fullQualifiedFile the fully qualified path and file name for file containing the service
+     * @param fileLevelPbjJavaPackage the pbj java package relative to root package that the serviceDef
+     *     should be in
+     * @param fileLevelProtocJavaPackage the protoc java package relative to root package that the
+     *     msgDef should be in
+     * @param serviceDef protobuf service def
+     */
+    private void buildService(
+            final String fullQualifiedFile,
+            final String fileLevelPbjJavaPackage,
+            final String fileLevelProtocJavaPackage,
+            final Protobuf3Parser.ServiceDefContext serviceDef) {
+        final var serviceName = serviceDef.serviceName().getText();
+        final String servicePbjPackage = computePbjPackage(
+                fileLevelPbjJavaPackage,
+                serviceDef.serviceElement(),
+                Protobuf3Parser.ServiceElementContext::optionStatement,
+                Protobuf3Parser.ServiceElementContext::optionComment,
+                PBJ_SERVICE_PACKAGE_OPTION_NAME);
+
+        // insert into maps
+        final var fullQualifiedServiceName = getFullyQualifiedProtoNameForContext(serviceDef);
+        pbjPackageMap.put(fullQualifiedServiceName, servicePbjPackage);
+        pbjCompleteClassMap.put(
+                fullQualifiedServiceName, formatCompleteClass(new File(fullQualifiedFile), FileType.MODEL, serviceDef));
+        protocPackageMap.put(fullQualifiedServiceName, fileLevelProtocJavaPackage);
+        msgEnumServiceByFile
+                .computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>())
+                .put(serviceName, fullQualifiedServiceName);
+    }
+
+    private static <T extends ParserRuleContext> String computePbjPackage(
+            String pbjPackage,
+            final List<T> elements,
+            final Function<T, Protobuf3Parser.OptionStatementContext> optionStatementFunction,
+            final Function<T, Protobuf3Parser.OptionCommentContext> optionCommentFunction,
+            final String pbjPackageOptionName) {
+        for (final T element : elements) {
+            final var option = optionStatementFunction.apply(element);
             if (option != null) {
-                if (PBJ_ENUM_PACKAGE_OPTION_NAME.equals(
+                if (PBJ_SERVICE_PACKAGE_OPTION_NAME.equals(
                         option.optionName().getText().replaceAll("[()]", ""))) {
-                    enumPbjPackage = option.constant().getText().replaceAll("\"", "");
+                    pbjPackage = option.constant().getText().replaceAll("\"", "");
                 }
             }
-            final var optionComment = element.optionComment();
+            final var optionComment = optionCommentFunction.apply(element);
             if (optionComment != null) {
                 final var matcher = OPTION_COMMENT.matcher(optionComment.getText());
                 if (matcher.find()) {
                     final String optionName = matcher.group(1);
                     final String optionValue = matcher.group(2);
                     if (optionName.equals(PBJ_PACKAGE_OPTION_NAME)) {
-                        enumPbjPackage = optionValue;
+                        pbjPackage = optionValue;
                     }
                 }
             }
         }
-
-        // insert into maps
-        final var fullQualifiedEnumName = getFullyQualifiedProtoNameForMsgOrEnum(enumDef);
-        pbjPackageMap.put(fullQualifiedEnumName, enumPbjPackage);
-        protocPackageMap.put(fullQualifiedEnumName, fileLevelProtocJavaPackage);
-        enumNames.add(fullQualifiedEnumName);
-        msgAndEnumByFile
-                .computeIfAbsent(fullQualifiedFile, fqf -> new HashMap<>())
-                .put(enumName, fullQualifiedEnumName);
+        return pbjPackage;
     }
 
     /**
@@ -748,7 +812,7 @@ public final class LookupHelper {
      *     MessageDefContext or EnumDefContext
      * @return part of fully qualified protobuf name
      */
-    private static String getFullyQualifiedProtoNameForMsgOrEnum(final ParserRuleContext ruleContext) {
+    public String getFullyQualifiedProtoNameForContext(final ParserRuleContext ruleContext) {
         String thisName = "";
         if (ruleContext instanceof final Protobuf3Parser.ProtoContext parsedDoc) {
             // get proto package
@@ -757,16 +821,20 @@ public final class LookupHelper {
                     ? ""
                     : packageStatement.get().fullIdent().getText();
         } else if (ruleContext instanceof final EnumDefContext enumDef) {
-            final String parentPart = getFullyQualifiedProtoNameForMsgOrEnum(enumDef.getParent());
-            thisName = getFullyQualifiedProtoNameForMsgOrEnum(enumDef.getParent())
+            final String parentPart = getFullyQualifiedProtoNameForContext(enumDef.getParent());
+            thisName = getFullyQualifiedProtoNameForContext(enumDef.getParent())
                     + "."
                     + enumDef.enumName().getText();
         } else if (ruleContext instanceof final MessageDefContext msgDef) {
-            thisName = getFullyQualifiedProtoNameForMsgOrEnum(msgDef.getParent())
+            thisName = getFullyQualifiedProtoNameForContext(msgDef.getParent())
                     + "."
                     + msgDef.messageName().getText();
+        } else if (ruleContext instanceof final Protobuf3Parser.ServiceDefContext serviceDef) {
+            thisName = getFullyQualifiedProtoNameForContext(serviceDef.getParent())
+                    + "."
+                    + serviceDef.serviceName().getText();
         } else if (ruleContext.getParent() != null) {
-            thisName = getFullyQualifiedProtoNameForMsgOrEnum(ruleContext.getParent());
+            thisName = getFullyQualifiedProtoNameForContext(ruleContext.getParent());
         }
         return Common.removingLeadingDot(thisName);
     }
@@ -777,6 +845,6 @@ public final class LookupHelper {
      * @return a list of field names that are comparable
      */
     List<String> getComparableFields(MessageDefContext message) {
-        return comparableFieldsByMsg.get(getFullyQualifiedProtoNameForMsgOrEnum(message));
+        return comparableFieldsByMsg.get(getFullyQualifiedProtoNameForContext(message));
     }
 }

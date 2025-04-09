@@ -10,6 +10,7 @@ import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.LookupHelper;
 import com.hedera.pbj.compiler.impl.generators.EnumGenerator;
 import com.hedera.pbj.compiler.impl.generators.Generator;
+import com.hedera.pbj.compiler.impl.generators.ServiceGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.File;
@@ -66,8 +67,7 @@ public abstract class PbjCompiler {
                         final Protobuf3Parser.EnumDefContext enumDef = topLevelDef.enumDef();
                         if (enumDef != null) {
                             // run just enum generators for enum
-                            final String javaPackage =
-                                    contextualLookupHelper.getPackageForEnum(FileType.MODEL, enumDef);
+                            final String javaPackage = contextualLookupHelper.getPackage(FileType.MODEL, enumDef);
                             final JavaFileWriter writer = new JavaFileWriter(
                                     getJavaFile(
                                             mainOutputDir,
@@ -75,6 +75,18 @@ public abstract class PbjCompiler {
                                             enumDef.enumName().getText()),
                                     javaPackage);
                             EnumGenerator.generateEnum(enumDef, writer, contextualLookupHelper);
+                            writer.writeFile();
+                        }
+                        final Protobuf3Parser.ServiceDefContext serviceDef = topLevelDef.serviceDef();
+                        if (serviceDef != null) {
+                            final String javaPackage = contextualLookupHelper.getPackage(FileType.MODEL, serviceDef);
+                            final JavaFileWriter writer = new JavaFileWriter(
+                                    getJavaFile(
+                                            mainOutputDir,
+                                            javaPackage,
+                                            serviceDef.serviceName().getText() + ServiceGenerator.SUFFIX),
+                                    javaPackage);
+                            ServiceGenerator.generateService(serviceDef, writer, contextualLookupHelper);
                             writer.writeFile();
                         }
                     }

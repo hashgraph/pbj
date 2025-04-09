@@ -11,14 +11,14 @@ group = "com.hedera.hashgraph"
 val antlr = "4.13.2"
 val grpc = "1.71.0"
 val helidon = "4.1.7"
-val protobuf = "4.30.1"
+val protobuf = "4.30.2"
 
-val junit5 = "5.12.0"
+val junit5 = "5.12.1"
 val mockito = "5.16.0"
 
 dependencies.constraints {
     api("org.antlr:antlr4-runtime:$antlr") { because("org.antlr.antlr4.runtime") }
-    api("com.github.spotbugs:spotbugs-annotations:4.9.2") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
         because("com.github.spotbugs.annotations")
     }
 

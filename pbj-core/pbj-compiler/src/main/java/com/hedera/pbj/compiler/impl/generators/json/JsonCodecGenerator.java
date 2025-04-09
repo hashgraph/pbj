@@ -32,8 +32,8 @@ public final class JsonCodecGenerator implements Generator {
         final String codecClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.JSON_CODEC, msgDef);
 
         final List<Field> fields = new ArrayList<>();
-        writer.addImport(lookupHelper.getPackageForMessage(FileType.MODEL, msgDef) + ".*");
-        writer.addImport(lookupHelper.getPackageForMessage(FileType.SCHEMA, msgDef) + ".*");
+        writer.addImport(lookupHelper.getPackage(FileType.MODEL, msgDef) + ".*");
+        writer.addImport(lookupHelper.getPackage(FileType.SCHEMA, msgDef) + ".*");
 
         for (var item : msgDef.messageBody().messageElement()) {
             if (item.messageDef() != null) { // process sub messages down below

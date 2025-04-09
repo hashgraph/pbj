@@ -29,6 +29,9 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
      */
     @Override
     public void apply(Project project) {
+        // Register the PbjExtension to fetch optional parameters from Gradle files
+        final PbjExtension pbj = project.getExtensions().create("pbj", PbjExtension.class);
+
         // get reference to java plugin
         final var javaPlugin = project.getExtensions().getByType(JavaPluginExtension.class);
         // get java src sets
@@ -61,6 +64,7 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
                     pbjTask.setSource(pbjSourceSet);
                     pbjTask.getJavaMainOutputDirectory().set(outputDirectoryMain);
                     pbjTask.getJavaTestOutputDirectory().set(outputDirectoryTest);
+                    pbjTask.getJavaPackageSuffix().set(pbj.getJavaPackageSuffix());
                 });
 
         // 5) register fact that pbj should be run before compiling  by informing the 'java' part

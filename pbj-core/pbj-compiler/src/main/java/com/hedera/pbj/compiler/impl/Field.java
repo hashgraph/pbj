@@ -211,28 +211,34 @@ public interface Field {
     }
 
     /**
-     * Extract the complete name of the Java model class for a message type, including outer classes names,
-     * or null if the type is not a message.
+     * Extract the complete name of the Java model class for a message/enum type, including outer classes names,
+     * or null if the type is not a message/enum.
      */
     static String extractCompleteClassName(
             final Protobuf3Parser.Type_Context typeContext,
             final com.hedera.pbj.compiler.impl.FileType fileType,
             final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
-        return typeContext.messageType() == null ? null : lookupHelper.getCompleteClass(typeContext.messageType());
+        if (typeContext.messageType() != null) return lookupHelper.getCompleteClass(typeContext.messageType());
+        else if (typeContext.enumType() != null) return lookupHelper.getCompleteClass(typeContext.enumType());
+        else return null;
     }
 
     /**
-     * Extract the name of the Java package for a given FileType for a message type,
-     * or null if the type is not a message.
+     * Extract the name of the Java package for a given FileType for a message/enum type,
+     * or null if the type is not a message/enum.
      */
-    static String extractMessageTypePackage(
+    static String extractTypePackage(
             final Protobuf3Parser.Type_Context typeContext,
             final com.hedera.pbj.compiler.impl.FileType fileType,
             final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
-        return typeContext.messageType() == null
-                        || typeContext.messageType().messageName().getText() == null
-                ? null
-                : lookupHelper.getPackageFieldMessageType(fileType, typeContext);
+        if ((typeContext.messageType() != null
+                        && typeContext.messageType().messageName().getText() != null)
+                || (typeContext.enumType() != null
+                        && typeContext.enumType().enumName().getText() != null)) {
+            return lookupHelper.getPackageFieldType(fileType, typeContext);
+        } else {
+            return null;
+        }
     }
 
     /**

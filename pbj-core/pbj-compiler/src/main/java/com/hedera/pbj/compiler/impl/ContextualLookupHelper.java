@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
-import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.EnumDefContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.FieldContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageTypeContext;
@@ -31,6 +30,11 @@ public class ContextualLookupHelper {
     public ContextualLookupHelper(LookupHelper lookupHelper, File srcProtoFileContext) {
         this.lookupHelper = lookupHelper;
         this.srcProtoFileContext = srcProtoFileContext;
+    }
+
+    /** Get the LookupHelper instance backing this ContextualLookupHelper. */
+    public LookupHelper getLookupHelper() {
+        return lookupHelper;
     }
 
     /**
@@ -65,25 +69,16 @@ public class ContextualLookupHelper {
     }
 
     /**
-     * Get the Java package a class should be generated into for a given msgDef and file type.
+     * Get the Java package a class should be generated into for a given ParserRuleContext and file type.
+     * Examples of supported ParserRuleContext: MessageDefContext, EnumDefContext, ServiceDefContext.
+     * This method throws an exception if the package cannot be determined.
      *
      * @param fileType The type of file we want the package for
      * @param message The msgDef to get package for
      * @return java package to put model class in
      */
-    public String getPackageForMessage(FileType fileType, MessageDefContext message) {
+    public String getPackage(FileType fileType, ParserRuleContext message) {
         return lookupHelper.getPackage(srcProtoFileContext, fileType, message);
-    }
-
-    /**
-     * Get the Java package a class should be generated into for a given enum and file type.
-     *
-     * @param fileType The type of file we want the package for
-     * @param enumDef The enum to get package for
-     * @return java package to put model class in
-     */
-    public String getPackageForEnum(FileType fileType, EnumDefContext enumDef) {
-        return lookupHelper.getPackage(srcProtoFileContext, fileType, enumDef);
     }
 
     /**
@@ -99,14 +94,20 @@ public class ContextualLookupHelper {
     }
 
     /**
-     * Get the Java package a class should be generated into for a given typeContext and file type.
+     * Get the Java package a class should be generated into for a given message or enum typeContext and file type.
      *
      * @param fileType The type of file we want the package for
      * @param typeContext The field to get package for message type for
      * @return java package to put model class in
      */
-    public String getPackageFieldMessageType(final FileType fileType, final Type_Context typeContext) {
-        return lookupHelper.getPackage(srcProtoFileContext, fileType, typeContext.messageType());
+    public String getPackageFieldType(final FileType fileType, final Type_Context typeContext) {
+        if (typeContext.messageType() != null) {
+            return lookupHelper.getPackage(srcProtoFileContext, fileType, typeContext.messageType());
+        } else if (typeContext.enumType() != null) {
+            return lookupHelper.getPackage(srcProtoFileContext, fileType, typeContext.enumType());
+        } else {
+            return null;
+        }
     }
 
     /**
