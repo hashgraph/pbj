@@ -54,7 +54,7 @@ dependencies.constraints {
     api("io.grpc:protoc-gen-grpc-java:1.71.0")
 
     // Testing only
-    api("com.google.guava:guava:33.4.6-jre") { because("com.google.common") }
+    api("com.google.guava:guava:33.4.7-jre") { because("com.google.common") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
     api("org.assertj:assertj-core:3.27.3") { because("org.assertj.core") }
