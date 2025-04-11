@@ -10,7 +10,7 @@ group = "com.hedera.hashgraph"
 
 val antlr = "4.13.2"
 val grpc = "1.71.0"
-val helidon = "4.1.7"
+val helidon = "4.2.0"
 val protobuf = "4.30.2"
 
 val junit5 = "5.12.1"
