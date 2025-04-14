@@ -13,7 +13,7 @@ val grpc = "1.71.0"
 val helidon = "4.2.0"
 val protobuf = "4.30.2"
 
-val junit5 = "5.12.1"
+val junit5 = "5.12.2"
 val mockito = "5.17.0"
 
 dependencies.constraints {
