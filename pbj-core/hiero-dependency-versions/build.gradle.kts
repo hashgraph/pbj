@@ -16,6 +16,8 @@ val protobuf = "4.30.2"
 val junit5 = "5.12.1"
 val mockito = "5.17.0"
 
+dependencies { api(platform("io.netty:netty-bom:4.2.0.Final")) }
+
 dependencies.constraints {
     api("org.antlr:antlr4-runtime:$antlr") { because("org.antlr.antlr4.runtime") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
