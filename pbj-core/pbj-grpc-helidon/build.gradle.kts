@@ -31,5 +31,3 @@ testModuleInfo {
     runtimeOnly("io.grpc.netty")
     runtimeOnly("io.helidon.webserver.observe.metrics")
 }
-
-tasks.named("compileJava") { dependsOn(":pbj-runtime:jar") } // FIXME !!!
