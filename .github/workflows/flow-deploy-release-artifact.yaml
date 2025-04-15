@@ -6,7 +6,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.5"
+        default: "21.0.6"
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
@@ -103,7 +103,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-          java-version: ${{ github.event.inputs.java-version || '21.0.5' }}
+          java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
