@@ -36,7 +36,6 @@ public class UnknownFieldsTest {
         assertEquals(1, uf.bytes().size());
         Bytes ub = uf.bytes().get(0);
         assertEquals(TEST_STRING.length(), ub.getVarInt(0, false));
-        // assertEquals(TEST_STRING, ub.asUtf8String(1, TEST_STRING.length() ));
         assertEquals(TEST_STRING, ub.asUtf8String(1, ub.length() - 1));
     }
 }

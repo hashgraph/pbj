@@ -367,11 +367,12 @@ public final class ProtoParserTools {
     }
 
     /**
-     * Skip over the bytes in a stream for a given wire type. Assumes you have already read tag.
+     * Extract the bytes in a stream for a given wire type. Assumes you have already read tag.
      *
      * @param input The input to move ahead
      * @param wireType The wire type of field to skip
      * @param maxSize the maximum allowed size for repeated/length-encoded fields
+     * @return the extracted bytes
      * @throws IOException For unsupported wire types
      * @throws ParseException if the length of a repeated/length-encoded field is greater than maxSize
      */
