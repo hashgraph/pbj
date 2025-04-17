@@ -433,6 +433,9 @@ public final class ModelGenerator implements Generator {
                 return false;
             }
             $javaRecordName thatObj = ($javaRecordName)that;
+            if ($hashCode != -1 && thatObj.$hashCode != -1 && $hashCode != thatObj.$hashCode) {
+                return false;
+            }
         """.replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
 
         bodyContent += equalsStatements.indent(DEFAULT_INDENT);
