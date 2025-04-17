@@ -481,7 +481,11 @@ class ProtoParserToolsTest {
 
         @NonNull
         @Override
-        public TestMessage parse(@NonNull final ReadableSequentialData in, final boolean strictMode, final int maxDepth)
+        public TestMessage parse(
+                @NonNull final ReadableSequentialData in,
+                final boolean strictMode,
+                final boolean parseUnknownFields,
+                final int maxDepth)
                 throws ParseException {
             String value = null;
             while (in.hasRemaining()) {

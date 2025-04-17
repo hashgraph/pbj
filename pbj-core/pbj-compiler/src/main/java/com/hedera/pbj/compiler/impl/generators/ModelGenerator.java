@@ -85,12 +85,15 @@ public final class ModelGenerator implements Generator {
         final List<String> hasMethods = new ArrayList<>();
         // The generated Java import statements. We'll build this up as we go.
         writer.addImport("com.hedera.pbj.runtime.*");
+        writer.addImport("com.hedera.pbj.runtime.UnknownField");
         writer.addImport("com.hedera.pbj.runtime.io.*");
         writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
         writer.addImport("com.hedera.pbj.runtime.io.stream.*");
         writer.addImport("edu.umd.cs.findbugs.annotations.*");
         writer.addImport(lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef));
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
+        writer.addImport("java.util.Collections");
+        writer.addImport("java.util.Map");
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
@@ -189,12 +192,34 @@ public final class ModelGenerator implements Generator {
                 .indent(DEFAULT_INDENT);
         bodyContent += "\n";
 
-        // constructor
-        bodyContent += generateConstructor(javaRecordName, fields, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+        bodyContent += "private final Map<Integer, UnknownField> $unknownFields;";
+
+        // constructors: w/o unknownFields, and with unknownFields
+        bodyContent +=
+                generateConstructor(javaRecordName, fields, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+        bodyContent += "\n";
+        bodyContent +=
+                generateConstructor(javaRecordName, fields, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
         bodyContent += "\n";
 
         // record style getters
         bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed);
+        bodyContent += "\n";
+
+        bodyContent +=
+                """
+                /**
+                 * Get an unmodifiable map from protobuf field numbers to UnknownField records for all unknown fields parsed
+                 * from the original data, i.e. the fields that are unknown to the .proto model which generated
+                 * this Java model class.
+                 * Note that by default, PBJ Codec discards unknown fields. The parse() method has to be invoked
+                 * with `parseUnknownFields = true` in order to populate this map.
+                 * @return a (potentially empty) map of unknown fields
+                 */
+                public @NonNull Map<Integer, UnknownField> getUnknownFields() {
+                    return $unknownFields == null ? Collections.EMPTY_MAP : $unknownFields;
+                }
+                """;
         bodyContent += "\n";
 
         // protobuf size method
@@ -542,6 +567,7 @@ public final class ModelGenerator implements Generator {
     private static String generateConstructor(
             final String constructorName,
             final List<Field> fields,
+            final boolean initUnknownFields,
             final List<Field> fieldsNoPrecomputed,
             final boolean shouldThrowOnOneOfNull,
             final MessageDefContext msgDef,
@@ -555,7 +581,8 @@ public final class ModelGenerator implements Generator {
                  * Create a pre-populated $constructorName.
                  * $constructorParamDocs
                  */
-                public $constructorName($constructorParams) {
+                public $constructorName($constructorParams$unknownFieldsParam) {
+                    $unknownFieldsCode
             $constructorCode    }
             """
                 .replace("$constructorParamDocs",fieldsNoPrecomputed.stream().map(field ->
@@ -566,6 +593,12 @@ public final class ModelGenerator implements Generator {
                 .replace("$constructorParams",fieldsNoPrecomputed.stream().map(field ->
                         field.javaFieldType() + " " + field.nameCamelFirstLower()
                 ).collect(Collectors.joining(", ")))
+                .replace("$unknownFieldsParam", initUnknownFields
+                        ? ((fieldsNoPrecomputed.isEmpty() ? "" : ", ") + "final Map<Integer, UnknownField> $unknownFields")
+                        : "")
+                .replace("$unknownFieldsCode", "this.$unknownFields = " + (initUnknownFields
+                        ? "$unknownFields == null ? null : Collections.unmodifiableMap($unknownFields)"
+                        : "null") + ";")
                 .replace("$constructorCode",fieldsNoPrecomputed.stream().map(field -> {
                     StringBuilder sb = new StringBuilder();
                     if (shouldThrowOnOneOfNull && field instanceof OneOfField) {
@@ -1016,11 +1049,12 @@ public final class ModelGenerator implements Generator {
              */
             public static final class Builder {
                 $fields;
+                private final Map<Integer, UnknownField> $unknownFields;
         
                 /**
                  * Create an empty builder
                  */
-                public Builder() {}
+                public Builder() { $unknownFields = null; }
             
             $prePopulatedBuilder
                 /**
@@ -1039,7 +1073,7 @@ public final class ModelGenerator implements Generator {
                                 + " " + field.nameCamelFirstLower()
                                 + " = " + getDefaultValue(field, msgDef, lookupHelper)
                         ).collect(Collectors.joining(";\n    ")))
-                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, fields, false, msgDef, lookupHelper))
                 .replace("$javaRecordName",javaRecordName)
                 .replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
                 .replace("$builderMethods", String.join("\n", builderMethods))
