@@ -22,7 +22,11 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
     // where people try to use a mutable object.
 
     /** {@inheritDoc} */
-    default @NonNull T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth)
+    default @NonNull T parse(
+            @NonNull ReadableSequentialData input,
+            final boolean strictMode,
+            final boolean parseUnknownFields,
+            final int maxDepth)
             throws ParseException {
         try {
             return parse(JsonTools.parseJson(input), strictMode, maxDepth);

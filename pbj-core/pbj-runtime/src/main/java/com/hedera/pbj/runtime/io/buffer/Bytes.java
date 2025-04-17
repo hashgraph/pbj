@@ -175,6 +175,20 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         return new Bytes(HexFormat.of().parseHex(string.toLowerCase()));
     }
 
+    /**
+     * Creates a new Bytes object by merging the bytes from the given bytes1 and bytes2.
+     * @param bytes1 first Bytes
+     * @param bytes2 second Bytes
+     * @return a Bytes object with bytes of bytes1 followed by bytes of bytes2
+     */
+    @NonNull
+    public static Bytes merge(@NonNull final Bytes bytes1, @NonNull final Bytes bytes2) {
+        final byte[] array = new byte[bytes1.length + bytes2.length];
+        System.arraycopy(bytes1.buffer, bytes1.start, array, 0, bytes1.length);
+        System.arraycopy(bytes2.buffer, bytes2.start, array, bytes1.length, bytes2.length);
+        return new Bytes(array);
+    }
+
     // ================================================================================================================
     // Object Methods
 
@@ -582,7 +596,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
             return "";
         }
         validateOffset(offset);
-        return new String(buffer, Math.toIntExact(start + offset), length, StandardCharsets.UTF_8);
+        return new String(buffer, Math.toIntExact(start + offset), Math.toIntExact(len), StandardCharsets.UTF_8);
     }
 
     /** {@inheritDoc} */

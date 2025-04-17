@@ -24,7 +24,8 @@ class CodecWrapper<T> implements Codec<T> {
 
     @NonNull
     @Override
-    public T parse(@NonNull ReadableSequentialData input, boolean strictMode, int maxDepth) throws ParseException {
+    public T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
         throw new UnsupportedOperationException();
     }
 

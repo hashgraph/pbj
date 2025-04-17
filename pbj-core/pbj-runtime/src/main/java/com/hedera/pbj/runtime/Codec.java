@@ -35,12 +35,39 @@ public interface Codec<T /*extends Record*/> {
      *
      * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
      * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+     * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
+     *                           fields in the unknownFields map in the model; otherwise they'll be simply skipped.
      * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
     @NonNull
-    T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth) throws ParseException;
+    T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException;
+
+    /**
+     * Parses an object from the {@link ReadableSequentialData} and returns it.
+     * <p>
+     * If {@code strictMode} is {@code true}, then throws an exception if fields
+     * have been defined on the encoded object that are not supported by the parser. This
+     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
+     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * parsing it is prepared to handle.
+     * <p>
+     * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
+     * will fail with a ParseException if the maximum depth is reached.
+     *
+     * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    @NonNull
+    default T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth)
+            throws ParseException {
+        return parse(input, strictMode, false, maxDepth);
+    }
 
     /**
      * Parses an object from the {@link Bytes} and returns it.
