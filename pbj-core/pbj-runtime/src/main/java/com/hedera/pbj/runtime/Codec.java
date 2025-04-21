@@ -36,7 +36,7 @@ public interface Codec<T /*extends Record*/> {
      * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
      * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
      * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
-     *                           fields in the unknownFields map in the model; otherwise they'll be simply skipped.
+     *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
      * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
