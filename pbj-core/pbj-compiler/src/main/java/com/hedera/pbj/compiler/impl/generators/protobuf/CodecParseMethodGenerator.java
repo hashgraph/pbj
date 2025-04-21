@@ -74,7 +74,7 @@ class CodecParseMethodGenerator {
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
                         $fieldDefs
-                        Map<Integer, UnknownField> $unknownFields = null;
+                        List<UnknownField> $unknownFields = null;
 
                         $parseLoop
                         return new $modelClassName($fieldsList);
@@ -154,13 +154,13 @@ class CodecParseMethodGenerator {
                                         } else {
                                             if (parseUnknownFields) {
                                                 if ($unknownFields == null) {
-                                                    $unknownFields = new HashMap<>();
+                                                    $unknownFields = new ArrayList<>();
                                                 }
-                                                $unknownFields.merge(
-                                                    field,
-                                                    new UnknownField(ProtoConstants.get(wireType), List.of(extractField(input, ProtoConstants.get(wireType), $skipMaxSize))),
-                                                    (uf1, uf2) -> new UnknownField(ProtoConstants.get(wireType), Stream.concat(uf1.bytes().stream(), uf2.bytes().stream()).toList())
-                                                );
+                                                $unknownFields.add(new UnknownField(
+                                                        field,
+                                                        ProtoConstants.get(wireType),
+                                                        extractField(input, ProtoConstants.get(wireType), $skipMaxSize)
+                                                ));
                                             } else {
                                                 // We just need to read off the bytes for this field to skip it
                                                 // and move on to the next one.

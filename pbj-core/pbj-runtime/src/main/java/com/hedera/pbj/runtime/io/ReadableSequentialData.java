@@ -494,7 +494,7 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws UncheckedIOException if an I/O error occurs
      * @throws DataEncodingException if the variable long cannot be decoded
      */
-    default Bytes readVarBytes() throws BufferUnderflowException, UncheckedIOException {
+    default Bytes readVarLongBytes() throws BufferUnderflowException, UncheckedIOException {
         final byte[] bytes = new byte[10];
         for (int i = 0; i < 10; i++) {
             bytes[i] = readByte();

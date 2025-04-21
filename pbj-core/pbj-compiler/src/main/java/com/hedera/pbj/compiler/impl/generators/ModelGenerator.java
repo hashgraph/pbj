@@ -93,7 +93,7 @@ public final class ModelGenerator implements Generator {
         writer.addImport(lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef));
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
         writer.addImport("java.util.Collections");
-        writer.addImport("java.util.Map");
+        writer.addImport("java.util.List");
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
@@ -192,7 +192,7 @@ public final class ModelGenerator implements Generator {
                 .indent(DEFAULT_INDENT);
         bodyContent += "\n";
 
-        bodyContent += "private final Map<Integer, UnknownField> $unknownFields;";
+        bodyContent += "private final List<UnknownField> $unknownFields;";
 
         // constructors: w/o unknownFields, and with unknownFields
         bodyContent +=
@@ -209,17 +209,27 @@ public final class ModelGenerator implements Generator {
         bodyContent +=
                 """
                 /**
-                 * Get an unmodifiable map from protobuf field numbers to UnknownField records for all unknown fields parsed
-                 * from the original data, i.e. the fields that are unknown to the .proto model which generated
-                 * this Java model class.
-                 * Note that by default, PBJ Codec discards unknown fields. The parse() method has to be invoked
-                 * with `parseUnknownFields = true` in order to populate this map.
-                 * @return a (potentially empty) map of unknown fields
+                 * Get an unmodifiable list of all unknown fields parsed from the original data, i.e. the fields
+                 * that are unknown to the .proto model which generated this Java model class.
+                 * <p>
+                 * Note that by default, PBJ Codec discards unknown fields for performance reasons.
+                 * The parse() method has to be invoked with `parseUnknownFields = true` in order to populate this list.
+                 * <p>
+                 * Also note that the list may contain multiple `UnknownField` items with the same field number
+                 * in case a repeated field uses an unpacked data format on the wire. It's up to the application
+                 * to interpret these unknown fields correctly if necessary.
+                 * <p>
+                 * If the parsing of unknown fields was enabled when this model instance was parsed originally and
+                 * so this list isn't empty, then a subsequent `Codec.write()` call will preserve all the parsed
+                 * unknown fields as they were originally present on the wire.
+                 *
+                 * @return a (potentially empty) list of unknown fields
                  */
-                public @NonNull Map<Integer, UnknownField> getUnknownFields() {
-                    return $unknownFields == null ? Collections.EMPTY_MAP : $unknownFields;
+                public @NonNull List<UnknownField> getUnknownFields() {
+                    return $unknownFields == null ? Collections.EMPTY_LIST : $unknownFields;
                 }
-                """;
+                """
+                        .indent(DEFAULT_INDENT);
         bodyContent += "\n";
 
         // protobuf size method
@@ -572,7 +582,7 @@ public final class ModelGenerator implements Generator {
             final boolean shouldThrowOnOneOfNull,
             final MessageDefContext msgDef,
             final ContextualLookupHelper lookupHelper) {
-        if (fields.isEmpty()) {
+        if (fields.isEmpty() && !initUnknownFields) {
             return "";
         }
         // spotless:off
@@ -594,10 +604,10 @@ public final class ModelGenerator implements Generator {
                         field.javaFieldType() + " " + field.nameCamelFirstLower()
                 ).collect(Collectors.joining(", ")))
                 .replace("$unknownFieldsParam", initUnknownFields
-                        ? ((fieldsNoPrecomputed.isEmpty() ? "" : ", ") + "final Map<Integer, UnknownField> $unknownFields")
+                        ? ((fieldsNoPrecomputed.isEmpty() ? "" : ", ") + "final List<UnknownField> $unknownFields")
                         : "")
                 .replace("$unknownFieldsCode", "this.$unknownFields = " + (initUnknownFields
-                        ? "$unknownFields == null ? null : Collections.unmodifiableMap($unknownFields)"
+                        ? "$unknownFields == null ? null : Collections.unmodifiableList($unknownFields)"
                         : "null") + ";")
                 .replace("$constructorCode",fieldsNoPrecomputed.stream().map(field -> {
                     StringBuilder sb = new StringBuilder();
@@ -880,7 +890,7 @@ public final class ModelGenerator implements Generator {
              * @return a pre-populated builder
              */
             public Builder copyBuilder() {
-                return new Builder(%s);
+                return new Builder(%s$unknownFieldsArg);
             }
             
             /**
@@ -893,6 +903,7 @@ public final class ModelGenerator implements Generator {
             }
             """
             .formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
+            .replace("$unknownFieldsArg", (fields.isEmpty() ? "" : ", ") + "$unknownFields")
             .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
@@ -1049,7 +1060,7 @@ public final class ModelGenerator implements Generator {
              */
             public static final class Builder {
                 $fields;
-                private final Map<Integer, UnknownField> $unknownFields;
+                private final List<UnknownField> $unknownFields;
         
                 /**
                  * Create an empty builder
@@ -1057,6 +1068,7 @@ public final class ModelGenerator implements Generator {
                 public Builder() { $unknownFields = null; }
             
             $prePopulatedBuilder
+            $prePopulatedWithUnknownFieldsBuilder
                 /**
                  * Build a new model record with data set on builder
                  *
@@ -1074,6 +1086,7 @@ public final class ModelGenerator implements Generator {
                                 + " = " + getDefaultValue(field, msgDef, lookupHelper)
                         ).collect(Collectors.joining(";\n    ")))
                 .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, fields, false, msgDef, lookupHelper))
                 .replace("$javaRecordName",javaRecordName)
                 .replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
                 .replace("$builderMethods", String.join("\n", builderMethods))

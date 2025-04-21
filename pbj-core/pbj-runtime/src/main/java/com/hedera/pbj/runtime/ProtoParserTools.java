@@ -385,9 +385,9 @@ public final class ProtoParserTools {
             // The value for "zigZag" when calling varint doesn't matter because we are just reading past
             // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
             // the bytes, not how many of them there are)
-            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarBytes();
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLongBytes();
             case WIRE_TYPE_DELIMITED -> {
-                final Bytes lenBytes = input.readVarBytes();
+                final Bytes lenBytes = input.readVarLongBytes();
                 final int length = lenBytes.getVarInt(0, false);
                 if (length < 0) {
                     throw new IOException("Encountered a field with negative length " + length);

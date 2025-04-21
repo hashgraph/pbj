@@ -41,12 +41,10 @@ final class CodecWriteMethodGenerator {
                 $fieldWriteLines
                 // Check if not-empty to avoid creating a lambda if there's nothing to write.
                 if (!data.getUnknownFields().isEmpty()) {
-                    data.getUnknownFields().forEach((field, uf) -> {
-                        final int tag = (field << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
-                        uf.bytes().forEach(bytes -> {
-                            out.writeVarInt(tag, false);
-                            bytes.writeTo(out);
-                        });
+                    data.getUnknownFields().forEach(uf -> {
+                        final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
+                        out.writeVarInt(tag, false);
+                        uf.bytes().writeTo(out);
                     });
                 }
             }

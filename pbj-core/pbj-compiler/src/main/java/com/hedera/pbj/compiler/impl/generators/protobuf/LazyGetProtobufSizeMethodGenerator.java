@@ -40,12 +40,16 @@ public class LazyGetProtobufSizeMethodGenerator {
                     if ($protobufEncodedSize == -1) {
                         int _size = 0;
                 $fieldSizeOfLines
+                $unknownFieldsSizeOfLines
                         $protobufEncodedSize = _size;
                     }
                     return $protobufEncodedSize;
                 }
                 """
                 .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
+                .replace(
+                        "$unknownFieldsSizeOfLines",
+                        formatUnknownFieldsSizeOfLines().indent(DEFAULT_INDENT))
                 .indent(DEFAULT_INDENT);
     }
 
@@ -64,6 +68,18 @@ public class LazyGetProtobufSizeMethodGenerator {
                         field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
                 .collect(Collectors.joining("\n"))
                 .indent(DEFAULT_INDENT);
+    }
+
+    static String formatUnknownFieldsSizeOfLines() {
+        return """
+                if ($unknownFields != null) {
+                    for (int i = 0; i < $unknownFields.size(); i++) {
+                        final UnknownField uf = $unknownFields.get(i);
+                        _size += sizeOfVarInt32((uf.field() << ProtoParserTools.TAG_FIELD_OFFSET) | uf.wireType().ordinal());
+                        _size += Math.toIntExact(uf.bytes().length());
+                    }
+                }
+                """;
     }
 
     /**
@@ -100,31 +116,33 @@ public class LazyGetProtobufSizeMethodGenerator {
         if (field.optionalValueType()) {
             return prefix
                     + switch (field.messageType()) {
-                        case "StringValue" -> "_size += sizeOfOptionalString(%s, %s);"
-                                .formatted(fieldDef, getValueCode);
+                        case "StringValue" ->
+                            "_size += sizeOfOptionalString(%s, %s);".formatted(fieldDef, getValueCode);
                         case "BoolValue" -> "_size += sizeOfOptionalBoolean(%s, %s);".formatted(fieldDef, getValueCode);
-                        case "Int32Value", "UInt32Value" -> "_size += sizeOfOptionalInteger(%s, %s);"
-                                .formatted(fieldDef, getValueCode);
-                        case "Int64Value", "UInt64Value" -> "_size += sizeOfOptionalLong(%s, %s);"
-                                .formatted(fieldDef, getValueCode);
+                        case "Int32Value", "UInt32Value" ->
+                            "_size += sizeOfOptionalInteger(%s, %s);".formatted(fieldDef, getValueCode);
+                        case "Int64Value", "UInt64Value" ->
+                            "_size += sizeOfOptionalLong(%s, %s);".formatted(fieldDef, getValueCode);
                         case "FloatValue" -> "_size += sizeOfOptionalFloat(%s, %s);".formatted(fieldDef, getValueCode);
-                        case "DoubleValue" -> "_size += sizeOfOptionalDouble(%s, %s);"
-                                .formatted(fieldDef, getValueCode);
+                        case "DoubleValue" ->
+                            "_size += sizeOfOptionalDouble(%s, %s);".formatted(fieldDef, getValueCode);
                         case "BytesValue" -> "_size += sizeOfOptionalBytes(%s, %s);".formatted(fieldDef, getValueCode);
-                        default -> throw new UnsupportedOperationException(
-                                "Unhandled optional message type:" + field.messageType());
+                        default ->
+                            throw new UnsupportedOperationException(
+                                    "Unhandled optional message type:" + field.messageType());
                     };
         } else if (field.repeated()) {
             return prefix
                     + switch (field.type()) {
                         case ENUM -> "_size += sizeOfEnumList(%s, %s);".formatted(fieldDef, getValueCode);
-                        case MESSAGE -> "_size += sizeOfMessageList($fieldDef, $valueCode, $codec);"
-                                .replace("$fieldDef", fieldDef)
-                                .replace("$valueCode", getValueCode)
-                                .replace(
-                                        "$codec",
-                                        ((SingleField) field).messageTypeModelPackage() + "."
-                                                + ((SingleField) field).completeClassName() + ".PROTOBUF");
+                        case MESSAGE ->
+                            "_size += sizeOfMessageList($fieldDef, $valueCode, $codec);"
+                                    .replace("$fieldDef", fieldDef)
+                                    .replace("$valueCode", getValueCode)
+                                    .replace(
+                                            "$codec",
+                                            ((SingleField) field).messageTypeModelPackage() + "."
+                                                    + ((SingleField) field).completeClassName() + ".PROTOBUF");
                         default -> "_size += sizeOf%sList(%s, %s);".formatted(writeMethodName, fieldDef, getValueCode);
                     };
         } else if (field.type() == Field.FieldType.MAP) {
@@ -163,17 +181,18 @@ public class LazyGetProtobufSizeMethodGenerator {
             return prefix
                     + switch (field.type()) {
                         case ENUM -> "_size += sizeOfEnum(%s, %s);".formatted(fieldDef, getValueCode);
-                        case STRING -> "_size += sizeOfString(%s, %s, %s);"
-                                .formatted(fieldDef, getValueCode, skipDefault);
-                        case MESSAGE -> "_size += sizeOfMessage($fieldDef, $valueCode, $codec);"
-                                .replace("$fieldDef", fieldDef)
-                                .replace("$valueCode", getValueCode)
-                                .replace(
-                                        "$codec",
-                                        ((SingleField) field).messageTypeModelPackage() + "."
-                                                + ((SingleField) field).completeClassName() + ".PROTOBUF");
-                        case BOOL -> "_size += sizeOfBoolean(%s, %s, %s);"
-                                .formatted(fieldDef, getValueCode, skipDefault);
+                        case STRING ->
+                            "_size += sizeOfString(%s, %s, %s);".formatted(fieldDef, getValueCode, skipDefault);
+                        case MESSAGE ->
+                            "_size += sizeOfMessage($fieldDef, $valueCode, $codec);"
+                                    .replace("$fieldDef", fieldDef)
+                                    .replace("$valueCode", getValueCode)
+                                    .replace(
+                                            "$codec",
+                                            ((SingleField) field).messageTypeModelPackage() + "."
+                                                    + ((SingleField) field).completeClassName() + ".PROTOBUF");
+                        case BOOL ->
+                            "_size += sizeOfBoolean(%s, %s, %s);".formatted(fieldDef, getValueCode, skipDefault);
                         case INT32,
                                 UINT32,
                                 SINT32,
@@ -184,8 +203,9 @@ public class LazyGetProtobufSizeMethodGenerator {
                                 UINT64,
                                 FIXED64,
                                 SFIXED64,
-                                BYTES -> "_size += sizeOf%s(%s, %s, %s);"
-                                .formatted(writeMethodName, fieldDef, getValueCode, skipDefault);
+                                BYTES ->
+                            "_size += sizeOf%s(%s, %s, %s);"
+                                    .formatted(writeMethodName, fieldDef, getValueCode, skipDefault);
                         default -> "_size += sizeOf%s(%s, %s);".formatted(writeMethodName, fieldDef, getValueCode);
                     };
         }
