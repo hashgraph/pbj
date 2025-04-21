@@ -58,7 +58,7 @@ class CodecParseMethodGenerator {
                  *              then the method also returns immediately.
                  * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
                  * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
-                 *                           fields in the unknownFields map in the model; otherwise they'll be simply skipped.
+                 *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
                  * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
                  * @return Parsed $modelClassName model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
