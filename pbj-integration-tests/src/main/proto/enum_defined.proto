@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package pbj.integ.test.enumeration.defined;
+option java_multiple_files = true;
+
+/**
+* An enumeration indicating the status of this request.
+*
+* This response code SHALL be the last message in the stream of responses.
+* This code SHALL represent the final status of the full request.
+*/
+enum PbjEnumDefined {
+  /**
+   * An "unset value" flag, this value SHALL NOT be used.<br/>
+   * This status indicates the server software failed to set a status,
+   * and SHALL be considered a software defect.
+   */
+  READ_STREAM_UNKNOWN_TEST = 0;
+
+  /**
+   * The requesting client account lacks sufficient HBAR to pay the
+   * service fee for this request.<br/>
+   * The client MAY retry the request, but MUST increase the client
+   * account balance with this block node server before doing so.
+   */
+  READ_STREAM_INSUFFICIENT_BALANCE_TEST = 1;
+
+  /**
+   * The request succeeded.
+   * <p>
+   * The requested block(s) SHALL precede the status response
+   * with this value.
+   */
+  READ_STREAM_SUCCESS_TEST = 2;
+
+  /**
+   * The requested start block number is not valid.<br/>
+   * The start block number is after the end block number, less
+   * than `0`, or otherwise invalid.<br/>
+   * The client MAY retry this request, but MUST change the
+   * `start_block_number` field to a valid start block.
+   */
+  READ_STREAM_INVALID_START_BLOCK_NUMBER_TEST = 3;
+
+  /**
+   * The requested end block number is not valid.<br/>
+   * The end block number is greater than the highest current block
+   * number, less than `0`, or otherwise invalid.<br/>
+   * The client MAY retry this request, but MUST change the
+   * `end_block_number` field to a valid end block.
+   */
+  READ_STREAM_INVALID_END_BLOCK_NUMBER_TEST = 4;
+
+  /**
+   * The requested stream is not available.<br/>
+   * The client MAY retry again later.
+   */
+  READ_STREAM_NOT_AVAILABLE_TEST = 5;
+}

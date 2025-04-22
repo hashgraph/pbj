@@ -85,10 +85,12 @@ public record SingleField(
                 (fieldContext.type_().messageType() == null)
                         ? null
                         : lookupHelper.getPackageOneofFieldMessageType(FileType.MODEL, fieldContext),
-                (fieldContext.type_().messageType() == null)
+                (fieldContext.type_().messageType() == null
+                                || FieldType.of(fieldContext.type_(), lookupHelper) == FieldType.ENUM)
                         ? null
                         : lookupHelper.getPackageOneofFieldMessageType(FileType.CODEC, fieldContext),
-                (fieldContext.type_().messageType() == null)
+                (fieldContext.type_().messageType() == null
+                                || FieldType.of(fieldContext.type_(), lookupHelper) == FieldType.ENUM)
                         ? null
                         : lookupHelper.getPackageOneofFieldMessageType(FileType.TEST, fieldContext),
                 Common.buildCleanFieldJavaDoc(
@@ -151,7 +153,8 @@ public record SingleField(
             case "DoubleValue" -> "Double";
             case "BoolValue" -> "Boolean";
             case "BytesValue" -> "Bytes";
-            default -> fieldType;};
+            default -> fieldType;
+        };
         if (considerRepeated && repeated) {
             fieldType = switch (fieldType) {
                 case "int" -> "List<Integer>";
@@ -159,7 +162,8 @@ public record SingleField(
                 case "float" -> "List<Float>";
                 case "double" -> "List<Double>";
                 case "boolean" -> "List<Boolean>";
-                default -> "List<%s>".formatted(fieldType);};
+                default -> "List<%s>".formatted(fieldType);
+            };
         }
         return fieldType;
     }
@@ -260,8 +264,9 @@ public record SingleField(
                         case "DoubleValue" -> "DOUBLE";
                         case "BoolValue" -> "BOOL";
                         case "BytesValue" -> "BYTES";
-                        default -> throw new UnsupportedOperationException(
-                                "Unsupported optional field type found: %s in %s".formatted(type.javaType, this));
+                        default ->
+                            throw new UnsupportedOperationException(
+                                    "Unsupported optional field type found: %s in %s".formatted(type.javaType, this));
                     };
             // spotless:off
             return ("%s    public static final FieldDefinition %s =" +

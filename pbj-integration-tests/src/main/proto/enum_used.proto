@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package pbj.integ.test.enumeration.used;
+option java_multiple_files = true;
+
+import "enum_defined.proto";
+
+// This test model verifies if PBJ adds a correct import statement for the PbjEnumDefined
+// that is defined in a different Java package. W/o the import statement, the model wouldn't compile
+// and would fail the PBJ integration tests run. With a proper import, the compilation should succeed.
+message PbjEnumUsed {
+  oneof response {
+    /**
+     * A final response item describing the terminal status of this stream.
+     * <p>
+     * The block node server SHALL end the stream following this message.
+     */
+    pbj.integ.test.enumeration.defined.PbjEnumDefined enum_status = 1;
+
+    /**
+     * A stream response item containing one or more `BlockItem`s.
+     * <p>
+     * The full stream SHALL consist of many `block_items` messages
+     * followed by a single `status` message.
+     */
+    bytes block_items = 2;
+  }
+}
