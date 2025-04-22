@@ -810,7 +810,7 @@ public final class ModelGenerator implements Generator {
                     .replace("$enumValue",camelToUpperSnake(field.name()))
                     .indent(DEFAULT_INDENT)
             );
-            if (field.type() == FieldType.MESSAGE) {
+            if (field.type() == FieldType.MESSAGE || field.type() == FieldType.ENUM) {
                 field.addAllNeededImports(imports, true, false, false);
             }
         }
