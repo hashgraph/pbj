@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package pbj.integration.tests;
+option java_multiple_files = true;
+
+/**
+ * This message is used to test unknown fields coming from the Everything model.
+ */
+message MessageWithEverythingUnknownFields {
+  int32 knownField = 200000000;
+}

@@ -4,13 +4,16 @@ package com.hedera.pbj.integration.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
+import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hedera.pbj.test.proto.pbj.MessageWithBytes;
 import com.hedera.pbj.test.proto.pbj.MessageWithBytesAndString;
 import org.junit.jupiter.api.Test;
+import pbj.integration.tests.pbj.integration.tests.MessageWithEverythingUnknownFields;
 
 public class UnknownFieldsTest {
     private static final Bytes TEST_BYTES = Bytes.wrap("test bytes");
@@ -56,5 +59,40 @@ public class UnknownFieldsTest {
                 MessageWithBytesAndString.PROTOBUF.parse(bytes2.toReadableSequentialData());
 
         assertEquals(msg1, msg3);
+    }
+
+    @Test
+    void testEverythingRoundTrip() throws Exception {
+        final Bytes everythingBytes = Everything.PROTOBUF.toBytes(EverythingTestData.EVERYTHING);
+
+        // First, parse w/o enabling the unknown fields parsing:
+        final MessageWithEverythingUnknownFields msgWithUnknownFieldsDisabled =
+                MessageWithEverythingUnknownFields.PROTOBUF.parse(everythingBytes);
+
+        // Everything doesn't know about this field, so it should've been initialized with the default int32 value:
+        assertEquals(0, msgWithUnknownFieldsDisabled.knownField());
+        assertEquals(0, msgWithUnknownFieldsDisabled.getUnknownFields().size());
+
+        // Now let's enable parsing unknown fields:
+        final MessageWithEverythingUnknownFields msg = MessageWithEverythingUnknownFields.PROTOBUF.parse(
+                everythingBytes.toReadableSequentialData(), false, true, 16);
+
+        assertEquals(0, msg.knownField());
+        assertEquals(65, msg.getUnknownFields().size());
+
+        // This is what EverythingTestData initializes the very first int32Number field with, and it has the lowest
+        // field number, so it should be the first field in the list:
+        assertEquals(1, msg.getUnknownFields().get(0).field());
+        assertEquals(
+                ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG,
+                msg.getUnknownFields().get(0).wireType());
+        assertEquals(1234, msg.getUnknownFields().get(0).bytes().getVarInt(0, false));
+
+        // Now let's round-trip back to Everything using the MessageWithEverythingUnknownFields codec to write bytes:
+        final Bytes roundTripBytes = MessageWithEverythingUnknownFields.PROTOBUF.toBytes(msg);
+        final Everything everything = Everything.PROTOBUF.parse(roundTripBytes);
+
+        // and ensure it's equal to what we started with:
+        assertEquals(EverythingTestData.EVERYTHING, everything);
     }
 }

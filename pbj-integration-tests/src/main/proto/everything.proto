@@ -101,6 +101,9 @@ message Everything {
         google.protobuf.BytesValue bytesBoxedOneOf = 100025;
         google.protobuf.StringValue stringBoxedOneOf = 100026;
     }
+
+    // Used in the MessageWithEverythingUnknownFields, but not explicitly reserved in Everything:
+    // reserved 200000000;
 }
 
 /**
