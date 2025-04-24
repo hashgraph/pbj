@@ -598,6 +598,15 @@ public final class ModelGenerator implements Generator {
              */
             @Override
             public String toString() {
+                String $ufstr = null;
+                if ($unknownFields != null && !$unknownFields.isEmpty()) {
+                    final StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < $unknownFields.size(); i++) {
+                        if (i > 0) sb.append(", ");
+                        $unknownFields.get(i).printToString(sb);
+                    }
+                    $ufstr = sb.toString();
+                }
                 return "$modelClassName["
             """.replace("$modelClassName", modelClassName);
         // spotless:on
@@ -610,6 +619,15 @@ public final class ModelGenerator implements Generator {
             }
             bodyContent += "\n";
         }
+
+        bodyContent += "        + ($ufstr == null ? \"\" : ";
+        if (fields.isEmpty()) {
+            bodyContent += "$ufstr";
+        } else {
+            bodyContent += "(\", \" + $ufstr)";
+        }
+        bodyContent += ")\n";
+
         // spotless:off
         bodyContent +=
             """

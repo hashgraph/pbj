@@ -72,4 +72,18 @@ public record UnknownField(int field, @NonNull ProtoConstants wireType, @NonNull
 
         return hashCode;
     }
+
+    /**
+     * Prints a protobuf model.toString() representation for this unknown field into the given StringBuilder.
+     */
+    public void printToString(final StringBuilder sb) {
+        sb.append(field).append("=");
+        switch (wireType) {
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> sb.append(bytes.getVarLong(0, false));
+            case WIRE_TYPE_FIXED_32_BIT -> sb.append(bytes.getInt(0));
+            case WIRE_TYPE_FIXED_64_BIT -> sb.append(bytes.getLong(0));
+            case WIRE_TYPE_DELIMITED -> sb.append('[').append(bytes.toString()).append(']');
+            default -> throw new IllegalStateException("Unsupported wire type: " + wireType);
+        }
+    }
 }
