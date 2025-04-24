@@ -69,6 +69,7 @@ public final class CodecGenerator implements Generator {
         writer.addImport("java.io.IOException");
         writer.addImport("java.nio.*");
         writer.addImport("java.nio.charset.*");
+        writer.addImport("java.util.Comparator");
         writer.addImport("java.util.stream.Stream");
         writer.addImport("java.util.*");
         writer.addImport("edu.umd.cs.findbugs.annotations.NonNull");
@@ -84,6 +85,12 @@ public final class CodecGenerator implements Generator {
                  * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
                  */
                 public final$staticModifier class $codecClass implements Codec<$modelClass> {
+                    /**
+                     * An initial capacity for the ArrayList where unknown fields are collected.
+                     * To optimize parsing unknown fields, we store here the max value we've seen so far.
+                     * The variable is prone to a slight thread-race which isn't super critical for this value.
+                     */
+                    private static int $initialSizeOfUnknownFieldsArray = 1;
                 
                     /**
                      * Empty constructor

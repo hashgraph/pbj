@@ -77,6 +77,10 @@ class CodecParseMethodGenerator {
                         List<UnknownField> $unknownFields = null;
 
                         $parseLoop
+                        if ($unknownFields != null) {
+                            Collections.sort($unknownFields);
+                            $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
+                        }
                         return new $modelClassName($fieldsList);
                     } catch (final Exception anyException) {
                         if (anyException instanceof ParseException parseException) {
@@ -151,21 +155,19 @@ class CodecParseMethodGenerator {
                                         if (strictMode) {
                                             // Since we are parsing is strict mode, this is an exceptional condition.
                                             throw new UnknownFieldException($prefixfield);
-                                        } else {
-                                            if (parseUnknownFields) {
-                                                if ($unknownFields == null) {
-                                                    $unknownFields = new ArrayList<>();
-                                                }
-                                                $unknownFields.add(new UnknownField(
-                                                        field,
-                                                        ProtoConstants.get(wireType),
-                                                        extractField(input, ProtoConstants.get(wireType), $skipMaxSize)
-                                                ));
-                                            } else {
-                                                // We just need to read off the bytes for this field to skip it
-                                                // and move on to the next one.
-                                                skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
+                                        } else if (parseUnknownFields) {
+                                            if ($unknownFields == null) {
+                                                $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
                                             }
+                                            $unknownFields.add(new UnknownField(
+                                                    field,
+                                                    ProtoConstants.get(wireType),
+                                                    extractField(input, ProtoConstants.get(wireType), $skipMaxSize)
+                                            ));
+                                        } else {
+                                            // We just need to read off the bytes for this field to skip it
+                                            // and move on to the next one.
+                                            skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
                                         }
                                     } else {
                                         throw new IOException("Bad tag [" + $prefixtag + "], field [" + $prefixfield

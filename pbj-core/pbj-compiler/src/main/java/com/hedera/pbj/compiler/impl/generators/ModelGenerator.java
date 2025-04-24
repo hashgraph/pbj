@@ -193,6 +193,8 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         bodyContent += "private final List<UnknownField> $unknownFields;";
+        bodyContent += "\n";
+        bodyContent += "\n";
 
         // constructors: w/o unknownFields, and with unknownFields
         bodyContent +=
@@ -210,18 +212,20 @@ public final class ModelGenerator implements Generator {
                 """
                 /**
                  * Get an unmodifiable list of all unknown fields parsed from the original data, i.e. the fields
-                 * that are unknown to the .proto model which generated this Java model class.
+                 * that are unknown to the .proto model which generated this Java model class. The fields are sorted
+                 * by their field numbers in an increasing order.
                  * <p>
                  * Note that by default, PBJ Codec discards unknown fields for performance reasons.
-                 * The parse() method has to be invoked with `parseUnknownFields = true` in order to populate this list.
+                 * The parse() method has to be invoked with `parseUnknownFields = true` in order to populate the
+                 * unknown fields.
                  * <p>
-                 * Also note that the list may contain multiple `UnknownField` items with the same field number
-                 * in case a repeated field uses an unpacked data format on the wire. It's up to the application
+                 * Also note that there may be multiple `UnknownField` items with the same field number
+                 * in case a repeated field uses the unpacked wire format. It's up to the application
                  * to interpret these unknown fields correctly if necessary.
                  * <p>
                  * If the parsing of unknown fields was enabled when this model instance was parsed originally and
-                 * so this list isn't empty, then a subsequent `Codec.write()` call will preserve all the parsed
-                 * unknown fields as they were originally present on the wire.
+                 * the unknown fields were present, then a subsequent `Codec.write()` call will persist all the parsed
+                 * unknown fields.
                  *
                  * @return a (potentially empty) list of unknown fields
                  */
@@ -436,6 +440,29 @@ public final class ModelGenerator implements Generator {
         bodyContent += Common.getFieldsCompareToStatements(fields, "");
 
         bodyContent +=
+                """
+                // Treat null and empty lists as equal
+                if ($unknownFields != null && !$unknownFields.isEmpty()) {
+                    if (thatObj.$unknownFields == null || $unknownFields.size() != thatObj.$unknownFields.size()) {
+                        // This has unknown fields, that one doesn't. So we're greater:
+                        return 1;
+                    }
+                    // Both are non-null and non-empty lists of the same size, and both are sorted in the same order
+                    // (the sorting is the parser responsibility.)
+                    // So we need to iterate over both the lists at once and compare each field:
+                    for (int i = 0; i < $unknownFields.size(); i++) {
+                        result = $unknownFields.get(i).protobufCompareTo(thatObj.$unknownFields.get(i));
+                        if (result != 0) {
+                            return result;
+                        }
+                    }
+                } else if (thatObj.$unknownFields != null && !thatObj.$unknownFields.isEmpty()) {
+                    // This doesn't have unknown fields, but that one has some. So they are greater:
+                    return -1;
+                }
+                """.indent(DEFAULT_INDENT);
+
+        bodyContent +=
             """
                 return result;
             }
@@ -476,6 +503,21 @@ public final class ModelGenerator implements Generator {
         bodyContent += equalsStatements.indent(DEFAULT_INDENT);
         bodyContent +=
         """
+            // Treat null and empty lists as equal
+            if ($unknownFields != null && !$unknownFields.isEmpty()) {
+                if (thatObj.$unknownFields == null || $unknownFields.size() != thatObj.$unknownFields.size()) {
+                    return false;
+                }
+                // Both are non-null and non-empty lists of the same size, and both are sorted in the same order
+                // (the sorting is the parser responsibility.)
+                // So the List.equals() is the most optimal way to compare them here.
+                // It will simply call UnknownField.equals() for each element at the same index in both the lists:
+                if (!$unknownFields.equals(thatObj.$unknownFields)) {
+                    return false;
+                }
+            } else if (thatObj.$unknownFields != null && !thatObj.$unknownFields.isEmpty()) {
+                return false;
+            }
             return true;
         }""".indent(DEFAULT_INDENT);
         // spotless:on
@@ -515,6 +557,15 @@ public final class ModelGenerator implements Generator {
             """.indent(DEFAULT_INDENT);
 
         bodyContent += statements;
+
+        bodyContent +=
+            """
+                    if ($unknownFields != null) {
+                        for (int i = 0; i < $unknownFields.size(); i++) {
+                            result = 31 * result + $unknownFields.get(i).hashCode();
+                        }
+                    }
+            """.indent(DEFAULT_INDENT);
 
         bodyContent +=
             """
