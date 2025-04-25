@@ -192,7 +192,7 @@ public final class ModelGenerator implements Generator {
                 .indent(DEFAULT_INDENT);
         bodyContent += "\n";
 
-        bodyContent += "private final List<UnknownField> $unknownFields;";
+        bodyContent += "private final List<UnknownField> $unknownFields;".indent(DEFAULT_INDENT);
         bodyContent += "\n";
         bodyContent += "\n";
 
