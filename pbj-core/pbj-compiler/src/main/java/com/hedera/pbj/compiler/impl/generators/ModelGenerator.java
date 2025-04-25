@@ -85,6 +85,7 @@ public final class ModelGenerator implements Generator {
         final List<String> hasMethods = new ArrayList<>();
         // The generated Java import statements. We'll build this up as we go.
         writer.addImport("com.hedera.pbj.runtime.*");
+        writer.addImport("com.hedera.pbj.runtime.PbjMessage");
         writer.addImport("com.hedera.pbj.runtime.io.*");
         writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
         writer.addImport("com.hedera.pbj.runtime.io.stream.*");
@@ -271,11 +272,9 @@ public final class ModelGenerator implements Generator {
             final boolean isComparable,
             final ContextualLookupHelper lookupHelper)
             throws IOException {
-        final String implementsComparable;
+        String implementsInterfaces = "implements PbjMessage<$javaRecordName>";
         if (isComparable) {
-            implementsComparable = "implements Comparable<$javaRecordName> ";
-        } else {
-            implementsComparable = "";
+            implementsInterfaces += ", Comparable<$javaRecordName>";
         }
 
         final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
@@ -291,14 +290,14 @@ public final class ModelGenerator implements Generator {
         // spotless:off
         writer.append("""
                 $javaDocComment$deprecated
-                public final$staticModifier class $javaRecordName $implementsComparable{
+                public final$staticModifier class $javaRecordName $implementsInterfaces {
                 $bodyContent
 
                 """
                 .replace("$javaDocComment", javaDocComment)
                 .replace("$deprecated", deprecated)
                 .replace("$staticModifier", staticModifier)
-                .replace("$implementsComparable", implementsComparable)
+                .replace("$implementsInterfaces", implementsInterfaces)
                 .replace("$javaRecordName", javaRecordName)
                 .replace("$bodyContent", bodyContent));
         // spotless:on
@@ -646,10 +645,15 @@ public final class ModelGenerator implements Generator {
         return """
                 /** Protobuf codec for reading and writing in protobuf format */
                 public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
+                /** {@inheritDoc} */ @Override public Codec<$modelClass> getProtobufCodec() { return PROTOBUF; }
+
                 /** JSON codec for reading and writing in JSON format */
                 public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
+                /** {@inheritDoc} */ @Override public JsonCodec<$modelClass> getJsonCodec() { return JSON; }
+
                 /** Default instance with all fields set to default values */
                 public static final $modelClass DEFAULT = newBuilder().build();
+                /** {@inheritDoc} */ @Override public $modelClass getDefaultMessage() { return DEFAULT; }
                 """
                 .replace("$modelClass", javaRecordName)
                 .replace("$qualifiedCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
