@@ -22,35 +22,37 @@ import java.util.Objects;
  */
 public record UnknownField(int field, @NonNull ProtoConstants wireType, @NonNull Bytes bytes)
         implements Comparable<UnknownField> {
-    /** {@inheritDoc} */
+    /**
+     * A {@code Comparable<UnknownField>} implementation that sorts UnknownField objects by their `field` numbers
+     * in the increasing order. This comparator is used for maintaining a stable and deterministic order for any
+     * unknown fields parsed from an input. When writing unknown fields, they're written in this same order as well.
+     * The implementation should remain stable over time because this is a public API.
+     *
+     * @param o "other" UnknownField object to compare to
+     */
     @Override
     public int compareTo(final UnknownField o) {
         return Integer.compare(field, o.field);
     }
 
-    /** Protobuf compareTo. */
-    public int protobufCompareTo(final UnknownField o) {
-        int result = compareTo(o);
-        if (result != 0) {
-            return result;
-        }
-
-        result = Integer.compare(wireType.ordinal(), o.wireType.ordinal());
-        if (result != 0) {
-            return result;
-        }
-
-        return bytes.compareTo(o.bytes);
-    }
-
-    /** {@inheritDoc} */
+    /**
+     * An `Object.equals()` implementation that checks equality of all the members of the UnknownField record:
+     * the `field`, the `wireType`, and the `bytes`.
+     * The implementation should remain stable over time because this is a public API.
+     *
+     * @param o "other" object to check equality
+     */
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(final Object o) {
         if (!(o instanceof UnknownField that)) return false;
-        return field == that.field && Objects.equals(bytes, that.bytes) && wireType == that.wireType;
+        return field == that.field && wireType == that.wireType && Objects.equals(bytes, that.bytes);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * An `Object.hashCode()` implementation that computes a hash code using all the members of the UnknownField record:
+     * the `field`, the `wireType`, and the `bytes`.
+     * The implementation should remain stable over time because this is a public API.
+     */
     @Override
     public int hashCode() {
         int hashCode = 1;
@@ -74,7 +76,36 @@ public record UnknownField(int field, @NonNull ProtoConstants wireType, @NonNull
     }
 
     /**
-     * Prints a protobuf model.toString() representation for this unknown field into the given StringBuilder.
+     * A Protobuf "{@code Comparable<UnknownField>}" implementation that sorts UnknownField objects by their `field`
+     * numbers, then by their `wireType`, and finally by the payload `bytes`. This implementation is used to compare
+     * unknown fields when a model containing the unknown fields implements the `Comparable` interface.
+     * The implementation should remain stable over time because this is a public API.
+     *
+     * @param o "other" UnknownField object to compare to
+     */
+    public int protobufCompareTo(final UnknownField o) {
+        int result = compareTo(o);
+        if (result != 0) {
+            return result;
+        }
+
+        result = Integer.compare(wireType.ordinal(), o.wireType.ordinal());
+        if (result != 0) {
+            return result;
+        }
+
+        return bytes.compareTo(o.bytes);
+    }
+
+    /**
+     * A Protobuf `model.toString()` implementation for this UnknownField object. For varint and fixed 32/64 bit
+     * wireTypes, it uses a corresponding integer format for parsing the underlying bytes. For delimited wireType,
+     * it prints the raw bytes of the field, including the size encoded in the first few bytes, as a byte array.
+     * This method throws an exception for all other wireTypes.
+     * The implementation should remain stable over time because this is a public API.
+     *
+     * @param sb a StringBuilder to append the toString() representation to
+     * @throws IllegalStateException if the wireType is unsupported
      */
     public void printToString(final StringBuilder sb) {
         sb.append(field).append("=");
