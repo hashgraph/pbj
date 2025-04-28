@@ -443,9 +443,16 @@ public final class ModelGenerator implements Generator {
                 """
                 // Treat null and empty lists as equal
                 if ($unknownFields != null && !$unknownFields.isEmpty()) {
-                    if (thatObj.$unknownFields == null || $unknownFields.size() != thatObj.$unknownFields.size()) {
+                    if (thatObj.$unknownFields == null || $unknownFields.isEmpty()) {
                         // This has unknown fields, that one doesn't. So we're greater:
                         return 1;
+                    }
+                    if ($unknownFields.size() > thatObj.$unknownFields.size()) {
+                        // This has more
+                        return 1;
+                    } else if ($unknownFields.size() < thatObj.$unknownFields.size()) {
+                        // That has more
+                        return -1;
                     }
                     // Both are non-null and non-empty lists of the same size, and both are sorted in the same order
                     // (the sorting is the parser responsibility.)
