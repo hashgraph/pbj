@@ -645,15 +645,13 @@ public final class ModelGenerator implements Generator {
         return """
                 /** Protobuf codec for reading and writing in protobuf format */
                 public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
-                /** {@inheritDoc} */ @Override public Codec<$modelClass> getProtobufCodec() { return PROTOBUF; }
+                /** {@inheritDoc} */ @Override public Codec<$modelClass> PROTOBUF() { return PROTOBUF; }
 
                 /** JSON codec for reading and writing in JSON format */
                 public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
-                /** {@inheritDoc} */ @Override public JsonCodec<$modelClass> getJsonCodec() { return JSON; }
 
                 /** Default instance with all fields set to default values */
                 public static final $modelClass DEFAULT = newBuilder().build();
-                /** {@inheritDoc} */ @Override public $modelClass getDefaultMessage() { return DEFAULT; }
                 """
                 .replace("$modelClass", javaRecordName)
                 .replace("$qualifiedCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
