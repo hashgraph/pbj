@@ -486,6 +486,26 @@ public interface ReadableSequentialData extends SequentialData {
     }
 
     /**
+     * Read the bytes of a 64bit protobuf varint at current {@link #position()}.
+     *
+     * @return bytes of the long read in var int format
+     * @throws BufferUnderflowException If the end of the sequence is reached before the final variable byte fragment
+     *                                  is read
+     * @throws UncheckedIOException if an I/O error occurs
+     * @throws DataEncodingException if the variable long cannot be decoded
+     */
+    default Bytes readVarLongBytes() throws BufferUnderflowException, UncheckedIOException {
+        final byte[] bytes = new byte[10];
+        for (int i = 0; i < 10; i++) {
+            bytes[i] = readByte();
+            if (bytes[i] >= 0) {
+                return Bytes.wrap(bytes, 0, i + 1);
+            }
+        }
+        throw new DataEncodingException("Malformed var int");
+    }
+
+    /**
      * Convenience method to get a InputStream on this ReadableSequentialData
      *
      * @return A new InputStream that reads data from this ReadableSequentialData

@@ -39,6 +39,14 @@ final class CodecWriteMethodGenerator {
              */
             public void write(@NonNull $modelClass data, @NonNull final WritableSequentialData out) throws IOException {
                 $fieldWriteLines
+                // Check if not-empty to avoid creating a lambda if there's nothing to write.
+                if (!data.getUnknownFields().isEmpty()) {
+                    data.getUnknownFields().forEach(uf -> {
+                        final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
+                        out.writeVarInt(tag, false);
+                        uf.bytes().writeTo(out);
+                    });
+                }
             }
             """
             .replace("$modelClass", modelClassName)

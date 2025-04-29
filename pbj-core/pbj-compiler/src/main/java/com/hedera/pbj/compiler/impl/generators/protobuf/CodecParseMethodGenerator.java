@@ -57,6 +57,8 @@ class CodecParseMethodGenerator {
                  *              method. If there are no bytes remaining in the data input,
                  *              then the method also returns immediately.
                  * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+                 * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
+                 *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
                  * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
                  * @return Parsed $modelClassName model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
@@ -64,6 +66,7 @@ class CodecParseMethodGenerator {
                 public @NonNull $modelClassName parse(
                         @NonNull final ReadableSequentialData input,
                         final boolean strictMode,
+                        final boolean parseUnknownFields,
                         final int maxDepth) throws ParseException {
                     if (maxDepth < 0) {
                         throw new ParseException("Reached maximum allowed depth of nested messages");
@@ -71,8 +74,13 @@ class CodecParseMethodGenerator {
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
                         $fieldDefs
+                        List<UnknownField> $unknownFields = null;
 
                         $parseLoop
+                        if ($unknownFields != null) {
+                            Collections.sort($unknownFields);
+                            $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
+                        }
                         return new $modelClassName($fieldsList);
                     } catch (final Exception anyException) {
                         if (anyException instanceof ParseException parseException) {
@@ -85,7 +93,10 @@ class CodecParseMethodGenerator {
         .replace("$modelClassName",modelClassName)
         .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
                 field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
-        .replace("$fieldsList",fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", ")))
+        .replace("$fieldsList",
+                fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", "))
+                + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
+        )
         .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields, schemaClassName), "", schemaClassName))
         .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
         .indent(DEFAULT_INDENT);
@@ -144,6 +155,15 @@ class CodecParseMethodGenerator {
                                         if (strictMode) {
                                             // Since we are parsing is strict mode, this is an exceptional condition.
                                             throw new UnknownFieldException($prefixfield);
+                                        } else if (parseUnknownFields) {
+                                            if ($unknownFields == null) {
+                                                $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
+                                            }
+                                            $unknownFields.add(new UnknownField(
+                                                    field,
+                                                    ProtoConstants.get(wireType),
+                                                    extractField(input, ProtoConstants.get(wireType), $skipMaxSize)
+                                            ));
                                         } else {
                                             // We just need to read off the bytes for this field to skip it
                                             // and move on to the next one.
@@ -430,13 +450,14 @@ class CodecParseMethodGenerator {
                 case "DoubleValue" -> "readDouble(input)";
                 case "BoolValue" -> "readBool(input)";
                 case "BytesValue" -> "readBytes(input, %d)".formatted(field.maxSize());
-                default -> throw new PbjCompilerException(
-                        "Optional message type [%s] not supported".formatted(field.messageType()));
+                default ->
+                    throw new PbjCompilerException(
+                            "Optional message type [%s] not supported".formatted(field.messageType()));
             };
         }
         return switch (field.type()) {
-            case ENUM -> "%s.fromProtobufOrdinal(readEnum(input))"
-                    .formatted(Common.snakeToCamel(field.messageType(), true));
+            case ENUM ->
+                "%s.fromProtobufOrdinal(readEnum(input))".formatted(Common.snakeToCamel(field.messageType(), true));
             case INT32 -> "readInt32(input)";
             case UINT32 -> "readUint32(input)";
             case SINT32 -> "readSignedInt32(input)";

@@ -85,12 +85,15 @@ public final class ModelGenerator implements Generator {
         final List<String> hasMethods = new ArrayList<>();
         // The generated Java import statements. We'll build this up as we go.
         writer.addImport("com.hedera.pbj.runtime.*");
+        writer.addImport("com.hedera.pbj.runtime.UnknownField");
         writer.addImport("com.hedera.pbj.runtime.io.*");
         writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
         writer.addImport("com.hedera.pbj.runtime.io.stream.*");
         writer.addImport("edu.umd.cs.findbugs.annotations.*");
         writer.addImport(lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef));
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
+        writer.addImport("java.util.Collections");
+        writer.addImport("java.util.List");
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
@@ -189,12 +192,48 @@ public final class ModelGenerator implements Generator {
                 .indent(DEFAULT_INDENT);
         bodyContent += "\n";
 
-        // constructor
-        bodyContent += generateConstructor(javaRecordName, fields, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+        bodyContent += "private final List<UnknownField> $unknownFields;".indent(DEFAULT_INDENT);
+        bodyContent += "\n";
+        bodyContent += "\n";
+
+        // constructors: w/o unknownFields, and with unknownFields
+        bodyContent +=
+                generateConstructor(javaRecordName, fields, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+        bodyContent += "\n";
+        bodyContent +=
+                generateConstructor(javaRecordName, fields, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
         bodyContent += "\n";
 
         // record style getters
         bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed);
+        bodyContent += "\n";
+
+        bodyContent +=
+                """
+                /**
+                 * Get an unmodifiable list of all unknown fields parsed from the original data, i.e. the fields
+                 * that are unknown to the .proto model which generated this Java model class. The fields are sorted
+                 * by their field numbers in an increasing order.
+                 * <p>
+                 * Note that by default, PBJ Codec discards unknown fields for performance reasons.
+                 * The parse() method has to be invoked with `parseUnknownFields = true` in order to populate the
+                 * unknown fields.
+                 * <p>
+                 * Also note that there may be multiple `UnknownField` items with the same field number
+                 * in case a repeated field uses the unpacked wire format. It's up to the application
+                 * to interpret these unknown fields correctly if necessary.
+                 * <p>
+                 * If the parsing of unknown fields was enabled when this model instance was parsed originally and
+                 * the unknown fields were present, then a subsequent `Codec.write()` call will persist all the parsed
+                 * unknown fields.
+                 *
+                 * @return a (potentially empty) list of unknown fields
+                 */
+                public @NonNull List<UnknownField> getUnknownFields() {
+                    return $unknownFields == null ? Collections.EMPTY_LIST : $unknownFields;
+                }
+                """
+                        .indent(DEFAULT_INDENT);
         bodyContent += "\n";
 
         // protobuf size method
@@ -401,6 +440,36 @@ public final class ModelGenerator implements Generator {
         bodyContent += Common.getFieldsCompareToStatements(fields, "");
 
         bodyContent +=
+                """
+                // Treat null and empty lists as equal
+                if ($unknownFields != null && !$unknownFields.isEmpty()) {
+                    if (thatObj.$unknownFields == null || $unknownFields.isEmpty()) {
+                        // This has unknown fields, that one doesn't. So we're greater:
+                        return 1;
+                    }
+                    if ($unknownFields.size() > thatObj.$unknownFields.size()) {
+                        // This has more
+                        return 1;
+                    } else if ($unknownFields.size() < thatObj.$unknownFields.size()) {
+                        // That has more
+                        return -1;
+                    }
+                    // Both are non-null and non-empty lists of the same size, and both are sorted in the same order
+                    // (the sorting is the parser responsibility.)
+                    // So we need to iterate over both the lists at once and compare each field:
+                    for (int i = 0; i < $unknownFields.size(); i++) {
+                        result = $unknownFields.get(i).protobufCompareTo(thatObj.$unknownFields.get(i));
+                        if (result != 0) {
+                            return result;
+                        }
+                    }
+                } else if (thatObj.$unknownFields != null && !thatObj.$unknownFields.isEmpty()) {
+                    // This doesn't have unknown fields, but that one has some. So they are greater:
+                    return -1;
+                }
+                """.indent(DEFAULT_INDENT);
+
+        bodyContent +=
             """
                 return result;
             }
@@ -441,6 +510,21 @@ public final class ModelGenerator implements Generator {
         bodyContent += equalsStatements.indent(DEFAULT_INDENT);
         bodyContent +=
         """
+            // Treat null and empty lists as equal
+            if ($unknownFields != null && !$unknownFields.isEmpty()) {
+                if (thatObj.$unknownFields == null || $unknownFields.size() != thatObj.$unknownFields.size()) {
+                    return false;
+                }
+                // Both are non-null and non-empty lists of the same size, and both are sorted in the same order
+                // (the sorting is the parser responsibility.)
+                // So the List.equals() is the most optimal way to compare them here.
+                // It will simply call UnknownField.equals() for each element at the same index in both the lists:
+                if (!$unknownFields.equals(thatObj.$unknownFields)) {
+                    return false;
+                }
+            } else if (thatObj.$unknownFields != null && !thatObj.$unknownFields.isEmpty()) {
+                return false;
+            }
             return true;
         }""".indent(DEFAULT_INDENT);
         // spotless:on
@@ -483,6 +567,15 @@ public final class ModelGenerator implements Generator {
 
         bodyContent +=
             """
+                    if ($unknownFields != null) {
+                        for (int i = 0; i < $unknownFields.size(); i++) {
+                            result = 31 * result + $unknownFields.get(i).hashCode();
+                        }
+                    }
+            """.indent(DEFAULT_INDENT);
+
+        bodyContent +=
+            """
                     long hashCode = result;
             $hashCodeManipulation
                     $hashCode = (int)hashCode;
@@ -512,6 +605,15 @@ public final class ModelGenerator implements Generator {
              */
             @Override
             public String toString() {
+                String $ufstr = null;
+                if ($unknownFields != null && !$unknownFields.isEmpty()) {
+                    final StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < $unknownFields.size(); i++) {
+                        if (i > 0) sb.append(", ");
+                        $unknownFields.get(i).printToString(sb);
+                    }
+                    $ufstr = sb.toString();
+                }
                 return "$modelClassName["
             """.replace("$modelClassName", modelClassName);
         // spotless:on
@@ -524,6 +626,15 @@ public final class ModelGenerator implements Generator {
             }
             bodyContent += "\n";
         }
+
+        bodyContent += "        + ($ufstr == null ? \"\" : ";
+        if (fields.isEmpty()) {
+            bodyContent += "$ufstr";
+        } else {
+            bodyContent += "(\", \" + $ufstr)";
+        }
+        bodyContent += ")\n";
+
         // spotless:off
         bodyContent +=
             """
@@ -542,11 +653,12 @@ public final class ModelGenerator implements Generator {
     private static String generateConstructor(
             final String constructorName,
             final List<Field> fields,
+            final boolean initUnknownFields,
             final List<Field> fieldsNoPrecomputed,
             final boolean shouldThrowOnOneOfNull,
             final MessageDefContext msgDef,
             final ContextualLookupHelper lookupHelper) {
-        if (fields.isEmpty()) {
+        if (fields.isEmpty() && !initUnknownFields) {
             return "";
         }
         // spotless:off
@@ -555,7 +667,8 @@ public final class ModelGenerator implements Generator {
                  * Create a pre-populated $constructorName.
                  * $constructorParamDocs
                  */
-                public $constructorName($constructorParams) {
+                public $constructorName($constructorParams$unknownFieldsParam) {
+                    $unknownFieldsCode
             $constructorCode    }
             """
                 .replace("$constructorParamDocs",fieldsNoPrecomputed.stream().map(field ->
@@ -566,6 +679,12 @@ public final class ModelGenerator implements Generator {
                 .replace("$constructorParams",fieldsNoPrecomputed.stream().map(field ->
                         field.javaFieldType() + " " + field.nameCamelFirstLower()
                 ).collect(Collectors.joining(", ")))
+                .replace("$unknownFieldsParam", initUnknownFields
+                        ? ((fieldsNoPrecomputed.isEmpty() ? "" : ", ") + "final List<UnknownField> $unknownFields")
+                        : "")
+                .replace("$unknownFieldsCode", "this.$unknownFields = " + (initUnknownFields
+                        ? "$unknownFields == null ? null : Collections.unmodifiableList($unknownFields)"
+                        : "null") + ";")
                 .replace("$constructorCode",fieldsNoPrecomputed.stream().map(field -> {
                     StringBuilder sb = new StringBuilder();
                     if (shouldThrowOnOneOfNull && field instanceof OneOfField) {
@@ -847,7 +966,7 @@ public final class ModelGenerator implements Generator {
              * @return a pre-populated builder
              */
             public Builder copyBuilder() {
-                return new Builder(%s);
+                return new Builder(%s$unknownFieldsArg);
             }
             
             /**
@@ -860,6 +979,7 @@ public final class ModelGenerator implements Generator {
             }
             """
             .formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
+            .replace("$unknownFieldsArg", (fields.isEmpty() ? "" : ", ") + "$unknownFields")
             .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
@@ -1016,13 +1136,15 @@ public final class ModelGenerator implements Generator {
              */
             public static final class Builder {
                 $fields;
+                private final List<UnknownField> $unknownFields;
         
                 /**
                  * Create an empty builder
                  */
-                public Builder() {}
+                public Builder() { $unknownFields = null; }
             
             $prePopulatedBuilder
+            $prePopulatedWithUnknownFieldsBuilder
                 /**
                  * Build a new model record with data set on builder
                  *
@@ -1039,7 +1161,8 @@ public final class ModelGenerator implements Generator {
                                 + " " + field.nameCamelFirstLower()
                                 + " = " + getDefaultValue(field, msgDef, lookupHelper)
                         ).collect(Collectors.joining(";\n    ")))
-                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, fields, false, msgDef, lookupHelper))
                 .replace("$javaRecordName",javaRecordName)
                 .replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
                 .replace("$builderMethods", String.join("\n", builderMethods))
