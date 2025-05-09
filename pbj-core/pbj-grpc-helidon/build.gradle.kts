@@ -30,4 +30,6 @@ testModuleInfo {
     requiresStatic("java.annotation")
     runtimeOnly("io.grpc.netty")
     runtimeOnly("io.helidon.webserver.observe.metrics")
+
+    exportsTo("com.google.protobuf") // for test protobufs
 }

@@ -3,7 +3,7 @@ import org.hiero.gradle.tasks.GitClone
 
 plugins {
     id("org.hiero.gradle.module.application")
-    id("org.gradlex.java-module-dependencies")
+    id("org.hiero.gradle.feature.legacy-classpath")
     // jmh for performance benchmarks
     id("org.hiero.gradle.feature.benchmark")
     // We depend on Google protobuf plugin as we generate protobuf code using it as well as pbj.
