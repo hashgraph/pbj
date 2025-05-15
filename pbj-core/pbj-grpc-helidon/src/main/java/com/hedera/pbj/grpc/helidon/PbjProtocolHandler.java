@@ -380,8 +380,17 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                             // would break the application. So we need a new buffer each time :-(
                             entityBytes = new byte[(int) length];
                             entityBytesIndex = 0;
-                            // done with length now, so move on to next state
-                            currentReadState = ReadState.READ_ENTITY_BYTES;
+
+                            // In this case we have a request with no message, like an empty unary request
+                            if (length == 0) {
+                                final Bytes bytes = Bytes.wrap(entityBytes);
+                                pipeline.onNext(bytes);
+                                entityBytes = null;
+                                currentReadState = ReadState.START;
+                            } else {
+                                // done with length now, so move on to next state
+                                currentReadState = ReadState.READ_ENTITY_BYTES;
+                            }
                         }
                         break;
                     }
@@ -483,8 +492,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                                 case "m" -> TimeUnit.MILLISECONDS;
                                 case "u" -> TimeUnit.MICROSECONDS;
                                 case "n" -> TimeUnit.NANOSECONDS;
-                                    // This should NEVER be reachable, because the matcher
-                                    // would not have matched.
+                                // This should NEVER be reachable, because the matcher
+                                // would not have matched.
                                 default -> throw new GrpcException(GrpcStatus.INTERNAL, "Invalid unit: " + unit);
                             });
             return deadlineDetector.scheduleDeadline(deadline, () -> {

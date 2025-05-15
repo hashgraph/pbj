@@ -156,6 +156,31 @@ class PbjProtocolHandlerTest {
     }
 
     /**
+     * Passing valid empty request is handled correctly. Such case is for example unary api asking for status, without passing anything in the request body.
+     */
+    @Test
+    void requestIsSuccessfulOnEmptyData() {
+        final var h = WritableHeaders.create();
+        h.add(HeaderNames.CONTENT_TYPE, "application/grpc");
+        headers = Http2Headers.create(h);
+        final var handler = new PbjProtocolHandler(
+                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+        handler.init();
+
+        final var emptyData = createRequestData("");
+        sendAllData(handler, emptyData);
+
+        assertThat(service.calledMethod).isSameAs(ServiceInterfaceStub.METHOD);
+        assertThat(service.receivedBytes).contains(emptyData);
+        assertThat(service.opts.contentType()).isEqualTo("application/grpc+proto");
+
+        assertThat(route.failedGrpcRequestCounter().count()).isZero();
+        assertThat(route.failedHttpRequestCounter().count()).isZero();
+        assertThat(route.failedUnknownRequestCounter().count()).isZero();
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.HALF_CLOSED_REMOTE);
+    }
+
+    /**
      * These are perfectly valid encodings, but none of them are supported at this time.
      *
      * @param encoding the encoding to test with.
