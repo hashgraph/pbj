@@ -160,14 +160,14 @@ class PbjProtocolHandlerTest {
      */
     @Test
     void requestIsSuccessfulOnEmptyData() {
-        final var h = WritableHeaders.create();
+        final WritableHeaders<?> h = WritableHeaders.create();
         h.add(HeaderNames.CONTENT_TYPE, "application/grpc");
         headers = Http2Headers.create(h);
-        final var handler = new PbjProtocolHandler(
+        final PbjProtocolHandler handler = new PbjProtocolHandler(
                 headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
         handler.init();
 
-        final var emptyData = createRequestData("");
+        final Bytes emptyData = createRequestData("");
         sendAllData(handler, emptyData);
 
         assertThat(service.calledMethod).isSameAs(ServiceInterfaceStub.METHOD);

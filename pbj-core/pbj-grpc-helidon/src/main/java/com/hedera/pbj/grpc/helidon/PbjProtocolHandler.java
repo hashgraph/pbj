@@ -373,21 +373,20 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                                 throw new GrpcException(
                                         GrpcStatus.INVALID_ARGUMENT, "Message size exceeds maximum allowed size");
                             }
-                            // Create a buffer to hold the message. We sadly cannot reuse this buffer
-                            // because once we have filled it and wrapped it in Bytes and sent it to the
-                            // handler, some user code may grab and hold that Bytes object for an arbitrary
-                            // amount of time, and if we were to scribble into the same byte array, we
-                            // would break the application. So we need a new buffer each time :-(
-                            entityBytes = new byte[(int) length];
-                            entityBytesIndex = 0;
 
                             // In this case we have a request with no message, like an empty unary request
                             if (length == 0) {
-                                final Bytes bytes = Bytes.wrap(entityBytes);
+                                final Bytes bytes = Bytes.EMPTY;
                                 pipeline.onNext(bytes);
-                                entityBytes = null;
                                 currentReadState = ReadState.START;
                             } else {
+                                // Create a buffer to hold the message. We sadly cannot reuse this buffer
+                                // because once we have filled it and wrapped it in Bytes and sent it to the
+                                // handler, some user code may grab and hold that Bytes object for an arbitrary
+                                // amount of time, and if we were to scribble into the same byte array, we
+                                // would break the application. So we need a new buffer each time :-(
+                                entityBytes = new byte[(int) length];
+                                entityBytesIndex = 0;
                                 // done with length now, so move on to next state
                                 currentReadState = ReadState.READ_ENTITY_BYTES;
                             }
