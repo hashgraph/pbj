@@ -14,20 +14,23 @@ public record FileSetWriter(
         JavaFileWriter schemaWriter,
         JavaFileWriter codecWriter,
         JavaFileWriter jsonCodecWriter,
-        JavaFileWriter testWriter) {
+        JavaFileWriter testWriter,
+        boolean generateTestClasses) {
 
     /** A factory to create a FileSetWriter instance for a given MessageDefContext. */
     public static FileSetWriter create(
             final File mainOutputDir,
             final File testOutputDir,
             final Protobuf3Parser.MessageDefContext msgDef,
-            final ContextualLookupHelper contextualLookupHelper) {
+            final ContextualLookupHelper contextualLookupHelper,
+            boolean generateTestClasses) {
         return new FileSetWriter(
                 JavaFileWriter.create(FileType.MODEL, mainOutputDir, msgDef, contextualLookupHelper),
                 JavaFileWriter.create(FileType.SCHEMA, mainOutputDir, msgDef, contextualLookupHelper),
                 JavaFileWriter.create(FileType.CODEC, mainOutputDir, msgDef, contextualLookupHelper),
                 JavaFileWriter.create(FileType.JSON_CODEC, mainOutputDir, msgDef, contextualLookupHelper),
-                JavaFileWriter.create(FileType.TEST, testOutputDir, msgDef, contextualLookupHelper));
+                JavaFileWriter.create(FileType.TEST, testOutputDir, msgDef, contextualLookupHelper),
+                generateTestClasses);
     }
 
     /** A utility method to write all the files at once. */
@@ -36,6 +39,8 @@ public record FileSetWriter(
         schemaWriter.writeFile();
         codecWriter.writeFile();
         jsonCodecWriter.writeFile();
-        testWriter.writeFile();
+        if (generateTestClasses) {
+            testWriter.writeFile();
+        }
     }
 }

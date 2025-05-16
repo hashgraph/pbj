@@ -12,4 +12,11 @@ public interface PbjExtension {
      * @return the suffix property
      */
     Property<String> getJavaPackageSuffix();
+
+    /**
+     * An optional boolean that indicates if test classes for protobuf models should be generated,
+     * which is true by default.
+     * @return true if tests should be generated
+     */
+    Property<Boolean> getGenerateTestClasses();
 }

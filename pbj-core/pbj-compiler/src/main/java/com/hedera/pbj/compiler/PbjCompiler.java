@@ -36,7 +36,11 @@ public abstract class PbjCompiler {
      * @throws Exception
      */
     public static void compileFilesIn(
-            Iterable<File> sourceFiles, File mainOutputDir, File testOutputDir, String javaPackageSuffix)
+            Iterable<File> sourceFiles,
+            File mainOutputDir,
+            File testOutputDir,
+            String javaPackageSuffix,
+            boolean generateTestClasses)
             throws Exception {
         // first we do a scan of files to build lookup tables for imports, packages etc.
         final LookupHelper lookupHelper = new LookupHelper(sourceFiles, javaPackageSuffix);
@@ -54,8 +58,8 @@ public abstract class PbjCompiler {
                     for (final var topLevelDef : parsedDoc.topLevelDef()) {
                         final Protobuf3Parser.MessageDefContext msgDef = topLevelDef.messageDef();
                         if (msgDef != null) {
-                            final FileSetWriter writer =
-                                    FileSetWriter.create(mainOutputDir, testOutputDir, msgDef, contextualLookupHelper);
+                            final FileSetWriter writer = FileSetWriter.create(
+                                    mainOutputDir, testOutputDir, msgDef, contextualLookupHelper, generateTestClasses);
                             for (Map.Entry<Class<? extends Generator>, Function<FileSetWriter, JavaFileWriter>> entry :
                                     Generator.GENERATORS.entrySet()) {
                                 final var generator =
