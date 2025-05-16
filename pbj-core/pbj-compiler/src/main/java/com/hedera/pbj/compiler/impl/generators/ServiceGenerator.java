@@ -215,6 +215,12 @@ public final class ServiceGenerator {
         writer.append("""
                 $javaDocComment
                 $deprecated$public interface $serviceName$suffix extends ServiceInterface {
+                    /** The simple name of the service. */
+                    public static final String SERVICE_NAME = "$serviceName";
+                
+                    /** The full name of the service. */
+                    public static final String FULL_NAME = "$fullyQualifiedProtoServiceName";
+                
                     enum $serviceNameMethod implements Method {
                 $methodNames
                     }
@@ -223,12 +229,12 @@ public final class ServiceGenerator {
                 
                     @NonNull
                     default String serviceName() {
-                        return "$serviceName";
+                        return $serviceName$suffix.SERVICE_NAME;
                     }
                 
                     @NonNull
                     default String fullName() {
-                        return "$fullyQualifiedProtoServiceName";
+                        return $serviceName$suffix.FULL_NAME;
                     }
                 
                     @NonNull
