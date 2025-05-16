@@ -45,6 +45,6 @@ class CompareToNegativeTest {
 
     private static void getCompileFilesIn(String fileName) throws Exception {
         URL fileUrl = CompareToNegativeTest.class.getClassLoader().getResource(fileName);
-        compileFilesIn(List.of(new File(fileUrl.toURI())), outputDir, outputDir, null);
+        compileFilesIn(List.of(new File(fileUrl.toURI())), outputDir, outputDir, null, true);
     }
 }

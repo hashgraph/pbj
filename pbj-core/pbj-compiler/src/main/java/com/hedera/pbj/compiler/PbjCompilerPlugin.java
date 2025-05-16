@@ -65,6 +65,7 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
                     pbjTask.getJavaMainOutputDirectory().set(outputDirectoryMain);
                     pbjTask.getJavaTestOutputDirectory().set(outputDirectoryTest);
                     pbjTask.getJavaPackageSuffix().set(pbj.getJavaPackageSuffix());
+                    pbjTask.getGenerateTestClasses().set(pbj.getGenerateTestClasses());
                 });
 
         // 5) register fact that pbj should be run before compiling  by informing the 'java' part

@@ -41,6 +41,11 @@ public abstract class PbjCompilerTask extends SourceTask {
     @Input
     public abstract Property<String> getJavaPackageSuffix();
 
+    /** An optional boolean that indicates if test classes for protobuf models should be generated, which is true by default. */
+    @Optional
+    @Input
+    public abstract Property<Boolean> getGenerateTestClasses();
+
     /**
      * Perform task action - Generates all the PBJ java source files
      *
@@ -54,6 +59,7 @@ public abstract class PbjCompilerTask extends SourceTask {
                 getSource(),
                 getJavaMainOutputDirectory().get().getAsFile(),
                 getJavaTestOutputDirectory().get().getAsFile(),
-                getJavaPackageSuffix().getOrNull());
+                getJavaPackageSuffix().getOrNull(),
+                getGenerateTestClasses().getOrElse(Boolean.TRUE));
     }
 }
