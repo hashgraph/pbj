@@ -52,7 +52,7 @@ public class CharBufferToWritableSequentialData implements WritableSequentialDat
 
     @Override
     public void writeByte(byte b) throws UncheckedIOException {
-        throw new UnsupportedOperationException();
+        charBuffer.put((char) b);
     }
 
     /**

@@ -386,8 +386,17 @@ public final class TestGenerator implements Generator {
                     assertEquals(charBuffer2, charBuffer);
                 
                     // Test JSON Reading
-                    final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(JsonTools.parseJson(charBuffer), false, Integer.MAX_VALUE);
+                    String jsonString = charBuffer.toString();
+                    System.out.println("jsonString: " + jsonString);
+                    System.out.flush();
+                    try{
+                    final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(BufferedData.wrap(jsonString.getBytes(
+                                StandardCharsets.UTF_8)), false, Integer.MAX_VALUE);
                     assertEquals(modelObj, jsonReadPbj);
+                    } catch (Exception e) {
+                        System.err.println("JSON read: " + jsonString);
+                        throw e;
+                    }
                 }
                 
                 @SuppressWarnings("EqualsWithItself")

@@ -60,6 +60,7 @@ public final class JsonCodecGenerator implements Generator {
         writer.addImport("com.hedera.pbj.runtime.*");
         writer.addImport("com.hedera.pbj.runtime.io.*");
         writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
+        writer.addImport("com.hedera.pbj.runtime.json.JsonLexer");
         writer.addImport("java.io.IOException");
         writer.addImport("java.nio.*");
         writer.addImport("java.nio.charset.*");

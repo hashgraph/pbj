@@ -11,5 +11,6 @@ module com.hedera.pbj.runtime {
     exports com.hedera.pbj.runtime.io.stream;
     exports com.hedera.pbj.runtime.io.buffer;
     exports com.hedera.pbj.runtime.jsonparser;
+    exports com.hedera.pbj.runtime.json;
     exports com.hedera.pbj.runtime.grpc;
 }

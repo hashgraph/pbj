@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -18,6 +19,7 @@ import java.util.Objects;
  * direct array reads / writes.
  */
 final class ByteArrayBufferedData extends BufferedData {
+    private static final byte[] HEX = "0123456789abcdef".getBytes(StandardCharsets.US_ASCII);
 
     // Backing byte array
     private final byte[] array;
@@ -380,5 +382,54 @@ final class ByteArrayBufferedData extends BufferedData {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Override
+    public void writeJsonString(@NonNull String value, boolean quoted) {
+        int offset = buffer.position();
+        final int len = value.length();
+        validateCanWrite(len + 2); // TODO this is not really correct
+        if(quoted) array[offset++] = '"';
+        for (int i = 0; i < len; i++) {
+            char c = value.charAt(i);
+
+            // Escape control chars and JSON specials
+            switch (c) {
+                case '"':  array[offset++] = '\\'; array[offset++] = '"';  continue;
+                case '\\': array[offset++] = '\\'; array[offset++] = '\\'; continue;
+                case '\b': array[offset++] = '\\'; array[offset++] = 'b';  continue;
+                case '\f': array[offset++] = '\\'; array[offset++] = 'f';  continue;
+                case '\n': array[offset++] = '\\'; array[offset++] = 'n';  continue;
+                case '\r': array[offset++] = '\\'; array[offset++] = 'r';  continue;
+                case '\t': array[offset++] = '\\'; array[offset++] = 't';  continue;
+            }
+
+            if (c < 0x20) {
+                // Control character – use \ u00XX
+                array[offset++] = '\\';
+                array[offset++] = 'u';
+                array[offset++] = '0';
+                array[offset++] = '0';
+                array[offset++] = HEX[c >> 4];
+                array[offset++] = HEX[c & 0xF];
+            } else if (c < 0x80) {
+                array[offset++] = (byte) c;
+            } else if (c < 0x800) {
+                array[offset++] = (byte) (0b11000000 | (c >> 6));
+                array[offset++] = (byte) (0b10000000 | (c & 0b00111111));
+            } else if (Character.isSurrogate(c)) {
+                int cp = Character.toCodePoint(c, value.charAt(++i));
+                array[offset++] = (byte) (0b11110000 | (cp >> 18));
+                array[offset++] = (byte) (0b10000000 | ((cp >> 12) & 0b00111111));
+                array[offset++] = (byte) (0b10000000 | ((cp >> 6) & 0b00111111));
+                array[offset++] = (byte) (0b10000000 | (cp & 0b00111111));
+            } else {
+                array[offset++] = (byte) (0b11100000 | (c >> 12));
+                array[offset++] = (byte) (0b10000000 | ((c >> 6) & 0b00111111));
+                array[offset++] = (byte) (0b10000000 | (c & 0b00111111));
+            }
+        }
+        if(quoted) array[offset++] = '"';
+        buffer.position(offset);
     }
 }

@@ -222,10 +222,28 @@ public interface WritableSequentialData extends SequentialData {
     /**
      * Write a string as UTF8 bytes to this {@link WritableSequentialData}.
      *
-     * @param value The string to write, can not be null
+     * @param value The string to write, cannot be null
      */
     default void writeUTF8(@NonNull final String value) {
         writeBytes(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Write a string as UTF8 bytes with JSON escapes to this {@link WritableSequentialData}.
+     *
+     * @param value The string to write, cannot be null
+     */
+    default void writeJsonString(@NonNull final String value, boolean quoted) {
+        String escaped = value
+                .replaceAll("\\\\", "\\\\")
+                .replaceAll("\"", "\\\"")
+                .replaceAll("\n", "\\n")
+                .replaceAll("\r", "\\r")
+                .replaceAll("\t", "\\t")
+                .replaceAll("\f", "\\f")
+                .replaceAll("\b", "\\b");
+        if (quoted) escaped = '"' + escaped + '"';
+        writeBytes(escaped.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
