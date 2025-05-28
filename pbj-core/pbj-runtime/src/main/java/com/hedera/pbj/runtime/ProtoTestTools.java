@@ -21,6 +21,9 @@ public final class ProtoTestTools {
     /** Size for reusable test buffers */
     private static final int BUFFER_SIZE = 1024 * 1024;
 
+    /** Size for reusable large test buffers */
+    private static final int LARGE_BUFFER_SIZE = 16 * 1024 * 1024;
+
     /** Size for reusable test char buffers */
     private static final int CHAR_BUFFER_SIZE = 8 * 1024 * 1024;
 
@@ -42,9 +45,9 @@ public final class ProtoTestTools {
     private static final ThreadLocal<CharBuffer> THREAD_LOCAL_CHAR_BUFFERS =
             ThreadLocal.withInitial(() -> CharBuffer.allocate(CHAR_BUFFER_SIZE));
 
-    /** Thread local set of reusable char buffers */
-    private static final ThreadLocal<CharBuffer> THREAD_LOCAL_CHAR_BUFFERS_2 =
-            ThreadLocal.withInitial(() -> CharBuffer.allocate(CHAR_BUFFER_SIZE));
+    /** Thread local set of reusable large buffers */
+    private static final ThreadLocal<BufferedData> THREAD_LOCAL_BIG_BUFFERS =
+            ThreadLocal.withInitial(() -> BufferedData.allocate(LARGE_BUFFER_SIZE));
 
     /**
      * Get the thread local instance of DataBuffer, reset and ready to use.
@@ -91,13 +94,13 @@ public final class ProtoTestTools {
     }
 
     /**
-     * Get the thread local instance of CharBuffer, reset and ready to use.
+     * Get the thread local large instance of BufferedData, reset and ready to use.
      *
-     * @return a ByteBuffer that can be reused by current thread
+     * @return a BufferedData that can be reused by current thread
      */
-    public static CharBuffer getThreadLocalCharBuffer2() {
-        final var local = THREAD_LOCAL_CHAR_BUFFERS_2.get();
-        local.clear();
+    public static BufferedData getThreadLocalBigBuffer() {
+        final var local = THREAD_LOCAL_BIG_BUFFERS.get();
+        local.reset();
         return local;
     }
 

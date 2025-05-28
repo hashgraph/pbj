@@ -388,48 +388,130 @@ final class ByteArrayBufferedData extends BufferedData {
     public void writeJsonString(@NonNull String value, boolean quoted) {
         int offset = buffer.position();
         final int len = value.length();
-        validateCanWrite(len + 2); // TODO this is not really correct
-        if(quoted) array[offset++] = '"';
+        validateCanWrite(len * 6L + 2); //  TODO Worst-case scenario for UTF-8 encoding, is there better estimate?
+        if (quoted) array[arrayOffset + offset++] = '"';
         for (int i = 0; i < len; i++) {
             char c = value.charAt(i);
 
             // Escape control chars and JSON specials
             switch (c) {
-                case '"':  array[offset++] = '\\'; array[offset++] = '"';  continue;
-                case '\\': array[offset++] = '\\'; array[offset++] = '\\'; continue;
-                case '\b': array[offset++] = '\\'; array[offset++] = 'b';  continue;
-                case '\f': array[offset++] = '\\'; array[offset++] = 'f';  continue;
-                case '\n': array[offset++] = '\\'; array[offset++] = 'n';  continue;
-                case '\r': array[offset++] = '\\'; array[offset++] = 'r';  continue;
-                case '\t': array[offset++] = '\\'; array[offset++] = 't';  continue;
+                case '"':  array[arrayOffset + offset++] = '\\'; array[arrayOffset + offset++] = '"';  continue;
+                case '\\': array[arrayOffset + offset++] = '\\'; array[arrayOffset + offset++] = '\\'; continue;
+                case '\b': array[arrayOffset + offset++] = '\\'; array[arrayOffset + offset++] = 'b';  continue;
+                case '\f': array[arrayOffset + offset++] = '\\'; array[arrayOffset + offset++] = 'f';  continue;
+                case '\n': array[arrayOffset + offset++] = '\\'; array[arrayOffset + offset++] = 'n';  continue;
+                case '\r': array[arrayOffset + offset++] = '\\'; array[arrayOffset + offset++] = 'r';  continue;
+                case '\t': array[arrayOffset + offset++] = '\\'; array[arrayOffset + offset++] = 't';  continue;
             }
 
             if (c < 0x20) {
                 // Control character – use \ u00XX
-                array[offset++] = '\\';
-                array[offset++] = 'u';
-                array[offset++] = '0';
-                array[offset++] = '0';
-                array[offset++] = HEX[c >> 4];
-                array[offset++] = HEX[c & 0xF];
-            } else if (c < 0x80) {
-                array[offset++] = (byte) c;
-            } else if (c < 0x800) {
-                array[offset++] = (byte) (0b11000000 | (c >> 6));
-                array[offset++] = (byte) (0b10000000 | (c & 0b00111111));
-            } else if (Character.isSurrogate(c)) {
-                int cp = Character.toCodePoint(c, value.charAt(++i));
-                array[offset++] = (byte) (0b11110000 | (cp >> 18));
-                array[offset++] = (byte) (0b10000000 | ((cp >> 12) & 0b00111111));
-                array[offset++] = (byte) (0b10000000 | ((cp >> 6) & 0b00111111));
-                array[offset++] = (byte) (0b10000000 | (cp & 0b00111111));
+                array[arrayOffset + offset++] = '\\';
+                array[arrayOffset + offset++] = 'u';
+                array[arrayOffset + offset++] = '0';
+                array[arrayOffset + offset++] = '0';
+                array[arrayOffset + offset++] = HEX[c >> 4];
+                array[arrayOffset + offset++] = HEX[c & 0xF];
             } else {
-                array[offset++] = (byte) (0b11100000 | (c >> 12));
-                array[offset++] = (byte) (0b10000000 | ((c >> 6) & 0b00111111));
-                array[offset++] = (byte) (0b10000000 | (c & 0b00111111));
+                // Proper UTF-8 encoding for extended characters
+                offset = encodeUtf8(c, value, i, offset);
             }
         }
-        if(quoted) array[offset++] = '"';
+        if (quoted) array[arrayOffset + offset++] = '"';
         buffer.position(offset);
+    }
+
+    private int encodeUtf8(char c, String value, int i, int offset) {
+        if (c < 0x80) {
+            array[arrayOffset + offset++] = (byte) c;
+        } else if (c < 0x800) {
+            array[arrayOffset + offset++] = (byte) (0b11000000 | (c >> 6));
+            array[arrayOffset + offset++] = (byte) (0b10000000 | (c & 0b00111111));
+        } else if (Character.isSurrogate(c)) {
+            int cp = Character.toCodePoint(c, value.charAt(++i));
+            array[arrayOffset + offset++] = (byte) (0b11110000 | (cp >> 18));
+            array[arrayOffset + offset++] = (byte) (0b10000000 | ((cp >> 12) & 0b00111111));
+            array[arrayOffset + offset++] = (byte) (0b10000000 | ((cp >> 6) & 0b00111111));
+            array[arrayOffset + offset++] = (byte) (0b10000000 | (cp & 0b00111111));
+        } else {
+            array[arrayOffset + offset++] = (byte) (0b11100000 | (c >> 12));
+            array[arrayOffset + offset++] = (byte) (0b10000000 | ((c >> 6) & 0b00111111));
+            array[arrayOffset + offset++] = (byte) (0b10000000 | (c & 0b00111111));
+        }
+        return offset;
+    }
+
+    @Override
+    public void writeJsonLong(final long value, final boolean quoted) {
+        int offset = buffer.position();
+        if (quoted) array[offset++] = '"';
+        // Handle zero explicitly
+        if (value == 0) {
+            array[offset++] = '0';
+        } else if (value == Long.MIN_VALUE)  {
+            // Special case for Long.MIN_VALUE(-9223372036854775808) to avoid overflow
+            array[offset++] = '-';
+            array[offset++] = '9';
+            array[offset++] = '2';
+            array[offset++] = '2';
+            array[offset++] = '3';
+            array[offset++] = '3';
+            array[offset++] = '7';
+            array[offset++] = '2';
+            array[offset++] = '0';
+            array[offset++] = '3';
+            array[offset++] = '6';
+            array[offset++] = '8';
+            array[offset++] = '5';
+            array[offset++] = '4';
+            array[offset++] = '7';
+            array[offset++] = '7';
+            array[offset++] = '5';
+            array[offset++] = '8';
+            array[offset++] = '0';
+            array[offset++] = '8';
+        } else {
+            long v = value;
+            if (v < 0) {
+                array[offset++] = '-';
+                v = -v;
+            }
+            // count the number of digits in the long value, assumes all values are positive
+            // Fast digit count calculation
+            final int digitCount = (v < 10L) ? 1 :
+                (v < 100L) ? 2 :
+                (v < 1000L) ? 3 :
+                (v < 10000L) ? 4 :
+                (v < 100000L) ? 5 :
+                (v < 1000000L) ? 6 :
+                (v < 10000000L) ? 7 :
+                (v < 100000000L) ? 8 :
+                (v < 1000000000L) ? 9 :
+                (v < 10000000000L) ? 10 :
+                (v < 100000000000L) ? 11 :
+                (v < 1000000000000L) ? 12 :
+                (v < 10000000000000L) ? 13 :
+                (v < 100000000000000L) ? 14 :
+                (v < 1000000000000000L) ? 15 :
+                (v < 10000000000000000L) ? 16 :
+                (v < 100000000000000000L) ? 17 :
+                (v < 1000000000000000000L) ? 18 : 19;
+            // Now write them in reverse order
+            long tmp = v;
+            for (int i = digitCount-1; i >= 0; i--) {
+                array[offset+i] = (byte) ('0' + (tmp % 10));
+                tmp /= 10;
+            }
+            offset += digitCount;
+        }
+        if (quoted) array[offset++] = '"';
+        buffer.position(offset);
+    }
+
+    @Override
+    public void writeBase64(@NonNull Bytes dataToEncode) {
+        final int offset = buffer.position();
+        final int writenBytes = dataToEncode.writeBase64To(array, offset);
+        buffer.position(offset + writenBytes);
     }
 }

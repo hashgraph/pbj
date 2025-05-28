@@ -2,7 +2,7 @@
 package com.hedera.pbj.compiler.impl.generators.json;
 
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
-import static com.hedera.pbj.compiler.impl.generators.json.JsonCodecGenerator.toJsonFieldName;
+import static com.hedera.pbj.compiler.impl.generators.json.JsonCodecGenerator.getFieldNameConstantName;
 
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
@@ -47,8 +47,7 @@ final class JsonCodecWriteMethodGenerator {
                     if (inline) {
                         out.writeByte(OPEN_OBJECT);
                     } else {
-                        out.writeBytes(indentBytes);
-                        out.writeByte2(OPEN_OBJECT, NL);
+                        out.writeByte(OPEN_OBJECT);
                     }
                     // write field lines
                     boolean isFirstField = true;
@@ -78,8 +77,8 @@ final class JsonCodecWriteMethodGenerator {
      */
     private static String generateFieldWriteLines(final Field field, final String modelClassName, String getValueCode) {
         final String fieldDef = Common.camelToUpperSnake(field.name());
-        final String fieldName = '\"' + toJsonFieldName(field.name()) + '\"';
-        final String basicFieldCode = generateBasicFieldLines(field, getValueCode, fieldDef, fieldName, "initialIndent+indentStep+indentStep"); // todo replace indent*2 with childIndentBytes
+        final String fieldName = getFieldNameConstantName(field);
+        final String basicFieldCode = generateBasicFieldLines(field, getValueCode, fieldDef, fieldName, "initialIndent+indentStep"); // todo replace indent*2 with childIndentBytes
         StringBuilder sb = new StringBuilder();
         sb.append("// [" + field.fieldNumber() + "] - " + field.name() + "\n");
 
@@ -103,7 +102,7 @@ final class JsonCodecWriteMethodGenerator {
                         + ") {\n");
             }
         }
-        sb.append("    if (isFirstField) { isFirstField = false; } else { out.writeByte2(COMMA, NL); }\n");
+        sb.append("    if (isFirstField) { isFirstField = false; if(!inline) out.writeByte(NL); } else { out.writeByte2(COMMA, NL); }\n");
         sb.append("    out.writeBytes(childIndentBytes);\n");
         sb.append("    "+ basicFieldCode + ";\n");
         sb.append("}");

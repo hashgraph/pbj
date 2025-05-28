@@ -1363,4 +1363,27 @@ public abstract class WritableTestBase extends SequentialTestBase {
             assertThat(seq.position()).isEqualTo(pos + 2);
         }
     }
+
+    @Nested
+    @DisplayName("write Json Tests")
+    final class WriteJsonTest {
+        @ParameterizedTest
+        @ValueSource(longs = {0,-1,1,123456789, -123456789L, Long.MAX_VALUE, Long.MIN_VALUE})
+        @DisplayName("Writing a long in JSON format without quotes")
+        void writeJsonLongUnquoted(final long value) {
+            final var seq = sequence();
+            seq.writeJsonLong(value, false);
+            assertThat(extractWrittenBytes(seq)).isEqualTo(Long.toString(value).getBytes(StandardCharsets.UTF_8));
+        }
+
+        @ParameterizedTest
+        @ValueSource(longs = {0,-1,1,123456789, -123456789L, Long.MAX_VALUE, Long.MIN_VALUE})
+        @DisplayName("Writing a long in JSON format with quotes")
+        void writeJsonLongQuoted(final long value) {
+            final var seq = sequence();
+            seq.writeJsonLong(value, true);
+            assertThat(extractWrittenBytes(seq)).isEqualTo(
+                    ('"' + Long.toString(value) + '"').getBytes(StandardCharsets.UTF_8));
+        }
+    }
 }

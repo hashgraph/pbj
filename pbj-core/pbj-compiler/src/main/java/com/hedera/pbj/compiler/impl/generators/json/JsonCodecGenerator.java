@@ -11,6 +11,7 @@ import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.generators.Generator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -78,6 +79,7 @@ public final class JsonCodecGenerator implements Generator {
                  * JSON Codec for $modelClass model object. Generated based on protobuf schema.
                  */
                 public final$staticModifier class $codecClass implements JsonCodec<$modelClass> {
+                    $fieldNameConstants
 
                     /**
                      * Empty constructor
@@ -91,6 +93,7 @@ public final class JsonCodecGenerator implements Generator {
                     $writeMethod
 
                 """
+                .replace("$fieldNameConstants", generateFieldNameConstants(fields))
                 .replace("$modelClass", modelClassName)
                 .replace("$staticModifier", staticModifier)
                 .replace("$codecClass", codecClassName)
@@ -107,6 +110,77 @@ public final class JsonCodecGenerator implements Generator {
         }
 
         writer.append("}");
+    }
+
+    /**
+     * Generates the field name constants for the fields in the message. The field names are converted to JSON field
+     * names then UTF-8 encoded as byte arrays. The byte arrays are then stored as static final fields in the generated
+     * JSON codec class. This is done to avoid all the conversion logic at runtime.
+     *
+     * @param fields the list of fields in the message
+     * @return a CharSequence containing the field name constants
+     */
+    private CharSequence generateFieldNameConstants(List<Field> fields) {
+        final StringBuilder sb = new StringBuilder();
+        for (final var field : fields) {
+            // check if field is oneof
+            if (field instanceof OneOfField) {
+                // handle one of child fields
+                final OneOfField oneOfField = (OneOfField) field;
+                for (final var childField : oneOfField.fields()) {
+                    sb.append("    private static final byte[] ");
+                    sb.append(getFieldNameConstantName(childField));
+                    sb.append(" = new byte[] {");
+                    byte[] fieldNameBytes = toJsonFieldName(childField.name()).getBytes(StandardCharsets.UTF_8);
+                    for (int i = 0; i < fieldNameBytes.length; i++) {
+                        int b = fieldNameBytes[i] & 0xFF;
+                        if (fieldNameBytes[i] < 0) {
+                            sb.append("(byte)");
+                        }
+                        sb.append(String.format("0x%02X", b));
+                        if (i < fieldNameBytes.length - 1) {
+                            sb.append(", ");
+                        }
+                    }
+                    sb.append("};\n");
+                }
+            } else {
+                sb.append("    private static final byte[] ");
+                sb.append(getFieldNameConstantName(field));
+                sb.append(" = new byte[] {");
+                byte[] fieldNameBytes = toJsonFieldName(field.name()).getBytes(StandardCharsets.UTF_8);
+                for (int i = 0; i < fieldNameBytes.length; i++) {
+                    int b = fieldNameBytes[i] & 0xFF;
+                    if (fieldNameBytes[i] < 0) {
+                        sb.append("(byte)");
+                    }
+                    sb.append(String.format("0x%02X", b));
+                    if (i < fieldNameBytes.length - 1) {
+                        sb.append(", ");
+                    }
+                }
+                sb.append("};\n");
+            }
+        }
+        // remove the first line indent
+        if (!sb.isEmpty()) {
+            sb.delete(0, 4);
+        }
+        return sb;
+    }
+
+    /**
+     * Generates the constant name for a field name.
+     *
+     * @param field the field
+     * @return the constant name for the field name
+     */
+    static String getFieldNameConstantName(Field field) {
+        // check if the field name is not snake case but camel case or pascal case, if so convert it to snake case
+        final String fieldName = field.name().replaceAll("([a-z])([A-Z])", "$1_$2")
+                .replaceAll("([A-Z])([A-Z][a-z])", "$1_$2")
+                .toUpperCase();
+        return "FIELD_NAME_" + fieldName;
     }
 
     /**

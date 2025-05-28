@@ -5,9 +5,12 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * A simple JSON lexer that reads from a {@link ReadableSequentialData} and provides read and consume methods. It is
@@ -503,7 +506,14 @@ public final class JsonLexer {
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws ParseException {
         final int firstChar = readByte();
         if (firstChar == QUOTE) {
-            return Enum.valueOf(enumClass, readJsonString());
+            final String enumValue = readJsonString().toUpperCase();
+            try {
+                return Enum.valueOf(enumClass, enumValue);
+            } catch (IllegalArgumentException e) {
+                throw new ParseException("Invalid enum value: \"" + enumValue + "\" in options: " +
+                        Arrays.stream(enumClass.getEnumConstants()).map(en -> en.toString())
+                                .collect(Collectors.joining(", ")) + " becasue of\n" + e.getMessage());
+            }
         } else {
             setNextCharRead(firstChar);
             long res;

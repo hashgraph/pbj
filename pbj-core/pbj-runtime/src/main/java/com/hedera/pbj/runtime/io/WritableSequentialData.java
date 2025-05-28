@@ -2,6 +2,7 @@
 package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -11,6 +12,7 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Objects;
 
 /**
@@ -235,15 +237,37 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeJsonString(@NonNull final String value, boolean quoted) {
         String escaped = value
-                .replaceAll("\\\\", "\\\\")
-                .replaceAll("\"", "\\\"")
-                .replaceAll("\n", "\\n")
-                .replaceAll("\r", "\\r")
-                .replaceAll("\t", "\\t")
-                .replaceAll("\f", "\\f")
-                .replaceAll("\b", "\\b");
+                .replaceAll("\"", "\\\\\"")
+                .replaceAll("\n", "\\\\n")
+                .replaceAll("\r", "\\\\r")
+                .replaceAll("\t", "\\\\t")
+                .replaceAll("\f", "\\\\f")
+                .replaceAll("\b", "\\\\b")
+                .replaceAll("\\\\", "\\\\");
         if (quoted) escaped = '"' + escaped + '"';
         writeBytes(escaped.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Writes an int or long value as a JSON string, with quotes if requested.
+     *
+     * @param value The long value to write
+     * @param quoted If true, the value is written as a JSON string with quotes
+     */
+    default void writeJsonLong(final long value, boolean quoted) {
+        if (quoted) writeByte((byte) '"');
+        writeBytes(Long.toString(value).getBytes(StandardCharsets.UTF_8));
+        if (quoted) writeByte((byte)'"');
+    }
+
+    /**
+     * Writes the given byte array as a Base64 encoded string to this {@link WritableSequentialData}.
+     *
+     * @param dataToEncode The byte array to encode in Base64
+     * @throws UncheckedIOException if an I/O error occurs
+     */
+    default void writeBase64(@NonNull final Bytes dataToEncode) {
+        writeBytes(Base64.getEncoder().encode(dataToEncode.toByteArray()));
     }
 
     /**
