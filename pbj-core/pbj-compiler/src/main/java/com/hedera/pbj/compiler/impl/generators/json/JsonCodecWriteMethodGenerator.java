@@ -148,9 +148,9 @@ final class JsonCodecWriteMethodGenerator {
                     "v",
                     Common.camelToUpperSnake(mapField.valueField().name()),
                     "n",
-                    childIndent);
+                    childIndent+ "+indentStep");
 //            return "field(out, %s, %s, $kEncoder, $vComposer)"
-            return "field(out, %s, %s, $vComposer)"
+            return "field(out, initialIndent+indentStep+indentStep, %s, %s, $vComposer)"
                     .formatted(fieldName, getValueCode)
                     // Maps in protobuf can only have simple scalar and not floating keys, so toString should do a good
                     // job.

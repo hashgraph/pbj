@@ -131,7 +131,8 @@ public final class JsonCodecGenerator implements Generator {
                     sb.append("    private static final byte[] ");
                     sb.append(getFieldNameConstantName(childField));
                     sb.append(" = new byte[] {");
-                    byte[] fieldNameBytes = toJsonFieldName(childField.name()).getBytes(StandardCharsets.UTF_8);
+                    final String filedNameText = '"' + toJsonFieldName(childField.name()) + "\": ";
+                    final byte[] fieldNameBytes = filedNameText.getBytes(StandardCharsets.UTF_8);
                     for (int i = 0; i < fieldNameBytes.length; i++) {
                         int b = fieldNameBytes[i] & 0xFF;
                         if (fieldNameBytes[i] < 0) {
@@ -148,7 +149,8 @@ public final class JsonCodecGenerator implements Generator {
                 sb.append("    private static final byte[] ");
                 sb.append(getFieldNameConstantName(field));
                 sb.append(" = new byte[] {");
-                byte[] fieldNameBytes = toJsonFieldName(field.name()).getBytes(StandardCharsets.UTF_8);
+                final String filedNameText = '"' + toJsonFieldName(field.name()) + "\": ";
+                final byte[] fieldNameBytes = filedNameText.getBytes(StandardCharsets.UTF_8);
                 for (int i = 0; i < fieldNameBytes.length; i++) {
                     int b = fieldNameBytes[i] & 0xFF;
                     if (fieldNameBytes[i] < 0) {
