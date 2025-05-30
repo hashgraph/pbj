@@ -189,6 +189,47 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         return new Bytes(array);
     }
 
+    /**
+     * Returns the first byte offset of {@code needle} inside {@code haystack},
+     * or –1 if it is not present.
+     *
+     * Offsets are *relative to the start of the Bytes slice*, so 0 means
+     * “starts exactly at haystack.start”.
+     */
+    public static int indexOf(@NonNull final Bytes haystack, @NonNull final Bytes needle) {
+        requireNonNull(haystack);
+        requireNonNull(needle);
+        final int nLen = (int) needle.length();
+        final int hLen = (int) haystack.length();
+        // Empty needle found at index zero in any haystack
+        if (nLen == 0) {
+            return 0;
+        }
+        // Needle doesn't fit into haystack, so it cannot be found
+        if (nLen > hLen) {
+            return -1;
+        }
+
+        final byte[] hBuf = haystack.buffer;
+        final byte[] nBuf = needle.buffer;
+        final int hBase = haystack.start;
+        final int nBase = needle.start;
+        final int hLast = hBase + hLen - nLen;
+
+        // Cheap first-byte heuristic so we don’t call mismatch() too often
+        final byte first = nBuf[nBase];
+        for (int i = hBase; i <= hLast; i++) {
+            if (hBuf[i] != first) {
+                continue;
+            }
+            // SIMD–accelerated block comparison.
+            if (Arrays.mismatch(hBuf, i, i + nLen, nBuf, nBase, nBase + nLen) < 0) {
+                return i - hBase;
+            }
+        }
+        return -1;
+    }
+
     // ================================================================================================================
     // Object Methods
 
@@ -232,6 +273,16 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         final var bytes = new byte[length];
         System.arraycopy(buffer, start, bytes, 0, length);
         return new Bytes(bytes, 0, length);
+    }
+
+    /**
+     * Checks if this {@link Bytes} contains the given {@link Bytes} as a sub-sequence.
+     * @param needle the {@link Bytes} to search for
+     * @return true if this {@link Bytes} contains the given {@link Bytes} as a sub-sequence, false otherwise
+     */
+    public boolean contains(@NonNull final Bytes needle) {
+        requireNonNull(needle);
+        return indexOf(this, needle) >= 0;
     }
 
     /**

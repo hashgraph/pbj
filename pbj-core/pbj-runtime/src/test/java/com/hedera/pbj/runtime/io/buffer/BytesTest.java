@@ -948,4 +948,80 @@ final class BytesTest {
                 d -> ai.get() == 0 ? 0 : 1,
                 d -> (byte) (ai.get() + 121));
     }
+
+    // ================================================================================================================
+    //  Verify Bytes.indexOf(Bytes, Bytes)  and  Bytes.contains(Bytes)
+    //
+    @Nested
+    @DisplayName("indexOf / contains helpers")
+    final class IndexOfContainsTest {
+
+        // ───────────────────────────────── edge cases ─────────────────────────────────
+
+        @Test
+        @DisplayName("Empty needle is always found at offset 0")
+        void emptyNeedle() {
+            Bytes haystack = Bytes.wrap("anything");
+            Bytes empty = Bytes.EMPTY;
+
+            assertEquals(0, Bytes.indexOf(haystack, empty));
+            assertTrue(haystack.contains(empty));
+        }
+
+        @Test
+        @DisplayName("Empty haystack, non-empty needle → not found")
+        void emptyHaystack() {
+            Bytes haystack = Bytes.EMPTY;
+            Bytes needle = Bytes.wrap("a");
+
+            assertEquals(-1, Bytes.indexOf(haystack, needle));
+            assertFalse(haystack.contains(needle));
+        }
+
+        @Test
+        @DisplayName("Needle longer than haystack → not found")
+        void needleLongerThanHaystack() {
+            Bytes haystack = Bytes.wrap("ab");
+            Bytes needle = Bytes.wrap("abc");
+
+            assertEquals(-1, Bytes.indexOf(haystack, needle));
+            assertFalse(haystack.contains(needle));
+        }
+
+        // ─────────────────────────────── normal matches ───────────────────────────────
+
+        @Test
+        @DisplayName("Finds at start, middle, end")
+        void findsAtAllPositions() {
+            Bytes hs = Bytes.wrap("0123456789");
+
+            assertEquals(0, Bytes.indexOf(hs, Bytes.wrap("012")));
+            assertEquals(4, Bytes.indexOf(hs, Bytes.wrap("456")));
+            assertEquals(7, Bytes.indexOf(hs, Bytes.wrap("789")));
+        }
+
+        @Test
+        @DisplayName("Returns -1 when needle absent")
+        void notPresent() {
+            Bytes hs = Bytes.wrap("hello-world");
+            Bytes nd = Bytes.wrap("xyz");
+
+            assertEquals(-1, Bytes.indexOf(hs, nd));
+            assertFalse(hs.contains(nd));
+        }
+
+        // ─────────────────────────────── slice semantics ──────────────────────────────
+
+        @Test
+        @DisplayName("indexOf/contains respect slice offset")
+        void worksWithSubSlices() {
+            // buffer:  [x x h e l l o x x]
+            byte[] raw = "xxhelloxx".getBytes(StandardCharsets.UTF_8);
+            Bytes slice = Bytes.wrap(raw, 2, 5); // "hello"
+            Bytes needle = Bytes.wrap("ell");
+
+            assertEquals(1, Bytes.indexOf(slice, needle)); // offset inside the slice
+            assertTrue(slice.contains(needle));
+        }
+    }
 }
