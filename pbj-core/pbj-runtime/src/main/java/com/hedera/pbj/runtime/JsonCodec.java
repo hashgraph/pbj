@@ -21,6 +21,14 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
     // then we should strongly enforce Codec works with Records. This will reduce bugs
     // where people try to use a mutable object.
 
+
+    @NonNull
+    @Override
+    default T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields,
+            boolean allowDuplicateFields, boolean allowDeprecated, int maxDepth) throws ParseException {
+        return parse(input, strictMode, parseUnknownFields, maxDepth); // TODO: handle allowDuplicateFields and allowDeprecated for JSON
+    }
+
     /** {@inheritDoc} */
     default @NonNull T parse(
             @NonNull ReadableSequentialData input,

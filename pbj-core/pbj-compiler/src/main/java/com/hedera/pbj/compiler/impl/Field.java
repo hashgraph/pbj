@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 public interface Field {
 
     /** The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.). */
-    public static final long DEFAULT_MAX_SIZE = 2 * 1024 * 1024;
+    long DEFAULT_MAX_SIZE = 2 * 1024 * 1024;
 
     /**
      * Is this field a repeated field. Repeated fields are lists of values rather than a single value.
@@ -152,7 +152,7 @@ public interface Field {
     String parserFieldsSetMethodCase();
 
     /**
-     * Get the java doc comment for this field, cleaned and ready to insert in output
+     * Get the Javadoc comment for this field, cleaned and ready to insert in output
      *
      * @return java doc comment
      */
@@ -161,7 +161,7 @@ public interface Field {
     /**
      * Get if this field is deprecated or not
      *
-     * @return true if field is deprecated, otherwise false
+     * @return true if the field is deprecated, otherwise false
      */
     boolean deprecated();
 
@@ -207,7 +207,7 @@ public interface Field {
     static boolean isMessageComparable(
             final Protobuf3Parser.Type_Context typeContext,
             final com.hedera.pbj.compiler.impl.ContextualLookupHelper lookupHelper) {
-        return typeContext.messageType() == null ? false : lookupHelper.isComparable(typeContext.messageType());
+        return typeContext.messageType() != null && lookupHelper.isComparable(typeContext.messageType());
     }
 
     /**

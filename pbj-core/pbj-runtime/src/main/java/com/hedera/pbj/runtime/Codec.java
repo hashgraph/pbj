@@ -15,6 +15,7 @@ import java.io.UncheckedIOException;
  *
  * @param <T> The type of object to serialize and deserialize
  */
+@SuppressWarnings("unused")
 public interface Codec<T /*extends Record*/> {
 
     // NOTE: When services has finished migrating to protobuf based objects in state,
@@ -25,9 +26,37 @@ public interface Codec<T /*extends Record*/> {
      * Parses an object from the {@link ReadableSequentialData} and returns it.
      * <p>
      * If {@code strictMode} is {@code true}, then throws an exception if fields
-     * have been defined on the encoded object that are not supported by the parser. This
+     * have been defined on the encoded object that is not supported by the parser. This
      * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * which is sometimes required to avoid parsing an object that is newer than the code
+     * parsing it is prepared to handle.
+     * <p>
+     * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
+     * will fail with a ParseException if the maximum depth is reached.
+     *
+     * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+     * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
+     *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
+     * @param allowDuplicateFields when {@code true}, the parser will allow duplicate fields in the input; otherwise
+     *                             a ParseException will be thrown.
+     * @param allowDeprecated when {@code true}, the parser will allow deprecated fields in input; otherwise if
+     *                        deprecated fields are encountered, a ParseException will be thrown.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    @NonNull
+    T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields,
+            boolean allowDuplicateFields, boolean allowDeprecated, int maxDepth)
+            throws ParseException;
+    /**
+     * Parses an object from the {@link ReadableSequentialData} and returns it.
+     * <p>
+     * If {@code strictMode} is {@code true}, then throws an exception if fields
+     * have been defined on the encoded object that is not supported by the parser. This
+     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
+     * which is sometimes required to avoid parsing an object that is newer than the code
      * parsing it is prepared to handle.
      * <p>
      * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
@@ -42,16 +71,18 @@ public interface Codec<T /*extends Record*/> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
-            throws ParseException;
+    default T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
+        return parse(input, strictMode, parseUnknownFields, true, true, maxDepth);
+    }
 
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
      * <p>
      * If {@code strictMode} is {@code true}, then throws an exception if fields
-     * have been defined on the encoded object that are not supported by the parser. This
+     * have been defined on the encoded object that is not supported by the parser. This
      * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * which is sometimes required to avoid parsing an object that is newer than the code
      * parsing it is prepared to handle.
      * <p>
      * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing

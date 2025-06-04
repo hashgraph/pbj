@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 /**
  * Code to generate the parse method for Codec classes.
  */
-@SuppressWarnings("StringConcatenationInsideStringBufferAppend")
 class CodecParseMethodGenerator {
 
     /**
@@ -59,6 +58,10 @@ class CodecParseMethodGenerator {
                  * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
                  * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
                  *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
+                 * @param allowDuplicateFields when {@code true}, the parser will allow duplicate fields in the input; otherwise
+                 *                             a ParseException will be thrown.
+                 * @param allowDeprecated when {@code true}, the parser will allow deprecated fields in input; otherwise if
+                 *                        deprecated fields are encountered, a ParseException will be thrown.
                  * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
                  * @return Parsed $modelClassName model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
@@ -67,6 +70,8 @@ class CodecParseMethodGenerator {
                         @NonNull final ReadableSequentialData input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
+                        boolean allowDuplicateFields,
+                        boolean allowDeprecated,
                         final int maxDepth) throws ParseException {
                     if (maxDepth < 0) {
                         throw new ParseException("Reached maximum allowed depth of nested messages");
@@ -97,7 +102,7 @@ class CodecParseMethodGenerator {
                 fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", "))
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
         )
-        .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields, schemaClassName), "", schemaClassName))
+        .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields, schemaClassName, ""), "", schemaClassName, fields.size()))
         .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
         .indent(DEFAULT_INDENT);
         // spotless:on
@@ -105,7 +110,8 @@ class CodecParseMethodGenerator {
 
     // prefix is pre-pended to variable names to support a nested parsing loop.
     static String generateParseLoop(
-            final String caseStatements, @NonNull final String prefix, @NonNull final String schemaClassName) {
+            final String caseStatements, @NonNull final String prefix, @NonNull final String schemaClassName,
+            final int fieldCount) {
         // spotless:off
         return """
                         // -- PARSE LOOP ---------------------------------------------
@@ -131,7 +137,10 @@ class CodecParseMethodGenerator {
 
                             // Ask the Schema to inform us what field this represents.
                             final var $prefixf = $schemaClassName.getField($prefixfield);
-
+                
+                            // Bitset for detected duplicate fields
+                            final BitSet $prefixfieldBitSet = new BitSet($fieldCount);
+                
                             // Given the wire type and the field type, parse the field
                             switch ($prefixtag) {
                 $caseStatements
@@ -177,6 +186,7 @@ class CodecParseMethodGenerator {
                             }
                         }
                 """
+                .replace("$fieldCount", Integer.toString(fieldCount))
                 .replace("$caseStatements",caseStatements)
                 .replace("$prefix",prefix)
                 .replace("$schemaClassName",schemaClassName)
@@ -186,13 +196,15 @@ class CodecParseMethodGenerator {
     }
 
     /**
-     * Generate switch case statements for each tag (field & wire type pair). For repeated numeric value types we
+     * Generate switch case statements for each tag (field and wire type pair). For repeated numeric value types we
      * generate 2 case statements for packed and unpacked encoding.
      *
      * @param fields list of all fields in record
+     * @param schemaClassName the name of the schema class to use for field parsing
+     * @param prefix prefix to prepend to variable names, used for nested parsing loops
      * @return string of case statement code
      */
-    private static String generateCaseStatements(final List<Field> fields, final String schemaClassName) {
+    private static String generateCaseStatements(final List<Field> fields, final String schemaClassName, final String prefix) {
         StringBuilder sb = new StringBuilder();
         for (Field field : fields) {
             if (field instanceof final OneOfField oneOfField) {
@@ -200,10 +212,10 @@ class CodecParseMethodGenerator {
                     generateFieldCaseStatement(sb, subField, schemaClassName);
                 }
             } else if (field.repeated() && field.type().wireType() != Common.TYPE_LENGTH_DELIMITED) {
-                // for repeated fields that are not length encoded there are 2 forms they can be stored in file.
+                // for repeated fields that are not length encoded, there are 2 forms they can be stored in file.
                 // "packed" and repeated primitive fields
                 generateFieldCaseStatement(sb, field, schemaClassName);
-                generateFieldCaseStatementPacked(sb, field);
+                generateFieldCaseStatementPacked(sb, field, prefix);
             } else {
                 generateFieldCaseStatement(sb, field, schemaClassName);
             }
@@ -217,8 +229,7 @@ class CodecParseMethodGenerator {
      * @param field field to generate case statement for
      * @param sb StringBuilder to append code to
      */
-    @SuppressWarnings("StringConcatenationInsideStringBufferAppend")
-    private static void generateFieldCaseStatementPacked(final StringBuilder sb, final Field field) {
+    private static void generateFieldCaseStatementPacked(final StringBuilder sb, final Field field, final String prefix) {
         final int wireType = Common.TYPE_LENGTH_DELIMITED;
         final int fieldNum = field.fieldNumber();
         final int tag = Common.getTag(wireType, fieldNum);
@@ -226,6 +237,16 @@ class CodecParseMethodGenerator {
         sb.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         sb.append("""
+                $isDeprecatedCheck
+                // check duplicate fields
+                if (!allowDuplicateFields) {
+                    if ($prefixfieldBitSet.get($fieldNum)) {
+                        throw new ParseException("Duplicate field [$fieldName] was encountered");
+                    } else {
+                        $prefixfieldBitSet.set($fieldNum);
+                    }
+                }
+                
                 // Read the length of packed repeated field data
                 final long length = input.readVarInt(false);
                 if (length > $maxSize) {
@@ -244,6 +265,13 @@ class CodecParseMethodGenerator {
                 if (input.position() != beforePosition + length) {
                     throw new BufferUnderflowException();
                 }"""
+                .replace("$prefix",prefix)
+                .replace("$isDeprecatedCheck",
+                        field.deprecated()? "// check if deprecated field is allowed\n"
+                                + "if (!allowDeprecated) throw new ParseException"
+                                + "(\"Deprecated field [$fieldName] was encountered\");"
+                                : "")
+                .replace("$fieldNum", Integer.toString(fieldNum))
                 .replace("$tempFieldName", "temp_" + field.name())
                 .replace("$readMethod", readMethod(field))
                 .replace("$maxSize", String.valueOf(field.maxSize()))
@@ -393,7 +421,8 @@ class CodecParseMethodGenerator {
                     .replace("$fieldDefs",mapEntryFields.stream().map(mapEntryField ->
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
                             mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
-                    .replace("$mapParseLoop", generateParseLoop(generateCaseStatements(mapEntryFields, schemaClassName), "map_entry_", schemaClassName)
+                    .replace("$mapParseLoop", generateParseLoop(generateCaseStatements(mapEntryFields, schemaClassName,
+                            "map_entry_"), "map_entry_", schemaClassName, mapEntryFields.size())
                             .indent(-DEFAULT_INDENT))
                     .replace("$maxSize", String.valueOf(field.maxSize()))
             );
