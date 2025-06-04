@@ -204,8 +204,14 @@ public final class LookupHelper {
      * @return fully qualified proto name
      */
     public String getFullyQualifiedProtoName(final File protoSrcFile, final ParserRuleContext context) {
-        if (context instanceof final MessageTypeContext msgTypeContext) {
-            final String messageType = msgTypeContext.getText();
+        // First, try msgType and msgDef to process nested types correctly. Note that this branch cannot resolve
+        // references to enums. But due to recursive calls, this particular branch runs for enum references through
+        // the msgDef condition. So we shouldn't error out immediately if we cannot find a name in this branch.
+        // We should first try the next one (see an if below this one), which partially overlaps with this branch.
+        if (context instanceof MessageTypeContext || context instanceof MessageDefContext) {
+            final String messageType = context instanceof MessageTypeContext
+                    ? context.getText()
+                    : ((MessageDefContext) context).messageName().getText();
 
             // Ugly, but this is how PBJ implements the built-in "support" for Google Protobuf boxed types...
             // Imports for "google/protobuf/wrappers.proto" are ignored elsewhere in PBJ,
@@ -219,14 +225,11 @@ public final class LookupHelper {
             if (fullyQualifiedProtoMessageName != null) {
                 return fullyQualifiedProtoMessageName;
             }
+        }
 
-            // we failed to find
-            final Object[] importsArray =
-                    protoFileImports.get(protoSrcFile.getAbsolutePath()).toArray();
-            final String importsString = Arrays.toString(importsArray);
-            throw new PbjCompilerException(
-                    FAILED_TO_FIND_MSG_TYPE_MESSAGE.formatted(messageType, protoSrcFile, importsString));
-        } else if (context instanceof MessageDefContext
+        // msgDef/msgType failed. Okay, let's try the other option. Note that this option doesn't support nested types
+        // well. However, it does support enums well (through this same msgDef condition, same as above.)
+        if (context instanceof MessageDefContext
                 || context instanceof EnumDefContext
                 || context instanceof Protobuf3Parser.ServiceDefContext) {
             // It's unclear what exactly is being handled in this branch. However, the symbol maps
@@ -238,10 +241,18 @@ public final class LookupHelper {
                 throw new PbjCompilerException(FAILED_TO_FIND_LOCAL_MSG_MAP_MESSAGE.formatted(protoSrcFile));
             }
             return fileMap.get(getUnqualifiedProtoName(context));
-        } else {
+        } else if (!(context instanceof MessageTypeContext)) {
+            // We only support msgDef, msgTye, enumDef, and serviceDef in this method, so error out here:
             throw new UnsupportedOperationException(
                     METHOD_WRONG_CONTEXT_MESSAGE.formatted("getFullyQualifiedProtoName"));
         }
+
+        // ...otherwise, error out this way:
+        // we failed to find
+        final Object[] importsArray =
+                protoFileImports.get(protoSrcFile.getAbsolutePath()).toArray();
+        final String importsString = Arrays.toString(importsArray);
+        throw new PbjCompilerException(FAILED_TO_FIND_MSG_TYPE_MESSAGE.formatted(context, protoSrcFile, importsString));
     }
 
     /**
@@ -321,7 +332,7 @@ public final class LookupHelper {
                             PACKAGE_NOT_FOUND_MESSAGE.formatted("pbj", qualifiedProtoName, protoSrcFile));
                 }
                 return switch (fileType) {
-                        //noinspection ConstantConditions
+                    //noinspection ConstantConditions
                     case MODEL, PROTOC -> basePackage;
                     case SCHEMA -> basePackage + '.' + FileAndPackageNamesConfig.SCHEMAS_SUBPACKAGE;
                     case CODEC, JSON_CODEC -> basePackage + '.' + FileAndPackageNamesConfig.CODECS_SUBPACKAGE;
@@ -475,10 +486,10 @@ public final class LookupHelper {
                     // check for custom option
                     for (final var option : parsedDoc.optionStatement()) {
                         switch (option.optionName().getText().replaceAll("[()]", "")) {
-                            case PBJ_PACKAGE_OPTION_NAME -> pbjJavaPackage =
-                                    option.constant().getText().replaceAll("\"", "");
-                            case PROTOC_JAVA_PACKAGE_OPTION_NAME -> protocJavaPackage =
-                                    option.constant().getText().replaceAll("\"", "");
+                            case PBJ_PACKAGE_OPTION_NAME ->
+                                pbjJavaPackage = option.constant().getText().replaceAll("\"", "");
+                            case PROTOC_JAVA_PACKAGE_OPTION_NAME ->
+                                protocJavaPackage = option.constant().getText().replaceAll("\"", "");
                         }
                     }
                     // check for special comment option
