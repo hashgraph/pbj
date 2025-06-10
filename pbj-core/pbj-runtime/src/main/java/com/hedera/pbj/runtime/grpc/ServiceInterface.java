@@ -79,13 +79,17 @@ public interface ServiceInterface {
          * Gets whether the content type describes a protobuf message. This will be true if the {@link #contentType()}
          * is equal to {@link #APPLICATION_GRPC_PROTO} or {@link #APPLICATION_GRPC}.
          */
-        boolean isProtobuf();
+        default boolean isProtobuf() {
+            return APPLICATION_GRPC_PROTO.equals(contentType()) || APPLICATION_GRPC.equals(contentType());
+        }
 
         /**
          * Gets whether the content type describes a JSON message. This will be true if the {@link #contentType()}
          * is equal to {@link #APPLICATION_GRPC_JSON}.
          */
-        boolean isJson();
+        default boolean isJson() {
+            return APPLICATION_GRPC_JSON.equals(contentType());
+        }
 
         /**
          * Gets the content type of the request. This is the value of the "content-type" header in the HTTP/2 request.

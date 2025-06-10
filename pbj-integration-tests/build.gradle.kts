@@ -39,6 +39,12 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("com.google.protobuf.util")
     runtimeOnly("org.junit.jupiter.engine")
+    requires("com.hedera.pbj.grpc.helidon")
+    requires("io.helidon.common")
+    requires("io.helidon.common.tls")
+    requires("io.helidon.webclient.api")
+    requires("io.helidon.webclient.grpc")
+    requires("io.helidon.webserver")
 }
 
 jmhModuleInfo {

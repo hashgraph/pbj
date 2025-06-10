@@ -76,4 +76,7 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-http2:$helidon") {
         because("io.helidon.webclient.http2")
     }
+    api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
+        because("io.helidon.webclient.grpc")
+    }
 }
