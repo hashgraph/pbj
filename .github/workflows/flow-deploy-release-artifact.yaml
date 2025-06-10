@@ -156,9 +156,8 @@ jobs:
         env:
           NEXUS_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           NEXUS_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-        # The 'releaseMavenCentral' task will select if Release or Snapshot based on the version
-        run: |
-          ./gradlew releaseMavenCentral -PpublishingPackageGroup=com.hedera.pbj -PpublishSigningEnabled=true --no-configuration-cache
+        # The 'publishAggregationToCentralPortal' task will select if Release or Snapshot based on the version
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
 
       - name: Gradle Plugin Portal Release
         if: ${{ needs.prepare-release.outputs.mode == 'specified' && !cancelled() && !failure() }}
