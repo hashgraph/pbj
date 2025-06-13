@@ -25,7 +25,7 @@ import java.nio.BufferOverflowException;
 class PbjGrpcDatagramReader {
 
     // These are arbitrary limits, but they seem sane and support the immediate use-case.
-    // It would be nice to make them configurable. However, note that this is a Helidon-internal class.
+    // It would be nice to make them configurable in the future.
     private static final int INITIAL_BUFFER_SIZE = 1024;
     private static final int MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 
