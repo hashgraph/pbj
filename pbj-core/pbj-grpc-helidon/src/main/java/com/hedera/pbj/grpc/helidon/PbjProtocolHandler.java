@@ -277,8 +277,6 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // used to decide on the best way to parse or handle the request.
             final var options = new Options(
                     Optional.ofNullable(headers.authority()), // the client (see http2 spec)
-                    contentType.equals(APPLICATION_GRPC_PROTO),
-                    contentType.equals(APPLICATION_GRPC_JSON),
                     contentType);
 
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
@@ -714,8 +712,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     }
 
     /** Simple implementation of the {@link ServiceInterface.RequestOptions} interface. */
-    private record Options(Optional<String> authority, boolean isProtobuf, boolean isJson, String contentType)
-            implements ServiceInterface.RequestOptions {}
+    private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
 
     /**
      * A {@link ScheduledFuture} that does nothing. This is used when there is no deadline set for
