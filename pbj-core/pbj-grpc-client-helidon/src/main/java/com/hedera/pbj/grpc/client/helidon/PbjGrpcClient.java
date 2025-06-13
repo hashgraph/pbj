@@ -50,13 +50,13 @@ public class PbjGrpcClient implements GrpcClient {
      * @param pipeline a pipeline for receiving replies
      */
     @Override
-    public <RequestT, ReplyT, T extends GrpcCall<RequestT, ReplyT>> T createCall(
+    public <RequestT, ReplyT> GrpcCall<RequestT, ReplyT> createCall(
             final String fullMethodName,
             final Codec<RequestT> requestCodec,
             final Codec<ReplyT> replyCodec,
             final Pipeline<ReplyT> pipeline) {
         final ClientConnection clientConnection = createClientConnection();
-        return (T) new PbjGrpcCall(
+        return new PbjGrpcCall(
                 this,
                 clientConnection,
                 new Options(config.authority(), config.contentType()),

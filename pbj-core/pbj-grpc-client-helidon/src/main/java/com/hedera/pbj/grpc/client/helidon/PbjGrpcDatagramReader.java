@@ -24,6 +24,13 @@ import java.nio.BufferOverflowException;
  */
 class PbjGrpcDatagramReader {
 
+    /**
+     * A GRPC datagram has a prefix with 1 byte representing a compression flag,
+     * followed by 4 bytes representing the length of the payload as an unsigned 32-bit integer,
+     * so the total prefix length is 5 bytes.
+     */
+    static final int PREFIX_LENGTH = 5;
+
     // These are arbitrary limits, but they seem sane and support the immediate use-case.
     // It would be nice to make them configurable in the future.
     private static final int INITIAL_BUFFER_SIZE = 1024;
@@ -78,7 +85,7 @@ class PbjGrpcDatagramReader {
     /** Return the size of the next complete datagram, or -1 if it's incomplete yet. */
     private int getNextSize() {
         // Check if we have a complete datagram
-        if (length < 5) {
+        if (length < PREFIX_LENGTH) {
             // We don't even have a complete GRPC header yet
             return -1;
         }
@@ -93,7 +100,7 @@ class PbjGrpcDatagramReader {
                 | (buffer[(readPosition + 3) % buffer.length] << 8)
                 | (buffer[(readPosition + 4) % buffer.length]);
 
-        if (length < 5 + size) {
+        if (length < PREFIX_LENGTH + size) {
             // We don't have enough data yet. More data needs to be added to the reader to complete this datagram.
             return -1;
         }
@@ -119,7 +126,7 @@ class PbjGrpcDatagramReader {
         final BufferData data = BufferData.create(size);
 
         // Skip the header because we've already read the size, and we ignore the compression:
-        readPosition += 5;
+        readPosition += PREFIX_LENGTH;
         readPosition %= buffer.length;
 
         final int firstPartMaxLengthForReading = buffer.length - readPosition;
@@ -133,7 +140,7 @@ class PbjGrpcDatagramReader {
         readPosition += size;
         readPosition %= buffer.length;
         // Adjust the length
-        length -= 5 + size;
+        length -= PREFIX_LENGTH + size;
 
         return data;
     }

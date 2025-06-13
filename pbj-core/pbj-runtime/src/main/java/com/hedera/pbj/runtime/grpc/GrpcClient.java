@@ -15,12 +15,11 @@ public interface GrpcClient {
      *
      * @param <RequestT> request type
      * @param <ReplyT> reply type
-     * @param <T> a GrpcCall type
      * @param fullMethodName a full GRPC method name that includes the fully-qualified service name and the method name
      * @param requestCodec a PBJ codec for requests
      * @param replyCodec a PBJ codec for replies
      * @param pipeline a pipeline for receiving replies
      */
-    <RequestT, ReplyT, T extends GrpcCall<RequestT, ReplyT>> T createCall(
+    <RequestT, ReplyT> GrpcCall<RequestT, ReplyT> createCall(
             String fullMethodName, Codec<RequestT> requestCodec, Codec<ReplyT> replyCodec, Pipeline<ReplyT> pipeline);
 }

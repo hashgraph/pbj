@@ -122,7 +122,8 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
     @Override
     public void sendRequest(final RequestT request, final boolean endOfStream) {
         final Bytes bytes = requestCodec.toBytes(request);
-        final BufferData bufferData = BufferData.create(5 + Math.toIntExact(bytes.length()));
+        final BufferData bufferData =
+                BufferData.create(PbjGrpcDatagramReader.PREFIX_LENGTH + Math.toIntExact(bytes.length()));
 
         // GRPC datagram header
         bufferData.write(0); // 0 means no compression
