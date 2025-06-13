@@ -6,4 +6,7 @@ plugins {
 
 description = "A PBJ gRPC client with Helidon HTTP2 webclient"
 
-testModuleInfo {}
+testModuleInfo {
+    requires("org.junit.jupiter.api")
+    requiresStatic("java.annotation")
+}
