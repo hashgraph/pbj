@@ -38,6 +38,7 @@ striving for.
     * ### [**PBJ Runtime Library** `pbj-runtime`](pbj-core/pbj-runtime/README.md)
     * ### [**Grpc Helidon** `pbj-grpc-helidon`](pbj-core/pbj-grpc-helidon/README.md)
     * ### [**Grpc Helidon Config** `pbj-grpc-helidon-config](pbj-core/pbj-grpc-helidon-config/README.md)
+    * ### [**Grpc Client Helidon** `pbj-grpc-client-helidon`](pbj-core/pbj-grpc-client-helidon/README.md)
   * ### [**Integration Tests** `pbj-integration-tests`](pbj-integration-tests/README.md) 
 
 ## Build Libraries
