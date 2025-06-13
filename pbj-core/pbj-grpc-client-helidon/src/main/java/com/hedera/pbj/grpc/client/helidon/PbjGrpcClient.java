@@ -2,6 +2,8 @@
 package com.hedera.pbj.grpc.client.helidon;
 
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.grpc.GrpcCall;
+import com.hedera.pbj.runtime.grpc.GrpcClient;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import io.helidon.webclient.api.ClientConnection;
@@ -20,7 +22,7 @@ import java.util.Optional;
 /**
  * A PBJ GRPC client that uses the Helidon WebClient and its HTTP2 client implementation to call remote GRPC services.
  */
-public class PbjGrpcClient {
+public class PbjGrpcClient implements GrpcClient {
     private final WebClient webClient;
     private final PbjGrpcClientConfig config;
 
@@ -47,13 +49,14 @@ public class PbjGrpcClient {
      * @param replyCodec a PBJ codec for replies that MUST correspond to the content type in the PbjGrpcClientConfig
      * @param pipeline a pipeline for receiving replies
      */
-    public <RequestT, ReplyT> PbjGrpcCall createCall(
+    @Override
+    public <RequestT, ReplyT, T extends GrpcCall<RequestT, ReplyT>> T createCall(
             final String fullMethodName,
             final Codec<RequestT> requestCodec,
             final Codec<ReplyT> replyCodec,
             final Pipeline<ReplyT> pipeline) {
         final ClientConnection clientConnection = createClientConnection();
-        return new PbjGrpcCall(
+        return (T) new PbjGrpcCall(
                 this,
                 clientConnection,
                 new Options(config.authority(), config.contentType()),

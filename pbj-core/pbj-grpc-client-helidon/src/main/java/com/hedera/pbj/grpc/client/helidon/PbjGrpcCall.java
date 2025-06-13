@@ -3,6 +3,7 @@ package com.hedera.pbj.grpc.client.helidon;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -40,7 +41,7 @@ import java.time.Duration;
  * @param <RequestT> request type
  * @param <ReplyT> reply type
  */
-public class PbjGrpcCall<RequestT, ReplyT> {
+public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT> {
 
     private final PbjGrpcClient grpcClient;
     private final Codec<RequestT> requestCodec;
@@ -118,6 +119,7 @@ public class PbjGrpcCall<RequestT, ReplyT> {
      * @param request a request object
      * @param endOfStream a flag indicating if this is the last request, useful for unary or server-streaming methods
      */
+    @Override
     public void sendRequest(final RequestT request, final boolean endOfStream) {
         final Bytes bytes = requestCodec.toBytes(request);
         final BufferData bufferData = BufferData.create(5 + Math.toIntExact(bytes.length()));
