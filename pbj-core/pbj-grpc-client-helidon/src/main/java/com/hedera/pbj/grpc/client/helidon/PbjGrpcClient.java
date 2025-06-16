@@ -22,7 +22,7 @@ import java.util.Optional;
 /**
  * A PBJ GRPC client that uses the Helidon WebClient and its HTTP2 client implementation to call remote GRPC services.
  */
-public class PbjGrpcClient implements GrpcClient {
+public final class PbjGrpcClient implements GrpcClient {
     private final WebClient webClient;
     private final PbjGrpcClientConfig config;
 

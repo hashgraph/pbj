@@ -11,7 +11,9 @@ import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Service code generator.
@@ -41,7 +43,18 @@ public final class ServiceGenerator {
             String replyType,
             String replyTypePackage) {
 
-        String formatSignature() {
+        static String formatForEach(
+                final List<RPC> rpcList,
+                final Function<RPC, String> formatter,
+                final String delimiter,
+                final int indent) {
+            return rpcList.stream()
+                    .map(formatter)
+                    .collect(Collectors.joining(delimiter))
+                    .indent(indent);
+        }
+
+        private String formatMethodSignature(String methodModifier) {
             // Examples:
             //    // Unary, a single request/response call.
             //    HelloReply sayHello(HelloRequest request);
@@ -55,6 +68,41 @@ public final class ServiceGenerator {
             //    // A bidirectional stream of requests and responses between the client and the server.
             //    Pipeline<? super HelloRequest> sayHelloStreamBidi(Pipeline<? super HelloReply> replies);
 
+            final String formattedModifier =
+                    methodModifier == null || methodModifier.isBlank() ? "" : (methodModifier + " ");
+            final StringBuilder sb = new StringBuilder();
+
+            // return type:
+            if (!requestStream && !replyStream) {
+                sb.append("@NonNull\n");
+                sb.append(formattedModifier);
+                sb.append(replyType);
+            } else if (!requestStream) {
+                sb.append(formattedModifier);
+                sb.append("void");
+            } else {
+                sb.append("@NonNull\n");
+                sb.append(formattedModifier);
+                sb.append("Pipeline<? super ").append(requestType).append('>');
+            }
+
+            // name and args:
+            sb.append(' ').append(name).append('(');
+            if (!requestStream) {
+                sb.append("@NonNull final ").append(requestType).append(" request");
+                if (replyStream) {
+                    sb.append(", ");
+                }
+            }
+            if (requestStream || replyStream) {
+                sb.append("@NonNull final Pipeline<? super ").append(replyType).append("> replies");
+            }
+            sb.append(")");
+
+            return sb.toString();
+        }
+
+        String formatMethodDeclaration() {
             final StringBuilder sb = new StringBuilder();
             if (javaDoc.contains("\n")) {
                 sb.append("/**\n");
@@ -64,27 +112,8 @@ public final class ServiceGenerator {
                 sb.append("/** ").append(javaDoc).append(" */\n");
             }
 
-            // return type:
-            if (!requestStream && !replyStream) {
-                sb.append(replyType);
-            } else if (!requestStream) {
-                sb.append("void");
-            } else {
-                sb.append("Pipeline<? super ").append(requestType).append('>');
-            }
-
-            // name and args:
-            sb.append(' ').append(name).append('(');
-            if (!requestStream) {
-                sb.append(requestType).append(" request");
-                if (replyStream) {
-                    sb.append(", ");
-                }
-            }
-            if (requestStream || replyStream) {
-                sb.append("Pipeline<? super ").append(replyType).append("> replies");
-            }
-            sb.append(");");
+            sb.append(formatMethodSignature(null));
+            sb.append(";");
 
             return sb.toString();
         }
@@ -115,6 +144,90 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$kind", kind);
+        }
+
+        String formatMethodImplementation() {
+            if (!requestStream && !replyStream) {
+                // kind = "unary";
+                return """
+                        @Override
+                        $methodSignature {
+                            final AtomicReference<$replyType> replyRef = new AtomicReference<>();
+                            final AtomicReference<Throwable> errorRef = new AtomicReference<>();
+                            final CountDownLatch latch = new CountDownLatch(1);
+                            final Pipeline<$replyType> pipeline = new Pipeline<>() {
+                                @Override
+                                public void onSubscribe(final Flow.Subscription subscription) {
+                                    subscription.request(Long.MAX_VALUE); // turn off flow control
+                                }
+                                @Override
+                                public void onNext(final $replyType reply) {
+                                    if (replyRef.get() != null) {
+                                        throw new IllegalStateException("$methodName is unary, but received more than one reply. The latest reply is: " + reply);
+                                    }
+                                    replyRef.set(reply);
+                                    latch.countDown();
+                                }
+                                @Override
+                                public void onError(final Throwable throwable) {
+                                    errorRef.set(throwable);
+                                    latch.countDown();
+                                }
+                                @Override
+                                public void onComplete() {
+                                    latch.countDown();
+                                }
+                            };
+
+                            final GrpcCall<$requestType, $replyType> call = grpcClient.createCall(
+                                    FULL_NAME + "/$methodName",
+                                    get$simpleRequestTypeCodec(requestOptions),
+                                    get$simpleReplyTypeCodec(requestOptions),
+                                    pipeline
+                                    );
+                            call.sendRequest(request, true);
+                            try {
+                                latch.await();
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+
+                            if (errorRef.get() != null) {
+                                if (errorRef.get() instanceof RuntimeException re) {
+                                    throw re;
+                                }
+                                throw new RuntimeException(errorRef.get());
+                            }
+
+                            if (replyRef.get() != null) {
+                                return replyRef.get();
+                            }
+
+                            throw new RuntimeException("Call to $methodName completed w/o receiving a reply or an error explicitly. The request was: " + request);
+                        }
+                        """
+                        .replace("$methodSignature", formatMethodSignature("public"))
+                        .replace("$requestType", requestType)
+                        .replace("$simpleRequestType", requestType.replace(".", ""))
+                        .replace("$replyType", replyType)
+                        .replace("$simpleReplyType", replyType.replace(".", ""))
+                        .replace("$methodName", name);
+            } else if (requestStream && !replyStream) {
+                // kind = "clientStreaming";
+            } else if (!requestStream && replyStream) {
+                // kind = "serverStreaming";
+            } else {
+                // kind = "bidiStreaming";
+            }
+
+            // TODO: remove
+            return """
+                        @Override
+                        $methodSignature {
+                            throw new UnsupportedOperationException();
+                        }
+                        """
+                    .replace("$methodSignature", formatMethodSignature("public"));
         }
     }
 
@@ -196,15 +309,21 @@ public final class ServiceGenerator {
             }
         }
 
+        writer.addImport("com.hedera.pbj.runtime.grpc.GrpcCall");
+        writer.addImport("com.hedera.pbj.runtime.grpc.GrpcClient");
         writer.addImport("com.hedera.pbj.runtime.grpc.Pipeline");
         writer.addImport("com.hedera.pbj.runtime.grpc.Pipelines");
         writer.addImport("com.hedera.pbj.runtime.grpc.ServiceInterface");
-        writer.addImport("com.hedera.pbj.runtime.io.buffer.Bytes");
+        writer.addImport("com.hedera.pbj.runtime.Codec");
         writer.addImport("com.hedera.pbj.runtime.ParseException");
+        writer.addImport("com.hedera.pbj.runtime.io.buffer.Bytes");
         writer.addImport("edu.umd.cs.findbugs.annotations.NonNull");
         writer.addImport("java.util.List");
         writer.addImport("java.util.Arrays");
         writer.addImport("java.util.Objects");
+        writer.addImport("java.util.concurrent.CountDownLatch");
+        writer.addImport("java.util.concurrent.Flow");
+        writer.addImport("java.util.concurrent.atomic.AtomicReference");
 
         rpcList.forEach(rpc -> {
             writer.addImport(rpc.requestTypePackage + "." + rpc.requestType);
@@ -259,19 +378,64 @@ public final class ServiceGenerator {
                         }
                     }
                 
+                $getCodecMethods
                 $requestReplySerdeMethods
+                
+                    /** A client class for $serviceName. */
+                    public class $serviceNameClient implements $serviceName$suffix {
+                        private final GrpcClient grpcClient;
+                        private final RequestOptions requestOptions;
+
+                        public $serviceNameClient(@NonNull final GrpcClient grpcClient, @NonNull final RequestOptions requestOptions) {
+                            this.grpcClient = Objects.requireNonNull(grpcClient);
+                            this.requestOptions = Objects.requireNonNull(requestOptions);
+                        }
+                
+                $methodImplementations
+                    }
                 }
                 """
                 .replace("$javaDocComment", javaDocComment)
                 .replace("$deprecated$", deprecated)
                 .replace("$serviceName", serviceName)
                 .replace("$suffix", SUFFIX)
-                .replace("$methodNames", rpcList.stream().map(RPC::name).collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 2))
-                .replace("$methodSignatures", rpcList.stream().map(RPC::formatSignature).collect(Collectors.joining("\n\n")).indent(DEFAULT_INDENT))
+                .replace("$methodNames", RPC.formatForEach(rpcList, RPC::name, ",\n", DEFAULT_INDENT * 2))
+                .replace("$methodSignatures", RPC.formatForEach(rpcList, RPC::formatMethodDeclaration, "\n\n", DEFAULT_INDENT))
                 .replace("$fullyQualifiedProtoServiceName", lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(serviceDef))
-                .replace("$methodCaseStatements", rpcList.stream().map(RPC::formatCaseStatement).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 4))
+                .replace("$methodCaseStatements", RPC.formatForEach(rpcList, RPC::formatCaseStatement, "\n", DEFAULT_INDENT * 4))
+                .replace("$getCodecMethods", formatGetCodecMethods(rpcList).indent(DEFAULT_INDENT))
                 .replace("$requestReplySerdeMethods", formatRequestReplySerdeMethods(rpcList).indent(DEFAULT_INDENT))
+                .replace("$methodImplementations", RPC.formatForEach(rpcList, RPC::formatMethodImplementation, "\n\n", DEFAULT_INDENT * 2))
         );
+        // spotless:on
+    }
+
+    private static String formatGetCodecMethods(final List<RPC> rpcList) {
+        return rpcList.stream()
+                .flatMap(rpc -> Stream.of(rpc.requestType(), rpc.replyType()))
+                .distinct()
+                .map(ServiceGenerator::formatGetCodecMethod)
+                .collect(Collectors.joining("\n\n"));
+    }
+
+    private static String formatGetCodecMethod(final String dataType) {
+        // spotless:off
+        return """
+                @NonNull
+                private static Codec<$dataType> get$simpleDataTypeCodec(@NonNull final RequestOptions options) {
+                    Objects.requireNonNull(options);
+
+                    // Default to protobuf, and don't error out if both are set:
+                    if (options.isJson() && !options.isProtobuf()) {
+                        return $dataType.JSON;
+                    } else {
+                        return $dataType.PROTOBUF;
+                    }
+                }
+                """
+                .replace("$dataType", dataType)
+                .replace("$simpleDataType", dataType.replace(".", ""))
+                ;
         // spotless:on
     }
 
@@ -293,18 +457,12 @@ public final class ServiceGenerator {
         // spotless:off
         return """
                 @NonNull
-                private $requestType parse$simpleRequestType(@NonNull final Bytes message, @NonNull final RequestOptions options) throws ParseException {
+                private static $requestType parse$simpleRequestType(@NonNull final Bytes message, @NonNull final RequestOptions options) throws ParseException {
                     Objects.requireNonNull(message);
                     Objects.requireNonNull(options);
 
-                    // Default to protobuf, and don't error out if both are set:
-                    if (options.isJson() && !options.isProtobuf()) {
-                        // not strict, and hard-code maxDepth for now:
-                        return $requestType.JSON.parse(message.toReadableSequentialData(), false, 16);
-                    } else {
-                        // not strict, and hard-code maxDepth for now:
-                        return $requestType.PROTOBUF.parse(message.toReadableSequentialData(), false, 16);
-                    }
+                    // not strict, and hard-code maxDepth for now:
+                    return get$simpleRequestTypeCodec(options).parse(message.toReadableSequentialData(), false, 16);
                 }
                 """
                 .replace("$requestType", requestType)
@@ -317,16 +475,11 @@ public final class ServiceGenerator {
         // spotless:off
         return """
                 @NonNull
-                private Bytes serialize$simpleReplyType(@NonNull final $replyType reply, @NonNull final RequestOptions options) {
+                private static Bytes serialize$simpleReplyType(@NonNull final $replyType reply, @NonNull final RequestOptions options) {
                     Objects.requireNonNull(reply);
                     Objects.requireNonNull(options);
 
-                    // Default to protobuf, and don't error out if both are set:
-                    if (options.isJson() && !options.isProtobuf()) {
-                        return Bytes.wrap($replyType.JSON.toJSON(reply));
-                    } else {
-                        return $replyType.PROTOBUF.toBytes(reply);
-                    }
+                    return get$simpleReplyTypeCodec(options).toBytes(reply);
                 }
                 """
                 .replace("$replyType", replyType)
