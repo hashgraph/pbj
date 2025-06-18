@@ -148,7 +148,7 @@ testing {
         targets.named("test") {
             testTask {
                 useJUnitPlatform { excludeTags("FUZZ_TEST") }
-                // dependsOn(tasks.named("fuzzTest"))
+                dependsOn(tasks.named("fuzzTest"))
             }
         }
     }
