@@ -146,10 +146,8 @@ public final class ServiceGenerator {
                     .replace("$kind", kind);
         }
 
-        String formatMethodImplementation() {
-            if (!requestStream && !replyStream) {
-                // kind = "unary";
-                return """
+        private String formatUnaryMethodImplementation() {
+            return """
                         @Override
                         $methodSignature {
                             final AtomicReference<$replyType> replyRef = new AtomicReference<>();
@@ -206,28 +204,212 @@ public final class ServiceGenerator {
                             throw new RuntimeException("Call to $methodName completed w/o receiving a reply or an error explicitly. The request was: " + request);
                         }
                         """
-                        .replace("$methodSignature", formatMethodSignature("public"))
-                        .replace("$requestType", requestType)
-                        .replace("$simpleRequestType", requestType.replace(".", ""))
-                        .replace("$replyType", replyType)
-                        .replace("$simpleReplyType", replyType.replace(".", ""))
-                        .replace("$methodName", name);
-            } else if (requestStream && !replyStream) {
-                // kind = "clientStreaming";
-            } else if (!requestStream && replyStream) {
-                // kind = "serverStreaming";
-            } else {
-                // kind = "bidiStreaming";
-            }
+                    .replace("$methodSignature", formatMethodSignature("public"))
+                    .replace("$requestType", requestType)
+                    .replace("$simpleRequestType", requestType.replace(".", ""))
+                    .replace("$replyType", replyType)
+                    .replace("$simpleReplyType", replyType.replace(".", ""))
+                    .replace("$methodName", name);
+        }
 
-            // TODO: remove
+        private String formatClientStreamingMethodImplementation() {
             return """
                         @Override
                         $methodSignature {
-                            throw new UnsupportedOperationException();
+                            final AtomicReference<$replyType> replyRef = new AtomicReference<>();
+                            final Pipeline<$replyType> pipeline = new Pipeline<>() {
+                                @Override
+                                public void onSubscribe(final Flow.Subscription subscription) {
+                                    replies.onSubscribe(subscription);
+                                }
+                                @Override
+                                public void onNext(final $replyType reply) {
+                                    if (replyRef.get() != null) {
+                                        throw new IllegalStateException("$methodName is clientStreaming, but received more than one reply. The latest reply is: " + reply);
+                                    }
+                                    replyRef.set(reply);
+                                    replies.onNext(reply);
+                                }
+                                @Override
+                                public void onError(final Throwable throwable) {
+                                    replies.onError(throwable);
+                                }
+                                @Override
+                                public void onComplete() {
+                                    replies.onComplete();
+                                }
+                            };
+
+                            final GrpcCall<$requestType, $replyType> call = grpcClient.createCall(
+                                    FULL_NAME + "/$methodName",
+                                    get$simpleRequestTypeCodec(requestOptions),
+                                    get$simpleReplyTypeCodec(requestOptions),
+                                    pipeline
+                                    );
+
+                            return new Pipeline<$requestType>() {
+                                @Override
+                                public void onSubscribe(final Flow.Subscription subscription) {
+                                    // no-op
+                                }
+                                @Override
+                                public void onNext(final $requestType request) {
+                                    call.sendRequest(request, false);
+                                }
+                                @Override
+                                public void onError(final Throwable throwable) {
+                                    replies.onError(throwable);
+                                }
+                                @Override
+                                public void onComplete() {
+                                    call.halfClose();
+                                    replies.onComplete();
+                                }
+                            };
                         }
                         """
-                    .replace("$methodSignature", formatMethodSignature("public"));
+                    .replace("$methodSignature", formatMethodSignature("public"))
+                    .replace("$requestType", requestType)
+                    .replace("$simpleRequestType", requestType.replace(".", ""))
+                    .replace("$replyType", replyType)
+                    .replace("$simpleReplyType", replyType.replace(".", ""))
+                    .replace("$methodName", name);
+        }
+
+        private String formatServerStreamingMethodImplementation() {
+            return """
+                        @Override
+                        $methodSignature {
+                            final AtomicReference<Throwable> errorRef = new AtomicReference<>();
+                            final CountDownLatch latch = new CountDownLatch(1);
+                            final Pipeline<$replyType> pipeline = new Pipeline<>() {
+                                @Override
+                                public void onSubscribe(final Flow.Subscription subscription) {
+                                    replies.onSubscribe(subscription);
+                                }
+                                @Override
+                                public void onNext(final $replyType reply) {
+                                    replies.onNext(reply);
+                                }
+                                @Override
+                                public void onError(final Throwable throwable) {
+                                    errorRef.set(throwable);
+                                    replies.onError(throwable);
+                                    latch.countDown();
+                                }
+                                @Override
+                                public void onComplete() {
+                                    replies.onComplete();
+                                    latch.countDown();
+                                }
+                            };
+
+                            final GrpcCall<$requestType, $replyType> call = grpcClient.createCall(
+                                    FULL_NAME + "/$methodName",
+                                    get$simpleRequestTypeCodec(requestOptions),
+                                    get$simpleReplyTypeCodec(requestOptions),
+                                    pipeline
+                                    );
+                            call.sendRequest(request, true);
+                            try {
+                                latch.await();
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+
+                            if (errorRef.get() != null) {
+                                // Yes, we may have reported this error through the replies pipeline already.
+                                // However, the code that called this method may be unaware of the error.
+                                // So we fail the calling thread with the error exception here so that the caller code
+                                // doesn't assume that the call completed successfully.
+                                if (errorRef.get() instanceof RuntimeException re) {
+                                    throw re;
+                                }
+                                throw new RuntimeException(errorRef.get());
+                            }
+                        }
+                        """
+                    .replace("$methodSignature", formatMethodSignature("public"))
+                    .replace("$requestType", requestType)
+                    .replace("$simpleRequestType", requestType.replace(".", ""))
+                    .replace("$replyType", replyType)
+                    .replace("$simpleReplyType", replyType.replace(".", ""))
+                    .replace("$methodName", name);
+        }
+
+        private String formatBidiStreamingMethodImplementation() {
+            return """
+                        @Override
+                        $methodSignature {
+                            final Pipeline<$replyType> pipeline = new Pipeline<>() {
+                                @Override
+                                public void onSubscribe(final Flow.Subscription subscription) {
+                                    replies.onSubscribe(subscription);
+                                }
+                                @Override
+                                public void onNext(final $replyType reply) {
+                                    replies.onNext(reply);
+                                }
+                                @Override
+                                public void onError(final Throwable throwable) {
+                                    replies.onError(throwable);
+                                }
+                                @Override
+                                public void onComplete() {
+                                    replies.onComplete();
+                                }
+                            };
+
+                            final GrpcCall<$requestType, $replyType> call = grpcClient.createCall(
+                                    FULL_NAME + "/$methodName",
+                                    get$simpleRequestTypeCodec(requestOptions),
+                                    get$simpleReplyTypeCodec(requestOptions),
+                                    pipeline
+                                    );
+
+                            return new Pipeline<$requestType>() {
+                                @Override
+                                public void onSubscribe(final Flow.Subscription subscription) {
+                                    // no-op
+                                }
+                                @Override
+                                public void onNext(final $requestType request) {
+                                    call.sendRequest(request, false);
+                                }
+                                @Override
+                                public void onError(final Throwable throwable) {
+                                    replies.onError(throwable);
+                                }
+                                @Override
+                                public void onComplete() {
+                                    call.halfClose();
+                                    replies.onComplete();
+                                }
+                            };
+                        }
+                        """
+                    .replace("$methodSignature", formatMethodSignature("public"))
+                    .replace("$requestType", requestType)
+                    .replace("$simpleRequestType", requestType.replace(".", ""))
+                    .replace("$replyType", replyType)
+                    .replace("$simpleReplyType", replyType.replace(".", ""))
+                    .replace("$methodName", name);
+        }
+
+        String formatMethodImplementation() {
+            // Different method types implementations share only a very tiny number of common lines of code,
+            // and while they look a bit similar, the implementations differ in details a lot. So it doesn't make
+            // sense to try and generalize the format. Instead, each implementation has its own dedicated formatter
+            // method defined above.
+            if (!requestStream && !replyStream) {
+                return formatUnaryMethodImplementation();
+            } else if (requestStream && !replyStream) {
+                return formatClientStreamingMethodImplementation();
+            } else if (!requestStream && replyStream) {
+                return formatServerStreamingMethodImplementation();
+            } else {
+                return formatBidiStreamingMethodImplementation();
+            }
         }
     }
 

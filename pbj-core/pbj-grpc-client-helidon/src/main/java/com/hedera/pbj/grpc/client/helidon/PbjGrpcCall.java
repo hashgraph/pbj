@@ -43,6 +43,8 @@ import java.time.Duration;
  */
 public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT> {
 
+    private static final BufferData EMPTY_BUFFER_DATA = BufferData.empty();
+
     private final PbjGrpcClient grpcClient;
     private final Codec<RequestT> requestCodec;
     private final Codec<ReplyT> replyCodec;
@@ -101,10 +103,8 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                 null,
                 connection.streamIdSequence());
 
-        grpcClient.getWebClient().executor().submit(this::receiveRepliesLoop);
-
         // send HEADERS frame
-        WritableHeaders<?> headers = WritableHeaders.create();
+        final WritableHeaders<?> headers = WritableHeaders.create();
         requestOptions.authority().ifPresent(authority -> headers.add(Http2Headers.AUTHORITY_NAME, authority));
         headers.add(Http2Headers.METHOD_NAME, "POST");
         headers.add(Http2Headers.PATH_NAME, "/" + fullMethodName);
@@ -112,6 +112,10 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
         headers.add(HeaderValues.create(HeaderNames.CONTENT_TYPE, requestOptions.contentType()));
         headers.add(HeaderValues.create(HeaderNames.ACCEPT_ENCODING, "identity"));
         clientStream.writeHeaders(Http2Headers.create(headers), false);
+
+        // We must start this loop only AFTER writing headers above because that operation initializes
+        // an internal buffer in the clientStream. W/o that, we get NPEs when calling clientStream APIs.
+        grpcClient.getWebClient().executor().submit(this::receiveRepliesLoop);
     }
 
     /**
@@ -135,62 +139,74 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
         clientStream.writeData(bufferData, endOfStream);
     }
 
+    @Override
+    public void halfClose() {
+        clientStream.writeData(EMPTY_BUFFER_DATA, true);
+    }
+
     private boolean isStreamOpen() {
         return clientStream.streamState() != Http2StreamState.HALF_CLOSED_REMOTE
                 && clientStream.streamState() != Http2StreamState.CLOSED;
     }
 
     private void receiveRepliesLoop() {
-        boolean headersRead = false;
-        do {
-            try {
-                clientStream.readHeaders();
-                // FUTURE WORK: examine the headers to check the content type, encoding, custom headers, etc.
-                headersRead = true;
-            } catch (StreamTimeoutException ignored) {
-                // FUTURE WORK: implement an uber timeout to return
-            }
-        } while (!headersRead);
-
-        // read data from stream
-        final PbjGrpcDatagramReader datagramReader = new PbjGrpcDatagramReader();
-        while (isStreamOpen()) {
-            if (clientStream.trailers().isDone() || !clientStream.hasEntity()) {
-                // Trailers or EndOfStream received
-                break;
-            }
-
-            final Http2FrameData frameData;
-            try {
-                frameData = clientStream.readOne(grpcClient.getConfig().readTimeout());
-            } catch (StreamTimeoutException e) {
-                // FUTURE WORK: implement an uber timeout to return
-                continue;
-            }
-            if (frameData != null) {
-                BufferData bufferData = frameData.data();
-
-                // Add data to the reader...
-                datagramReader.add(bufferData);
-
-                // ...and then feed all complete GRPC datagrams to the pipeline:
-                BufferData data;
-                while ((data = datagramReader.extractNextDatagram()) != null) {
-                    final byte[] array = data.readBytes();
-                    final Bytes bytes = Bytes.wrap(array);
-
-                    try {
-                        final ReplyT reply = replyCodec.parse(bytes);
-                        pipeline.onNext(reply);
-                    } catch (ParseException e) {
-                        pipeline.onError(e);
-                    }
+        try {
+            boolean headersRead = false;
+            do {
+                try {
+                    clientStream.readHeaders();
+                    // FUTURE WORK: examine the headers to check the content type, encoding, custom headers, etc.
+                    headersRead = true;
+                } catch (StreamTimeoutException ignored) {
+                    // FUTURE WORK: implement an uber timeout to return
                 }
-                // If there's no any complete datagrams yet, then simply keep spinning this loop until
-                // enough data is received.
-            }
-        }
+            } while (!headersRead);
 
+            // read data from stream
+            final PbjGrpcDatagramReader datagramReader = new PbjGrpcDatagramReader();
+            while (isStreamOpen()) {
+                if (clientStream.trailers().isDone() || !clientStream.hasEntity()) {
+                    // Trailers or EndOfStream received
+                    break;
+                }
+
+                final Http2FrameData frameData;
+                try {
+                    frameData = clientStream.readOne(grpcClient.getConfig().readTimeout());
+                } catch (StreamTimeoutException e) {
+                    // FUTURE WORK: implement an uber timeout to return
+                    continue;
+                }
+                if (frameData != null) {
+                    BufferData bufferData = frameData.data();
+
+                    // Add data to the reader...
+                    datagramReader.add(bufferData);
+
+                    // ...and then feed all complete GRPC datagrams to the pipeline:
+                    BufferData data;
+                    while ((data = datagramReader.extractNextDatagram()) != null) {
+                        final byte[] array = data.readBytes();
+                        final Bytes bytes = Bytes.wrap(array);
+
+                        try {
+                            final ReplyT reply = replyCodec.parse(bytes);
+                            pipeline.onNext(reply);
+                        } catch (ParseException e) {
+                            pipeline.onError(e);
+                        }
+                    }
+                    // If there's no any complete datagrams yet, then simply keep spinning this loop until
+                    // enough data is received.
+                }
+            }
+        } catch (Throwable t) {
+            // This method runs in the Helidon WebClient executor, so there's no need to re-throw the exception
+            // as this won't produce any useful effects. We only report it to the replies pipeline here for
+            // the application code to handle it:
+            pipeline.onError(t);
+        }
+        clientStream.close();
         pipeline.onComplete();
     }
 }
