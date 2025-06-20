@@ -22,7 +22,7 @@ import java.util.Optional;
 /**
  * A PBJ GRPC client that uses the Helidon WebClient and its HTTP2 client implementation to call remote GRPC services.
  */
-public class PbjGrpcClient implements GrpcClient {
+public final class PbjGrpcClient implements GrpcClient {
     private final WebClient webClient;
     private final PbjGrpcClientConfig config;
 
@@ -55,6 +55,9 @@ public class PbjGrpcClient implements GrpcClient {
             final Codec<RequestT> requestCodec,
             final Codec<ReplyT> replyCodec,
             final Pipeline<ReplyT> pipeline) {
+        // FUTURE WORK: should probably cache the connection and re-use it for subsequent createCall() calls.
+        // Also, might have to pull some connection initialization code out of the Call class, so that the latter
+        // only ever creates streams over an existing TCP/HTTP2 connection.
         final ClientConnection clientConnection = createClientConnection();
         return new PbjGrpcCall(
                 this,
