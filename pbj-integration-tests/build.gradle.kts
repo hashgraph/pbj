@@ -49,12 +49,6 @@ testModuleInfo {
     runtimeOnly("org.junit.jupiter.engine")
 }
 
-// The dependency must be added explicitly until/unless
-// https://github.com/gradlex-org/java-module-dependencies/blob/main/src/main/resources/org/gradlex/javamodule/dependencies/unique_modules.properties
-// knows about this new module. It doesn't hurt to have it explicitly defined here anyway, for
-// clarity:
-dependencies { testImplementation("com.hedera.pbj:pbj-grpc-client-helidon") }
-
 jmhModuleInfo {
     requires("com.hedera.pbj.runtime")
     requires("com.google.protobuf.util")
