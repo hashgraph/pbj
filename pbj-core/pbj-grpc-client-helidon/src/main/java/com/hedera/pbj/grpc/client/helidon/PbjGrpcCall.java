@@ -140,7 +140,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
     }
 
     @Override
-    public void halfClose() {
+    public void completeRequests() {
         clientStream.writeData(EMPTY_BUFFER_DATA, true);
     }
 
