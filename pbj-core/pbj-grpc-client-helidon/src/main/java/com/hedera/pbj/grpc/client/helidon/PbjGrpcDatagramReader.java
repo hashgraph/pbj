@@ -78,6 +78,7 @@ class PbjGrpcDatagramReader {
 
         // Adjust the length and the writePosition
         length += read;
+        // The `buffer` is circular. The position is wrapped on the `buffer.length` if it's past the tail.
         writePosition += read;
         writePosition %= buffer.length;
     }
@@ -94,7 +95,8 @@ class PbjGrpcDatagramReader {
         // to the beginning of a new datagram.
 
         // Read big endian (unsigned, but oh well...) int32 size from the GRPC header first
-        // (ignoring the first byte which is a compression flag)
+        // (ignoring the first byte which is a compression flag):
+        // The `buffer` is circular. The position is wrapped on the `buffer.length` if it's past the tail.
         final int size = buffer[(readPosition + 1) % buffer.length] << 24
                 | (buffer[(readPosition + 2) % buffer.length] << 16)
                 | (buffer[(readPosition + 3) % buffer.length] << 8)
@@ -126,6 +128,7 @@ class PbjGrpcDatagramReader {
         final BufferData data = BufferData.create(size);
 
         // Skip the header because we've already read the size, and we ignore the compression:
+        // The `buffer` is circular. The position is wrapped on the `buffer.length` if it's past the tail.
         readPosition += PREFIX_LENGTH;
         readPosition %= buffer.length;
 
@@ -137,6 +140,7 @@ class PbjGrpcDatagramReader {
         }
 
         // Advance the readPosition
+        // The `buffer` is circular. The position is wrapped on the `buffer.length` if it's past the tail.
         readPosition += size;
         readPosition %= buffer.length;
         // Adjust the length
