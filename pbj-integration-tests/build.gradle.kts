@@ -45,6 +45,7 @@ testModuleInfo {
     requires("io.helidon.webclient.api")
     runtimeOnly("io.helidon.webclient.http2")
     requires("io.helidon.webserver")
+    runtimeOnly("io.grpc.netty")
 
     runtimeOnly("org.junit.jupiter.engine")
 }

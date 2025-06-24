@@ -262,7 +262,7 @@ public final class ServiceGenerator {
                                 }
                                 @Override
                                 public void onComplete() {
-                                    call.halfClose();
+                                    call.completeRequests();
                                     replies.onComplete();
                                 }
                             };
@@ -382,7 +382,7 @@ public final class ServiceGenerator {
                                 }
                                 @Override
                                 public void onComplete() {
-                                    call.halfClose();
+                                    call.completeRequests();
                                     replies.onComplete();
                                 }
                             };

@@ -21,19 +21,20 @@ public interface GrpcCall<RequestT, ReplyT> {
     void sendRequest(final RequestT request, final boolean endOfStream);
 
     /**
-     * Half-closes the call to indicate that it's complete from the request sender perspective.
-     * When using HTTP2 as a transport protocol, this is usually represented as sending an empty buffer
-     * of data with the endOfStream flag set to true.
+     * Indicate that the application is done sending requests.
+     * <p>
+     * When using HTTP2 as a transport protocol, this is usually called as "half-closed" and achieved
+     * by sending an empty buffer of data with the endOfStream flag set to true.
      * <p>
      * Note that an application can indicate this state using the `sendRequest` method above as well,
-     * but it requires a real, non-empty request to be sent prior to half-closing the call, so that method
-     * is most applicable to unary calls where the method implementation knows that there's just a single request
+     * but it requires a real, non-empty request to be sent, so that method is most applicable to unary
+     * or server-streaming calls where the method implementation knows that there's just a single request
      * to be sent.
      * <p>
-     * For other method types, such as client-streaming or bidi for example, this `halfClose()` method may be
+     * For other method types, such as client-streaming or bidi for example, this `completeRequests()` method may be
      * more convenient instead.
      * <p>
-     * Note that sending more requests after the call has been half-closed will result in an exception.
+     * Note that sending more requests after calling this method will result in an exception.
      */
-    void halfClose();
+    void completeRequests();
 }
