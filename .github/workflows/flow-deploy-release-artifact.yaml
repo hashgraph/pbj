@@ -154,8 +154,8 @@ jobs:
         if: ${{ !cancelled() && !failure() }}
         working-directory: ${{ env.PBJ_CORE }}
         env:
-          NEXUS_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          NEXUS_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          NEXUS_USERNAME: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
+          NEXUS_PASSWORD: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
         # The 'publishAggregationToCentralPortal' task will select if Release or Snapshot based on the version
         run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
 
