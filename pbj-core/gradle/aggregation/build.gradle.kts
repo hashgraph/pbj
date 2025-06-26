@@ -6,4 +6,7 @@ plugins {
     id("org.hiero.gradle.check.spotless-kotlin")
 }
 
-dependencies { published(project(":pbj-grpc-helidon")) }
+dependencies {
+    published(project(":pbj-grpc-helidon"))
+    published(project(":pbj-grpc-client-helidon"))
+}
