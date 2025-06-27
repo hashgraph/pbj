@@ -7,7 +7,7 @@ import java.util.Set;
 /**
  * A utility to allocate AutoCloseable port numbers so that tests that start TCP servers can run in parallel.
  */
-class PortsAllocator {
+public class PortsAllocator {
     /** An AutoCloseable port number. */
     public record Port(int port, PortsAllocator portsAllocator) implements AutoCloseable {
         @Override

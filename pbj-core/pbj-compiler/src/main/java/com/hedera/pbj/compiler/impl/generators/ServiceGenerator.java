@@ -191,9 +191,8 @@ public final class ServiceGenerator {
                             }
 
                             if (errorRef.get() != null) {
-                                if (errorRef.get() instanceof RuntimeException re) {
-                                    throw re;
-                                }
+                                // Make a new exception to capture the stack trace. Simply re-throwing the original
+                                // exception may look confusing because the stack trace would be misleading.
                                 throw new RuntimeException(errorRef.get());
                             }
 
@@ -263,7 +262,6 @@ public final class ServiceGenerator {
                                 @Override
                                 public void onComplete() {
                                     call.completeRequests();
-                                    replies.onComplete();
                                 }
                             };
                         }
@@ -280,7 +278,6 @@ public final class ServiceGenerator {
             return """
                         @Override
                         $methodSignature {
-                            final AtomicReference<Throwable> errorRef = new AtomicReference<>();
                             final CountDownLatch latch = new CountDownLatch(1);
                             final Pipeline<$replyType> pipeline = new Pipeline<>() {
                                 @Override
@@ -293,7 +290,6 @@ public final class ServiceGenerator {
                                 }
                                 @Override
                                 public void onError(final Throwable throwable) {
-                                    errorRef.set(throwable);
                                     replies.onError(throwable);
                                     latch.countDown();
                                 }
@@ -317,16 +313,9 @@ public final class ServiceGenerator {
                                 throw new RuntimeException(e);
                             }
 
-                            if (errorRef.get() != null) {
-                                // Yes, we may have reported this error through the replies pipeline already.
-                                // However, the code that called this method may be unaware of the error.
-                                // So we fail the calling thread with the error exception here so that the caller code
-                                // doesn't assume that the call completed successfully.
-                                if (errorRef.get() instanceof RuntimeException re) {
-                                    throw re;
-                                }
-                                throw new RuntimeException(errorRef.get());
-                            }
+                            // This method will return successfully even if the GRPC call failed. All server exceptions
+                            // have been reported through replies.onError() where the client must handle them.
+                            // Alternatively, the client could time out if the replies pipeline never saw onComplete().
                         }
                         """
                     .replace("$methodSignature", formatMethodSignature("public"))

@@ -37,6 +37,7 @@ mainModuleInfo {
 testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+    requires("org.opentest4j")
     requires("com.google.protobuf.util")
     requires("com.hedera.pbj.grpc.helidon")
     requires("com.hedera.pbj.grpc.client.helidon")
