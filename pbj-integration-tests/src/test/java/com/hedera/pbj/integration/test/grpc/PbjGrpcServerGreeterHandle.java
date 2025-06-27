@@ -5,7 +5,7 @@ import com.hedera.pbj.grpc.helidon.PbjRouting;
 import io.helidon.webserver.WebServer;
 
 /** A Greeter handle for the PBJ GRPC server implementation. */
-class PbjGrpcServerGreeterHandle extends GrpcServerGreeterHandle {
+public class PbjGrpcServerGreeterHandle extends GrpcServerGreeterHandle {
     private final int port;
 
     private WebServer server;
@@ -33,5 +33,14 @@ class PbjGrpcServerGreeterHandle extends GrpcServerGreeterHandle {
             server.stop();
             server = null;
         }
+    }
+
+    @Override
+    public void stopNow() {
+        // In Helidon, stop() actually closes the server socket on the spot.
+        // However, there's no way to abruptly kill open connections, other than by throwing exceptions maybe.
+        // We do have tests that throw exceptions on the server thread, so I think we cover those cases.
+        // We also have tests that run the server in a separate JVM and kill the process, so we do cover all the cases.
+        stop();
     }
 }

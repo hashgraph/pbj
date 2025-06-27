@@ -17,16 +17,21 @@ import pbj.integration.tests.pbj.integration.tests.HelloRequest;
  * A test must provide implementations for service methods that it will call. The default implementations
  * are either no-ops, or return hard-coded results, or nulls which may kill the low-level server implementation.
  */
-abstract class GrpcServerGreeterHandle implements GreeterInterface, AutoCloseable {
+public abstract class GrpcServerGreeterHandle implements GreeterInterface, AutoCloseable {
 
     private Function<HelloRequest, HelloReply> sayHello;
     private BiConsumer<HelloRequest, Pipeline<? super HelloReply>> sayHelloStreamReply;
     private Function<Pipeline<? super HelloReply>, Pipeline<? super HelloRequest>> sayHelloStreamRequest;
     private Function<Pipeline<? super HelloReply>, Pipeline<? super HelloRequest>> sayHelloStreamBidi;
 
-    abstract void start();
+    /** Start the server. */
+    public abstract void start();
 
-    abstract void stop();
+    /** Shutdown the server in an orderly manner. */
+    public abstract void stop();
+
+    /** Force shutdown, potentially breaking existing client connections. */
+    public abstract void stopNow();
 
     @Override
     public void close() {
