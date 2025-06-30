@@ -50,14 +50,33 @@ public class GrpcClientComprehensiveTest {
         this.serverFactory = serverFactory;
     }
 
-    private static <T extends Throwable> T assertThrowsCause(Class<T> expectedType, Executable executable) {
+    /**
+     * Walk down the throwable causes tree, including suppressed throwables,
+     * and return a cause that matches the expectedType, or null.
+     */
+    private static <T extends Throwable> T checkIfHasCause(final Class<T> expectedType, final Throwable t) {
+        for (Throwable cause = t; cause != null; cause = cause.getCause()) {
+            if (cause.getClass().equals(expectedType)) {
+                return (T) cause;
+            }
+            for (Throwable t2 : cause.getSuppressed()) {
+                final Throwable cause2 = checkIfHasCause(expectedType, t2);
+                if (cause2 != null) {
+                    return (T) cause2;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static <T extends Throwable> T assertThrowsCause(final Class<T> expectedType, final Executable executable) {
         try {
             executable.execute();
         } catch (final Throwable t) {
-            for (Throwable cause = t; cause != null; cause = cause.getCause()) {
-                if (cause.getClass().equals(expectedType)) {
-                    return (T) cause;
-                }
+            final Throwable cause = checkIfHasCause(expectedType, t);
+            if (cause != null) {
+                return (T) cause;
             }
             throw new AssertionFailedError(
                     "Expected " + expectedType.getName() + " but got "
