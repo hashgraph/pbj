@@ -176,6 +176,7 @@ public class GoogleProtobufGrpcServerGreeterHandle extends GrpcServerGreeterHand
             try {
                 server.shutdownNow().awaitTermination();
             } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
             }
             server = null;
         }

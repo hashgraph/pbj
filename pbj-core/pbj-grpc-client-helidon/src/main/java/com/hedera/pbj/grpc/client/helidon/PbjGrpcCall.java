@@ -294,7 +294,9 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                 }
             } catch (NumberFormatException ignored) {
                 // a bad server sent an invalid header. This shouldn't happen really.
-                System.err.println(String.format("Invalid GRPC_STATUS: %s", value));
+                pipeline.onError(
+                        new RuntimeException(String.format("Invalid GRPC_STATUS: %s with message %s", value, message)));
+                onErrorCalled = true;
             }
         }
 

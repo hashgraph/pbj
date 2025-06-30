@@ -9,6 +9,7 @@ import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.locks.LockSupport;
 
 /** Misc utils for GRPC tests. */
 public class GrpcTestUtils {
@@ -23,10 +24,12 @@ public class GrpcTestUtils {
     /** sleep() for non-blocking GRPC calls to wait for results to arrive. */
     public static void sleep(final GrpcClient grpcClient) {
         // Wait a tad longer than the read timeout:
-        try {
-            Thread.sleep(((PbjGrpcClient) grpcClient).getConfig().readTimeout().plusSeconds(2));
-        } catch (InterruptedException e) {
-        }
+        LockSupport.parkUntil(System.currentTimeMillis()
+                + ((PbjGrpcClient) grpcClient)
+                        .getConfig()
+                        .readTimeout()
+                        .plusSeconds(2)
+                        .toMillis());
     }
 
     public static GrpcClient createGrpcClient(final int port, final ServiceInterface.RequestOptions requestOptions) {
