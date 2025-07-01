@@ -4,13 +4,17 @@ package com.hedera.pbj.grpc.client.helidon;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
+import com.hedera.pbj.runtime.grpc.GrpcException;
+import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import io.helidon.common.buffers.BufferData;
 import io.helidon.common.socket.HelidonSocket;
+import io.helidon.http.HeaderName;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
+import io.helidon.http.Headers;
 import io.helidon.http.WritableHeaders;
 import io.helidon.http.http2.Http2FrameData;
 import io.helidon.http.http2.Http2Headers;
@@ -23,6 +27,11 @@ import io.helidon.webclient.http2.Http2ClientStream;
 import io.helidon.webclient.http2.Http2StreamConfig;
 import io.helidon.webclient.http2.StreamTimeoutException;
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 /**
  * A blocking, non-buffering wrapper around an HTTP2 stream that serves a single GRPC call.
@@ -44,6 +53,8 @@ import java.time.Duration;
 public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT> {
 
     private static final BufferData EMPTY_BUFFER_DATA = BufferData.empty();
+    private static final HeaderName GRPC_STATUS = HeaderNames.createFromLowercase("grpc-status");
+    private static final HeaderName GRPC_MESSAGE = HeaderNames.createFromLowercase("grpc-message");
 
     private final PbjGrpcClient grpcClient;
     private final Codec<RequestT> requestCodec;
@@ -159,21 +170,28 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                     headersRead = true;
                 } catch (StreamTimeoutException ignored) {
                     // FUTURE WORK: implement an uber timeout to return
+
+                    // Ping the server on every timeout. This seems to create a bit of extra traffic.
+                    // However, this seems to be the only way to detect a broken connection. Otherwise, we'd never know
+                    // if the server died.
+                    // FUTURE WORK: consider a separate KeepAlive timeout for these pings, so that we don't flood the
+                    // network.
+                    // NOTE: Google GRPC server drops the connection if pinged right after receiving the headers - it
+                    // complains about the frame size of 64K with 16K max allowed. It's unclear how/why this even
+                    // happens. However, pinging on timeout seems to work smoothly so far.
+                    clientStream.sendPing();
                 }
-            } while (!headersRead);
+            } while (!headersRead && isStreamOpen());
 
             // read data from stream
             final PbjGrpcDatagramReader datagramReader = new PbjGrpcDatagramReader();
-            while (isStreamOpen()) {
-                if (clientStream.trailers().isDone() || !clientStream.hasEntity()) {
-                    // Trailers or EndOfStream received
-                    break;
-                }
-
+            while (isStreamOpen() && !clientStream.trailers().isDone() && clientStream.hasEntity()) {
                 final Http2FrameData frameData;
                 try {
                     frameData = clientStream.readOne(grpcClient.getConfig().readTimeout());
                 } catch (StreamTimeoutException e) {
+                    // Check if the connection is alive. See a comment above about the KeepAlive timeout.
+                    clientStream.sendPing();
                     // FUTURE WORK: implement an uber timeout to return
                     continue;
                 }
@@ -194,19 +212,94 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                             pipeline.onNext(reply);
                         } catch (ParseException e) {
                             pipeline.onError(e);
+                            // We won't be able to proceed probably because parsing failed.
+                            // Also, we've just reported an error to the pipeline, which
+                            // means the GRPC call is done. So we finish the call.
+                            // We don't even bother processing headers/trailers at this point.
+                            // The goal is to avoid calling pipeline.onComplete() below.
+                            return;
                         }
                     }
                     // If there's no any complete datagrams yet, then simply keep spinning this loop until
                     // enough data is received.
                 }
             }
+
+            // Google GRPC server can report an erroneous grpc-status in the headers.
+            if (processHeaders(clientStream.readHeaders().httpHeaders())) {
+                return;
+            }
+            // PBJ GRPC server reports erroneous grpc-status in the trailer headers, because GRPC specification...
+            // Google GRPC server can also use trailers to report the status in certain circumstances, such as when it
+            // dies.
+            // However, when it dies, the connection is often closed before we manage to receive anything, so we end up
+            // with no errors and no replies whatsoever. In fact, we may never even receive the headers in a loop above,
+            // we'll exit the loop because the stream gets closed though.
+            try {
+                final Headers trailers = clientStream
+                        .trailers()
+                        .get(grpcClient.getConfig().readTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                if (processHeaders(trailers)) {
+                    return;
+                }
+            } catch (InterruptedException ignored) {
+                // This is okayish. Reporting this as a replies error doesn't make sense. Re-throwing has no useful
+                // effect.
+            } catch (ExecutionException e) {
+                pipeline.onError(e);
+                return;
+            } catch (TimeoutException ignored) {
+                // This is okay, the server doesn't support trailers or died, or the trailers got lost.
+            }
+            // Luckily, there's no any other places through which a grpc-status can be reported,
+            // so the above two calls should cover all the possible cases.
+
+            pipeline.onComplete();
         } catch (Throwable t) {
             // This method runs in the Helidon WebClient executor, so there's no need to re-throw the exception
             // as this won't produce any useful effects. We only report it to the replies pipeline here for
             // the application code to handle it:
             pipeline.onError(t);
+        } finally {
+            clientStream.close();
         }
-        clientStream.close();
-        pipeline.onComplete();
+    }
+
+    /** Returns all values of a header, or empty list if header is missing. */
+    private static List<String> fetchHeader(final Headers headers, final HeaderName header) {
+        return headers.contains(header) ? headers.get(header).allValues() : List.of();
+    }
+
+    /**
+     * Process HTTP headers. This method checks the grpc-status header and reports errors to the pipeline
+     * if the status isn't OK. In the future, this method could process other headers as well.
+     * @param headers HTTP headers
+     * @return true if pipeline.onError() was called
+     */
+    private boolean processHeaders(final Headers headers) {
+        boolean onErrorCalled = false;
+        final String message = fetchHeader(headers, GRPC_MESSAGE).stream().collect(Collectors.joining(". "));
+
+        for (String value : fetchHeader(headers, GRPC_STATUS)) {
+            try {
+                final int grpcStatus = Integer.parseInt(value);
+                if (grpcStatus != 0) {
+                    // Not OK
+                    pipeline.onError(new GrpcException(
+                            grpcStatus < GrpcStatus.values().length
+                                    ? GrpcStatus.values()[grpcStatus]
+                                    : GrpcStatus.UNKNOWN,
+                            message));
+                    onErrorCalled = true;
+                }
+            } catch (NumberFormatException ignored) {
+                // a bad server sent an invalid header. This shouldn't happen really.
+                pipeline.onError(
+                        new RuntimeException(String.format("Invalid GRPC_STATUS: %s with message %s", value, message)));
+                onErrorCalled = true;
+            }
+        }
+
+        return onErrorCalled;
     }
 }

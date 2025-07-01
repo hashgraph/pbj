@@ -13,15 +13,19 @@ import pbj.integration.tests.HelloReply;
 import pbj.integration.tests.HelloRequest;
 
 /** A Greeter handle for the Google Protobuf GRPC server implementation. */
-class GoogleProtobufGrpcServerGreeterHandle extends GrpcServerGreeterHandle {
+public class GoogleProtobufGrpcServerGreeterHandle extends GrpcServerGreeterHandle {
     /** Greeter service implementation for Google GRPC server. */
     private class GreeterGrpcImpl extends GreeterGrpc.GreeterImplBase {
         @Override
         public void sayHello(HelloRequest request, StreamObserver<HelloReply> responseObserver) {
-            final pbj.integration.tests.pbj.integration.tests.HelloReply reply =
-                    GoogleProtobufGrpcServerGreeterHandle.this.sayHello(adaptRequest(request));
-            responseObserver.onNext(adaptReply(reply));
-            responseObserver.onCompleted();
+            try {
+                final pbj.integration.tests.pbj.integration.tests.HelloReply reply =
+                        GoogleProtobufGrpcServerGreeterHandle.this.sayHello(adaptRequest(request));
+                responseObserver.onNext(adaptReply(reply));
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                responseObserver.onError(e);
+            }
         }
 
         @Override
@@ -162,6 +166,18 @@ class GoogleProtobufGrpcServerGreeterHandle extends GrpcServerGreeterHandle {
     public synchronized void stop() {
         if (server != null) {
             server.shutdown();
+            server = null;
+        }
+    }
+
+    @Override
+    public synchronized void stopNow() {
+        if (server != null) {
+            try {
+                server.shutdownNow().awaitTermination();
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
             server = null;
         }
     }
