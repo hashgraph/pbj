@@ -3,7 +3,7 @@ pluginManagement {
     includeBuild("../pbj-core") // use locally built 'pbj-core' (Gradle plugin)
 }
 
-plugins { id("org.hiero.gradle.build") version "0.4.5" }
+plugins { id("org.hiero.gradle.build") version "0.4.7" }
 
 dependencyResolutionManagement {
     // To use locally built 'pbj-runtime'
