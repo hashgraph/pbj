@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.custom.proto.java";
+option java_multiple_files = true;
+// <<<pbj.java_package = "com.hedera.pbj.test.custom.proto.pbj">>> This comment is special code for setting PBJ Compiler java package
+
+/**
+ * Sample protobuf containing bytes.
+ */
+message CustomMessage {
+  bytes bytes = 1;
+}
