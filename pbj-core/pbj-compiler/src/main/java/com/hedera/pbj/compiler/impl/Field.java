@@ -17,8 +17,10 @@ import java.util.function.Consumer;
 @SuppressWarnings("unused")
 public interface Field {
 
-    /** The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.). */
-    public static final long DEFAULT_MAX_SIZE = 16 * 1024 * 1024;
+    /** The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.).
+     * The size should not be increased beyond the current limit because of the safety concerns.
+     */
+    long DEFAULT_MAX_SIZE = 2 * 1024 * 1024;
 
     /**
      * Is this field a repeated field. Repeated fields are lists of values rather than a single value.
