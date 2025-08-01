@@ -22,7 +22,7 @@ public final class ProtoTestTools {
     private static final int BUFFER_SIZE = 1024 * 1024;
 
     /** Size for reusable test char buffers */
-    private static final int CHAR_BUFFER_SIZE = 8 * 1024 * 1024;
+    private static final int CHAR_BUFFER_SIZE = 16 * 1024 * 1024;
 
     /** Instance should never be created */
     private ProtoTestTools() {}
