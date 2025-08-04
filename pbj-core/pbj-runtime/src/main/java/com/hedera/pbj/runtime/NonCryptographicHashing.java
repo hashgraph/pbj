@@ -2,6 +2,7 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.UnsafeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.ByteBuffer;
 
 /**
  * This class contains a collection of methods for hashing basic data types.
@@ -48,6 +49,34 @@ public final class NonCryptographicHashing {
         long hash = perm64(length);
         for (int i = start; i < length; i += 8) {
             hash = perm64(hash ^ byteArrayToLong(bytes, i));
+        }
+        return hash;
+    }
+
+    /**
+     * Generates a non-cryptographic 64-bit hash for a ByteBuffer covering all bytes from position to limit.
+     *
+     * @param buf a byte buffer to compute the hash from
+     * @return a non-cryptographic long hash
+     */
+    public static long hash64(@NonNull final ByteBuffer buf) {
+        long hash = perm64(buf.remaining());
+        final int p = buf.position();
+        final int l = buf.limit();
+        for (int i = p; i < l; i += 8) {
+            final int remaining = l - i;
+            if (remaining < 8) {
+                // If there are less than 8 bytes remaining, we need to pad with zeros.
+                long value = 0;
+                for (int j = 0; j < remaining; j++) {
+                    value |= (UnsafeUtils.getHeapBufferByteNoChecks(buf, i + j) & 0xffL) << (8 * (7 - j));
+                }
+                hash = perm64(hash ^ value);
+                break;
+            } else {
+                // If there are 8 or more bytes remaining, we can read a full long.
+                hash = perm64(hash ^ buf.getLong(i));
+            }
         }
         return hash;
     }
