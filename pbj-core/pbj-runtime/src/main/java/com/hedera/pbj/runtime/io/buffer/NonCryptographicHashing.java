@@ -2,9 +2,6 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.UnsafeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.nio.charset.StandardCharsets;
-import java.text.Normalizer;
 
 /**
  * <p>
@@ -596,13 +593,8 @@ final class NonCryptographicHashing {
      */
     public static long hash64(@NonNull final byte[] bytes, int start, int length) {
         long hash = perm64(computeMixin(DataType.BYTE_ARRAY, length));
-        int i = start;
-        for (; i < length; i += 8) {
+        for (int i = start; i < length; i += 8) {
             hash = perm64(hash ^ byteArrayToLong(bytes, i));
-        }
-
-        if (i != start + length) {
-            hash = perm64(hash ^ 0xFF00000000000000L);
         }
         return hash;
     }
@@ -616,39 +608,6 @@ final class NonCryptographicHashing {
      */
     public static long hash32(@NonNull final byte[] bytes) {
         return (int) hash64(bytes);
-    }
-
-    /**
-     * Generates a non-cryptographic 64 bit hash from the normalized bytes of a string.
-     *
-     * @param string
-     * 		a string
-     * @return a non-cryptographic long hash
-     */
-    public static long hash64(@NonNull final String string) {
-        final byte[] bytes = getNormalisedStringBytes(string);
-
-        long hash = perm64(computeMixin(DataType.STRING, bytes.length));
-        int i = 0;
-        for (; i < bytes.length; i += 8) {
-            hash = perm64(hash ^ byteArrayToLong(bytes, i));
-        }
-
-        if (i != bytes.length) {
-            hash = perm64(hash ^ 0xFF00000000000000L);
-        }
-        return hash;
-    }
-
-    /**
-     * Generates a non-cryptographic 32 bit hash for a string.
-     *
-     * @param string
-     * 		a string
-     * @return a non-cryptographic int hash
-     */
-    public static int hash32(@NonNull final String string) {
-        return (int) hash64(string);
     }
 
     /**
@@ -704,37 +663,18 @@ final class NonCryptographicHashing {
      */
     public static long byteArrayToLong(final byte[] data, final int position) {
         if (data.length > position + 8) {
-            // Fast path: there is enough data to fill the long.
             return UnsafeUtils.getLong(data, position);
         } else {
-            // There isn't enough data to fill the long, so pad with 0xFF followed by zeros.
+            // There isn't enough data to fill the long, so pad with zeros.
             long result = 0;
             for (int offset = 0; offset < 8; offset++) {
                 final int index = position + offset;
                 if (index >= data.length) {
-                    result += 0xFFL << 8 * (7 - offset);
                     break;
                 }
                 result += (data[index] & 0xffL) << (8 * (7 - offset));
             }
             return result;
         }
-    }
-
-    /**
-     * Normalizes the string in accordance with the Swirlds default normalization method (NFD) and returns the bytes of
-     * that normalized String encoded in the Swirlds default charset (UTF8). This is important for having a consistent
-     * method of converting Strings to bytes that will guarantee that two identical strings will have an identical byte
-     * representation
-     *
-     * @param s the String to be converted to bytes
-     * @return a byte representation of the String
-     */
-    @Nullable
-    public static byte[] getNormalisedStringBytes(final String s) {
-        if (s == null) {
-            return null;
-        }
-        return Normalizer.normalize(s, Normalizer.Form.NFD).getBytes(StandardCharsets.UTF_8);
     }
 }
