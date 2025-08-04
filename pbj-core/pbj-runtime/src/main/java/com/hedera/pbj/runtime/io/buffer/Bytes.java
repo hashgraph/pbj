@@ -537,7 +537,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     @Override
     public int hashCode() {
         if (hashCode == 0) {
-            hashCode = NonCryptographicHashing.hash64(buffer, start, length);
+            hashCode = (int) NonCryptographicHashing.hash64(buffer, start, length);
         }
         return hashCode;
     }

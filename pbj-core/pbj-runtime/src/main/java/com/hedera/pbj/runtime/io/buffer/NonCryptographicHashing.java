@@ -1,5 +1,11 @@
 package com.hedera.pbj.runtime.io.buffer;
 
+import com.hedera.pbj.runtime.io.UnsafeUtils;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
+
 /**
  * <p>
  * This class contains a collection of methods for hashing basic data types.
@@ -50,7 +56,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for 1 long.
+     * Generates a non-cryptographic 64-bit hash for 1 long.
      *
      * @param x0
      * 		a long
@@ -61,7 +67,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for 2 longs.
+     * Generates a non-cryptographic 64-bit hash for 2 longs.
      *
      * @param x0
      * 		a long
@@ -74,7 +80,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for 3 longs.
+     * Generates a non-cryptographic 64-bit hash for 3 longs.
      *
      * @param x0
      * 		a long
@@ -89,7 +95,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for 4 longs.
+     * Generates a non-cryptographic 64-bit hash for 4 longs.
      *
      * @param x0
      * 		a long
@@ -106,7 +112,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for 5 longs.
+     * Generates a non-cryptographic 64-bit hash for 5 longs.
      *
      * @param x0
      * 		a long
@@ -125,7 +131,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for 6 longs.
+     * Generates a non-cryptographic 64-bit hash for 6 longs.
      *
      * @param x0
      * 		a long
@@ -149,7 +155,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for 7 longs.
+     * Generates a non-cryptographic 64-bit hash for 7 longs.
      *
      * @param x0
      * 		a long
@@ -177,7 +183,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for 8 longs.
+     * Generates a non-cryptographic 64-bit hash for 8 longs.
      *
      * @param x0
      * 		a long
@@ -217,7 +223,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for 9 longs.
+     * Generates a non-cryptographic 64-bit hash for 9 longs.
      *
      * @param x0
      * 		a long
@@ -262,7 +268,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for 10 longs.
+     * Generates a non-cryptographic 64-bit hash for 10 longs.
      *
      * @param x0
      * 		a long
@@ -312,7 +318,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for an array of longs.
+     * Generates a non-cryptographic 64-bit hash for an array of longs.
      *
      * @param x
      * 		an array of longs
@@ -327,7 +333,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for 1 long.
+     * Generates a non-cryptographic 32-bit hash for 1 long.
      *
      * @param x0
      * 		a long
@@ -339,7 +345,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for 2 longs.
+     * Generates a non-cryptographic 32-bit hash for 2 longs.
      *
      * @param x0
      * 		a long
@@ -352,7 +358,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for 3 longs.
+     * Generates a non-cryptographic 32-bit hash for 3 longs.
      *
      * @param x0
      * 		a long
@@ -367,7 +373,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for 4 longs.
+     * Generates a non-cryptographic 32-bit hash for 4 longs.
      *
      * @param x0
      * 		a long
@@ -384,7 +390,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for 5 longs.
+     * Generates a non-cryptographic 32-bit hash for 5 longs.
      *
      * @param x0
      * 		a long
@@ -403,7 +409,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for 6 longs.
+     * Generates a non-cryptographic 32-bit hash for 6 longs.
      *
      * @param x0
      * 		a long
@@ -424,7 +430,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for 7 longs.
+     * Generates a non-cryptographic 32-bit hash for 7 longs.
      *
      * @param x0
      * 		a long
@@ -448,7 +454,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for 8 longs.
+     * Generates a non-cryptographic 32-bit hash for 8 longs.
      *
      * @param x0
      * 		a long
@@ -481,7 +487,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for 9 longs.
+     * Generates a non-cryptographic 32-bit hash for 9 longs.
      *
      * @param x0
      * 		a long
@@ -517,7 +523,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for 10 longs.
+     * Generates a non-cryptographic 32-bit hash for 10 longs.
      *
      * @param x0
      * 		a long
@@ -556,7 +562,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 32 bit hash for an array of longs.
+     * Generates a non-cryptographic 32-bit hash for an array of longs.
      *
      * @param x
      * 		an array of longs
@@ -567,7 +573,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for a byte array.
+     * Generates a non-cryptographic 64-bit hash for a byte array.
      *
      * @param bytes
      * 		a byte array
@@ -578,7 +584,7 @@ final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64 bit hash for a byte array.
+     * Generates a non-cryptographic 64-bit hash for a byte array.
      *
      * @param bytes
      * 		a byte array
@@ -590,8 +596,13 @@ final class NonCryptographicHashing {
      */
     public static long hash64(@NonNull final byte[] bytes, int start, int length) {
         long hash = perm64(computeMixin(DataType.BYTE_ARRAY, length));
-        for (int i = start; i < length; i += 8) {
+        int i = start;
+        for (; i < length; i += 8) {
             hash = perm64(hash ^ byteArrayToLong(bytes, i));
+        }
+
+        if (i != start + length) {
+            hash = perm64(hash ^ 0xFF00000000000000L);
         }
         return hash;
     }
@@ -618,8 +629,13 @@ final class NonCryptographicHashing {
         final byte[] bytes = getNormalisedStringBytes(string);
 
         long hash = perm64(computeMixin(DataType.STRING, bytes.length));
-        for (int i = 0; i < bytes.length; i += 8) {
+        int i = 0;
+        for (; i < bytes.length; i += 8) {
             hash = perm64(hash ^ byteArrayToLong(bytes, i));
+        }
+
+        if (i != bytes.length) {
+            hash = perm64(hash ^ 0xFF00000000000000L);
         }
         return hash;
     }
@@ -688,21 +704,15 @@ final class NonCryptographicHashing {
      */
     public static long byteArrayToLong(final byte[] data, final int position) {
         if (data.length > position + 8) {
-            // Hard coded constants are used instead of a for loop to reduce the arithmetic required at runtime
-            return ((data[position] & 0xffL) << (8 * 7))
-                    + ((data[position + 1] & 0xffL) << (8 * 6))
-                    + ((data[position + 2] & 0xffL) << (8 * 5))
-                    + ((data[position + 3] & 0xffL) << (8 * 4))
-                    + ((data[position + 4] & 0xffL) << (8 * 3))
-                    + ((data[position + 5] & 0xffL) << (8 * 2))
-                    + ((data[position + 6] & 0xffL) << (8))
-                    + (data[position + 7] & 0xffL);
+            // Fast path: there is enough data to fill the long.
+            return UnsafeUtils.getLong(data, position);
         } else {
-            // There isn't enough data to fill the long, so pad with zeros.
+            // There isn't enough data to fill the long, so pad with 0xFF followed by zeros.
             long result = 0;
             for (int offset = 0; offset < 8; offset++) {
                 final int index = position + offset;
                 if (index >= data.length) {
+                    result += 0xFFL << 8 * (7 - offset);
                     break;
                 }
                 result += (data[index] & 0xffL) << (8 * (7 - offset));
@@ -725,6 +735,6 @@ final class NonCryptographicHashing {
         if (s == null) {
             return null;
         }
-        return Normalizer.normalize(s, Normalizer.Form.NFD).getBytes(CommonUtils.DEFAULT_CHARSET);
+        return Normalizer.normalize(s, Normalizer.Form.NFD).getBytes(StandardCharsets.UTF_8);
     }
 }
