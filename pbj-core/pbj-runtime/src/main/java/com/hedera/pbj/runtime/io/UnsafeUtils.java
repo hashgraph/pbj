@@ -135,7 +135,7 @@ public final class UnsafeUtils {
      * @param offset The offset to read an integer at
      * @return The integer number
      */
-    public static int getIntUnsafeNative(final byte[] arr, final int offset) {
+    public static int getIntUnsafeNative(final byte[] arr, final long offset) {
         return UNSAFE.getInt(arr, BYTE_ARRAY_BASE_OFFSET + offset);
     }
 

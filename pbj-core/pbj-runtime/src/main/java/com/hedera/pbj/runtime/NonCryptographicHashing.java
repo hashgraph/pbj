@@ -14,6 +14,58 @@ public final class NonCryptographicHashing {
     // This class is not meant to be instantiated.
     private NonCryptographicHashing() {}
 
+    public static int hash32(@NonNull final byte[] bytes) {
+        return hash32(bytes, 0, bytes.length);
+    }
+
+    public static int hash32(@NonNull final byte[] bytes, final int position, final int length) {
+        // Accumulate the hash in 32-bit chunks. If the length is not a multiple of 4, then read
+        // as many complete 4 byte chunks as possible.
+        int hash = 1;
+        int i = position;
+        int end = position + length - 3;
+        for (; i < end; i += 4) {
+            // TODO Jasper change this to use a VarHandle so we get native or reverse order as needed
+            hash = perm32(hash ^ UnsafeUtils.getIntUnsafeNative(bytes, i));
+        }
+
+        // Construct a trailing int. If the segment of the byte array we read was exactly a multiple of 4 bytes,
+        // then we will append "0x0000007F" to the end of the hash. If we had 1 byte remaining, then
+        // we will append "0x00007FXX" where XX is the value of the last byte, and so on.
+        int tail = 0x7F;
+        int start = i;
+        i = position + length - 1;
+        for (; i >= start; i--) {
+            tail <<= 8;
+            tail ^= bytes[i];
+        }
+
+        // Combine the tail with the previous hash.
+        hash = perm32(hash ^ tail);
+
+        return hash;
+    }
+
+    private static int perm32(int x) {
+        // This is necessary so that 0 does not hash to 0. As a side effect, this constant will hash to 0.
+        // It was randomly generated (not using Java), so that it will occur in practice less often than more
+        // common numbers like 0 or -1 or Integer.MAX_VALUE.
+        x ^= 0x5e8a016a;
+
+        // Shifts: {30, 27, 16, 20, 5, 18, 10, 24, 30}
+        x += x << 30;
+        x ^= x >>> 27;
+        x += x << 16;
+        x ^= x >>> 20;
+        x += x << 5;
+        x ^= x >>> 18;
+        x += x << 10;
+        x ^= x >>> 24;
+        x += x << 30;
+        return x;
+    }
+
+
     /**
      * Generates a non-cryptographic 64-bit hash for 1 long.
      *
@@ -61,14 +113,14 @@ public final class NonCryptographicHashing {
         }
 
         // Construct a trailing long. If the segment of the byte array we read was exactly a multiple of 8 bytes,
-        // then we will append "0x00000000000000FF" to the end of the hash. If we had 1 byte remaining, then
-        // we will append "0x000000000000FFXX" where XX is the value of the last byte, and so on.
-        long tail = 0xFF;
+        // then we will append "0x000000000000007F" to the end of the hash. If we had 1 byte remaining, then
+        // we will append "0x0000000000007FXX" where XX is the value of the last byte, and so on.
+        long tail = 0x7F;
         int start = i;
         i = position + length - 1;
         for (; i >= start; i--) {
             tail <<= 8;
-            tail ^= (bytes[i] & 0xFFL); // Mask to ensure we only get the last 8 bits.
+            tail ^= bytes[i];
         }
 
         // Combine the tail with the previous hash.

@@ -10,7 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.UnsafeUtils;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import org.junit.jupiter.api.Disabled;
@@ -40,7 +42,7 @@ class NonCryptographicHashTest {
     @Test
     @DisplayName("Test Hash64(byte[]) Empty Array")
     void testHash64ByteArrayEmpty() {
-        assertEquals(2903670678409729503L, NonCryptographicHashing.hash64(new byte[0]));
+        assertEquals(-6996494465910161660L, NonCryptographicHashing.hash64(new byte[0]));
     }
 
     /**
@@ -49,7 +51,7 @@ class NonCryptographicHashTest {
     @Test
     @DisplayName("Test Hash64(byte[], int, int) Empty Array with Valid Position and Length")
     void testHash64ByteArrayEmptyWithPositionAndLength() {
-        assertEquals(2903670678409729503L, NonCryptographicHashing.hash64(new byte[0], 0, 0));
+        assertEquals(-6996494465910161660L, NonCryptographicHashing.hash64(new byte[0], 0, 0));
     }
 
     /**
@@ -106,7 +108,7 @@ class NonCryptographicHashTest {
     @DisplayName("Test Hash64(byte[]) with array less than 8 bytes")
     void testHash64ByteArrayLessThan8Bytes() {
         byte[] arr = {(byte) 1};
-        assertEquals(3532887395273621549L, NonCryptographicHashing.hash64(arr));
+        assertEquals(1343923460066354394L, NonCryptographicHashing.hash64(arr));
     }
 
     /**
@@ -118,7 +120,7 @@ class NonCryptographicHashTest {
     void testHash64ByteArray8Bytes() {
         byte[] arr = {(byte) 1, (byte) 2, (byte) 3, (byte) 4, (byte) 5, (byte) 6, (byte) 7, (byte) 8};
 
-        assertEquals(8350451599110236880L, NonCryptographicHashing.hash64(arr));
+        assertEquals(-3104306485754735749L, NonCryptographicHashing.hash64(arr));
     }
 
     /**
@@ -133,7 +135,7 @@ class NonCryptographicHashTest {
             (byte) 11, (byte) 12
         };
 
-        assertEquals(4316537784988356653L, NonCryptographicHashing.hash64(arr));
+        assertEquals(3639540625541984507L, NonCryptographicHashing.hash64(arr));
     }
 
     /**
@@ -148,7 +150,7 @@ class NonCryptographicHashTest {
             (byte) 11, (byte) 12, (byte) 13, (byte) 14, (byte) 15, (byte) 16
         };
 
-        assertEquals(4734248821214862750L, NonCryptographicHashing.hash64(arr));
+        assertEquals(7790396302089317864L, NonCryptographicHashing.hash64(arr));
     }
 
     /**
@@ -173,12 +175,15 @@ class NonCryptographicHashTest {
      */
     @Test
     void testAllOnesHasNoCollisions() {
+        Map<Long, Integer> collisions = new HashMap<>();
         Set<Long> hashes = new HashSet<>();
         for (int len = 1; len <= 16; len++) {
             byte[] allOnes = new byte[len];
             for (int i = 0; i < len; i++) allOnes[i] = (byte) 0xFF;
             long h1 = NonCryptographicHashing.hash64(allOnes);
-            assertTrue(hashes.add(h1)); // asserts each is unique
+            if (!collisions.containsKey(h1)) collisions.put(h1, len);
+            assertTrue(hashes.add(h1), "Found duplicate hash on iteration " + len
+                    + " collided with " + collisions.get(h1)); // asserts each is unique
         }
     }
 
