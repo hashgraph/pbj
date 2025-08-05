@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh.hashing;
 
 import com.hedera.pbj.runtime.io.UnsafeUtils;
@@ -13,24 +14,25 @@ public class CityHash {
     private static final long k1 = 0xb492b66fbe98f273L;
     private static final long k2 = 0x9ae16a3b2f90404fL;
     private static final long k3 = 0xc949d7c7509e6557L;
-//
-//    private static long toLongLE(byte[] b, int i) {
-//        return (((long) b[i + 7] << 56) +
-//                ((long) (b[i + 6] & 255) << 48) +
-//                ((long) (b[i + 5] & 255) << 40) +
-//                ((long) (b[i + 4] & 255) << 32) +
-//                ((long) (b[i + 3] & 255) << 24) +
-//                ((b[i + 2] & 255) << 16) +
-//                ((b[i + 1] & 255) << 8) +
-//                ((b[i + 0] & 255) << 0));
-//    }
+    //
+    //    private static long toLongLE(byte[] b, int i) {
+    //        return (((long) b[i + 7] << 56) +
+    //                ((long) (b[i + 6] & 255) << 48) +
+    //                ((long) (b[i + 5] & 255) << 40) +
+    //                ((long) (b[i + 4] & 255) << 32) +
+    //                ((long) (b[i + 3] & 255) << 24) +
+    //                ((b[i + 2] & 255) << 16) +
+    //                ((b[i + 1] & 255) << 8) +
+    //                ((b[i + 0] & 255) << 0));
+    //    }
     private static long toLongLE(byte[] b, int i) {
         return UnsafeUtils.getLongUnsafeNative(b, i);
     }
 
-//    private static int toIntLE(byte[] b, int i) {
-//        return (((b[i + 3] & 255) << 24) + ((b[i + 2] & 255) << 16) + ((b[i + 1] & 255) << 8) + ((b[i + 0] & 255) << 0));
-//    }
+    //    private static int toIntLE(byte[] b, int i) {
+    //        return (((b[i + 3] & 255) << 24) + ((b[i + 2] & 255) << 16) + ((b[i + 1] & 255) << 8) + ((b[i + 0] & 255)
+    // << 0));
+    //    }
     private static int toIntLE(byte[] b, int i) {
         return UnsafeUtils.getIntUnsafeNative(b, i);
     }
@@ -96,15 +98,10 @@ public class CityHash {
         long b = fetch64(s, pos + 8);
         long c = fetch64(s, pos + len - 8) * k2;
         long d = fetch64(s, pos + len - 16) * k0;
-        return hashLen16(
-                rotate(a - b, 43) + rotate(c, 30) + d,
-                a + rotate(b ^ k3, 20) - c + len
-        );
+        return hashLen16(rotate(a - b, 43) + rotate(c, 30) + d, a + rotate(b ^ k3, 20) - c + len);
     }
 
-    private static long[] weakHashLen32WithSeeds(
-            long w, long x, long y, long z,
-            long a, long b) {
+    private static long[] weakHashLen32WithSeeds(long w, long x, long y, long z, long a, long b) {
 
         a += w;
         b = rotate(b + a + z, 21);
@@ -112,18 +109,12 @@ public class CityHash {
         a += x;
         a += y;
         b += rotate(a, 44);
-        return new long[]{a + z, b + c};
+        return new long[] {a + z, b + c};
     }
 
     private static long[] weakHashLen32WithSeeds(byte[] s, int pos, long a, long b) {
         return weakHashLen32WithSeeds(
-                fetch64(s, pos + 0),
-                fetch64(s, pos + 8),
-                fetch64(s, pos + 16),
-                fetch64(s, pos + 24),
-                a,
-                b
-        );
+                fetch64(s, pos + 0), fetch64(s, pos + 8), fetch64(s, pos + 16), fetch64(s, pos + 24), a, b);
     }
 
     private static long hashLen33to64(byte[] s, int pos, int len) {
@@ -153,7 +144,6 @@ public class CityHash {
         long r = shiftMix((vf + ws) * k2 + (wf + vs) * k0);
 
         return shiftMix(r * k0 + vs) * k2;
-
     }
 
     public static String cityHash64Hex(byte[] s, int pos, int len) {
@@ -212,11 +202,7 @@ public class CityHash {
             len -= 64;
         } while (len != 0);
 
-        return hashLen16(
-                hashLen16(v[0], w[0]) + shiftMix(y) * k1 + z,
-                hashLen16(v[1], w[1]) + x
-        );
-
+        return hashLen16(hashLen16(v[0], w[0]) + shiftMix(y) * k1 + z, hashLen16(v[1], w[1]) + x);
     }
 
     public static long cityHash64WithSeed(byte[] s, int pos, int len, long seed) {
@@ -260,8 +246,7 @@ public class CityHash {
         a = hashLen16(a, c);
         b = hashLen16(d, b);
 
-        return new long[]{a ^ b, hashLen16(b, a)};
-
+        return new long[] {a ^ b, hashLen16(b, a)};
     }
 
     public static long[] cityHash128WithSeed(byte[] s, int pos, int len, long seed0, long seed1) {
@@ -327,28 +312,16 @@ public class CityHash {
         x = hashLen16(x, v[0]);
         y = hashLen16(y + z, w[0]);
 
-        return new long[]{
-                hashLen16(x + v[1], w[1]) + y,
-                hashLen16(x + w[1], y + v[1])
-        };
-
+        return new long[] {hashLen16(x + v[1], w[1]) + y, hashLen16(x + w[1], y + v[1])};
     }
 
     public static long[] cityHash128(byte[] s, int pos, int len) {
 
         if (len >= 16) {
-            return cityHash128WithSeed(
-                    s, pos + 16,
-                    len - 16,
-                    fetch64(s, pos + 0) ^ k3,
-                    fetch64(s, pos + 8)
-            );
+            return cityHash128WithSeed(s, pos + 16, len - 16, fetch64(s, pos + 0) ^ k3, fetch64(s, pos + 8));
         } else if (len >= 8) {
             return cityHash128WithSeed(
-                    new byte[0], 0, 0,
-                    fetch64(s, pos + 0) ^ (len * k0),
-                    fetch64(s, pos + len - 8) ^ k1
-            );
+                    new byte[0], 0, 0, fetch64(s, pos + 0) ^ (len * k0), fetch64(s, pos + len - 8) ^ k1);
         } else {
             return cityHash128WithSeed(s, pos, len, k0, k1);
         }

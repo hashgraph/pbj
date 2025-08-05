@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh.hashing;
 
 import com.hedera.pbj.integration.jmh.NonCryptographicHashingBench;
@@ -13,7 +14,7 @@ public final class NonCryptographicHashQuality4ByteTest {
     public static void main(String[] args) {
         System.out.println("Testing non-cryptographic hash quality - 4 bytes, 4 billion inputs");
         for (var hashAlgorithm : NonCryptographicHashingBench.HashAlgorithm.values()) {
-            System.out.println("Testing " + hashAlgorithm.name()+ " ====================================");
+            System.out.println("Testing " + hashAlgorithm.name() + " ====================================");
             testHashQuality4Bytes(hashAlgorithm);
         }
     }
@@ -24,8 +25,8 @@ public final class NonCryptographicHashQuality4ByteTest {
         final byte[] ba = new byte[6];
         for (int i = 0; i < 256; i++) {
             // print progress as percentage, overwriting the same line
-                System.out.printf("\r       Progress: %d%%", (i * 100) / 256);
-                System.out.flush();
+            System.out.printf("\r       Progress: %d%%", (i * 100) / 256);
+            System.out.flush();
             for (int j = 0; j < 256; j++) {
                 for (int k = 0; k < 256; k++) {
                     for (int l = 0; l < 256; l++) {
@@ -46,8 +47,9 @@ public final class NonCryptographicHashQuality4ByteTest {
         long expectedUniqueHashes = 256L * 256 * 256 * 256; // 4-byte combinations
         long hashCollisions = expectedUniqueHashes - numUniqueHashes;
         final long END_TIME = System.currentTimeMillis();
-        System.out.printf("       Number of unique hashes: %,d, hash collisions: %,d, time taken: %.3f seconds%n",
-                numUniqueHashes, hashCollisions,  (END_TIME - START_TIME) / 1000.0);
+        System.out.printf(
+                "       Number of unique hashes: %,d, hash collisions: %,d, time taken: %.3f seconds%n",
+                numUniqueHashes, hashCollisions, (END_TIME - START_TIME) / 1000.0);
     }
 
     /**
@@ -114,5 +116,4 @@ public final class NonCryptographicHashQuality4ByteTest {
             return count;
         }
     }
-
 }

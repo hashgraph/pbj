@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh.hashing;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -26,7 +27,7 @@ public class JavaStyleHashing {
     public static int hash256(@NonNull final byte[] bytes, int start, int length) {
         int h = 1;
         for (int i = length - 1; i >= start; i--) {
-            h =256 * h + bytes[i];
+            h = 256 * h + bytes[i];
         }
         return h;
     }

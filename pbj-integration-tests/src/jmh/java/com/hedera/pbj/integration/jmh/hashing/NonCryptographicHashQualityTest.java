@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh.hashing;
 
 import com.hedera.pbj.integration.jmh.NonCryptographicHashingBench;
@@ -13,7 +14,7 @@ public final class NonCryptographicHashQualityTest {
     public static void main(String[] args) {
         System.out.println("Testing non-cryptographic hash quality - 11 bytes, 500 million inputs");
         for (var hashAlgorithm : NonCryptographicHashingBench.HashAlgorithm.values()) {
-            System.out.println("Testing " + hashAlgorithm.name()+ " ====================================");
+            System.out.println("Testing " + hashAlgorithm.name() + " ====================================");
             testHashQuality11Bytes2Billion(hashAlgorithm);
         }
     }
@@ -43,7 +44,8 @@ public final class NonCryptographicHashQualityTest {
         long numUniqueHashes = hashes.size();
         long hashCollisions = NUM_INPUTS - numUniqueHashes;
         final long END_TIME = System.currentTimeMillis();
-        System.out.printf("       Number of unique hashes: %,d, hash collisions: %,d, time taken: %.3f seconds%n",
+        System.out.printf(
+                "       Number of unique hashes: %,d, hash collisions: %,d, time taken: %.3f seconds%n",
                 numUniqueHashes, hashCollisions, (END_TIME - START_TIME) / 1000.0);
     }
 }

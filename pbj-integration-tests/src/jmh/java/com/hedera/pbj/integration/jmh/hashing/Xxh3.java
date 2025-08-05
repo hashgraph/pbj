@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh.hashing;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +35,7 @@ public final class Xxh3 {
             long bitflip = (XXH_PRIME32_1 - 1) ^ (XXH_PRIME32_2 - 1);
             long acc = length + Long.reverseBytes(inputLo) + inputHi + (inputLo ^ inputHi ^ bitflip) * XXH_PRIME64_1;
             acc = xxh3_avalanche(acc);
-            return (int)(acc ^ (acc >>> 32));
+            return (int) (acc ^ (acc >>> 32));
         } else if (length >= 4) {
             long input1 = getInt(bytes, start) & 0xFFFFFFFFL;
             long input2 = getInt(bytes, start + length - 4) & 0xFFFFFFFFL;
@@ -42,7 +43,7 @@ public final class Xxh3 {
             long keyed = input2 + (input1 << 32);
             long acc = length + keyed + (keyed ^ bitflip) * XXH_PRIME64_1;
             acc = xxh3_avalanche(acc);
-            return (int)(acc ^ (acc >>> 32));
+            return (int) (acc ^ (acc >>> 32));
         } else if (length > 0) {
             int c1 = bytes[start] & 0xFF;
             int c2 = bytes[start + (length >> 1)] & 0xFF;
@@ -52,7 +53,7 @@ public final class Xxh3 {
             long acc = combined ^ bitflip;
             acc *= XXH_PRIME64_1;
             acc = xxh3_avalanche(acc);
-            return (int)(acc ^ (acc >>> 32));
+            return (int) (acc ^ (acc >>> 32));
         }
         return 0x2D06800B; // XXH3 empty hash
     }
@@ -77,7 +78,7 @@ public final class Xxh3 {
         acc += xxh3_mix16B(bytes, start + length - 16, 0, 0);
 
         acc = xxh3_avalanche(acc);
-        return (int)(acc ^ (acc >>> 32));
+        return (int) (acc ^ (acc >>> 32));
     }
 
     private static int xxh3_len_129to240(byte[] bytes, int start, int length) {
@@ -95,7 +96,7 @@ public final class Xxh3 {
 
         acc += xxh3_mix16B(bytes, start + length - 16, 0, 0);
         acc = xxh3_avalanche(acc);
-        return (int)(acc ^ (acc >>> 32));
+        return (int) (acc ^ (acc >>> 32));
     }
 
     private static int xxh3_hashLong(byte[] bytes, int start, int length) {
@@ -132,7 +133,7 @@ public final class Xxh3 {
         result += xxh3_mix16B(bytes, lastBlockPtr + 48, 0, 0);
 
         result = xxh3_avalanche(result);
-        return (int)(result ^ (result >>> 32));
+        return (int) (result ^ (result >>> 32));
     }
 
     private static long xxh3_accumulate_512(long acc, int dataPtr, byte[] bytes, int lane) {
@@ -160,8 +161,8 @@ public final class Xxh3 {
         return h64;
     }
 
-    private static long xxh3_mergeAccs(long acc0, long acc1, long acc2, long acc3,
-            long acc4, long acc5, long acc6, long acc7) {
+    private static long xxh3_mergeAccs(
+            long acc0, long acc1, long acc2, long acc3, long acc4, long acc5, long acc6, long acc7) {
         long result = (acc0 ^ acc1) + (acc2 ^ acc3) + (acc4 ^ acc5) + (acc6 ^ acc7);
         result = (result >>> 47) ^ result;
         result *= XXH3_MUL_CONST;
@@ -170,20 +171,20 @@ public final class Xxh3 {
     }
 
     private static long getLong(byte[] bytes, int offset) {
-        return (bytes[offset] & 0xFFL) |
-                ((bytes[offset + 1] & 0xFFL) << 8) |
-                ((bytes[offset + 2] & 0xFFL) << 16) |
-                ((bytes[offset + 3] & 0xFFL) << 24) |
-                ((bytes[offset + 4] & 0xFFL) << 32) |
-                ((bytes[offset + 5] & 0xFFL) << 40) |
-                ((bytes[offset + 6] & 0xFFL) << 48) |
-                ((bytes[offset + 7] & 0xFFL) << 56);
+        return (bytes[offset] & 0xFFL)
+                | ((bytes[offset + 1] & 0xFFL) << 8)
+                | ((bytes[offset + 2] & 0xFFL) << 16)
+                | ((bytes[offset + 3] & 0xFFL) << 24)
+                | ((bytes[offset + 4] & 0xFFL) << 32)
+                | ((bytes[offset + 5] & 0xFFL) << 40)
+                | ((bytes[offset + 6] & 0xFFL) << 48)
+                | ((bytes[offset + 7] & 0xFFL) << 56);
     }
 
     private static int getInt(byte[] bytes, int offset) {
-        return (bytes[offset] & 0xFF) |
-                ((bytes[offset + 1] & 0xFF) << 8) |
-                ((bytes[offset + 2] & 0xFF) << 16) |
-                ((bytes[offset + 3] & 0xFF) << 24);
+        return (bytes[offset] & 0xFF)
+                | ((bytes[offset + 1] & 0xFF) << 8)
+                | ((bytes[offset + 2] & 0xFF) << 16)
+                | ((bytes[offset + 3] & 0xFF) << 24);
     }
 }

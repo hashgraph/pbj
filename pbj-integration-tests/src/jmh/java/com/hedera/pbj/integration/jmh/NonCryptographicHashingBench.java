@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh;
 
 import com.hedera.pbj.integration.jmh.hashing.CityHash;
@@ -34,6 +35,7 @@ import org.openjdk.jmh.infra.Blackhole;
 @BenchmarkMode(Mode.AverageTime)
 public class NonCryptographicHashingBench {
     public static final int SAMPLES = 10_000;
+
     public enum HashAlgorithm {
         LEEMON(NonCryptographicHashing::hash64),
         FASTER_LEEMON(FasterLeemon::hash64),
@@ -53,8 +55,9 @@ public class NonCryptographicHashingBench {
 
     @Param({"4", "8", "9", "12", "40", "60", "1000"})
     public int dataSize;
-    @Param({"LEEMON", "FASTER_LEEMON", "JAVA_31", "JAVA_255", "JAVA_256", "XXHASH_32",
-            "XXHASH_64", "XXH3", "CITY_HASH"})
+
+    @Param({"LEEMON", "FASTER_LEEMON", "JAVA_31", "JAVA_255", "JAVA_256", "XXHASH_32", "XXHASH_64", "XXH3", "CITY_HASH"
+    })
     public HashAlgorithm hashAlgorithm;
 
     private Random random;
@@ -62,13 +65,15 @@ public class NonCryptographicHashingBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        random =new Random(6351384163846453326L);
+        random = new Random(6351384163846453326L);
         sampleBytes = IntStream.range(0, SAMPLES)
                 .mapToObj(i -> {
                     final byte[] bytes = new byte[dataSize];
                     random.nextBytes(bytes);
                     return bytes;
-                }).distinct().toList();
+                })
+                .distinct()
+                .toList();
     }
 
     @Benchmark

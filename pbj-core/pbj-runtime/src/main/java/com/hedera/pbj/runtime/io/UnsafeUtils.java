@@ -165,8 +165,9 @@ public final class UnsafeUtils {
      * @throws java.nio.BufferOverflowException If array length is less than offset + long bytes
      */
     public static long getLongNoChecks(final byte[] arr, final long offset) {
-        return NEED_CHANGE_BYTE_ORDER ? getLongNoChecksReverseOrder(arr, offset) :
-                getLongNoChecksNativeOrder(arr, offset);
+        return NEED_CHANGE_BYTE_ORDER
+                ? getLongNoChecksReverseOrder(arr, offset)
+                : getLongNoChecksNativeOrder(arr, offset);
     }
 
     /**

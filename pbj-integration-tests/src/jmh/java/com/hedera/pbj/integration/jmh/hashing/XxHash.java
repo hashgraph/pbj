@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh.hashing;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,8 +34,7 @@ public class XxHash {
                 start += 8;
             } while (start <= limit);
 
-            h64 = Long.rotateLeft(v1, 1) + Long.rotateLeft(v2, 7) +
-                    Long.rotateLeft(v3, 12) + Long.rotateLeft(v4, 18);
+            h64 = Long.rotateLeft(v1, 1) + Long.rotateLeft(v2, 7) + Long.rotateLeft(v3, 12) + Long.rotateLeft(v4, 18);
 
             h64 = (h64 ^ Long.rotateLeft(v1 * PRIME2, 31) * PRIME1) * PRIME1 + PRIME4;
             h64 = (h64 ^ Long.rotateLeft(v2 * PRIME2, 31) * PRIME1) * PRIME1 + PRIME4;
@@ -47,7 +47,8 @@ public class XxHash {
         h64 += length;
 
         while (start <= end - 8) {
-            h64 = Long.rotateLeft(h64 ^ Long.rotateLeft(getLong(bytes, start) * PRIME2, 31) * PRIME1, 27) * PRIME1 + PRIME4;
+            h64 = Long.rotateLeft(h64 ^ Long.rotateLeft(getLong(bytes, start) * PRIME2, 31) * PRIME1, 27) * PRIME1
+                    + PRIME4;
             start += 8;
         }
 
@@ -67,22 +68,20 @@ public class XxHash {
         h64 *= PRIME3;
         h64 ^= h64 >>> 32;
 
-//        return (int)(h64 ^ (h64 >>> 32));
+        //        return (int)(h64 ^ (h64 >>> 32));
         return (int) h64;
     }
 
     private static long getLong(byte[] bytes, int offset) {
-        return (bytes[offset] & 0xFFL) |
-                ((bytes[offset + 1] & 0xFFL) << 8) |
-                ((bytes[offset + 2] & 0xFFL) << 16) |
-                ((bytes[offset + 3] & 0xFFL) << 24) |
-                ((bytes[offset + 4] & 0xFFL) << 32) |
-                ((bytes[offset + 5] & 0xFFL) << 40) |
-                ((bytes[offset + 6] & 0xFFL) << 48) |
-                ((bytes[offset + 7] & 0xFFL) << 56);
+        return (bytes[offset] & 0xFFL)
+                | ((bytes[offset + 1] & 0xFFL) << 8)
+                | ((bytes[offset + 2] & 0xFFL) << 16)
+                | ((bytes[offset + 3] & 0xFFL) << 24)
+                | ((bytes[offset + 4] & 0xFFL) << 32)
+                | ((bytes[offset + 5] & 0xFFL) << 40)
+                | ((bytes[offset + 6] & 0xFFL) << 48)
+                | ((bytes[offset + 7] & 0xFFL) << 56);
     }
-
-
 
     public static int xxHashCode(@NonNull final byte[] bytes, int start, int length) {
         final int PRIME1 = 0x9E3779B1;
@@ -113,8 +112,7 @@ public class XxHash {
                 start += 4;
             } while (start <= limit);
 
-            h32 = rotateLeft(v1, 1) + rotateLeft(v2, 7) +
-                    rotateLeft(v3, 12) + rotateLeft(v4, 18);
+            h32 = rotateLeft(v1, 1) + rotateLeft(v2, 7) + rotateLeft(v3, 12) + rotateLeft(v4, 18);
         } else {
             h32 = seed + PRIME5;
         }
@@ -145,9 +143,9 @@ public class XxHash {
     }
 
     private static int getInt(byte[] bytes, int offset) {
-        return (bytes[offset] & 0xFF) |
-                ((bytes[offset + 1] & 0xFF) << 8) |
-                ((bytes[offset + 2] & 0xFF) << 16) |
-                ((bytes[offset + 3] & 0xFF) << 24);
+        return (bytes[offset] & 0xFF)
+                | ((bytes[offset + 1] & 0xFF) << 8)
+                | ((bytes[offset + 2] & 0xFF) << 16)
+                | ((bytes[offset + 3] & 0xFF) << 24);
     }
 }

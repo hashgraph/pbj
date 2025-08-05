@@ -237,7 +237,7 @@ public sealed class BufferedData
      */
     @Override
     public int hashCode() {
-        return (int)NonCryptographicHashing.hash64(buffer);
+        return (int) NonCryptographicHashing.hash64(buffer);
     }
 
     // ================================================================================================================

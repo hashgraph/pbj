@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh.hashing;
 
 import com.hedera.pbj.runtime.io.UnsafeUtils;
@@ -56,26 +57,26 @@ public final class FasterLeemon {
         return x;
     }
 
-// Sample vectorized version commented out for now, as it requires JDK 21+ and the vector API is still incubating.
-//    /**
-//     * Vectorized version for processing multiple long values in parallel.
-//     * This can be useful when hashing multiple values or for internal operations.
-//     */
-//    private static LongVector perm64Vector(LongVector v) {
-//        // Apply the XOR constant
-//        v = v.lanewise(VectorOperators.XOR, XOR_CONSTANT);
-//
-//        // Perform the permutation operations using vector operations
-//        v = v.add(v.lanewise(VectorOperators.LSHL, 30));
-//        v = v.lanewise(VectorOperators.XOR, v.lanewise(VectorOperators.LSHR, 27));
-//        v = v.add(v.lanewise(VectorOperators.LSHL, 16));
-//        v = v.lanewise(VectorOperators.XOR, v.lanewise(VectorOperators.LSHR, 20));
-//        v = v.add(v.lanewise(VectorOperators.LSHL, 5));
-//        v = v.lanewise(VectorOperators.XOR, v.lanewise(VectorOperators.LSHR, 18));
-//        v = v.add(v.lanewise(VectorOperators.LSHL, 10));
-//        v = v.lanewise(VectorOperators.XOR, v.lanewise(VectorOperators.LSHR, 24));
-//        v = v.add(v.lanewise(VectorOperators.LSHL, 30));
-//
-//        return v;
-//    }
+    // Sample vectorized version commented out for now, as it requires JDK 21+ and the vector API is still incubating.
+    //    /**
+    //     * Vectorized version for processing multiple long values in parallel.
+    //     * This can be useful when hashing multiple values or for internal operations.
+    //     */
+    //    private static LongVector perm64Vector(LongVector v) {
+    //        // Apply the XOR constant
+    //        v = v.lanewise(VectorOperators.XOR, XOR_CONSTANT);
+    //
+    //        // Perform the permutation operations using vector operations
+    //        v = v.add(v.lanewise(VectorOperators.LSHL, 30));
+    //        v = v.lanewise(VectorOperators.XOR, v.lanewise(VectorOperators.LSHR, 27));
+    //        v = v.add(v.lanewise(VectorOperators.LSHL, 16));
+    //        v = v.lanewise(VectorOperators.XOR, v.lanewise(VectorOperators.LSHR, 20));
+    //        v = v.add(v.lanewise(VectorOperators.LSHL, 5));
+    //        v = v.lanewise(VectorOperators.XOR, v.lanewise(VectorOperators.LSHR, 18));
+    //        v = v.add(v.lanewise(VectorOperators.LSHL, 10));
+    //        v = v.lanewise(VectorOperators.XOR, v.lanewise(VectorOperators.LSHR, 24));
+    //        v = v.add(v.lanewise(VectorOperators.LSHL, 30));
+    //
+    //        return v;
+    //    }
 }
