@@ -35,21 +35,44 @@ public final class NonCryptographicHashing {
     }
 
     /**
-     * Generates a non-cryptographic 64-bit hash for a byte array.
+     * Generates a non-cryptographic 64-bit hash for contents of the given byte array within indexes position
+     * (inclusive) and position + length (exclusive).
      *
-     * @param bytes
-     * 		a byte array
-     * @param start
-     *         the start index in the byte array
+     * @param bytes A byte array. Must not be null. Can be empty.
+     * @param position The starting position within the byte array to begin hashing from. Must be non-negative,
+     *                 and must be less than the length of the array, and position + length must also be
+     *                 less than or equal to the length of the array.
      * @param length
-     *         the number of bytes to hash
+     *         The number of bytes to hash. Must be non-negative, and must be such that position + length
+     *         is less than or equal to the length of the byte array.
+     *
      * @return a non-cryptographic long hash
      */
-    public static long hash64(@NonNull final byte[] bytes, int start, int length) {
-        long hash = perm64(length);
-        for (int i = start; i < length; i += 8) {
-            hash = perm64(hash ^ byteArrayToLong(bytes, i));
+    public static long hash64(@NonNull final byte[] bytes, final int position, final int length) {
+        // Accumulate the hash in 64-bit chunks. If the length is not a multiple of 8, then read
+        // as many complete 8 byte chunks as possible.
+        long hash = 0;
+        int i = position;
+        int end = position + length - 7;
+        for (; i < end; i += 8) {
+            // TODO Jasper change this to use a VarHandle so we get native or reverse order as needed
+            hash = perm64(hash ^ UnsafeUtils.getLongNoChecksNativeOrder(bytes, i));
         }
+
+        // Construct a trailing long. If the segment of the byte array we read was exactly a multiple of 8 bytes,
+        // then we will append "0x00000000000000FF" to the end of the hash. If we had 1 byte remaining, then
+        // we will append "0x000000000000FFXX" where XX is the value of the last byte, and so on.
+        long tail = 0x00000000000000FF;
+        int start = i;
+        i = position + length - 1;
+        for (; i >= start; i--) {
+            tail <<= 8;
+            tail |= (bytes[i] & 0xFFL); // Mask to ensure we only get the last 8 bits.
+        }
+
+        // Combine the tail with the previous hash.
+        hash = perm64(hash ^ tail);
+
         return hash;
     }
 
@@ -83,30 +106,19 @@ public final class NonCryptographicHashing {
 
     /**
      * <p>
-     * A permutation (invertible function) on 64 bits.
-     * The constants were found by automated search, to
-     * optimize avalanche. Avalanche means that for a
-     * random number x, flipping bit i of x has about a
-     * 50 percent chance of flipping bit j of perm64(x).
-     * For each possible pair (i,j), this function achieves
+     * A permutation (invertible function) on 64 bits. The constants were found by automated search, to
+     * optimize avalanche. Avalanche means that for a random number x, flipping bit i of x has about a
+     * 50 percent chance of flipping bit j of perm64(x). For each possible pair (i,j), this function achieves
      * a probability between 49.8 and 50.2 percent.
-     * </p>
-     *
-     * <p>
-     * Leemon wrote this, it's magic and does magic things. Like holy molly does
-     * this algorithm resolve some nasty hash collisions for troublesome data sets.
-     * Don't mess with this method.
      *
      * <p>
      * Warning: there currently exist production use cases that will break if this hashing algorithm is changed.
-     * If modifications to this hashing algorithm are ever required, we will need to "fork" this class and leave
-     * the old algorithm intact.
+     * If modifications to this hashing algorithm are ever required, they must be raised with the maintainers
+     * of the Hiero Consensus Node and probably the Hiero Technical Steering Committee.
      */
     private static long perm64(long x) {
-        // This is necessary so that 0 does not hash to 0.
-        // As a side effect, this constant will hash to 0.
-        // It was randomly generated (not using Java),
-        // so that it will occur in practice less often than more
+        // This is necessary so that 0 does not hash to 0. As a side effect, this constant will hash to 0.
+        // It was randomly generated (not using Java), so that it will occur in practice less often than more
         // common numbers like 0 or -1 or Long.MAX_VALUE.
         x ^= 0x5e8a016a5eb99c18L;
 
@@ -121,30 +133,5 @@ public final class NonCryptographicHashing {
         x ^= x >>> 24;
         x += x << 30;
         return x;
-    }
-
-    /**
-     * Return a long derived from the 8 bytes data[position]...data[position+7], big endian. If the byte array is not
-     * long enough, zeros are substituted for the missing bytes.
-     *
-     * @param data     an array of bytes
-     * @param position the first byte in the array to use
-     * @return the 8 bytes starting at position, converted to a long, big endian
-     */
-    public static long byteArrayToLong(final byte[] data, final int position) {
-        if (data.length > position + 8) {
-            return UnsafeUtils.getLong(data, position);
-        } else {
-            // There isn't enough data to fill the long, so pad with zeros.
-            long result = 0;
-            for (int offset = 0; offset < 8; offset++) {
-                final int index = position + offset;
-                if (index >= data.length) {
-                    break;
-                }
-                result += (data[index] & 0xffL) << (8 * (7 - offset));
-            }
-            return result;
-        }
     }
 }

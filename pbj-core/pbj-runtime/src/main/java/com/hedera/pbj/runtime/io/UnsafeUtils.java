@@ -139,8 +139,48 @@ public class UnsafeUtils {
         if (arr.length < offset + Long.BYTES) {
             throw new BufferUnderflowException();
         }
+        return getLongNoChecks(arr, offset);
+    }
+
+    /**
+     * Reads a long from the given array starting at the given offset. Array bytes are
+     * interpreted in BIG_ENDIAN order.
+     *
+     * @param arr The byte array
+     * @param offset The offset to read a long at
+     * @return The long number
+     * @throws java.nio.BufferOverflowException If array length is less than offset + long bytes
+     */
+    public static long getLongNoChecks(final byte[] arr, final long offset) {
+        return NEED_CHANGE_BYTE_ORDER ? getLongNoChecksReverseOrder(arr, offset) :
+                getLongNoChecksNativeOrder(arr, offset);
+    }
+
+    /**
+     * Reads a long from the given array starting at the given offset. Array bytes are
+     * interpreted in BIG_ENDIAN order.
+     *
+     * @param arr The byte array
+     * @param offset The offset to read a long at
+     * @return The long number
+     * @throws java.nio.BufferOverflowException If array length is less than offset + long bytes
+     */
+    public static long getLongNoChecksNativeOrder(final byte[] arr, final long offset) {
+        return UNSAFE.getLong(arr, BYTE_ARRAY_BASE_OFFSET + offset);
+    }
+
+    /**
+     * Reads a long from the given array starting at the given offset. Array bytes are
+     * interpreted in BIG_ENDIAN order.
+     *
+     * @param arr The byte array
+     * @param offset The offset to read a long at
+     * @return The long number
+     * @throws java.nio.BufferOverflowException If array length is less than offset + long bytes
+     */
+    public static long getLongNoChecksReverseOrder(final byte[] arr, final long offset) {
         final long value = UNSAFE.getLong(arr, BYTE_ARRAY_BASE_OFFSET + offset);
-        return NEED_CHANGE_BYTE_ORDER ? Long.reverseBytes(value) : value;
+        return Long.reverseBytes(value);
     }
 
     /**
