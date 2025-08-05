@@ -52,7 +52,7 @@ public final class NonCryptographicHashing {
     public static long hash64(@NonNull final byte[] bytes, final int position, final int length) {
         // Accumulate the hash in 64-bit chunks. If the length is not a multiple of 8, then read
         // as many complete 8 byte chunks as possible.
-        long hash = 0;
+        long hash = 1;
         int i = position;
         int end = position + length - 7;
         for (; i < end; i += 8) {
@@ -63,12 +63,12 @@ public final class NonCryptographicHashing {
         // Construct a trailing long. If the segment of the byte array we read was exactly a multiple of 8 bytes,
         // then we will append "0x00000000000000FF" to the end of the hash. If we had 1 byte remaining, then
         // we will append "0x000000000000FFXX" where XX is the value of the last byte, and so on.
-        long tail = 0x00000000000000FF;
+        long tail = 0xFF;
         int start = i;
         i = position + length - 1;
         for (; i >= start; i--) {
             tail <<= 8;
-            tail |= (bytes[i] & 0xFFL); // Mask to ensure we only get the last 8 bits.
+            tail ^= (bytes[i] & 0xFFL); // Mask to ensure we only get the last 8 bits.
         }
 
         // Combine the tail with the previous hash.
