@@ -116,8 +116,7 @@ class NonCryptographicHashTest {
     @Test
     @DisplayName("Test Hash64(byte[]) with 8 bytes")
     void testHash64ByteArray8Bytes() {
-        byte[] arr = {(byte) 1, (byte) 2, (byte) 3, (byte) 4,
-                (byte) 5, (byte) 6, (byte) 7, (byte) 8};
+        byte[] arr = {(byte) 1, (byte) 2, (byte) 3, (byte) 4, (byte) 5, (byte) 6, (byte) 7, (byte) 8};
 
         assertEquals(8350451599110236880L, NonCryptographicHashing.hash64(arr));
     }
@@ -129,9 +128,10 @@ class NonCryptographicHashTest {
     @Test
     @DisplayName("Test Hash64(byte[]) with larger non-multiple of 8 bytes")
     void testHash64ByteArrayMoreThan8ButNotMultipleOf8Bytes() {
-        byte[] arr = {(byte) 1, (byte) 2, (byte) 3, (byte) 4,
-                (byte) 5, (byte) 6, (byte) 7, (byte) 8,
-                (byte) 9, (byte) 10, (byte) 11, (byte) 12};
+        byte[] arr = {
+            (byte) 1, (byte) 2, (byte) 3, (byte) 4, (byte) 5, (byte) 6, (byte) 7, (byte) 8, (byte) 9, (byte) 10,
+            (byte) 11, (byte) 12
+        };
 
         assertEquals(4316537784988356653L, NonCryptographicHashing.hash64(arr));
     }
@@ -143,10 +143,10 @@ class NonCryptographicHashTest {
     @Test
     @DisplayName("Test Hash64(byte[]) with multiple of 8 bytes")
     void testHash64ByteArrayMultipleOf8Bytes() {
-        byte[] arr = {(byte) 1, (byte) 2, (byte) 3, (byte) 4,
-                (byte) 5, (byte) 6, (byte) 7, (byte) 8,
-                (byte) 9, (byte) 10, (byte) 11, (byte) 12,
-                (byte) 13, (byte) 14, (byte) 15, (byte) 16};
+        byte[] arr = {
+            (byte) 1, (byte) 2, (byte) 3, (byte) 4, (byte) 5, (byte) 6, (byte) 7, (byte) 8, (byte) 9, (byte) 10,
+            (byte) 11, (byte) 12, (byte) 13, (byte) 14, (byte) 15, (byte) 16
+        };
 
         assertEquals(4734248821214862750L, NonCryptographicHashing.hash64(arr));
     }
@@ -230,8 +230,10 @@ class NonCryptographicHashTest {
         final Set<Long> firstBytesSet = new HashSet<>();
         final Set<Long> middleBytesSet = new HashSet<>();
         final Set<Long> lastBytesSet = new HashSet<>();
-        final byte[] arr = { (byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04,
-                             (byte) 0x05, (byte) 0x06, (byte) 0x07, (byte) 0x08 };
+        final byte[] arr = {
+            (byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04,
+            (byte) 0x05, (byte) 0x06, (byte) 0x07, (byte) 0x08
+        };
         for (int i = 0; i < 256; i++) {
             for (int j = 0; j < 256; j++) {
                 // Change the first two bytes
@@ -240,7 +242,10 @@ class NonCryptographicHashTest {
                 arr[0] = (byte) i;
                 arr[1] = (byte) j;
                 long hash1 = NonCryptographicHashing.hash64(arr);
-                assertTrue(firstBytesSet.add(hash1), "Collision found with first two bytes: iteration=" + i + ", long=" + Long.toHexString(UnsafeUtils.getLong(arr, 0)));
+                assertTrue(
+                        firstBytesSet.add(hash1),
+                        "Collision found with first two bytes: iteration=" + i + ", long="
+                                + Long.toHexString(UnsafeUtils.getLong(arr, 0)));
 
                 // Change the middle two bytes
                 arr[0] = (byte) 0x01; // Reset first two bytes
@@ -248,7 +253,10 @@ class NonCryptographicHashTest {
                 arr[3] = (byte) i;
                 arr[4] = (byte) j;
                 long hash2 = NonCryptographicHashing.hash64(arr);
-                assertTrue(middleBytesSet.add(hash2), "Collision found with middle two bytes: iteration=" + i + ", long=" + Long.toHexString(UnsafeUtils.getLong(arr, 0)));
+                assertTrue(
+                        middleBytesSet.add(hash2),
+                        "Collision found with middle two bytes: iteration=" + i + ", long="
+                                + Long.toHexString(UnsafeUtils.getLong(arr, 0)));
 
                 // Change the last two bytes
                 arr[3] = (byte) 0x03; // Reset middle two bytes
@@ -256,7 +264,10 @@ class NonCryptographicHashTest {
                 arr[6] = (byte) i;
                 arr[7] = (byte) j;
                 long hash3 = NonCryptographicHashing.hash64(arr);
-                assertTrue(lastBytesSet.add(hash3), "Collision found with last two bytes: iteration=" + i + ", long=" + Long.toHexString(UnsafeUtils.getLong(arr, 0)));
+                assertTrue(
+                        lastBytesSet.add(hash3),
+                        "Collision found with last two bytes: iteration=" + i + ", long="
+                                + Long.toHexString(UnsafeUtils.getLong(arr, 0)));
             }
         }
     }
@@ -312,7 +323,6 @@ class NonCryptographicHashTest {
             }
         });
     }
-
 
     @Test
     @DisplayName("Hashes Are Not Degenerate 64")
