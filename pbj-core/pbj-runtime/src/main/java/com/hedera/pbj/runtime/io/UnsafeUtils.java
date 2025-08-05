@@ -11,7 +11,8 @@ import sun.misc.Unsafe;
 /**
  * A set of utility methods on top of sun.misc.Unsafe
  */
-public class UnsafeUtils {
+@SuppressWarnings("GrazieInspection")
+public final class UnsafeUtils {
 
     private static final Unsafe UNSAFE;
 
@@ -127,6 +128,18 @@ public class UnsafeUtils {
     }
 
     /**
+     * Reads an integer from the given array starting at the given offset. Array bytes are
+     * interpreted in NATIVE order.
+     *
+     * @param arr The byte array
+     * @param offset The offset to read an integer at
+     * @return The integer number
+     */
+    public static int getIntUnsafeNative(final byte[] arr, final int offset) {
+        return UNSAFE.getInt(arr, BYTE_ARRAY_BASE_OFFSET + offset);
+    }
+
+    /**
      * Reads a long from the given array starting at the given offset. Array bytes are
      * interpreted in BIG_ENDIAN order.
      *
@@ -181,6 +194,18 @@ public class UnsafeUtils {
     public static long getLongNoChecksReverseOrder(final byte[] arr, final long offset) {
         final long value = UNSAFE.getLong(arr, BYTE_ARRAY_BASE_OFFSET + offset);
         return Long.reverseBytes(value);
+    }
+
+    /**
+     * Reads a long from the given array starting at the given offset. Array bytes are
+     * interpreted in NATIVE order.
+     *
+     * @param arr The byte array
+     * @param offset The offset to read a long at
+     * @return The long number
+     */
+    public static long getLongUnsafeNative(final byte[] arr, final int offset) {
+        return UNSAFE.getLong(arr, BYTE_ARRAY_BASE_OFFSET + offset);
     }
 
     /**
