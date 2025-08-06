@@ -11,6 +11,9 @@ import java.util.Map;
  * It runs through all combinations of 4 bytes (256^4 = 4,294,967,296 combinations).
  */
 public final class NonCryptographicHashQuality4ByteTestBucketDistribution {
+    private static final int NUM_BUCKETS = 33_554_432; // 2^25 33 million buckets
+
+
     public static void main(String[] args) {
         System.out.println("Testing non-cryptographic hash quality - 4 bytes, 4 billion inputs");
         for (var hashAlgorithm : NonCryptographicHashingBench.HashAlgorithm.values()) {
@@ -20,8 +23,7 @@ public final class NonCryptographicHashQuality4ByteTestBucketDistribution {
     }
 
     private static void testHashQuality4Bytes(NonCryptographicHashingBench.HashAlgorithm hashAlgorithm) {
-        final long START_TIME = System.currentTimeMillis();
-        final int[] bucketCounts = new int[33_554_432]; // 2^25 33 million buckets
+        final int[] bucketCounts = new int[NUM_BUCKETS]; // 2^25 33 million buckets
         final byte[] ba = new byte[4];
         for (int i = 0; i < 256; i++) {
             // print progress as percentage, overwriting the same line
@@ -36,31 +38,26 @@ public final class NonCryptographicHashQuality4ByteTestBucketDistribution {
                         ba[3] = (byte) l;
                         long hash64 = hashAlgorithm.function.applyAsLong(ba, 0, 4);
                         int hash32 = (int) hash64;
-                        long bucket = computeBucketIndex(hash32) ;
-                        bucketCounts[(int)bucket]++;
+                        long bucket = computeBucketIndex(hash32);
+                        bucketCounts[(int) bucket]++;
                     }
                 }
             }
         }
         // print the distribution of hash buckets sorted by bucket index
         // convert the bucketCounts into the number of buckets with each count
-        Map<Integer,Integer> bucketDistribution = Arrays.stream(bucketCounts)
+        Map<Integer, Integer> bucketDistribution = Arrays.stream(bucketCounts)
                 .boxed()
-                .collect(java.util.stream.Collectors.toMap(
-//                        count -> count/1000, // Group counts by 1000 for better readability
-                        count -> count,
-                        count -> 1,
-                        Integer::sum
-                ));
+                .collect(java.util.stream.Collectors.toMap(count -> count, count -> 1, Integer::sum));
         System.out.println("\n       Bucket distribution:");
         bucketDistribution.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> System.out.printf("       Count %d: %d buckets%n", entry.getKey(), entry.getValue()));
-
     }
 
-
     /**
+     * <p>Code direct from HalfDiskHashMap, only change is NUM_BUCKETS</p>
+     *
      * Computes which bucket a key with the given hash falls. Depends on the fact the numOfBuckets
      * is a power of two. Based on same calculation that is used in java HashMap.
      *
@@ -68,7 +65,6 @@ public final class NonCryptographicHashQuality4ByteTestBucketDistribution {
      * @return the index of the bucket that key falls in
      */
     private static int computeBucketIndex(final int keyHash) {
-        return (33_554_432 - 1) & keyHash;
+        return (NUM_BUCKETS - 1) & keyHash;
     }
-
 }
