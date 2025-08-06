@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.NonCryptographicHashing;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
@@ -111,7 +112,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     /**
      * Create a new {@link Bytes} over the contents of the given byte array. This does not copy data it just
-     * wraps so any changes to array's contents will be visible in the returned result.
+     * wraps, so any changes to array's contents will be visible in the returned result.
      *
      * @param byteArray The byte array to wrap
      * @return new {@link Bytes} with same contents as byte array
@@ -192,9 +193,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * Returns the first byte offset of {@code needle} inside {@code haystack},
      * or –1 if it is not present.
-     *
-     * Offsets are *relative to the start of the Bytes slice*, so 0 means
-     * “starts exactly at haystack.start”.
+     * <p>
+     * Offsets are <b>relative to the start of the Bytes slice</b>, so 0 means “starts exactly at haystack.start”.
+     * </p>
      */
     public static int indexOf(@NonNull final Bytes haystack, @NonNull final Bytes needle) {
         requireNonNull(haystack);
@@ -537,11 +538,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     @Override
     public int hashCode() {
         if (hashCode == 0) {
-            int h = 1;
-            for (int i = start + length - 1; i >= start; i--) {
-                h = 31 * h + UnsafeUtils.getArrayByteNoChecks(buffer, i);
-            }
-            hashCode = h;
+            hashCode = (int) NonCryptographicHashing.hash64(buffer, start, length);
         }
         return hashCode;
     }
