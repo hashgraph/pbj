@@ -38,6 +38,7 @@ public class NonCryptographicHashingBench {
 
     public enum HashAlgorithm {
         LEEMON(NonCryptographicHashing::hash64),
+        LEEMON_32(NonCryptographicHashing::hash32),
         FASTER_LEEMON(FasterLeemon::hash64),
         JAVA_31(JavaStyleHashing::hash31),
         JAVA_255(JavaStyleHashing::hash255),

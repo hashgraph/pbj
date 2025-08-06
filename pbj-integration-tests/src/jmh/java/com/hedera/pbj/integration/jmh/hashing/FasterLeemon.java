@@ -23,7 +23,7 @@ public final class FasterLeemon {
         long hash = 0;
         int i = start;
         for (; i < start + length - 7; i += 8) {
-            hash = perm64(hash ^ UnsafeUtils.getLongUnsafeNative(bytes, i));
+            hash = perm64(hash ^ UnsafeUtils.getLongNoChecksLittleEndian(bytes, i));
         }
 
         long tail = 0xFF;

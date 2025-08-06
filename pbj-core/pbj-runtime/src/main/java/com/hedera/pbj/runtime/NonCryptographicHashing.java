@@ -25,8 +25,7 @@ public final class NonCryptographicHashing {
         int i = position;
         int end = position + length - 3;
         for (; i < end; i += 4) {
-            // TODO Jasper change this to use a VarHandle so we get native or reverse order as needed
-            hash = perm32(hash ^ UnsafeUtils.getIntUnsafeNative(bytes, i));
+            hash = perm32(hash ^ UnsafeUtils.getIntUnsafeLittleEndian(bytes, i));
         }
 
         // Construct a trailing int. If the segment of the byte array we read was exactly a multiple of 4 bytes,
@@ -64,7 +63,6 @@ public final class NonCryptographicHashing {
         x += x << 30;
         return x;
     }
-
 
     /**
      * Generates a non-cryptographic 64-bit hash for 1 long.
@@ -108,8 +106,7 @@ public final class NonCryptographicHashing {
         int i = position;
         int end = position + length - 7;
         for (; i < end; i += 8) {
-            // TODO Jasper change this to use a VarHandle so we get native or reverse order as needed
-            hash = perm64(hash ^ UnsafeUtils.getLongNoChecksNativeOrder(bytes, i));
+            hash = perm64(hash ^ UnsafeUtils.getLongNoChecksLittleEndian(bytes, i));
         }
 
         // Construct a trailing long. If the segment of the byte array we read was exactly a multiple of 8 bytes,

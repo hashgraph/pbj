@@ -26,7 +26,7 @@ public class CityHash {
     //                ((b[i + 0] & 255) << 0));
     //    }
     private static long toLongLE(byte[] b, int i) {
-        return UnsafeUtils.getLongUnsafeNative(b, i);
+        return UnsafeUtils.getLongNoChecksLittleEndian(b, i);
     }
 
     //    private static int toIntLE(byte[] b, int i) {
@@ -34,7 +34,7 @@ public class CityHash {
     // << 0));
     //    }
     private static int toIntLE(byte[] b, int i) {
-        return UnsafeUtils.getIntUnsafeNative(b, i);
+        return UnsafeUtils.getIntUnsafeLittleEndian(b, i);
     }
 
     private static long fetch64(byte[] s, int pos) {

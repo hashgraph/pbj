@@ -182,8 +182,10 @@ class NonCryptographicHashTest {
             for (int i = 0; i < len; i++) allOnes[i] = (byte) 0xFF;
             long h1 = NonCryptographicHashing.hash64(allOnes);
             if (!collisions.containsKey(h1)) collisions.put(h1, len);
-            assertTrue(hashes.add(h1), "Found duplicate hash on iteration " + len
-                    + " collided with " + collisions.get(h1)); // asserts each is unique
+            assertTrue(
+                    hashes.add(h1),
+                    "Found duplicate hash on iteration " + len + " collided with "
+                            + collisions.get(h1)); // asserts each is unique
         }
     }
 
