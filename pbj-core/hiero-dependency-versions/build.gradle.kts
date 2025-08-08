@@ -60,7 +60,7 @@ dependencies.constraints {
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
     api("net.bytebuddy:byte-buddy:1.17.6") { because("net.bytebuddy") }
-    api("org.assertj:assertj-core:3.27.3") { because("org.assertj.core") }
+    api("org.assertj:assertj-core:3.27.4") { because("org.assertj.core") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
 
