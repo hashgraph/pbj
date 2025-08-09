@@ -129,7 +129,7 @@ public class PbjMap<K, V> implements Map<K, V> {
         // This is a convenience hashCode() implementation that delegates to Java hashCode,
         // and it's implemented here solely to support the above equals() method override.
         // Generated protobuf models compute map fields' hash codes differently and deterministically.
-        return 255 * map.hashCode() + sortedKeys.hashCode();
+        return 257 * map.hashCode() + sortedKeys.hashCode();
     }
 
     @Override

@@ -539,7 +539,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         if (hashCode == 0) {
             int h = 1;
             for (int i = start; i <= start + length - 1; i++) {
-                h = 255 * h + UnsafeUtils.getArrayByteNoChecks(buffer, i);
+                h = 257 * h + UnsafeUtils.getArrayByteNoChecks(buffer, i);
             }
             hashCode = h;
         }

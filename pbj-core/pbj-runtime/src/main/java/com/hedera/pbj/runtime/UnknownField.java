@@ -57,9 +57,9 @@ public record UnknownField(int field, @NonNull ProtoConstants wireType, @NonNull
     public int hashCode() {
         int hashCode = 1;
 
-        hashCode = 255 * hashCode + Integer.hashCode(field);
-        hashCode = 255 * hashCode + Integer.hashCode(wireType.ordinal());
-        hashCode = 255 * hashCode + bytes.hashCode();
+        hashCode = 257 * hashCode + Integer.hashCode(field);
+        hashCode = 257 * hashCode + Integer.hashCode(wireType.ordinal());
+        hashCode = 257 * hashCode + bytes.hashCode();
 
         // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
         hashCode += hashCode << 30;

@@ -32,7 +32,9 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -1023,5 +1025,44 @@ final class BytesTest {
             assertEquals(1, Bytes.indexOf(slice, needle)); // offset inside the slice
             assertTrue(slice.contains(needle));
         }
+    }
+
+    public static void main(String[] args) {
+        byte[] bytes = new byte[4];
+//        Set<Integer> set = new HashSet<>();
+        byte[] set = new byte[Integer.MAX_VALUE / 2 + 1];
+//        byte[] set1 = new byte[Integer.MAX_VALUE / 2 + 2];
+//        byte[] set2 = new byte[Integer.MAX_VALUE / 2 + 2];
+//        byte[] set3 = new byte[Integer.MAX_VALUE / 2 + 2];
+//        byte[][] set = {set0, set1, set2, set3};
+        long count = 0;
+        for (int i0 = 0; i0 < 256; ++i0) {
+            bytes[0] = (byte) i0;
+            for (int i1 = 0; i1 < 256; ++i1) {
+                bytes[1] = (byte) i1;
+                for (int i2 = 0; i2 < 256; ++i2) {
+                    bytes[2] = (byte) i2;
+//                    for (int i3 = 0; i3 < 256; ++i3) {
+                    for (int i3 = 0; i3 < 256; ++i3) {
+                        bytes[3] = (byte) i3;
+                        int hc = Bytes.wrap(bytes).hashCode();
+//                        set[Math.abs(hc % 4)][Math.abs(hc / 2)] = 1;
+                        set[hc & 0x3FFFFFFF] = 1;
+                        count++;
+                    }
+                }
+            }
+        }
+        int size = 0;
+//        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < Integer.MAX_VALUE / 2; ++j) {
+//                if (set[i][j] == 1) {
+                if (set[j] == 1) {
+                    size++;
+                }
+            }
+//        }
+//        System.out.printf("Number of values: %d, distinct hashcodes: %d\n", count, set.size());
+        System.out.printf("Number of values: %d, distinct hashcodes: %d\n", count / 4, size);
     }
 }
