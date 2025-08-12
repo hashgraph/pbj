@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.pbj.integration.jmh.hashing;
+package com.hedera.pbj.integration.jmh.hashing.qualitytest;
 
-import com.hedera.pbj.integration.jmh.NonCryptographicHashingBench;
+import com.hedera.pbj.integration.jmh.hashing.NonCryptographicHashingBench;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -13,16 +14,20 @@ import java.util.Map;
 public final class NonCryptographicHashQuality4ByteTestBucketDistribution {
     private static final int NUM_BUCKETS = 33_554_432; // 2^25 33 million buckets
 
-
     public static void main(String[] args) {
         System.out.println("Testing non-cryptographic hash quality - 4 bytes, 4 billion inputs");
-        for (var hashAlgorithm : NonCryptographicHashingBench.HashAlgorithm.values()) {
-            System.out.println("Testing " + hashAlgorithm.name() + " ====================================");
-            testHashQuality4Bytes(hashAlgorithm);
-        }
+        List<String> results = Arrays.stream(NonCryptographicHashingBench.HashAlgorithm.values())
+                .parallel()
+                .map(hashAlgorithm -> {
+                    System.out.println("Testing " + hashAlgorithm.name() + "...");
+                    return testHashQuality4Bytes(hashAlgorithm);
+                })
+                .toList();
+        // Print all results
+        results.forEach(System.out::println);
     }
 
-    private static void testHashQuality4Bytes(NonCryptographicHashingBench.HashAlgorithm hashAlgorithm) {
+    private static String testHashQuality4Bytes(NonCryptographicHashingBench.HashAlgorithm hashAlgorithm) {
         final int[] bucketCounts = new int[NUM_BUCKETS]; // 2^25 33 million buckets
         final byte[] ba = new byte[4];
         for (int i = 0; i < 256; i++) {
@@ -49,10 +54,12 @@ public final class NonCryptographicHashQuality4ByteTestBucketDistribution {
         Map<Integer, Integer> bucketDistribution = Arrays.stream(bucketCounts)
                 .boxed()
                 .collect(java.util.stream.Collectors.toMap(count -> count, count -> 1, Integer::sum));
-        System.out.println("\n       Bucket distribution:");
+        StringBuilder resultStr = new StringBuilder(hashAlgorithm.name() + " Bucket distribution:\n");
         bucketDistribution.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> System.out.printf("       Count %d: %d buckets%n", entry.getKey(), entry.getValue()));
+                .forEach(entry -> resultStr.append(
+                        String.format("       Count %d: %d buckets%n", entry.getKey(), entry.getValue())));
+        return resultStr.toString();
     }
 
     /**

@@ -19,8 +19,54 @@ public final class NonCryptographicHashing {
     }
 
     public static int hash32(@NonNull final byte[] bytes, final int position, final int length) {
+        int hash = 1;
+        int i = position;
+        int end = position + length - 31;
+        // fast loop for large byte arrays
+        for (; i < end; i += 32) {
+            int int1 = UnsafeUtils.getIntUnsafeLittleEndian(bytes, i);
+            int int2 = UnsafeUtils.getIntUnsafeLittleEndian(bytes, i + 4);
+            int int3 = UnsafeUtils.getIntUnsafeLittleEndian(bytes, i + 8);
+            int int4 = UnsafeUtils.getIntUnsafeLittleEndian(bytes, i + 12);
+            int int5 = UnsafeUtils.getIntUnsafeLittleEndian(bytes, i + 16);
+            int int6 = UnsafeUtils.getIntUnsafeLittleEndian(bytes, i + 20);
+            int int7 = UnsafeUtils.getIntUnsafeLittleEndian(bytes, i + 24);
+            int int8 = UnsafeUtils.getIntUnsafeLittleEndian(bytes, i + 28);
+            hash = perm32(hash ^ int1);
+            hash = perm32(hash ^ int2);
+            hash = perm32(hash ^ int3);
+            hash = perm32(hash ^ int4);
+            hash = perm32(hash ^ int5);
+            hash = perm32(hash ^ int6);
+            hash = perm32(hash ^ int7);
+            hash = perm32(hash ^ int8);
+        }
+
         // Accumulate the hash in 32-bit chunks. If the length is not a multiple of 4, then read
         // as many complete 4 byte chunks as possible.
+        end = position + length - 3;
+        for (; i < end; i += 4) {
+            hash = perm32(hash ^ UnsafeUtils.getIntUnsafeLittleEndian(bytes, i));
+        }
+
+        // Construct a trailing int. If the segment of the byte array we read was exactly a multiple of 4 bytes,
+        // then we will append "0x0000007F" to the end of the hash. If we had 1 byte remaining, then
+        // we will append "0x00007FXX" where XX is the value of the last byte, and so on.
+        int tail = 0x7F;
+        int start = i;
+        i = position + length - 1;
+        for (; i >= start; i--) {
+            tail <<= 8;
+            tail ^= bytes[i];
+        }
+
+        // Combine the tail with the previous hash.
+        hash = perm32(hash ^ tail);
+
+        return hash;
+    }
+
+    public static int hash32old(@NonNull final byte[] bytes, final int position, final int length) {
         int hash = 1;
         int i = position;
         int end = position + length - 3;
@@ -83,6 +129,46 @@ public final class NonCryptographicHashing {
      */
     public static long hash64(@NonNull final byte[] bytes) {
         return hash64(bytes, 0, bytes.length);
+    }
+
+    /**
+     * Generates a non-cryptographic 64-bit hash for contents of the given byte array within indexes position
+     * (inclusive) and position + length (exclusive).
+     *
+     * @param bytes A byte array. Must not be null. Can be empty.
+     * @param position The starting position within the byte array to begin hashing from. Must be non-negative,
+     *                 and must be less than the length of the array, and position + length must also be
+     *                 less than or equal to the length of the array.
+     * @param length
+     *         The number of bytes to hash. Must be non-negative, and must be such that position + length
+     *         is less than or equal to the length of the byte array.
+     *
+     * @return a non-cryptographic long hash
+     */
+    public static int hash64xor32(@NonNull final byte[] bytes, final int position, final int length) {
+        long hash64 = hash64(bytes, position, length);
+        // Return the upper 32 XOR lower 32 bits of the hash.
+        return (int) ((hash64 >>> 32) ^ (hash64 & 0xFFFFFFFFL));
+    }
+
+    /**
+     * Generates a non-cryptographic 64-bit hash for contents of the given byte array within indexes position
+     * (inclusive) and position + length (exclusive).
+     *
+     * @param bytes A byte array. Must not be null. Can be empty.
+     * @param position The starting position within the byte array to begin hashing from. Must be non-negative,
+     *                 and must be less than the length of the array, and position + length must also be
+     *                 less than or equal to the length of the array.
+     * @param length
+     *         The number of bytes to hash. Must be non-negative, and must be such that position + length
+     *         is less than or equal to the length of the byte array.
+     *
+     * @return a non-cryptographic long hash
+     */
+    public static int hash64upper32(@NonNull final byte[] bytes, final int position, final int length) {
+        long hash64 = hash64(bytes, position, length);
+        // Return the upper 32 bits of the hash.
+        return (int) ((hash64 >>> 32) & 0xFFFFFFFFL);
     }
 
     /**

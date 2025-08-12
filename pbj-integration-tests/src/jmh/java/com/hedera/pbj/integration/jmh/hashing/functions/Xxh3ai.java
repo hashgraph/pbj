@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.pbj.integration.jmh.hashing;
+package com.hedera.pbj.integration.jmh.hashing.functions;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
-public final class Xxh3 {
+public final class Xxh3ai {
     public static int xxh3HashCode(@NonNull final byte[] bytes, int start, int length) {
         if (length <= 16) {
             return xxh3_len_0to16(bytes, start, length);

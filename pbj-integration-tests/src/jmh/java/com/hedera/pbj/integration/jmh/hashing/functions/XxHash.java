@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.pbj.integration.jmh.hashing;
+package com.hedera.pbj.integration.jmh.hashing.functions;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
