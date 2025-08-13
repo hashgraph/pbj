@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.hashing.XXH3_64;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
@@ -192,9 +193,10 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * Returns the first byte offset of {@code needle} inside {@code haystack},
      * or –1 if it is not present.
-     *
+     * <p>
      * Offsets are *relative to the start of the Bytes slice*, so 0 means
      * “starts exactly at haystack.start”.
+     * </p>
      */
     public static int indexOf(@NonNull final Bytes haystack, @NonNull final Bytes needle) {
         requireNonNull(haystack);
@@ -537,11 +539,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     @Override
     public int hashCode() {
         if (hashCode == 0) {
-            int h = 1;
-            for (int i = start + length - 1; i >= start; i--) {
-                h = 31 * h + UnsafeUtils.getArrayByteNoChecks(buffer, i);
-            }
-            hashCode = h;
+            hashCode = (int) XXH3_64.DEFAULT_INSTANCE.hashBytesToLong(buffer, start, length);
         }
         return hashCode;
     }
