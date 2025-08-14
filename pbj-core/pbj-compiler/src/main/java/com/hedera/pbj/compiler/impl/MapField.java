@@ -21,9 +21,9 @@ import java.util.function.Consumer;
  */
 public record MapField(
         /* A synthetic "key" field in a map entry. */
-        Field keyField,
+        SingleField keyField,
         /* A synthetic "value" field in a map entry. */
-        Field valueField,
+        SingleField valueField,
         // The rest of the fields below simply implement the Field interface:
         boolean repeated,
         int fieldNumber,
@@ -94,7 +94,7 @@ public record MapField(
      */
     public String javaGenericType() {
         final String fieldTypeName = valueField().type() == FieldType.MESSAGE
-                ? ((SingleField) valueField()).messageType()
+                ? valueField().messageType()
                 : valueField().type().boxedType;
         return "<%s, %s>".formatted(keyField.type().boxedType, fieldTypeName);
     }

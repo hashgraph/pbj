@@ -33,3 +33,24 @@ message Hasheval {
   string text = 16;
   bytes bytesField = 17;
 }
+
+
+message Hasheval2 {
+  int32 int32Number = 1;
+  sint32 sint32Number = 2;
+  uint32 uint32Number = 3;
+  fixed32 fixed32Number = 4;
+  sfixed32 sfixed32Number = 5;
+  float floatNumber = 6;
+  int64 int64Number = 7;
+  sint64 sint64Number = 8;
+  uint64 uint64Number = 9;
+  fixed64 fixed64Number = 10;
+  sfixed64 sfixed64Number = 11;
+  double doubleNumber = 12;
+  bool booleanField = 13;
+  Suit enumSuit = 14;
+  Hasheval subObject = 15;
+  string text = 16;
+  bytes bytesField = 17;
+}

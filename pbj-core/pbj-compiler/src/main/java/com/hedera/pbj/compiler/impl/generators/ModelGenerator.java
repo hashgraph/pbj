@@ -42,21 +42,6 @@ public final class ModelGenerator implements Generator {
 
     private static final String NON_NULL_ANNOTATION = "@NonNull";
 
-    private static final String HASH_CODE_MANIPULATION =
-            """
-            // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-            hashCode += hashCode << 30;
-            hashCode ^= hashCode >>> 27;
-            hashCode += hashCode << 16;
-            hashCode ^= hashCode >>> 20;
-            hashCode += hashCode << 5;
-            hashCode ^= hashCode >>> 18;
-            hashCode += hashCode << 10;
-            hashCode ^= hashCode >>> 24;
-            hashCode += hashCode << 30;
-        """
-                    .indent(DEFAULT_INDENT * 2);
-
     /**
      * {@inheritDoc}
      *
@@ -94,6 +79,8 @@ public final class ModelGenerator implements Generator {
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
         writer.addImport("java.util.Collections");
         writer.addImport("java.util.List");
+        writer.addImport("com.hedera.pbj.runtime.hashing.XXH3_64");
+        writer.addImport("com.hedera.pbj.runtime.hashing.XXH3_64.HashingWritableSequentialData");
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
@@ -125,7 +112,7 @@ public final class ModelGenerator implements Generator {
         // add precomputed fields to fields
         fields.add(new SingleField(
                 false,
-                FieldType.FIXED32,
+                FieldType.FIXED64,
                 -1,
                 "$hashCode",
                 null,
@@ -330,6 +317,7 @@ public final class ModelGenerator implements Generator {
         // spotless:off
         writer.append("""
                 $javaDocComment$deprecated
+                @java.lang.SuppressWarnings("ForLoopReplaceableByForEach")
                 public final$staticModifier class $javaRecordName $implementsComparable{
                 $bodyContent
 
@@ -552,6 +540,15 @@ public final class ModelGenerator implements Generator {
             */
             @Override
             public int hashCode() {
+                return(int)hashCode64();
+            }
+            
+            /**
+            * Extended 64bit hashCode method for to make hashCode better distributed and follows protobuf rules
+            * for default values. This is important for backward compatibility. This also lazy computes and caches the
+            * hashCode for future calls. It is designed to be thread safe.
+            */
+            public long hashCode64() {
                 // The $hashCode field is subject to a benign data race, making it crucial to ensure that any
                 // observable result of the calculation in this method stays correct under any possible read of this
                 // field. Necessary restrictions to allow this to be correct without explicit memory fences or similar
@@ -560,7 +557,7 @@ public final class ModelGenerator implements Generator {
                 // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
             
                 if($hashCode == -1) {
-                    int result = 1;
+                    final HashingWritableSequentialData hashingStream = XXH3_64.DEFAULT_INSTANCE.hashingWritableSequentialData();
             """.indent(DEFAULT_INDENT);
 
         bodyContent += statements;
@@ -569,21 +566,14 @@ public final class ModelGenerator implements Generator {
             """
                     if ($unknownFields != null) {
                         for (int i = 0; i < $unknownFields.size(); i++) {
-                            result = 31 * result + $unknownFields.get(i).hashCode();
+                            hashingStream.writeInt($unknownFields.get(i).hashCode());
                         }
                     }
-            """.indent(DEFAULT_INDENT);
-
-        bodyContent +=
-            """
-                    long hashCode = result;
-            $hashCodeManipulation
-                    $hashCode = (int)hashCode;
+                    $hashCode = hashingStream.computeHash();
                 }
                 return $hashCode;
             }
-            """.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-                .indent(DEFAULT_INDENT);
+            """.indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }
