@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.hashing;
 
+import com.hedera.pbj.runtime.Utf8Tools;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.UncheckedIOException;
@@ -11,6 +13,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 
 /**
  * XXH3_64 is a 64-bit variant of the XXH3 hash function.
@@ -22,8 +25,13 @@ import java.nio.ByteOrder;
  */
 @SuppressWarnings({"DuplicatedCode", "NumericOverflow"})
 public class XXH3_64 {
+    /**
+     * The default seed value used for hashing. ZERO is chosen as this is the default for xxhash and used in tools lile
+     * <code>xxhsum</code> command line tool.
+     */
+    public static final long DEFAULT_SEED = 0;
     /** Default instance of the XXH3_64 hasher with a seed of 0. */
-    public static final XXH3_64 DEFAULT_INSTANCE = new XXH3_64(0);
+    public static final XXH3_64 DEFAULT_INSTANCE = new XXH3_64(DEFAULT_SEED);
     /** VarHandle for reading and writing longs in little-endian byte order. */
     private static final VarHandle LONG_HANDLE =
             MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
@@ -66,10 +74,10 @@ public class XXH3_64 {
     private static final long INIT_ACC_6 = 0x27D4EB2F165667C5L;
     private static final long INIT_ACC_7 = 0x000000009E3779B1L;
     // Private constants for the mix and avalanche functions, derived from seed and secret values.
-    private final long secret00;
-    private final long secret01;
-    private final long secret02;
-    private final long secret03;
+    public final long secret00;
+    public final long secret01;
+    public final long secret02;
+    public final long secret03;
     private final long secret04;
     private final long secret05;
     private final long secret06;
@@ -123,12 +131,12 @@ public class XXH3_64 {
     private final long secShift13;
     private final long secShift14;
     private final long secShift15;
-    private final long bitflip00;
-    private final long bitflip12;
-    private final long bitflip34;
-    private final long bitflip56;
+    public final long bitflip00;
+    public final long bitflip12;
+    public final long bitflip34;
+    public final long bitflip56;
     /** Precomputed hash value used when the input length is 0. */
-    private final long hash0;
+    public final long hash0;
 
     /**
      * Creates a new instance of {@link XXH3_64} with the specified seed.
@@ -222,6 +230,82 @@ public class XXH3_64 {
      */
     public HashingWritableSequentialData hashingWritableSequentialData() {
         return new HashingWritableSequentialData();
+    }
+
+    /**
+     * Hashes a pair of longs to a 64-bit {@code long} value.
+     *
+     * <p>
+     * Equivalent to {@code hashBytesToLong(input1 || input2)}, where {@code ||} denotes concatenation
+     * and the longs are interpreted as little-endian byte sequences.
+     * </p>
+     *
+     * @param input1 the first long data to hash
+     * @param input2 the second long data to hash
+     * @return the hash value
+     */
+    public long hash(long input1, long input2) {
+        long lo = input1 ^ bitflip34;
+        long hi = input2 ^ bitflip56;
+        long acc = 16 + Long.reverseBytes(lo) + hi + mix(lo, hi);
+        return avalanche3(acc);
+    }
+
+    /**
+     * Hashes a pair of long and double to a 64-bit {@code long} value.
+     *
+     * @param input1 the long data to hash
+     * @param input2 the double data to hash
+     * @return the hash value
+     */
+    public long hash(long input1, double input2) {
+        long lo = input1 ^ bitflip34;
+        long hi = Double.doubleToRawLongBits(input2) ^ bitflip56;
+        long acc = 16 + Long.reverseBytes(lo) + hi + mix(lo, hi);
+        return avalanche3(acc);
+    }
+
+    /**
+     * Hashes a pair of long and float to a 64-bit {@code long} value.
+     *
+     * @param input1 the long data to hash
+     * @param input2 the float data to hash
+     * @return the hash value
+     */
+    public long hash(long input1, float input2) {
+        long lo = input1 ^ bitflip34;
+        long hi = Float.floatToRawIntBits(input2) ^ bitflip56;
+        long acc = 16 + Long.reverseBytes(lo) + hi + mix(lo, hi);
+        return avalanche3(acc);
+    }
+
+    /**
+     * Hashes a pair of long and String to a 64-bit {@code long} value.
+     *
+     * @param input1 the long data to hash
+     * @param input2 the String data to hash
+     * @return the hash value
+     */
+    public long hash(long input1, String input2) {
+        long lo = input1 ^ bitflip34;
+        byte[] stringBytes = input2.getBytes(StandardCharsets.UTF_8);
+        long hi = hashBytesToLong(stringBytes,0,stringBytes.length) ^ bitflip56;
+        long acc = 16 + Long.reverseBytes(lo) + hi + mix(lo, hi);
+        return avalanche3(acc);
+    }
+
+    /**
+     * Hashes a pair of long and Bytes to a 64-bit {@code long} value.
+     *
+     * @param input1 the long data to hash
+     * @param input2 the Bytes data to hash
+     * @return the hash value
+     */
+    public long hash(long input1, Bytes input2) {
+        long lo = input1 ^ bitflip34;
+        long hi = input2.hashCode64() ^ bitflip56;
+        long acc = 16 + Long.reverseBytes(lo) + hi + mix(lo, hi);
+        return avalanche3(acc);
     }
 
     /**
@@ -410,7 +494,7 @@ public class XXH3_64 {
     // Private methods
     // =============================================================================================================
 
-    private static long rrmxmx(long h64, final long length) {
+    public static long rrmxmx(long h64, final long length) {
         h64 ^= Long.rotateLeft(h64, 49) ^ Long.rotateLeft(h64, 24);
         h64 *= 0x9FB21C651E98DF25L;
         h64 ^= (h64 >>> 35) + length;
@@ -424,7 +508,7 @@ public class XXH3_64 {
         return mix2Accs(lo, hi, sec0, sec1);
     }
 
-    private static long avalanche64(long h64) {
+    public static long avalanche64(long h64) {
         h64 ^= h64 >>> 33;
         h64 *= INIT_ACC_2;
         h64 ^= h64 >>> 29;
@@ -432,7 +516,7 @@ public class XXH3_64 {
         return h64 ^ (h64 >>> 32);
     }
 
-    private static long avalanche3(long h64) {
+    public static long avalanche3(long h64) {
         h64 ^= h64 >>> 37;
         h64 *= 0x165667919E3779F9L;
         return h64 ^ (h64 >>> 32);
@@ -451,7 +535,7 @@ public class XXH3_64 {
         return (acc ^ (acc >>> 47) ^ sec) * INIT_ACC_7;
     }
 
-    private static long mix(long a, long b) {
+    public static long mix(long a, long b) {
         long x = a * b;
         long y = Math.unsignedMultiplyHigh(a, b);
         return x ^ y;

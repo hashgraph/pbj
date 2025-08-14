@@ -67,7 +67,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * The hash code of this {@link Bytes}. This is cached to avoid recomputing it multiple times.
      */
-    private int hashCode = 0;
+    private long hashCode = 0;
 
     /**
      * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps so
@@ -538,8 +538,17 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      */
     @Override
     public int hashCode() {
+        return (int)hashCode64();
+    }
+
+    /**
+     * Compute 64-bit hash code for Bytes based on all bytes of content
+     *
+     * @return unique for any given content
+     */
+    public long hashCode64() {
         if (hashCode == 0) {
-            hashCode = (int) XXH3_64.DEFAULT_INSTANCE.hashBytesToLong(buffer, start, length);
+            hashCode = XXH3_64.DEFAULT_INSTANCE.hashBytesToLong(buffer, start, length);
         }
         return hashCode;
     }
