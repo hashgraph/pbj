@@ -6,7 +6,6 @@ import static com.hedera.pbj.compiler.impl.Common.FIELD_INDENT;
 import static com.hedera.pbj.compiler.impl.Common.camelToUpperSnake;
 import static com.hedera.pbj.compiler.impl.Common.cleanDocStr;
 import static com.hedera.pbj.compiler.impl.Common.cleanJavaDocComment;
-import static com.hedera.pbj.compiler.impl.Common.getFieldsHashCode;
 import static com.hedera.pbj.compiler.impl.Common.javaPrimitiveToObjectType;
 import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.EnumValue;
 import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
@@ -229,7 +228,7 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         // hashCode method
-        bodyContent += generateHashCode(fieldsNoPrecomputed);
+        bodyContent += ModelHashCodeGenerator.generateHashCode(fieldsNoPrecomputed);
         bodyContent += "\n";
 
         // equals method
@@ -515,65 +514,6 @@ public final class ModelGenerator implements Generator {
             }
             return true;
         }""".indent(DEFAULT_INDENT);
-        // spotless:on
-        return bodyContent;
-    }
-
-    /**
-     * Generates the hashCode method
-     *
-     * @param fields the fields to use for the code generation
-     *
-     * @return the generated code
-     */
-    @NonNull
-    private static String generateHashCode(final List<Field> fields) {
-        // Generate a call to private method that iterates through fields and calculates the hashcode
-        final String statements = getFieldsHashCode(fields, "");
-        // spotless:off
-        String bodyContent =
-            """
-            /**
-            * Override the default hashCode method for to make hashCode better distributed and follows protobuf rules
-            * for default values. This is important for backward compatibility. This also lazy computes and caches the
-            * hashCode for future calls. It is designed to be thread safe.
-            */
-            @Override
-            public int hashCode() {
-                return(int)hashCode64();
-            }
-            
-            /**
-            * Extended 64bit hashCode method for to make hashCode better distributed and follows protobuf rules
-            * for default values. This is important for backward compatibility. This also lazy computes and caches the
-            * hashCode for future calls. It is designed to be thread safe.
-            */
-            public long hashCode64() {
-                // The $hashCode field is subject to a benign data race, making it crucial to ensure that any
-                // observable result of the calculation in this method stays correct under any possible read of this
-                // field. Necessary restrictions to allow this to be correct without explicit memory fences or similar
-                // concurrency primitives is that we can ever only write to this field for a given Model object
-                // instance, and that the computation is idempotent and derived from immutable state.
-                // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
-            
-                if($hashCode == -1) {
-                    final HashingWritableSequentialData hashingStream = XXH3_64.DEFAULT_INSTANCE.hashingWritableSequentialData();
-            """.indent(DEFAULT_INDENT);
-
-        bodyContent += statements;
-
-        bodyContent +=
-            """
-                    if ($unknownFields != null) {
-                        for (int i = 0; i < $unknownFields.size(); i++) {
-                            hashingStream.writeInt($unknownFields.get(i).hashCode());
-                        }
-                    }
-                    $hashCode = hashingStream.computeHash();
-                }
-                return $hashCode;
-            }
-            """.indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }
