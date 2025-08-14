@@ -97,10 +97,10 @@ class PbjGrpcDatagramReader {
         // Read big endian (unsigned, but oh well...) int32 size from the GRPC header first
         // (ignoring the first byte which is a compression flag):
         // The `buffer` is circular. The position is wrapped on the `buffer.length` if it's past the tail.
-        final int size = buffer[(readPosition + 1) % buffer.length] << 24
-                | (buffer[(readPosition + 2) % buffer.length] << 16)
-                | (buffer[(readPosition + 3) % buffer.length] << 8)
-                | (buffer[(readPosition + 4) % buffer.length]);
+        final int size = Byte.toUnsignedInt(buffer[(readPosition + 1) % buffer.length]) << 24
+                | (Byte.toUnsignedInt(buffer[(readPosition + 2) % buffer.length]) << 16)
+                | (Byte.toUnsignedInt(buffer[(readPosition + 3) % buffer.length]) << 8)
+                | (Byte.toUnsignedInt(buffer[(readPosition + 4) % buffer.length]));
 
         if (length < PREFIX_LENGTH + size) {
             // We don't have enough data yet. More data needs to be added to the reader to complete this datagram.
