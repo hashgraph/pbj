@@ -252,7 +252,7 @@ public final class LookupHelper {
         final Object[] importsArray =
                 protoFileImports.get(protoSrcFile.getAbsolutePath()).toArray();
         final String importsString = Arrays.toString(importsArray);
-        throw new PbjCompilerException(FAILED_TO_FIND_MSG_TYPE_MESSAGE.formatted(context, protoSrcFile, importsString));
+        throw new PbjCompilerException(FAILED_TO_FIND_MSG_TYPE_MESSAGE.formatted(context.getText(), protoSrcFile, importsString));
     }
 
     /**
