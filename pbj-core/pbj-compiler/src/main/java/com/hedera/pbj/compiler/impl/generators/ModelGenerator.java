@@ -79,7 +79,9 @@ public final class ModelGenerator implements Generator {
         writer.addImport("java.util.Collections");
         writer.addImport("java.util.List");
         writer.addImport("com.hedera.pbj.runtime.hashing.XXH3_64");
-        writer.addImport("com.hedera.pbj.runtime.hashing.XXH3_64.HashingWritableSequentialData");
+        writer.addImport("com.hedera.pbj.runtime.hashing.XXH3FieldHash");
+        writer.addImport("com.hedera.pbj.runtime.hashing.SixtyFourBitHashable");
+        writer.addImport("static com.hedera.pbj.runtime.hashing.XXH3FieldHash.*");
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
@@ -296,11 +298,11 @@ public final class ModelGenerator implements Generator {
             final boolean isComparable,
             final ContextualLookupHelper lookupHelper)
             throws IOException {
-        final String implementsComparable;
+        final String implementsCode;
         if (isComparable) {
-            implementsComparable = "implements Comparable<$javaRecordName> ";
+            implementsCode = "implements SixtyFourBitHashable, Comparable<$javaRecordName> ";
         } else {
-            implementsComparable = "";
+            implementsCode = "implements SixtyFourBitHashable ";
         }
 
         final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
@@ -324,7 +326,7 @@ public final class ModelGenerator implements Generator {
                 .replace("$javaDocComment", javaDocComment)
                 .replace("$deprecated", deprecated)
                 .replace("$staticModifier", staticModifier)
-                .replace("$implementsComparable", implementsComparable)
+                .replace("$implementsComparable", implementsCode)
                 .replace("$javaRecordName", javaRecordName)
                 .replace("$bodyContent", bodyContent));
         // spotless:on

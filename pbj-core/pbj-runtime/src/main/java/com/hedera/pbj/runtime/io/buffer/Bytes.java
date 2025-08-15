@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.hashing.SixtyFourBitHashable;
 import com.hedera.pbj.runtime.hashing.XXH3_64;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
@@ -30,7 +31,7 @@ import java.util.HexFormat;
  * An immutable representation of a byte array. This class is designed to be efficient and usable across threads.
  */
 @SuppressWarnings("unused")
-public final class Bytes implements RandomAccessData, Comparable<Bytes> {
+public final class Bytes implements RandomAccessData, Comparable<Bytes>, SixtyFourBitHashable {
 
     /** An instance of an empty {@link Bytes} */
     public static final Bytes EMPTY = new Bytes(new byte[0]);

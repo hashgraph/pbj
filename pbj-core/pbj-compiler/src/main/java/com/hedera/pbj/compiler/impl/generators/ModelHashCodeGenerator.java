@@ -15,7 +15,22 @@ import java.util.List;
 /**
  * Generates the hashCode() and hashCode64() methods for a model class.
  */
+@SuppressWarnings("StringConcatenationInLoop")
 public class ModelHashCodeGenerator {
+    /** The mixing code for the hashCode generation. After each field */
+    private static final String MIX_CODE = "    " + """
+                            if($xx_haveCarry) $xx_acc = mixPair($xx_acc, $xx_carry, v, $xx_pairIndex++); else $xx_carry = v;
+                            $xx_haveCarry = !$xx_haveCarry;
+                            $xx_total += 8;
+                        """.trim();
+    /** The mixing code for the hashCode generation. After first field */
+    private static final String MIX_CODE_FIRST_FIELD = "    " + """
+                            $xx_carry = v;
+                            $xx_haveCarry =  true;
+                            $xx_total += 8;
+                        """.trim();
+
+
     /**
      * Generates the hashCode method
      *
@@ -25,8 +40,6 @@ public class ModelHashCodeGenerator {
      */
     @NonNull
     static String generateHashCode(final List<Field> fields) {
-        // Generate a call to private method that iterates through fields and calculates the hashcode
-        final String statements = getFieldsHashCode(fields, "");
         // spotless:off
         String bodyContent =
             """
@@ -54,24 +67,35 @@ public class ModelHashCodeGenerator {
                 // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
             
                 if($hashCode == -1) {
-                    long $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash0;
+                    long $xx_acc = 0L;
+                    long $xx_total = 0L;
+                    long $xx_carry = 0L;
+                    boolean $xx_haveCarry = false;
+                    int $xx_pairIndex = 0;
             """.indent(DEFAULT_INDENT);
 
-        bodyContent += statements;
-
-        // TODO there should be a way to get a 64 bit hash from the unknown fields, but we don't have that yet.
+        // Generate a call to private method that iterates through fields and calculates the hashcode
+        bodyContent += getFieldsHashCode(fields);
         bodyContent +=
             """
                     if ($unknownFields != null) {
                         for (int i = 0; i < $unknownFields.size(); i++) {
-                            $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$unknownFields.get(i).hashCode());
+                            // For unknown fields, if they are default value they will not be on the wire
+                            // there for they will not be in the $unknownFields list. So we can safely
+                            // assume that if we are here, the field is not default value.
+                            final long v = $unknownFields.get(i).hashCode64();
+                            $mixCode
                         }
                     }
-                    $hashCode = $intermediaryHash;
+                    if ($xx_haveCarry) {
+                        $xx_acc = XXH3FieldHash.mixTail8($xx_acc, $xx_carry, $xx_pairIndex);
+                    }
+                    $hashCode = XXH3FieldHash.finish($xx_acc, $xx_total);
                 }
                 return $hashCode;
             }
-            """.indent(DEFAULT_INDENT);
+            """.replace("$mixCode", MIX_CODE.indent(DEFAULT_INDENT+DEFAULT_INDENT))
+                .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }
@@ -80,167 +104,110 @@ public class ModelHashCodeGenerator {
      * Recursively calculates the hashcode for a message fields.
      *
      * @param fields             The fields of this object.
-     * @param generatedCodeSoFar The accumulated hash code so far.
      * @return The generated code for getting the hashCode value.
      */
-    public static String getFieldsHashCode(final List<Field> fields, String generatedCodeSoFar) {
-        for (Field f : fields) {
+    public static String getFieldsHashCode(final List<Field> fields) {
+        String generatedCode = "";
+        for (int i = 0; i < fields.size(); i++) {
+            final Field f = fields.get(i);
+            final boolean isFirstField = i == 0;
             if (f instanceof OneOfField oneOfField) {
                 final String fieldName = f.nameCamelFirstLower() + ".value()";
                 String caseStatements = "";
                 for (final Field childField : oneOfField.fields()) {
-                    if (!caseStatements.isEmpty()) caseStatements += "\n        ";
-                    caseStatements += "case " + Common.camelToUpperSnake(childField.name()) + " -> XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,";
+                    if (!caseStatements.isEmpty()) {
+                        caseStatements += "\n        ";
+                    }
+                    caseStatements += "case " + Common.camelToUpperSnake(childField.name()) + " -> ";
                     switch (childField.type()) {
-                        case INT32, FIXED32, SINT32, SFIXED32, UINT32 -> {
-                            caseStatements += "(" + childField.javaFieldType() + ")" + fieldName + ");";
-                        }
-                        case INT64, FIXED64, SINT64, SFIXED64, UINT64 -> {
-                            caseStatements += "(" + childField.javaFieldType() + ")" + fieldName + ");";
-                        }
-                        case BOOL -> {
-                            caseStatements +=
-                                    "(" + childField.javaFieldType() + ")" + fieldName + "? (byte)1 : 0);";
-                        }
-                        case FLOAT -> {
-                            caseStatements += "(" + childField.javaFieldType() + ")" + fieldName + ");";
-                        }
-                        case DOUBLE -> {
-                            caseStatements += "(" + childField.javaFieldType() + ")" + fieldName + ");";
-                        }
-                        case BYTES -> {
-                            caseStatements += "(" + childField.javaFieldType() + ")" + fieldName + ");";
-                        }
-                        case ENUM -> {
-                            caseStatements +=
-                                    "((" + childField.javaFieldType() + ")" + fieldName + ").protoOrdinal());";
-                        }
-                        case STRING -> {
-                            caseStatements += "(" + childField.javaFieldType() + ")" + fieldName + ");";
-                        }
+                        case INT32, FIXED32, SINT32, SFIXED32, UINT32, STRING, DOUBLE, FLOAT, BOOL ->
+                                caseStatements += "toLong((" + childField.javaFieldType() + ")" + fieldName + ");";
+                        case INT64, FIXED64, SINT64, SFIXED64, UINT64 ->
+                                caseStatements += "(" + childField.javaFieldType() + ")" + fieldName + ";";
+                        case BYTES -> caseStatements +=
+                                "((" + childField.javaFieldType() + ")" + fieldName + ").hashCode64();";
+                        case ENUM -> caseStatements +=
+                                "toLong(((" + childField.javaFieldType() + ")" + fieldName + ").protoOrdinal());";
                         case MESSAGE -> {
                             switch (childField.messageType()) {
-                                case "StringValue" -> caseStatements += "(String)" + fieldName + ");";
-                                case "Int32Value", "UInt32Value" -> caseStatements += "(int)" + fieldName + ");";
-                                case "Int64Value", "UInt64Value" -> caseStatements += "(long)" + fieldName + ");";
-                                case "FloatValue" -> caseStatements += "(float)" + fieldName + ");";
-                                case "DoubleValue" -> caseStatements += "(double)" + fieldName + ");";
-                                case "BytesValue" -> caseStatements += "(Bytes)" + fieldName + ");";
-                                case "BoolValue" -> caseStatements += "(boolean)" + fieldName + "? (byte)1 : 0);";
-                                default ->
-                                    caseStatements += "((" + childField.javaFieldType() + ")" + fieldName
-                                            + ").hashCode64());";
+                                case "StringValue" -> caseStatements += "toLong((String)" + fieldName + ");";
+                                case "Int32Value", "UInt32Value" -> caseStatements += "toLong((int)" + fieldName + ");";
+                                case "Int64Value", "UInt64Value" -> caseStatements += "(long)" + fieldName + ";";
+                                case "FloatValue" -> caseStatements += "toLong((float)" + fieldName + ");";
+                                case "DoubleValue" -> caseStatements += "toLong((double)" + fieldName + ");";
+                                case "BytesValue" -> caseStatements += "((Bytes)" + fieldName + ").hashCode64();";
+                                case "BoolValue" -> caseStatements += "toLong((boolean)" + fieldName + ");";
+                                default -> caseStatements += "((" + childField.javaFieldType() + ")" + fieldName
+                                        + ").hashCode64();";
                             }
                         }
                     }
                 }
-                generatedCodeSoFar +=
+                generatedCode +=
                         ("""
-                            if ($fieldName != DEFAULT.$fieldName) {
-                                switch($fieldName.kind()) {
-                                    $caseStatements
-                                    default -> throw new IllegalStateException("Unknown one-of kind: " + $fieldName.kind());
+                                if ($fieldName != DEFAULT.$fieldName) {
+                                    final long v = switch($fieldName.kind()) {
+                                        $caseStatements
+                                        default -> throw new IllegalStateException("Unknown one-of kind: " + $fieldName.kind());
+                                    };
+                                    $mixCode
                                 }
-                            }
-                            """)
+                                """)
                                 .replace("$caseStatements", caseStatements)
+                                .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
                                 .replace("$fieldName", f.nameCamelFirstLower());
 
             } else if (f.optionalValueType()) {
-                generatedCodeSoFar = getPrimitiveWrapperHashCodeGeneration(generatedCodeSoFar, f);
+                generatedCode = getPrimitiveWrapperHashCodeGeneration(generatedCode, f, isFirstField);
             } else if (f.repeated()) {
-                generatedCodeSoFar = getRepeatedHashCodeGeneration(generatedCodeSoFar, f);
+                generatedCode = getRepeatedHashCodeGeneration(generatedCode, f, isFirstField);
+            } else if (f.type() == FieldType.MAP) {
+                generatedCode += getMapHashCodeGeneration(generatedCode, (MapField) f, isFirstField);
             } else {
-                if (f.type() == FieldType.FIXED32
-                        || f.type() == FieldType.INT32
-                        || f.type() == FieldType.SFIXED32
-                        || f.type() == FieldType.SINT32
-                        || f.type() == FieldType.UINT32) {
-                    generatedCodeSoFar +=
-                            ("""
-                            if ($fieldName != DEFAULT.$fieldName) {
-                                $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
-                            }
-                            """)
-                                    .replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == FieldType.FIXED64
-                        || f.type() == FieldType.INT64
-                        || f.type() == FieldType.SFIXED64
-                        || f.type() == FieldType.SINT64
-                        || f.type() == FieldType.UINT64) {
-                    generatedCodeSoFar +=
-                            ("""
-                            if ($fieldName != DEFAULT.$fieldName) {
-                                $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
-                            }
-                            """)
-                                    .replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == FieldType.BOOL) {
-                    generatedCodeSoFar +=
-                            ("""
-                            if ($fieldName != DEFAULT.$fieldName) {
-                                $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName? (byte)1 : 0);
-                            }
-                            """)
-                                    .replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == FieldType.FLOAT) {
-                    generatedCodeSoFar +=
-                            ("""
-                            if ($fieldName != DEFAULT.$fieldName) {
-                                $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
-                            }
-                            """)
-                                    .replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == FieldType.DOUBLE) {
-                    generatedCodeSoFar +=
-                            ("""
-                            if ($fieldName != DEFAULT.$fieldName) {
-                                $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
-                            }
-                            """)
-                                    .replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == FieldType.BYTES) {
-                    generatedCodeSoFar +=
-                            ("""
-                            if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                                $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
-                            }
-                            """)
-                                    .replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == FieldType.ENUM) {
-                    generatedCodeSoFar +=
-                            ("""
-                            if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                                $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName.protoOrdinal());
-                            }
-                            """)
-                                    .replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == FieldType.MAP) {
-                    generatedCodeSoFar += getMapHashCodeGeneration(generatedCodeSoFar, (MapField) f);
-                } else if (f.type() == FieldType.STRING) {
-                    generatedCodeSoFar +=
-                            ("""
-                            if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                                $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
-                            }
-                            """)
-                                    .replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == FieldType.MESSAGE) { // process sub message
-                    // If this is not an oneof field, we can use the hashCode64() method directly.
-                    generatedCodeSoFar +=
-                            ("""
-                            if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                                $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName.hashCode64());
-                            }
-                            """)
-                                    .replace("$fieldName", f.nameCamelFirstLower());
-                } else {
-                    throw new RuntimeException("Unexpected field type for getting HashCode - "
+                String start = switch (f.type()) {
+                    case FIXED32, INT32, SFIXED32, SINT32, UINT32, FLOAT, DOUBLE -> """
+                            if ($fieldName != 0) {
+                                final long v = toLong($fieldName);
+                            """;
+                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> """
+                            if ($fieldName != 0) {
+                                final long v = $fieldName;
+                            """;
+                    case BOOL -> """
+                            if ($fieldName) {
+                                final long v = 1; // 1 for boolean true, false is default so never hashed
+                            """;
+                    case BYTES -> """
+                            if ($fieldName.length() > 0) {
+                                final long v = $fieldName.hashCode64(); // compute xxh3 hash of bytes
+                            """;
+                    case ENUM -> """
+                            if ($fieldName != null && $fieldName.protoOrdinal() != 0) {
+                                final long v = toLong($fieldName.protoOrdinal()); // LE semantics if desired
+                            """;
+                    case STRING -> """
+                            if ($fieldName.length() > 0) {
+                                final long v = toLong($fieldName); // compute xxh3 hash of UFT8 bytes
+                            """;
+                    case MESSAGE ->  // process sub message
+                            """
+                                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
+                                        final long v = $fieldName.hashCode64(); // get sub message hashCode64
+                                    """;
+                    default -> throw new RuntimeException("Unexpected field type for getting HashCode - "
                             + f.type().toString());
-                }
+                };
+                generatedCode +=
+                        ("""
+                                $start$mixCode
+                                }
+                                """)
+                                .replace("$start", start)
+                                .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
+                                .replace("$fieldName", f.nameCamelFirstLower());
             }
         }
-        return generatedCodeSoFar.indent(DEFAULT_INDENT * 3);
+        return generatedCode.indent(DEFAULT_INDENT * 3);
     }
 
     /**
@@ -248,68 +215,53 @@ public class ModelHashCodeGenerator {
      *
      * @param generatedCodeSoFar The string that the codegen is generated into.
      * @param f The field for which to generate the hash code.
+     * @param isFirstField Whether this is the first field in the hashCode generation.
      *
      * @return Updated codegen string.
      */
     @NonNull
-    private static String getPrimitiveWrapperHashCodeGeneration(String generatedCodeSoFar, Field f) {
+    private static String getPrimitiveWrapperHashCodeGeneration(String generatedCodeSoFar, Field f, boolean isFirstField) {
         switch (f.messageType()) {
+            case "Int32Value", "UInt32Value", "BoolValue", "FloatValue", "DoubleValue" ->
+                generatedCodeSoFar +=
+                        ("""
+                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
+                        final long v = toLong($fieldName);
+                        $mixCode
+                    }
+                    """)
+                    .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
+                    .replace("$fieldName", f.nameCamelFirstLower());
             case "StringValue" ->
                 generatedCodeSoFar +=
                         ("""
-                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
+                    if ($fieldName.length() > 0) {
+                        final long v = toLong($fieldName);
+                        $mixCode
                     }
                     """)
-                                .replace("$fieldName", f.nameCamelFirstLower());
-            case "BoolValue" ->
-                generatedCodeSoFar +=
-                        ("""
-                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName ? (byte)1 : 0);
-                    }
-                    """)
-                                .replace("$fieldName", f.nameCamelFirstLower());
-            case "Int32Value", "UInt32Value" ->
-                generatedCodeSoFar +=
-                        ("""
-                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
-                    }
-                    """)
-                                .replace("$fieldName", f.nameCamelFirstLower());
+                    .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
+                    .replace("$fieldName", f.nameCamelFirstLower());
             case "Int64Value", "UInt64Value" ->
                 generatedCodeSoFar +=
                         ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
+                        final long v = $fieldName;
+                        $mixCode
                     }
                     """)
-                                .replace("$fieldName", f.nameCamelFirstLower());
-            case "FloatValue" ->
-                generatedCodeSoFar +=
-                        ("""
-                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
-                    }
-                    """)
-                                .replace("$fieldName", f.nameCamelFirstLower());
-            case "DoubleValue" ->
-                generatedCodeSoFar +=
-                        ("""
-                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
-                    }
-                    """)
-                                .replace("$fieldName", f.nameCamelFirstLower());
+                    .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
+                    .replace("$fieldName", f.nameCamelFirstLower());
             case "BytesValue" ->
                 generatedCodeSoFar +=
                         ("""
-                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        $intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,$fieldName);
+                    if ($fieldName.length() > 0) {
+                        final long v = $fieldName.hashCode64();
+                        $mixCode
                     }
                     """)
-                                .replace("$fieldName", f.nameCamelFirstLower());
+                    .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
+                    .replace("$fieldName", f.nameCamelFirstLower());
             default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
         }
         return generatedCodeSoFar;
@@ -324,18 +276,18 @@ public class ModelHashCodeGenerator {
      * @return Updated codegen string.
      */
     @NonNull
-    private static String getRepeatedHashCodeGeneration(String generatedCodeSoFar, Field f) {
-        String addToHashLine =
+    private static String getRepeatedHashCodeGeneration(String generatedCodeSoFar, Field f, boolean isFirstField) {
+        String addValueCode =
                 switch (f.type()) {
-                    case FIXED32, INT32, SFIXED32, SINT32, UINT32 -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,o);";
-                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,o);";
-                    case BOOL -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,o? (byte)1 : 0);";
-                    case FLOAT -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,o);";
-                    case DOUBLE -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,o);";
-                    case BYTES -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,o);";
-                    case ENUM -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,o.protoOrdinal());";
-                    case STRING -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,o);";
-                    case MESSAGE -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,o.hashCode64());";
+                    case FIXED32, INT32, SFIXED32, SINT32, UINT32 -> "toLong(o)";
+                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> "o";
+                    case BOOL -> "toLong(o)";
+                    case FLOAT -> "toLong(o)";
+                    case DOUBLE -> "toLong(o)";
+                    case BYTES -> "o.hashCode64()";
+                    case ENUM -> "toLong(o.protoOrdinal())";
+                    case STRING -> "toLong(o)";
+                    case MESSAGE -> "o.hashCode64()";
                     default ->
                         throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
                 };
@@ -346,12 +298,14 @@ public class ModelHashCodeGenerator {
                 if (list$$fieldName != null) {
                     for (var o : list$$fieldName) {
                         if (o != null) {
-                            $addToHashLine
+                            final long v = $addValueCode;
+                            $mixCode
                         }
                    }
                 }
                 """)
-                        .replace("$addToHashLine", addToHashLine)
+                        .replace("$addValueCode", addValueCode)
+                        .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
                         .replace("$fieldType", f.javaFieldType())
                         .replace("$fieldName", f.nameCamelFirstLower());
         return generatedCodeSoFar;
@@ -366,47 +320,54 @@ public class ModelHashCodeGenerator {
      * @return Updated codegen string.
      */
     @NonNull
-    private static String getMapHashCodeGeneration(String generatedCodeSoFar, final MapField f) {
+    private static String getMapHashCodeGeneration(String generatedCodeSoFar, final MapField f, boolean isFirstField) {
         final SingleField keyField = f.keyField();
         final SingleField valueField = f.valueField();
         String keyCode =
                 switch (keyField.type()) {
-                    case FIXED32, INT32, SFIXED32, SINT32, UINT32 -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,k);";
-                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,k);";
-                    case BOOL -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,k ? (byte)1 : 0);";
-                    case FLOAT -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,k);";
-                    case DOUBLE -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,k);";
-                    case BYTES -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,k);";
-                    case ENUM -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,k.protoOrdinal());";
-                    case STRING -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,k);";
-                    case MESSAGE -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,k.hashCode64());";
+                    case FIXED32, INT32, SFIXED32, SINT32, UINT32 -> "toLong($m_key)";
+                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> "$m_key";
+                    case BOOL -> "toLong($m_key)";
+                    case FLOAT -> "toLong($m_key)";
+                    case DOUBLE -> "toLong($m_key)";
+                    case BYTES -> "$m_key.hashCode64()";
+                    case ENUM -> "toLong($m_key.protoOrdinal())";
+                    case STRING -> "toLong($m_key)";
+                    case MESSAGE -> "$m_key.hashCode64()";
                     default ->
                         throw new UnsupportedOperationException("Unhandled key message type:" + keyField.messageType());
                 };
         String valueCode =
                 switch (valueField.type()) {
-                    case FIXED32, INT32, SFIXED32, SINT32, UINT32 -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,v);";
-                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,v);";
-                    case BOOL -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,v ? (byte)1 : 0);";
-                    case FLOAT -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,v);";
-                    case DOUBLE -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,v);";
-                    case BYTES -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,v);";
-                    case ENUM -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,v.protoOrdinal());";
-                    case STRING -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,v);";
-                    case MESSAGE -> "$intermediaryHash = XXH3_64.DEFAULT_INSTANCE.hash($intermediaryHash,v.hashCode64());";
+                    case FIXED32, INT32, SFIXED32, SINT32, UINT32 -> "toLong($m_value)";
+                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> "$m_value";
+                    case BOOL -> "toLong($m_value)";
+                    case FLOAT -> "toLong($m_value)";
+                    case DOUBLE -> "toLong($m_value)";
+                    case BYTES -> "$m_value.hashCode64()";
+                    case ENUM -> "toLong($m_value.protoOrdinal())";
+                    case STRING -> "toLong($m_value)";
+                    case MESSAGE -> "$m_value.hashCode64()";
                     default ->
                         throw new UnsupportedOperationException(
                                 "Unhandled value message type:" + valueField.messageType());
                 };
         generatedCodeSoFar +=
                 ("""
-                for ($keyType k : ((PbjMap<$keyType,$valueType>) $fieldName).getSortedKeys()) {
-                    if (k != null) $keyCode
-                    final $valueType v = $fieldName.get(k);
-                    if (v != null) $valueCode
+                for ($keyType $m_key : ((PbjMap<$keyType,$valueType>) $fieldName).getSortedKeys()) {
+                    if ($m_key != null) {
+                        final long v = $keyCode;
+                        $mixCode
+                    }
+                    final $valueType $m_value = $fieldName.get($m_key);
+                    if ($m_value != null) {
+                        final long v = $valueCode;
+                        $mixCode
+                    }
                 }
                 """)
                         .replace("$keyType", keyField.javaFieldTypeBoxed())
+                        .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
                         .replace("$valueType", valueField.javaFieldTypeBoxed())
                         .replace("$keyCode", keyCode)
                         .replace("$valueCode", valueCode)
