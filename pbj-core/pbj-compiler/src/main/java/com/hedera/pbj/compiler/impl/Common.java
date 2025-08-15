@@ -234,7 +234,7 @@ public final class Common {
                     generatedCodeSoFar +=
                             ("""
                             if ($fieldName != DEFAULT.$fieldName) {
-                                result = 31 * result + Integer.hashCode($fieldName);
+                                result = 257 * result + Integer.hashCode($fieldName);
                             }
                             """)
                                     .replace("$fieldName", f.nameCamelFirstLower());
@@ -246,7 +246,7 @@ public final class Common {
                     generatedCodeSoFar +=
                             ("""
                             if ($fieldName != DEFAULT.$fieldName) {
-                                result = 31 * result + Long.hashCode($fieldName);
+                                result = 257 * result + Long.hashCode($fieldName);
                             }
                             """)
                                     .replace("$fieldName", f.nameCamelFirstLower());
@@ -254,7 +254,7 @@ public final class Common {
                     generatedCodeSoFar +=
                             ("""
                             if ($fieldName != DEFAULT.$fieldName) {
-                               result = 31 * result + Boolean.hashCode($fieldName);
+                               result = 257 * result + Boolean.hashCode($fieldName);
                             }
                             """)
                                     .replace("$fieldName", f.nameCamelFirstLower());
@@ -262,7 +262,7 @@ public final class Common {
                     generatedCodeSoFar +=
                             ("""
                             if ($fieldName != DEFAULT.$fieldName) {
-                               result = 31 * result + Float.hashCode($fieldName);
+                               result = 257 * result + Float.hashCode($fieldName);
                             }
                             """)
                                     .replace("$fieldName", f.nameCamelFirstLower());
@@ -270,7 +270,7 @@ public final class Common {
                     generatedCodeSoFar +=
                             ("""
                             if ($fieldName != DEFAULT.$fieldName) {
-                               result = 31 * result + Double.hashCode($fieldName);
+                               result = 257 * result + Double.hashCode($fieldName);
                             }
                             """)
                                     .replace("$fieldName", f.nameCamelFirstLower());
@@ -278,7 +278,7 @@ public final class Common {
                     generatedCodeSoFar +=
                             ("""
                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                               result = 31 * result + $fieldName.hashCode();
+                               result = 257 * result + $fieldName.hashCode();
                             }
                             """)
                                     .replace("$fieldName", f.nameCamelFirstLower());
@@ -286,7 +286,7 @@ public final class Common {
                     generatedCodeSoFar +=
                             ("""
                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                               result = 31 * result + Integer.hashCode($fieldName.protoOrdinal());
+                               result = 257 * result + Integer.hashCode($fieldName.protoOrdinal());
                             }
                             """)
                                     .replace("$fieldName", f.nameCamelFirstLower());
@@ -296,7 +296,7 @@ public final class Common {
                     generatedCodeSoFar +=
                             ("""
                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                               result = 31 * result + $fieldName.hashCode();
+                               result = 257 * result + $fieldName.hashCode();
                             }
                             """)
                                     .replace("$fieldName", f.nameCamelFirstLower());
@@ -323,49 +323,49 @@ public final class Common {
             case "StringValue" -> generatedCodeSoFar +=
                     ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        result = 31 * result + $fieldName.hashCode();
+                        result = 257 * result + $fieldName.hashCode();
                     }
                     """)
                             .replace("$fieldName", f.nameCamelFirstLower());
             case "BoolValue" -> generatedCodeSoFar +=
                     ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        result = 31 * result + Boolean.hashCode($fieldName);
+                        result = 257 * result + Boolean.hashCode($fieldName);
                     }
                     """)
                             .replace("$fieldName", f.nameCamelFirstLower());
             case "Int32Value", "UInt32Value" -> generatedCodeSoFar +=
                     ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        result = 31 * result + Integer.hashCode($fieldName);
+                        result = 257 * result + Integer.hashCode($fieldName);
                     }
                     """)
                             .replace("$fieldName", f.nameCamelFirstLower());
             case "Int64Value", "UInt64Value" -> generatedCodeSoFar +=
                     ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        result = 31 * result + Long.hashCode($fieldName);
+                        result = 257 * result + Long.hashCode($fieldName);
                     }
                     """)
                             .replace("$fieldName", f.nameCamelFirstLower());
             case "FloatValue" -> generatedCodeSoFar +=
                     ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        result = 31 * result + Float.hashCode($fieldName);
+                        result = 257 * result + Float.hashCode($fieldName);
                     }
                     """)
                             .replace("$fieldName", f.nameCamelFirstLower());
             case "DoubleValue" -> generatedCodeSoFar +=
                     ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        result = 31 * result + Double.hashCode($fieldName);
+                        result = 257 * result + Double.hashCode($fieldName);
                     }
                     """)
                             .replace("$fieldName", f.nameCamelFirstLower());
             case "BytesValue" -> generatedCodeSoFar +=
                     ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        result = 31 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
+                        result = 257 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
                     }
                     """)
                             .replace("$fieldName", f.nameCamelFirstLower());
@@ -390,9 +390,9 @@ public final class Common {
                 if (list$$fieldName != null) {
                     for (Object o : list$$fieldName) {
                         if (o != null) {
-                            result = 31 * result + o.hashCode();
+                            result = 257 * result + o.hashCode();
                         } else {
-                            result = 31 * result;
+                            result = 257 * result;
                         }
                    }
                 }
@@ -415,15 +415,15 @@ public final class Common {
                 ("""
                 for (Object k : ((PbjMap) $fieldName).getSortedKeys()) {
                     if (k != null) {
-                        result = 31 * result + k.hashCode();
+                        result = 257 * result + k.hashCode();
                     } else {
-                        result = 31 * result;
+                        result = 257 * result;
                     }
                     Object v = $fieldName.get(k);
                     if (v != null) {
-                        result = 31 * result + v.hashCode();
+                        result = 257 * result + v.hashCode();
                     } else {
-                        result = 31 * result;
+                        result = 257 * result;
                     }
                 }
                 """)

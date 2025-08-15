@@ -569,7 +569,7 @@ public final class ModelGenerator implements Generator {
             """
                     if ($unknownFields != null) {
                         for (int i = 0; i < $unknownFields.size(); i++) {
-                            result = 31 * result + $unknownFields.get(i).hashCode();
+                            result = 257 * result + $unknownFields.get(i).hashCode();
                         }
                     }
             """.indent(DEFAULT_INDENT);
