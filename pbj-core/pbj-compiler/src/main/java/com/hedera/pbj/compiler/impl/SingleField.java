@@ -137,6 +137,17 @@ public record SingleField(
         return javaFieldType(false);
     }
 
+    public String javaFieldTypeBoxed() {
+        return switch (type) {
+            case BOOL -> "Boolean";
+            case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> "Integer";
+            case INT64, SINT64, UINT64, FIXED64, SFIXED64 -> "Long";
+            case FLOAT -> "Float";
+            case DOUBLE -> "Double";
+            default -> javaFieldType();
+        };
+    }
+
     @NonNull
     private String javaFieldType(boolean considerRepeated) {
         String fieldType =

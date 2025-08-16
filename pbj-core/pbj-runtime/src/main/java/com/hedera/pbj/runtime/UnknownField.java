@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import com.hedera.pbj.runtime.hashing.SixtyFourBitHashable;
+import com.hedera.pbj.runtime.hashing.XXH3_64;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -21,7 +23,7 @@ import java.util.Objects;
  * @param bytes a list of the raw bytes of each occurrence of the field (e.g. for repeated fields)
  */
 public record UnknownField(int field, @NonNull ProtoConstants wireType, @NonNull Bytes bytes)
-        implements Comparable<UnknownField> {
+        implements Comparable<UnknownField>, SixtyFourBitHashable {
     /**
      * A {@code Comparable<UnknownField>} implementation that sorts UnknownField objects by their `field` numbers
      * in the increasing order. This comparator is used for maintaining a stable and deterministic order for any
@@ -52,27 +54,28 @@ public record UnknownField(int field, @NonNull ProtoConstants wireType, @NonNull
      * An `Object.hashCode()` implementation that computes a hash code using all the members of the UnknownField record:
      * the `field`, the `wireType`, and the `bytes`.
      * The implementation should remain stable over time because this is a public API.
+     * <p>
+     * This hash code has to match how the field would be hashed if it was a normal field in the schema
+     * </p>
      */
     @Override
     public int hashCode() {
-        int hashCode = 1;
+        return (int)hashCode64();
+    }
 
-        hashCode = 31 * hashCode + Integer.hashCode(field);
-        hashCode = 31 * hashCode + Integer.hashCode(wireType.ordinal());
-        hashCode = 31 * hashCode + bytes.hashCode();
-
-        // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-        hashCode += hashCode << 30;
-        hashCode ^= hashCode >>> 27;
-        hashCode += hashCode << 16;
-        hashCode ^= hashCode >>> 20;
-        hashCode += hashCode << 5;
-        hashCode ^= hashCode >>> 18;
-        hashCode += hashCode << 10;
-        hashCode ^= hashCode >>> 24;
-        hashCode += hashCode << 30;
-
-        return hashCode;
+    /**
+     * A `SixtyFourBitHashable.hashCode64()` implementation that computes a 64-bit hash code using all the members of
+     * the UnknownField record: the `field`, the `wireType`, and the `bytes`.
+     * The implementation should remain stable over time because this is a public API.
+     * <p>
+     * This hash code has to match how the field would be hashed if it was a normal field in the schema
+     * </p>
+     *
+     * @return a 64-bit hash code for this UnknownField object
+     */
+    @Override
+    public long hashCode64() {
+        return bytes.hashCode64();
     }
 
     /**
