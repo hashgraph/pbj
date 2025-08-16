@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh;
 
+import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hedera.pbj.test.proto.pbj.Hasheval;
 import com.hedera.pbj.test.proto.pbj.Hasheval2;
 import com.hedera.pbj.test.proto.pbj.Suit;
@@ -32,6 +34,12 @@ public class ModelObjHashCodeBench {
     public void simpleObject(Blackhole blackhole) {
         TimestampTest tst = new TimestampTest(987L, 123);
         blackhole.consume(tst.hashCode());
+    }
+
+    @Benchmark
+    public void everythingObject(Blackhole blackhole) {
+        Everything e = EverythingTestData.EVERYTHING.copyBuilder().build();
+        blackhole.consume(e.hashCode());
     }
 
     @Benchmark

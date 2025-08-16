@@ -18,24 +18,18 @@ import java.util.List;
 @SuppressWarnings("StringConcatenationInLoop")
 public class ModelHashCodeGenerator {
     /** The mixing code for the hashCode generation. After each field */
-    private static final String MIX_CODE = "    " + """
-                            if($xx_haveCarry) $xx_acc = mixPair($xx_acc, $xx_carry, v, $xx_pairIndex++); else $xx_carry = v;
-                            $xx_haveCarry = !$xx_haveCarry;
-                            $xx_total += 8;
-                        """.trim();
-    /** The mixing code for the hashCode generation. After first field */
-    private static final String MIX_CODE_FIRST_FIELD = "    " + """
-                            $xx_carry = v;
-                            $xx_haveCarry =  true;
-                            $xx_total += 8;
-                        """.trim();
-
+    private static final String MIX_CODE = """
+                        if(($xx_fieldCount & 1) == 0) {
+                            $xx_acc += mixPair($xx_value, $xx_carry, $xx_fieldCount++ >> 1);
+                        } else {
+                            $xx_carry = $xx_value;
+                            $xx_fieldCount ++;
+                        }""";
 
     /**
      * Generates the hashCode method
      *
      * @param fields the fields to use for the code generation
-     *
      * @return the generated code
      */
     @NonNull
@@ -68,14 +62,14 @@ public class ModelHashCodeGenerator {
             
                 if($hashCode == -1) {
                     long $xx_acc = 0L;
-                    long $xx_total = 0L;
+                    int $xx_fieldCount = 0; // pairCount
                     long $xx_carry = 0L;
-                    boolean $xx_haveCarry = false;
-                    int $xx_pairIndex = 0;
+                    long $xx_value = 0L;
             """.indent(DEFAULT_INDENT);
 
         // Generate a call to private method that iterates through fields and calculates the hashcode
-        bodyContent += getFieldsHashCode(fields);
+        bodyContent += fieldsContainMapsOrRepeatedListFields(fields) ?
+                getFieldsHashCode(fields) : getFieldsHashCodeFixedLength(fields);
         bodyContent +=
             """
                     if ($unknownFields != null) {
@@ -83,21 +77,87 @@ public class ModelHashCodeGenerator {
                             // For unknown fields, if they are default value they will not be on the wire
                             // there for they will not be in the $unknownFields list. So we can safely
                             // assume that if we are here, the field is not default value.
-                            final long v = $unknownFields.get(i).hashCode64();
-                            $mixCode
+                            if (($xx_fieldCount & 1) == 0) {
+                                $xx_acc += mixPair($xx_carry, $unknownFields.get(i).hashCode64(), $xx_fieldCount++ >> 1);
+                            } else {
+                                $xx_carry = $unknownFields.get(i).hashCode64();
+                                $xx_fieldCount ++;
+                            }
                         }
                     }
-                    if ($xx_haveCarry) {
-                        $xx_acc = XXH3FieldHash.mixTail8($xx_acc, $xx_carry, $xx_pairIndex);
+                    if (($xx_fieldCount & 1) == 0) {
+                        // If we have an odd number of pairs, we need to mix the last carry value
+                        $xx_acc += mixTail8($xx_carry, $xx_fieldCount >> 1);
                     }
-                    $hashCode = XXH3FieldHash.finish($xx_acc, $xx_total);
+                    $hashCode = finish($xx_acc, (long)$xx_fieldCount << 3); // $xx_fieldCount * 8
                 }
                 return $hashCode;
             }
-            """.replace("$mixCode", MIX_CODE.indent(DEFAULT_INDENT+DEFAULT_INDENT))
-                .indent(DEFAULT_INDENT);
+            """.indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
+    }
+
+    /**
+     * Checks if the fields contain maps or repeated list fields.
+     *
+     * @param fields The fields to check.
+     * @return true if the fields contain maps or repeated list fields, false otherwise.
+     */
+    private static boolean fieldsContainMapsOrRepeatedListFields(final List<Field> fields) {
+        for (final Field f : fields) {
+            if (f.type() == FieldType.MAP || f.repeated()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Adds code for each field, fast path for case where there are no repeating field types like map or list
+     *
+     * @param fields             The fields of this object.
+     * @return The generated code for getting the hashCode value.
+     */
+    private static String getFieldsHashCodeFixedLength(final List<Field> fields) {
+        String generatedCode = "";
+        for (int i = 0; i < fields.size(); i++) {
+            final Field f = fields.get(i);
+            final boolean isOddField = (i % 2) != 0;
+            final String dstVarName =  isOddField ? "$xx_value":"$xx_carry";
+            if (f instanceof OneOfField oneOfField) {
+                final String fieldName = f.nameCamelFirstLower() + ".value()";
+                String caseStatements = "";
+                for (final Field childField : oneOfField.fields()) {
+                    if (!caseStatements.isEmpty()) {
+                        caseStatements += "\n    ";
+                    }
+                    caseStatements += "case " + Common.camelToUpperSnake(childField.name()) + " -> " +
+                            getFieldGetLongCode(childField, fieldName, true) +";";
+                }
+                generatedCode +=
+                        ("""
+                                $dstVarName = switch($fieldName.kind()) {
+                                    $caseStatements
+                                    default -> throw new IllegalStateException("Unknown one-of kind: " + $fieldName.kind());
+                                };$mixCode
+                                """)
+                                .replace("$caseStatements", caseStatements)
+                                .replace("$mixCode", isOddField ? "\n$xx_acc += mixPair($xx_value, $xx_carry, "+(i/2)+");" : "")
+                                .replace("$dstVarName", dstVarName)
+                                .replace("$fieldName", f.nameCamelFirstLower());
+            } else {
+                generatedCode +=
+                        ("""
+                                $dstVarName = $varSetCode;$mixCode
+                                """)
+                                .replace("$varSetCode", getFieldGetLongCode(f, f.nameCamelFirstLower(), false))
+                                .replace("$mixCode", isOddField ? "\n$xx_acc += mixPair($xx_value, $xx_carry, "+(i/2)+");" : "")
+                                .replace("$dstVarName", dstVarName);
+            }
+        }
+        generatedCode += "$xx_fieldCount = " + fields.size() + ";\n";
+        return generatedCode.indent(DEFAULT_INDENT * 3);
     }
 
     /**
@@ -106,105 +166,75 @@ public class ModelHashCodeGenerator {
      * @param fields             The fields of this object.
      * @return The generated code for getting the hashCode value.
      */
-    public static String getFieldsHashCode(final List<Field> fields) {
+    private static String getFieldsHashCode(final List<Field> fields) {
         String generatedCode = "";
         for (int i = 0; i < fields.size(); i++) {
             final Field f = fields.get(i);
-            final boolean isFirstField = i == 0;
             if (f instanceof OneOfField oneOfField) {
                 final String fieldName = f.nameCamelFirstLower() + ".value()";
                 String caseStatements = "";
                 for (final Field childField : oneOfField.fields()) {
                     if (!caseStatements.isEmpty()) {
-                        caseStatements += "\n        ";
+                        caseStatements += "\n    ";
                     }
-                    caseStatements += "case " + Common.camelToUpperSnake(childField.name()) + " -> ";
-                    switch (childField.type()) {
-                        case INT32, FIXED32, SINT32, SFIXED32, UINT32, STRING, DOUBLE, FLOAT, BOOL ->
-                                caseStatements += "toLong((" + childField.javaFieldType() + ")" + fieldName + ");";
-                        case INT64, FIXED64, SINT64, SFIXED64, UINT64 ->
-                                caseStatements += "(" + childField.javaFieldType() + ")" + fieldName + ";";
-                        case BYTES -> caseStatements +=
-                                "((" + childField.javaFieldType() + ")" + fieldName + ").hashCode64();";
-                        case ENUM -> caseStatements +=
-                                "toLong(((" + childField.javaFieldType() + ")" + fieldName + ").protoOrdinal());";
-                        case MESSAGE -> {
-                            switch (childField.messageType()) {
-                                case "StringValue" -> caseStatements += "toLong((String)" + fieldName + ");";
-                                case "Int32Value", "UInt32Value" -> caseStatements += "toLong((int)" + fieldName + ");";
-                                case "Int64Value", "UInt64Value" -> caseStatements += "(long)" + fieldName + ";";
-                                case "FloatValue" -> caseStatements += "toLong((float)" + fieldName + ");";
-                                case "DoubleValue" -> caseStatements += "toLong((double)" + fieldName + ");";
-                                case "BytesValue" -> caseStatements += "((Bytes)" + fieldName + ").hashCode64();";
-                                case "BoolValue" -> caseStatements += "toLong((boolean)" + fieldName + ");";
-                                default -> caseStatements += "((" + childField.javaFieldType() + ")" + fieldName
-                                        + ").hashCode64();";
-                            }
-                        }
-                    }
+                    caseStatements += "case " + Common.camelToUpperSnake(childField.name()) + " -> " +
+                            getFieldGetLongCode(childField, fieldName, true) + ";";
                 }
                 generatedCode +=
                         ("""
-                                if ($fieldName != DEFAULT.$fieldName) {
-                                    final long v = switch($fieldName.kind()) {
-                                        $caseStatements
-                                        default -> throw new IllegalStateException("Unknown one-of kind: " + $fieldName.kind());
-                                    };
-                                    $mixCode
-                                }
+                                $xx_value = switch($fieldName.kind()) {
+                                    $caseStatements
+                                    default -> throw new IllegalStateException("Unknown one-of kind: " + $fieldName.kind());
+                                };
+                                $mixCode
                                 """)
                                 .replace("$caseStatements", caseStatements)
-                                .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
+                                .replace("$mixCode", MIX_CODE)
                                 .replace("$fieldName", f.nameCamelFirstLower());
-
-            } else if (f.optionalValueType()) {
-                generatedCode = getPrimitiveWrapperHashCodeGeneration(generatedCode, f, isFirstField);
             } else if (f.repeated()) {
-                generatedCode = getRepeatedHashCodeGeneration(generatedCode, f, isFirstField);
+                generatedCode += ("""
+                        for (var o : $fieldName) {
+                            $xx_value = $addValueCode;
+                        $mixCode
+                        }
+                        """)
+                        .replace("$addValueCode", getFieldGetLongCode(f, "o", false))
+                        .replace("$mixCode",MIX_CODE.indent(DEFAULT_INDENT*2))
+                        .replace("$fieldType", f.javaFieldType())
+                        .replace("$fieldName", f.nameCamelFirstLower());
             } else if (f.type() == FieldType.MAP) {
-                generatedCode += getMapHashCodeGeneration(generatedCode, (MapField) f, isFirstField);
-            } else {
-                String start = switch (f.type()) {
-                    case FIXED32, INT32, SFIXED32, SINT32, UINT32, FLOAT, DOUBLE -> """
-                            if ($fieldName != 0) {
-                                final long v = toLong($fieldName);
-                            """;
-                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> """
-                            if ($fieldName != 0) {
-                                final long v = $fieldName;
-                            """;
-                    case BOOL -> """
-                            if ($fieldName) {
-                                final long v = 1; // 1 for boolean true, false is default so never hashed
-                            """;
-                    case BYTES -> """
-                            if ($fieldName.length() > 0) {
-                                final long v = $fieldName.hashCode64(); // compute xxh3 hash of bytes
-                            """;
-                    case ENUM -> """
-                            if ($fieldName != null && $fieldName.protoOrdinal() != 0) {
-                                final long v = toLong($fieldName.protoOrdinal()); // LE semantics if desired
-                            """;
-                    case STRING -> """
-                            if ($fieldName.length() > 0) {
-                                final long v = toLong($fieldName); // compute xxh3 hash of UFT8 bytes
-                            """;
-                    case MESSAGE ->  // process sub message
-                            """
-                                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                                        final long v = $fieldName.hashCode64(); // get sub message hashCode64
-                                    """;
-                    default -> throw new RuntimeException("Unexpected field type for getting HashCode - "
-                            + f.type().toString());
-                };
+                final SingleField keyField = ((MapField) f).keyField();
+                final SingleField valueField = ((MapField) f).valueField();
+                String keyCode = getFieldGetLongCode(keyField, "$m_key", false);
+                String valueCode = getFieldGetLongCode(valueField, "$m_value", false);
                 generatedCode +=
                         ("""
-                                $start$mixCode
-                                }
+                        for ($keyType $m_key : ((PbjMap<$keyType,$valueType>) $fieldName).getSortedKeys()) {
+                            if ($m_key != null) {
+                                $xx_value = $keyCode;
+                        $mixCode
+                            }
+                            final $valueType $m_value = $fieldName.get($m_key);
+                            if ($m_value != null) {
+                                $xx_value = $valueCode;
+                        $mixCode
+                            }
+                        }
+                        """)
+                                .replace("$keyType", keyField.javaFieldTypeBoxed())
+                                .replace("$mixCode", MIX_CODE.indent(DEFAULT_INDENT * 2))
+                                .replace("$valueType", valueField.javaFieldTypeBoxed())
+                                .replace("$keyCode", keyCode)
+                                .replace("$valueCode", valueCode)
+                                .replace("$fieldName", ((MapField) f).nameCamelFirstLower());
+            } else {
+                generatedCode +=
+                        ("""
+                                $xx_value = $varSetCode;
+                                $mixCode
                                 """)
-                                .replace("$start", start)
-                                .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
-                                .replace("$fieldName", f.nameCamelFirstLower());
+                                .replace("$varSetCode", getFieldGetLongCode(f, f.nameCamelFirstLower(), false))
+                                .replace("$mixCode", MIX_CODE);
             }
         }
         return generatedCode.indent(DEFAULT_INDENT * 3);
@@ -213,165 +243,30 @@ public class ModelHashCodeGenerator {
     /**
      * Get the hashcode codegen for an optional field.
      *
-     * @param generatedCodeSoFar The string that the codegen is generated into.
      * @param f The field for which to generate the hash code.
-     * @param isFirstField Whether this is the first field in the hashCode generation.
      *
      * @return Updated codegen string.
      */
     @NonNull
-    private static String getPrimitiveWrapperHashCodeGeneration(String generatedCodeSoFar, Field f, boolean isFirstField) {
-        switch (f.messageType()) {
-            case "Int32Value", "UInt32Value", "BoolValue", "FloatValue", "DoubleValue" ->
-                generatedCodeSoFar +=
-                        ("""
-                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        final long v = toLong($fieldName);
-                        $mixCode
-                    }
-                    """)
-                    .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
-                    .replace("$fieldName", f.nameCamelFirstLower());
-            case "StringValue" ->
-                generatedCodeSoFar +=
-                        ("""
-                    if ($fieldName.length() > 0) {
-                        final long v = toLong($fieldName);
-                        $mixCode
-                    }
-                    """)
-                    .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
-                    .replace("$fieldName", f.nameCamelFirstLower());
-            case "Int64Value", "UInt64Value" ->
-                generatedCodeSoFar +=
-                        ("""
-                    if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                        final long v = $fieldName;
-                        $mixCode
-                    }
-                    """)
-                    .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
-                    .replace("$fieldName", f.nameCamelFirstLower());
-            case "BytesValue" ->
-                generatedCodeSoFar +=
-                        ("""
-                    if ($fieldName.length() > 0) {
-                        final long v = $fieldName.hashCode64();
-                        $mixCode
-                    }
-                    """)
-                    .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
-                    .replace("$fieldName", f.nameCamelFirstLower());
+    private static String getFieldGetLongCode(final Field f, String fieldValueCode, final boolean needsCasting) {
+        final String fieldValueCodeCasted = needsCasting ?  "((" + f.javaFieldType() + ")" + fieldValueCode + ")" : fieldValueCode;
+        return switch (f.type()) {
+            case FIXED32, INT32, SFIXED32, SINT32, UINT32, BOOL, FLOAT, DOUBLE, STRING -> "toLong("+fieldValueCodeCasted+")";
+            case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> fieldValueCodeCasted;
+            case BYTES -> fieldValueCodeCasted+".hashCode64()";
+            case ENUM -> "toLong("+fieldValueCodeCasted+".protoOrdinal())";
+            case MESSAGE -> switch (f.messageType()) {
+                case "StringValue" -> "toLong(" + fieldValueCodeCasted + ")";
+                case "Int32Value", "UInt32Value" -> "toLong(" + fieldValueCodeCasted + ")";
+                case "Int64Value", "UInt64Value" -> fieldValueCodeCasted ;
+                case "FloatValue" -> "toLong(" + fieldValueCodeCasted + ")";
+                case "DoubleValue" -> "toLong(" + fieldValueCodeCasted + ")";
+                case "BytesValue" -> fieldValueCodeCasted + ".hashCode64()";
+                case "BoolValue" -> "toLong(" + fieldValueCodeCasted + ")";
+                default -> fieldValueCode +"==null?0:"+fieldValueCodeCasted+ ".hashCode64()";
+            };
             default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
-        }
-        return generatedCodeSoFar;
+        };
     }
 
-    /**
-     * Get the hashcode codegen for a repeated field.
-     *
-     * @param generatedCodeSoFar The string that the codegen is generated into.
-     * @param f The field for which to generate the hash code.
-     *
-     * @return Updated codegen string.
-     */
-    @NonNull
-    private static String getRepeatedHashCodeGeneration(String generatedCodeSoFar, Field f, boolean isFirstField) {
-        String addValueCode =
-                switch (f.type()) {
-                    case FIXED32, INT32, SFIXED32, SINT32, UINT32 -> "toLong(o)";
-                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> "o";
-                    case BOOL -> "toLong(o)";
-                    case FLOAT -> "toLong(o)";
-                    case DOUBLE -> "toLong(o)";
-                    case BYTES -> "o.hashCode64()";
-                    case ENUM -> "toLong(o.protoOrdinal())";
-                    case STRING -> "toLong(o)";
-                    case MESSAGE -> "o.hashCode64()";
-                    default ->
-                        throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
-                };
-
-        generatedCodeSoFar +=
-                ("""
-                $fieldType list$$fieldName = $fieldName;
-                if (list$$fieldName != null) {
-                    for (var o : list$$fieldName) {
-                        if (o != null) {
-                            final long v = $addValueCode;
-                            $mixCode
-                        }
-                   }
-                }
-                """)
-                        .replace("$addValueCode", addValueCode)
-                        .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
-                        .replace("$fieldType", f.javaFieldType())
-                        .replace("$fieldName", f.nameCamelFirstLower());
-        return generatedCodeSoFar;
-    }
-
-    /**
-     * Get the hashcode codegen for a map field.
-     *
-     * @param generatedCodeSoFar The string that the codegen is generated into.
-     * @param f The field for which to generate the hash code.
-     *
-     * @return Updated codegen string.
-     */
-    @NonNull
-    private static String getMapHashCodeGeneration(String generatedCodeSoFar, final MapField f, boolean isFirstField) {
-        final SingleField keyField = f.keyField();
-        final SingleField valueField = f.valueField();
-        String keyCode =
-                switch (keyField.type()) {
-                    case FIXED32, INT32, SFIXED32, SINT32, UINT32 -> "toLong($m_key)";
-                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> "$m_key";
-                    case BOOL -> "toLong($m_key)";
-                    case FLOAT -> "toLong($m_key)";
-                    case DOUBLE -> "toLong($m_key)";
-                    case BYTES -> "$m_key.hashCode64()";
-                    case ENUM -> "toLong($m_key.protoOrdinal())";
-                    case STRING -> "toLong($m_key)";
-                    case MESSAGE -> "$m_key.hashCode64()";
-                    default ->
-                        throw new UnsupportedOperationException("Unhandled key message type:" + keyField.messageType());
-                };
-        String valueCode =
-                switch (valueField.type()) {
-                    case FIXED32, INT32, SFIXED32, SINT32, UINT32 -> "toLong($m_value)";
-                    case FIXED64, INT64, SFIXED64, SINT64, UINT64 -> "$m_value";
-                    case BOOL -> "toLong($m_value)";
-                    case FLOAT -> "toLong($m_value)";
-                    case DOUBLE -> "toLong($m_value)";
-                    case BYTES -> "$m_value.hashCode64()";
-                    case ENUM -> "toLong($m_value.protoOrdinal())";
-                    case STRING -> "toLong($m_value)";
-                    case MESSAGE -> "$m_value.hashCode64()";
-                    default ->
-                        throw new UnsupportedOperationException(
-                                "Unhandled value message type:" + valueField.messageType());
-                };
-        generatedCodeSoFar +=
-                ("""
-                for ($keyType $m_key : ((PbjMap<$keyType,$valueType>) $fieldName).getSortedKeys()) {
-                    if ($m_key != null) {
-                        final long v = $keyCode;
-                        $mixCode
-                    }
-                    final $valueType $m_value = $fieldName.get($m_key);
-                    if ($m_value != null) {
-                        final long v = $valueCode;
-                        $mixCode
-                    }
-                }
-                """)
-                        .replace("$keyType", keyField.javaFieldTypeBoxed())
-                        .replace("$mixCode", isFirstField ? MIX_CODE_FIRST_FIELD : MIX_CODE)
-                        .replace("$valueType", valueField.javaFieldTypeBoxed())
-                        .replace("$keyCode", keyCode)
-                        .replace("$valueCode", valueCode)
-                        .replace("$fieldName", f.nameCamelFirstLower());
-        return generatedCodeSoFar;
-    }
 }
