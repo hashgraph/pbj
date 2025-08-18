@@ -11,7 +11,8 @@ import sun.misc.Unsafe;
 /**
  * A set of utility methods on top of sun.misc.Unsafe
  */
-public class UnsafeUtils {
+@SuppressWarnings("GrazieInspection")
+public final class UnsafeUtils {
 
     private static final Unsafe UNSAFE;
 
@@ -19,7 +20,7 @@ public class UnsafeUtils {
      * Java and PBJ use BIG_ENDIAN, while native byte order used by Unsafe may or may not
      * be BIG_ENDIAN. This flag indicates that if they don't match
      */
-    private static final boolean NEED_CHANGE_BYTE_ORDER;
+    private static final boolean MACHINE_IS_LITTLE_ENDIAN;
 
     /**
      * Field offset of the byte[] class
@@ -37,7 +38,7 @@ public class UnsafeUtils {
             final Field theUnsafeField = Unsafe.class.getDeclaredField("theUnsafe");
             theUnsafeField.setAccessible(true);
             UNSAFE = (Unsafe) theUnsafeField.get(null);
-            NEED_CHANGE_BYTE_ORDER = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
+            MACHINE_IS_LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
             BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
             final Field addressField = Buffer.class.getDeclaredField("address");
             DIRECT_BYTEBUFFER_ADDRESS_OFFSET = UNSAFE.objectFieldOffset(addressField);
@@ -123,7 +124,20 @@ public class UnsafeUtils {
             throw new BufferUnderflowException();
         }
         final int value = UNSAFE.getInt(arr, BYTE_ARRAY_BASE_OFFSET + offset);
-        return NEED_CHANGE_BYTE_ORDER ? Integer.reverseBytes(value) : value;
+        return MACHINE_IS_LITTLE_ENDIAN ? Integer.reverseBytes(value) : value;
+    }
+
+    /**
+     * Reads an integer from the given array starting at the given offset. Array bytes are
+     * interpreted in NATIVE order.
+     *
+     * @param arr The byte array
+     * @param offset The offset to read an integer at
+     * @return The integer number
+     */
+    public static int getIntUnsafeLittleEndian(final byte[] arr, final long offset) {
+        final int value = UNSAFE.getInt(arr, BYTE_ARRAY_BASE_OFFSET + offset);
+        return MACHINE_IS_LITTLE_ENDIAN ? value : Integer.reverseBytes(value);
     }
 
     /**
@@ -139,8 +153,35 @@ public class UnsafeUtils {
         if (arr.length < offset + Long.BYTES) {
             throw new BufferUnderflowException();
         }
+        return getLongNoChecks(arr, offset);
+    }
+
+    /**
+     * Reads a long from the given array starting at the given offset. Array bytes are
+     * interpreted in BIG_ENDIAN order.
+     *
+     * @param arr The byte array
+     * @param offset The offset to read a long at
+     * @return The long number
+     * @throws java.nio.BufferOverflowException If array length is less than offset + long bytes
+     */
+    public static long getLongNoChecks(final byte[] arr, final long offset) {
         final long value = UNSAFE.getLong(arr, BYTE_ARRAY_BASE_OFFSET + offset);
-        return NEED_CHANGE_BYTE_ORDER ? Long.reverseBytes(value) : value;
+        return MACHINE_IS_LITTLE_ENDIAN ? Long.reverseBytes(value) : value;
+    }
+
+    /**
+     * Reads a long from the given array starting at the given offset. Array bytes are
+     * interpreted in LITTLE_ENDIAN order.
+     *
+     * @param arr The byte array
+     * @param offset The offset to read a long at
+     * @return The long number
+     * @throws java.nio.BufferOverflowException If array length is less than offset + long bytes
+     */
+    public static long getLongNoChecksLittleEndian(final byte[] arr, final long offset) {
+        final long value = UNSAFE.getLong(arr, BYTE_ARRAY_BASE_OFFSET + offset);
+        return MACHINE_IS_LITTLE_ENDIAN ? value : Long.reverseBytes(value);
     }
 
     /**

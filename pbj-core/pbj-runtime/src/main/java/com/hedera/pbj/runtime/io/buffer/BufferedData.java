@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import static java.nio.ByteOrder.BIG_ENDIAN;
 
+import com.hedera.pbj.runtime.NonCryptographicHashing;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -230,13 +231,13 @@ public sealed class BufferedData
     }
 
     /**
-     * Get hash based on contents of this buffer
+     * Get hash based on the contents of this buffer
      *
      * @return hash code
      */
     @Override
     public int hashCode() {
-        return buffer.hashCode();
+        return (int) NonCryptographicHashing.hash64(buffer);
     }
 
     // ================================================================================================================

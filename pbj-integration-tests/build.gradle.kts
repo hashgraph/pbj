@@ -44,6 +44,8 @@ testModuleInfo {
     requires("io.helidon.common")
     requires("io.helidon.common.tls")
     requires("io.helidon.webclient.api")
+    requires("org.lz4.java")
+    requires("hash4j")
     runtimeOnly("io.helidon.webclient.http2")
     requires("io.helidon.webserver")
     runtimeOnly("io.grpc.netty")
@@ -52,6 +54,8 @@ testModuleInfo {
 }
 
 jmhModuleInfo {
+    requires("org.lz4.java")
+    requires("hash4j")
     requires("com.hedera.pbj.runtime")
     requires("com.google.protobuf.util")
 }
@@ -64,12 +68,19 @@ configurations.testRuntimeClasspath {
 }
 
 // IMPROVE: Test code should not have a direct dependency to 'com.hedera.pbj.compiler'
-dependencies { testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive = false } }
+dependencies {
+    testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive = false }
+    implementation("org.lz4:lz4-java:1.8.0")
+    implementation("com.dynatrace.hash4j:hash4j:0.25.0")
+}
 
 dependencyAnalysis { issues { all { onAny { exclude("com.hedera.pbj:pbj-compiler") } } } }
 
 // IMPROVE: JMH code should not depend on test code
-jmh { includeTests = true }
+jmh {
+    includeTests = true
+    includes = listOf("com.hedera.pbj.integration.jmh.hashing.NonCryptographicHashingBench")
+}
 
 // Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
 pbj { javaPackageSuffix = ".pbj.integration.tests" }
