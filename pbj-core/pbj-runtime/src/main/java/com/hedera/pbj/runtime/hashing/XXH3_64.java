@@ -18,8 +18,10 @@ public class XXH3_64 {
     /** Default instance of the XXH3_64 hasher with a seed of 0. */
     public static final XXH3_64 DEFAULT_INSTANCE = new XXH3_64(0);
 
+    /** VarHandle for reading and writing longs from byte[] in little-endian byte order. */
     private static final VarHandle LONG_HANDLE =
             MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
+    /** VarHandle for reading and writing integers from byte[] in little-endian byte order. */
     private static final VarHandle INT_HANDLE =
             MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
     private static final int BLOCK_LEN_EXP = 10;
@@ -250,12 +252,11 @@ public class XXH3_64 {
     /**
      * Hashes a byte array to a 64-bit {@code long} value.
      *
-     * <p>Equivalent to {@code hashToLong(input, (b, f) -> f.putBytes(b, off, len))}.
-     *
      * @param input the byte array
      * @param off the offset
      * @param length the length
      * @return the hash value
+     * @throws ArrayIndexOutOfBoundsException if {@code off < 0} or {@code (off+length) > input.length}
      */
     public long hashBytesToLong(final byte[] input, final int off, final int length) {
         if (length <= 16) {
@@ -325,7 +326,7 @@ public class XXH3_64 {
                                 acc += XXH3_64.mix16B(input, off + 192, secShift08, secShift09);
                                 if (length >= 224) {
                                     acc += XXH3_64.mix16B(input, off + 208, secShift10, secShift11);
-                                    if (length >= 240) acc += XXH3_64.mix16B(input, off + 224, secShift12, secShift13);
+                                    if (length == 240) acc += XXH3_64.mix16B(input, off + 224, secShift12, secShift13);
                                 }
                             }
                         }

@@ -539,6 +539,8 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     @Override
     public int hashCode() {
         if (hashCode == 0) {
+            // It was tested thoroughly that casting 64 bit hash to int gives good distribution result as XXH3 produces
+            // such good random distribution of hashes. This is the standard to get 32bit hash from XXH3.
             hashCode = (int) XXH3_64.DEFAULT_INSTANCE.hashBytesToLong(buffer, start, length);
         }
         return hashCode;
