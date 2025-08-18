@@ -6,7 +6,6 @@ import static com.hedera.pbj.compiler.impl.Common.FIELD_INDENT;
 import static com.hedera.pbj.compiler.impl.Common.camelToUpperSnake;
 import static com.hedera.pbj.compiler.impl.Common.cleanDocStr;
 import static com.hedera.pbj.compiler.impl.Common.cleanJavaDocComment;
-import static com.hedera.pbj.compiler.impl.Common.getFieldsHashCode;
 import static com.hedera.pbj.compiler.impl.Common.javaPrimitiveToObjectType;
 import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.EnumValue;
 import static com.hedera.pbj.compiler.impl.generators.EnumGenerator.createEnum;
@@ -41,21 +40,6 @@ import java.util.stream.Collectors;
 public final class ModelGenerator implements Generator {
 
     private static final String NON_NULL_ANNOTATION = "@NonNull";
-
-    private static final String HASH_CODE_MANIPULATION =
-            """
-            // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-            hashCode += hashCode << 30;
-            hashCode ^= hashCode >>> 27;
-            hashCode += hashCode << 16;
-            hashCode ^= hashCode >>> 20;
-            hashCode += hashCode << 5;
-            hashCode ^= hashCode >>> 18;
-            hashCode += hashCode << 10;
-            hashCode ^= hashCode >>> 24;
-            hashCode += hashCode << 30;
-        """
-                    .indent(DEFAULT_INDENT * 2);
 
     /**
      * {@inheritDoc}
@@ -94,6 +78,10 @@ public final class ModelGenerator implements Generator {
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
         writer.addImport("java.util.Collections");
         writer.addImport("java.util.List");
+        writer.addImport("com.hedera.pbj.runtime.hashing.XXH3_64");
+        writer.addImport("com.hedera.pbj.runtime.hashing.XXH3FieldHash");
+        writer.addImport("com.hedera.pbj.runtime.hashing.SixtyFourBitHashable");
+        writer.addImport("static com.hedera.pbj.runtime.hashing.XXH3FieldHash.*");
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
@@ -125,7 +113,7 @@ public final class ModelGenerator implements Generator {
         // add precomputed fields to fields
         fields.add(new SingleField(
                 false,
-                FieldType.FIXED32,
+                FieldType.FIXED64,
                 -1,
                 "$hashCode",
                 null,
@@ -242,7 +230,7 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         // hashCode method
-        bodyContent += generateHashCode(fieldsNoPrecomputed);
+        bodyContent += ModelHashCodeGenerator.generateHashCode(fieldsNoPrecomputed);
         bodyContent += "\n";
 
         // equals method
@@ -310,11 +298,11 @@ public final class ModelGenerator implements Generator {
             final boolean isComparable,
             final ContextualLookupHelper lookupHelper)
             throws IOException {
-        final String implementsComparable;
+        final String implementsCode;
         if (isComparable) {
-            implementsComparable = "implements Comparable<$javaRecordName> ";
+            implementsCode = "implements SixtyFourBitHashable, Comparable<$javaRecordName> ";
         } else {
-            implementsComparable = "";
+            implementsCode = "implements SixtyFourBitHashable ";
         }
 
         final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
@@ -330,6 +318,7 @@ public final class ModelGenerator implements Generator {
         // spotless:off
         writer.append("""
                 $javaDocComment$deprecated
+                @java.lang.SuppressWarnings("ForLoopReplaceableByForEach")
                 public final$staticModifier class $javaRecordName $implementsComparable{
                 $bodyContent
 
@@ -337,7 +326,7 @@ public final class ModelGenerator implements Generator {
                 .replace("$javaDocComment", javaDocComment)
                 .replace("$deprecated", deprecated)
                 .replace("$staticModifier", staticModifier)
-                .replace("$implementsComparable", implementsComparable)
+                .replace("$implementsComparable", implementsCode)
                 .replace("$javaRecordName", javaRecordName)
                 .replace("$bodyContent", bodyContent));
         // spotless:on
@@ -527,63 +516,6 @@ public final class ModelGenerator implements Generator {
             }
             return true;
         }""".indent(DEFAULT_INDENT);
-        // spotless:on
-        return bodyContent;
-    }
-
-    /**
-     * Generates the hashCode method
-     *
-     * @param fields the fields to use for the code generation
-     *
-     * @return the generated code
-     */
-    @NonNull
-    private static String generateHashCode(final List<Field> fields) {
-        // Generate a call to private method that iterates through fields and calculates the hashcode
-        final String statements = getFieldsHashCode(fields, "");
-        // spotless:off
-        String bodyContent =
-            """
-            /**
-            * Override the default hashCode method for to make hashCode better distributed and follows protobuf rules
-            * for default values. This is important for backward compatibility. This also lazy computes and caches the
-            * hashCode for future calls. It is designed to be thread safe.
-            */
-            @Override
-            public int hashCode() {
-                // The $hashCode field is subject to a benign data race, making it crucial to ensure that any
-                // observable result of the calculation in this method stays correct under any possible read of this
-                // field. Necessary restrictions to allow this to be correct without explicit memory fences or similar
-                // concurrency primitives is that we can ever only write to this field for a given Model object
-                // instance, and that the computation is idempotent and derived from immutable state.
-                // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
-            
-                if($hashCode == -1) {
-                    int result = 1;
-            """.indent(DEFAULT_INDENT);
-
-        bodyContent += statements;
-
-        bodyContent +=
-            """
-                    if ($unknownFields != null) {
-                        for (int i = 0; i < $unknownFields.size(); i++) {
-                            result = 31 * result + $unknownFields.get(i).hashCode();
-                        }
-                    }
-            """.indent(DEFAULT_INDENT);
-
-        bodyContent +=
-            """
-                    long hashCode = result;
-            $hashCodeManipulation
-                    $hashCode = (int)hashCode;
-                }
-                return $hashCode;
-            }
-            """.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-                .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }

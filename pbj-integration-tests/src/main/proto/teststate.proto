@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+import "basic_types.proto";
+import "state/common.proto";
+
+option java_package = "com.hedera.pbj.test.proto.java.teststate";
+option java_multiple_files = true;
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj.teststate">>> This comment is special code for setting PBJ Compiler java package
+
+message StateKey {
+  oneof key {
+    AccountID account_id = 1;
+    TokenID token_id = 2;
+    EntityIDPair entity_id_pair = 3;
+    NftID nft_id = 4;
+  }
+}

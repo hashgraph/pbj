@@ -178,7 +178,7 @@ final class CodecWriteMethodGenerator {
                         .replace("$map", getValueCode)
                         .replace("$javaFieldType", mapField.javaFieldType())
                         .replace("$K", mapField.keyField().type().boxedType)
-                        .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? ((SingleField)mapField.valueField()).messageType() : mapField.valueField().type().boxedType)
+                        .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? mapField.valueField().messageType() : mapField.valueField().type().boxedType)
                         .replace("$fieldWriteLines", fieldWriteLines.indent(DEFAULT_INDENT))
                         .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT));
             } else {
