@@ -3,6 +3,9 @@ package com.hedera.pbj.integration.jmh.hashing.functions;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+/**
+ * AI written port of the xxHash 32bit algorithm
+ */
 public class XxHash {
 
     public static int xxHashCodeFast(@NonNull final byte[] bytes, int start, int length) {

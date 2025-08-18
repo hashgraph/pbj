@@ -54,7 +54,7 @@ public final class NonCryptographicHashQualityStateKeyTest {
             //                            })
             //            ).get(); // handle exceptions as needed
             final CountingArray counts = new CountingArray(); // 4 billion counts
-            testHashQuality4Bytes(HashAlgorithm.JAVA_257, counts, outputDir);
+            testHashQuality4Bytes(HashAlgorithm.XXH3_64_PBJ, counts, outputDir);
         }
     }
 

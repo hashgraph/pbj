@@ -6,6 +6,7 @@ import com.hedera.pbj.integration.jmh.hashing.functions.CityHashUnsafe;
 import com.hedera.pbj.integration.jmh.hashing.functions.CityHashVarHandle;
 import com.hedera.pbj.integration.jmh.hashing.functions.FarmHash;
 import com.hedera.pbj.integration.jmh.hashing.functions.Guava;
+import com.hedera.pbj.integration.jmh.hashing.functions.Hash4j;
 import com.hedera.pbj.integration.jmh.hashing.functions.HighwayHash;
 import com.hedera.pbj.integration.jmh.hashing.functions.JavaStyleHashing;
 import com.hedera.pbj.integration.jmh.hashing.functions.LeemonMurmur;
@@ -23,8 +24,10 @@ import com.hedera.pbj.integration.jmh.hashing.functions.XXH3OpenHFT2;
 import com.hedera.pbj.integration.jmh.hashing.functions.XxHash;
 import com.hedera.pbj.integration.jmh.hashing.functions.XxHashRichard;
 import com.hedera.pbj.integration.jmh.hashing.functions.Xxh3AiCPort;
+import com.hedera.pbj.integration.jmh.hashing.functions.Xxh3Lz4;
 import com.hedera.pbj.integration.jmh.hashing.functions.Xxh3ai;
 import com.hedera.pbj.runtime.NonCryptographicHashing;
+import com.hedera.pbj.runtime.hashing.XXH3_64;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -91,6 +94,13 @@ public class NonCryptographicHashingBench {
         SIP_24_GUAVA(Guava::sipHash24),
         LUCENE_MURMUR3(LuceneMurmur3::murmurhash3_x86_32),
         LUCENE_MURMUR3_128(LuceneMurmur3::murmurhash3_x64_128),
+        XXH64_LZ4_JAVA(Xxh3Lz4::xxh_64bits_java),
+        XXH64_LZ4_NATIVE(Xxh3Lz4::xxh_64bits_native),
+        FARM_HASH_NA_HASH4J(Hash4j::hash_farm_hash),
+        FARM_HASH_UO_HASH4J(Hash4j::hash_farm_hash_uo),
+        XXH3_64_HASH4J(Hash4j::hash_xxh3_64),
+        MURMUR3_HASH4J(Hash4j::hash_murmur_3_32),
+        XXH3_64_PBJ(XXH3_64::hash_xxh3_64),
         ;
 
         public final HashFunction function;
@@ -139,7 +149,14 @@ public class NonCryptographicHashingBench {
         "SIP_24_GUAVA",
         "LUCENE_MURMUR3",
         "LUCENE_MURMUR3_128",
-        "XXH3_AI_C_PORT"
+        "XXH3_AI_C_PORT",
+        "XXH64_LZ4_JAVA",
+        "XXH64_LZ4_NATIVE",
+        "FARM_HASH_NA_HASH4J",
+        "FARM_HASH_UO_HASH4J",
+        "XXH3_64_HASH4J",
+        "MURMUR3_HASH4J",
+        "XXH3_64_PBJ",
     })
     public HashAlgorithm hashAlgorithm;
 

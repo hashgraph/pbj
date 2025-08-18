@@ -168,4 +168,12 @@ public class CityHash {
         } while (len != 0);
         return hashLen16(hashLen16(v[0], w[0]) + shiftMix(y) * k1 + z, hashLen16(v[1], w[1]) + x);
     }
+    public static void main(String[] args) {
+        int x = 0;
+        for(int i = 0; i < 100; i++) {
+            int pairCount = i/2;
+            int pairCount2 = x++ >> 1;
+            System.out.println(i+" -> pairCount = " + pairCount+ ", pairCount2 = " + pairCount2+" (($xx_fieldCount & 1) == 0)="+((i & 1) == 0));
+        }
+    }
 }

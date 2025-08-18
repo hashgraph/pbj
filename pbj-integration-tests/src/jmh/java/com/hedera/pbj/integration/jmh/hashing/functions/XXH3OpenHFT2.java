@@ -132,18 +132,19 @@ public final class XXH3OpenHFT2 {
             if (length >= 4) {
                 // XXH3_len_4to8_64b
                 long s = SEED ^ Long.reverseBytes(SEED & 0xFFFFFFFFL);
-                final long input1 = i32(input, off); // high int will be shifted
-                final long input2 = u32(input, off + length - 4);
+                final long input1 = u32(input, off); // first 4 bytes
+                final long input2 = u32(input, off + length - 4); // last 4 bytes
                 final long bitflip = (i64(XXH3_kSecret, 8) ^ i64(XXH3_kSecret, 16)) - s;
-                final long keyed = (input2 + (input1 << 32)) ^ bitflip;
+                final long keyed = (((input1 & 0xFFFFFFFFL) << 32) | (input2 & 0xFFFFFFFFL)) ^ bitflip;
                 return XXH3_rrmxmx(keyed, length);
             }
             if (length != 0) {
                 // XXH3_len_1to3_64b
                 final int c1 = u8(input, off);
-                final int c2 = i8(input, off + (length >> 1)); // high 3 bytes will be shifted
+                final int c2 = u8(input, off + (length >> 1));
                 final int c3 = u8(input, off + length - 1);
-                final long combined = unsignedInt((c1 << 16) | (c2 << 24) | c3 | (length << 8));
+                final long combined =
+                        ((c1 & 0xFFL) << 16) | ((c2 & 0xFFL) << 24) | ((c3 & 0xFFL)) | ((long) length << 8);
                 final long bitflip = unsignedInt(i32(XXH3_kSecret, 0) ^ i32(XXH3_kSecret, 4)) + SEED;
                 return XXH64_avalanche(combined ^ bitflip);
             }
