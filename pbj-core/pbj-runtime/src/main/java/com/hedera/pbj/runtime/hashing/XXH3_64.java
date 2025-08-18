@@ -24,6 +24,7 @@ public class XXH3_64 {
     /** VarHandle for reading and writing integers from byte[] in little-endian byte order. */
     private static final VarHandle INT_HANDLE =
             MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+
     private static final int BLOCK_LEN_EXP = 10;
     private static final long SECRET_00 = 0xbe4ba423396cfeb8L;
     private static final long SECRET_01 = 0x1cad21f72c81017cL;
