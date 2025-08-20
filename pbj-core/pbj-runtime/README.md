@@ -60,3 +60,9 @@ without copying the contents.
 
 These are utility classes that provide some common functionality for the generated test code. They are not for use in
 production code or for direct use by users. They are only for use in the generated test code.
+
+
+# Testing
+
+Run `gradle clean test jacocoTestReport` in the `pbj-runtime` directory to run all unit tests. See the report in
+`build/reports/jacoco/test/html/index.html`
