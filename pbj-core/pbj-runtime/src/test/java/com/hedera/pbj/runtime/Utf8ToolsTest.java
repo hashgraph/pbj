@@ -10,6 +10,8 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 import java.util.stream.Stream;
+
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -56,5 +58,10 @@ public class Utf8ToolsTest {
                 HexFormat.of().formatHex(testStr.getBytes(StandardCharsets.UTF_8)),
                 HexFormat.of().formatHex(bytes));
         assertEquals(expectedLength, bytes.length);
+    }
+
+    @Test
+    void handleNull() {
+        assertEquals(0, assertDoesNotThrow(() -> Utf8Tools.encodedLength(null)));
     }
 }
