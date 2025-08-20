@@ -19,6 +19,7 @@ public class NoToStringWrapperTest {
         assertFalse(wrapper.equals(new NoToStringWrapper<String>("bar")));
         assertEquals("foo".hashCode(),"foo".hashCode());
         assertEquals(wrapper.hashCode(),foo.hashCode());
+        assertFalse(wrapper.equals(null));
     }
 
     @Test
@@ -31,5 +32,7 @@ public class NoToStringWrapperTest {
         assertFalse(wrapper.equals(new NoToStringWrapper<Float>(9.9f)));
         assertEquals(Float.valueOf(8.8f).hashCode(),Float.valueOf(8.8f).hashCode());
         assertEquals(wrapper.hashCode(),Float.valueOf(8.8f).hashCode());
+        assertFalse(wrapper.equals(new NoToStringWrapper<String>("foo")));
+        assertFalse(wrapper.equals("foo"));
     }
 }
