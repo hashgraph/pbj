@@ -114,6 +114,19 @@ class ProtoParserToolsTest {
     }
 
     @ParameterizedTest
+    @ValueSource(ints = {3})
+    void testBadBool(final int value) {
+        testRead(
+                () -> value != 0,
+                (d, v) -> d.writeVarInt(value, false),
+                input -> {
+                    assertThrows(IOException.class, () -> ProtoParserTools.readBool(input));
+                    return true;
+                },
+                1);
+    }
+
+    @ParameterizedTest
     @ValueSource(ints = {1, 2, 3})
     void testReadEnum(int value) {
         testRead(() -> value, (d, v) -> d.writeVarInt(value, false), ProtoParserTools::readEnum, 1);
