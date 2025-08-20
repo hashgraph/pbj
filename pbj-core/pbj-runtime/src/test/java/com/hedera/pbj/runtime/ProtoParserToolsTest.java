@@ -11,6 +11,8 @@ import static com.hedera.pbj.runtime.ProtoConstants.TAG_WIRE_TYPE_MASK;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_32_BIT;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_64_BIT;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_GROUP_END;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_GROUP_START;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
 import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
 import static com.hedera.pbj.runtime.ProtoParserTools.readString;
@@ -468,6 +470,16 @@ class ProtoParserToolsTest {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_DELIMITED, 32);
         assertNotNull(res);
+    }
+    @Test
+    void testExtractFieldGroupStartUnsupported() throws IOException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        assertThrows(IOException.class, () -> ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_START, 32));
+    }
+    @Test
+    void testExtractFieldGroupEndUnsupported() throws IOException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        assertThrows(IOException.class, () -> ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_END, 32));
     }
 
     private static void skipTag(BufferedData data) {
