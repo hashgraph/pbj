@@ -443,6 +443,13 @@ class ProtoParserToolsTest {
         assertNull(bytes);
     }
 
+    @Test
+    void testExtractField() throws IOException, ParseException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_32_BIT, 32);
+        assertNotNull(res);
+    }
+
     private static void skipTag(BufferedData data) {
         data.readVarInt(false);
     }
