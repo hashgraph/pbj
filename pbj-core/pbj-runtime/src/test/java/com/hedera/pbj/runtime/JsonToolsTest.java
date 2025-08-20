@@ -2,9 +2,11 @@ package com.hedera.pbj.runtime;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 
 public class JsonToolsTest {
     @Test
@@ -29,14 +31,18 @@ public class JsonToolsTest {
         assertEquals("f\\roo", JsonTools.escape("f\roo"));
         assertEquals("f\\n\\roo", JsonTools.escape("f\n\roo"));
     }
-//    @Test
-//    void testParseJson() {
-//        CharBuffer buf = CharBuffer.allocate(13);
-//        buf.put("{}");
-//        var out = JsonTools.parseJson(buf);
-//        System.out.print("output is " + out);
-////        assertEquals(JsonTools.parseJson(charBuffer));
-//    }
+    @Test
+    void testParseJson() {
+        CharBuffer buf = CharBuffer.allocate(13);
+        buf.put("{\"foo\":\"bar\"}");
+        buf.flip();
+        var out = JsonTools.parseJson(buf);
+        System.out.print("output is " + out);
+        System.out.println("pairs are " + out.pair());
+        assertEquals("{",out.start.getText());
+        assertEquals("}",out.stop.getText());
+        assertEquals(3,out.children.size());
+    }
 
     @Test
     void testOutputStrings(){
