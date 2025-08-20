@@ -113,9 +113,9 @@ class ProtoParserToolsTest {
                 1);
     }
 
-    @ParameterizedTest
-    @ValueSource(ints = {3})
-    void testBadBool(final int value) {
+    @Test
+    void testBadBool() {
+        final int value = 3;
         testRead(
                 () -> value != 0,
                 (d, v) -> d.writeVarInt(value, false),
