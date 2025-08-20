@@ -40,6 +40,8 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -444,9 +446,27 @@ class ProtoParserToolsTest {
     }
 
     @Test
-    void testExtractField() throws IOException, ParseException {
+    void testExtractField32Bit() throws IOException, ParseException {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_32_BIT, 32);
+        assertNotNull(res);
+    }
+    @Test
+    void testExtractField64Bit() throws IOException, ParseException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_64_BIT, 32);
+        assertNotNull(res);
+    }
+    @Test
+    void testExtractFieldVarInt() throws IOException, ParseException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final var res = ProtoParserTools.extractField(input, WIRE_TYPE_VARINT_OR_ZIGZAG, 32);
+        assertNotNull(res);
+    }
+    @Test
+    void testExtractFieldDelimited() throws IOException, ParseException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final var res = ProtoParserTools.extractField(input, WIRE_TYPE_DELIMITED, 32);
         assertNotNull(res);
     }
 
@@ -560,5 +580,23 @@ class ProtoParserToolsTest {
         public TestMessage getDefaultInstance() {
             throw new UnsupportedOperationException();
         }
+    }
+
+    @Test
+    void addToList() {
+        var empty_list = ProtoParserTools.addToList(Collections.emptyList(),"foo");
+        assertEquals(1,empty_list.size());
+        var existing_list = ProtoParserTools.addToList(empty_list,"foo");
+        assertEquals(2,existing_list.size());
+    }
+
+    @Test
+    void addToMap() {
+        Map<String,String> empty_map = ProtoParserTools.addToMap(PbjMap.EMPTY,"foo","bar");
+        assertEquals(1,empty_map.size());
+        assertEquals("bar",empty_map.get("foo"));
+        Map<String, String> existing_map = ProtoParserTools.addToMap(empty_map,"baz","quxx");
+        assertEquals(2,empty_map.size());
+        assertEquals("quxx",empty_map.get("baz"));
     }
 }
