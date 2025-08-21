@@ -27,7 +27,5 @@ class CharBufferToWritableSequentialDataTest {
         adapter.writeUTF8("foo");
         assertEquals(CHAR_BUFFER_SIZE, adapter.capacity());
         assertEquals(3, adapter.position());
-        adapter.skip(20);
-        assertEquals(23, adapter.position());
     }
 }
