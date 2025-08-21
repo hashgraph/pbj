@@ -1,25 +1,48 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.buffer;
 
+import static com.hedera.pbj.runtime.JsonTools.*;
+
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
+import sun.misc.Unsafe;
 
 /**
  * BufferedData subclass for instances backed by a byte array. Provides slightly more optimized
  * versions of several methods to get / read / write bytes using {@link System#arraycopy} and
  * direct array reads / writes.
  */
-final class ByteArrayBufferedData extends BufferedData {
+final class UnsafeByteArrayBufferedData extends BufferedData {
+    /** Unsafe instance for direct memory access */
+    private static final Unsafe UNSAFE;
+    /** Field offset of the byte[] class */
+    private static final int BYTE_ARRAY_BASE_OFFSET;
+    /** Lookup table for hex digits */
     private static final byte[] HEX = "0123456789abcdef".getBytes(StandardCharsets.US_ASCII);
+    /** The byte representation of long minimum value */
+    private static final byte[] MIN_LONG_VALUE = Long.toString(Long.MIN_VALUE).getBytes(StandardCharsets.US_ASCII);
+
+    /* Get the Unsafe instance and the byte array base offset */
+    static {
+        try {
+            final Field theUnsafeField = Unsafe.class.getDeclaredField("theUnsafe");
+            theUnsafeField.setAccessible(true);
+            UNSAFE = (Unsafe) theUnsafeField.get(null);
+            BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
+        } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
+            throw new InternalError(e);
+        }
+    }
 
     // Backing byte array
     private final byte[] array;
@@ -27,7 +50,7 @@ final class ByteArrayBufferedData extends BufferedData {
     // This data buffer's offset into the backing array. See ByteBuffer.arrayOffset() for details
     private final int arrayOffset;
 
-    ByteArrayBufferedData(final ByteBuffer buffer) {
+    UnsafeByteArrayBufferedData(final ByteBuffer buffer) {
         super(buffer);
         if (!buffer.hasArray()) {
             throw new IllegalArgumentException("Cannot create a ByteArrayBufferedData over a buffer with no array");
@@ -75,7 +98,7 @@ final class ByteArrayBufferedData extends BufferedData {
     @Override
     public byte getByte(final long offset) {
         checkOffset(offset, length());
-        return array[Math.toIntExact(arrayOffset + offset)];
+        return UNSAFE.getByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + offset);
     }
 
     /**
@@ -176,7 +199,7 @@ final class ByteArrayBufferedData extends BufferedData {
             throw new BufferUnderflowException();
         }
         final int pos = buffer.position();
-        final byte res = array[arrayOffset + pos];
+        final byte res = UNSAFE.getByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos);
         buffer.position(pos + 1);
         return res;
     }
@@ -280,38 +303,43 @@ final class ByteArrayBufferedData extends BufferedData {
     public void writeByte(final byte b) {
         validateCanWrite(1);
         final int pos = buffer.position();
-        array[arrayOffset + pos] = b;
+        UNSAFE.putByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos, b);
         buffer.position(pos + 1);
     }
 
     @Override
     public void writeByte2(final byte b1, final byte b2) {
         validateCanWrite(2);
-        final int pos = buffer.position();
-        array[arrayOffset + pos] = b1;
-        array[arrayOffset + pos + 1] = b2;
-        buffer.position(pos + 2);
+        int pos = buffer.position();
+        UNSAFE.putByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos++, b1);
+        UNSAFE.putByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos++, b2);
+        buffer.position(pos);
     }
 
     @Override
     public void writeByte3(final byte b1, final byte b2, final byte b3) {
         validateCanWrite(3);
-        final int pos = buffer.position();
-        array[arrayOffset + pos] = b1;
-        array[arrayOffset + pos + 1] = b2;
-        array[arrayOffset + pos + 2] = b3;
-        buffer.position(pos + 3);
+        int pos = buffer.position();
+        UNSAFE.putByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos++, b1);
+        UNSAFE.putByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos++, b2);
+        UNSAFE.putByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos++, b3);
+        buffer.position(pos);
     }
-
+//
+//    @Override
+//    public void writeByte4(final byte b1, final byte b2, final byte b3, final byte b4) {
+//        validateCanWrite(4);
+//        int pos = buffer.position();
+//        UNSAFE.putByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos++, b1);
+//        UNSAFE.putByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos++, b2);
+//        UNSAFE.putByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos++, b3);
+//        UNSAFE.putByte(array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos++, b4);
+//        buffer.position(pos);
+//    }
+    // TODO not interesting at least on mac this is just as fast as the above
     @Override
     public void writeByte4(final byte b1, final byte b2, final byte b3, final byte b4) {
-        validateCanWrite(4);
-        final int pos = buffer.position();
-        array[arrayOffset + pos] = b1;
-        array[arrayOffset + pos + 1] = b2;
-        array[arrayOffset + pos + 2] = b3;
-        array[arrayOffset + pos + 3] = b4;
-        buffer.position(pos + 4);
+        buffer.put(new byte[] {b1, b2, b3, b4});
     }
 
     /** {@inheritDoc} */
@@ -319,8 +347,11 @@ final class ByteArrayBufferedData extends BufferedData {
     public void writeBytes(@NonNull final byte[] src, final int offset, final int len) {
         validateLen(len);
         validateCanWrite(len);
+        if (src.length < offset + len) {
+            throw new IndexOutOfBoundsException("Source array is too short for the specified offset and length");
+        }
         final int pos = buffer.position();
-        System.arraycopy(src, offset, array, arrayOffset + pos, len);
+        UNSAFE.copyMemory(src, BYTE_ARRAY_BASE_OFFSET + offset, array, BYTE_ARRAY_BASE_OFFSET + arrayOffset + pos, len);
         buffer.position(pos + len);
     }
 
@@ -442,38 +473,22 @@ final class ByteArrayBufferedData extends BufferedData {
     }
 
     @Override
-    public void writeJsonLong(final long value, final boolean quoted) {
+    public void writeJsonLong(final long value, boolean quoted) {
         int offset = buffer.position();
-        if (quoted) array[offset++] = '"';
+        validateCanWrite(20); // Worst-case scenario for a long value, quoted or not
+        final int baseOffset = BYTE_ARRAY_BASE_OFFSET + arrayOffset;
+        if (quoted) UNSAFE.putByte(array, baseOffset + offset++, QUOTE);
         // Handle zero explicitly
         if (value == 0) {
-            array[offset++] = '0';
+            UNSAFE.putByte(array, baseOffset + offset++, _0);
         } else if (value == Long.MIN_VALUE)  {
             // Special case for Long.MIN_VALUE(-9223372036854775808) to avoid overflow
-            array[offset++] = '-';
-            array[offset++] = '9';
-            array[offset++] = '2';
-            array[offset++] = '2';
-            array[offset++] = '3';
-            array[offset++] = '3';
-            array[offset++] = '7';
-            array[offset++] = '2';
-            array[offset++] = '0';
-            array[offset++] = '3';
-            array[offset++] = '6';
-            array[offset++] = '8';
-            array[offset++] = '5';
-            array[offset++] = '4';
-            array[offset++] = '7';
-            array[offset++] = '7';
-            array[offset++] = '5';
-            array[offset++] = '8';
-            array[offset++] = '0';
-            array[offset++] = '8';
+            UNSAFE.copyMemory(MIN_LONG_VALUE, BYTE_ARRAY_BASE_OFFSET, array, baseOffset + offset, MIN_LONG_VALUE.length);
+            offset += MIN_LONG_VALUE.length;
         } else {
             long v = value;
             if (v < 0) {
-                array[offset++] = '-';
+                UNSAFE.putByte(array, baseOffset + offset++, MINUS);
                 v = -v;
             }
             // count the number of digits in the long value, assumes all values are positive
@@ -499,12 +514,12 @@ final class ByteArrayBufferedData extends BufferedData {
             // Now write them in reverse order
             long tmp = v;
             for (int i = digitCount-1; i >= 0; i--) {
-                array[offset+i] = (byte) ('0' + (tmp % 10));
+                UNSAFE.putByte(array, baseOffset + offset + i, (byte) ('0' + (tmp % 10)));
                 tmp /= 10;
             }
             offset += digitCount;
         }
-        if (quoted) array[offset++] = '"';
+        if (quoted) UNSAFE.putByte(array, baseOffset + offset++, QUOTE);
         buffer.position(offset);
     }
 

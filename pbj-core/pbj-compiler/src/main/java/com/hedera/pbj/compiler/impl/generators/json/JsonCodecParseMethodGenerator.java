@@ -45,41 +45,42 @@ class JsonCodecParseMethodGenerator {
 
     static String generateParseObjectMethod(final String modelClassName, final List<Field> fields) {
         return """
-                /**
-                 * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext.
-                 * Throws an UnknownFieldException wrapped in a ParseException if in strict mode ONLY.
-                 *
-                 * @param root The JSON parsed object tree to parse data from
-                 * @return Parsed HashObject model object or null if data input was null or empty
-                 * @throws ParseException If parsing fails
-                 */
+                /** {@inheritDoc} */
                 public @NonNull $modelClassName parse(
-                        @Nullable final JSONParser.ObjContext root,
+                        @Nullable final JsonLexer lexer,
                         final boolean strictMode,
-                        final int maxDepth) throws ParseException {
-                    if (maxDepth < 0) {
-                        throw new ParseException("Reached maximum allowed depth of nested messages");
-                    }
+                        final boolean parseUnknownFields,
+                        final int maxDepth)
+                        throws ParseException {
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
                         $fieldDefs
-
-                        // -- EXTRACT VALUES FROM PARSE TREE ---------------------------------------------
-
-                        for (JSONParser.PairContext kvPair : root.pair()) {
-                            switch (kvPair.STRING().getText()) {
-                                $caseStatements
+                        // start parsing
+                        lexer.openObject();
+                        boolean isFirst = true;
+                        while(true) {
+                            if (isFirst) {
+                                isFirst = false;
+                            } else if(!lexer.nextFieldOrClose()){
+                                break;
+                            }
+                            // read field name and colon
+                            final String fieldName = lexer.readString();
+                            if (fieldName == null) break;// there are no fields or no more fields
+                            lexer.consumeColon();
+                            // read and handle field value
+                            switch (fieldName) {
+                $caseStatements
                                 default: {
                                     if (strictMode) {
                                         // Since we are parsing is strict mode, this is an exceptional condition.
-                                        throw new UnknownFieldException(kvPair.STRING().getText());
+                                        throw new UnknownFieldException(fieldName);
                                     }
                                 }
                             }
                         }
-
                         return new $modelClassName($fieldsList);
-                    } catch (Exception ex) {
+                    } catch (IOException ex) {
                         throw new ParseException(ex);
                     }
                 }
@@ -94,7 +95,7 @@ class JsonCodecParseMethodGenerator {
                 .replace(
                         "$fieldsList",
                         fields.stream().map(field -> "temp_" + field.name()).collect(Collectors.joining(", ")))
-                .replace("$caseStatements", generateCaseStatements(fields))
+                .replace("$caseStatements", generateCaseStatements(fields).indent(DEFAULT_INDENT * 4))
                 .indent(DEFAULT_INDENT);
     }
 
@@ -108,98 +109,103 @@ class JsonCodecParseMethodGenerator {
     private static String generateCaseStatements(final List<Field> fields) {
         StringBuilder sb = new StringBuilder();
         for (Field field : fields) {
-            if (field instanceof final OneOfField oneOfField) {
+            if (field.repeated()) {
+                sb.append("case \"" + toJsonFieldName(field.name()) + "\" /* [" + field.fieldNumber() + "] */ : {\n");
+                sb.append("""
+                    lexer.openArray();
+                    boolean isFirst2 = true;
+                    temp_$fieldName = new ArrayList<>();
+                    while(true) {
+                        if (isFirst2) {
+                            isFirst2 = false;
+                        } else if(!lexer.nextFieldOrClose()){
+                            break;
+                        }
+                        // read value
+                        temp_$fieldName.add($fieldValueCode);
+                    }
+                    break;
+                }
+                """.replace("$fieldName", field.name())
+                   .replace("$fieldValueCode", generateFieldCaseStatement(field)));
+            } else if (field instanceof final OneOfField oneOfField) {
                 for (final Field subField : oneOfField.fields()) {
                     sb.append("case \"" + toJsonFieldName(subField.name()) + "\" /* [" + subField.fieldNumber()
                             + "] */ " + ": temp_"
                             + oneOfField.name() + " = new %s<>(\n".formatted(oneOfField.className())
                             + oneOfField.getEnumClassRef().indent(DEFAULT_INDENT)
                             + "." + Common.camelToUpperSnake(subField.name()) + ", \n".indent(DEFAULT_INDENT));
-                    generateFieldCaseStatement(sb, subField, "kvPair.value()");
+                    sb.append(generateFieldCaseStatement(subField));
                     sb.append("); break;\n");
                 }
+            } else if (field.type() == Field.FieldType.MAP) {
+                final MapField mapField = (MapField) field;
+                sb.append("case \"" + toJsonFieldName(field.name()) + "\" /* [" + field.fieldNumber() + "] */ : {\n");
+                sb.append("""
+                    lexer.openObject();
+                    boolean isFirst2 = true;
+                    temp_$fieldName = new HashMap<>();
+                    while(true) {
+                        if (isFirst2) {
+                            isFirst2 = false;
+                        } else if(!lexer.nextFieldOrClose()){
+                            break;
+                        }
+                        // read value
+                        var key = $fieldKeyCode;
+                        lexer.consumeColon();
+                        var value = $fieldValueCode;
+                        temp_$fieldName.put(key, value);
+                    }
+                    break;
+                }
+                """.replace("$fieldName", field.name())
+                        .replace("$fieldKeyCode", generateFieldCaseStatement(mapField.keyField()))
+                        .replace("$fieldValueCode", generateFieldCaseStatement(mapField.valueField())));
             } else {
                 sb.append("case \"" + toJsonFieldName(field.name()) + "\" /* [" + field.fieldNumber() + "] */ "
                         + ": temp_" + field.name() + " = ");
-                generateFieldCaseStatement(sb, field, "kvPair.value()");
+                sb.append(generateFieldCaseStatement(field));
                 sb.append("; break;\n");
             }
         }
-        return sb.toString();
+        return sb.toString().indent(DEFAULT_INDENT*2);
     }
 
     /**
      * Generate switch case statement for a field.
      *
-     * @param field field to generate case statement for
-     * @param origSB StringBuilder to append code to
-     * @param valueGetter normally a "kvPair.value()", but may be different e.g. for maps parsing
+     * @param field  field to generate case statement for
+     * @return string of case statement code
      */
-    private static void generateFieldCaseStatement(
-            final StringBuilder origSB, final Field field, final String valueGetter) {
+    private static String generateFieldCaseStatement(final Field field) {
         final StringBuilder sb = new StringBuilder();
-        if (field.repeated()) {
-            if (field.type() == Field.FieldType.MESSAGE) {
-                sb.append("parseObjArray($valueGetter.arr(), " + field.messageType() + ".JSON, maxDepth - 1)");
-            } else {
-                sb.append("$valueGetter.arr().value().stream().map(v -> ");
-                switch (field.type()) {
-                    case ENUM -> sb.append(field.messageType() + ".fromString(v.STRING().getText())");
-                    case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> sb.append("parseInteger(v)");
-                    case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> sb.append("parseLong(v)");
-                    case FLOAT -> sb.append("parseFloat(v)");
-                    case DOUBLE -> sb.append("parseDouble(v)");
-                    case STRING -> sb.append("unescape(v.STRING().getText())");
-                    case BOOL -> sb.append("parseBoolean(v)");
-                    case BYTES -> sb.append("Bytes.fromBase64(v.STRING().getText())");
-                    default -> throw new RuntimeException("Unknown field type [" + field.type() + "]");
-                }
-                sb.append(").toList()");
-            }
-        } else if (field.optionalValueType()) {
+        if (field.optionalValueType()) {
             switch (field.messageType()) {
-                case "Int32Value", "UInt32Value" -> sb.append("parseInteger($valueGetter)");
-                case "Int64Value", "UInt64Value" -> sb.append("parseLong($valueGetter)");
-                case "FloatValue" -> sb.append("parseFloat($valueGetter)");
-                case "DoubleValue" -> sb.append("parseDouble($valueGetter)");
-                case "StringValue" -> sb.append("unescape($valueGetter.STRING().getText())");
-                case "BoolValue" -> sb.append("parseBoolean($valueGetter)");
-                case "BytesValue" -> sb.append("Bytes.fromBase64($valueGetter.STRING().getText())");
+                case "Int32Value", "UInt32Value" -> sb.append("(int)lexer.readSignedInteger()");
+                case "Int64Value", "UInt64Value" -> sb.append("lexer.readSignedInteger()");
+                case "FloatValue" -> sb.append("(float)lexer.readDouble()");
+                case "DoubleValue" -> sb.append("lexer.readDouble()");
+                case "StringValue" -> sb.append("lexer.readString()");
+                case "BoolValue" -> sb.append("lexer.readBoolean()");
+                case "BytesValue" -> sb.append("lexer.readBytes()");
                 default -> throw new RuntimeException("Unknown message type [" + field.messageType() + "]");
             }
-        } else if (field.type() == Field.FieldType.MAP) {
-            final MapField mapField = (MapField) field;
-
-            final StringBuilder keySB = new StringBuilder();
-            final StringBuilder valueSB = new StringBuilder();
-
-            generateFieldCaseStatement(keySB, mapField.keyField(), "mapKV");
-            generateFieldCaseStatement(valueSB, mapField.valueField(), "mapKV.value()");
-
-            sb.append(
-                    """
-                    $valueGetter.getChild(JSONParser.ObjContext.class, 0).pair().stream()
-                                        .collect(Collectors.toMap(
-                                            mapKV -> $mapEntryKey,
-                                            new UncheckedThrowingFunction<>(mapKV -> $mapEntryValue)
-                                        ))"""
-                            .replace("$mapEntryKey", keySB.toString())
-                            .replace("$mapEntryValue", valueSB.toString()));
         } else {
             switch (field.type()) {
-                case MESSAGE -> sb.append(field.javaFieldType()
-                        + ".JSON.parse($valueGetter.getChild(JSONParser.ObjContext.class, 0), false, maxDepth - 1)");
-                case ENUM -> sb.append(field.javaFieldType() + ".fromString($valueGetter.STRING().getText())");
-                case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> sb.append("parseInteger($valueGetter)");
-                case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> sb.append("parseLong($valueGetter)");
-                case FLOAT -> sb.append("parseFloat($valueGetter)");
-                case DOUBLE -> sb.append("parseDouble($valueGetter)");
-                case STRING -> sb.append("unescape($valueGetter.STRING().getText())");
-                case BOOL -> sb.append("parseBoolean($valueGetter)");
-                case BYTES -> sb.append("Bytes.fromBase64($valueGetter.STRING().getText())");
+                case MESSAGE -> sb.append(field.javaFieldTypeBase()
+                        + ".JSON.parse(lexer, strictMode, parseUnknownFields, maxDepth - 1)");
+                case ENUM -> sb.append("lexer.readEnum("+field.javaFieldTypeBase()+".class)");
+                case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> sb.append("(int)lexer.readSignedInteger()");
+                case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> sb.append("lexer.readSignedInteger()");
+                case FLOAT -> sb.append("(float)lexer.readDouble()");
+                case DOUBLE -> sb.append("lexer.readDouble()");
+                case STRING -> sb.append("lexer.readString()");
+                case BOOL -> sb.append("lexer.readBoolean()");
+                case BYTES -> sb.append("lexer.readBytes()");
                 default -> throw new RuntimeException("Unknown field type [" + field.type() + "]");
             }
         }
-        origSB.append(sb.toString().replace("$valueGetter", valueGetter));
+        return sb.toString();
     }
 }

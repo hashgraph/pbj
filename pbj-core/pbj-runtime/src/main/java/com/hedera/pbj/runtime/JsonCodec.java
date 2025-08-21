@@ -4,11 +4,12 @@ package com.hedera.pbj.runtime;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.hedera.pbj.runtime.jsonparser.JSONParser;
+import com.hedera.pbj.runtime.json.JsonLexer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
@@ -28,22 +29,25 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
             final boolean parseUnknownFields,
             final int maxDepth)
             throws ParseException {
-        try {
-            return parse(JsonTools.parseJson(input), strictMode, maxDepth);
-        } catch (IOException ex) {
-            throw new ParseException(ex);
-        }
+        return parse(new JsonLexer(input), strictMode, parseUnknownFields, maxDepth);
     }
 
     /**
      * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext. Throws if in strict mode ONLY.
      *
-     * @param root The JSON parsed object tree to parse data from
+     * @param lexer The JSON lexer to parse with
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+     * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
+     *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
      * @return Parsed HashObject model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
     @NonNull
-    T parse(@Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth)
+    T parse(@Nullable final JsonLexer lexer,
+            final boolean strictMode,
+            final boolean parseUnknownFields,
+            final int maxDepth)
             throws ParseException;
 
     /**
@@ -54,8 +58,20 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
     default void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
-        output.writeUTF8(toJSON(item));
+        write(item, output, 0, 2, false);
     }
+
+    /**
+     * Writes JSON representing an item in UTF8 to output.
+     *
+     * @param item      The item to convert. Must not be null.
+     * @param out       The output to write to. Must not be null.
+     * @param initialIndent    The indent num of spaces to use for pretty printing from the first line
+     * @param indentStep  The indent num of spaces to add for each nested object
+     * @param inline    When true, the output will start with indent end with a new lines, otherwise
+     *                        it will just be the object "{...}"
+     */
+    void write(@NonNull T item, @NonNull WritableSequentialData out, int initialIndent, int indentStep, boolean inline);
 
     /**
      * Returns JSON string representing an item.
@@ -70,11 +86,16 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
      * Returns JSON string representing an item.
      *
      * @param item      The item to convert. Must not be null.
-     * @param indent    The indent to use for pretty printing
-     * @param inline    When true the output will start with indent end with a new line otherwise
+     * @param indent    The indent to use for pretty printing, only supports spaces
+     * @param inline    When true, the output will start with indent end with a new lines, otherwise
      *                        it will just be the object "{...}"
      */
-    String toJSON(@NonNull T item, String indent, boolean inline);
+    default String toJSON(@NonNull T item, String indent, boolean inline) {
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        WritableStreamingData out = new WritableStreamingData(bout);
+        write(item, out, 0, indent.length(), inline);
+        return bout.toString(StandardCharsets.UTF_8);
+    }
 
     /**
      * Reads from this data input the length of the data within the input. The implementation may
