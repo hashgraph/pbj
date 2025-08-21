@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import static com.hedera.pbj.runtime.FieldType.BOOL;
 import static com.hedera.pbj.runtime.FieldType.BYTES;
 import static com.hedera.pbj.runtime.FieldType.FIXED32;
 import static com.hedera.pbj.runtime.FieldType.FIXED64;
@@ -11,6 +12,8 @@ import static com.hedera.pbj.runtime.ProtoConstants.TAG_WIRE_TYPE_MASK;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_32_BIT;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_FIXED_64_BIT;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_GROUP_END;
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_GROUP_START;
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG;
 import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
 import static com.hedera.pbj.runtime.ProtoParserTools.readString;
@@ -40,6 +43,8 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -109,6 +114,19 @@ class ProtoParserToolsTest {
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
+                },
+                1);
+    }
+
+    @Test
+    void testBadBool() {
+        final int value = 3;
+        testRead(
+                () -> value != 0,
+                (d, v) -> d.writeVarInt(value, false),
+                input -> {
+                    assertThrows(IOException.class, () -> ProtoParserTools.readBool(input));
+                    return true;
                 },
                 1);
     }
@@ -384,6 +402,9 @@ class ProtoParserToolsTest {
     private static final FieldDefinition UNKNOWN_F =
             new FieldDefinition("nofield", FieldType.BYTES, false, true, false, 10);
 
+    private static final FieldDefinition BOOL_F = new FieldDefinition("boolfield", BOOL, false, true, false, 11);
+    private static final boolean BOOL_V = true;
+
     private static Bytes prepareExtractBytesTestInput() throws IOException {
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
                 final WritableStreamingData out = new WritableStreamingData(bout)) {
@@ -403,6 +424,13 @@ class ProtoParserToolsTest {
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, STRING_F);
         assertNotNull(bytes);
         assertEquals(STRING_V, new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void testExtractFieldBytesInvalidType() throws IOException, ParseException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        // should throw because INT32 is not a delimited type
+        assertThrows(IllegalArgumentException.class, () -> ProtoParserTools.extractFieldBytes(input, INT32_F));
     }
 
     @Test
@@ -428,6 +456,39 @@ class ProtoParserToolsTest {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, UNKNOWN_F);
         assertNull(bytes);
+    }
+
+    @Test
+    void testExtractField32Bit() throws IOException, ParseException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_32_BIT, 32);
+        assertNotNull(res);
+    }
+
+    @Test
+    void testExtractField64Bit() throws IOException, ParseException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_64_BIT, 32);
+        assertNotNull(res);
+    }
+
+    @Test
+    void testExtractFieldVarInt() throws IOException, ParseException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final var res = ProtoParserTools.extractField(input, WIRE_TYPE_VARINT_OR_ZIGZAG, 32);
+        assertNotNull(res);
+    }
+
+    @Test
+    void testExtractFieldGroupStartUnsupported() throws IOException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        assertThrows(IOException.class, () -> ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_START, 32));
+    }
+
+    @Test
+    void testExtractFieldGroupEndUnsupported() throws IOException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        assertThrows(IOException.class, () -> ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_END, 32));
     }
 
     private static void skipTag(BufferedData data) {
@@ -540,5 +601,23 @@ class ProtoParserToolsTest {
         public TestMessage getDefaultInstance() {
             throw new UnsupportedOperationException();
         }
+    }
+
+    @Test
+    void addToList() {
+        var empty_list = ProtoParserTools.addToList(Collections.emptyList(), "foo");
+        assertEquals(1, empty_list.size());
+        var existing_list = ProtoParserTools.addToList(empty_list, "foo");
+        assertEquals(2, existing_list.size());
+    }
+
+    @Test
+    void addToMap() {
+        Map<String, String> empty_map = ProtoParserTools.addToMap(PbjMap.EMPTY, "foo", "bar");
+        assertEquals(1, empty_map.size());
+        assertEquals("bar", empty_map.get("foo"));
+        Map<String, String> existing_map = ProtoParserTools.addToMap(empty_map, "baz", "quxx");
+        assertEquals(2, empty_map.size());
+        assertEquals("quxx", empty_map.get("baz"));
     }
 }
