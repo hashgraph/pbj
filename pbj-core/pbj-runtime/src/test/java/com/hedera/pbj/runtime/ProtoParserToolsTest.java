@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import static com.hedera.pbj.runtime.FieldType.BOOL;
 import static com.hedera.pbj.runtime.FieldType.BYTES;
 import static com.hedera.pbj.runtime.FieldType.FIXED32;
 import static com.hedera.pbj.runtime.FieldType.FIXED64;
@@ -401,6 +402,11 @@ class ProtoParserToolsTest {
     private static final FieldDefinition UNKNOWN_F =
             new FieldDefinition("nofield", FieldType.BYTES, false, true, false, 10);
 
+    private static final FieldDefinition BOOL_F =
+            new FieldDefinition("boolfield", BOOL, false, true, false, 11);
+    private static final boolean BOOL_V = true;
+
+
     private static Bytes prepareExtractBytesTestInput() throws IOException {
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
                 final WritableStreamingData out = new WritableStreamingData(bout)) {
@@ -420,6 +426,13 @@ class ProtoParserToolsTest {
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, STRING_F);
         assertNotNull(bytes);
         assertEquals(STRING_V, new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void testExtractFieldBytesInvalidType() throws IOException, ParseException {
+        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        // should throw because INT32 is not a delimited type
+        assertThrows(IllegalArgumentException.class, () -> ProtoParserTools.extractFieldBytes(input, INT32_F));
     }
 
     @Test
@@ -467,9 +480,14 @@ class ProtoParserToolsTest {
     }
     @Test
     void testExtractFieldDelimited() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
-        final var res = ProtoParserTools.extractField(input, WIRE_TYPE_DELIMITED, 32);
+        final ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        final WritableStreamingData out = new WritableStreamingData(bout);
+        ProtoWriterTools.writeBoolean(out, BOOL_F, BOOL_V);
+        final ReadableSequentialData input = Bytes.wrap(bout.toByteArray()).toReadableSequentialData();
+        final var res = ProtoParserTools.extractField(input, WIRE_TYPE_VARINT_OR_ZIGZAG, 1);
         assertNotNull(res);
+        assertEquals(1,res.length());
+//        assertEquals(1,res.getVarInt(0, false));
     }
     @Test
     void testExtractFieldGroupStartUnsupported() throws IOException {
