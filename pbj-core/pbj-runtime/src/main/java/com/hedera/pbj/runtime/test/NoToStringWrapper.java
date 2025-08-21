@@ -55,6 +55,6 @@ public final class NoToStringWrapper<T> {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(value);
+        return Objects.hashCode(value);
     }
 }
