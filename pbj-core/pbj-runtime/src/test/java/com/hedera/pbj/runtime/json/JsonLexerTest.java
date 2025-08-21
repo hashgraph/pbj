@@ -9,9 +9,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.util.Base64;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class JsonLexerTest {
@@ -71,7 +71,8 @@ public class JsonLexerTest {
         String json = """
                 {
                   "trueValue": true,
-                  "falseValue": false
+                  "falseValue": false,
+                  "trueValue2": "true"
                 }
                 """;
         JsonLexer lexer = new JsonLexer(readableSequentialData(json));
@@ -89,6 +90,13 @@ public class JsonLexerTest {
         lexer.consumeColon();
         boolean falseValue = lexer.readBoolean();
         assertFalse(falseValue);
+        lexer.consumeComma();
+
+        String fieldName3 = lexer.readString();
+        assertEquals("trueValue2", fieldName3);
+        lexer.consumeColon();
+        boolean trueValue2 = lexer.readBoolean();
+        assertTrue(trueValue2);
 
         lexer.closeObject();
     }
@@ -190,7 +198,8 @@ public class JsonLexerTest {
         String json = """
                 {
                   "enumByName": "SECOND",
-                  "enumByOrdinal": 2
+                  "enumByOrdinal": 2,
+                  "enumByZero": 0
                 }
                 """;
 
@@ -209,6 +218,13 @@ public class JsonLexerTest {
         lexer.consumeColon();
         TestEnum enumValue2 = lexer.readEnum(TestEnum.class);
         assertEquals(TestEnum.THIRD, enumValue2);
+        lexer.consumeComma();
+
+        String fieldName3 = lexer.readString();
+        assertEquals("enumByZero", fieldName3);
+        lexer.consumeColon();
+        TestEnum enumValue3 = lexer.readEnum(TestEnum.class);
+        assertEquals(TestEnum.FIRST,enumValue3);
 
         lexer.closeObject();
     }
@@ -347,6 +363,41 @@ public class JsonLexerTest {
         });
 
         assertTrue(exception.getMessage().contains("Expected"));
+    }
+
+    @Test
+    void parseExceptionReadBoolean() throws ParseException {
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData("bad")).readBoolean());
+    }
+
+    @Test
+    void parseExceptionReadBytes() throws ParseException {
+        // missing the starting quote
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData("somebaddata")).readBytes());
+    }
+
+    @Test
+    void parseExceptionNextFieldOrClose() throws ParseException {
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData(".")).nextFieldOrClose());
+    }
+    @Test
+    void consumeWrongCharacters() throws ParseException {
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData(".")).consumeComma());
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData(".")).consumeColon());
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData("[")).openObject());
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData("]")).closeObject());
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData("{")).openArray());
+    }
+
+
+    @Test
+    void parseExceptionEnumErrors() throws ParseException {
+        // check for non digit
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData("x,")).readEnum(TestEnum.class));
+        // 4 is a digit but TestEnum only ahs three ordinals
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData("4,")).readEnum(TestEnum.class));
+        // FOURTH is not a valid value of TestEnum
+        assertThrows(ParseException.class, () -> new JsonLexer(readableSequentialData("\"FOURTH\",")).readEnum(TestEnum.class));
     }
 
     private ReadableSequentialData readableSequentialData(String json) {

@@ -68,7 +68,9 @@ import java.util.stream.Collectors;
  *     <a href="/reference/protobuf/google.protobuf#value">google.protobuf.Value</a> for details.</td></tr>
  *     <tr><td>NullValue</td><td>null</td><td></td><td>JSON null</td></tr>
  *     <tr><td>Empty</td><td>object</td><td><code>{}</code></td><td>An empty JSON object</td></tr>
- * </tbody></table>
+ * </tbody>
+ * <caption>Table from Protobuf Docs of JSON Mapping of PB types</caption>
+ * </table>
  */
 public final class JsonLexer {
 
