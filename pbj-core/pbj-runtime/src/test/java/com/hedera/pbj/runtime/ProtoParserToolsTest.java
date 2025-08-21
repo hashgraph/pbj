@@ -402,10 +402,8 @@ class ProtoParserToolsTest {
     private static final FieldDefinition UNKNOWN_F =
             new FieldDefinition("nofield", FieldType.BYTES, false, true, false, 10);
 
-    private static final FieldDefinition BOOL_F =
-            new FieldDefinition("boolfield", BOOL, false, true, false, 11);
+    private static final FieldDefinition BOOL_F = new FieldDefinition("boolfield", BOOL, false, true, false, 11);
     private static final boolean BOOL_V = true;
-
 
     private static Bytes prepareExtractBytesTestInput() throws IOException {
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
@@ -466,23 +464,27 @@ class ProtoParserToolsTest {
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_32_BIT, 32);
         assertNotNull(res);
     }
+
     @Test
     void testExtractField64Bit() throws IOException, ParseException {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_64_BIT, 32);
         assertNotNull(res);
     }
+
     @Test
     void testExtractFieldVarInt() throws IOException, ParseException {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_VARINT_OR_ZIGZAG, 32);
         assertNotNull(res);
     }
+
     @Test
     void testExtractFieldGroupStartUnsupported() throws IOException {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
         assertThrows(IOException.class, () -> ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_START, 32));
     }
+
     @Test
     void testExtractFieldGroupEndUnsupported() throws IOException {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
@@ -603,19 +605,19 @@ class ProtoParserToolsTest {
 
     @Test
     void addToList() {
-        var empty_list = ProtoParserTools.addToList(Collections.emptyList(),"foo");
-        assertEquals(1,empty_list.size());
-        var existing_list = ProtoParserTools.addToList(empty_list,"foo");
-        assertEquals(2,existing_list.size());
+        var empty_list = ProtoParserTools.addToList(Collections.emptyList(), "foo");
+        assertEquals(1, empty_list.size());
+        var existing_list = ProtoParserTools.addToList(empty_list, "foo");
+        assertEquals(2, existing_list.size());
     }
 
     @Test
     void addToMap() {
-        Map<String,String> empty_map = ProtoParserTools.addToMap(PbjMap.EMPTY,"foo","bar");
-        assertEquals(1,empty_map.size());
-        assertEquals("bar",empty_map.get("foo"));
-        Map<String, String> existing_map = ProtoParserTools.addToMap(empty_map,"baz","quxx");
-        assertEquals(2,empty_map.size());
-        assertEquals("quxx",empty_map.get("baz"));
+        Map<String, String> empty_map = ProtoParserTools.addToMap(PbjMap.EMPTY, "foo", "bar");
+        assertEquals(1, empty_map.size());
+        assertEquals("bar", empty_map.get("foo"));
+        Map<String, String> existing_map = ProtoParserTools.addToMap(empty_map, "baz", "quxx");
+        assertEquals(2, empty_map.size());
+        assertEquals("quxx", empty_map.get("baz"));
     }
 }
