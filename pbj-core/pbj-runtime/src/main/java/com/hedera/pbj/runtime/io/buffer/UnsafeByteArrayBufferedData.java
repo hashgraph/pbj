@@ -347,6 +347,9 @@ final class UnsafeByteArrayBufferedData extends BufferedData {
     public void writeBytes(@NonNull final byte[] src, final int offset, final int len) {
         validateLen(len);
         validateCanWrite(len);
+        if(offset < 0) {
+            throw new IndexOutOfBoundsException("offset must be >= 0");
+        }
         if (src.length < offset + len) {
             throw new IndexOutOfBoundsException("Source array is too short for the specified offset and length");
         }
