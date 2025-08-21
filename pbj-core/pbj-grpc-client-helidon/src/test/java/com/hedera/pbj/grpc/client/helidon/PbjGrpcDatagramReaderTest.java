@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import io.helidon.common.buffers.BufferData;
 import java.nio.BufferOverflowException;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class PbjGrpcDatagramReaderTest {
@@ -84,5 +85,93 @@ public class PbjGrpcDatagramReaderTest {
         assertNotNull(bufferData);
         assertEquals(data.getBytes().length, bufferData.available());
         assertEquals(data, bufferData.readString(data.getBytes().length));
+    }
+
+    @Test
+    void testFlipCircularBuffer() {
+        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader();
+
+        // The initial size is currently 1024, so fill it up almost completely:
+        String dataString = "a".repeat(1000);
+
+        reader.add(BufferData.create(new byte[] {0}));
+        assertNull(reader.extractNextDatagram());
+
+        BufferData lengthData = BufferData.create(4);
+        lengthData.writeInt32(dataString.getBytes().length);
+        reader.add(lengthData);
+        assertNull(reader.extractNextDatagram());
+
+        BufferData theData = BufferData.create(dataString.getBytes());
+        reader.add(theData);
+
+        // At this point we use 1005 bytes of the initial 1024 capacity.
+        // Just in case we implement any future optimizations, let's start
+        // sending the next datagram right away
+        reader.add(BufferData.create(new byte[] {0}));
+
+        // At this point the writePosition is at 1006 or something like that.
+        // Let's read the first datagram and mark almost the entire buffer free
+        // (except for that zero byte that we've just added above):
+        BufferData bufferData = reader.extractNextDatagram();
+        assertNotNull(bufferData);
+        assertEquals(dataString.getBytes().length, bufferData.available());
+        assertEquals(dataString, bufferData.readString(dataString.getBytes().length));
+
+        // The next datagram isn't ready yet:
+        assertNull(reader.extractNextDatagram());
+
+        // Now let's just finish adding the exact same 1000 bytes datagram,
+        // which should force the reader to flip:
+        String newDataString = "b".repeat(dataString.length());
+        lengthData.rewind();
+        reader.add(lengthData);
+        assertNull(reader.extractNextDatagram());
+        reader.add(BufferData.create(newDataString.getBytes()));
+
+        // At this point, the circular buffer must've flipped over the tail to the head.
+        // The buffer is private, so we cannot check it. But we should be able to
+        // read back the last datagram. And more importantly, the flipping logic
+        // is now covered by tests.
+        BufferData newBufferData = reader.extractNextDatagram();
+        assertNotNull(newBufferData);
+        assertEquals(newDataString.getBytes().length, newBufferData.available());
+        assertEquals(newDataString, newBufferData.readString(newDataString.getBytes().length));
+    }
+
+    private void testDatagrams(final PbjGrpcDatagramReader reader, final List<String> datagrams) {
+        datagrams.forEach(dataString -> {
+            reader.add(BufferData.create(new byte[] {0}));
+            BufferData lengthData = BufferData.create(4);
+            lengthData.writeInt32(dataString.getBytes().length);
+            reader.add(lengthData);
+            BufferData theData = BufferData.create(dataString.getBytes());
+            reader.add(theData);
+        });
+
+        // Read them back and check them:
+        datagrams.forEach(dataString -> {
+            BufferData bufferData = reader.extractNextDatagram();
+            assertNotNull(bufferData);
+            assertEquals(dataString.getBytes().length, bufferData.available());
+            assertEquals(dataString, bufferData.readString(dataString.getBytes().length));
+        });
+
+        // Ensure there's nothing else there:
+        assertNull(reader.extractNextDatagram());
+    }
+
+    @Test
+    void testEnlargePartiallyFilledBuffer() {
+        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader();
+
+        // Add two datagrams of 1000 bytes, which will enlarge the initial 1024 bytes buffer
+        testDatagrams(reader, List.of("a".repeat(1000), "b".repeat(1000)));
+
+        // Now repeat this again, but this time 3 times. The writePosition of the buffer
+        // is now near the tail. So writing 2 same datagrams would simply flip the pointer.
+        // However, writing the 3rd one would enlarge the buffer again AND copy parts
+        // from both the tail and the head of the buffer, hence fully covering the enlarging logic:
+        testDatagrams(reader, List.of("1".repeat(1000), "2".repeat(1000), "3".repeat(1000)));
     }
 }
