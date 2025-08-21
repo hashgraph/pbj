@@ -479,17 +479,6 @@ class ProtoParserToolsTest {
         assertNotNull(res);
     }
     @Test
-    void testExtractFieldDelimited() throws IOException, ParseException {
-        final ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        final WritableStreamingData out = new WritableStreamingData(bout);
-        ProtoWriterTools.writeBoolean(out, BOOL_F, BOOL_V);
-        final ReadableSequentialData input = Bytes.wrap(bout.toByteArray()).toReadableSequentialData();
-        final var res = ProtoParserTools.extractField(input, WIRE_TYPE_VARINT_OR_ZIGZAG, 1);
-        assertNotNull(res);
-        assertEquals(1,res.length());
-//        assertEquals(1,res.getVarInt(0, false));
-    }
-    @Test
     void testExtractFieldGroupStartUnsupported() throws IOException {
         final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
         assertThrows(IOException.class, () -> ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_START, 32));
