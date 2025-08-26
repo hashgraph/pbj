@@ -6,6 +6,7 @@ import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
+import io.helidon.http.http2.Http2Settings;
 import io.helidon.webclient.api.ClientConnection;
 import io.helidon.webclient.api.ClientUri;
 import io.helidon.webclient.api.ConnectionKey;
@@ -15,7 +16,10 @@ import io.helidon.webclient.api.Proxy;
 import io.helidon.webclient.api.TcpClientConnection;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.http2.Http2Client;
+import io.helidon.webclient.http2.Http2ClientConnection;
 import io.helidon.webclient.http2.Http2ClientImpl;
+import io.helidon.webclient.http2.Http2StreamConfig;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Optional;
 
@@ -75,6 +79,36 @@ public final class PbjGrpcClient implements GrpcClient {
 
     Http2Client getHttp2Client() {
         return http2Client;
+    }
+
+    Http2ClientConnection createHttp2ClientConnection(final ClientConnection clientConnection) {
+        return Http2ClientConnection.create((Http2ClientImpl) getHttp2Client(), clientConnection, true);
+    }
+
+    PbjGrpcClientStream createPbjGrpcClientStream(
+            final Http2ClientConnection connection, final ClientConnection clientConnection) {
+        return new PbjGrpcClientStream(
+                connection,
+                Http2Settings.create(),
+                clientConnection.helidonSocket(),
+                new Http2StreamConfig() {
+                    @Override
+                    public boolean priorKnowledge() {
+                        return true;
+                    }
+
+                    @Override
+                    public int priority() {
+                        return 0;
+                    }
+
+                    @Override
+                    public Duration readTimeout() {
+                        return getConfig().readTimeout();
+                    }
+                },
+                null,
+                connection.streamIdSequence());
     }
 
     /**
