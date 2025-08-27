@@ -47,7 +47,6 @@ public class PbjGrpcClientTest {
 
         final PbjGrpcClient client = new PbjGrpcClient(webClient, config);
 
-        assertNotNull(client);
         assertEquals(webClient, client.getWebClient());
         assertEquals(http2Client, client.getHttp2Client());
         assertEquals(config, client.getConfig());
