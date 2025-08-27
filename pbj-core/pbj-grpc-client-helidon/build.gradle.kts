@@ -8,5 +8,8 @@ description = "A PBJ gRPC client with Helidon HTTP2 webclient"
 
 testModuleInfo {
     requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
+    requires("org.mockito")
+    requires("org.mockito.junit.jupiter")
     requiresStatic("java.annotation")
 }

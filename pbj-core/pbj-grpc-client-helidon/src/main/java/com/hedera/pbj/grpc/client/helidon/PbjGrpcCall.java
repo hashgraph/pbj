@@ -10,7 +10,6 @@ import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import io.helidon.common.buffers.BufferData;
-import io.helidon.common.socket.HelidonSocket;
 import io.helidon.http.HeaderName;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
@@ -18,15 +17,11 @@ import io.helidon.http.Headers;
 import io.helidon.http.WritableHeaders;
 import io.helidon.http.http2.Http2FrameData;
 import io.helidon.http.http2.Http2Headers;
-import io.helidon.http.http2.Http2Settings;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.webclient.api.ClientConnection;
 import io.helidon.webclient.http2.Http2ClientConnection;
-import io.helidon.webclient.http2.Http2ClientImpl;
 import io.helidon.webclient.http2.Http2ClientStream;
-import io.helidon.webclient.http2.Http2StreamConfig;
 import io.helidon.webclient.http2.StreamTimeoutException;
-import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -87,32 +82,8 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
         this.replyCodec = replyCodec;
         this.pipeline = pipeline;
 
-        final HelidonSocket socket = clientConnection.helidonSocket();
-        final Http2ClientConnection connection =
-                Http2ClientConnection.create((Http2ClientImpl) grpcClient.getHttp2Client(), clientConnection, true);
-
-        this.clientStream = new PbjGrpcClientStream(
-                connection,
-                Http2Settings.create(),
-                socket,
-                new Http2StreamConfig() {
-                    @Override
-                    public boolean priorKnowledge() {
-                        return true;
-                    }
-
-                    @Override
-                    public int priority() {
-                        return 0;
-                    }
-
-                    @Override
-                    public Duration readTimeout() {
-                        return grpcClient.getConfig().readTimeout();
-                    }
-                },
-                null,
-                connection.streamIdSequence());
+        final Http2ClientConnection connection = grpcClient.createHttp2ClientConnection(clientConnection);
+        this.clientStream = this.grpcClient.createPbjGrpcClientStream(connection, clientConnection);
 
         // send HEADERS frame
         final WritableHeaders<?> headers = WritableHeaders.create();
