@@ -152,7 +152,7 @@ class PbjProtocolHandlerTest {
         assertThat(route.failedGrpcRequestCounter().count()).isZero();
         assertThat(route.failedHttpRequestCounter().count()).isZero();
         assertThat(route.failedUnknownRequestCounter().count()).isZero();
-        assertThat(handler.streamState()).isEqualTo(Http2StreamState.HALF_CLOSED_REMOTE);
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
     }
 
     /**
@@ -177,7 +177,7 @@ class PbjProtocolHandlerTest {
         assertThat(route.failedGrpcRequestCounter().count()).isZero();
         assertThat(route.failedHttpRequestCounter().count()).isZero();
         assertThat(route.failedUnknownRequestCounter().count()).isZero();
-        assertThat(handler.streamState()).isEqualTo(Http2StreamState.HALF_CLOSED_REMOTE);
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
     }
 
     /**
@@ -289,7 +289,7 @@ class PbjProtocolHandlerTest {
                 .contains(entry("Content-Type", "application/grpc+proto"), entry("grpc-accept-encoding", "identity"));
 
         // The stream should be closed
-        assertThat(handler.streamState()).isEqualTo(Http2StreamState.HALF_CLOSED_REMOTE);
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
     }
 
     @Test

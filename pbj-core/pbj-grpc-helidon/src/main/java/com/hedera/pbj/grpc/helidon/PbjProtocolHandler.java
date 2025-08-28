@@ -423,7 +423,10 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             if (header.flags(Http2FrameTypes.DATA).endOfStream()) {
                 entityBytesIndex = 0;
                 entityBytes = null;
-                currentStreamState.set(Http2StreamState.HALF_CLOSED_REMOTE);
+                // HALF_CLOSED_REMOTE prevents the Helidon server from closing the stream.
+                // So we mark the stream as CLOSED as this is the only state under which
+                // the server HTTP2 stream will be properly released by Helidon.
+                currentStreamState.set(Http2StreamState.CLOSED);
                 pipeline.clientEndStreamReceived();
             }
         } catch (final Exception e) {
@@ -603,6 +606,12 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     streamId,
                     Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
                     flowControl);
+
+            // We've just sent out trailers, indicating whether a success or a failure.
+            // Nothing is going to happen on this stream anymore.
+            // Mark the stream as closed, so that the Helidon Http2ServerStream updates its status to CLOSED,
+            // and therefore the Http2Connection actually releases the stream.
+            currentStreamState.set(Http2StreamState.CLOSED);
         }
     }
 

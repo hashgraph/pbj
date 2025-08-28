@@ -50,7 +50,7 @@ import java.util.Optional;
  * In the application code, you will simply create a new class implementing the {@code HelloService} interface, and
  * register it with your webserver in whatever way is appropriate for your webserver.
  */
-public interface ServiceInterface {
+public interface ServiceInterface extends AutoCloseable {
     /** Represents the metadata of a method in a gRPC service. */
     interface Method {
         String name();
@@ -127,4 +127,9 @@ public interface ServiceInterface {
     Pipeline<? super Bytes> open(
             @NonNull Method method, @NonNull RequestOptions opts, @NonNull Pipeline<? super Bytes> responses)
             throws GrpcException;
+
+    /**
+     * Closes this ServiceInterface instance releasing all resources, such as open network connections etc.
+     */
+    default void close() {}
 }
