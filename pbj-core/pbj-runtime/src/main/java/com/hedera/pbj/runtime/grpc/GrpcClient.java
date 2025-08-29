@@ -9,7 +9,7 @@ import com.hedera.pbj.runtime.Codec;
  * It's capable of creating GrpcCall objects that applications can use to send requests to a GRPC service
  * and receive replies from the service through the supplied Pipeline instance.
  */
-public interface GrpcClient {
+public interface GrpcClient extends AutoCloseable {
     /**
      * Create a new GRPC call.
      *
@@ -22,4 +22,9 @@ public interface GrpcClient {
      */
     <RequestT, ReplyT> GrpcCall<RequestT, ReplyT> createCall(
             String fullMethodName, Codec<RequestT> requestCodec, Codec<ReplyT> replyCodec, Pipeline<ReplyT> pipeline);
+
+    /**
+     * Closes this GrpcClient instance releasing all resources, such as open network connections etc.
+     */
+    void close();
 }

@@ -11,9 +11,13 @@ import static org.mockito.Mockito.verify;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.ClientConnection;
+import io.helidon.webclient.api.ClientUri;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.http2.Http2Client;
+import io.helidon.webclient.http2.Http2ClientConfig;
 import io.helidon.webclient.http2.Http2ClientConnection;
+import io.helidon.webclient.http2.Http2ClientImpl;
+import java.net.URI;
 import java.time.Duration;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -24,6 +28,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class PbjGrpcClientTest {
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(1);
+
+    /** A special url that the production code recognizes to avoid trying to establish network connections. */
+    private static final String UNIT_TEST_URL = "http://pbj-unit-test-host:666";
 
     private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
 
@@ -37,13 +44,20 @@ public class PbjGrpcClientTest {
     private WebClient webClient;
 
     @Mock
-    private Http2Client http2Client;
+    private Http2ClientImpl http2Client;
+
+    @Mock
+    private Http2ClientConfig http2ClientConfig;
 
     @Test
     void testConstructorAndGetters() {
         final PbjGrpcClientConfig config =
                 new PbjGrpcClientConfig(READ_TIMEOUT, tls, OPTIONS.authority(), OPTIONS.contentType());
         doReturn(http2Client).when(webClient).client(Http2Client.PROTOCOL);
+        doReturn(http2ClientConfig).when(http2Client).prototype();
+        doReturn(Optional.of(ClientUri.create(URI.create(UNIT_TEST_URL))))
+                .when(http2ClientConfig)
+                .baseUri();
 
         final PbjGrpcClient client = new PbjGrpcClient(webClient, config);
 
@@ -56,6 +70,12 @@ public class PbjGrpcClientTest {
     void testCreatePbjGrpcClientStream() {
         final PbjGrpcClientConfig config =
                 new PbjGrpcClientConfig(READ_TIMEOUT, tls, OPTIONS.authority(), OPTIONS.contentType());
+        doReturn(http2Client).when(webClient).client(Http2Client.PROTOCOL);
+        doReturn(http2ClientConfig).when(http2Client).prototype();
+        doReturn(Optional.of(ClientUri.create(URI.create(UNIT_TEST_URL))))
+                .when(http2ClientConfig)
+                .baseUri();
+
         final PbjGrpcClient client = new PbjGrpcClient(webClient, config);
 
         final Http2ClientConnection connection = mock(Http2ClientConnection.class);

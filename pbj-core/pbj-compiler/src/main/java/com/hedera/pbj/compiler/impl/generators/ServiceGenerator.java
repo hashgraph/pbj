@@ -562,6 +562,11 @@ public final class ServiceGenerator {
                             this.requestOptions = Objects.requireNonNull(requestOptions);
                         }
                 
+                        @Override
+                        public void close() {
+                            grpcClient.close();
+                        }
+
                 $methodImplementations
                     }
                 }

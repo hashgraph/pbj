@@ -105,8 +105,6 @@ public class PbjGrpcCallTest {
     private Headers headers;
 
     private PbjGrpcCall createCall(final ServiceInterface.RequestOptions options) {
-        doReturn(connection).when(grpcClient).createHttp2ClientConnection(clientConnection);
-        doReturn(grpcClientStream).when(grpcClient).createPbjGrpcClientStream(connection, clientConnection);
         doReturn(webClient).when(grpcClient).getWebClient();
         doReturn(executor).when(webClient).executor();
 
@@ -115,7 +113,7 @@ public class PbjGrpcCallTest {
         // The config is only read in the receiving loop:
         lenient().doReturn(config).when(grpcClient).getConfig();
 
-        return new PbjGrpcCall(grpcClient, clientConnection, options, METHOD_NAME, requestCodec, replyCodec, pipeline);
+        return new PbjGrpcCall(grpcClient, grpcClientStream, options, METHOD_NAME, requestCodec, replyCodec, pipeline);
     }
 
     @ParameterizedTest
@@ -125,9 +123,6 @@ public class PbjGrpcCallTest {
         final PbjGrpcCall call = createCall(
                 new Options(Optional.ofNullable(authority), ServiceInterface.RequestOptions.APPLICATION_GRPC));
         assertNotNull(call);
-
-        verify(grpcClient, times(1)).createHttp2ClientConnection(clientConnection);
-        verify(grpcClient, times(1)).createPbjGrpcClientStream(connection, clientConnection);
 
         final ArgumentCaptor<Http2Headers> http2HeadersCaptor = ArgumentCaptor.forClass(Http2Headers.class);
         verify(grpcClientStream, times(1)).writeHeaders(http2HeadersCaptor.capture(), eq(false));

@@ -18,8 +18,6 @@ import io.helidon.http.WritableHeaders;
 import io.helidon.http.http2.Http2FrameData;
 import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamState;
-import io.helidon.webclient.api.ClientConnection;
-import io.helidon.webclient.http2.Http2ClientConnection;
 import io.helidon.webclient.http2.Http2ClientStream;
 import io.helidon.webclient.http2.StreamTimeoutException;
 import java.util.List;
@@ -62,7 +60,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
      * Create a new GRPC call, start a replies receiving loop in the underlying Helidon WebClient executor,
      * and send client HTTP2 headers.
      * @param grpcClient GRPC client
-     * @param clientConnection a client connection
+     * @param clientStream a client stream
      * @param requestOptions options such as the authority, content type, etc.
      * @param fullMethodName a full GRPC method name that includes the fully-qualified service name and the method name
      * @param requestCodec a PBJ codec for requests that MUST correspond to the content type in the requestOptions
@@ -71,7 +69,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
      */
     PbjGrpcCall(
             final PbjGrpcClient grpcClient,
-            final ClientConnection clientConnection,
+            final Http2ClientStream clientStream,
             final ServiceInterface.RequestOptions requestOptions,
             final String fullMethodName,
             final Codec<RequestT> requestCodec,
@@ -82,8 +80,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
         this.replyCodec = replyCodec;
         this.pipeline = pipeline;
 
-        final Http2ClientConnection connection = grpcClient.createHttp2ClientConnection(clientConnection);
-        this.clientStream = this.grpcClient.createPbjGrpcClientStream(connection, clientConnection);
+        this.clientStream = clientStream;
 
         // send HEADERS frame
         final WritableHeaders<?> headers = WritableHeaders.create();

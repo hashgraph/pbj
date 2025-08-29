@@ -19,6 +19,8 @@ import io.helidon.webclient.http2.Http2Client;
 import io.helidon.webclient.http2.Http2ClientConnection;
 import io.helidon.webclient.http2.Http2ClientImpl;
 import io.helidon.webclient.http2.Http2StreamConfig;
+import java.io.UncheckedIOException;
+import java.net.SocketException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Optional;
@@ -26,11 +28,14 @@ import java.util.Optional;
 /**
  * A PBJ GRPC client that uses the Helidon WebClient and its HTTP2 client implementation to call remote GRPC services.
  */
-public final class PbjGrpcClient implements GrpcClient {
+public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
     private final WebClient webClient;
     private final PbjGrpcClientConfig config;
 
     private final Http2Client http2Client;
+
+    private final ClientConnection clientConnection;
+    private final Http2ClientConnection connection;
 
     /**
      * Create a new PBJ GRPC client.
@@ -41,6 +46,22 @@ public final class PbjGrpcClient implements GrpcClient {
         this.webClient = webClient;
         this.config = config;
         this.http2Client = webClient.client(Http2Client.PROTOCOL);
+
+        this.clientConnection = createClientConnection();
+        this.connection = createHttp2ClientConnection(clientConnection);
+    }
+
+    @Override
+    public void close() {
+        try {
+            connection.close();
+        } catch (UncheckedIOException e) {
+            if (e.getCause() instanceof SocketException) {
+                // Ignore as the server has already closed the connection.
+            } else {
+                throw e;
+            }
+        }
     }
 
     /**
@@ -62,10 +83,9 @@ public final class PbjGrpcClient implements GrpcClient {
         // FUTURE WORK: should probably cache the connection and re-use it for subsequent createCall() calls.
         // Also, might have to pull some connection initialization code out of the Call class, so that the latter
         // only ever creates streams over an existing TCP/HTTP2 connection.
-        final ClientConnection clientConnection = createClientConnection();
         return new PbjGrpcCall(
                 this,
-                clientConnection,
+                createPbjGrpcClientStream(connection, clientConnection),
                 new Options(config.authority(), config.contentType()),
                 fullMethodName,
                 requestCodec,
@@ -82,6 +102,10 @@ public final class PbjGrpcClient implements GrpcClient {
     }
 
     Http2ClientConnection createHttp2ClientConnection(final ClientConnection clientConnection) {
+        if (clientConnection == null) {
+            // Must be a unit test, there's no any actual connections established, nothing to do.
+            return null;
+        }
         return Http2ClientConnection.create((Http2ClientImpl) getHttp2Client(), clientConnection, true);
     }
 
@@ -126,6 +150,10 @@ public final class PbjGrpcClient implements GrpcClient {
                 .prototype()
                 .baseUri()
                 .orElseThrow(() -> new IllegalStateException("No base URI provided in the WebClient."));
+        // We cannot (don't want to) establish connections when unit-testing, so we use a marker:
+        if ("pbj-unit-test-host".equals(clientUri.host())) {
+            return null;
+        }
         final ConnectionKey connectionKey = new ConnectionKey(
                 clientUri.scheme(),
                 clientUri.host(),
