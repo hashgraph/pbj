@@ -101,6 +101,7 @@ sourceSets {
             srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("streams") })
         }
     }
+    create("extra")
 }
 
 // Exclude protoc generated from docs
