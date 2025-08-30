@@ -69,7 +69,15 @@ dependencies { testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive 
 dependencyAnalysis { issues { all { onAny { exclude("com.hedera.pbj:pbj-compiler") } } } }
 
 // IMPROVE: JMH code should not depend on test code
-jmh { includeTests = true }
+jmh {
+    includeTests = true
+//    includes.add("com.hedera.pbj.integration.jmh.JsonBench*")
+    includes.add("com.hedera.pbj.integration.jmh.JsonBench.AccountDetailsBench.writePbj")
+//    includes.add("com.hedera.pbj.integration.jmh.JsonBench.AccountDetailsBench.writePbjStreaming")
+//    includes.add("com.hedera.pbj.integration.jmh.BufferedDataBench")
+//    includes.add("com.hedera.pbj.integration.jmh.ProtobufObjectBench*")
+    profilers.add("async:libPath=/Users/jasperpotts/code/async-profiler-4.0-macos/lib/libasyncProfiler.dylib;output=jfr")
+}
 
 // Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
 pbj { javaPackageSuffix = ".pbj.integration.tests" }
