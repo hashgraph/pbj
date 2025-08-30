@@ -32,6 +32,12 @@ mainModuleInfo {
     requires("io.grpc.stub")
     requires("org.antlr.antlr4.runtime")
     requiresStatic("com.github.spotbugs.annotations")
+    runtimeOnly("io.helidon.common")
+    requires("io.helidon.common.tls")
+    requires("io.helidon.webclient.api")
+    runtimeOnly("io.helidon.webclient.http2")
+    runtimeOnly("io.helidon.webserver")
+    requires("com.hedera.pbj.grpc.client.helidon")
 }
 
 testModuleInfo {
@@ -40,10 +46,10 @@ testModuleInfo {
     requires("org.opentest4j")
     requires("com.google.protobuf.util")
     requires("com.hedera.pbj.grpc.helidon")
-    requires("com.hedera.pbj.grpc.client.helidon")
+    runtimeOnly("com.hedera.pbj.grpc.client.helidon")
     requires("io.helidon.common")
-    requires("io.helidon.common.tls")
-    requires("io.helidon.webclient.api")
+    runtimeOnly("io.helidon.common.tls")
+    runtimeOnly("io.helidon.webclient.api")
     runtimeOnly("io.helidon.webclient.http2")
     requires("io.helidon.webserver")
     runtimeOnly("io.grpc.netty")
@@ -54,6 +60,8 @@ testModuleInfo {
 jmhModuleInfo {
     requires("com.hedera.pbj.runtime")
     requires("com.google.protobuf.util")
+    requires("io.helidon.common")
+    requires("io.helidon.webserver")
 }
 
 // IMPROVE: Disable module-info transform for 'testRuntimeClasspath' which leads to an error
