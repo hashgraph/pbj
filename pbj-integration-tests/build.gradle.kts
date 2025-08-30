@@ -32,6 +32,12 @@ mainModuleInfo {
     requires("io.grpc.stub")
     requires("org.antlr.antlr4.runtime")
     requiresStatic("com.github.spotbugs.annotations")
+    requires("io.helidon.common")
+    requires("io.helidon.common.tls")
+    requires("io.helidon.webclient.api")
+    runtimeOnly("io.helidon.webclient.http2")
+    requires("io.helidon.webserver")
+    requires("com.hedera.pbj.grpc.client.helidon")
 }
 
 testModuleInfo {
