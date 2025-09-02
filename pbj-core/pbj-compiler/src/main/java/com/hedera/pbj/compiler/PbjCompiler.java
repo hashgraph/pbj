@@ -29,6 +29,7 @@ public abstract class PbjCompiler {
      * Compile source files and generate PBJ models.
      *
      * @param sourceFiles all the source files to compile
+     * @param classpath protobuf files in dependencies located on the Java compile classpath
      * @param mainOutputDir output directory for generated model, codecs, and schema ("main" files)
      * @param testOutputDir output directory for generated tests ("test" files)
      * @param javaPackageSuffix an optional, nullable suffix to add to the Java package name in generated classes, e.g. ".pbj",
@@ -37,13 +38,14 @@ public abstract class PbjCompiler {
      */
     public static void compileFilesIn(
             Iterable<File> sourceFiles,
+            Iterable<File> classpath,
             File mainOutputDir,
             File testOutputDir,
             String javaPackageSuffix,
             boolean generateTestClasses)
             throws Exception {
         // first we do a scan of files to build lookup tables for imports, packages etc.
-        final LookupHelper lookupHelper = new LookupHelper(sourceFiles, javaPackageSuffix);
+        final LookupHelper lookupHelper = new LookupHelper(sourceFiles, classpath, javaPackageSuffix);
         // for each proto src directory generate code
         for (final File protoFile : sourceFiles) {
             if (protoFile.exists()

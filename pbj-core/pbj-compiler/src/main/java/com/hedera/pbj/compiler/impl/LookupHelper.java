@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,6 +28,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
@@ -123,11 +125,13 @@ public final class LookupHelper {
      * protobuf files extracting what is needed.
      *
      * @param allSrcFiles collection of all proto src files
+     * @param classpath protobuf files in dependencies located on the Java compile classpath
      * @param javaPackageSuffix an optional, nullable suffix to add to the Java package name in generated classes, e.g. ".pbj"
      */
-    public LookupHelper(final Iterable<File> allSrcFiles, final String javaPackageSuffix) {
+    public LookupHelper(
+            final Iterable<File> allSrcFiles, final Iterable<File> classpath, final String javaPackageSuffix) {
         this.javaPackageSuffix = javaPackageSuffix == null ? "" : javaPackageSuffix.trim();
-        build(allSrcFiles);
+        build(allSrcFiles, classpath);
     }
 
     /**
@@ -467,9 +471,13 @@ public final class LookupHelper {
      * doesn't really matter.
      *
      * @param allSrcFiles collection of all proto src files
+     * @param classpath protobuf files in dependencies located on the Java compile classpath
      */
-    private void build(final Iterable<File> allSrcFiles) {
-        for (final File file : allSrcFiles) {
+    private void build(final Iterable<File> allSrcFiles, final Iterable<File> classpath) {
+        final var allFiles = Stream.concat(
+                StreamSupport.stream(allSrcFiles.spliterator(), false),
+                StreamSupport.stream(classpath.spliterator(), false));
+        allFiles.forEach(file -> {
             final Path filePath = file.toPath();
             final String fullQualifiedFile = file.getAbsolutePath();
             if (file.exists() && file.isFile() && file.getName().endsWith(PROTO_EXTENSIION)) {
@@ -505,7 +513,7 @@ public final class LookupHelper {
                     }
                     if (file.getName().endsWith("pbj_custom_options.proto")) {
                         // ignore pbj_custom_options.proto file
-                        continue;
+                        return;
                     } else if (pbjJavaPackage == null && protocJavaPackage == null) {
                         if (parsedDoc.packageStatement() == null
                                 || parsedDoc.packageStatement().isEmpty()) {
@@ -539,22 +547,17 @@ public final class LookupHelper {
                                 "google" + FileSystems.getDefault().getSeparator() + "protobuf")) {
                             continue;
                         }
-                        // now scan all src files to find import as there can be many src
-                        // directories
-                        final List<File> matchingSrcFiles = StreamSupport.stream(allSrcFiles.spliterator(), false)
-                                .filter(srcFile -> srcFile.getAbsolutePath()
-                                        .endsWith(FileSystems.getDefault().getSeparator() + importedFileName))
-                                .toList();
-                        if (matchingSrcFiles.size() == 1) {
-                            fileImports.add(matchingSrcFiles.get(0).getAbsolutePath());
-                        } else if (matchingSrcFiles.size() > 1) {
-                            throw new PbjCompilerException(IMPORT_MATCHED_MULTIPLE_MESSAGE.formatted(
-                                    importedFileName,
-                                    file.getAbsolutePath(),
-                                    Arrays.toString(matchingSrcFiles.toArray())));
+                        final var localImport = findImport(allSrcFiles, file, importedFileName);
+                        if (localImport == null) {
+                            final var dependencyImport = findImport(classpath, file, importedFileName);
+                            if (dependencyImport == null) {
+                                throw new PbjCompilerException(
+                                        IMPORT_NOT_FOUND_MESSAGE.formatted(importedFileName, file.getAbsolutePath()));
+                            } else {
+                                fileImports.add(dependencyImport);
+                            }
                         } else {
-                            throw new PbjCompilerException(
-                                    IMPORT_NOT_FOUND_MESSAGE.formatted(importedFileName, file.getAbsolutePath()));
+                            fileImports.add(localImport);
                         }
                     }
                     // process message and enum defs
@@ -575,8 +578,29 @@ public final class LookupHelper {
                     throw new RuntimeException(e);
                 }
             }
-        }
+        });
         //		printDebug();
+    }
+
+    @Nullable
+    private static String findImport(Iterable<File> protoFiles, File file, String importedFileName) {
+        // now scan all src files to find import as there can be many src directories
+        final List<File> matchingSrcFiles = StreamSupport.stream(protoFiles.spliterator(), false)
+                .filter(srcFile -> srcFile.getAbsolutePath()
+                        // TODO instead of '.endsWith' the path relative to the source root should be compared
+                        .endsWith(FileSystems.getDefault().getSeparator() + importedFileName))
+                .toList();
+        if (matchingSrcFiles.size() == 1) {
+            return matchingSrcFiles.get(0).getAbsolutePath();
+        } else if (matchingSrcFiles.size() > 1) {
+            // Return the result with the shortest path. This assumes that the longer path has a leading package
+            // declaration that was ignored in the matching
+            return matchingSrcFiles.stream()
+                    .map(File::getAbsolutePath)
+                    .min(Comparator.comparingInt(String::length))
+                    .get();
+        }
+        return null;
     }
 
     @NonNull

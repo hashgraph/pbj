@@ -9,6 +9,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -34,6 +35,6 @@ public class SubTypesTest {
                     }
                 })
                 .toList();
-        compileFilesIn(files, outputDir, outputDir, null, true);
+        compileFilesIn(files, Set.of(), outputDir, outputDir, null, true);
     }
 }
