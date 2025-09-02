@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.File;
 import java.net.URL;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -45,6 +46,6 @@ class CompareToNegativeTest {
 
     private static void getCompileFilesIn(String fileName) throws Exception {
         URL fileUrl = CompareToNegativeTest.class.getClassLoader().getResource(fileName);
-        compileFilesIn(List.of(new File(fileUrl.toURI())), outputDir, outputDir, null, true);
+        compileFilesIn(List.of(new File(fileUrl.toURI())), Set.of(), outputDir, outputDir, null, true);
     }
 }
