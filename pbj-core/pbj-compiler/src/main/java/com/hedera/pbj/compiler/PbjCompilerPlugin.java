@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler;
 
+import static org.gradle.api.attributes.LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE;
+
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.ConfigurationContainer;
+import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.Directory;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.internal.tasks.DefaultSourceSet;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -31,6 +36,14 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
         // get reference to java plugin
         final var javaPlugin = project.getExtensions().getByType(JavaPluginExtension.class);
 
+        // register transform to extract 'proto' files from 'jar' files where needed
+        final LibraryElements jarElements = project.getObjects().named(LibraryElements.class, LibraryElements.JAR);
+        final LibraryElements protobufsElements = project.getObjects().named(LibraryElements.class, "protobufs");
+        project.getDependencies().registerTransform(PbjProtobufExtractTransform.class, a -> {
+            a.getFrom().attribute(LIBRARY_ELEMENTS_ATTRIBUTE, jarElements);
+            a.getTo().attribute(LIBRARY_ELEMENTS_ATTRIBUTE, protobufsElements);
+        });
+
         javaPlugin.getSourceSets().configureEach(sourceSet -> {
             // 'test' is special as it will contain tests generated from the sources in the 'main' source set.
             if (SourceSet.TEST_SOURCE_SET_NAME.equals(sourceSet.getName())) {
@@ -38,13 +51,14 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
                 generatePbjSource.configure(t -> t.getGenerateTestClasses().set(pbj.getGenerateTestClasses()));
                 sourceSet.getJava().srcDir(generatePbjSource.flatMap(PbjCompilerTask::getJavaTestOutputDirectory));
             } else {
-                pbjSourceSet(sourceSet, project);
+                pbjSourceSet(sourceSet, protobufsElements, project);
             }
         });
     }
 
-    private static void pbjSourceSet(SourceSet sourceSet, Project project) {
+    private static void pbjSourceSet(SourceSet sourceSet, LibraryElements protobufsElements, Project project) {
         final PbjExtension pbj = project.getExtensions().getByType(PbjExtension.class);
+        final ConfigurationContainer configurations = project.getConfigurations();
         final String outputDirectory = "generated/source/pbj-proto/";
 
         // If not main source set, this is an unused empty folder
@@ -69,12 +83,21 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
         //    naming conventions via call to sourceSet.getTaskName()
         final String taskName = sourceSet.getTaskName("generate", "PbjSource");
 
+        // Create a view on the compile classpath the only contains the extracted protobuf files
+        final FileCollection extractedCompileClasspath = configurations
+                .getByName(sourceSet.getCompileClasspathConfigurationName())
+                .getIncoming()
+                .artifactView(v -> v.getAttributes().attribute(LIBRARY_ELEMENTS_ATTRIBUTE, protobufsElements))
+                .getFiles();
+
         TaskProvider<PbjCompilerTask> pbjCompiler = project.getTasks()
                 .register(taskName, PbjCompilerTask.class, pbjTask -> {
                     pbjTask.setDescription("Processes the " + sourceSet.getName() + " Pbj grammars.");
                     // 4) set up convention mapping for default sources (allows user
                     // to not have to specify)
                     pbjTask.setSource(pbjSourceSet);
+                    pbjTask.getSourceRoots().set(project.getProviders().provider(pbjSourceSet::getSrcDirs));
+                    pbjTask.getClasspath().from(extractedCompileClasspath);
                     pbjTask.getJavaMainOutputDirectory().set(outputDirectoryMain);
                     pbjTask.getJavaTestOutputDirectory().set(outputDirectoryTest);
                     pbjTask.getJavaPackageSuffix().set(pbj.getJavaPackageSuffix());

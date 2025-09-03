@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler;
 
+import java.io.File;
+import java.util.LinkedHashSet;
 import javax.inject.Inject;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceTask;
 import org.gradle.api.tasks.TaskAction;
 
@@ -31,6 +39,17 @@ public abstract class PbjCompilerTask extends SourceTask {
     public abstract DirectoryProperty getJavaTestOutputDirectory();
 
     /**
+     * The classpath to import 'proto' files from dependencies. The task expects the proto files to be extracted
+     * from the Jar files. It is also expected that the classpath already contains the generated code for these
+     * files.
+     *
+     * @return The classpath to find imports in other libraries.
+     */
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract ConfigurableFileCollection getClasspath();
+
+    /**
      * @return Gradle's FileOperations service to use for file deletion
      */
     @Inject
@@ -46,6 +65,10 @@ public abstract class PbjCompilerTask extends SourceTask {
     @Input
     public abstract Property<Boolean> getGenerateTestClasses();
 
+    /** Src folders to determine the relative path of files to resolve import statements. */
+    @Internal
+    public abstract SetProperty<File> getSourceRoots();
+
     /**
      * Perform task action - Generates all the PBJ java source files
      *
@@ -55,8 +78,14 @@ public abstract class PbjCompilerTask extends SourceTask {
     public void perform() throws Exception {
         // Clean output directories
         getFileOperations().delete(getJavaMainOutputDirectory(), getJavaTestOutputDirectory());
+
+        final var allRoots = new LinkedHashSet<>(getSourceRoots().get());
+        allRoots.addAll(getClasspath().getFiles());
+
         PbjCompiler.compileFilesIn(
                 getSource(),
+                getClasspath().getAsFileTree(),
+                allRoots,
                 getJavaMainOutputDirectory().get().getAsFile(),
                 getJavaTestOutputDirectory().get().getAsFile(),
                 getJavaPackageSuffix().getOrNull(),
