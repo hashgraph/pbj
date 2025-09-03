@@ -35,6 +35,6 @@ public class SubTypesTest {
                     }
                 })
                 .toList();
-        compileFilesIn(files, Set.of(), outputDir, outputDir, null, true);
+        compileFilesIn(files, Set.of(), Set.of(), outputDir, outputDir, null, true);
     }
 }

@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler;
 
+import java.io.File;
+import java.util.LinkedHashSet;
 import javax.inject.Inject;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.PathSensitive;
@@ -61,6 +65,10 @@ public abstract class PbjCompilerTask extends SourceTask {
     @Input
     public abstract Property<Boolean> getGenerateTestClasses();
 
+    /** Src folders to determine the relative path of files to resolve import statements. */
+    @Internal
+    public abstract SetProperty<File> getSourceRoots();
+
     /**
      * Perform task action - Generates all the PBJ java source files
      *
@@ -71,9 +79,13 @@ public abstract class PbjCompilerTask extends SourceTask {
         // Clean output directories
         getFileOperations().delete(getJavaMainOutputDirectory(), getJavaTestOutputDirectory());
 
+        final var allRoots = new LinkedHashSet<>(getSourceRoots().get());
+        allRoots.addAll(getClasspath().getFiles());
+
         PbjCompiler.compileFilesIn(
                 getSource(),
                 getClasspath().getAsFileTree(),
+                allRoots,
                 getJavaMainOutputDirectory().get().getAsFile(),
                 getJavaTestOutputDirectory().get().getAsFile(),
                 getJavaPackageSuffix().getOrNull(),
