@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -70,8 +69,6 @@ public final class LookupHelper {
             "%s only supports MessageDefContext, EnumDefContext or MessageTypeContext not [%s]";
     private static final String FILE_MISSING_PACKAGE_OPTION_MESSAGE =
             "%sProto file [%s] does not contain \"%s\" or \"%s\" options.%n";
-    private static final String IMPORT_MATCHED_MULTIPLE_MESSAGE =
-            "Import \"%s\" in proto file \"%s\" matched more than 1 file in src files [%s]";
     private static final String IMPORT_NOT_FOUND_MESSAGE =
             "Import \"%s\" in proto file \"%s\" can not be found in src files.";
 
@@ -126,12 +123,16 @@ public final class LookupHelper {
      *
      * @param allSrcFiles collection of all proto src files
      * @param classpath protobuf files in dependencies located on the Java compile classpath
+     * @param sourceRoots folders containing the source files
      * @param javaPackageSuffix an optional, nullable suffix to add to the Java package name in generated classes, e.g. ".pbj"
      */
     public LookupHelper(
-            final Iterable<File> allSrcFiles, final Iterable<File> classpath, final String javaPackageSuffix) {
+            final Iterable<File> allSrcFiles,
+            final Iterable<File> classpath,
+            final Set<File> sourceRoots,
+            final String javaPackageSuffix) {
         this.javaPackageSuffix = javaPackageSuffix == null ? "" : javaPackageSuffix.trim();
-        build(allSrcFiles, classpath);
+        build(allSrcFiles, classpath, sourceRoots);
     }
 
     /**
@@ -472,12 +473,17 @@ public final class LookupHelper {
      *
      * @param allSrcFiles collection of all proto src files
      * @param classpath protobuf files in dependencies located on the Java compile classpath
+     * @param sourceRoots folders containing the source files
      */
-    private void build(final Iterable<File> allSrcFiles, final Iterable<File> classpath) {
-        final var allFiles = Stream.concat(
-                StreamSupport.stream(allSrcFiles.spliterator(), false),
-                StreamSupport.stream(classpath.spliterator(), false));
-        allFiles.forEach(file -> {
+    private void build(final Iterable<File> allSrcFiles, final Iterable<File> classpath, final Set<File> sourceRoots) {
+
+        var allProtobufFiles = Stream.concat(
+                        StreamSupport.stream(allSrcFiles.spliterator(), false),
+                        StreamSupport.stream(classpath.spliterator(), false))
+                .collect(Collectors.toMap(
+                        file -> relativePath(file, sourceRoots), Function.identity(), (first, other) -> first));
+
+        for (final File file : allProtobufFiles.values()) {
             final Path filePath = file.toPath();
             final String fullQualifiedFile = file.getAbsolutePath();
             if (file.exists() && file.isFile() && file.getName().endsWith(PROTO_EXTENSIION)) {
@@ -513,7 +519,7 @@ public final class LookupHelper {
                     }
                     if (file.getName().endsWith("pbj_custom_options.proto")) {
                         // ignore pbj_custom_options.proto file
-                        return;
+                        continue;
                     } else if (pbjJavaPackage == null && protocJavaPackage == null) {
                         if (parsedDoc.packageStatement() == null
                                 || parsedDoc.packageStatement().isEmpty()) {
@@ -547,17 +553,13 @@ public final class LookupHelper {
                                 "google" + FileSystems.getDefault().getSeparator() + "protobuf")) {
                             continue;
                         }
-                        final var localImport = findImport(allSrcFiles, file, importedFileName);
-                        if (localImport == null) {
-                            final var dependencyImport = findImport(classpath, file, importedFileName);
-                            if (dependencyImport == null) {
-                                throw new PbjCompilerException(
-                                        IMPORT_NOT_FOUND_MESSAGE.formatted(importedFileName, file.getAbsolutePath()));
-                            } else {
-                                fileImports.add(dependencyImport);
-                            }
+
+                        final var importedFile = allProtobufFiles.get(Path.of(importedFileName));
+                        if (importedFile != null) {
+                            fileImports.add(importedFile.getAbsolutePath());
                         } else {
-                            fileImports.add(localImport);
+                            throw new PbjCompilerException(
+                                    IMPORT_NOT_FOUND_MESSAGE.formatted(importedFileName, file.getAbsolutePath()));
                         }
                     }
                     // process message and enum defs
@@ -578,29 +580,16 @@ public final class LookupHelper {
                     throw new RuntimeException(e);
                 }
             }
-        });
+        }
         //		printDebug();
     }
 
-    @Nullable
-    private static String findImport(Iterable<File> protoFiles, File file, String importedFileName) {
-        // now scan all src files to find import as there can be many src directories
-        final List<File> matchingSrcFiles = StreamSupport.stream(protoFiles.spliterator(), false)
-                .filter(srcFile -> srcFile.getAbsolutePath()
-                        // TODO instead of '.endsWith' the path relative to the source root should be compared
-                        .endsWith(FileSystems.getDefault().getSeparator() + importedFileName))
-                .toList();
-        if (matchingSrcFiles.size() == 1) {
-            return matchingSrcFiles.get(0).getAbsolutePath();
-        } else if (matchingSrcFiles.size() > 1) {
-            // Return the result with the shortest path. This assumes that the longer path has a leading package
-            // declaration that was ignored in the matching
-            return matchingSrcFiles.stream()
-                    .map(File::getAbsolutePath)
-                    .min(Comparator.comparingInt(String::length))
-                    .get();
-        }
-        return null;
+    private Path relativePath(File file, Set<File> sourceRoots) {
+        return sourceRoots.stream()
+                .map(root -> root.toPath().relativize(file.toPath()))
+                .filter(relativePath -> !relativePath.startsWith(".."))
+                .findFirst()
+                .orElse(file.toPath().getFileName());
     }
 
     @NonNull

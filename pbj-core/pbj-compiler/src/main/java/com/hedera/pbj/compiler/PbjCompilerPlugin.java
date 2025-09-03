@@ -104,6 +104,7 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
                     // 4) set up convention mapping for default sources (allows user
                     // to not have to specify)
                     pbjTask.setSource(pbjSourceSet);
+                    pbjTask.getSourceRoots().set(project.getProviders().provider(pbjSourceSet::getSrcDirs));
                     pbjTask.getClasspath().from(extractedCompileClasspath);
                     pbjTask.getJavaMainOutputDirectory().set(outputDirectoryMain);
                     pbjTask.getJavaTestOutputDirectory().set(outputDirectoryTest);
