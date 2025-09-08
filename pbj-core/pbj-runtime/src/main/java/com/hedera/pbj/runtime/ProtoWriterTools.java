@@ -72,8 +72,8 @@ public final class ProtoWriterTools {
     }
 
     /** Create an unsupported field type exception */
-    private static RuntimeException unsupported() {
-        return new RuntimeException("Unsupported field type. Bug in ProtoOutputStream, shouldn't happen.");
+    static RuntimeException unsupported() {
+        return new RuntimeException("Unsupported field type, shouldn't happen.");
     }
 
     // ================================================================================================================
@@ -980,10 +980,10 @@ public final class ProtoWriterTools {
     // SIZE OF METHODS
 
     /** Size of a fixed length 32 bit value in bytes */
-    private static final int FIXED32_SIZE = 4;
+    static final int FIXED32_SIZE = 4;
 
     /** Size of a fixed length 64 bit value in bytes */
-    private static final int FIXED64_SIZE = 8;
+    static final int FIXED64_SIZE = 8;
 
     /** Size of a max length varint value in bytes */
     private static final int MAX_VARINT_SIZE = 10;
@@ -1010,12 +1010,7 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfVarInt64(final long value) {
-        if (value >= 0) {
-            return sizeOfUnsignedVarInt64(value);
-        } else {
-            // Must sign-extend.
-            return MAX_VARINT_SIZE;
-        }
+        return sizeOfUnsignedVarInt64(value);
     }
 
     /**
@@ -1025,11 +1020,7 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfUnsignedVarInt32(final int value) {
-        if ((value & (~0 << 7)) == 0) return 1;
-        if ((value & (~0 << 14)) == 0) return 2;
-        if ((value & (~0 << 21)) == 0) return 3;
-        if ((value & (~0 << 28)) == 0) return 4;
-        return 5;
+        return sizeOfUnsignedVarInt64(value);
     }
 
     /**
@@ -1038,24 +1029,11 @@ public final class ProtoWriterTools {
      * @param value The int value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfUnsignedVarInt64(long value) {
-        // handle two popular special cases up front ...
+    static int sizeOfUnsignedVarInt64(long value) {
+        // handle popular special case up front
         if ((value & (~0L << 7)) == 0L) return 1;
-        if (value < 0L) return 10;
-        // ... leaving us with 8 remaining, which we can divide and conquer
-        int n = 2;
-        if ((value & (~0L << 35)) != 0L) {
-            n += 4;
-            value >>>= 28;
-        }
-        if ((value & (~0L << 21)) != 0L) {
-            n += 2;
-            value >>>= 14;
-        }
-        if ((value & (~0L << 14)) != 0L) {
-            n += 1;
-        }
-        return n;
+        final int clz = Long.numberOfLeadingZeros(value);
+        return ((Long.SIZE * 9 + (1 << 6)) - (clz * 9)) >>> 6;
     }
 
     /**
@@ -1342,7 +1320,7 @@ public final class ProtoWriterTools {
      * @param value string value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfStringNoTag(String value) {
+    static int sizeOfStringNoTag(String value) {
         // When not a oneOf don't write default value
         if ((value == null || value.isEmpty())) {
             return 0;
