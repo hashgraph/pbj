@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.pbj.integration.test.grpc;
+package com.hedera.pbj.integration.grpc;
 
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
@@ -13,8 +13,8 @@ import java.util.concurrent.locks.LockSupport;
 
 /** Misc utils for GRPC tests. */
 public class GrpcTestUtils {
-    public static final PortsAllocator PORTS = new PortsAllocator(8666, 10666);
-    private static final Duration READ_TIMEOUT = Duration.ofSeconds(1);
+    public static final PortsAllocator PORTS = new PortsAllocator(14100, 15200);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
 
     private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
 

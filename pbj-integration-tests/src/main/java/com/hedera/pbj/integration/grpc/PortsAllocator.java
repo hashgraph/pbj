@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.pbj.integration.test.grpc;
+package com.hedera.pbj.integration.grpc;
 
 import java.util.HashSet;
 import java.util.Set;

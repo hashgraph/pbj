@@ -6,9 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.integration.grpc.GrpcTestUtils;
+import com.hedera.pbj.integration.grpc.PortsAllocator;
 import com.hedera.pbj.integration.test.grpc.GrpcServerGreeterHandle;
-import com.hedera.pbj.integration.test.grpc.GrpcTestUtils;
-import com.hedera.pbj.integration.test.grpc.PortsAllocator;
 import com.hedera.pbj.integration.test.grpc.specialized.SeparateJVMRunner;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
 import com.hedera.pbj.runtime.grpc.Pipeline;
