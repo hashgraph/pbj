@@ -52,25 +52,24 @@ public abstract class PbjProtobufExtractTransform implements TransformAction<Tra
     }
 
     private static void extractProtoFilesFromJar(File archive, File destination) throws IOException {
-        byte[] buffer = new byte[1024];
-        final var jis = new JarInputStream(Files.newInputStream(archive.toPath()));
+        try (var jis = new JarInputStream(Files.newInputStream(archive.toPath()))) {
+            byte[] buffer = new byte[1024];
 
-        var jarEntry = jis.getNextJarEntry();
-        while (jarEntry != null) {
-            File extractedFile = new File(destination, jarEntry.getName());
-            if (!jarEntry.isDirectory() && jarEntry.getName().endsWith(PROTO_EXTENSIION)) {
-                Files.createDirectories(extractedFile.getParentFile().toPath());
-                final var fos = new FileOutputStream(extractedFile);
-                int length;
-                while ((length = jis.read(buffer)) > 0) {
-                    fos.write(buffer, 0, length);
+            var jarEntry = jis.getNextJarEntry();
+            while (jarEntry != null) {
+                File extractedFile = new File(destination, jarEntry.getName());
+                if (!jarEntry.isDirectory() && jarEntry.getName().endsWith(PROTO_EXTENSIION)) {
+                    Files.createDirectories(extractedFile.getParentFile().toPath());
+                    final var fos = new FileOutputStream(extractedFile);
+                    int length;
+                    while ((length = jis.read(buffer)) > 0) {
+                        fos.write(buffer, 0, length);
+                    }
+                    fos.close();
                 }
-                fos.close();
+                jarEntry = jis.getNextJarEntry();
             }
-            jarEntry = jis.getNextJarEntry();
+            jis.closeEntry();
         }
-
-        jis.closeEntry();
-        jis.close();
     }
 }
