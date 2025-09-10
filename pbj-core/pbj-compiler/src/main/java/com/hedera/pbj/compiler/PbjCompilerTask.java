@@ -39,9 +39,12 @@ public abstract class PbjCompilerTask extends SourceTask {
     public abstract DirectoryProperty getJavaTestOutputDirectory();
 
     /**
-     * The classpath to import 'proto' files from dependencies. The task expects the proto files to be extracted
-     * from the Jar files. It is also expected that the classpath already contains the generated code for these
-     * files.
+     * The classpath to import 'proto' files from dependencies. The task expects the proto files to be extracted from
+     * the Jar files. These proto files are used for importing protobufs from other modules in the {@link #getSource()}
+     * proto files. The generated code for the {@link #getSource()} proto will then have the correct Java imports.
+     * <p>
+     * Note that the Jar files from which the proto files in this file collection are extracted should also contain
+     * the generated code for these files, as no code generation is performed for proto files in this file collection.
      *
      * @return The classpath to find imports in other libraries.
      */
