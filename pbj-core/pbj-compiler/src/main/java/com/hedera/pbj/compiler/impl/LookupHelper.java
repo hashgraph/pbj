@@ -27,8 +27,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -122,17 +120,11 @@ public final class LookupHelper {
      * protobuf files extracting what is needed.
      *
      * @param allSrcFiles collection of all proto src files
-     * @param classpath protobuf files in dependencies located on the Java compile classpath
-     * @param sourceRoots folders containing the source files
      * @param javaPackageSuffix an optional, nullable suffix to add to the Java package name in generated classes, e.g. ".pbj"
      */
-    public LookupHelper(
-            final Iterable<File> allSrcFiles,
-            final Iterable<File> classpath,
-            final Set<File> sourceRoots,
-            final String javaPackageSuffix) {
+    public LookupHelper(final Map<Path, File> allSrcFiles, final String javaPackageSuffix) {
         this.javaPackageSuffix = javaPackageSuffix == null ? "" : javaPackageSuffix.trim();
-        build(allSrcFiles, classpath, sourceRoots);
+        build(allSrcFiles);
     }
 
     /**
@@ -472,18 +464,9 @@ public final class LookupHelper {
      * doesn't really matter.
      *
      * @param allSrcFiles collection of all proto src files
-     * @param classpath protobuf files in dependencies located on the Java compile classpath
-     * @param sourceRoots folders containing the source files
      */
-    private void build(final Iterable<File> allSrcFiles, final Iterable<File> classpath, final Set<File> sourceRoots) {
-
-        var allProtobufFiles = Stream.concat(
-                        StreamSupport.stream(allSrcFiles.spliterator(), false),
-                        StreamSupport.stream(classpath.spliterator(), false))
-                .collect(Collectors.toMap(
-                        file -> relativePath(file, sourceRoots), Function.identity(), (first, other) -> first));
-
-        for (final File file : allProtobufFiles.values()) {
+    private void build(final Map<Path, File> allSrcFiles) {
+        for (final File file : allSrcFiles.values()) {
             final Path filePath = file.toPath();
             final String fullQualifiedFile = file.getAbsolutePath();
             if (file.exists() && file.isFile() && file.getName().endsWith(PROTO_EXTENSIION)) {
@@ -554,7 +537,7 @@ public final class LookupHelper {
                             continue;
                         }
 
-                        final var importedFile = allProtobufFiles.get(Path.of(importedFileName));
+                        final var importedFile = allSrcFiles.get(Path.of(importedFileName));
                         if (importedFile != null) {
                             fileImports.add(importedFile.getAbsolutePath());
                         } else {
@@ -582,14 +565,6 @@ public final class LookupHelper {
             }
         }
         //		printDebug();
-    }
-
-    private Path relativePath(File file, Set<File> sourceRoots) {
-        return sourceRoots.stream()
-                .map(root -> root.toPath().relativize(file.toPath()))
-                .filter(relativePath -> !relativePath.startsWith(".."))
-                .findFirst()
-                .orElse(file.toPath().getFileName());
     }
 
     @NonNull

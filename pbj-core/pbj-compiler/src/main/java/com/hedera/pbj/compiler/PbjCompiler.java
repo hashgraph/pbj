@@ -15,9 +15,13 @@ import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.File;
 import java.io.FileInputStream;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 
@@ -47,8 +51,15 @@ public abstract class PbjCompiler {
             String javaPackageSuffix,
             boolean generateTestClasses)
             throws Exception {
+
+        var allProtobufFiles = Stream.concat(
+                        StreamSupport.stream(sourceFiles.spliterator(), false),
+                        StreamSupport.stream(classpath.spliterator(), false))
+                .collect(Collectors.toMap(
+                        file -> relativePath(file, sourceRoots), Function.identity(), (first, other) -> first));
+
         // first we do a scan of files to build lookup tables for imports, packages etc.
-        final LookupHelper lookupHelper = new LookupHelper(sourceFiles, classpath, sourceRoots, javaPackageSuffix);
+        final LookupHelper lookupHelper = new LookupHelper(allProtobufFiles, javaPackageSuffix);
         // for each proto src directory generate code
         for (final File protoFile : sourceFiles) {
             if (protoFile.exists()
@@ -112,5 +123,13 @@ public abstract class PbjCompiler {
                 }
             }
         }
+    }
+
+    private static Path relativePath(File file, Set<File> sourceRoots) {
+        return sourceRoots.stream()
+                .map(root -> root.toPath().relativize(file.toPath()))
+                .filter(relativePath -> !relativePath.startsWith(".."))
+                .findFirst()
+                .orElse(file.toPath().getFileName());
     }
 }
