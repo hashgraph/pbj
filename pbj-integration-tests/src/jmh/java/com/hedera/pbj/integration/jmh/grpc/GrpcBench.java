@@ -135,6 +135,7 @@ public class GrpcBench {
     public void benchServerStreaming(final StreamingState state, final Blackhole blackhole) {
         for (int i = 1; i <= INVOCATIONS; i++) {
             try {
+                final CountDownLatch latch = new CountDownLatch(1);
                 state.client.sayHelloStreamReply(state.weight.requestSupplier.get(), new Pipeline<>() {
                     @Override
                     public void onNext(HelloReply item) throws RuntimeException {
@@ -148,8 +149,15 @@ public class GrpcBench {
                     public void onError(Throwable throwable) {}
 
                     @Override
-                    public void onComplete() {}
+                    public void onComplete() {
+                        latch.countDown();
+                    }
                 });
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             } catch (Exception e) {
                 // Keep running because network may fail sometimes.
                 new RuntimeException(e).printStackTrace();
