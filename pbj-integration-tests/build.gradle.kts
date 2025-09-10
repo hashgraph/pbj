@@ -18,20 +18,14 @@ buildscript {
     dependencies { classpath(platform("com.hedera.hashgraph:hiero-dependency-versions")) }
 }
 
+group = "com.hedera.pbj"
+
 jvmDependencyConflicts.consistentResolution {
     platform("com.hedera.hashgraph:hiero-dependency-versions")
 }
 
-mainModuleInfo {
-    requires("com.hedera.pbj.runtime")
-
-    requires("com.google.common")
-    requires("com.google.protobuf")
-    requires("io.grpc")
-    requires("io.grpc.protobuf")
-    requires("io.grpc.stub")
-    requires("org.antlr.antlr4.runtime")
-    requiresStatic("com.github.spotbugs.annotations")
+javaModuleDependencies {
+    moduleNameToGA.put("com.hedera.pbj.integration.tests", "com.hedera.pbj:pbj-integration-tests")
 }
 
 testModuleInfo {
@@ -106,20 +100,18 @@ sourceSets {
     }
 }
 
-val custom = sourceSets.create("custom")
+val custom = sourceSets.create("custom") { proto { setSrcDirs(emptyList<Directory>()) } }
 
 java.registerFeature("custom") { usingSourceSet(custom) }
 
 // Exclude protoc generated from docs
 tasks.javadoc {
-    exclude("com/hederahashgraph/api/proto/**")
     exclude("com/hederahashgraph/service/proto/**")
     exclude("com/hedera/hapi/**/legacy/**")
     exclude("com/hedera/**/protoc/**")
     exclude("com/hedera/services/stream/proto/**")
     exclude("com/hedera/hashgraph/pbj/integration/**")
     exclude("com/hedera/pbj/test/proto/java/**")
-    exclude("pbj/**")
 
     // This <h3> issue in javadoc:
     //

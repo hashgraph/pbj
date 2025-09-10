@@ -27,7 +27,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -68,8 +67,6 @@ public final class LookupHelper {
             "%s only supports MessageDefContext, EnumDefContext or MessageTypeContext not [%s]";
     private static final String FILE_MISSING_PACKAGE_OPTION_MESSAGE =
             "%sProto file [%s] does not contain \"%s\" or \"%s\" options.%n";
-    private static final String IMPORT_MATCHED_MULTIPLE_MESSAGE =
-            "Import \"%s\" in proto file \"%s\" matched more than 1 file in src files [%s]";
     private static final String IMPORT_NOT_FOUND_MESSAGE =
             "Import \"%s\" in proto file \"%s\" can not be found in src files.";
 
@@ -125,7 +122,7 @@ public final class LookupHelper {
      * @param allSrcFiles collection of all proto src files
      * @param javaPackageSuffix an optional, nullable suffix to add to the Java package name in generated classes, e.g. ".pbj"
      */
-    public LookupHelper(final Iterable<File> allSrcFiles, final String javaPackageSuffix) {
+    public LookupHelper(final Map<Path, File> allSrcFiles, final String javaPackageSuffix) {
         this.javaPackageSuffix = javaPackageSuffix == null ? "" : javaPackageSuffix.trim();
         build(allSrcFiles);
     }
@@ -468,8 +465,8 @@ public final class LookupHelper {
      *
      * @param allSrcFiles collection of all proto src files
      */
-    private void build(final Iterable<File> allSrcFiles) {
-        for (final File file : allSrcFiles) {
+    private void build(final Map<Path, File> allSrcFiles) {
+        for (final File file : allSrcFiles.values()) {
             final Path filePath = file.toPath();
             final String fullQualifiedFile = file.getAbsolutePath();
             if (file.exists() && file.isFile() && file.getName().endsWith(PROTO_EXTENSIION)) {
@@ -539,19 +536,10 @@ public final class LookupHelper {
                                 "google" + FileSystems.getDefault().getSeparator() + "protobuf")) {
                             continue;
                         }
-                        // now scan all src files to find import as there can be many src
-                        // directories
-                        final List<File> matchingSrcFiles = StreamSupport.stream(allSrcFiles.spliterator(), false)
-                                .filter(srcFile -> srcFile.getAbsolutePath()
-                                        .endsWith(FileSystems.getDefault().getSeparator() + importedFileName))
-                                .toList();
-                        if (matchingSrcFiles.size() == 1) {
-                            fileImports.add(matchingSrcFiles.get(0).getAbsolutePath());
-                        } else if (matchingSrcFiles.size() > 1) {
-                            throw new PbjCompilerException(IMPORT_MATCHED_MULTIPLE_MESSAGE.formatted(
-                                    importedFileName,
-                                    file.getAbsolutePath(),
-                                    Arrays.toString(matchingSrcFiles.toArray())));
+
+                        final var importedFile = allSrcFiles.get(Path.of(importedFileName));
+                        if (importedFile != null) {
+                            fileImports.add(importedFile.getAbsolutePath());
                         } else {
                             throw new PbjCompilerException(
                                     IMPORT_NOT_FOUND_MESSAGE.formatted(importedFileName, file.getAbsolutePath()));
