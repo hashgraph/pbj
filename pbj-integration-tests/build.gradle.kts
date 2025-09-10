@@ -114,7 +114,6 @@ java.registerFeature("custom") { usingSourceSet(custom) }
 
 // Exclude protoc generated from docs
 tasks.javadoc {
-    // exclude("com/hederahashgraph/api/proto/**")
     exclude("com/hederahashgraph/service/proto/**")
     exclude("com/hedera/hapi/**/legacy/**")
     exclude("com/hedera/**/protoc/**")
