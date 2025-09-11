@@ -240,6 +240,27 @@ final class DirectBufferedData extends BufferedData {
     }
 
     /**
+     * Performs bulk comparison of data at the given offset with the provided byte array.
+     * Uses UnsafeUtils for efficient memory operations when data length exceeds threshold.
+     *
+     * @param offset the offset in this buffer to start comparison
+     * @param compareData the byte array to compare against
+     * @param compareLength the length of data to compare
+     * @return true if the data matches, false otherwise
+     */
+    private boolean bulkContains(final long offset, final byte[] compareData, final int compareLength) {
+        // For small data, use the default implementation to avoid overhead
+        if (compareLength <= 8) {
+            return super.contains(offset, compareData);
+        }
+
+        // For larger data, use bulk comparison via UnsafeUtils
+        final byte[] tempArray = new byte[compareLength];
+        UnsafeUtils.getDirectBufferToArray(buffer, offset, tempArray, 0, compareLength);
+        return Arrays.equals(tempArray, compareData);
+    }
+
+    /**
      * {@inheritDoc}
      *
      * <p>Optimized implementation for DirectBufferedData that avoids byte-by-byte comparison
@@ -256,15 +277,7 @@ final class DirectBufferedData extends BufferedData {
             return false;
         }
 
-        // For small byte arrays, use the default implementation to avoid overhead
-        if (bytes.length <= 8) {
-            return super.contains(offset, bytes);
-        }
-
-        // For larger byte arrays, use bulk comparison via UnsafeUtils
-        final byte[] tempArray = new byte[bytes.length];
-        UnsafeUtils.getDirectBufferToArray(buffer, offset, tempArray, 0, bytes.length);
-        return Arrays.equals(tempArray, bytes);
+        return bulkContains(offset, bytes, bytes.length);
     }
 
     /**
@@ -288,20 +301,18 @@ final class DirectBufferedData extends BufferedData {
 
         // Fast path: if the other data is also DirectBufferedData, we can use bulk comparison
         if (data instanceof DirectBufferedData otherDirectData) {
+            final int dataLength = Math.toIntExact(data.length());
+
             // For small data, use the default implementation to avoid overhead
-            if (data.length() <= 8) {
+            if (dataLength <= 8) {
                 return super.contains(offset, data);
             }
 
-            // Extract both data ranges into temporary arrays and compare
-            final int dataLength = Math.toIntExact(data.length());
-            final byte[] thisArray = new byte[dataLength];
+            // Extract other data into array and use bulk comparison
             final byte[] otherArray = new byte[dataLength];
-
-            UnsafeUtils.getDirectBufferToArray(buffer, offset, thisArray, 0, dataLength);
             UnsafeUtils.getDirectBufferToArray(otherDirectData.buffer, 0, otherArray, 0, dataLength);
 
-            return Arrays.equals(thisArray, otherArray);
+            return bulkContains(offset, otherArray, dataLength);
         }
 
         // Fall back to the default implementation for other RandomAccessData types
