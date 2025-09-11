@@ -4,7 +4,6 @@ package com.hedera.pbj.compiler.impl;
 import static com.hedera.pbj.compiler.impl.LookupHelper.extractComparableFields;
 import static com.hedera.pbj.compiler.impl.LookupHelper.normalizeFileName;
 import static java.util.Arrays.asList;
-import static org.gradle.internal.impldep.org.apache.commons.lang.RandomStringUtils.randomAlphabetic;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -72,7 +71,7 @@ class LookupHelperTest {
 
     @Test
     void testExtractComparableFields_malformedComment() {
-        when(optionComment.getText()).thenReturn(randomAlphabetic(10));
+        when(optionComment.getText()).thenReturn("B1sr9i4TZp");
         when(defContext.optionComment()).thenReturn(optionComment);
         assertTrue(extractComparableFields(defContext).isEmpty(), "Should return empty list");
     }
