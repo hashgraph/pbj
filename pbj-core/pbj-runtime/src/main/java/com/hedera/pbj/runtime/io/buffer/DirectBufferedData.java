@@ -6,6 +6,7 @@ import com.hedera.pbj.runtime.io.UnsafeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -236,5 +237,74 @@ final class DirectBufferedData extends BufferedData {
         UnsafeUtils.putByteArrayToDirectBuffer(buffer, pos, srcArr, srcArrOffset + srcPos, len);
         buffer.position(pos + len);
         src.position(srcPos + len);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Optimized implementation for DirectBufferedData that avoids byte-by-byte comparison
+     * by using bulk memory operations when possible.
+     */
+    @Override
+    public boolean contains(final long offset, @NonNull final byte[] bytes) {
+        checkOffset(offset, length());
+
+        /* Check if the number of bytes between offset and length is shorter
+         * than the bytes we're matching */
+        if (length() - offset < bytes.length) {
+            // No way we could have a match -> return false.
+            return false;
+        }
+
+        // For small byte arrays, use the default implementation to avoid overhead
+        if (bytes.length <= 8) {
+            return super.contains(offset, bytes);
+        }
+
+        // For larger byte arrays, use bulk comparison via UnsafeUtils
+        final byte[] tempArray = new byte[bytes.length];
+        UnsafeUtils.getDirectBufferToArray(buffer, offset, tempArray, 0, bytes.length);
+        return Arrays.equals(tempArray, bytes);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Optimized implementation for DirectBufferedData that avoids byte-by-byte comparison
+     * when both data sources are DirectBufferedData instances.
+     */
+    @Override
+    public boolean contains(final long offset, @NonNull final RandomAccessData data) {
+        // If this data is empty, return true if only the incoming data is empty too.
+        if (length() == 0) {
+            return data.length() == 0;
+        }
+
+        checkOffset(offset, length());
+
+        if (length() - offset < data.length()) {
+            return false;
+        }
+
+        // Fast path: if the other data is also DirectBufferedData, we can use bulk comparison
+        if (data instanceof DirectBufferedData otherDirectData) {
+            // For small data, use the default implementation to avoid overhead
+            if (data.length() <= 8) {
+                return super.contains(offset, data);
+            }
+
+            // Extract both data ranges into temporary arrays and compare
+            final int dataLength = Math.toIntExact(data.length());
+            final byte[] thisArray = new byte[dataLength];
+            final byte[] otherArray = new byte[dataLength];
+
+            UnsafeUtils.getDirectBufferToArray(buffer, offset, thisArray, 0, dataLength);
+            UnsafeUtils.getDirectBufferToArray(otherDirectData.buffer, 0, otherArray, 0, dataLength);
+
+            return Arrays.equals(thisArray, otherArray);
+        }
+
+        // Fall back to the default implementation for other RandomAccessData types
+        return super.contains(offset, data);
     }
 }
