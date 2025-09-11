@@ -64,6 +64,9 @@ jmhModuleInfo {
     requires("io.helidon.webserver")
 }
 
+// version is added to module-info.class files
+version = "0.0.0.1-test"
+
 // IMPROVE: Disable module-info transform for 'testRuntimeClasspath' which leads to an error
 // possible caused by a cycle produced by depending on 'pbj-compiler' in multiple ways which
 // eventually leads to 'pbj-compiler' depending on itself in this context.
@@ -111,6 +114,10 @@ sourceSets {
     }
 }
 
+val custom = sourceSets.create("custom")
+
+java.registerFeature("custom") { usingSourceSet(custom) }
+
 // Exclude protoc generated from docs
 tasks.javadoc {
     exclude("com/hederahashgraph/api/proto/**")
@@ -133,8 +140,8 @@ tasks.javadoc {
     exclude("com/hedera/hapi/node/token/TokenServiceInterface.java")
 }
 
+@Suppress("UnstableApiUsage")
 testing {
-    @Suppress("UnstableApiUsage")
     suites.named<JvmTestSuite>("test") {
         tasks.register<Test>("fuzzTest") {
             testClassesDirs = sources.output.classesDirs
@@ -154,6 +161,9 @@ testing {
                 useJUnitPlatform { excludeTags("FUZZ_TEST") }
                 dependsOn(tasks.named("fuzzTest"))
             }
+        }
+        dependencies {
+            this.implementation(project()) { capabilities { requireFeature("custom") } }
         }
     }
 }
