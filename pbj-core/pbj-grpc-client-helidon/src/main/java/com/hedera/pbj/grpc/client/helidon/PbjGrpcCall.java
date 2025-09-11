@@ -20,8 +20,6 @@ import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.webclient.http2.Http2ClientStream;
 import io.helidon.webclient.http2.StreamTimeoutException;
-import java.io.UncheckedIOException;
-import java.net.SocketException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -153,13 +151,6 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                 }
             } while (!headersRead && isStreamOpen());
 
-            // If stream closed before headers were read, this indicates server failure
-            if (!headersRead && !isStreamOpen()) {
-                pipeline.onError(new UncheckedIOException(
-                        new SocketException("Connection closed before headers were received")));
-                return;
-            }
-
             // read data from stream
             final PbjGrpcDatagramReader datagramReader = new PbjGrpcDatagramReader();
             while (isStreamOpen() && !clientStream.trailers().isDone() && clientStream.hasEntity()) {
@@ -202,10 +193,6 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                 }
             }
 
-            // Check if stream was closed during data reading without proper completion
-            boolean streamClosedUnexpectedly =
-                    !isStreamOpen() && !clientStream.trailers().isDone();
-
             // Google GRPC server can report an erroneous grpc-status in the headers.
             if (processHeaders(clientStream.readHeaders().httpHeaders())) {
                 return;
@@ -231,22 +218,11 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                 return;
             } catch (TimeoutException ignored) {
                 // This is okay, the server doesn't support trailers or died, or the trailers got lost.
-                // However, if the stream was closed unexpectedly, we should report an error
-                if (streamClosedUnexpectedly) {
-                    pipeline.onError(new UncheckedIOException(
-                            new SocketException("Connection closed unexpectedly during stream processing")));
-                    return;
-                }
             }
             // Luckily, there's no any other places through which a grpc-status can be reported,
             // so the above two calls should cover all the possible cases.
 
-            // Only complete successfully if the stream wasn't closed unexpectedly
-            if (!streamClosedUnexpectedly) {
-                pipeline.onComplete();
-            } else {
-                pipeline.onError(new UncheckedIOException(new SocketException("Connection closed unexpectedly")));
-            }
+            pipeline.onComplete();
         } catch (Throwable t) {
             // This method runs in the Helidon WebClient executor, so there's no need to re-throw the exception
             // as this won't produce any useful effects. We only report it to the replies pipeline here for

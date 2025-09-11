@@ -150,7 +150,6 @@ public class GrpcClientTest {
 
     @AfterAll
     static void teardown() {
-        GRPC_CLIENT.close();
         SERVER.stop();
     }
 
