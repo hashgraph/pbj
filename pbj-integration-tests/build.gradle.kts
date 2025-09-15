@@ -26,12 +26,12 @@ jvmDependencyConflicts.consistentResolution {
 
 javaModuleDependencies {
     moduleNameToGA.put("com.hedera.pbj.integration.tests", "com.hedera.pbj:pbj-integration-tests")
+}
+
+mainModuleInfo {
     runtimeOnly("io.helidon.common")
-    requires("io.helidon.common.tls")
-    requires("io.helidon.webclient.api")
     runtimeOnly("io.helidon.webclient.http2")
     runtimeOnly("io.helidon.webserver")
-    requires("com.hedera.pbj.grpc.client.helidon")
 }
 
 testModuleInfo {
