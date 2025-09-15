@@ -27,29 +27,37 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
     public void apply(Project project) {
         // Register the PbjExtension to fetch optional parameters from Gradle files
         final PbjExtension pbj = project.getExtensions().create("pbj", PbjExtension.class);
+        // By default, test classes for 'main' are generated
+        pbj.getGenerateTestClasses().convention(true);
 
         // get reference to java plugin
         final var javaPlugin = project.getExtensions().getByType(JavaPluginExtension.class);
 
         javaPlugin.getSourceSets().configureEach(sourceSet -> {
-            // 'test' is special as it will contain tests generated from the sources in the 'main' source set.
-            if (SourceSet.TEST_SOURCE_SET_NAME.equals(sourceSet.getName())) {
+            // Treat the combination of main/test source sets special, as for protobufs in 'main', we support
+            // generating tests into 'test'.
+            if (SourceSet.MAIN_SOURCE_SET_NAME.equals(sourceSet.getName())) {
+                // In case of the main source set, test sources go into "test" (if activated)
+                pbjSourceSet(sourceSet, project, SourceSet.TEST_SOURCE_SET_NAME);
+            } else if (SourceSet.TEST_SOURCE_SET_NAME.equals(sourceSet.getName())) {
+                // 'test' is special as it will contain tests generated from the sources in the 'main' source set.
+                // We further configure the task generating code for 'main' to activate test generation if configured
+                // via pbj { enerateTestClasses = true/false }.
                 final var generatePbjSource = project.getTasks().named("generatePbjSource", PbjCompilerTask.class);
                 generatePbjSource.configure(t -> t.getGenerateTestClasses().set(pbj.getGenerateTestClasses()));
                 sourceSet.getJava().srcDir(generatePbjSource.flatMap(PbjCompilerTask::getJavaTestOutputDirectory));
             } else {
-                pbjSourceSet(sourceSet, project);
+                // We have to define a test folder, although it will be empty. This is because the PbjCompilerTask
+                // has the 'javaTestOutputDirectory' @OutputDirectory and thus Gradle's output tracking always needs
+                // a directory here.
+                pbjSourceSet(sourceSet, project, sourceSet.getName() + "Test");
             }
         });
     }
 
-    private static void pbjSourceSet(SourceSet sourceSet, Project project) {
+    private static void pbjSourceSet(SourceSet sourceSet, Project project, String testFolderName) {
         final PbjExtension pbj = project.getExtensions().getByType(PbjExtension.class);
         final String outputDirectory = "generated/source/pbj-proto/";
-
-        // If not main source set, this is an unused empty folder
-        final String testFolderName =
-                SourceSet.MAIN_SOURCE_SET_NAME.equals(sourceSet.getName()) ? "test" : sourceSet.getName() + "Test";
 
         final Provider<Directory> outputDirectoryMain =
                 project.getLayout().getBuildDirectory().dir(outputDirectory + sourceSet.getName() + "/java");
@@ -78,7 +86,6 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
                     pbjTask.getJavaMainOutputDirectory().set(outputDirectoryMain);
                     pbjTask.getJavaTestOutputDirectory().set(outputDirectoryTest);
                     pbjTask.getJavaPackageSuffix().set(pbj.getJavaPackageSuffix());
-                    pbjTask.getGenerateTestClasses().set(false);
                 });
 
         // 5) register fact that pbj should be run before compiling  by informing the 'java' part
