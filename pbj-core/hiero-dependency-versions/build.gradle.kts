@@ -20,7 +20,7 @@ dependencies { api(platform("io.netty:netty-bom:4.2.2.Final")) }
 
 dependencies.constraints {
     api("org.antlr:antlr4-runtime:$antlr") { because("org.antlr.antlr4.runtime") }
-    api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.5") {
         because("com.github.spotbugs.annotations")
     }
 
