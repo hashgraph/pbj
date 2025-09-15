@@ -6,11 +6,39 @@ import static java.lang.Character.*;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * UTF8 tools based on protobuf standard library, so we are byte for byte identical
  */
 public final class Utf8Tools {
+
+    public static byte[] toUtf8Bytes(final String string) {
+        return string.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    public static List<byte[]> toUtf8Bytes(final List<String> strings) {
+        return strings.stream().map(s -> {
+            return s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }).toList();
+    }
+
+    public static List<byte[]> toUtf8Bytes(final String... strings) {
+        return Arrays.stream(strings).map(s -> {
+            return s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }).toList();
+    }
+
+    public static String toUtf8String(final byte[] bytes) {
+        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    public static List<String> toUtf8String(final List<byte[]> bytesList) {
+        return bytesList.stream()
+                .map(bytes -> new String(bytes, java.nio.charset.StandardCharsets.UTF_8))
+                .toList();
+    }
 
     /**
      * Returns the number of bytes in the UTF-8-encoded form of {@code sequence}. For a string, this

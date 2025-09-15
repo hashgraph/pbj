@@ -4,6 +4,7 @@ package com.hedera.pbj.compiler.impl;
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 
@@ -31,7 +32,8 @@ public record SingleField(
         String messageTypeTestPackage,
         String comment,
         boolean deprecated,
-        OneOfField parent)
+        OneOfField parent,
+        boolean isMapField)
         implements Field {
 
     /**
@@ -55,7 +57,7 @@ public record SingleField(
                 Common.buildCleanFieldJavaDoc(
                         Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
                 getDeprecatedOption(fieldContext.fieldOptions()),
-                null);
+                null, false);
     }
 
     /**
@@ -96,7 +98,8 @@ public record SingleField(
                 Common.buildCleanFieldJavaDoc(
                         Integer.parseInt(fieldContext.fieldNumber().getText()), fieldContext.docComment()),
                 getDeprecatedOption(fieldContext.fieldOptions()),
-                parent);
+                parent,
+                false);
     }
 
     /**
@@ -124,17 +127,44 @@ public record SingleField(
         return type == SingleField.FieldType.MESSAGE ? messageType : type.javaType;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String javaFieldType() {
         return javaFieldType(true);
     }
 
+    /** {@inheritDoc} */
     @Override
     public String javaFieldTypeBase() {
         return javaFieldType(false);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public String javaFieldStorageType() {
+        if (type == FieldType.STRING) {
+            return repeated ? "List<byte[]>" : "byte[]";
+        }
+        return javaFieldType();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public String storageFieldSetter(final String inputVarName, final MessageDefContext msgDef,
+            final ContextualLookupHelper lookupHelper) {
+        if (type == FieldType.STRING && parent == null && !isMapField) {
+            return "toUtf8Bytes("+inputVarName+")";
+        } else if (canBeNull()) {
+            return inputVarName + " != null ? " + inputVarName + " : " + defaultValue(msgDef, lookupHelper);
+        } else {
+            return inputVarName;
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public String storageFieldGetter(String fieldName) {
+        return type == FieldType.STRING ? "toUtf8String("+fieldName+")" : fieldName;
     }
 
     @NonNull

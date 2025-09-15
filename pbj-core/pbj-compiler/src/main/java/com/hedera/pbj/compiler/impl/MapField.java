@@ -58,7 +58,8 @@ public record MapField(
                         "An internal, private map entry key for %s"
                                 .formatted(mapContext.mapName().getText()),
                         false,
-                        null),
+                        null,
+                        true),
                 new SingleField(
                         false,
                         FieldType.of(mapContext.type_(), lookupHelper),
@@ -73,7 +74,8 @@ public record MapField(
                         "An internal, private map entry value for %s"
                                 .formatted(mapContext.mapName().getText()),
                         false,
-                        null),
+                        null,
+                        true),
                 false, // maps cannot be repeated
                 Integer.parseInt(mapContext.fieldNumber().getText()),
                 mapContext.mapName().getText(),

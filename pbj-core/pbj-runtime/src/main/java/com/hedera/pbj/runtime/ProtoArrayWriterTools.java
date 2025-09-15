@@ -124,7 +124,6 @@ public final class ProtoArrayWriterTools {
         return writeUnsignedVarInt(output, offset, ((long)field.number() << TAG_TYPE_BITS) | wireType.ordinal());
     }
 
-
     /**
      * Write a string to data output, assuming the field is non-repeated.
      *
@@ -138,6 +137,24 @@ public final class ProtoArrayWriterTools {
      */
     public static int writeString(@NonNull byte[] output, final int offset, @NonNull final FieldDefinition field,
             final String value, final boolean skipDefault) throws IOException {
+        assert field.type() == FieldType.STRING : "Not a string type " + field;
+        assert !field.repeated() : "Use writeStringList with repeated types";
+        return writeStringNoChecks(output, offset, field, value, skipDefault);
+    }
+
+    /**
+     * Write a string to data output, assuming the field is non-repeated.
+     *
+     * @param output the byte array to write to
+     * @param offset the offset to start writing at
+     * @param field the descriptor for the field we are writing, the field must be non-repeated
+     * @param value the string value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     * @return the number of bytes written
+     * @throws IOException If a I/O error occurs
+     */
+    public static int writeString(@NonNull byte[] output, final int offset, @NonNull final FieldDefinition field,
+            final byte[] value, final boolean skipDefault) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert !field.repeated() : "Use writeStringList with repeated types";
         return writeStringNoChecks(output, offset, field, value, skipDefault);
@@ -168,6 +185,31 @@ public final class ProtoArrayWriterTools {
     }
 
     /**
+     * Write an integer to data output - no validation checks.
+     *
+     * @param output the byte array to write to
+     * @param offset the offset to start writing at
+     * @param field the descriptor for the field we are writing
+     * @param value the string value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     * @return the number of bytes written
+     * @throws IOException If a I/O error occurs
+     */
+    private static int writeStringNoChecks(@NonNull byte[] output, final int offset, @NonNull final FieldDefinition field,
+            final byte[] value, final boolean skipDefault) throws IOException {
+        int bytesWritten = 0;
+        // When not a oneOf don't write default value
+        if (skipDefault && !field.oneOf() && (value == null || value.length == 0)) {
+            return 0;
+        }
+        bytesWritten += writeTag(output, offset, field, WIRE_TYPE_DELIMITED);
+        bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, sizeOfStringNoTag(value));
+        System.arraycopy(value, 0, output, offset + bytesWritten, value.length);
+        bytesWritten += value.length;
+        return bytesWritten;
+    }
+
+    /**
      * Write an optional string to data output
      *
      * @param output the byte array to write to
@@ -184,7 +226,15 @@ public final class ProtoArrayWriterTools {
             bytesWritten += writeTag(output, offset, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, sizeOfString(newField, value));
-            bytesWritten += writeStringNoChecks(output, offset + bytesWritten, newField, value, true);
+//            bytesWritten += writeStringNoChecks(output, offset + bytesWritten, newField, value, true);
+
+
+            // When not a oneOf don't write default value
+            if (field.oneOf() || !value.isEmpty()) {
+                bytesWritten += writeTag(output, offset, field, WIRE_TYPE_DELIMITED);
+                bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, sizeOfStringNoTag(value));
+                bytesWritten += Utf8Tools.encodeUtf8(output, offset + bytesWritten, value);
+            }
         }
         return bytesWritten;
     }
@@ -1016,7 +1066,7 @@ public final class ProtoArrayWriterTools {
      * @return the number of bytes written
      * @throws IOException If a I/O error occurs
      */
-    public static int writeStringList(@NonNull final byte[] output, final int offset, FieldDefinition field, List<String> list)
+    public static int writeStringList(@NonNull final byte[] output, final int offset, FieldDefinition field, List<byte[]> list)
             throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "Use writeString with non-repeated types";
@@ -1027,10 +1077,11 @@ public final class ProtoArrayWriterTools {
         final int listSize = list.size();
         int bytesWritten = 0;
         for (int i = 0; i < listSize; i++) {
-            final String value = list.get(i);
+            final byte[] value = list.get(i);
             bytesWritten += writeTag(output, offset + bytesWritten, field, WIRE_TYPE_DELIMITED);
             bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, sizeOfStringNoTag(value));
-            bytesWritten += Utf8Tools.encodeUtf8(output, offset + bytesWritten, value);
+            System.arraycopy(value, 0, output, offset + bytesWritten, value.length);
+            bytesWritten += value.length;
         }
         return bytesWritten;
     }

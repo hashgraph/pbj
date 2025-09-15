@@ -272,7 +272,7 @@ public final class ProtoWriterTools {
      * @param value the string value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeString(final WritableSequentialData out, final FieldDefinition field, final String value)
+    public static void writeString(final WritableSequentialData out, final FieldDefinition field, final byte[] value)
             throws IOException {
         writeString(out, field, value, true);
     }
@@ -295,6 +295,23 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a string to data output, assuming the field is non-repeated.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be non-repeated
+     * @param value the string value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     * @throws IOException If a I/O error occurs
+     */
+    public static void writeString(
+            final WritableSequentialData out, final FieldDefinition field, final byte[] value, boolean skipDefault)
+            throws IOException {
+        assert field.type() == FieldType.STRING : "Not a string type " + field;
+        assert !field.repeated() : "Use writeStringList with repeated types";
+        writeStringNoChecks(out, field, value, skipDefault);
+    }
+
+    /**
      * Write a string to data output, assuming the field is repeated. Usually this method is called multiple
      * times, one for every repeated value. If all values are available immediately, {@link #writeStringList(
      * WritableSequentialData, FieldDefinition, List)} should be used instead.
@@ -305,7 +322,7 @@ public final class ProtoWriterTools {
      * @throws IOException If a I/O error occurs
      */
     public static void writeOneRepeatedString(
-            final WritableSequentialData out, final FieldDefinition field, final String value) throws IOException {
+            final WritableSequentialData out, final FieldDefinition field, final byte[] value) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "writeOneRepeatedString can only be used with repeated fields";
         writeStringNoChecks(out, field, value);
@@ -320,7 +337,7 @@ public final class ProtoWriterTools {
      * @throws IOException If a I/O error occurs
      */
     private static void writeStringNoChecks(
-            final WritableSequentialData out, final FieldDefinition field, final String value) throws IOException {
+            final WritableSequentialData out, final FieldDefinition field, final byte[] value) throws IOException {
         writeStringNoChecks(out, field, value, true);
     }
 
@@ -343,6 +360,27 @@ public final class ProtoWriterTools {
         writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarInt(sizeOfStringNoTag(value), false);
         Utf8Tools.encodeUtf8(value, out);
+    }
+
+    /**
+     * Write a integer to data output - no validation checks.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the string value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     * @throws IOException If a I/O error occurs
+     */
+    private static void writeStringNoChecks(
+            final WritableSequentialData out, final FieldDefinition field, final byte[] value, boolean skipDefault)
+            throws IOException {
+        // When not a oneOf don't write default value
+        if (skipDefault && !field.oneOf() && (value == null || value.length == 0)) {
+            return;
+        }
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
+        out.writeVarInt(value.length, false);
+        out.writeBytes(value);
     }
 
     /**
@@ -626,7 +664,15 @@ public final class ProtoWriterTools {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfString(newField, value), false);
-            writeString(out, newField, value);
+//            writeString(out, newField, value);
+
+            // When not a oneOf don't write default value
+            if (!field.oneOf() && value.isEmpty()) {
+                return;
+            }
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            out.writeVarInt(sizeOfStringNoTag(value), false);
+            Utf8Tools.encodeUtf8(value, out);
         }
     }
 
@@ -896,7 +942,7 @@ public final class ProtoWriterTools {
      * @param list the list of strings value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeStringList(WritableSequentialData out, FieldDefinition field, List<String> list)
+    public static void writeStringList(WritableSequentialData out, FieldDefinition field, List<byte[]> list)
             throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "Use writeString with non-repeated types";
@@ -906,10 +952,14 @@ public final class ProtoWriterTools {
         }
         final int listSize = list.size();
         for (int i = 0; i < listSize; i++) {
-            final String value = list.get(i);
+            final byte[] value = list.get(i);
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            out.writeVarInt(sizeOfStringNoTag(value), false);
-            Utf8Tools.encodeUtf8(value, out);
+            if (value == null) {
+                out.writeVarInt(0, false);
+            } else {
+                out.writeVarInt(value.length, false);
+                out.writeBytes(value);
+            }
         }
     }
 
@@ -1303,6 +1353,17 @@ public final class ProtoWriterTools {
      *
      * @param field descriptor of field
      * @param value string value to get encoded size for
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfString(FieldDefinition field, byte[] value) {
+        return value == null ? 0 : value.length;
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a string field
+     *
+     * @param field descriptor of field
+     * @param value string value to get encoded size for
      * @param skipDefault default value results in zero size
      * @return the number of bytes for encoded value
      */
@@ -1312,6 +1373,18 @@ public final class ProtoWriterTools {
             return 0;
         }
         return sizeOfDelimited(field, sizeOfStringNoTag(value));
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a string field
+     *
+     * @param field descriptor of field
+     * @param value string value to get encoded size for
+     * @param skipDefault default value results in zero size
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfString(FieldDefinition field, byte[] value, boolean skipDefault) {
+        return value == null ? 0 : value.length;
     }
 
     /**
@@ -1330,6 +1403,16 @@ public final class ProtoWriterTools {
         } catch (IOException e) { // fall back to JDK
             return value.getBytes(StandardCharsets.UTF_8).length;
         }
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a string, without field tag
+     *
+     * @param value string value to get encoded size for
+     * @return the number of bytes for encoded value
+     */
+    static int sizeOfStringNoTag(byte[] value) {
+        return value == null ? 0 : value.length;
     }
 
     /**
@@ -1524,11 +1607,11 @@ public final class ProtoWriterTools {
      * @param list string list value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfStringList(FieldDefinition field, List<String> list) {
+    public static int sizeOfStringList(FieldDefinition field, List<byte[]> list) {
         int size = 0;
         final int listSize = list.size();
         for (int i = 0; i < listSize; i++) {
-            size += sizeOfDelimited(field, sizeOfStringNoTag(list.get(i)));
+            size += list.get(i).length;
         }
         return size;
     }

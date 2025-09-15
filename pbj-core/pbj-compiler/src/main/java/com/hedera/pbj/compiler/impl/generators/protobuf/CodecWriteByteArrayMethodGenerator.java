@@ -25,7 +25,8 @@ final class CodecWriteByteArrayMethodGenerator {
                 modelClassName,
                 schemaClassName,
                 fields,
-                field -> "data.%s()".formatted(field.nameCamelFirstLower()),
+                field -> " data.%s%s()".formatted(field.nameCamelFirstLower(),
+                        field.hasDifferentStorageType() ? "Raw" : ""),
                 true);
         // spotless:off
         return
@@ -98,7 +99,7 @@ final class CodecWriteByteArrayMethodGenerator {
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = "%s.%sOneOfType".formatted(modelClassName, oneOfField.nameCamelFirstUpper());
-            getValueCode = "data.%s().as()".formatted(oneOfField.nameCamelFirstLower());
+            getValueCode = "(%s)data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
             prefix += "if (data.%s().kind() == %s.%s)%n"
                     .formatted(oneOfField.nameCamelFirstLower(), oneOfType, Common.camelToUpperSnake(field.name()));
         }

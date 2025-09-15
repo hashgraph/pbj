@@ -25,7 +25,8 @@ final class CodecWriteMethodGenerator {
                 modelClassName,
                 schemaClassName,
                 fields,
-                field -> "data.%s()".formatted(field.nameCamelFirstLower()),
+                field -> " data.%s%s()".formatted(field.nameCamelFirstLower(),
+                        field.hasDifferentStorageType() ? "Raw" : ""),
                 true);
         // spotless:off
         return
@@ -93,7 +94,7 @@ final class CodecWriteMethodGenerator {
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = "%s.%sOneOfType".formatted(modelClassName, oneOfField.nameCamelFirstUpper());
-            getValueCode = "data.%s().as()".formatted(oneOfField.nameCamelFirstLower());
+            getValueCode = "(%s)data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
             prefix += "if (data.%s().kind() == %s.%s)%n"
                     .formatted(oneOfField.nameCamelFirstLower(), oneOfType, Common.camelToUpperSnake(field.name()));
         }
@@ -185,7 +186,7 @@ final class CodecWriteMethodGenerator {
                 return prefix + switch(field.type()) {
                     case ENUM -> "writeEnum(out, %s, %s);"
                             .formatted(fieldDef, getValueCode);
-                    case STRING -> "writeString(out, %s, %s, %s);"
+                    case STRING -> "/* FOO */ writeString(out, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, skipDefault);
                     case MESSAGE -> "writeMessage(out, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, codecReference);

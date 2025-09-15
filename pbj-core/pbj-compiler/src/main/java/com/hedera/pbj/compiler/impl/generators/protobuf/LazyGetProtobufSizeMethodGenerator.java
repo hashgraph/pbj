@@ -106,7 +106,7 @@ public class LazyGetProtobufSizeMethodGenerator {
             final String oneOfType = modelClassName == null
                     ? oneOfField.nameCamelFirstUpper() + "OneOfType"
                     : modelClassName + "." + oneOfField.nameCamelFirstUpper() + "OneOfType";
-            getValueCode = oneOfField.nameCamelFirstLower() + ".as()";
+            getValueCode = "("+field.javaFieldType()+")"+oneOfField.nameCamelFirstLower() + ".as()";
             prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
                     + Common.camelToUpperSnake(field.name()) + ")";
             prefix += "\n";
@@ -117,7 +117,7 @@ public class LazyGetProtobufSizeMethodGenerator {
             return prefix
                     + switch (field.messageType()) {
                         case "StringValue" ->
-                            "_size += sizeOfOptionalString(%s, %s);".formatted(fieldDef, getValueCode);
+                            "_size += sizeOfOptionalString(%s, (String)%s);".formatted(fieldDef, getValueCode);
                         case "BoolValue" -> "_size += sizeOfOptionalBoolean(%s, %s);".formatted(fieldDef, getValueCode);
                         case "Int32Value", "UInt32Value" ->
                             "_size += sizeOfOptionalInteger(%s, %s);".formatted(fieldDef, getValueCode);
@@ -182,7 +182,8 @@ public class LazyGetProtobufSizeMethodGenerator {
                     + switch (field.type()) {
                         case ENUM -> "_size += sizeOfEnum(%s, %s);".formatted(fieldDef, getValueCode);
                         case STRING ->
-                            "_size += sizeOfString(%s, %s, %s);".formatted(fieldDef, getValueCode, skipDefault);
+                            "_size += sizeOfString(%s, %s, %s);".formatted(
+                                    fieldDef, getValueCode, skipDefault);
                         case MESSAGE ->
                             "_size += sizeOfMessage($fieldDef, $valueCode, $codec);"
                                     .replace("$fieldDef", fieldDef)

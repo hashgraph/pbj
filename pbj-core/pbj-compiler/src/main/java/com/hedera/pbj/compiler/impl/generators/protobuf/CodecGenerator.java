@@ -82,6 +82,7 @@ public final class CodecGenerator implements Generator {
         writer.addImport("static com.hedera.pbj.runtime.ProtoWriterTools.*");
         writer.addImport("static com.hedera.pbj.runtime.ProtoParserTools.*");
         writer.addImport("static com.hedera.pbj.runtime.ProtoConstants.*");
+        writer.addImport("static com.hedera.pbj.runtime.Utf8Tools.*");
 
         // spotless:off
         writer.append("""

@@ -102,7 +102,9 @@ final class JsonCodecWriteMethodGenerator {
                         + " && !data." + field.nameCamelFirstLower() + "().isEmpty()) fieldLines.add(" + basicFieldCode
                         + ");";
             } else {
-                return prefix + "if (data." + field.nameCamelFirstLower() + "() != " + field.javaDefault()
+                String getMethodName = field.hasDifferentStorageType() ? field.nameCamelFirstLower()+"Raw" :
+                        field.nameCamelFirstLower();
+                return prefix + "if (data." + getMethodName + "() != " + field.javaDefault()
                         + ") fieldLines.add(" + basicFieldCode + ");";
             }
         }
