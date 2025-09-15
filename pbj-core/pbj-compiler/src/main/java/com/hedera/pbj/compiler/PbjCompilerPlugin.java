@@ -51,7 +51,7 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
             // generating tests into 'test'.
             if (SourceSet.MAIN_SOURCE_SET_NAME.equals(sourceSet.getName())) {
                 // In case of the main source set, test sources go into "test" (if activated)
-                pbjSourceSet(sourceSet, project, SourceSet.TEST_SOURCE_SET_NAME);
+                pbjSourceSet(sourceSet, protobufsElements, project, SourceSet.TEST_SOURCE_SET_NAME);
             } else if (SourceSet.TEST_SOURCE_SET_NAME.equals(sourceSet.getName())) {
                 // 'test' is special as it will contain tests generated from the sources in the 'main' source set.
                 // We further configure the task generating code for 'main' to activate test generation if configured
@@ -68,7 +68,8 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
         });
     }
 
-    private static void pbjSourceSet(SourceSet sourceSet, LibraryElements protobufsElements, Project project, String testFolderName) {
+    private static void pbjSourceSet(
+            SourceSet sourceSet, LibraryElements protobufsElements, Project project, String testFolderName) {
         final PbjExtension pbj = project.getExtensions().getByType(PbjExtension.class);
         final ConfigurationContainer configurations = project.getConfigurations();
         final String outputDirectory = "generated/source/pbj-proto/";
