@@ -42,7 +42,7 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
             } else if (SourceSet.TEST_SOURCE_SET_NAME.equals(sourceSet.getName())) {
                 // 'test' is special as it will contain tests generated from the sources in the 'main' source set.
                 // We further configure the task generating code for 'main' to activate test generation if configured
-                // via pbj { enerateTestClasses = true/false }.
+                // via pbj { generateTestClasses = true/false }.
                 final var generatePbjSource = project.getTasks().named("generatePbjSource", PbjCompilerTask.class);
                 generatePbjSource.configure(t -> t.getGenerateTestClasses().set(pbj.getGenerateTestClasses()));
                 sourceSet.getJava().srcDir(generatePbjSource.flatMap(PbjCompilerTask::getJavaTestOutputDirectory));
