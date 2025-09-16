@@ -310,6 +310,18 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
+     * A helper method for efficient copy of our data into a byte array.
+     *
+     * @param dst the byte array to copy into
+     * @param dstOffset the offset into the destination array to start copying into
+     * @return the number of bytes copied
+     */
+    public int writeTo(@NonNull final byte[] dst, final int dstOffset) {
+        System.arraycopy(buffer, start, dst, dstOffset, length);
+        return length;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override

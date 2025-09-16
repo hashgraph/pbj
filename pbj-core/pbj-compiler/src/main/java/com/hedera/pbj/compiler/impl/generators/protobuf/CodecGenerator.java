@@ -59,6 +59,8 @@ public final class CodecGenerator implements Generator {
         }
         final String writeMethod =
                 CodecWriteMethodGenerator.generateWriteMethod(modelClassName, schemaClassName, fields);
+        final String writeByteArrayMethod =
+                CodecWriteByteArrayMethodGenerator.generateWriteMethod(modelClassName, schemaClassName, fields);
 
         final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
 
@@ -66,6 +68,8 @@ public final class CodecGenerator implements Generator {
         writer.addImport("com.hedera.pbj.runtime.io.*");
         writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
         writer.addImport("com.hedera.pbj.runtime.io.stream.EOFException");
+        writer.addImport("com.hedera.pbj.runtime.io.stream.WritableStreamingData");
+        writer.addImport("com.hedera.pbj.runtime.ProtoArrayWriterTools");
         writer.addImport("java.io.IOException");
         writer.addImport("java.nio.*");
         writer.addImport("java.nio.charset.*");
@@ -78,6 +82,7 @@ public final class CodecGenerator implements Generator {
         writer.addImport("static com.hedera.pbj.runtime.ProtoWriterTools.*");
         writer.addImport("static com.hedera.pbj.runtime.ProtoParserTools.*");
         writer.addImport("static com.hedera.pbj.runtime.ProtoConstants.*");
+        writer.addImport("static com.hedera.pbj.runtime.Utf8Tools.*");
 
         // spotless:off
         writer.append("""
@@ -104,6 +109,7 @@ public final class CodecGenerator implements Generator {
                 $unsetOneOfConstants
                 $parseMethod
                 $writeMethod
+                $writeByteArrayMethod
                 $measureDataMethod
                 $measureRecordMethod
                 $fastEqualsMethod
@@ -116,6 +122,7 @@ public final class CodecGenerator implements Generator {
                 .replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
                 .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, schemaClassName, fields))
                 .replace("$writeMethod", writeMethod)
+                .replace("$writeByteArrayMethod", writeByteArrayMethod)
                 .replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))
                 .replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
                 .replace("$fastEqualsMethod", CodecFastEqualsMethodGenerator.generateFastEqualsMethod(modelClassName, fields))

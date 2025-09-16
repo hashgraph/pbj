@@ -980,10 +980,10 @@ public final class ProtoWriterTools {
     // SIZE OF METHODS
 
     /** Size of a fixed length 32 bit value in bytes */
-    private static final int FIXED32_SIZE = 4;
+    static final int FIXED32_SIZE = 4;
 
     /** Size of a fixed length 64 bit value in bytes */
-    private static final int FIXED64_SIZE = 8;
+    static final int FIXED64_SIZE = 8;
 
     /** Size of a max length varint value in bytes */
     private static final int MAX_VARINT_SIZE = 10;
@@ -1038,7 +1038,7 @@ public final class ProtoWriterTools {
      * @param value The int value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfUnsignedVarInt64(long value) {
+    static int sizeOfUnsignedVarInt64(long value) {
         // handle two popular special cases up front ...
         if ((value & (~0L << 7)) == 0L) return 1;
         if (value < 0L) return 10;
@@ -1211,8 +1211,9 @@ public final class ProtoWriterTools {
         return switch (field.type()) {
             case INT32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(value);
             case UINT32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt32(value);
-            case SINT32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG)
-                    + sizeOfUnsignedVarInt64(((long) value << 1) ^ ((long) value >> 63));
+            case SINT32 ->
+                sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG)
+                        + sizeOfUnsignedVarInt64(((long) value << 1) ^ ((long) value >> 63));
             case SFIXED32, FIXED32 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED32_SIZE;
             default -> throw unsupported();
         };
@@ -1241,8 +1242,8 @@ public final class ProtoWriterTools {
         if (skipDefault && !field.oneOf() && value == 0) return 0;
         return switch (field.type()) {
             case INT64, UINT64 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64(value);
-            case SINT64 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG)
-                    + sizeOfUnsignedVarInt64((value << 1) ^ (value >> 63));
+            case SINT64 ->
+                sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64((value << 1) ^ (value >> 63));
             case SFIXED64, FIXED64 -> sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED64_SIZE;
             default -> throw unsupported();
         };
@@ -1342,7 +1343,7 @@ public final class ProtoWriterTools {
      * @param value string value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    private static int sizeOfStringNoTag(String value) {
+    static int sizeOfStringNoTag(String value) {
         // When not a oneOf don't write default value
         if ((value == null || value.isEmpty())) {
             return 0;

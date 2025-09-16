@@ -15,11 +15,7 @@ import java.io.UncheckedIOException;
  *
  * @param <T> The type of object to serialize and deserialize
  */
-public interface Codec<T /*extends Record*/> {
-
-    // NOTE: When services has finished migrating to protobuf based objects in state,
-    // then we should strongly enforce Codec works with Records. This will reduce bugs
-    // where people try to use a mutable object.
+public interface Codec<T> {
 
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
@@ -156,6 +152,27 @@ public interface Codec<T /*extends Record*/> {
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
     void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException;
+
+    /**
+     * Writes an item to the given byte array, this is a performance focused method. In non-performance centric use
+     * cases there are simpler methods such as {@link #toBytes(T)} or writing to a {@link WritableStreamingData}.
+     *
+     * @param item The item to write. Must not be null.
+     * @param output The byte array to write to, this must be large enough to hold the entire item.
+     * @param startOffset The offset in the output array to start writing at.
+     * @return The number of bytes written to the output array.
+     * @throws IOException If the there is a problem writing to the output array.
+     * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
+     */
+    default int write(@NonNull T item, @NonNull byte[] output, final int startOffset) throws IOException {
+        final BufferedData bufferedData = BufferedData.wrap(output, startOffset, output.length - startOffset);
+        try {
+            write(item, bufferedData);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return (int) bufferedData.position();
+    }
 
     /**
      * Reads from this data input the length of the data within the input. The implementation may
