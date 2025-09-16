@@ -3,19 +3,11 @@ package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
+import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.BenchmarkMode;
-import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Measurement;
-import org.openjdk.jmh.annotations.Mode;
-import org.openjdk.jmh.annotations.OutputTimeUnit;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
 @SuppressWarnings("unused")
@@ -31,6 +23,11 @@ public class RandomAccessDataContainsBench {
     private RandomAccessData heapBufferedData;
     private byte[] smallPattern;
     private byte[] largePattern;
+    private byte[] pattern4Bytes;
+    private byte[] pattern16Bytes;
+    private byte[] pattern32Bytes;
+    private byte[] pattern64Bytes;
+    private byte[] pattern128Bytes;
     private RandomAccessData patternData;
 
     @Setup
@@ -49,9 +46,24 @@ public class RandomAccessDataContainsBench {
         // Create heap-based BufferedData for comparison
         heapBufferedData = BufferedData.wrap(testData.clone());
 
-        // Create patterns to search for
+        // Create patterns to search for - various sizes to test threshold performance
+        pattern4Bytes = new byte[4];
+        System.arraycopy(testData, 500, pattern4Bytes, 0, 4);
+
         smallPattern = new byte[8];
         System.arraycopy(testData, 1000, smallPattern, 0, 8);
+
+        pattern16Bytes = new byte[16];
+        System.arraycopy(testData, 1500, pattern16Bytes, 0, 16);
+
+        pattern32Bytes = new byte[32];
+        System.arraycopy(testData, 1800, pattern32Bytes, 0, 32);
+
+        pattern64Bytes = new byte[64];
+        System.arraycopy(testData, 2200, pattern64Bytes, 0, 64);
+
+        pattern128Bytes = new byte[128];
+        System.arraycopy(testData, 2500, pattern128Bytes, 0, 128);
 
         largePattern = new byte[256];
         System.arraycopy(testData, 2000, largePattern, 0, 256);
@@ -60,6 +72,67 @@ public class RandomAccessDataContainsBench {
         patternData = BufferedData.wrap(largePattern);
     }
 
+    @Benchmark
+    public void directBufferedDataContains4ByteArray(Blackhole blackhole) {
+        blackhole.consume(directBufferedData.contains(500, pattern4Bytes));
+    }
+
+    @Benchmark
+    public void heapBufferedDataContains4ByteArray(Blackhole blackhole) {
+        blackhole.consume(heapBufferedData.contains(500, pattern4Bytes));
+    }
+
+    @Benchmark
+    public void directBufferedDataContains8ByteArray(Blackhole blackhole) {
+        blackhole.consume(directBufferedData.contains(1000, smallPattern));
+    }
+
+    @Benchmark
+    public void heapBufferedDataContains8ByteArray(Blackhole blackhole) {
+        blackhole.consume(heapBufferedData.contains(1000, smallPattern));
+    }
+
+    @Benchmark
+    public void directBufferedDataContains16ByteArray(Blackhole blackhole) {
+        blackhole.consume(directBufferedData.contains(1500, pattern16Bytes));
+    }
+
+    @Benchmark
+    public void heapBufferedDataContains16ByteArray(Blackhole blackhole) {
+        blackhole.consume(heapBufferedData.contains(1500, pattern16Bytes));
+    }
+
+    @Benchmark
+    public void directBufferedDataContains32ByteArray(Blackhole blackhole) {
+        blackhole.consume(directBufferedData.contains(1800, pattern32Bytes));
+    }
+
+    @Benchmark
+    public void heapBufferedDataContains32ByteArray(Blackhole blackhole) {
+        blackhole.consume(heapBufferedData.contains(1800, pattern32Bytes));
+    }
+
+    @Benchmark
+    public void directBufferedDataContains64ByteArray(Blackhole blackhole) {
+        blackhole.consume(directBufferedData.contains(2200, pattern64Bytes));
+    }
+
+    @Benchmark
+    public void heapBufferedDataContains64ByteArray(Blackhole blackhole) {
+        blackhole.consume(heapBufferedData.contains(2200, pattern64Bytes));
+    }
+
+    @Benchmark
+    public void directBufferedDataContains128ByteArray(Blackhole blackhole) {
+        blackhole.consume(directBufferedData.contains(2500, pattern128Bytes));
+    }
+
+    @Benchmark
+    public void heapBufferedDataContains128ByteArray(Blackhole blackhole) {
+        blackhole.consume(heapBufferedData.contains(2500, pattern128Bytes));
+    }
+
+    // Keep existing methods for backward compatibility
     @Benchmark
     public void directBufferedDataContainsSmallByteArray(Blackhole blackhole) {
         blackhole.consume(directBufferedData.contains(1000, smallPattern));
@@ -98,5 +171,57 @@ public class RandomAccessDataContainsBench {
     @Benchmark
     public void heapBufferedDataContainsRandomAccessData(Blackhole blackhole) {
         blackhole.consume(heapBufferedData.contains(2000, patternData));
+    }
+
+    /* Original byte-by-byte implementation benchmarks for baseline comparison
+     * These use a helper method to force the default RandomAccessData implementation */
+
+    private boolean containsOriginalImpl(RandomAccessData data, long offset, byte[] bytes) {
+        // Replicate the original default method implementation from RandomAccessData interface
+        data.checkOffset(offset, data.length());
+        if (data.length() - offset < bytes.length) {
+            return false;
+        }
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] != data.getByte(offset + i)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Benchmark
+    public void directBufferedDataContainsOriginal4Bytes(Blackhole blackhole) {
+        blackhole.consume(containsOriginalImpl(directBufferedData, 500, pattern4Bytes));
+    }
+
+    @Benchmark
+    public void directBufferedDataContainsOriginal8Bytes(Blackhole blackhole) {
+        blackhole.consume(containsOriginalImpl(directBufferedData, 1000, smallPattern));
+    }
+
+    @Benchmark
+    public void directBufferedDataContainsOriginal16Bytes(Blackhole blackhole) {
+        blackhole.consume(containsOriginalImpl(directBufferedData, 1500, pattern16Bytes));
+    }
+
+    @Benchmark
+    public void directBufferedDataContainsOriginal32Bytes(Blackhole blackhole) {
+        blackhole.consume(containsOriginalImpl(directBufferedData, 1800, pattern32Bytes));
+    }
+
+    @Benchmark
+    public void directBufferedDataContainsOriginal64Bytes(Blackhole blackhole) {
+        blackhole.consume(containsOriginalImpl(directBufferedData, 2200, pattern64Bytes));
+    }
+
+    @Benchmark
+    public void directBufferedDataContainsOriginal128Bytes(Blackhole blackhole) {
+        blackhole.consume(containsOriginalImpl(directBufferedData, 2500, pattern128Bytes));
+    }
+
+    @Benchmark
+    public void directBufferedDataContainsOriginal256Bytes(Blackhole blackhole) {
+        blackhole.consume(containsOriginalImpl(directBufferedData, 2000, largePattern));
     }
 }
