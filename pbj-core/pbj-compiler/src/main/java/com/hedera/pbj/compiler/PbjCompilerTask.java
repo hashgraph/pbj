@@ -60,6 +60,6 @@ public abstract class PbjCompilerTask extends SourceTask {
                 getJavaMainOutputDirectory().get().getAsFile(),
                 getJavaTestOutputDirectory().get().getAsFile(),
                 getJavaPackageSuffix().getOrNull(),
-                getGenerateTestClasses().getOrElse(Boolean.TRUE));
+                getGenerateTestClasses().getOrElse(Boolean.FALSE));
     }
 }
