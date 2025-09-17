@@ -106,14 +106,36 @@ public class GrpcBench {
     }
 
     @State(Scope.Thread)
-    public static class StreamingState extends UnaryState {
+    public static class StreamingState {
+        @Param
+        PayloadWeight weight;
+
         @Param({"1", "10"})
         int streamCount;
 
+        PortsAllocator.Port port;
+        ServerHandle server;
+        GreeterInterface.GreeterClient client;
+
+        void setup(int streamCount) {
+            port = GrpcTestUtils.PORTS.acquire();
+            server = ServerHandle.start(port.port(), new GreeterService(weight, streamCount));
+            client = createClient(port.port());
+        }
+
         @Setup(Level.Invocation)
-        @Override
         public void setup() {
             setup(streamCount);
+        }
+
+        @TearDown(Level.Invocation)
+        public void tearDown() {
+            client.close();
+            client = null;
+            server.close();
+            server = null;
+            port.close();
+            port = null;
         }
     }
 
