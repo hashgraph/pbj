@@ -131,7 +131,7 @@ public final class Utf8Tools {
         int i = 0;
         int j = offset;
         // Designed to take advantage of
-        // https://wiki.openjdk.java.net/display/HotSpotInternals/RangeCheckElimination
+        // https://wiki.openjdk.org/display/HotSpot/RangeCheckElimination
         for (char c; i < utf16Length && (c = in.charAt(i)) < 0x80; i++) {
             out[j + i] = (byte) c;
         }
