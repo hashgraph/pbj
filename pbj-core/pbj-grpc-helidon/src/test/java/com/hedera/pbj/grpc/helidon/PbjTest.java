@@ -696,6 +696,8 @@ class PbjTest {
         try {
             return grpcStatus(response.headers());
         } catch (NoSuchElementException e) {
+            // We cannot request trailers before requesting an entity, so:
+            response.entity();
             return grpcStatus(response.trailers());
         }
     }

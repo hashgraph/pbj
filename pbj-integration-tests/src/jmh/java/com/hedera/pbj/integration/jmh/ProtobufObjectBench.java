@@ -67,6 +67,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
         private BufferedData outDataBufferDirect;
         private ByteBuffer bbout;
         private ByteBuffer bboutDirect;
+        private byte[] outArray;
 
         public void configure(
                 P pbjModelObject,
@@ -100,6 +101,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                 // output buffers
                 this.bout = new NonSynchronizedByteArrayOutputStream();
                 WritableStreamingData dout = new WritableStreamingData(this.bout);
+                this.outArray = new byte[this.protobuf.length * 2]; // make sure big enough
                 this.outDataBuffer = BufferedData.allocate(this.protobuf.length);
                 this.outDataBufferDirect = BufferedData.allocateOffHeap(this.protobuf.length);
                 this.bbout = ByteBuffer.allocate(this.protobuf.length);
@@ -191,9 +193,8 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
     @OperationsPerInvocation(OPERATION_COUNT)
     public void writePbjByteArray(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws IOException {
         for (int i = 0; i < OPERATION_COUNT; i++) {
-            benchmarkState.outDataBuffer.reset();
-            benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, benchmarkState.outDataBuffer);
-            blackhole.consume(benchmarkState.outDataBuffer);
+            benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, benchmarkState.outArray, 0);
+            blackhole.consume(benchmarkState.outArray);
         }
     }
 

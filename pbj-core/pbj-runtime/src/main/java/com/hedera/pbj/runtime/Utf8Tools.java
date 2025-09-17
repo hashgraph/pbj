@@ -4,6 +4,7 @@ package com.hedera.pbj.runtime;
 import static java.lang.Character.*;
 
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 
 /**
@@ -112,5 +113,57 @@ public final class Utf8Tools {
                         (byte) (0x80 | (0x3F & codePoint)));
             }
         }
+    }
+
+    /**
+     * Encodes the input character sequence to a byte array using the same algorithm as protoc, so we are byte for
+     * byte the same. Returns the number of bytes written.
+     *
+     * @param out    The byte array to write to
+     * @param offset The offset in the byte array to start writing at
+     * @param in     The input character sequence to encode
+     * @return The number of bytes written
+     * @throws MalformedUtf8Exception if the input contains unpaired surrogates
+     */
+    public static int encodeUtf8(@NonNull final byte[] out, final int offset, final String in) {
+        int utf16Length = in.length();
+        int i = 0;
+        int j = offset;
+        // Designed to take advantage of
+        // https://wiki.openjdk.org/display/HotSpot/RangeCheckElimination
+        for (char c; i < utf16Length && (c = in.charAt(i)) < 0x80; i++) {
+            out[j + i] = (byte) c;
+        }
+        if (i == utf16Length) {
+            return j + utf16Length - offset;
+        }
+        j += i;
+        for (char c; i < utf16Length; i++) {
+            c = in.charAt(i);
+            if (c < 0x80) {
+                out[j++] = (byte) c;
+            } else if (c < 0x800) { // 11 bits, two UTF-8 bytes
+                out[j++] = (byte) ((0xF << 6) | (c >>> 6));
+                out[j++] = (byte) (0x80 | (0x3F & c));
+            } else if ((c < Character.MIN_SURROGATE || Character.MAX_SURROGATE < c)) {
+                // Maximum single-char code point is 0xFFFF, 16 bits, three UTF-8 bytes
+                out[j++] = (byte) ((0xF << 5) | (c >>> 12));
+                out[j++] = (byte) (0x80 | (0x3F & (c >>> 6)));
+                out[j++] = (byte) (0x80 | (0x3F & c));
+            } else {
+                // Minimum code point represented by a surrogate pair is 0x10000, 17 bits,
+                // four UTF-8 bytes
+                final char low;
+                if (i + 1 == in.length() || !Character.isSurrogatePair(c, (low = in.charAt(++i)))) {
+                    throw new MalformedUtf8Exception("Unpaired surrogate at index " + (i - 1) + " of " + utf16Length);
+                }
+                int codePoint = Character.toCodePoint(c, low);
+                out[j++] = (byte) ((0xF << 4) | (codePoint >>> 18));
+                out[j++] = (byte) (0x80 | (0x3F & (codePoint >>> 12)));
+                out[j++] = (byte) (0x80 | (0x3F & (codePoint >>> 6)));
+                out[j++] = (byte) (0x80 | (0x3F & codePoint));
+            }
+        }
+        return j - offset;
     }
 }
