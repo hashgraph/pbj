@@ -32,7 +32,6 @@ import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -138,15 +137,13 @@ public final class ProtoArrayWriterTools {
      * @param value the string value to write
      * @param skipDefault default value results in no-op for non-oneOf
      * @return the number of bytes written
-     * @throws IOException If a I/O error occurs
      */
     public static int writeString(
             @NonNull byte[] output,
             final int offset,
             @NonNull final FieldDefinition field,
             final String value,
-            final boolean skipDefault)
-            throws IOException {
+            final boolean skipDefault) {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert !field.repeated() : "Use writeStringList with repeated types";
         return writeStringNoChecks(output, offset, field, value, skipDefault);
@@ -161,15 +158,13 @@ public final class ProtoArrayWriterTools {
      * @param value the string value to write
      * @param skipDefault default value results in no-op for non-oneOf
      * @return the number of bytes written
-     * @throws IOException If a I/O error occurs
      */
     private static int writeStringNoChecks(
             @NonNull byte[] output,
             final int offset,
             @NonNull final FieldDefinition field,
             final String value,
-            final boolean skipDefault)
-            throws IOException {
+            final boolean skipDefault) {
         int bytesWritten = 0;
         // When not a oneOf don't write default value
         if (skipDefault && !field.oneOf() && (value == null || value.isEmpty())) {
@@ -189,14 +184,12 @@ public final class ProtoArrayWriterTools {
      * @param field the field definition for the string field
      * @param value the optional string value to write
      * @return the number of bytes written
-     * @throws IOException If a I/O error occurs
      */
     public static int writeOptionalString(
             @NonNull byte[] output,
             final int offset,
             @NonNull final FieldDefinition field,
-            @Nullable final String value)
-            throws IOException {
+            @Nullable final String value) {
         int bytesWritten = 0;
         if (value != null) {
             bytesWritten += writeTag(output, offset, field, WIRE_TYPE_DELIMITED);
@@ -663,15 +656,13 @@ public final class ProtoArrayWriterTools {
      * @param message the message to write
      * @param codec the codec for the given message type
      * @return the number of bytes written
-     * @throws IOException If a I/O error occurs
      */
     public static <T> int writeMessage(
             @NonNull final byte[] output,
             final int offset,
             @NonNull final FieldDefinition field,
             final T message,
-            final Codec<T> codec)
-            throws IOException {
+            final Codec<T> codec) {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert !field.repeated() : "Use writeMessageList with repeated types";
         return writeMessageNoChecks(output, offset, field, message, codec);
@@ -687,15 +678,13 @@ public final class ProtoArrayWriterTools {
      * @param message the message to write
      * @param codec the codec for the given message type
      * @return the number of bytes written
-     * @throws IOException If a I/O error occurs
      */
     private static <T> int writeMessageNoChecks(
             @NonNull final byte[] output,
             final int offset,
             @NonNull final FieldDefinition field,
             final T message,
-            final Codec<T> codec)
-            throws IOException {
+            final Codec<T> codec) {
         // When not a oneOf don't write default value
         int bytesWritten = 0;
         if (field.oneOf() && message == null) {
@@ -722,15 +711,13 @@ public final class ProtoArrayWriterTools {
      * @param value the bytes value to write
      * @param skipDefault default value results in no-op for non-oneOf
      * @return the number of bytes written
-     * @throws IOException If a I/O error occurs
      */
     public static int writeBytes(
             @NonNull final byte[] output,
             final int offset,
             @NonNull final FieldDefinition field,
             final Bytes value,
-            boolean skipDefault)
-            throws IOException {
+            boolean skipDefault) {
         assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert !field.repeated() : "Use writeBytesList with repeated types";
         return writeBytesNoChecks(output, offset, field, value, skipDefault);
@@ -745,15 +732,13 @@ public final class ProtoArrayWriterTools {
      * @param value the bytes value to write
      * @param skipZeroLength this is true for normal single bytes and false for repeated lists
      * @return the number of bytes written
-     * @throws IOException If a I/O error occurs
      */
     private static int writeBytesNoChecks(
             @NonNull final byte[] output,
             final int offset,
             @NonNull final FieldDefinition field,
             final Bytes value,
-            final boolean skipZeroLength)
-            throws IOException {
+            final boolean skipZeroLength) {
         // When not a oneOf don't write default value
         if (!field.oneOf() && (skipZeroLength && (value.length() == 0))) {
             return 0;
@@ -1100,11 +1085,9 @@ public final class ProtoArrayWriterTools {
      * @param field the descriptor for the field we are writing
      * @param list the list of strings value to write
      * @return the number of bytes written
-     * @throws IOException If a I/O error occurs
      */
     public static int writeStringList(
-            @NonNull final byte[] output, final int offset, FieldDefinition field, List<String> list)
-            throws IOException {
+            @NonNull final byte[] output, final int offset, FieldDefinition field, List<String> list) {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "Use writeString with non-repeated types";
         // When not a oneOf don't write default value
@@ -1131,12 +1114,10 @@ public final class ProtoArrayWriterTools {
      * @param list the list of messages value to write
      * @param codec the codec for the message type
      * @return the number of bytes written
-     * @throws IOException If a I/O error occurs
      * @param <T> type of message
      */
     public static <T> int writeMessageList(
-            @NonNull final byte[] output, final int offset, FieldDefinition field, List<T> list, Codec<T> codec)
-            throws IOException {
+            @NonNull final byte[] output, final int offset, FieldDefinition field, List<T> list, Codec<T> codec) {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert field.repeated() : "Use writeMessage with non-repeated types";
         // When not a oneOf don't write default value
@@ -1159,11 +1140,9 @@ public final class ProtoArrayWriterTools {
      * @param field the descriptor for the field we are writing
      * @param list the list of bytes objects value to write
      * @return the number of bytes written
-     * @throws IOException If a I/O error occurs
      */
     public static int writeBytesList(
-            @NonNull final byte[] output, final int offset, FieldDefinition field, List<? extends Bytes> list)
-            throws IOException {
+            @NonNull final byte[] output, final int offset, FieldDefinition field, List<? extends Bytes> list) {
         assert field.type() == FieldType.BYTES : "Not a message type " + field;
         assert field.repeated() : "Use writeBytes with non-repeated types";
         // When not a oneOf don't write default value

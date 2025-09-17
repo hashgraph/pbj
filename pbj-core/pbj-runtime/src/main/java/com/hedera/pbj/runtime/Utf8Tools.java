@@ -123,10 +123,9 @@ public final class Utf8Tools {
      * @param offset The offset in the byte array to start writing at
      * @param in     The input character sequence to encode
      * @return The number of bytes written
-     * @throws MalformedProtobufException if the input contains unpaired surrogates
+     * @throws MalformedUtf8Exception if the input contains unpaired surrogates
      */
-    public static int encodeUtf8(@NonNull final byte[] out, final int offset, final String in)
-            throws MalformedProtobufException {
+    public static int encodeUtf8(@NonNull final byte[] out, final int offset, final String in) {
         int utf16Length = in.length();
         int i = 0;
         int j = offset;
@@ -156,8 +155,7 @@ public final class Utf8Tools {
                 // four UTF-8 bytes
                 final char low;
                 if (i + 1 == in.length() || !Character.isSurrogatePair(c, (low = in.charAt(++i)))) {
-                    throw new MalformedProtobufException(
-                            "Unpaired surrogate at index " + (i - 1) + " of " + utf16Length);
+                    throw new MalformedUtf8Exception("Unpaired surrogate at index " + (i - 1) + " of " + utf16Length);
                 }
                 int codePoint = Character.toCodePoint(c, low);
                 out[j++] = (byte) ((0xF << 4) | (codePoint >>> 18));
