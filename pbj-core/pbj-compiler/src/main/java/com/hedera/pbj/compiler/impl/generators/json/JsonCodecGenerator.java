@@ -70,6 +70,7 @@ public final class JsonCodecGenerator implements Generator {
         writer.addImport("com.hedera.pbj.runtime.jsonparser.*");
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
         writer.addImport("static com.hedera.pbj.runtime.JsonTools.*");
+        writer.addImport("static com.hedera.pbj.runtime.Utf8Tools.*");
 
         // spotless:off
         writer.append("""

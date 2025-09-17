@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 /**
  * Code to generate the write method for Codec classes.
  */
-final class CodecWriteMethodGenerator {
+final class CodecWriteByteArrayMethodGenerator {
 
     static String generateWriteMethod(
             final String modelClassName, final String schemaClassName, final List<Field> fields) {
@@ -32,22 +32,27 @@ final class CodecWriteMethodGenerator {
         return
             """
             /**
-             * Write out a $modelClass model to output stream in protobuf format.
+             * Writes an item to the given byte array, this is a performance focused method. In non-performance centric use
+             * cases there are simpler methods such as toBytes() or writing to a {@link WritableStreamingData}.
              *
-             * @param data The input model data to write
-             * @param out The output stream to write to
-             * @throws IOException If there is a problem writing
+             * @param data The item to write. Must not be null.
+             * @param output The byte array to write to, this must be large enough to hold the entire item. The message is
+             *               always written at array offset 0.
+             * @param startOffset The offset in the output array to start writing at.
+             * @return The number of bytes written to the output array.
+             * @throws IOException If the {@link WritableSequentialData} cannot be written to.
+             * @throws IllegalArgumentException If the output array is not large enough to hold the entire item.
              */
-            public void write(@NonNull $modelClass data, @NonNull final WritableSequentialData out) throws IOException {
-                $fieldWriteLines
-                // Check if not-empty to avoid creating a lambda if there's nothing to write.
-                if (!data.getUnknownFields().isEmpty()) {
-                    data.getUnknownFields().forEach(uf -> {
-                        final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
-                        out.writeVarInt(tag, false);
-                        uf.bytes().writeTo(out);
-                    });
+            public int write(@NonNull $modelClass data, @NonNull byte[] output, final int startOffset) throws IOException {
+                int offset = startOffset;
+            $fieldWriteLines
+                // Write unknown fields if there are any
+                for(final UnknownField uf : data.getUnknownFields()) {
+                    final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
+                    offset += ProtoArrayWriterTools.writeUnsignedVarInt(output, offset, tag);
+                    offset += uf.bytes().writeTo(output, offset);
                 }
+                return offset - startOffset;
             }
             """
             .replace("$modelClass", modelClassName)
@@ -102,19 +107,21 @@ final class CodecWriteMethodGenerator {
         final String writeMethodName = field.methodNameType();
         if (field.optionalValueType()) {
             return prefix + switch (field.messageType()) {
-                case "StringValue" -> "writeOptionalString(out, %s, %s);"
+                case "StringValue" -> "offset += ProtoArrayWriterTools.writeOptionalString(output, offset, %s, %s);"
                         .formatted(fieldDef,getValueCode);
-                case "BoolValue" -> "writeOptionalBoolean(out, %s, %s);"
+                case "BoolValue" -> "offset += ProtoArrayWriterTools.writeOptionalBoolean(output, offset, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case "Int32Value","UInt32Value" -> "writeOptionalInteger(out, %s, %s);"
+                case "Int32Value" -> "offset += ProtoArrayWriterTools.writeOptionalInt32Value(output, offset, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case "Int64Value","UInt64Value" -> "writeOptionalLong(out, %s, %s);"
+                case "UInt32Value" -> "offset += ProtoArrayWriterTools.writeOptionalUInt32Value(output, offset, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case "FloatValue" -> "writeOptionalFloat(out, %s, %s);"
+                case "Int64Value","UInt64Value" -> "offset += ProtoArrayWriterTools.writeOptionalInt64Value(output, offset, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case "DoubleValue" -> "writeOptionalDouble(out, %s, %s);"
+                case "FloatValue" -> "offset += ProtoArrayWriterTools.writeOptionalFloat(output, offset, %s, %s);"
                         .formatted(fieldDef, getValueCode);
-                case "BytesValue" -> "writeOptionalBytes(out, %s, %s);"
+                case "DoubleValue" -> "offset += ProtoArrayWriterTools.writeOptionalDouble(output, offset, %s, %s);"
+                        .formatted(fieldDef, getValueCode);
+                case "BytesValue" -> "offset += ProtoArrayWriterTools.writeOptionalBytes(output, offset, %s, %s);"
                         .formatted(fieldDef, getValueCode);
                 default -> throw new UnsupportedOperationException(
                         "Unhandled optional message type:%s".formatted(field.messageType()));
@@ -127,11 +134,26 @@ final class CodecWriteMethodGenerator {
             }
             if (field.repeated()) {
                 return prefix + switch(field.type()) {
-                    case ENUM -> "writeEnumList(out, %s, %s);"
+                    case ENUM -> "offset += ProtoArrayWriterTools.writeEnumList(output, offset, %s, %s);"
                             .formatted(fieldDef, getValueCode);
-                    case MESSAGE -> "writeMessageList(out, %s, %s, %s);"
+                    case MESSAGE -> "offset += ProtoArrayWriterTools.writeMessageList(output, offset, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, codecReference);
-                    default -> "write%sList(out, %s, %s);"
+                    case INT32 -> "offset += ProtoArrayWriterTools.writeInt32List(output, offset, %s, %s);"
+                            .formatted(fieldDef, getValueCode);
+                    case UINT32 -> "offset += ProtoArrayWriterTools.writeUInt32List(output, offset, %s, %s);"
+                            .formatted(fieldDef, getValueCode);
+                    case SINT32 -> "offset += ProtoArrayWriterTools.writeSInt32List(output, offset, %s, %s);"
+                            .formatted(fieldDef, getValueCode);
+                    case FIXED32, SFIXED32 -> "offset += ProtoArrayWriterTools.writeFixed32List(output, offset, %s, %s);"
+                            .formatted(fieldDef, getValueCode);
+                    case INT64, UINT64 -> "offset += ProtoArrayWriterTools.writeInt64List(output, offset, %s, %s);"
+                            .formatted(fieldDef, getValueCode);
+                    case SINT64 -> "offset += ProtoArrayWriterTools.writeSInt64List(output, offset, %s, %s);"
+                            .formatted(fieldDef, getValueCode);
+                    case FIXED64, SFIXED64 -> "offset += ProtoArrayWriterTools.writeFixed64List(output, offset, %s, %s);"
+                            .formatted(fieldDef, getValueCode);
+
+                    default -> "offset += ProtoArrayWriterTools.write%sList(output, offset, %s, %s);"
                             .formatted(writeMethodName, fieldDef, getValueCode);
                 };
             } else if (field.type() == Field.FieldType.MAP) {
@@ -165,12 +187,12 @@ final class CodecWriteMethodGenerator {
                                 final Pbj$javaFieldType pbjMap = (Pbj$javaFieldType) $map;
                                 final int mapSize = pbjMap.size();
                                 for (int i = 0; i < mapSize; i++) {
-                                    writeTag(out, $fieldDef, WIRE_TYPE_DELIMITED);
+                                    offset += ProtoArrayWriterTools.writeTag(output, offset, $fieldDef, WIRE_TYPE_DELIMITED);
                                     $K k = pbjMap.getSortedKeys().get(i);
                                     $V v = pbjMap.get(k);
                                     int size = 0;
                                     $fieldSizeOfLines
-                                    out.writeVarInt(size, false);
+                                    offset += ProtoArrayWriterTools.writeUnsignedVarInt(output, offset, size);
                                     $fieldWriteLines
                                 }
                             }
@@ -184,17 +206,31 @@ final class CodecWriteMethodGenerator {
                         .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT));
             } else {
                 return prefix + switch(field.type()) {
-                    case ENUM -> "writeEnum(out, %s, %s);"
+                    case ENUM -> "offset += ProtoArrayWriterTools.writeEnum(output, offset, %s, %s);"
                             .formatted(fieldDef, getValueCode);
-                    case STRING -> "/* FOO */ writeString(out, %s, %s, %s);"
+                    case STRING -> "offset += ProtoArrayWriterTools.writeString(output, offset, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, skipDefault);
-                    case MESSAGE -> "writeMessage(out, %s, %s, %s);"
+                    case MESSAGE -> "offset += ProtoArrayWriterTools.writeMessage(output, offset, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, codecReference);
-                    case BOOL -> "writeBoolean(out, %s, %s, %s);"
+                    case BOOL -> "offset += ProtoArrayWriterTools.writeBoolean(output, offset, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, skipDefault);
-                    case INT32, UINT32, SINT32, FIXED32, SFIXED32, INT64, SINT64, UINT64, FIXED64, SFIXED64, BYTES ->
-                            "write%s(out, %s, %s, %s);".formatted(writeMethodName, fieldDef, getValueCode, skipDefault);
-                    default -> "write%s(out, %s, %s);"
+                    case INT32 -> "offset += ProtoArrayWriterTools.writeInt32(output, offset, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, skipDefault);
+                    case UINT32 -> "offset += ProtoArrayWriterTools.writeUInt32(output, offset, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, skipDefault);
+                    case SINT32 -> "offset += ProtoArrayWriterTools.writSInt32(output, offset, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, skipDefault);
+                    case FIXED32, SFIXED32 -> "offset += ProtoArrayWriterTools.writeFixed32(output, offset, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, skipDefault);
+                    case INT64, UINT64 -> "offset += ProtoArrayWriterTools.writeInt64(output, offset, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, skipDefault);
+                    case SINT64 -> "offset += ProtoArrayWriterTools.writeSInt64(output, offset, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, skipDefault);
+                    case FIXED64, SFIXED64 -> "offset += ProtoArrayWriterTools.writeFixed64(output, offset, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, skipDefault);
+                    case BYTES -> "offset += ProtoArrayWriterTools.writeBytes(output, offset, %s, %s, %s);"
+                            .formatted(fieldDef, getValueCode, skipDefault);
+                    default -> "offset += ProtoArrayWriterTools.write%s(output, offset, %s, %s);"
                             .formatted(writeMethodName, fieldDef, getValueCode);
                 };
             }

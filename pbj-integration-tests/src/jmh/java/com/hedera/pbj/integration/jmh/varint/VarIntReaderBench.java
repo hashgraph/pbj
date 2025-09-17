@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.pbj.integration.jmh;
+package com.hedera.pbj.integration.jmh.varint;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
@@ -25,7 +25,8 @@ import org.openjdk.jmh.infra.Blackhole;
 @Measurement(iterations = 5, time = 2)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
-public class VarIntBench {
+public class VarIntReaderBench {
+    private static final int NUM_OF_VALUES = 1024;
 
     ByteBuffer buffer = ByteBuffer.allocate(256 * 1024);
     final ByteBuffer bufferDirect = ByteBuffer.allocateDirect(256 * 1024);
@@ -40,9 +41,15 @@ public class VarIntBench {
     InputStream baisNonSync = null;
     ReadableStreamingData rsdNonSync = null;
 
-    private final int[] offsets = new int[1201];
+    private final int[] offsets = new int[NUM_OF_VALUES];
+    /**
+     * Number of bytes to read at a time (1, 2, 4, or 8). So create inputs with 1 byte siz,e, 2 byte size, 4 byte size,
+     * and 8 byte size.
+     */
+    @Param({"1", "2", "4", "8"})
+    public int numOfBytes;
 
-    public VarIntBench() {
+    public VarIntReaderBench() {
         try {
             CodedOutputStream cout = CodedOutputStream.newInstance(buffer);
             Random random = new Random(9387498731984L);
@@ -140,16 +147,16 @@ public class VarIntBench {
             blackhole.consume(rsdNonSync.readVarLong(false));
         }
     }
-
-    @Benchmark
-    @OperationsPerInvocation(1200)
-    public void richardGet(Blackhole blackhole) throws MalformedProtobufException {
-        int offset = 0;
-        buffer.clear();
-        for (int i = 0; i < 1200; i++) {
-            blackhole.consume(getVarLongRichard(offsets[offset++], buffer));
-        }
-    }
+//
+//    @Benchmark
+//    @OperationsPerInvocation(1200)
+//    public void richardGet(Blackhole blackhole) throws MalformedProtobufException {
+//        int offset = 0;
+//        buffer.clear();
+//        for (int i = 0; i < 1200; i++) {
+//            blackhole.consume(getVarLongRichard(offsets[offset++], buffer));
+//        }
+//    }
 
     @Benchmark
     @OperationsPerInvocation(1200)
@@ -170,89 +177,111 @@ public class VarIntBench {
             blackhole.consume(codedInputStream.readRawVarint64());
         }
     }
-
-    @Benchmark
-    @OperationsPerInvocation(1200)
-    public void googleSlowPathRead(Blackhole blackhole) throws MalformedProtobufException {
-        buffer.clear();
-        for (int i = 0; i < 1200; i++) {
-            blackhole.consume(readRawVarint64SlowPath(buffer));
-        }
-    }
-
-    @Benchmark
-    @OperationsPerInvocation(1200)
-    public void googleSlowPathDirectRead(Blackhole blackhole) throws MalformedProtobufException {
-        bufferDirect.clear();
-        for (int i = 0; i < 1200; i++) {
-            blackhole.consume(readRawVarint64SlowPath(bufferDirect));
-        }
-    }
-
-    private static long readRawVarint64SlowPath(ByteBuffer buf) throws MalformedProtobufException {
-        long result = 0;
-        for (int shift = 0; shift < 64; shift += 7) {
-            final byte b = buf.get();
-            result |= (long) (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) {
-                return result;
-            }
-        }
-        throw new MalformedProtobufException("Malformed varInt");
-    }
-
-    private static final int VARINT_CONTINUATION_MASK = 0b1000_0000;
-    private static final int VARINT_DATA_MASK = 0b0111_1111;
-    private static final int NUM_BITS_PER_VARINT_BYTE = 7;
-
-    public static long getVarLongRichard(int offset, ByteBuffer buf) throws MalformedProtobufException {
-        // Protobuf encodes smaller integers with fewer bytes than larger integers. It takes a full byte
-        // to encode 7 bits of information. So, if all 64 bits of a long are in use (for example, if the
-        // leading bit is 1, or even all bits are 1) then it will take 10 bytes to transmit what would
-        // have otherwise been 8 bytes of data!
-        //
-        // Thus, at most, reading a varint should involve reading 10 bytes of data.
-        //
-        // The leading bit of each byte is a continuation bit. If set, another byte will follow.
-        // If we read 10 bytes in sequence with a continuation bit set, then we have a malformed
-        // byte stream.
-        // The bytes come least to most significant 7 bits. So the first byte we read represents
-        // the lowest 7 bytes, then the next byte is the next highest 7 bytes, etc.
-
-        // The final value.
-        long value = 0;
-        // The amount to shift the bits we read by before AND with the value
-        int shift = -NUM_BITS_PER_VARINT_BYTE;
-
-        // This method works with heap byte buffers only
-        final byte[] arr = buf.array();
-        final int arrOffset = buf.arrayOffset() + offset;
-
-        int i = 0;
-        for (; i < 10; i++) {
-            // Use UnsafeUtil instead of arr[arrOffset + i] to avoid array range checks
-            byte b = UnsafeUtils.getArrayByteNoChecks(arr, arrOffset + i);
-            value |= (long) (b & 0x7F) << (shift += NUM_BITS_PER_VARINT_BYTE);
-
-            if (b >= 0) {
-                return value;
-            }
-        }
-        // If we read 10 in a row all with the leading continuation bit set, then throw a malformed
-        // protobuf exception
-        throw new MalformedProtobufException("Malformed var int");
-    }
-
-    public static void main(String[] args) throws Exception {
-        final Blackhole blackhole = new Blackhole(
-                "Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.");
-        final VarIntBench bench = new VarIntBench();
-        bench.dataBufferRead(blackhole);
-        bench.dataBufferGet(blackhole);
-        bench.dataBufferDirectRead(blackhole);
-        bench.dataBytesGet(blackhole);
-        bench.dataSyncInputStreamRead(blackhole);
-        bench.dataNonSyncInputStreamRead(blackhole);
-        bench.googleRead(blackhole);
-    }
+//
+//    @Benchmark
+//    @OperationsPerInvocation(1200)
+//    public void googleSlowPathRead(Blackhole blackhole) throws MalformedProtobufException {
+//        buffer.clear();
+//        for (int i = 0; i < 1200; i++) {
+//            blackhole.consume(readRawVarint64SlowPath(buffer));
+//        }
+//    }
+//
+//    @Benchmark
+//    @OperationsPerInvocation(1200)
+//    public void googleSlowPathDirectRead(Blackhole blackhole) throws MalformedProtobufException {
+//        bufferDirect.clear();
+//        for (int i = 0; i < 1200; i++) {
+//            blackhole.consume(readRawVarint64SlowPath(bufferDirect));
+//        }
+//    }
+//
+//    private static long readRawVarint64SlowPath(ByteBuffer buf) throws MalformedProtobufException {
+//        long result = 0;
+//        for (int shift = 0; shift < 64; shift += 7) {
+//            final byte b = buf.get();
+//            result |= (long) (b & 0x7F) << shift;
+//            if ((b & 0x80) == 0) {
+//                return result;
+//            }
+//        }
+//        throw new MalformedProtobufException("Malformed varInt");
+//    }
+//
+//    private static final int VARINT_CONTINUATION_MASK = 0b1000_0000;
+//    private static final int VARINT_DATA_MASK = 0b0111_1111;
+//    private static final int NUM_BITS_PER_VARINT_BYTE = 7;
+//
+//    public static long getVarLongRichard(int offset, ByteBuffer buf) throws MalformedProtobufException {
+//        // Protobuf encodes smaller integers with fewer bytes than larger integers. It takes a full byte
+//        // to encode 7 bits of information. So, if all 64 bits of a long are in use (for example, if the
+//        // leading bit is 1, or even all bits are 1) then it will take 10 bytes to transmit what would
+//        // have otherwise been 8 bytes of data!
+//        //
+//        // Thus, at most, reading a varint should involve reading 10 bytes of data.
+//        //
+//        // The leading bit of each byte is a continuation bit. If set, another byte will follow.
+//        // If we read 10 bytes in sequence with a continuation bit set, then we have a malformed
+//        // byte stream.
+//        // The bytes come least to most significant 7 bits. So the first byte we read represents
+//        // the lowest 7 bytes, then the next byte is the next highest 7 bytes, etc.
+//
+//        // The final value.
+//        long value = 0;
+//        // The amount to shift the bits we read by before AND with the value
+//        int shift = -NUM_BITS_PER_VARINT_BYTE;
+//
+//        // This method works with heap byte buffers only
+//        final byte[] arr = buf.array();
+//        final int arrOffset = buf.arrayOffset() + offset;
+//
+//        int i = 0;
+//        for (; i < 10; i++) {
+//            // Use UnsafeUtil instead of arr[arrOffset + i] to avoid array range checks
+//            byte b = UnsafeUtils.getArrayByteNoChecks(arr, arrOffset + i);
+//            value |= (long) (b & 0x7F) << (shift += NUM_BITS_PER_VARINT_BYTE);
+//
+//            if (b >= 0) {
+//                return value;
+//            }
+//        }
+//        // If we read 10 in a row all with the leading continuation bit set, then throw a malformed
+//        // protobuf exception
+//        throw new MalformedProtobufException("Malformed var int");
+//    }
+//
+//
+//
+//    @Benchmark
+//    @OperationsPerInvocation(1200)
+//    public void googleSlowPathRead(Blackhole blackhole) throws MalformedProtobufException {
+//        buffer.clear();
+//        for (int i = 0; i < 1200; i++) {
+//            blackhole.consume(readRawVarint64SlowPath(buffer));
+//        }
+//    }
+//
+//    @Benchmark
+//    @OperationsPerInvocation(1200)
+//    public void googleSlowPathDirectRead(Blackhole blackhole) throws MalformedProtobufException {
+//        bufferDirect.clear();
+//        for (int i = 0; i < 1200; i++) {
+//            blackhole.consume(readRawVarint64SlowPath(bufferDirect));
+//        }
+//    }
+//
+//
+//
+//    public static void main(String[] args) throws Exception {
+//        final Blackhole blackhole = new Blackhole(
+//                "Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.");
+//        final VarIntReaderBench bench = new VarIntReaderBench();
+//        bench.dataBufferRead(blackhole);
+//        bench.dataBufferGet(blackhole);
+//        bench.dataBufferDirectRead(blackhole);
+//        bench.dataBytesGet(blackhole);
+//        bench.dataSyncInputStreamRead(blackhole);
+//        bench.dataNonSyncInputStreamRead(blackhole);
+//        bench.googleRead(blackhole);
+//    }
 }

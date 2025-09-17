@@ -667,8 +667,23 @@ public final class Common {
                             }
                             """
                                     .replace("$fieldName", f.nameCamelFirstLower());
-                } else if (f.type() == Field.FieldType.STRING
-                        || f.type() == Field.FieldType.BYTES
+                } else if (f.type() == Field.FieldType.STRING) {
+                    generatedCodeSoFar += """
+                              if ($fieldName == null && thatObj.$fieldName != null) {
+                                  return -1;
+                              }
+                              if ($fieldName != null && thatObj.$fieldName == null) {
+                                  return 1;
+                              }
+                              if ($fieldName != null) {
+                                  result = Arrays.compare($fieldName, thatObj.$fieldName);
+                              }
+                              if (result != 0) {
+                                  return result;
+                              }
+                              """
+                            .replace("$fieldName", f.nameCamelFirstLower());
+                } else if (f.type() == Field.FieldType.BYTES
                         || f.type() == Field.FieldType.ENUM) {
                     generatedCodeSoFar += generateCompareToForObject(f);
                 } else if (f.type() == Field.FieldType.MESSAGE || f.type() == Field.FieldType.ONE_OF) {
