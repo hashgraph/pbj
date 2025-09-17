@@ -35,14 +35,12 @@ final class CodecWriteByteArrayMethodGenerator {
              * cases there are simpler methods such as toBytes() or writing to a {@link WritableStreamingData}.
              *
              * @param data The item to write. Must not be null.
-             * @param output The byte array to write to, this must be large enough to hold the entire item. The message is
-             *               always written at array offset 0.
+             * @param output The byte array to write to, this must be large enough to hold the entire item.
              * @param startOffset The offset in the output array to start writing at.
              * @return The number of bytes written to the output array.
-             * @throws IOException If the {@link WritableSequentialData} cannot be written to.
-             * @throws IllegalArgumentException If the output array is not large enough to hold the entire item.
+             * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
              */
-            public int write(@NonNull $modelClass data, @NonNull byte[] output, final int startOffset) throws IOException {
+            public int write(@NonNull $modelClass data, @NonNull byte[] output, final int startOffset) {
                 int offset = startOffset;
             $fieldWriteLines
                 // Write unknown fields if there are any

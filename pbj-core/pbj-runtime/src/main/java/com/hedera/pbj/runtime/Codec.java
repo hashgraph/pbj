@@ -161,10 +161,10 @@ public interface Codec<T> {
      * @param output The byte array to write to, this must be large enough to hold the entire item.
      * @param startOffset The offset in the output array to start writing at.
      * @return The number of bytes written to the output array.
-     * @throws IOException If the there is a problem writing to the output array.
+     * @throws UncheckedIOException If the there is a problem writing to the output array.
      * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
      */
-    default int write(@NonNull T item, @NonNull byte[] output, final int startOffset) throws IOException {
+    default int write(@NonNull T item, @NonNull byte[] output, final int startOffset) {
         final BufferedData bufferedData = BufferedData.wrap(output, startOffset, output.length - startOffset);
         try {
             write(item, bufferedData);
