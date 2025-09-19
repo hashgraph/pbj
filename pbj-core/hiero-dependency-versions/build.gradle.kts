@@ -56,7 +56,7 @@ dependencies.constraints {
     api("io.grpc:protoc-gen-grpc-java:1.72.0")
 
     // Testing only
-    api("com.google.guava:guava:33.4.8-jre") { because("com.google.common") }
+    api("com.google.guava:guava:33.5.0-jre") { because("com.google.common") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
     api("net.bytebuddy:byte-buddy:1.17.6") { because("net.bytebuddy") }
