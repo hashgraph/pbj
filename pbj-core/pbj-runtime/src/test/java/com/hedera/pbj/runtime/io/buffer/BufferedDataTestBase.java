@@ -68,7 +68,7 @@ abstract class BufferedDataTestBase {
         buf.skip(5);
         buf.limit(10);
 
-        assertThat(buf.toString()).endsWith("BufferedData[1,2,3,4,5,6,7,8,9,10]");
+        assertThat(buf.toString()).endsWith(buf.getClass().getSimpleName()+"[1,2,3,4,5,6,7,8,9,10]");
 
         assertEquals(5, buf.position());
         assertEquals(10, buf.limit());
@@ -78,15 +78,15 @@ abstract class BufferedDataTestBase {
     void toStringWithOffsetAndLen() {
         final var buf = wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 2, 4);
         // toString() doesn't depend on position, but respects limit
-        assertThat(buf.toString()).endsWith("BufferedData[0,1,2,3,4,5]");
+        assertThat(buf.toString()).endsWith(buf.getClass().getSimpleName()+"[0,1,2,3,4,5]");
         buf.limit(10);
-        assertThat(buf.toString()).endsWith("BufferedData[0,1,2,3,4,5,6,7,8,9]");
+        assertThat(buf.toString()).endsWith(buf.getClass().getSimpleName()+"[0,1,2,3,4,5,6,7,8,9]");
     }
 
     @Test
     void toStringWithSlice() {
         final var buf = wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}).slice(2, 4);
-        assertThat(buf.toString()).endsWith("BufferedData[2,3,4,5]");
+        assertThat(buf.toString()).endsWith(buf.getClass().getSimpleName()+"[2,3,4,5]");
     }
 
     @ParameterizedTest

@@ -56,6 +56,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+@SuppressWarnings("dangling-doc-comments")
 class PbjTest {
     private static final MediaType APPLICATION_GRPC_PROTO = HttpMediaType.create("application/grpc+proto");
     private static final MediaType APPLICATION_GRPC_JSON = HttpMediaType.create("application/grpc+json");

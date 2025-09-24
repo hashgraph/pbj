@@ -12,8 +12,10 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -31,8 +33,8 @@ import org.openjdk.jmh.infra.Blackhole;
 
 @SuppressWarnings("unused")
 @Fork(1)
-@Warmup(iterations = 2, time = 2)
-@Measurement(iterations = 5, time = 2)
+@Warmup(iterations = 5, time = 2)
+@Measurement(iterations = 10, time = 2)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.AverageTime)
 public abstract class JsonBench<P, G extends GeneratedMessage> {
@@ -52,6 +54,9 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
 
         // output buffers
         private BufferedData outDataBuffer;
+        private ByteArrayOutputStream outOutputStream;
+        private WritableStreamingData outStreamingData;
+
 
         public void configure(
                 P pbjModelObject,
@@ -81,7 +86,9 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
 
                 // input buffers
                 // output buffers
-                this.outDataBuffer = BufferedData.allocate(jsonString.length());
+                this.outDataBuffer = BufferedData.allocate(jsonString.length()*2);
+                this.outOutputStream = new ByteArrayOutputStream(jsonString.length()*2);
+                this.outStreamingData = new WritableStreamingData(outOutputStream);
             } catch (IOException e) {
                 e.getStackTrace();
                 System.err.flush();
@@ -110,6 +117,13 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
         benchmarkState.outDataBuffer.reset();
         benchmarkState.pbjJsonCodec.write(benchmarkState.pbjModelObject, benchmarkState.outDataBuffer);
         blackhole.consume(benchmarkState.outDataBuffer);
+    }
+
+    @Benchmark
+    public void writePbjStreaming(JsonBenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws IOException {
+        benchmarkState.outOutputStream.reset();
+        benchmarkState.pbjJsonCodec.write(benchmarkState.pbjModelObject, benchmarkState.outStreamingData);
+        blackhole.consume(benchmarkState.outOutputStream.toByteArray());
     }
 
     @Benchmark

@@ -27,7 +27,7 @@ import java.nio.channels.WritableByteChannel;
  */
 public sealed class BufferedData
         implements BufferedSequentialData, ReadableSequentialData, WritableSequentialData, RandomAccessData
-        permits ByteArrayBufferedData, DirectBufferedData {
+        permits ByteArrayBufferedData, DirectBufferedData, UnsafeByteArrayBufferedData {
 
     /** Single instance of an empty buffer we can use anywhere we need an empty read only buffer */
     @SuppressWarnings("unused")
@@ -68,7 +68,7 @@ public sealed class BufferedData
     @NonNull
     public static BufferedData wrap(@NonNull final ByteBuffer buffer) {
         if (buffer.hasArray()) {
-            return new ByteArrayBufferedData(buffer);
+            return new UnsafeByteArrayBufferedData(buffer);
         } else if (buffer.isDirect()) {
             return new DirectBufferedData(buffer);
         } else {
@@ -88,7 +88,7 @@ public sealed class BufferedData
      */
     @NonNull
     public static BufferedData wrap(@NonNull final byte[] array) {
-        return new ByteArrayBufferedData(ByteBuffer.wrap(array));
+        return new UnsafeByteArrayBufferedData(ByteBuffer.wrap(array));
     }
 
     /**
@@ -104,7 +104,7 @@ public sealed class BufferedData
      */
     @NonNull
     public static BufferedData wrap(@NonNull final byte[] array, final int offset, final int len) {
-        return new ByteArrayBufferedData(ByteBuffer.wrap(array, offset, len));
+        return new UnsafeByteArrayBufferedData(ByteBuffer.wrap(array, offset, len));
     }
 
     /**
@@ -115,7 +115,7 @@ public sealed class BufferedData
      */
     @NonNull
     public static BufferedData allocate(final int size) {
-        return new ByteArrayBufferedData(ByteBuffer.allocate(size));
+        return new UnsafeByteArrayBufferedData(ByteBuffer.allocate(size));
     }
 
     /**

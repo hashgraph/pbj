@@ -389,6 +389,46 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         digest.update(buffer, Math.toIntExact(start + offset), length);
     }
 
+
+    private static final char[] BASE64_ALPHABET =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toCharArray();
+    private static final byte PADDING = '=';
+
+    /**
+     * A helper method for efficient copy of our data into a Base64 encoded string.
+     *
+     * @param outputBuffer the byte array to write the Base64 encoded string into
+     * @param outputOffset the offset in the outputBuffer to start writing the Base64 encoded string
+     */
+    public int writeBase64To(byte[] outputBuffer, int outputOffset) {
+        final int inputEnd = start + length;
+        int outputIndex = outputOffset;
+        // Process input in chunks of 3 bytes
+        for (int i = start; i + 2 < inputEnd; i += 3) {
+            int chunk = ((buffer[i] & 0xFF) << 16) | ((buffer[i + 1] & 0xFF) << 8) | (buffer[i + 2] & 0xFF);
+            outputBuffer[outputIndex++] = (byte) BASE64_ALPHABET[(chunk >> 18) & 0x3F];
+            outputBuffer[outputIndex++] = (byte) BASE64_ALPHABET[(chunk >> 12) & 0x3F];
+            outputBuffer[outputIndex++] = (byte) BASE64_ALPHABET[(chunk >> 6) & 0x3F];
+            outputBuffer[outputIndex++] = (byte) BASE64_ALPHABET[chunk & 0x3F];
+        }
+        // Handle remaining bytes
+        int remaining = inputEnd - start;
+        if (remaining == 1) {
+            int chunk = (buffer[start] & 0xFF) << 16;
+            outputBuffer[outputIndex++] = (byte) BASE64_ALPHABET[(chunk >> 18) & 0x3F];
+            outputBuffer[outputIndex++] = (byte) BASE64_ALPHABET[(chunk >> 12) & 0x3F];
+            outputBuffer[outputIndex++] = PADDING;
+            outputBuffer[outputIndex++] = PADDING;
+        } else if (remaining == 2) {
+            int chunk = ((buffer[start] & 0xFF) << 16) | ((buffer[start + 1] & 0xFF) << 8);
+            outputBuffer[outputIndex++] = (byte) BASE64_ALPHABET[(chunk >> 18) & 0x3F];
+            outputBuffer[outputIndex++] = (byte) BASE64_ALPHABET[(chunk >> 12) & 0x3F];
+            outputBuffer[outputIndex++] = (byte) BASE64_ALPHABET[(chunk >> 6) & 0x3F];
+            outputBuffer[outputIndex++] = PADDING;
+        }
+        return outputIndex - outputOffset; // Return the number of bytes written
+    }
+
     /**
      * Same as {@link #updateSignature(Signature, int, int)} with offset 0 and length equal to the length of this
      * {@link Bytes} object.

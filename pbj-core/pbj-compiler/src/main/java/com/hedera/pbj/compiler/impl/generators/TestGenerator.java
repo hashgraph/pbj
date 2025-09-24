@@ -318,7 +318,7 @@ public final class TestGenerator implements Generator {
                     final var dataBuffer2 = getThreadLocalDataBuffer2();
                     final var byteBuffer = getThreadLocalByteBuffer();
                     final var charBuffer = getThreadLocalCharBuffer();
-                    final var charBuffer2 = getThreadLocalCharBuffer2();
+                    final var dataBufferLarge = getThreadLocalBigBuffer();
                 
                     // model to bytes with PBJ
                     $modelClassName.PROTOBUF.write(modelObj, dataBuffer);
@@ -377,17 +377,30 @@ public final class TestGenerator implements Generator {
                     dataBuffer3.getBytes(0, readBytes);
                     assertArrayEquals(bytes.toByteArray(), readBytes);
                 
-                    // Test JSON Writing
-                    final CharBufferToWritableSequentialData charBufferToWritableSequentialData = new CharBufferToWritableSequentialData(charBuffer);
-                    $modelClassName.JSON.write(modelObj,charBufferToWritableSequentialData);
+                    // Write JSON with PBJ
+                    $modelClassName.JSON.write(modelObj,dataBufferLarge);
+                    dataBufferLarge.flip();
+                    final byte[] pbjJsonBytes = new byte[(int)dataBufferLarge.length()];
+                    dataBufferLarge.getBytes(0, pbjJsonBytes);
+                    final String pbjJsonString = new String(pbjJsonBytes, StandardCharsets.UTF_8);
+                    // Write JSON with ProtoC
+                    JsonFormat.printer().appendTo(protoCModelObj, charBuffer);
                     charBuffer.flip();
-                    JsonFormat.printer().appendTo(protoCModelObj, charBuffer2);
-                    charBuffer2.flip();
-                    assertEquals(charBuffer2, charBuffer);
+                    final String jsonString = charBuffer.toString();
+                    final byte[] protoCJsonBytes = jsonString.getBytes(StandardCharsets.UTF_8);
+                    // compare JSON string then bytes
+                    assertEquals(jsonString, pbjJsonString);
+                    assertArrayEquals(protoCJsonBytes, pbjJsonBytes);
                 
                     // Test JSON Reading
-                    final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(JsonTools.parseJson(charBuffer), false, Integer.MAX_VALUE);
+                    try{
+                    final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(BufferedData.wrap(protoCJsonBytes
+                        ), false, Integer.MAX_VALUE);
                     assertEquals(modelObj, jsonReadPbj);
+                    } catch (Exception e) {
+                        System.err.println("JSON read: " + jsonString);
+                        throw e;
+                    }
                 }
                 
                 @SuppressWarnings("EqualsWithItself")
