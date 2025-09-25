@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import static com.hedera.pbj.runtime.FieldType.DOUBLE;
 import static com.hedera.pbj.runtime.FieldType.FIXED32;
 import static com.hedera.pbj.runtime.FieldType.FIXED64;
 import static com.hedera.pbj.runtime.FieldType.INT32;
@@ -96,18 +97,31 @@ public final class ProtoArrayWriterTools {
             case 0:
                 output[offset] = (byte) (value | 0x80);
         }
-        return length;
+        return length + 1;
     }
 
     /**
-     * Write a signed zigzag encoded varint to the output.
+     * Write a signed zigzag encoded varint32 to the output.
      *
      * @param output The byte array to write to
      * @param offset The offset to start writing at
      * @param value The value to write
      * @return The number of bytes written
      */
-    public static int writeSignedVarInt(@NonNull byte[] output, final int offset, final long value) {
+    public static int writeSignedVarInt32(@NonNull byte[] output, final int offset, final int value) {
+        final int zigZag = (value << 1) ^ (value >> 31);
+        return writeUnsignedVarInt(output, offset, Integer.toUnsignedLong(zigZag));
+    }
+
+    /**
+     * Write a signed zigzag encoded varint64 to the output.
+     *
+     * @param output The byte array to write to
+     * @param offset The offset to start writing at
+     * @param value The value to write
+     * @return The number of bytes written
+     */
+    public static int writeSignedVarInt64(@NonNull byte[] output, final int offset, final long value) {
         final long zigZag = (value << 1) ^ (value >> 63);
         return writeUnsignedVarInt(output, offset, zigZag);
     }
@@ -195,11 +209,10 @@ public final class ProtoArrayWriterTools {
             bytesWritten += writeTag(output, offset, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, sizeOfString(newField, value));
-            //            bytesWritten += writeStringNoChecks(output, offset + bytesWritten, newField, value, true);
 
-            // When not a oneOf don't write default value
-            if (field.oneOf() || !value.isEmpty()) {
-                bytesWritten += writeTag(output, offset, field, WIRE_TYPE_DELIMITED);
+            // Don't write default value
+            if (!value.isEmpty()) {
+                bytesWritten += writeTag(output, offset + bytesWritten, newField, WIRE_TYPE_DELIMITED);
                 bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, sizeOfStringNoTag(value));
                 bytesWritten += Utf8Tools.encodeUtf8(output, offset + bytesWritten, value);
             }
@@ -327,7 +340,7 @@ public final class ProtoArrayWriterTools {
         if (skipDefault && !field.oneOf() && value == 0) return 0;
         int bytesWritten = 0;
         bytesWritten += writeTag(output, offset, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
-        bytesWritten += writeSignedVarInt(output, offset + bytesWritten, value);
+        bytesWritten += writeSignedVarInt32(output, offset + bytesWritten, value);
         return bytesWritten;
     }
 
@@ -347,8 +360,10 @@ public final class ProtoArrayWriterTools {
             @NonNull final FieldDefinition field,
             final int value,
             boolean skipDefault) {
-        assert field.type() == FieldType.FIXED32 || field.type() == FieldType.SFIXED32
-                : "Not a Fixed32 or SFixed32 type " + field;
+        assert field.type() == FieldType.FIXED32
+                        || field.type() == FieldType.SFIXED32
+                        || field.type() == FieldType.FLOAT
+                : "Not a Fixed32 or SFixed32 or Float type " + field;
         assert !field.repeated() : "Use writeIntegerList with repeated types";
         if (skipDefault && !field.oneOf() && value == 0) return 0;
         int bytesWritten = 0;
@@ -376,7 +391,7 @@ public final class ProtoArrayWriterTools {
             bytesWritten += writeUnsignedVarInt(
                     output,
                     offset + bytesWritten,
-                    sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(value));
+                    value == 0 ? 0 : sizeOfTag(newField, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(value));
             bytesWritten += writeInt32(output, offset + bytesWritten, newField, value, true);
         }
         return bytesWritten;
@@ -400,7 +415,7 @@ public final class ProtoArrayWriterTools {
             bytesWritten += writeUnsignedVarInt(
                     output,
                     offset + bytesWritten,
-                    sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(value));
+                    value == 0 ? 0 : sizeOfTag(newField, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(value));
             bytesWritten += writeUInt32(output, offset + bytesWritten, newField, value, true);
         }
         return bytesWritten;
@@ -452,7 +467,7 @@ public final class ProtoArrayWriterTools {
         if (skipDefault && !field.oneOf() && value == 0L) return 0;
         int bytesWritten = 0;
         bytesWritten += writeTag(output, offset, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
-        bytesWritten += writeSignedVarInt(output, offset + bytesWritten, value);
+        bytesWritten += writeSignedVarInt64(output, offset + bytesWritten, value);
         return bytesWritten;
     }
 
@@ -472,11 +487,12 @@ public final class ProtoArrayWriterTools {
             @NonNull final FieldDefinition field,
             final long value,
             boolean skipDefault) {
-        assert field.type() == FIXED64 || field.type() == SFIXED64 : "Not a Fixed64 or SFixed64 type " + field;
+        assert field.type() == FIXED64 || field.type() == SFIXED64 || field.type() == DOUBLE
+                : "Not a Fixed64 or SFixed64 or Double type " + field;
         assert !field.repeated() : "Use writeLongList with repeated types";
         if (skipDefault && !field.oneOf() && value == 0L) return 0;
         int bytesWritten = 0;
-        bytesWritten += writeTag(output, offset, field, WIRE_TYPE_FIXED_32_BIT);
+        bytesWritten += writeTag(output, offset, field, WIRE_TYPE_FIXED_64_BIT);
         LONG_LITTLE_ENDIAN.set(output, offset + bytesWritten, value);
         bytesWritten += Long.BYTES;
         return bytesWritten;
@@ -500,7 +516,7 @@ public final class ProtoArrayWriterTools {
             bytesWritten += writeUnsignedVarInt(
                     output,
                     offset + bytesWritten,
-                    sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64(value));
+                    value == 0 ? 0 : sizeOfTag(newField, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt64(value));
             bytesWritten += writeInt64(output, offset + bytesWritten, newField, value, true);
         }
         return bytesWritten;
@@ -539,7 +555,7 @@ public final class ProtoArrayWriterTools {
      * @return the number of bytes written
      */
     public static int writeDouble(@NonNull final byte[] output, final int offset, FieldDefinition field, double value) {
-        assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
+        assert field.type() == DOUBLE : "Not a double type " + field;
         assert !field.repeated() : "Use writeDoubleList with repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && value == 0) {
@@ -612,8 +628,8 @@ public final class ProtoArrayWriterTools {
             final int size = sizeOfBytes(newField, value);
             bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, size);
             if (size > 0) {
-                bytesWritten += writeTag(output, offset + bytesWritten, field, WIRE_TYPE_DELIMITED);
-                bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, size);
+                bytesWritten += writeTag(output, offset + bytesWritten, newField, WIRE_TYPE_DELIMITED);
+                bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, value.length());
                 bytesWritten += value.writeTo(output, offset + bytesWritten);
             }
         }
@@ -642,7 +658,8 @@ public final class ProtoArrayWriterTools {
         }
         int bytesWritten = 0;
         bytesWritten += writeTag(output, offset, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
-        bytesWritten += writeUnsignedVarInt(output, offset, enumValue == null ? 0 : enumValue.protoOrdinal());
+        bytesWritten +=
+                writeUnsignedVarInt(output, offset + bytesWritten, enumValue == null ? 0 : enumValue.protoOrdinal());
         return bytesWritten;
     }
 
@@ -764,7 +781,7 @@ public final class ProtoArrayWriterTools {
      */
     public static int writeInt32List(
             @NonNull final byte[] output, final int offset, FieldDefinition field, List<Integer> list) {
-        assert field.type() != INT32 : "Not a long type " + field;
+        assert field.type() == INT32 : "Not a int32 type " + field;
         assert field.repeated() : "Use writeInteger with non-repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) return 0;
@@ -794,7 +811,7 @@ public final class ProtoArrayWriterTools {
      */
     public static int writeUInt32List(
             @NonNull final byte[] output, final int offset, FieldDefinition field, List<Integer> list) {
-        assert field.type() != UINT32 : "Not a long type " + field;
+        assert field.type() == UINT32 : "Not a UINT32 type " + field;
         assert field.repeated() : "Use writeInteger with non-repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) return 0;
@@ -824,7 +841,7 @@ public final class ProtoArrayWriterTools {
      */
     public static int writeSInt32List(
             @NonNull final byte[] output, final int offset, FieldDefinition field, List<Integer> list) {
-        assert field.type() != SINT32 : "Not a long type " + field;
+        assert field.type() == SINT32 : "Not a SINT32 type " + field;
         assert field.repeated() : "Use writeInteger with non-repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) return 0;
@@ -832,13 +849,13 @@ public final class ProtoArrayWriterTools {
         int size = 0;
         for (int i = 0; i < listSize; i++) {
             final int val = list.get(i);
-            size += sizeOfUnsignedVarInt64(((long) val << 1) ^ ((long) val >> 63));
+            size += sizeOfUnsignedVarInt32((val << 1) ^ (val >> 31));
         }
         int bytesWritten = 0;
         bytesWritten += writeTag(output, offset, field, WIRE_TYPE_DELIMITED);
         bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, size);
         for (int i = 0; i < listSize; i++) {
-            bytesWritten += writeSignedVarInt(output, offset + bytesWritten, Integer.toUnsignedLong(list.get(i)));
+            bytesWritten += writeSignedVarInt32(output, offset + bytesWritten, list.get(i));
         }
         return bytesWritten;
     }
@@ -854,7 +871,7 @@ public final class ProtoArrayWriterTools {
      */
     public static int writeFixed32List(
             @NonNull final byte[] output, final int offset, FieldDefinition field, List<Integer> list) {
-        assert field.type() != FIXED32 && field.type() != SFIXED32 : "Not a long type " + field;
+        assert field.type() == FIXED32 || field.type() == SFIXED32 : "Not a long type " + field;
         assert field.repeated() : "Use writeInteger with non-repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) return 0;
@@ -880,7 +897,7 @@ public final class ProtoArrayWriterTools {
      */
     public static int writeInt64List(
             @NonNull final byte[] output, final int offset, FieldDefinition field, List<Long> list) {
-        assert field.type() != INT64 && field.type() != UINT64 : "Not a long type " + field;
+        assert field.type() == INT64 || field.type() == UINT64 : "Not a long type " + field;
         assert field.repeated() : "Use writeLong with non-repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) return 0;
@@ -910,7 +927,7 @@ public final class ProtoArrayWriterTools {
      */
     public static int writeSInt64List(
             @NonNull final byte[] output, final int offset, FieldDefinition field, List<Long> list) {
-        assert field.type() != SINT64 : "Not a SINT64 type " + field;
+        assert field.type() == SINT64 : "Not a SINT64 type " + field;
         assert field.repeated() : "Use writeLong with non-repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) return 0;
@@ -918,13 +935,13 @@ public final class ProtoArrayWriterTools {
         int size = 0;
         for (int i = 0; i < listSize; i++) {
             final long val = list.get(i);
-            size += sizeOfUnsignedVarInt64(val);
+            size += sizeOfUnsignedVarInt64((val << 1) ^ (val >> 63));
         }
         int bytesWritten = 0;
         bytesWritten += writeTag(output, offset, field, WIRE_TYPE_DELIMITED);
         bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, size);
         for (int i = 0; i < listSize; i++) {
-            bytesWritten += writeSignedVarInt(output, offset + bytesWritten, list.get(i));
+            bytesWritten += writeSignedVarInt64(output, offset + bytesWritten, list.get(i));
         }
         return bytesWritten;
     }
@@ -940,7 +957,7 @@ public final class ProtoArrayWriterTools {
      */
     public static int writeFixed64List(
             @NonNull final byte[] output, final int offset, FieldDefinition field, List<Long> list) {
-        assert field.type() != FIXED64 && field.type() != SFIXED64 : "Not a fixed long type " + field;
+        assert field.type() == FIXED64 || field.type() == SFIXED64 : "Not a fixed long type " + field;
         assert field.repeated() : "Use writeLong with non-repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) return 0;
@@ -995,7 +1012,7 @@ public final class ProtoArrayWriterTools {
      */
     public static int writeDoubleList(
             @NonNull final byte[] output, final int offset, FieldDefinition field, List<Double> list) {
-        assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
+        assert field.type() == DOUBLE : "Not a double type " + field;
         assert field.repeated() : "Use writeDouble with non-repeated types";
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) {

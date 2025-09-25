@@ -46,6 +46,19 @@ public final class ProtoTestTools {
     private static final ThreadLocal<CharBuffer> THREAD_LOCAL_CHAR_BUFFERS_2 =
             ThreadLocal.withInitial(() -> CharBuffer.allocate(CHAR_BUFFER_SIZE));
 
+    /** Thread local set of reusable byte arrays */
+    private static final ThreadLocal<byte[]> THREAD_LOCAL_BYTE_ARRAY =
+            ThreadLocal.withInitial(() -> new byte[BUFFER_SIZE]);
+
+    /**
+     * Get the thread local instance of byte[].
+     *
+     * @return a byte[] that can be reused by current thread
+     */
+    public static byte[] getThreadLocalByteArray() {
+        return THREAD_LOCAL_BYTE_ARRAY.get();
+    }
+
     /**
      * Get the thread local instance of DataBuffer, reset and ready to use.
      *

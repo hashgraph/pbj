@@ -1020,7 +1020,7 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfUnsignedVarInt32(final int value) {
-        return sizeOfUnsignedVarInt64(value);
+        return sizeOfUnsignedVarInt64(Integer.toUnsignedLong(value));
     }
 
     /**
