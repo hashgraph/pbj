@@ -349,15 +349,16 @@ public final class TestGenerator implements Generator {
                     }
                     // This check is not precise. An IOOB exception would be best. But we don't want to create new arrays
                     // for each test so as not to overwhelm the Java GC. So we do this instead:
-                    Arrays.parallelSort(bytesArray, protoBufByteCount, bytesArray.length);
-                    if (bytesArray[protoBufByteCount] != 0 || bytesArray[bytesArray.length - 1] != 0) {
-                        // Don't print the array because the tail is sorted (so that the test is fast.)
-                        // Use the other data to help find and run the failing test manually:
-                        fail("write(byte[]) wrote more bytes than "  + protoBufByteCount +
-                                ". Buffer:\\n" + dataBuffer.toString() +
-                                "\\nModel:\\n" + modelObj +
-                                "\\nProtobuf size:\\n" + protoBufByteCount
-                        );
+                    for (int i = protoBufByteCount; i < bytesArray.length; i++) {
+                        if (bytesArray[i] != 0) {
+                            fail("write(byte[]) wrote more bytes into array than write(WritableSequentialData) into buffer," +
+                                    " e.g. at index " + i + " got " + bytesArray[i] + " but expected zero." +
+                                    "\\nBuffer:\\n" + dataBuffer.toString() +
+                                    "\\nArray:\\n" + Arrays.toString(Arrays.copyOf(bytesArray, protoBufByteCount)) +
+                                    "\\nModel:\\n" + modelObj +
+                                    "\\nProtobuf size:\\n" + protoBufByteCount
+                            );
+                        }
                     }
 
                     // read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
