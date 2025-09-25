@@ -284,11 +284,11 @@ public final class TestGenerator implements Generator {
             case STRING -> "STRING_TESTS_LIST";
             case BYTES -> "BYTES_TESTS_LIST";
             case ENUM -> "Arrays.asList(%s.values())".formatted(javaFieldType);
-            case ONE_OF -> throw new RuntimeException(
-                    "Should never happen, should have been caught in generateTestData()");
+            case ONE_OF ->
+                throw new RuntimeException("Should never happen, should have been caught in generateTestData()");
             case MESSAGE -> "%s%s.ARGUMENTS".formatted(javaFieldType, FileAndPackageNamesConfig.TEST_JAVA_FILE_SUFFIX);
-            case MAP -> throw new RuntimeException(
-                    "Should never happen, should have been caught in generateTestData()");
+            case MAP ->
+                throw new RuntimeException("Should never happen, should have been caught in generateTestData()");
         };
     }
 
@@ -319,18 +319,48 @@ public final class TestGenerator implements Generator {
                     final var byteBuffer = getThreadLocalByteBuffer();
                     final var charBuffer = getThreadLocalCharBuffer();
                     final var charBuffer2 = getThreadLocalCharBuffer2();
+                    final byte[] bytesArray = getThreadLocalByteArray();
                 
                     // model to bytes with PBJ
                     $modelClassName.PROTOBUF.write(modelObj, dataBuffer);
                     // clamp limit to bytes written
                     dataBuffer.limit(dataBuffer.position());
                 
+                    Arrays.fill(bytesArray, (byte) 0);
+                    $modelClassName.PROTOBUF.write(modelObj, bytesArray, 0);
+
                     // copy bytes to ByteBuffer
                     dataBuffer.resetPosition();
                     final int protoBufByteCount = (int)dataBuffer.remaining();
                     dataBuffer.readBytes(byteBuffer);
                     byteBuffer.flip();
                 
+                    // Check the write(byte[]) output against write(WritableSequentialData):
+                    dataBuffer.resetPosition();
+                    final int mismatchIndex = Arrays.mismatch(byteBuffer.array(), 0, protoBufByteCount, bytesArray, 0, protoBufByteCount);
+                    if (mismatchIndex != -1) {
+                        fail("Mismatch at index " + mismatchIndex +
+                                ": in buffer got " + byteBuffer.array()[mismatchIndex] + ", but in array got " + bytesArray[mismatchIndex] +
+                                ".\\nBuffer:\\n" + dataBuffer.toString() +
+                                "\\nArray:\\n" + Arrays.toString(Arrays.copyOf(bytesArray, protoBufByteCount)) +
+                                "\\nModel:\\n" + modelObj +
+                                "\\nProtobuf size:\\n" + protoBufByteCount
+                        );
+                    }
+                    // This check is not precise. An IOOB exception would be best. But we don't want to create new arrays
+                    // for each test so as not to overwhelm the Java GC. So we do this instead:
+                    for (int i = protoBufByteCount; i < bytesArray.length; i++) {
+                        if (bytesArray[i] != 0) {
+                            fail("write(byte[]) wrote more bytes into array than write(WritableSequentialData) into buffer," +
+                                    " e.g. at index " + i + " got " + bytesArray[i] + " but expected zero." +
+                                    "\\nBuffer:\\n" + dataBuffer.toString() +
+                                    "\\nArray:\\n" + Arrays.toString(Arrays.copyOf(bytesArray, protoBufByteCount)) +
+                                    "\\nModel:\\n" + modelObj +
+                                    "\\nProtobuf size:\\n" + protoBufByteCount
+                            );
+                        }
+                    }
+
                     // read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
                     final $protocModelClass protoCModelObj = $protocModelClass.parseFrom(byteBuffer);
                 
