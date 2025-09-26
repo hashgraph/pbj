@@ -73,8 +73,21 @@ dependencies { testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive 
 
 dependencyAnalysis { issues { all { onAny { exclude("com.hedera.pbj:pbj-compiler") } } } }
 
-// IMPROVE: JMH code should not depend on test code
-jmh { includeTests = true }
+jmh {
+    // IMPROVE: JMH code should not depend on test code
+    includeTests = true
+
+    // The Helidon GrpcBench misbehaves in GitHub runners:
+    //  - server threads encounter InterruptedException
+    //  - the benchmark times out after 6 hours
+    // When run locally on a laptop, the benchmark completes normally within about 1 hour.
+    // It's unclear why it fails in GitHub.
+    // (Also, it's unclear if we want to spend 1 hour running it in GitHub in the first place as
+    // this may be expensive.)
+    // So we disable it when running the `jmh` Gradle target for now.
+    // One can still run it locally from an IDE or command-line using the JMH runner.
+    excludes = listOf(".*GrpcBench.*")
+}
 
 // Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
 pbj { javaPackageSuffix = ".pbj.integration.tests" }
