@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.integration.OneOfTestData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.Everything;
@@ -39,8 +40,9 @@ class OneOfSwitchCorrectnessTest {
 
         // Verify the actual value (if not UNSET)
         if (message.oneofExample().kind() != Everything.OneofExampleOneOfType.UNSET) {
-            assertEquals(message.oneofExample().as(), parsed.oneofExample().as(),
-                "OneOf value mismatch for " + message.oneofExample().kind());
+            Object expected = message.oneofExample().as();
+            Object actual = parsed.oneofExample().as();
+            assertEquals(expected, actual, "OneOf value mismatch for " + message.oneofExample().kind());
         }
     }
 
@@ -116,7 +118,7 @@ class OneOfSwitchCorrectnessTest {
 
         assertEquals(Everything.OneofExampleOneOfType.INT32_NUMBER_ONE_OF,
             msg.oneofExample().kind());
-        assertEquals(42, msg.oneofExample().as());
+        assertEquals(Integer.valueOf(42), msg.oneofExample().as());
 
         // Round trip
         Bytes bytes = Everything.PROTOBUF.toBytes(msg);
@@ -216,7 +218,9 @@ class OneOfSwitchCorrectnessTest {
 
         // OneOf should be preserved
         assertEquals(original.oneofExample().kind(), copy.oneofExample().kind());
-        assertEquals(original.oneofExample().as(), copy.oneofExample().as());
+        Object expectedValue = original.oneofExample().as();
+        Object actualValue = copy.oneofExample().as();
+        assertEquals(expectedValue, actualValue);
     }
 
     @Test
@@ -233,5 +237,85 @@ class OneOfSwitchCorrectnessTest {
                 "Size mismatch for " + msg.oneofExample().kind() +
                 ": serialized=" + bytes.length() + " measured=" + measuredSize);
         }
+    }
+
+    @Test
+    void testOneOfWithDefaultValues() throws Exception {
+        // Test int32 with value 0 (protobuf default)
+        var msg1 = Everything.newBuilder().int32NumberOneOf(0).build();
+        assertEquals(Everything.OneofExampleOneOfType.INT32_NUMBER_ONE_OF, msg1.oneofExample().kind());
+        assertEquals(Integer.valueOf(0), msg1.oneofExample().as());
+
+        // OneOf should serialize even with default value
+        Bytes bytes1 = Everything.PROTOBUF.toBytes(msg1);
+        assertTrue(bytes1.length() > 0);
+
+        // Round trip should preserve oneOf with zero value
+        Everything parsed1 = Everything.PROTOBUF.parse(bytes1);
+        assertEquals(Everything.OneofExampleOneOfType.INT32_NUMBER_ONE_OF, parsed1.oneofExample().kind());
+        assertEquals(Integer.valueOf(0), parsed1.oneofExample().as());
+
+        // Test boolean with false (protobuf default)
+        var msg2 = Everything.newBuilder().booleanFieldOneOf(false).build();
+        assertEquals(Everything.OneofExampleOneOfType.BOOLEAN_FIELD_ONE_OF, msg2.oneofExample().kind());
+        assertEquals(false, msg2.oneofExample().as());
+
+        // Round trip
+        Bytes bytes2 = Everything.PROTOBUF.toBytes(msg2);
+        Everything parsed2 = Everything.PROTOBUF.parse(bytes2);
+        assertEquals(Everything.OneofExampleOneOfType.BOOLEAN_FIELD_ONE_OF, parsed2.oneofExample().kind());
+        assertEquals(false, parsed2.oneofExample().as());
+
+        // Test empty string (protobuf default)
+        var msg3 = Everything.newBuilder().textOneOf("").build();
+        assertEquals(Everything.OneofExampleOneOfType.TEXT_ONE_OF, msg3.oneofExample().kind());
+        assertEquals("", msg3.oneofExample().as());
+
+        // Round trip
+        Bytes bytes3 = Everything.PROTOBUF.toBytes(msg3);
+        Everything parsed3 = Everything.PROTOBUF.parse(bytes3);
+        assertEquals(Everything.OneofExampleOneOfType.TEXT_ONE_OF, parsed3.oneofExample().kind());
+        assertEquals("", parsed3.oneofExample().as());
+    }
+
+    @Test
+    void testOneOfInCompleteMessage() throws Exception {
+        // Start with a fully-populated Everything message
+        var baseMsg = EverythingTestData.EVERYTHING;
+
+        // Add a oneOf field on top of all the other fields
+        var msg = baseMsg.copyBuilder()
+            .int32NumberOneOf(999)
+            .build();
+
+        // Verify oneOf is set correctly
+        assertEquals(Everything.OneofExampleOneOfType.INT32_NUMBER_ONE_OF, msg.oneofExample().kind());
+        assertEquals(Integer.valueOf(999), msg.oneofExample().as());
+
+        // Round trip through serialization
+        Bytes bytes = Everything.PROTOBUF.toBytes(msg);
+        Everything parsed = Everything.PROTOBUF.parse(bytes);
+
+        // Verify oneOf survived round-trip
+        assertEquals(Everything.OneofExampleOneOfType.INT32_NUMBER_ONE_OF, parsed.oneofExample().kind());
+        assertEquals(Integer.valueOf(999), parsed.oneofExample().as());
+
+        // Verify all other fields are intact (full equality check)
+        assertEquals(msg, parsed);
+
+        // Test with different oneOf position (last case)
+        var msg2 = baseMsg.copyBuilder()
+            .stringBoxedOneOf("integration test")
+            .build();
+
+        assertEquals(Everything.OneofExampleOneOfType.STRING_BOXED_ONE_OF, msg2.oneofExample().kind());
+
+        // Round trip
+        Bytes bytes2 = Everything.PROTOBUF.toBytes(msg2);
+        Everything parsed2 = Everything.PROTOBUF.parse(bytes2);
+
+        assertEquals(Everything.OneofExampleOneOfType.STRING_BOXED_ONE_OF, parsed2.oneofExample().kind());
+        assertEquals("integration test", parsed2.oneofExample().as());
+        assertEquals(msg2, parsed2);
     }
 }
