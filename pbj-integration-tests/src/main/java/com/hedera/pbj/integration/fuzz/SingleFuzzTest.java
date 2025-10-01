@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.fuzz;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import java.io.InputStream;
@@ -97,6 +98,15 @@ public final class SingleFuzzTest {
             }
         } catch (Exception ex) {
             // Protoc didn't like the bytes.
+            // However, Protoc always parses UTF-8 and fails on invalid chars. PBJ may skip UTF-8 encoding until later.
+            for (Throwable t = ex; t != null; t = t.getCause()) {
+                if (t instanceof InvalidProtocolBufferException
+                        && t.getMessage() != null
+                        && t.getMessage().contains("Protocol message had invalid UTF-8")) {
+                    return;
+                }
+            }
+
             if (doThrow) {
                 throw new FuzzTestException(
                         prefix + "Protoc threw an exception "

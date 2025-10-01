@@ -76,6 +76,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.random.RandomGenerator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -407,7 +408,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteString_empty() throws IOException {
         FieldDefinition definition = createFieldDefinition(STRING);
-        String valToWrite = "";
+        byte[] valToWrite = new byte[0];
         final long positionBefore = bufferedData.position();
         writeString(bufferedData, definition, valToWrite);
         final long positionAfter = bufferedData.position();
@@ -417,20 +418,20 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteString() throws IOException {
         FieldDefinition definition = createFieldDefinition(STRING);
-        String valToWrite = RANDOM_STRING.nextString();
+        byte[] valToWrite = RANDOM_STRING.nextString().getBytes(StandardCharsets.UTF_8);
         writeString(bufferedData, definition, valToWrite);
         bufferedData.flip();
         assertEquals(
                 (definition.number() << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED.ordinal(), bufferedData.readVarInt(false));
         int length = bufferedData.readVarInt(false);
-        assertEquals(valToWrite, new String(bufferedData.readBytes(length).toByteArray()));
+        assertArrayEquals(valToWrite, bufferedData.readBytes(length).toByteArray());
     }
 
     @Test
     void testWriteOneRepeatedString() throws IOException {
         final FieldDefinition definition = createRepeatedFieldDefinition(STRING);
-        final String value1 = RANDOM_STRING.nextString();
-        final String value2 = RANDOM_STRING.nextString();
+        final byte[] value1 = RANDOM_STRING.nextString().getBytes(StandardCharsets.UTF_8);
+        final byte[] value2 = RANDOM_STRING.nextString().getBytes(StandardCharsets.UTF_8);
         final BufferedData buf1 = BufferedData.allocate(256);
         ProtoWriterTools.writeStringList(buf1, definition, List.of(value1, value2));
         final Bytes writtenBytes1 = buf1.getBytes(0, buf1.position());
@@ -672,7 +673,7 @@ class ProtoWriterToolsTest {
     void testWriteOptionalString() throws IOException {
         FieldDefinition definition = createOptionalFieldDefinition(STRING);
         String valToWrite = RANDOM_STRING.nextString();
-        writeOptionalString(bufferedData, definition, valToWrite);
+        writeOptionalString(bufferedData, definition, valToWrite.getBytes(StandardCharsets.UTF_8));
         bufferedData.flip();
         assertTypeDelimitedTag(definition);
         assertEquals(valToWrite.length() + TAG_SIZE + MIN_LENGTH_VAR_SIZE, bufferedData.readVarInt(false));
@@ -686,7 +687,7 @@ class ProtoWriterToolsTest {
     @Test
     void testWriteOptionalString_null() throws IOException {
         FieldDefinition definition = createOptionalFieldDefinition(STRING);
-        writeOptionalString(bufferedData, definition, null);
+        writeOptionalString(bufferedData, definition, (String) null);
         bufferedData.flip();
         assertEquals(0, bufferedData.length());
     }
@@ -1090,11 +1091,11 @@ class ProtoWriterToolsTest {
     @Test
     void testSizeOfStringList() {
         FieldDefinition definition = createFieldDefinition(STRING);
-        String str1 = randomVarSizeString();
-        String str2 = randomVarSizeString();
+        byte[] str1 = randomVarSizeString().getBytes(StandardCharsets.UTF_8);
+        byte[] str2 = randomVarSizeString().getBytes(StandardCharsets.UTF_8);
 
         assertEquals(
-                MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2 + str1.length() + str2.length(),
+                MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2 + str1.length + str2.length,
                 sizeOfStringList(definition, asList(str1, str2)));
     }
 
@@ -1102,7 +1103,7 @@ class ProtoWriterToolsTest {
     void testSizeOfStringList_nullAndEmpty() {
         FieldDefinition definition = createFieldDefinition(STRING);
 
-        assertEquals(MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2, sizeOfStringList(definition, asList(null, "")));
+        assertEquals(MIN_LENGTH_VAR_SIZE * 2 + TAG_SIZE * 2, sizeOfStringList(definition, asList(null, new byte[0])));
     }
 
     @Test
@@ -1186,7 +1187,7 @@ class ProtoWriterToolsTest {
     @Test
     void testSizeOfString_null() {
         final FieldDefinition definition = createFieldDefinition(STRING);
-        assertEquals(0, sizeOfString(definition, null));
+        assertEquals(0, sizeOfString(definition, (byte[]) null));
     }
 
     @Test
@@ -1206,7 +1207,7 @@ class ProtoWriterToolsTest {
     @Test
     void testSizeOfString_oneOf_null() {
         final FieldDefinition definition = createOneOfFieldDefinition(STRING);
-        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE, sizeOfString(definition, null));
+        assertEquals(MIN_LENGTH_VAR_SIZE + TAG_SIZE, sizeOfString(definition, (String) null));
     }
 
     @Test
@@ -1435,22 +1436,24 @@ class ProtoWriterToolsTest {
         return Stream.of(
                 Arguments.of(
                         STRING,
-                        (WriterMethod<String>) (out, field, list) -> {
+                        (WriterMethod<byte[]>) (out, field, list) -> {
                             try {
                                 ProtoWriterTools.writeStringList(out, field, list);
                             } catch (IOException e) {
                                 Sneaky.sneakyThrow(e);
                             }
                         },
-                        List.of("string 1", "testing here", "testing there"),
-                        (ReaderMethod<UnpackedField<String>>) (BufferedData bd, long pos) -> {
+                        List.of(
+                                "string 1".getBytes(StandardCharsets.UTF_8),
+                                "testing here".getBytes(StandardCharsets.UTF_8),
+                                "testing there".getBytes(StandardCharsets.UTF_8)),
+                        (ReaderMethod<UnpackedField<byte[]>>) (BufferedData bd, long pos) -> {
                             int size = bd.getVarInt(pos, false);
                             int sizeOfSize = ProtoWriterTools.sizeOfVarInt32(size);
                             return new UnpackedField<>(
-                                    new String(
-                                            bd.getBytes(pos + sizeOfSize, size).toByteArray(), StandardCharsets.UTF_8),
-                                    sizeOfSize + size);
-                        }),
+                                    bd.getBytes(pos + sizeOfSize, size).toByteArray(), sizeOfSize + size);
+                        },
+                        (BiConsumer<byte[], byte[]>) (a, b) -> assertArrayEquals(a, b)),
                 Arguments.of(
                         BYTES,
                         (WriterMethod<? extends RandomAccessData>) (out, field, list) -> {
@@ -1468,7 +1471,8 @@ class ProtoWriterToolsTest {
                             int size = bd.getVarInt(pos, false);
                             int sizeOfSize = ProtoWriterTools.sizeOfVarInt32(size);
                             return new UnpackedField<>(bd.getBytes(pos + sizeOfSize, size), sizeOfSize + size);
-                        }));
+                        },
+                        (BiConsumer<Bytes, Bytes>) (a, b) -> assertEquals(a, b)));
     }
 
     @ParameterizedTest
@@ -1477,7 +1481,8 @@ class ProtoWriterToolsTest {
             final FieldType type,
             final WriterMethod<T> writerMethod,
             final List<T> list,
-            final ReaderMethod<UnpackedField<T>> readerMethod) {
+            final ReaderMethod<UnpackedField<T>> readerMethod,
+            final BiConsumer<T, T> assertMethod) {
         final FieldDefinition definition = createRepeatedFieldDefinition(type);
 
         final long start = bufferedData.position();
@@ -1491,7 +1496,7 @@ class ProtoWriterToolsTest {
             int sizeOfTag = ProtoWriterTools.sizeOfVarInt32(tag);
 
             UnpackedField<T> value = readerMethod.read(bufferedData, start + offset + sizeOfTag);
-            assertEquals(list.get(i), value.value());
+            assertMethod.accept(list.get(i), value.value());
 
             offset += sizeOfTag + value.size();
         }

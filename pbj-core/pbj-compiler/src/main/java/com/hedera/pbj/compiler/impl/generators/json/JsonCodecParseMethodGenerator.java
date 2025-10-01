@@ -8,6 +8,7 @@ import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
+import com.hedera.pbj.compiler.impl.SingleField;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -78,7 +79,7 @@ class JsonCodecParseMethodGenerator {
                             }
                         }
 
-                        return new $modelClassName($fieldsList);
+                        return new $modelClassName($fakeParams$fieldsList$unknownFields);
                     } catch (Exception ex) {
                         throw new ParseException(ex);
                     }
@@ -86,10 +87,16 @@ class JsonCodecParseMethodGenerator {
                 """
                 .replace("$modelClassName", modelClassName)
                 .replace(
+                        "$fakeParams",
+                        fields.stream().anyMatch(Field::hasDifferentStorageType)
+                                ? ("0" + (fields.isEmpty() ? "" : ", "))
+                                : "")
+                .replace("$unknownFields", fields.isEmpty() ? "Collections.emptyList()" : ", Collections.emptyList()")
+                .replace(
                         "$fieldDefs",
                         fields.stream()
                                 .map(field -> "    %s temp_%s = %s;"
-                                        .formatted(field.javaFieldType(), field.name(), field.javaDefault()))
+                                        .formatted(field.javaFieldStorageType(), field.name(), field.javaDefault()))
                                 .collect(Collectors.joining("\n")))
                 .replace(
                         "$fieldsList",
@@ -138,6 +145,7 @@ class JsonCodecParseMethodGenerator {
     private static void generateFieldCaseStatement(
             final StringBuilder origSB, final Field field, final String valueGetter) {
         final StringBuilder sb = new StringBuilder();
+        final boolean isMapField = field instanceof SingleField && ((SingleField) field).isMapField();
         if (field.repeated()) {
             if (field.type() == Field.FieldType.MESSAGE) {
                 sb.append("parseObjArray($valueGetter.arr(), " + field.messageType() + ".JSON, maxDepth - 1)");
@@ -149,7 +157,11 @@ class JsonCodecParseMethodGenerator {
                     case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> sb.append("parseLong(v)");
                     case FLOAT -> sb.append("parseFloat(v)");
                     case DOUBLE -> sb.append("parseDouble(v)");
-                    case STRING -> sb.append("unescape(v.STRING().getText())");
+                    case STRING ->
+                        sb.append(
+                                isMapField || field.parent() != null
+                                        ? "unescape(v.STRING().getText())"
+                                        : "toUtf8Bytes(unescape(v.STRING().getText()))");
                     case BOOL -> sb.append("parseBoolean(v)");
                     case BYTES -> sb.append("Bytes.fromBase64(v.STRING().getText())");
                     default -> throw new RuntimeException("Unknown field type [" + field.type() + "]");
@@ -162,7 +174,11 @@ class JsonCodecParseMethodGenerator {
                 case "Int64Value", "UInt64Value" -> sb.append("parseLong($valueGetter)");
                 case "FloatValue" -> sb.append("parseFloat($valueGetter)");
                 case "DoubleValue" -> sb.append("parseDouble($valueGetter)");
-                case "StringValue" -> sb.append("unescape($valueGetter.STRING().getText())");
+                case "StringValue" ->
+                    sb.append(
+                            isMapField || field.parent() != null
+                                    ? "unescape($valueGetter.STRING().getText())"
+                                    : "toUtf8Bytes(unescape($valueGetter.STRING().getText()))");
                 case "BoolValue" -> sb.append("parseBoolean($valueGetter)");
                 case "BytesValue" -> sb.append("Bytes.fromBase64($valueGetter.STRING().getText())");
                 default -> throw new RuntimeException("Unknown message type [" + field.messageType() + "]");
@@ -187,14 +203,20 @@ class JsonCodecParseMethodGenerator {
                             .replace("$mapEntryValue", valueSB.toString()));
         } else {
             switch (field.type()) {
-                case MESSAGE -> sb.append(field.javaFieldType()
-                        + ".JSON.parse($valueGetter.getChild(JSONParser.ObjContext.class, 0), false, maxDepth - 1)");
+                case MESSAGE ->
+                    sb.append(
+                            field.javaFieldType()
+                                    + ".JSON.parse($valueGetter.getChild(JSONParser.ObjContext.class, 0), false, maxDepth - 1)");
                 case ENUM -> sb.append(field.javaFieldType() + ".fromString($valueGetter.STRING().getText())");
                 case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> sb.append("parseInteger($valueGetter)");
                 case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> sb.append("parseLong($valueGetter)");
                 case FLOAT -> sb.append("parseFloat($valueGetter)");
                 case DOUBLE -> sb.append("parseDouble($valueGetter)");
-                case STRING -> sb.append("unescape($valueGetter.STRING().getText())");
+                case STRING ->
+                    sb.append(
+                            isMapField || field.parent() != null
+                                    ? "unescape($valueGetter.STRING().getText())"
+                                    : "toUtf8Bytes(unescape($valueGetter.STRING().getText()))");
                 case BOOL -> sb.append("parseBoolean($valueGetter)");
                 case BYTES -> sb.append("Bytes.fromBase64($valueGetter.STRING().getText())");
                 default -> throw new RuntimeException("Unknown field type [" + field.type() + "]");

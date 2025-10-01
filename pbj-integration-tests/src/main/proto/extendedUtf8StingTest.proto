@@ -27,12 +27,31 @@ option java_package = "com.hedera.pbj.test.proto.java";
 option java_multiple_files = true;
 // <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>> This comment is special code for setting PBJ Compiler java package
 
+import "google/protobuf/wrappers.proto";
+
 /**
  * Simple message with a string for extended UTF8 testing
  */
+// <<<pbj.comparable = "aTestString" >>>
 message MessageWithString {
     /**
      * A single string for extended testing
      */
     string aTestString = 1;
+}
+
+// <<<pbj.comparable = "boxedString" >>>
+message MessageWithBoxedString {
+    google.protobuf.StringValue boxedString = 5;
+}
+
+message MessageWithRepeatedString {
+  repeated string repeatedText = 1;
+}
+
+// <<<pbj.comparable = "oneofExample" >>>
+message MessageWithOneOfString {
+  oneof oneofExample {
+    string text = 1;
+  }
 }

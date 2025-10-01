@@ -318,8 +318,8 @@ class ProtoParserToolsTest {
         writeInteger(data, createFieldDefinition(FIXED32), rng.nextInt());
         int value = rng.nextInt(0, Integer.MAX_VALUE);
         writeInteger(data, createFieldDefinition(INT32), value);
-        writeString(data, createFieldDefinition(STRING), randomVarSizeString());
-        writeString(data, createFieldDefinition(STRING), valToRead);
+        writeString(data, createFieldDefinition(STRING), randomVarSizeString().getBytes(StandardCharsets.UTF_8));
+        writeString(data, createFieldDefinition(STRING), valToRead.getBytes(StandardCharsets.UTF_8));
 
         data.flip();
 
@@ -410,7 +410,7 @@ class ProtoParserToolsTest {
                 final WritableStreamingData out = new WritableStreamingData(bout)) {
             ProtoWriterTools.writeInteger(out, INT32_F, INT32_V);
             ProtoWriterTools.writeInteger(out, FIXED_F, FIXED32_V);
-            ProtoWriterTools.writeString(out, STRING_F, STRING_V);
+            ProtoWriterTools.writeString(out, STRING_F, STRING_V.getBytes(StandardCharsets.UTF_8));
             ProtoWriterTools.writeBytes(out, BYTES_F, BYTES_V);
             ProtoWriterTools.writeMessage(out, MESSAGE_F, MESSAGE_V, TestMessageCodec.INSTANCE);
             ProtoWriterTools.writeDouble(out, DOUBLE_F, DOUBLE32_V);
@@ -573,7 +573,7 @@ class ProtoParserToolsTest {
                 throws IOException {
             final String value = item.getValue();
             if (value != null) {
-                ProtoWriterTools.writeString(out, VALUE_FIELD, value);
+                ProtoWriterTools.writeString(out, VALUE_FIELD, value.getBytes(StandardCharsets.UTF_8));
             }
         }
 

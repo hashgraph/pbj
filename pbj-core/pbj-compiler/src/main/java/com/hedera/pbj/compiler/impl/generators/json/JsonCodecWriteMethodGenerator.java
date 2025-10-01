@@ -101,9 +101,14 @@ final class JsonCodecWriteMethodGenerator {
                 return prefix + "if (data." + field.nameCamelFirstLower() + "() != " + field.javaDefault()
                         + " && !data." + field.nameCamelFirstLower() + "().isEmpty()) fieldLines.add(" + basicFieldCode
                         + ");";
+            } else if (field.isString()) {
+                return prefix + "if (" + getValueCode + " != null"
+                        + (field.optionalValueType() ? "" : (" && " + getValueCode + ".length() > 0"))
+                        + ") fieldLines.add("
+                        + basicFieldCode + ");";
             } else {
-                return prefix + "if (data." + field.nameCamelFirstLower() + "() != " + field.javaDefault()
-                        + ") fieldLines.add(" + basicFieldCode + ");";
+                return prefix + "if (" + getValueCode + " != " + field.javaDefault() + ") fieldLines.add("
+                        + basicFieldCode + ");";
             }
         }
     }
@@ -121,23 +126,25 @@ final class JsonCodecWriteMethodGenerator {
                         "DoubleValue",
                         "BytesValue" -> "field(%s, %s)".formatted(fieldName, getValueCode);
                 case "Int64Value", "UInt64Value" -> "field(%s, %s, true)".formatted(fieldName, getValueCode);
-                default -> throw new UnsupportedOperationException(
-                        "Unhandled optional message type:" + field.messageType());
+                default ->
+                    throw new UnsupportedOperationException("Unhandled optional message type:" + field.messageType());
             };
         } else if (field.repeated()) {
             return switch (field.type()) {
-                case MESSAGE -> "arrayField(childIndent, $fieldName, $codec, $valueCode)"
-                        .replace("$fieldName", fieldName)
-                        .replace("$fieldDef", fieldDef)
-                        .replace("$valueCode", getValueCode)
-                        .replace(
-                                "$codec",
-                                ((SingleField) field).messageTypeModelPackage() + "."
-                                        + ((SingleField) field).completeClassName() + ".JSON");
-                default -> "arrayField($fieldName, $fieldDef, $valueCode)"
-                        .replace("$fieldName", fieldName)
-                        .replace("$fieldDef", fieldDef)
-                        .replace("$valueCode", getValueCode);
+                case MESSAGE ->
+                    "arrayField(childIndent, $fieldName, $codec, $valueCode)"
+                            .replace("$fieldName", fieldName)
+                            .replace("$fieldDef", fieldDef)
+                            .replace("$valueCode", getValueCode)
+                            .replace(
+                                    "$codec",
+                                    ((SingleField) field).messageTypeModelPackage() + "."
+                                            + ((SingleField) field).completeClassName() + ".JSON");
+                default ->
+                    "arrayField($fieldName, $fieldDef, $valueCode)"
+                            .replace("$fieldName", fieldName)
+                            .replace("$fieldDef", fieldDef)
+                            .replace("$valueCode", getValueCode);
             };
         } else if (field.type() == Field.FieldType.MAP) {
             final MapField mapField = (MapField) field;
@@ -156,19 +163,21 @@ final class JsonCodecWriteMethodGenerator {
                     .replace("$vComposer", "(n, v) -> " + vComposerMethod);
         } else {
             return switch (field.type()) {
-                case ENUM -> "field($fieldName, $valueCode.protoName())"
-                        .replace("$fieldName", fieldName)
-                        .replace("$fieldDef", fieldDef)
-                        .replace("$valueCode", getValueCode);
-                case MESSAGE -> "field($childIndent, $fieldName, $codec, $valueCode)"
-                        .replace("$childIndent", childIndent)
-                        .replace("$fieldName", fieldName)
-                        .replace("$fieldDef", fieldDef)
-                        .replace("$valueCode", getValueCode)
-                        .replace(
-                                "$codec",
-                                ((SingleField) field).messageTypeModelPackage() + "."
-                                        + ((SingleField) field).completeClassName() + ".JSON");
+                case ENUM ->
+                    "field($fieldName, $valueCode.protoName())"
+                            .replace("$fieldName", fieldName)
+                            .replace("$fieldDef", fieldDef)
+                            .replace("$valueCode", getValueCode);
+                case MESSAGE ->
+                    "field($childIndent, $fieldName, $codec, $valueCode)"
+                            .replace("$childIndent", childIndent)
+                            .replace("$fieldName", fieldName)
+                            .replace("$fieldDef", fieldDef)
+                            .replace("$valueCode", getValueCode)
+                            .replace(
+                                    "$codec",
+                                    ((SingleField) field).messageTypeModelPackage() + "."
+                                            + ((SingleField) field).completeClassName() + ".JSON");
                 default -> "field(%s, %s)".formatted(fieldName, getValueCode);
             };
         }

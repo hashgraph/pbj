@@ -106,7 +106,7 @@ public class LazyGetProtobufSizeMethodGenerator {
             final String oneOfType = modelClassName == null
                     ? oneOfField.nameCamelFirstUpper() + "OneOfType"
                     : modelClassName + "." + oneOfField.nameCamelFirstUpper() + "OneOfType";
-            getValueCode = oneOfField.nameCamelFirstLower() + ".as()";
+            getValueCode = "(" + field.javaFieldType() + ")" + oneOfField.nameCamelFirstLower() + ".as()";
             prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
                     + Common.camelToUpperSnake(field.name()) + ")";
             prefix += "\n";

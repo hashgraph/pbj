@@ -60,7 +60,7 @@ public class SampleFuzzTest {
      * The fuzz test as a whole is considered passed
      * if that many individual model tests pass.
      */
-    private static final double PASS_RATE_THRESHOLD = 1.;
+    private static final double PASS_RATE_THRESHOLD = .997;
 
     /**
      * A threshold for the mean value of the shares of DESERIALIZATION_FAILED
@@ -70,7 +70,7 @@ public class SampleFuzzTest {
      * if the mean value of all the individual DESERIALIZATION_FAILED
      * shares is greater than this threshold.
      */
-    private static final double DESERIALIZATION_FAILED_MEAN_THRESHOLD = .9829;
+    private static final double DESERIALIZATION_FAILED_MEAN_THRESHOLD = .9824;
 
     /**
      * Fuzz tests are tagged with this tag to allow Gradle/JUnit

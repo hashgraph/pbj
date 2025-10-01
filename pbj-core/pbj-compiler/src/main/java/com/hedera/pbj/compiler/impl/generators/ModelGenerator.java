@@ -37,10 +37,8 @@ import java.util.stream.Collectors;
  * Code generator that parses protobuf files and generates nice Java source for record files for each message type and
  * enum.
  */
-@SuppressWarnings({"EscapedSpace", "StringConcatenationInLoop"})
+@SuppressWarnings({"EscapedSpace", "StringConcatenationInLoop", "SwitchStatementWithTooFewBranches"})
 public final class ModelGenerator implements Generator {
-
-    private static final String NON_NULL_ANNOTATION = "@NonNull";
 
     private static final String HASH_CODE_MANIPULATION =
             """
@@ -92,6 +90,11 @@ public final class ModelGenerator implements Generator {
         writer.addImport("edu.umd.cs.findbugs.annotations.*");
         writer.addImport(lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef));
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
+        writer.addImport("static com.hedera.pbj.runtime.PbjConstants.EMPTY_BYTES");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoWriterTools.*");
+        writer.addImport("static com.hedera.pbj.runtime.Utf8Tools.*");
+        writer.addImport("java.io.IOException");
+        writer.addImport("java.util.Arrays");
         writer.addImport("java.util.Collections");
         writer.addImport("java.util.List");
 
@@ -136,7 +139,8 @@ public final class ModelGenerator implements Generator {
                 null,
                 "Computed hash code, manual input ignored.",
                 false,
-                null));
+                null,
+                false));
         fields.add(new SingleField(
                 false,
                 FieldType.FIXED32,
@@ -150,7 +154,8 @@ public final class ModelGenerator implements Generator {
                 null,
                 "Computed protobuf encoded size, manual input ignored.",
                 false,
-                null));
+                null,
+                false));
 
         // The javadoc comment to use for the model class, which comes **directly** from the protobuf schema,
         // but is cleaned up and formatted for use in JavaDoc.
@@ -183,8 +188,8 @@ public final class ModelGenerator implements Generator {
                     return fieldComment
                             + "private "
                             + (field.fieldNumber() != -1 ? "final " : "")
-                            + getFieldAnnotations(field)
-                            + field.javaFieldType() + " " + field.nameCamelFirstLower()
+                            + field.annotations()
+                            + field.javaFieldStorageType() + " " + field.nameCamelFirstLower()
                             + (field.fieldNumber() == -1 ? " = -1" : "")
                             + ";";
                 })
@@ -197,15 +202,21 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         // constructors: w/o unknownFields, and with unknownFields
-        bodyContent +=
-                generateConstructor(javaRecordName, fields, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+        bodyContent += generateConstructor(
+                false, javaRecordName, fields, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
         bodyContent += "\n";
-        bodyContent +=
-                generateConstructor(javaRecordName, fields, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+        bodyContent += generateConstructor(
+                false, javaRecordName, fields, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
         bodyContent += "\n";
+        if (fields.stream().anyMatch(Field::hasDifferentStorageType)) {
+            bodyContent += generateConstructor(
+                    true, javaRecordName, fields, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+            bodyContent += "\n";
+        }
 
         // record style getters
-        bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed);
+        bodyContent +=
+                generateRecordStyleGetters(javaRecordName, fieldsNoPrecomputed, msgDef, lookupHelper, schemaClassName);
         bodyContent += "\n";
 
         bodyContent +=
@@ -323,6 +334,7 @@ public final class ModelGenerator implements Generator {
         writer.addImport("java.util.function.Consumer");
         writer.addImport("edu.umd.cs.findbugs.annotations.Nullable");
         writer.addImport("edu.umd.cs.findbugs.annotations.NonNull");
+        writer.addImport("java.lang.SuppressWarnings");
         writer.addImport("static java.util.Objects.requireNonNull");
         writer.addImport("static com.hedera.pbj.runtime.ProtoWriterTools.*");
         writer.addImport("static com.hedera.pbj.runtime.ProtoConstants.*");
@@ -330,6 +342,7 @@ public final class ModelGenerator implements Generator {
         // spotless:off
         writer.append("""
                 $javaDocComment$deprecated
+                @SuppressWarnings("cast")
                 public final$staticModifier class $javaRecordName $implementsComparable{
                 $bodyContent
 
@@ -360,43 +373,67 @@ public final class ModelGenerator implements Generator {
      * @param fields the fields to use for the code generation
      * @return the generated code
      */
-    private static String generateRecordStyleGetters(final List<Field> fields) {
+    private static String generateRecordStyleGetters(
+            final String javaRecordName,
+            final List<Field> fields,
+            final MessageDefContext msgDef,
+            final ContextualLookupHelper lookupHelper,
+            final String schemaClassName) {
         return fields.stream()
                 .map(field -> {
                     String fieldComment = field.comment();
                     String fieldCommentLowerFirst =
                             fieldComment.substring(0, 1).toLowerCase() + fieldComment.substring(1);
-                    return """
+                    String prefix = "";
+                    if (field.hasDifferentStorageType() || field.isString()) {
+                        prefix =
+                                """
+                            /**
+                             * Write binary protobuf representation of field $fieldCommentLowerFirst to given output
+                             */
+                            public void $fieldNameWriteTo(@NonNull final WritableSequentialData out) throws IOException {
+                                $fieldWriter
+                            }
+
+                            /**
+                             * Write binary protobuf representation of field $fieldCommentLowerFirst to given output.
+                             * @return the number of bytes written
+                             */
+                            public int $fieldNameWriteTo(@NonNull final byte[] output, final int startOffset) {
+                                int offset = startOffset;
+                                $byteArrayFieldWriter
+                                return offset - startOffset;
+                            }
+
+                            """
+                                        .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
+                                        .replace("$fieldName", field.nameCamelFirstLower())
+                                        .replace(
+                                                "$fieldWriter",
+                                                field.storageFieldWriter(javaRecordName, schemaClassName))
+                                        .replace(
+                                                "$byteArrayFieldWriter",
+                                                field.storageFieldByteArrayWriter(javaRecordName, schemaClassName))
+                                        .indent(DEFAULT_INDENT);
+                    }
+                    return prefix
+                            + """
                     /**
                      * Get field $fieldCommentLowerFirst
                      *
                      * @return the value of the $fieldName field
                      */
                     public $fieldType $fieldName() {
-                        return $fieldName;
+                        return $fieldGetCode;
                     }
                     """
-                            .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
-                            .replace("$fieldName", field.nameCamelFirstLower())
-                            .replace("$fieldType", field.javaFieldType())
-                            .indent(DEFAULT_INDENT);
+                                    .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
+                                    .replace("$fieldName", field.nameCamelFirstLower())
+                                    .replace("$fieldGetCode", field.storageFieldGetter(field.nameCamelFirstLower()))
+                                    .replace("$fieldType", field.javaFieldType())
+                                    .indent(DEFAULT_INDENT);
                 })
                 .collect(Collectors.joining("\n"));
-    }
-
-    /**
-     * Returns a set of annotations for a given field.
-     * @param field a field
-     * @return an empty string, or a string with Java annotations ending with a space
-     */
-    private static String getFieldAnnotations(final Field field) {
-        if (field.repeated()) return NON_NULL_ANNOTATION + " ";
-
-        return switch (field.type()) {
-            case MESSAGE -> "@Nullable ";
-            case BYTES, STRING -> NON_NULL_ANNOTATION + " ";
-            default -> "";
-        };
     }
 
     /**
@@ -619,8 +656,10 @@ public final class ModelGenerator implements Generator {
         // spotless:on
         for (int i = 0; i < fields.size(); i++) {
             Field f = fields.get(i);
-            bodyContent +=
-                    FIELD_INDENT + FIELD_INDENT + "+ \"" + f.nameCamelFirstLower() + "=\" + " + f.nameCamelFirstLower();
+            // Getters can include ?: ternary, so we enclose them in (...):
+            bodyContent += FIELD_INDENT + FIELD_INDENT + "+ \"" + f.nameCamelFirstLower() + "=\" + ("
+                    + f.storageFieldGetter(f.nameCamelFirstLower())
+                    + ")";
             if (i < fields.size() - 1) {
                 bodyContent += " + \", \"";
             }
@@ -651,6 +690,7 @@ public final class ModelGenerator implements Generator {
      * @return the generated code
      */
     private static String generateConstructor(
+            final boolean generatePrivateStorageConstructor,
             final String constructorName,
             final List<Field> fields,
             final boolean initUnknownFields,
@@ -667,7 +707,7 @@ public final class ModelGenerator implements Generator {
                  * Create a pre-populated $constructorName.
                  * $constructorParamDocs
                  */
-                public $constructorName($constructorParams$unknownFieldsParam) {
+                public $constructorName($fakeParams$constructorParams$unknownFieldsParam) {
                     $unknownFieldsCode
             $constructorCode    }
             """
@@ -676,8 +716,16 @@ public final class ModelGenerator implements Generator {
                                 field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
                 ).collect(Collectors.joining(" ")))
                 .replace("$constructorName", constructorName)
+                // List<String> and List<byte[]> are the same after erasure, and if there's no other storage type fields,
+                // the normal and storage constructors will have the same signature at JVM level, which javac doesn't allow.
+                // So we add a fake argument to the private constructor, to be able to instantiate objects using storage types.
+                // Note that unfortunately, these storage constructors have to be public, so that the Codec has access to them.
+                // This, however, allows malicious clients to create mutable instances of the model, which isn't ideal.
+                .replace("$fakeParams", generatePrivateStorageConstructor ? ("int ___unusedArgumentToBypassGenericErasure" + (initUnknownFields || !fieldsNoPrecomputed.isEmpty() ? ", " : "")) : "")
                 .replace("$constructorParams",fieldsNoPrecomputed.stream().map(field ->
-                        field.javaFieldType() + " " + field.nameCamelFirstLower()
+                                generatePrivateStorageConstructor ?
+                                        (field.javaFieldStorageType() + " " + field.nameCamelFirstLower()) :
+                                        (field.javaFieldType() + " " + field.nameCamelFirstLower())
                 ).collect(Collectors.joining(", ")))
                 .replace("$unknownFieldsParam", initUnknownFields
                         ? ((fieldsNoPrecomputed.isEmpty() ? "" : ", ") + "final List<UnknownField> $unknownFields")
@@ -692,9 +740,12 @@ public final class ModelGenerator implements Generator {
                     }
                     switch (field.type()) {
                         case BYTES, STRING: {
-                            sb.append("this.$name = $name != null ? $name : $default;"
+                            sb.append("this.$name = $name != null ? $fieldSetter : $default;"
                                     .replace("$name", field.nameCamelFirstLower())
-                                    .replace("$default", getDefaultValue(field, msgDef, lookupHelper))
+                                    .replace("$fieldSetter",
+                                            generatePrivateStorageConstructor ? field.nameCamelFirstLower() :
+                                                    field.storageFieldSetter(field.nameCamelFirstLower(), msgDef, lookupHelper))
+                                    .replace("$default", field.defaultValue(msgDef, lookupHelper))
                             );
                             break;
                         }
@@ -705,12 +756,11 @@ public final class ModelGenerator implements Generator {
                             break;
                         }
                         default:
-                            if (field.repeated()) {
-                                sb.append("this.$name = $name == null ? Collections.emptyList() : $name;".replace(
-                                        "$name", field.nameCamelFirstLower()));
-                            } else {
-                                sb.append("this.$name = $name;".replace("$name", field.nameCamelFirstLower()));
-                            }
+                            sb.append("this.$fieldName = $fieldSetter;"
+                                    .replace("$fieldName", field.nameCamelFirstLower())
+                                    .replace("$fieldSetter",
+                                            generatePrivateStorageConstructor ? field.nameCamelFirstLower() :
+                                                    field.storageFieldSetter(field.nameCamelFirstLower(), msgDef, lookupHelper)));
                             break;
                     }
                     return sb.toString();
@@ -815,7 +865,7 @@ public final class ModelGenerator implements Generator {
                      * @return the value for $fieldName if it has a value, or else returns the default value
                      */
                     public $javaFieldType $fieldNameOrElse(@NonNull final $javaFieldType defaultValue) {
-                        return has$fieldNameUpperFirst() ? $fieldName : defaultValue;
+                        return has$fieldNameUpperFirst() ? $fieldGetCode : defaultValue;
                     }
                     
                     /**
@@ -826,7 +876,7 @@ public final class ModelGenerator implements Generator {
                      * @throws NullPointerException if $fieldName is null
                      */
                     public @NonNull $javaFieldType $fieldNameOrThrow() {
-                        return requireNonNull($fieldName, "Field $fieldName is null");
+                        return requireNonNull($fieldGetCode, "Field $fieldName is null");
                     }
                     
                     /**
@@ -836,13 +886,14 @@ public final class ModelGenerator implements Generator {
                      */
                     public void if$fieldNameUpperFirst(@NonNull final Consumer<$javaFieldType> ifPresent) {
                         if (has$fieldNameUpperFirst()) {
-                            ifPresent.accept($fieldName);
+                            ifPresent.accept($fieldGetCode);
                         }
                     }
                     """
                     .replace("$fieldNameUpperFirst", field.nameCamelFirstUpper())
                     .replace("$javaFieldType", field.javaFieldType())
                     .replace("$fieldName", field.nameCamelFirstLower())
+                    .replace("$fieldGetCode", field.storageFieldGetter(field.nameCamelFirstLower()))
                     .indent(DEFAULT_INDENT)
             );
         }
@@ -966,7 +1017,7 @@ public final class ModelGenerator implements Generator {
              * @return a pre-populated builder
              */
             public Builder copyBuilder() {
-                return new Builder(%s$unknownFieldsArg);
+                return new Builder($fakeParams%s$unknownFieldsArg);
             }
             
             /**
@@ -979,6 +1030,7 @@ public final class ModelGenerator implements Generator {
             }
             """
             .formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
+            .replace("$fakeParams", fields.stream().anyMatch(Field::hasDifferentStorageType) ? "0, " : "")
             .replace("$unknownFieldsArg", (fields.isEmpty() ? "" : ", ") + "$unknownFields")
             .indent(DEFAULT_INDENT);
         // spotless:on
@@ -998,8 +1050,7 @@ public final class ModelGenerator implements Generator {
             final MessageDefContext msgDef,
             final Field field,
             final ContextualLookupHelper lookupHelper) {
-        final String prefix, postfix, fieldToSet;
-        final String fieldAnnotations = getFieldAnnotations(field);
+        final String prefix, postfix, fieldToSet, fieldSetter;
         final OneOfField parentOneOfField = field.parent();
         final String fieldName = field.nameCamelFirstLower();
         if (parentOneOfField != null) {
@@ -1007,14 +1058,12 @@ public final class ModelGenerator implements Generator {
             prefix = " new %s<>(".formatted(parentOneOfField.className()) + oneOfEnumValue + ",";
             postfix = ")";
             fieldToSet = parentOneOfField.nameCamelFirstLower();
-        } else if (fieldAnnotations.contains(NON_NULL_ANNOTATION)) {
-            prefix = "";
-            postfix = " != null ? " + fieldName + " : " + getDefaultValue(field, msgDef, lookupHelper);
-            fieldToSet = fieldName;
+            fieldSetter = fieldName;
         } else {
             prefix = "";
             postfix = "";
             fieldToSet = fieldName;
+            fieldSetter = field.storageFieldSetter(fieldName, msgDef, lookupHelper);
         }
         // spotless:off
         builderMethods.add("""
@@ -1025,7 +1074,7 @@ public final class ModelGenerator implements Generator {
                  * @return builder to continue building with
                  */
                 public Builder $fieldName($fieldAnnotations$fieldType $fieldName) {
-                    this.$fieldToSet = $prefix$fieldName$postfix;
+                    this.$fieldToSet = $prefix$fieldSetter$postfix;
                     return this;
                 }"""
                 .replace("$fieldDoc", field.comment()
@@ -1033,8 +1082,9 @@ public final class ModelGenerator implements Generator {
                 .replace("$fieldName", fieldName)
                 .replace("$fieldToSet", fieldToSet)
                 .replace("$prefix", prefix)
+                .replace("$fieldSetter", fieldSetter)
                 .replace("$postfix", postfix)
-                .replace("$fieldAnnotations", fieldAnnotations)
+                .replace("$fieldAnnotations", field.annotations())
                 .replace("$fieldType", field.javaFieldType())
                 .indent(DEFAULT_INDENT)
         );
@@ -1072,15 +1122,16 @@ public final class ModelGenerator implements Generator {
             final String repeatedPrefix;
             final String repeatedPostfix;
             // spotless:off
-            if (parentOneOfField != null) {
-                repeatedPrefix = prefix + " values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
+            if (field.cannotBeNull()) {
+                repeatedPrefix = prefix + " values == null ? " + field.defaultValue(msgDef, lookupHelper) + " : ";
                 repeatedPostfix = postfix;
-            } else if (fieldAnnotations.contains(NON_NULL_ANNOTATION)) {
-                repeatedPrefix = "values == null ? " + getDefaultValue(field, msgDef, lookupHelper) + " : ";
-                repeatedPostfix = "";
             } else {
                 repeatedPrefix = prefix;
                 repeatedPostfix = postfix;
+            }
+            String baseType = field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1);
+            if (field.type() == FieldType.STRING) {
+                baseType = "String";
             }
             builderMethods.add("""
                         /**
@@ -1090,10 +1141,11 @@ public final class ModelGenerator implements Generator {
                          * @return builder to continue building with
                          */
                         public Builder $fieldName($baseType ... values) {
-                            this.$fieldToSet = $repeatedPrefix List.of(values) $repeatedPostfix;
+                            this.$fieldToSet = $repeatedPrefix $convertMethod(values) $repeatedPostfix;
                             return this;
                         }"""
-                    .replace("$baseType",field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1))
+                    .replace("$convertMethod",field.type() == FieldType.STRING ? "toUtf8Bytes" : "List.of")
+                    .replace("$baseType",baseType)
                     .replace("$fieldDoc",field.comment()
                             .replaceAll("\n", "\n * "))
                     .replace("$fieldName", fieldName)
@@ -1143,6 +1195,7 @@ public final class ModelGenerator implements Generator {
                  */
                 public Builder() { $unknownFields = null; }
             
+            $prePopulatedPrivateBuilder
             $prePopulatedBuilder
             $prePopulatedWithUnknownFieldsBuilder
                 /**
@@ -1151,38 +1204,27 @@ public final class ModelGenerator implements Generator {
                  * @return new model record with data set
                  */
                 public $javaRecordName build() {
-                    return new $javaRecordName($recordParams);
+                    return new $javaRecordName($fakeParams$recordParams$unknownFieldParam);
                 }
 
             $builderMethods}"""
                 .replace("$fields", fields.stream().map(field ->
-                        getFieldAnnotations(field)
-                                + "private " + field.javaFieldType()
+                        field.annotations()
+                                + "private " + field.javaFieldStorageType()
                                 + " " + field.nameCamelFirstLower()
-                                + " = " + getDefaultValue(field, msgDef, lookupHelper)
+                                + " = " + field.defaultValue(msgDef, lookupHelper)
                         ).collect(Collectors.joining(";\n    ")))
-                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, fields, false, msgDef, lookupHelper))
-                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedPrivateBuilder", fields.stream().noneMatch(Field::hasDifferentStorageType)
+                        ? "" :
+                        generateConstructor(true, "Builder", fields, true, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedBuilder", generateConstructor(false, "Builder", fields, false, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor(false,"Builder", fields, true, fields, false, msgDef, lookupHelper))
                 .replace("$javaRecordName",javaRecordName)
+                .replace("$fakeParams", fields.stream().anyMatch(Field::hasDifferentStorageType) ? "0, " : "")
                 .replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
+                .replace("$unknownFieldParam",fields.isEmpty() ? "$unknownFields" : ", $unknownFields")
                 .replace("$builderMethods", String.join("\n", builderMethods))
                 .indent(DEFAULT_INDENT);
         // spotless:on
-    }
-
-    /**
-     * Gets the default value for the field
-     * @param field the field to use for the code generation
-     * @param msgDef the message definition
-     * @param lookupHelper the lookup helper
-     * @return the generated code
-     */
-    private static String getDefaultValue(
-            final Field field, final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
-        if (field.type() == Field.FieldType.ONE_OF) {
-            return lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef) + "." + field.javaDefault();
-        } else {
-            return field.javaDefault();
-        }
     }
 }

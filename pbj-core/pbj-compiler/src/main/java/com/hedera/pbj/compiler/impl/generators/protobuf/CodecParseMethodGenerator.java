@@ -2,6 +2,8 @@
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
+import static com.hedera.pbj.compiler.impl.Field.FieldType.MAP;
+import static com.hedera.pbj.compiler.impl.Field.FieldType.STRING;
 
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
@@ -81,7 +83,7 @@ class CodecParseMethodGenerator {
                             Collections.sort($unknownFields);
                             $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
                         }
-                        return new $modelClassName($fieldsList);
+                        return new $modelClassName($fakeParams$fieldsList);
                     } catch (final Exception anyException) {
                         if (anyException instanceof ParseException parseException) {
                             throw parseException;
@@ -91,13 +93,15 @@ class CodecParseMethodGenerator {
                 }
                 """
         .replace("$modelClassName",modelClassName)
-        .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
+        .replace("$fakeParams", fields.stream().anyMatch(Field::hasDifferentStorageType) ? ("0" + (fields.isEmpty() ? "" : ", ")) : "")
+        .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;"
+                .formatted(field.javaFieldStorageType(),
                 field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
         .replace("$fieldsList",
                 fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", "))
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
         )
-        .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields, schemaClassName), "", schemaClassName))
+        .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields, schemaClassName, false), "", schemaClassName))
         .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
         .indent(DEFAULT_INDENT);
         // spotless:on
@@ -192,20 +196,21 @@ class CodecParseMethodGenerator {
      * @param fields list of all fields in record
      * @return string of case statement code
      */
-    private static String generateCaseStatements(final List<Field> fields, final String schemaClassName) {
+    private static String generateCaseStatements(
+            final List<Field> fields, final String schemaClassName, final boolean isMapField) {
         StringBuilder sb = new StringBuilder();
         for (Field field : fields) {
             if (field instanceof final OneOfField oneOfField) {
                 for (final Field subField : oneOfField.fields()) {
-                    generateFieldCaseStatement(sb, subField, schemaClassName);
+                    generateFieldCaseStatement(sb, subField, schemaClassName, isMapField);
                 }
             } else if (field.repeated() && field.type().wireType() != Common.TYPE_LENGTH_DELIMITED) {
                 // for repeated fields that are not length encoded there are 2 forms they can be stored in file.
                 // "packed" and repeated primitive fields
-                generateFieldCaseStatement(sb, field, schemaClassName);
-                generateFieldCaseStatementPacked(sb, field);
+                generateFieldCaseStatement(sb, field, schemaClassName, isMapField);
+                generateFieldCaseStatementPacked(sb, field, isMapField);
             } else {
-                generateFieldCaseStatement(sb, field, schemaClassName);
+                generateFieldCaseStatement(sb, field, schemaClassName, isMapField);
             }
         }
         return sb.toString().indent(DEFAULT_INDENT * 4);
@@ -218,7 +223,8 @@ class CodecParseMethodGenerator {
      * @param sb StringBuilder to append code to
      */
     @SuppressWarnings("StringConcatenationInsideStringBufferAppend")
-    private static void generateFieldCaseStatementPacked(final StringBuilder sb, final Field field) {
+    private static void generateFieldCaseStatementPacked(
+            final StringBuilder sb, final Field field, final boolean isMapField) {
         final int wireType = Common.TYPE_LENGTH_DELIMITED;
         final int fieldNum = field.fieldNumber();
         final int tag = Common.getTag(wireType, fieldNum);
@@ -261,7 +267,7 @@ class CodecParseMethodGenerator {
      * @param sb StringBuilder to append code to
      */
     private static void generateFieldCaseStatement(
-            final StringBuilder sb, final Field field, final String schemaClassName) {
+            final StringBuilder sb, final Field field, final String schemaClassName, final boolean isMapField) {
         final int wireType = field.optionalValueType()
                 ? Common.TYPE_LENGTH_DELIMITED
                 : field.type().wireType();
@@ -290,7 +296,7 @@ class CodecParseMethodGenerator {
                                 // means optional is default value
                                 value = $defaultValue;
                             }"""
-                    .replace("$fieldType", field.javaFieldType())
+                    .replace("$fieldType", field.javaFieldStorageType())
                     .replace("$readMethod", readMethod(field))
                     .replace("$defaultValue",
                             switch (field.messageType()) {
@@ -300,7 +306,7 @@ class CodecParseMethodGenerator {
                                 case "DoubleValue" -> "0d";
                                 case "BoolValue" -> "false";
                                 case "BytesValue" -> "Bytes.EMPTY";
-                                case "StringValue" -> "\"\"";
+                                case "StringValue" -> "PbjConstants.EMPTY_BYTES";
                                 default -> throw new PbjCompilerException("Unexpected and unknown field type " + field.type() + " cannot be parsed");
                             })
                     .replace("$valueTypeWireType", Integer.toString(
@@ -392,8 +398,10 @@ class CodecParseMethodGenerator {
                     .replace("$fieldName", field.name())
                     .replace("$fieldDefs",mapEntryFields.stream().map(mapEntryField ->
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
-                            mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
-                    .replace("$mapParseLoop", generateParseLoop(generateCaseStatements(mapEntryFields, schemaClassName), "map_entry_", schemaClassName)
+                                    mapEntryField.name(),
+                                    mapEntryField.type() == STRING ? "\"\"" : mapEntryField.javaDefault()
+                            )).collect(Collectors.joining("\n")))
+                    .replace("$mapParseLoop", generateParseLoop(generateCaseStatements(mapEntryFields, schemaClassName, true), "map_entry_", schemaClassName)
                             .indent(-DEFAULT_INDENT))
                     .replace("$maxSize", String.valueOf(field.maxSize()))
             );
@@ -408,9 +416,10 @@ class CodecParseMethodGenerator {
             throw new PbjCompilerException("Fields can not be oneof and repeated ["+field+"]");
         } else if (field.parent() != null) {
             final var oneOfField = field.parent();
-            sb.append("temp_%s =  new %s<>(%s.%s, value);%n"
+            sb.append("temp_%s =  new %s<>(%s.%s, %s);%n"
                     .formatted(oneOfField.name(), oneOfField.className(), oneOfField.getEnumClassRef(),
-                            Common.camelToUpperSnake(field.name())));
+                            Common.camelToUpperSnake(field.name()),
+                            field.isString() ? "toUtf8String(value)" : "value"));
         } else if (field.repeated()) {
             sb.append(
                 """
@@ -431,6 +440,8 @@ class CodecParseMethodGenerator {
                 }
                 """.formatted(field.name(), field.maxSize(),
                         mapField.keyField().name(), mapField.valueField().name()));
+        } else if(field.isString() && isMapField){
+            sb.append("temp_%s = toUtf8String(value);\n".formatted(field.name()));
         } else {
             sb.append("temp_%s = value;\n".formatted(field.name()));
         }
@@ -441,7 +452,8 @@ class CodecParseMethodGenerator {
     static String readMethod(Field field) {
         if (field.optionalValueType()) {
             return switch (field.messageType()) {
-                case "StringValue" -> "readString(input, %d)".formatted(field.maxSize());
+                case "StringValue" ->
+                    "readString%s(input, %d)".formatted(field.hasDifferentStorageType() ? "Raw" : "", field.maxSize());
                 case "Int32Value" -> "readInt32(input)";
                 case "UInt32Value" -> "readUint32(input)";
                 case "Int64Value" -> "readInt64(input)";
@@ -470,7 +482,8 @@ class CodecParseMethodGenerator {
             case DOUBLE -> "readDouble(input)";
             case FIXED64 -> "readFixed64(input)";
             case SFIXED64 -> "readSignedFixed64(input)";
-            case STRING -> "readString(input, %d)".formatted(field.maxSize());
+            case STRING ->
+                "readString%s(input, %d)".formatted(field.hasDifferentStorageType() ? "Raw" : "", field.maxSize());
             case BOOL -> "readBool(input)";
             case BYTES -> "readBytes(input, %d)".formatted(field.maxSize());
             case MESSAGE -> field.parseCode();

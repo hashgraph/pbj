@@ -362,7 +362,12 @@ public final class TestGenerator implements Generator {
                     }
 
                     // read proto bytes with ProtoC to make sure it is readable and no parse exceptions are thrown
-                    final $protocModelClass protoCModelObj = $protocModelClass.parseFrom(byteBuffer);
+                    final $protocModelClass protoCModelObj;
+                    try {
+                        protoCModelObj = $protocModelClass.parseFrom(byteBuffer);
+                    } catch (final Exception e) {
+                        throw new RuntimeException("For model:\\n" + modelObj + "\\nCAUGHT EXCEPTION: ", e);
+                    }
                 
                     // read proto bytes with PBJ parser
                     dataBuffer.resetPosition();

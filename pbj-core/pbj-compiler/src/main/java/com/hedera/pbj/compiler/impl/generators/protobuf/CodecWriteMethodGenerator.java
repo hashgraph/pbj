@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 /**
  * Code to generate the write method for Codec classes.
  */
-final class CodecWriteMethodGenerator {
+public final class CodecWriteMethodGenerator {
 
     static String generateWriteMethod(
             final String modelClassName, final String schemaClassName, final List<Field> fields) {
@@ -25,8 +25,10 @@ final class CodecWriteMethodGenerator {
                 modelClassName,
                 schemaClassName,
                 fields,
-                field -> "data.%s()".formatted(field.nameCamelFirstLower()),
-                true);
+                field -> " data.%s%s"
+                        .formatted(field.nameCamelFirstLower(), field.hasDifferentStorageType() ? "" : "()"),
+                true,
+                false);
         // spotless:off
         return
             """
@@ -60,14 +62,20 @@ final class CodecWriteMethodGenerator {
             final String schemaClassName,
             final List<Field> fields,
             final Function<Field, String> getValueBuilder,
-            final boolean skipDefault) {
+            final boolean skipDefault,
+            final boolean accessStorageField) {
         return fields.stream()
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF
                         ? ((OneOfField) field).fields().stream()
                         : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldWriteLines(
-                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
+                        field,
+                        modelClassName,
+                        schemaClassName,
+                        getValueBuilder.apply(field),
+                        skipDefault,
+                        accessStorageField))
                 .collect(Collectors.joining("\n"))
                 .indent(DEFAULT_INDENT);
     }
@@ -79,21 +87,24 @@ final class CodecWriteMethodGenerator {
      * @param modelClassName The model class name for model class for message type we are generating writer for
      * @param getValueCode java code to get the value of field
      * @param skipDefault skip writing the field if it has default value (for non-oneOf only)
+     * @param accessStorageField true if the generated code has access to storage fields (e.g. in models),
+     *          false otherwise (e.g. in codecs)
      * @return java code to write field to output
      */
-    private static String generateFieldWriteLines(
+    public static String generateFieldWriteLines(
             final Field field,
             final String modelClassName,
             final String schemaClassName,
             String getValueCode,
-            boolean skipDefault) {
+            final boolean skipDefault,
+            final boolean accessStorageField) {
         final String fieldDef = schemaClassName + "." + Common.camelToUpperSnake(field.name());
         String prefix = "// [%d] - %s%n".formatted(field.fieldNumber(), field.name());
 
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = "%s.%sOneOfType".formatted(modelClassName, oneOfField.nameCamelFirstUpper());
-            getValueCode = "data.%s().as()".formatted(oneOfField.nameCamelFirstLower());
+            getValueCode = "(%s) data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
             prefix += "if (data.%s().kind() == %s.%s)%n"
                     .formatted(oneOfField.nameCamelFirstLower(), oneOfType, Common.camelToUpperSnake(field.name()));
         }
@@ -101,8 +112,9 @@ final class CodecWriteMethodGenerator {
         final String writeMethodName = field.methodNameType();
         if (field.optionalValueType()) {
             return prefix + switch (field.messageType()) {
-                case "StringValue" -> "writeOptionalString(out, %s, %s);"
-                        .formatted(fieldDef,getValueCode);
+                case "StringValue" -> accessStorageField || field.parent() != null
+                        ? "writeOptionalString(out, %s, %s);".formatted(fieldDef,getValueCode)
+                        : "%sWriteTo(out);".formatted(getValueCode);
                 case "BoolValue" -> "writeOptionalBoolean(out, %s, %s);"
                         .formatted(fieldDef, getValueCode);
                 case "Int32Value","UInt32Value" -> "writeOptionalInteger(out, %s, %s);"
@@ -130,6 +142,9 @@ final class CodecWriteMethodGenerator {
                             .formatted(fieldDef, getValueCode);
                     case MESSAGE -> "writeMessageList(out, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, codecReference);
+                    case STRING -> accessStorageField
+                            ? "write%sList(out, %s, %s);".formatted(writeMethodName, fieldDef, getValueCode)
+                            : "%sWriteTo(out);".formatted(getValueCode);
                     default -> "write%sList(out, %s, %s);"
                             .formatted(writeMethodName, fieldDef, getValueCode);
                 };
@@ -153,7 +168,8 @@ final class CodecWriteMethodGenerator {
                         schemaClassName,
                         mapEntryFields,
                         getValueBuilder,
-                        false);
+                        false,
+                        true);
                 final String fieldSizeOfLines = CodecMeasureRecordMethodGenerator.buildFieldSizeOfLines(
                         field.name(),
                         mapEntryFields,
@@ -185,8 +201,9 @@ final class CodecWriteMethodGenerator {
                 return prefix + switch(field.type()) {
                     case ENUM -> "writeEnum(out, %s, %s);"
                             .formatted(fieldDef, getValueCode);
-                    case STRING -> "writeString(out, %s, %s, %s);"
-                            .formatted(fieldDef, getValueCode, skipDefault);
+                    case STRING -> accessStorageField || field.parent() != null
+                            ? "writeString(out, %s, %s, %s);".formatted(fieldDef, getValueCode, skipDefault)
+                            : "%sWriteTo(out);".formatted(getValueCode);
                     case MESSAGE -> "writeMessage(out, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, codecReference);
                     case BOOL -> "writeBoolean(out, %s, %s, %s);"

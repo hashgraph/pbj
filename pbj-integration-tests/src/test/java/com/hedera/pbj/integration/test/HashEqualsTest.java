@@ -4,9 +4,14 @@ package com.hedera.pbj.integration.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.test.proto.pbj.MessageWithBoxedString;
+import com.hedera.pbj.test.proto.pbj.MessageWithRepeatedString;
+import com.hedera.pbj.test.proto.pbj.MessageWithString;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
 import com.hedera.pbj.test.proto.pbj.TimestampTest2;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class HashEqualsTest {
@@ -88,5 +93,40 @@ class HashEqualsTest {
         TimestampTest2 tst2 = new TimestampTest2(1, 2, 3);
 
         assertNotEquals(tst.hashCode(), tst2.hashCode());
+    }
+
+    @Test
+    void testStrings() {
+        // new String() to ensure we actually create a brand-new string instance
+        final MessageWithString msg1 = new MessageWithString(new String("test"));
+        // Same characters, but a brand-new string instance again
+        final MessageWithString msg2 = new MessageWithString(new String("test"));
+
+        assertEquals(msg1.hashCode(), msg2.hashCode());
+        assertTrue(msg1.equals(msg2));
+    }
+
+    @Test
+    void testBoxedStrings() {
+        // new String() to ensure we actually create a brand-new string instance
+        final MessageWithBoxedString msg1 = new MessageWithBoxedString(new String("test"));
+        // Same characters, but a brand-new string instance again
+        final MessageWithBoxedString msg2 = new MessageWithBoxedString(new String("test"));
+
+        assertEquals(msg1.hashCode(), msg2.hashCode());
+        assertTrue(msg1.equals(msg2));
+    }
+
+    @Test
+    void testRepeatedStrings() {
+        // new String() to ensure we actually create a brand-new string instance
+        final MessageWithRepeatedString msg1 =
+                new MessageWithRepeatedString(List.of(new String("test1"), new String("test2")));
+        // Same characters, but a brand-new string instance again
+        final MessageWithRepeatedString msg2 =
+                new MessageWithRepeatedString(List.of(new String("test1"), new String("test2")));
+
+        assertEquals(msg1.hashCode(), msg2.hashCode());
+        assertTrue(msg1.equals(msg2));
     }
 }

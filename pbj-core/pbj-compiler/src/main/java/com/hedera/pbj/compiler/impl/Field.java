@@ -7,7 +7,10 @@ import static com.hedera.pbj.compiler.impl.Common.TYPE_LENGTH_DELIMITED;
 import static com.hedera.pbj.compiler.impl.Common.TYPE_VARINT;
 import static com.hedera.pbj.compiler.impl.Common.snakeToCamel;
 
+import com.hedera.pbj.compiler.impl.generators.protobuf.CodecWriteByteArrayMethodGenerator;
+import com.hedera.pbj.compiler.impl.generators.protobuf.CodecWriteMethodGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 
@@ -16,6 +19,9 @@ import java.util.function.Consumer;
  */
 @SuppressWarnings("unused")
 public interface Field {
+
+    /** Annotation to add to fields that can't be set to null */
+    String NON_NULL_ANNOTATION = "@NonNull";
 
     /** The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.).
      * The size should not be increased beyond the current limit because of the safety concerns.
@@ -92,6 +98,17 @@ public interface Field {
     String javaFieldType();
 
     /**
+     * Get the Java storage field type for this field, this allows for fields to be stored in a different format than
+     * they are presented to the user, for example String fields are stored as byte array. Normally this is the same as
+     * {@link #javaFieldType()} except for a few special cases.
+     *
+     * @return this fields type in Java format
+     */
+    default String javaFieldStorageType() {
+        return javaFieldType();
+    }
+
+    /**
      * Get the Java field type for this field.
      * Unlike {@link #javaFieldType()}, this method returns the base type for repeated and oneOf fields.
      *
@@ -105,6 +122,111 @@ public interface Field {
      * @return Name for type used in method names
      */
     String methodNameType();
+
+    /**
+     * Check if the storage type is different from the exposed type, this is true for String fields which are stored
+     * as byte arrays.
+     *
+     * @return true if storage type is different from exposed type, otherwise false
+     */
+    default boolean hasDifferentStorageType() {
+        return !javaFieldStorageType().equals(javaFieldType());
+    }
+
+    /**
+     * Get the code for setting storage field, by default a no-op. This can be used for fields like String where we
+     * want different internal storage types.
+     *
+     * @param inputVarName the name of the variable being passed in to the setter
+     * @param msgDef the message definition
+     * @param lookupHelper the lookup helper
+     * @return code for setting storage field
+     */
+    default String storageFieldSetter(
+            final String inputVarName, final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
+        if (cannotBeNull()) {
+            return inputVarName + " != null ? " + inputVarName + " : " + defaultValue(msgDef, lookupHelper);
+        } else {
+            return inputVarName;
+        }
+    }
+
+    /**
+     * Check if the field is a String, either native or boxed.
+     * Useful because we use an array for storing strings in models, and arrays require very special handling
+     * when it comes to equality checks, comparison, hash codes, etc.
+     * @return true if this field is a string (and therefore, it's stored as a UTF-8 byte[] internally in models)
+     */
+    default boolean isString() {
+        return type() == FieldType.STRING || (type() == FieldType.MESSAGE && "StringValue".equals(messageType()));
+    }
+
+    /**
+     * Get the code for getting storage field, by default a no-op. This can be used for fields like String where we
+     * want different internal storage types.
+     *
+     * @param fieldName the name of the field being accessed
+     * @return code for getting storage field
+     */
+    default String storageFieldGetter(String fieldName) {
+        return fieldName;
+    }
+
+    default String storageFieldWriter(final String modelClassName, final String schemaClassName) {
+        return CodecWriteMethodGenerator.generateFieldWriteLines(
+                this, modelClassName, schemaClassName, nameCamelFirstLower(), true, true);
+    }
+
+    default String storageFieldByteArrayWriter(final String modelClassName, final String schemaClassName) {
+        return CodecWriteByteArrayMethodGenerator.generateFieldWriteLines(
+                this, modelClassName, schemaClassName, nameCamelFirstLower(), true, true);
+    }
+
+    /**
+     * Determine if this field cannot be null. For example, string and bytes fields can never be null.
+     * Repeated fields also cannot be null. They all are initialized with default values (e.g. empty collections)
+     * if they're missing from the input, so that models always return non-null values to clients.
+     * <p>
+     * Note that if this method returns `false`, this does NOT mean that the field can be null. For example,
+     * boolean fields cannot be null because we use the unboxed primitive `boolean` type to store them,
+     * even though this method will return `false` for them.
+     * <p>
+     * In other words, the return value of this method is ONLY meaningful for fields represented by Java objects,
+     * and it's only really meaningful if/when it's equal to `true`.
+     *
+     * @return true if this field can be null, otherwise false
+     */
+    default boolean cannotBeNull() {
+        if (repeated()) return true;
+        return switch (type()) {
+            case BYTES, STRING -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Get a set of annotations for this field.
+     *
+     * @return an empty string, or a string with Java annotations ending with a space
+     */
+    default String annotations() {
+        return cannotBeNull() ? NON_NULL_ANNOTATION + " " : "";
+    }
+
+    /**
+     * Gets the default value for this field
+     *
+     * @param msgDef the message definition
+     * @param lookupHelper the lookup helper
+     * @return the generated code
+     */
+    default String defaultValue(final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
+        if (type() == Field.FieldType.ONE_OF) {
+            return lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef) + "." + javaDefault();
+        } else {
+            return javaDefault();
+        }
+    }
 
     /**
      * Add all the needed imports for this field to the supplied set.
@@ -276,7 +398,7 @@ public interface Field {
         /** Protobuf sfixed64(signed fixed encoding long) field type */
         SFIXED64("long", "Long", "0", TYPE_FIXED64),
         /** Protobuf string field type */
-        STRING("String", "String", "\"\"", TYPE_LENGTH_DELIMITED),
+        STRING("String", "String", "PbjConstants.EMPTY_BYTES", TYPE_LENGTH_DELIMITED),
         /** Protobuf bool(boolean) field type */
         BOOL("boolean", "Boolean", "false", TYPE_VARINT),
         /** Protobuf bytes field type */

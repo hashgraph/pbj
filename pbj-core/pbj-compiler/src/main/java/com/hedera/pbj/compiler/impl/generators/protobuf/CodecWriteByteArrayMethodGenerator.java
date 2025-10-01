@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 /**
  * Code to generate the write method for Codec classes.
  */
-final class CodecWriteByteArrayMethodGenerator {
+public final class CodecWriteByteArrayMethodGenerator {
 
     static String generateWriteMethod(
             final String modelClassName, final String schemaClassName, final List<Field> fields) {
@@ -25,8 +25,10 @@ final class CodecWriteByteArrayMethodGenerator {
                 modelClassName,
                 schemaClassName,
                 fields,
-                field -> " data.%s()".formatted(field.nameCamelFirstLower()),
-                true);
+                field -> " data.%s%s"
+                        .formatted(field.nameCamelFirstLower(), field.hasDifferentStorageType() ? "" : "()"),
+                true,
+                false);
         // spotless:off
         return
             """
@@ -63,14 +65,20 @@ final class CodecWriteByteArrayMethodGenerator {
             final String schemaClassName,
             final List<Field> fields,
             final Function<Field, String> getValueBuilder,
-            final boolean skipDefault) {
+            final boolean skipDefault,
+            final boolean accessStorageField) {
         return fields.stream()
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF
                         ? ((OneOfField) field).fields().stream()
                         : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldWriteLines(
-                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
+                        field,
+                        modelClassName,
+                        schemaClassName,
+                        getValueBuilder.apply(field),
+                        skipDefault,
+                        accessStorageField))
                 .collect(Collectors.joining("\n"))
                 .indent(DEFAULT_INDENT);
     }
@@ -82,14 +90,17 @@ final class CodecWriteByteArrayMethodGenerator {
      * @param modelClassName The model class name for model class for message type we are generating writer for
      * @param getValueCode java code to get the value of field
      * @param skipDefault skip writing the field if it has default value (for non-oneOf only)
+     * @param accessStorageField true if the generated code has access to storage fields (e.g. in models),
+     *          false otherwise (e.g. in codecs)
      * @return java code to write field to output
      */
-    private static String generateFieldWriteLines(
+    public static String generateFieldWriteLines(
             final Field field,
             final String modelClassName,
             final String schemaClassName,
             String getValueCode,
-            boolean skipDefault) {
+            final boolean skipDefault,
+            final boolean accessStorageField) {
         final String fieldDef = schemaClassName + "." + Common.camelToUpperSnake(field.name());
         String prefix = "// [%d] - %s%n".formatted(field.fieldNumber(), field.name());
 
@@ -104,8 +115,9 @@ final class CodecWriteByteArrayMethodGenerator {
         final String writeMethodName = field.methodNameType();
         if (field.optionalValueType()) {
             return prefix + switch (field.messageType()) {
-                case "StringValue" -> "offset += ProtoArrayWriterTools.writeOptionalString(output, offset, %s, %s);"
-                        .formatted(fieldDef,getValueCode);
+                case "StringValue" -> accessStorageField || field.parent() != null
+                        ? "offset += ProtoArrayWriterTools.writeOptionalString(output, offset, %s, %s);".formatted(fieldDef,getValueCode)
+                        : "offset += %sWriteTo(output, offset);".formatted(getValueCode);
                 case "BoolValue" -> "offset += ProtoArrayWriterTools.writeOptionalBoolean(output, offset, %s, %s);"
                         .formatted(fieldDef, getValueCode);
                 case "Int32Value" -> "offset += ProtoArrayWriterTools.writeOptionalInt32Value(output, offset, %s, %s);"
@@ -149,6 +161,9 @@ final class CodecWriteByteArrayMethodGenerator {
                             .formatted(fieldDef, getValueCode);
                     case FIXED64, SFIXED64 -> "offset += ProtoArrayWriterTools.writeFixed64List(output, offset, %s, %s);"
                             .formatted(fieldDef, getValueCode);
+                    case STRING -> accessStorageField
+                            ? "offset += ProtoArrayWriterTools.writeByteArrayStringList(output, offset, %s, %s);".formatted(fieldDef, getValueCode)
+                            : "offset += %sWriteTo(output, offset);".formatted(getValueCode);
 
                     default -> "offset += ProtoArrayWriterTools.write%sList(output, offset, %s, %s);"
                             .formatted(writeMethodName, fieldDef, getValueCode);
@@ -173,7 +188,8 @@ final class CodecWriteByteArrayMethodGenerator {
                         schemaClassName,
                         mapEntryFields,
                         getValueBuilder,
-                        false);
+                        false,
+                        true);
                 final String fieldSizeOfLines = CodecMeasureRecordMethodGenerator.buildFieldSizeOfLines(
                         field.name(),
                         mapEntryFields,
@@ -205,8 +221,9 @@ final class CodecWriteByteArrayMethodGenerator {
                 return prefix + switch(field.type()) {
                     case ENUM -> "offset += ProtoArrayWriterTools.writeEnum(output, offset, %s, %s);"
                             .formatted(fieldDef, getValueCode);
-                    case STRING -> "offset += ProtoArrayWriterTools.writeString(output, offset, %s, %s, %s);"
-                            .formatted(fieldDef, getValueCode, skipDefault);
+                    case STRING -> accessStorageField || field.parent() != null
+                            ? "offset += ProtoArrayWriterTools.writeString(output, offset, %s, %s, %s);".formatted(fieldDef, getValueCode, skipDefault)
+                            : "offset += %sWriteTo(output, offset);".formatted(getValueCode);
                     case MESSAGE -> "offset += ProtoArrayWriterTools.writeMessage(output, offset, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, codecReference);
                     case BOOL -> "offset += ProtoArrayWriterTools.writeBoolean(output, offset, %s, %s, %s);"

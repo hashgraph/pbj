@@ -269,6 +269,31 @@ public final class ProtoParserTools {
     }
 
     /**
+     * Read a String field from data input
+     *
+     * @param input the input to read from
+     * @param maxSize the maximum allowed size
+     * @return Read string
+     * @throws ParseException if the length is greater than maxSize
+     */
+    public static byte[] readStringRaw(final ReadableSequentialData input, final long maxSize)
+            throws IOException, ParseException {
+        final int length = input.readVarInt(false);
+        if (length > maxSize) {
+            throw new ParseException("size " + length + " is greater than max " + maxSize);
+        }
+        if (input.remaining() < length) {
+            throw new BufferUnderflowException();
+        }
+        byte[] result = new byte[length];
+        final long bytesRead = input.readBytes(result);
+        if (bytesRead != length) {
+            throw new BufferUnderflowException();
+        }
+        return result;
+    }
+
+    /**
      * Read a Bytes field from data input
      *
      * @param input the input to read from
