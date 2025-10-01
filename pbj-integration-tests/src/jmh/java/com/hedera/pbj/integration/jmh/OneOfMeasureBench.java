@@ -44,7 +44,7 @@ public class OneOfMeasureBench {
         withLastCase = OneOfTestData.LAST_CASE;
         withUnsetCase = OneOfTestData.UNSET_CASE;
 
-        variedCases = new Everything[]{
+        variedCases = new Everything[] {
             OneOfTestData.FIRST_CASE,
             OneOfTestData.EARLY_CASE,
             OneOfTestData.MIDDLE_CASE,

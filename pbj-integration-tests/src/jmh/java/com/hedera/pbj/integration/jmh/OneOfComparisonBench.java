@@ -49,12 +49,12 @@ public class OneOfComparisonBench {
         worstCase = OneOfTestData.LAST_CASE;
 
         // Array with varied positions for average measurement
-        variedCases = new Everything[]{
-            OneOfTestData.FIRST_CASE,    // Position 1/26
-            OneOfTestData.EARLY_CASE,    // Position 6/26
-            OneOfTestData.MIDDLE_CASE,   // Position 13/26
-            OneOfTestData.LATE_CASE,     // Position 16/26
-            OneOfTestData.LAST_CASE      // Position 26/26
+        variedCases = new Everything[] {
+            OneOfTestData.FIRST_CASE, // Position 1/26
+            OneOfTestData.EARLY_CASE, // Position 6/26
+            OneOfTestData.MIDDLE_CASE, // Position 13/26
+            OneOfTestData.LATE_CASE, // Position 16/26
+            OneOfTestData.LAST_CASE // Position 26/26
         };
 
         buffer = new byte[2048];

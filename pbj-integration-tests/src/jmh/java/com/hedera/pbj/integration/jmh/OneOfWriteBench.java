@@ -4,7 +4,6 @@ package com.hedera.pbj.integration.jmh;
 import com.hedera.pbj.integration.OneOfTestData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
-import com.hedera.pbj.test.proto.pbj.InnerEverything;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -35,12 +34,12 @@ import org.openjdk.jmh.infra.Blackhole;
 public class OneOfWriteBench {
 
     // Test data with different oneOf positions
-    private Everything withFirstCase;      // INT32_NUMBER_ONE_OF (field 100001)
-    private Everything withEarlyCase;      // FLOAT_NUMBER_ONE_OF (field 100006)
-    private Everything withMiddleCase;     // BOOLEAN_FIELD_ONE_OF (field 100013)
-    private Everything withLateCase;       // TEXT_ONE_OF (field 100016)
-    private Everything withLastCase;       // STRING_BOXED_ONE_OF (field 100026)
-    private Everything withUnsetCase;      // No oneOf set
+    private Everything withFirstCase; // INT32_NUMBER_ONE_OF (field 100001)
+    private Everything withEarlyCase; // FLOAT_NUMBER_ONE_OF (field 100006)
+    private Everything withMiddleCase; // BOOLEAN_FIELD_ONE_OF (field 100013)
+    private Everything withLateCase; // TEXT_ONE_OF (field 100016)
+    private Everything withLastCase; // STRING_BOXED_ONE_OF (field 100026)
+    private Everything withUnsetCase; // No oneOf set
 
     // Output buffers - reused across iterations
     private byte[] buffer;

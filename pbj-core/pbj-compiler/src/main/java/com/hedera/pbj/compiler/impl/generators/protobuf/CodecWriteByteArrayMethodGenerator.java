@@ -12,12 +12,17 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Code to generate the write method for Codec classes.
  */
 final class CodecWriteByteArrayMethodGenerator {
+
+    /** Regex pattern to match and remove field comment lines in generated code */
+    private static final String FIELD_COMMENT_PATTERN = "// \\[\\d+\\] - .*\\n";
+
+    /** Regex pattern to match and remove if statement lines in generated code */
+    private static final String IF_STATEMENT_PATTERN = "if \\(.*\\)\\n";
 
     static String generateWriteMethod(
             final String modelClassName, final String schemaClassName, final List<Field> fields) {
@@ -64,15 +69,68 @@ final class CodecWriteByteArrayMethodGenerator {
             final List<Field> fields,
             final Function<Field, String> getValueBuilder,
             final boolean skipDefault) {
+        // NOTE: Preserve oneOf groups rather than flattening to subfields because oneOf should
+        // generate switch statements (one dispatch), not separate if-checks (N dispatches)
         return fields.stream()
-                .flatMap(field -> field.type() == Field.FieldType.ONE_OF
-                        ? ((OneOfField) field).fields().stream()
-                        : Stream.of(field))
-                .sorted(Comparator.comparingInt(Field::fieldNumber))
-                .map(field -> generateFieldWriteLines(
-                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
+                .sorted(Comparator.comparingInt(field -> field.type() == Field.FieldType.ONE_OF
+                        ? ((OneOfField) field).fields().get(0).fieldNumber()
+                        : field.fieldNumber()))
+                .map(field -> {
+                    if (field.type() == Field.FieldType.ONE_OF) {
+                        return generateOneOfSwitchBlock((OneOfField) field, modelClassName, schemaClassName);
+                    } else {
+                        return generateFieldWriteLines(
+                                field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault);
+                    }
+                })
                 .collect(Collectors.joining("\n"))
                 .indent(DEFAULT_INDENT);
+    }
+
+    /**
+     * Generate a switch statement block for oneOf fields.
+     *
+     * @param oneOfField The oneOf field containing all cases
+     * @param modelClassName The model class name
+     * @param schemaClassName The schema class name
+     * @return java code for switch statement handling all oneOf cases
+     */
+    private static String generateOneOfSwitchBlock(
+            final OneOfField oneOfField, final String modelClassName, final String schemaClassName) {
+        final String switchVar = "data.%s().kind()".formatted(oneOfField.nameCamelFirstLower());
+
+        // Build switch cases for each field in the oneOf
+        final String cases = oneOfField.fields().stream()
+                .sorted(Comparator.comparingInt(Field::fieldNumber))
+                .map(field -> {
+                    final String caseLabel = Common.camelToUpperSnake(field.name());
+                    final String getValueCode =
+                            "(%s)data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
+                    final String fieldWrite = generateFieldWriteLines(
+                                    field, modelClassName, schemaClassName, getValueCode, false)
+                            .replaceFirst(FIELD_COMMENT_PATTERN, "") // Remove field comment (already in case)
+                            .replaceFirst(IF_STATEMENT_PATTERN, ""); // Remove if statement (handled by switch)
+
+                    return "case %s -> { // [%d] - %s\n%s\n}"
+                            .formatted(caseLabel, field.fieldNumber(), field.name(), fieldWrite.indent(DEFAULT_INDENT));
+                })
+                .collect(Collectors.joining("\n"));
+
+        // spotless:off
+        return """
+                // OneOf field $oneOfName ($numCases cases)
+                switch ($switchVar) {
+                    $cases
+                    case UNSET -> {
+                        // oneOf not set, nothing to write
+                    }
+                }
+                """
+                .replace("$oneOfName", oneOfField.name())
+                .replace("$numCases", String.valueOf(oneOfField.fields().size()))
+                .replace("$switchVar", switchVar)
+                .replace("$cases", cases.indent(DEFAULT_INDENT));
+        // spotless:on
     }
 
     /**
