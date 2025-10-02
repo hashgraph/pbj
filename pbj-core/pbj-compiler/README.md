@@ -142,7 +142,15 @@ immutable.
 ### Generated Unit Tests
 
 For each generated model object there is a unit test generated that tests the protobuf and JSON codecs against the
-*protoc* generated code to make sure they are 100% byte for byte binary compatible.
+*protoc* generated code to make sure they are 100% byte for byte binary compatible. This requires a dependency on
+Google Protobuf libraries which may not be always desirable. To disable tests generation and avoid having to add
+a dependency on Google Protobuf libraries, add the following configuration to your `build.gradle.kts`:
+
+```kotlin
+pbj {
+   generateTestClasses = false
+}
+```
 
 ## Generated Code Formatting
 
