@@ -60,6 +60,10 @@ public class MaxSizeTest {
         data.resetPosition();
         assertEquals(msg, MessageWithString.PROTOBUF.parse(data, false, false, Integer.MAX_VALUE));
 
+        // Then try a custom, very-huge maxSize:
+        data.resetPosition();
+        assertEquals(msg, MessageWithString.PROTOBUF.parse(data, false, false, Integer.MAX_VALUE, Integer.MAX_VALUE));
+
         // Then try a custom, large-enough maxSize:
         data.resetPosition();
         assertEquals(msg, MessageWithString.PROTOBUF.parse(data, false, false, Integer.MAX_VALUE, 666));
