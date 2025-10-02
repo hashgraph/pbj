@@ -416,7 +416,7 @@ public final class TestGenerator implements Generator {
                     assertEquals(charBuffer2, charBuffer);
                 
                     // Test JSON Reading
-                    final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(JsonTools.parseJson(charBuffer), false, Integer.MAX_VALUE);
+                    final $modelClassName jsonReadPbj = $modelClassName.JSON.parse(JsonTools.parseJson(charBuffer), false, Integer.MAX_VALUE, Integer.MAX_VALUE);
                     assertEquals(modelObj, jsonReadPbj);
                 }
                 
