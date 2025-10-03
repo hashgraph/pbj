@@ -4,8 +4,10 @@ on:
     branches:
       - main
       - release/*
+      - 546-SwitchHandlingOneofCases
     tags:
       - v*
+  workflow_dispatch:
 
 defaults:
   run:
