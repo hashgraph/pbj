@@ -53,6 +53,15 @@ class CodecParseMethodGenerator {
         return """
                 /**
                  * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
+                 * <p>
+                 * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
+                 * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
+                 * payload can cause the parser to allocate too much memory which can result in OutOfMemory and/or crashes.
+                 * It's important to carefully estimate the maximum size limit that a particular protobuf model type should support,
+                 * and then pass that value as a parameter. Note that the estimated limit should apply to the **type** as a whole,
+                 * rather than to individual instances of the model. In other words, this value should be a constant, or a config
+                 * value that is controlled by the application, rather than come from the input that the application reads.
+                 * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
                  *
                  * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
                  *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
@@ -62,6 +71,7 @@ class CodecParseMethodGenerator {
                  * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
                  *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
                  * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+                 * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
                  * @return Parsed $modelClassName model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
                  */
@@ -69,7 +79,8 @@ class CodecParseMethodGenerator {
                         @NonNull final ReadableSequentialData input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
-                        final int maxDepth) throws ParseException {
+                        final int maxDepth,
+                        final int maxSize) throws ParseException {
                     if (maxDepth < 0) {
                         throw new ParseException("Reached maximum allowed depth of nested messages");
                     }
@@ -102,7 +113,6 @@ class CodecParseMethodGenerator {
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
         )
         .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields, schemaClassName, false), "", schemaClassName))
-        .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
         .indent(DEFAULT_INDENT);
         // spotless:on
     }
@@ -184,7 +194,7 @@ class CodecParseMethodGenerator {
                 .replace("$caseStatements",caseStatements)
                 .replace("$prefix",prefix)
                 .replace("$schemaClassName",schemaClassName)
-                .replace("$skipMaxSize", String.valueOf(Field.DEFAULT_MAX_SIZE))
+                .replace("$skipMaxSize", "maxSize")
                 .indent(DEFAULT_INDENT);
         // spotless:on
     }
@@ -252,7 +262,7 @@ class CodecParseMethodGenerator {
                 }"""
                 .replace("$tempFieldName", "temp_" + field.name())
                 .replace("$readMethod", readMethod(field))
-                .replace("$maxSize", String.valueOf(field.maxSize()))
+                .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                 .replace("$fieldName", field.name())
                 .indent(DEFAULT_INDENT)
         );
@@ -356,7 +366,7 @@ class CodecParseMethodGenerator {
                     .replace("$readMethod", readMethod(field))
                     .replace("$fieldType", field.javaFieldTypeBase())
                     .replace("$fieldName", field.name())
-                    .replace("$maxSize", String.valueOf(field.maxSize()))
+                    .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                     .indent(DEFAULT_INDENT)
             );
             // spotless:on
@@ -403,7 +413,7 @@ class CodecParseMethodGenerator {
                             )).collect(Collectors.joining("\n")))
                     .replace("$mapParseLoop", generateParseLoop(generateCaseStatements(mapEntryFields, schemaClassName, true), "map_entry_", schemaClassName)
                             .indent(-DEFAULT_INDENT))
-                    .replace("$maxSize", String.valueOf(field.maxSize()))
+                    .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
             );
             // spotless:on
         } else {
@@ -423,22 +433,22 @@ class CodecParseMethodGenerator {
         } else if (field.repeated()) {
             sb.append(
                 """
-                if (temp_%s.size() >= %d) {
-                    throw new ParseException("%1$s size %%d is greater than max %2$d".formatted(temp_%1$s.size()));
+                if (temp_%s.size() >= %s) {
+                    throw new ParseException("%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
                 }
                 temp_%1$s = addToList(temp_%1$s,value);
-                """.formatted(field.name(), field.maxSize()));
+                """.formatted(field.name(), field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize"));
         } else if (field.type() == Field.FieldType.MAP) {
             final MapField mapField = (MapField) field;
             sb.append(
                 """
                 if (__map_messageLength != 0) {
-                    if (temp_%s.size() >= %d) {
+                    if (temp_%s.size() >= %s) {
                         throw new ParseException("%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
                     }
                     temp_%1$s = addToMap(temp_%1$s, temp_%s, temp_%s);
                 }
-                """.formatted(field.name(), field.maxSize(),
+                """.formatted(field.name(), field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize",
                         mapField.keyField().name(), mapField.valueField().name()));
         } else if(field.isString() && isMapField){
             sb.append("temp_%s = toUtf8String(value);\n".formatted(field.name()));
@@ -453,7 +463,10 @@ class CodecParseMethodGenerator {
         if (field.optionalValueType()) {
             return switch (field.messageType()) {
                 case "StringValue" ->
-                    "readString%s(input, %d)".formatted(field.hasDifferentStorageType() ? "Raw" : "", field.maxSize());
+                    "readString%s(input, %s)"
+                            .formatted(
+                                    field.hasDifferentStorageType() ? "Raw" : "",
+                                    field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
                 case "Int32Value" -> "readInt32(input)";
                 case "UInt32Value" -> "readUint32(input)";
                 case "Int64Value" -> "readInt64(input)";
@@ -461,7 +474,9 @@ class CodecParseMethodGenerator {
                 case "FloatValue" -> "readFloat(input)";
                 case "DoubleValue" -> "readDouble(input)";
                 case "BoolValue" -> "readBool(input)";
-                case "BytesValue" -> "readBytes(input, %d)".formatted(field.maxSize());
+                case "BytesValue" ->
+                    "readBytes(input, %s)"
+                            .formatted(field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
                 default ->
                     throw new PbjCompilerException(
                             "Optional message type [%s] not supported".formatted(field.messageType()));
@@ -483,9 +498,12 @@ class CodecParseMethodGenerator {
             case FIXED64 -> "readFixed64(input)";
             case SFIXED64 -> "readSignedFixed64(input)";
             case STRING ->
-                "readString%s(input, %d)".formatted(field.hasDifferentStorageType() ? "Raw" : "", field.maxSize());
+                "readString%s(input, %s)".formatted(
+                        field.hasDifferentStorageType() ? "Raw" : "",
+                        field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
             case BOOL -> "readBool(input)";
-            case BYTES -> "readBytes(input, %d)".formatted(field.maxSize());
+            case BYTES ->
+                "readBytes(input, %s)".formatted(field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
             case MESSAGE -> field.parseCode();
             case ONE_OF -> throw new PbjCompilerException("Should never happen, oneOf handled elsewhere");
             case MAP -> throw new PbjCompilerException("Should never happen, map handled elsewhere");

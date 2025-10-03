@@ -23,11 +23,6 @@ public interface Field {
     /** Annotation to add to fields that can't be set to null */
     String NON_NULL_ANNOTATION = "@NonNull";
 
-    /** The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.).
-     * The size should not be increased beyond the current limit because of the safety concerns.
-     */
-    long DEFAULT_MAX_SIZE = 2 * 1024 * 1024;
-
     /**
      * Is this field a repeated field. Repeated fields are lists of values rather than a single value.
      *
@@ -38,9 +33,14 @@ public interface Field {
     /**
      * Returns the field's max size relevant to repeated or length-encoded fields.
      * The returned value has no meaning for scalar fields (BOOL, INT, etc.).
+     * A negative value means that the parser is free to enforce any generic limit it may be using for all fields.
+     * A non-negative value would override the generic limit used by the parser for this particular field.
+     * Note that PBJ currently doesn't support setting maxSize for individual fields,
+     * so currently the method returns -1 and the parser always uses the generic limit
+     * (see `Codec.parse(..., int maxSize)` for details.)
      */
     default long maxSize() {
-        return DEFAULT_MAX_SIZE;
+        return -1;
     }
 
     /**

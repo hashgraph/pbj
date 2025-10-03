@@ -16,20 +16,18 @@ import java.util.Objects;
  *
  * @param <T> The type of object to serialize and deserialize
  */
-public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
-    // NOTE: When services has finished migrating to protobuf based objects in state,
-    // then we should strongly enforce Codec works with Records. This will reduce bugs
-    // where people try to use a mutable object.
+public interface JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
     default @NonNull T parse(
             @NonNull ReadableSequentialData input,
             final boolean strictMode,
             final boolean parseUnknownFields,
-            final int maxDepth)
+            final int maxDepth,
+            final int maxSize)
             throws ParseException {
         try {
-            return parse(JsonTools.parseJson(input), strictMode, maxDepth);
+            return parse(JsonTools.parseJson(input), strictMode, maxDepth, maxSize);
         } catch (IOException ex) {
             throw new ParseException(ex);
         }
@@ -37,13 +35,23 @@ public interface JsonCodec<T /*extends Record*/> extends Codec<T> {
 
     /**
      * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext. Throws if in strict mode ONLY.
+     * <p>
+     * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
+     * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
+     * payload can cause the parser to allocate too much memory which can result in OutOfMemory and/or crashes.
+     * It's important to carefully estimate the maximum size limit that a particular protobuf model type should support,
+     * and then pass that value as a parameter. Note that the estimated limit should apply to the **type** as a whole,
+     * rather than to individual instances of the model. In other words, this value should be a constant, or a config
+     * value that is controlled by the application, rather than come from the input that the application reads.
+     * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
      *
      * @param root The JSON parsed object tree to parse data from
+     * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
      * @return Parsed HashObject model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
     @NonNull
-    T parse(@Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth)
+    T parse(@Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
             throws ParseException;
 
     /**

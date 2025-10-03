@@ -546,7 +546,8 @@ class ProtoParserToolsTest {
                 @NonNull final ReadableSequentialData in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
-                final int maxDepth)
+                final int maxDepth,
+                final int maxSize)
                 throws ParseException {
             String value = null;
             while (in.hasRemaining()) {
