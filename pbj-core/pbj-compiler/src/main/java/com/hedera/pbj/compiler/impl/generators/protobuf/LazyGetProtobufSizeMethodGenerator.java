@@ -19,12 +19,6 @@ import java.util.stream.Collectors;
  */
 public class LazyGetProtobufSizeMethodGenerator {
 
-    /** Regex pattern to match and remove field comment lines in generated code */
-    private static final String FIELD_COMMENT_PATTERN = "// \\[\\d+\\] - .*\\n";
-
-    /** Regex pattern to match and remove if statement lines in generated code */
-    private static final String IF_STATEMENT_PATTERN = "if \\(.*\\)\\n";
-
     public static String generateLazyGetProtobufSize(final List<Field> fields, final String schemaClassName) {
         final String fieldSizeOfLines =
                 buildFieldSizeOfLines(null, schemaClassName, fields, Field::nameCamelFirstLower, true);
@@ -64,22 +58,41 @@ public class LazyGetProtobufSizeMethodGenerator {
             final List<Field> fields,
             final Function<Field, String> getValueBuilder,
             boolean skipDefault) {
-        // NOTE: Preserve oneOf groups rather than flattening to subfields because oneOf should
-        // generate switch statements (one dispatch), not separate if-checks (N dispatches)
-        return fields.stream()
-                .sorted(Comparator.comparingInt(field -> field.type() == Field.FieldType.ONE_OF
-                        ? ((OneOfField) field).fields().get(0).fieldNumber()
-                        : field.fieldNumber()))
-                .map(field -> {
-                    if (field.type() == Field.FieldType.ONE_OF) {
-                        return generateOneOfSwitchBlock((OneOfField) field, modelClassName, schemaClassName);
-                    } else {
-                        return generateFieldSizeOfLines(
-                                field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault);
-                    }
-                })
-                .collect(Collectors.joining("\n"))
-                .indent(DEFAULT_INDENT);
+        // Flatten oneOf fields to subfields and sort all by field number (like protoc does)
+        final List<Field> flattenedFields = fields.stream()
+                .flatMap(field -> field.type() == Field.FieldType.ONE_OF
+                        ? ((OneOfField) field).fields().stream()
+                        : java.util.stream.Stream.of(field))
+                .sorted(Comparator.comparingInt(Field::fieldNumber))
+                .toList();
+
+        // Track which oneOf parents we've already generated switches for (using identity, not equals/hashCode)
+        final java.util.Set<OneOfField> processedOneOfs =
+                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+        // Now iterate through flattened fields
+        final StringBuilder result = new StringBuilder();
+        for (final Field field : flattenedFields) {
+            if (field.parent() == null) {
+                // Regular field -> generate normal size calculation
+                result.append(generateFieldSizeOfLines(
+                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault, false));
+                result.append("\n");
+            } else {
+                // This is a oneOf subfield
+                final OneOfField parentOneOf = field.parent();
+
+                if (!processedOneOfs.contains(parentOneOf)) {
+                    // First time seeing this oneOf parent -> generate switch for ALL its subfields
+                    result.append(generateOneOfSwitchBlock(parentOneOf, modelClassName, schemaClassName));
+                    result.append("\n");
+                    processedOneOfs.add(parentOneOf);
+                }
+                // Else skip this field (already handled in the switch)
+            }
+        }
+
+        return result.toString().indent(DEFAULT_INDENT);
     }
 
     /**
@@ -100,10 +113,9 @@ public class LazyGetProtobufSizeMethodGenerator {
                 .map(field -> {
                     final String caseLabel = Common.camelToUpperSnake(field.name());
                     final String getValueCode = oneOfField.nameCamelFirstLower() + ".as()";
-                    final String fieldSize = generateFieldSizeOfLines(
-                                    field, modelClassName, schemaClassName, getValueCode, false)
-                            .replaceFirst(FIELD_COMMENT_PATTERN, "") // Remove field comment (already in case)
-                            .replaceFirst(IF_STATEMENT_PATTERN, ""); // Remove if statement (handled by switch)
+                    // Generate field size without prefix comment/if (we're in switch context)
+                    final String fieldSize =
+                            generateFieldSizeOfLines(field, modelClassName, schemaClassName, getValueCode, false, true);
 
                     return "case %s -> { // [%d] - %s\n%s\n}"
                             .formatted(caseLabel, field.fieldNumber(), field.name(), fieldSize.indent(DEFAULT_INDENT));
@@ -146,6 +158,7 @@ public class LazyGetProtobufSizeMethodGenerator {
      * @param modelClassName The model class name for model class for message type we are generating writer for
      * @param getValueCode java code to get the value of field
      * @param skipDefault true if default value of the field should result in size zero
+     * @param inSwitchContext true if generating code for use inside a switch statement (no prefix comment or if-check)
      * @return java code for adding fields size to "size" variable
      */
     private static String generateFieldSizeOfLines(
@@ -153,20 +166,26 @@ public class LazyGetProtobufSizeMethodGenerator {
             final String modelClassName,
             final String schemaClassName,
             String getValueCode,
-            boolean skipDefault) {
+            boolean skipDefault,
+            boolean inSwitchContext) {
         final String fieldDef = schemaClassName + "." + Common.camelToUpperSnake(field.name());
-        String prefix = "// [" + field.fieldNumber() + "] - " + field.name();
-        prefix += "\n";
+        String prefix = "";
 
-        if (field.parent() != null) {
-            final OneOfField oneOfField = field.parent();
-            final String oneOfType = modelClassName == null
-                    ? oneOfField.nameCamelFirstUpper() + "OneOfType"
-                    : modelClassName + "." + oneOfField.nameCamelFirstUpper() + "OneOfType";
-            getValueCode = oneOfField.nameCamelFirstLower() + ".as()";
-            prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
-                    + Common.camelToUpperSnake(field.name()) + ")";
+        // Only generate prefix comment and if-check when NOT in switch context
+        if (!inSwitchContext) {
+            prefix = "// [" + field.fieldNumber() + "] - " + field.name();
             prefix += "\n";
+
+            if (field.parent() != null) {
+                final OneOfField oneOfField = field.parent();
+                final String oneOfType = modelClassName == null
+                        ? oneOfField.nameCamelFirstUpper() + "OneOfType"
+                        : modelClassName + "." + oneOfField.nameCamelFirstUpper() + "OneOfType";
+                getValueCode = oneOfField.nameCamelFirstLower() + ".as()";
+                prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
+                        + Common.camelToUpperSnake(field.name()) + ")";
+                prefix += "\n";
+            }
         }
 
         final String writeMethodName = field.methodNameType();
