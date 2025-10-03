@@ -16,12 +16,6 @@ public class UnsafeUtils {
     private static final Unsafe UNSAFE;
 
     /**
-     * Java and PBJ use BIG_ENDIAN, while native byte order used by Unsafe may or may not
-     * be BIG_ENDIAN. This flag indicates that if they don't match
-     */
-    private static final boolean NEED_CHANGE_BYTE_ORDER;
-
-    /**
      * Field offset of the byte[] class
      */
     private static final int BYTE_ARRAY_BASE_OFFSET;
@@ -37,7 +31,6 @@ public class UnsafeUtils {
             final Field theUnsafeField = Unsafe.class.getDeclaredField("theUnsafe");
             theUnsafeField.setAccessible(true);
             UNSAFE = (Unsafe) theUnsafeField.get(null);
-            NEED_CHANGE_BYTE_ORDER = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
             BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
             final Field addressField = Buffer.class.getDeclaredField("address");
             DIRECT_BYTEBUFFER_ADDRESS_OFFSET = UNSAFE.objectFieldOffset(addressField);
@@ -111,36 +104,38 @@ public class UnsafeUtils {
 
     /**
      * Reads an integer from the given array starting at the given offset. Array bytes are
-     * interpreted in BIG_ENDIAN order.
+     * interpreted in based on the supplied byte order.
      *
-     * @param arr The byte array
-     * @param offset The offset to read an integer at
+     * @param arr       The byte array
+     * @param offset    The offset to read an integer at
+     * @param byteOrder The byte order to use when interpreting the bytes
      * @return The integer number
      * @throws java.nio.BufferOverflowException If array length is less than offset + integer bytes
      */
-    public static int getInt(final byte[] arr, final int offset) {
+    public static int getInt(final byte[] arr, final int offset, final ByteOrder byteOrder) {
         if (arr.length < offset + Integer.BYTES) {
             throw new BufferUnderflowException();
         }
         final int value = UNSAFE.getInt(arr, BYTE_ARRAY_BASE_OFFSET + offset);
-        return NEED_CHANGE_BYTE_ORDER ? Integer.reverseBytes(value) : value;
+        return byteOrder != ByteOrder.nativeOrder() ? Integer.reverseBytes(value) : value;
     }
 
     /**
      * Reads a long from the given array starting at the given offset. Array bytes are
-     * interpreted in BIG_ENDIAN order.
+     * interpreted in based on the supplied byte order.
      *
-     * @param arr The byte array
-     * @param offset The offset to read a long at
+     * @param arr       The byte array
+     * @param offset    The offset to read a long at
+     * @param byteOrder The byte order to use when interpreting the bytes
      * @return The long number
      * @throws java.nio.BufferOverflowException If array length is less than offset + long bytes
      */
-    public static long getLong(final byte[] arr, final int offset) {
+    public static long getLong(final byte[] arr, final int offset, final ByteOrder byteOrder) {
         if (arr.length < offset + Long.BYTES) {
             throw new BufferUnderflowException();
         }
         final long value = UNSAFE.getLong(arr, BYTE_ARRAY_BASE_OFFSET + offset);
-        return NEED_CHANGE_BYTE_ORDER ? Long.reverseBytes(value) : value;
+        return byteOrder != ByteOrder.nativeOrder() ? Long.reverseBytes(value) : value;
     }
 
     /**
