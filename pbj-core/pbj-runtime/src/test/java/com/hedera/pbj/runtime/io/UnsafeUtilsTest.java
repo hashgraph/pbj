@@ -16,7 +16,7 @@ public class UnsafeUtilsTest {
     private RandomAccessData data;
 
     @BeforeEach
-    void setup(){
+    void setup() {
         array = new byte[ARRAY_SIZE];
         for (int i = 0; i < ARRAY_SIZE; i++) {
             array[i] = (byte) (i % 111);
@@ -30,12 +30,17 @@ public class UnsafeUtilsTest {
     @Test
     void getIntTest() {
         for (int i = 0; i < ARRAY_SIZE + 1 - Integer.BYTES; i++) {
-            assertEquals(data.getInt(i), UnsafeUtils.getInt(array, i, ByteOrder.BIG_ENDIAN),
+            assertEquals(
+                    data.getInt(i),
+                    UnsafeUtils.getInt(array, i, ByteOrder.BIG_ENDIAN),
                     "getInt() without a ByteOrder should default to BIG_ENDIAN");
             assertEquals(data.getInt(i, ByteOrder.BIG_ENDIAN), UnsafeUtils.getInt(array, i, ByteOrder.BIG_ENDIAN));
-            assertEquals(data.getInt(i, ByteOrder.LITTLE_ENDIAN), UnsafeUtils.getInt(array, i, ByteOrder.LITTLE_ENDIAN));
-            assertNotEquals(data.getInt(i, ByteOrder.BIG_ENDIAN), UnsafeUtils.getInt(array, i, ByteOrder.LITTLE_ENDIAN));
-            assertNotEquals(data.getInt(i, ByteOrder.LITTLE_ENDIAN), UnsafeUtils.getInt(array, i, ByteOrder.BIG_ENDIAN));
+            assertEquals(
+                    data.getInt(i, ByteOrder.LITTLE_ENDIAN), UnsafeUtils.getInt(array, i, ByteOrder.LITTLE_ENDIAN));
+            assertNotEquals(
+                    data.getInt(i, ByteOrder.BIG_ENDIAN), UnsafeUtils.getInt(array, i, ByteOrder.LITTLE_ENDIAN));
+            assertNotEquals(
+                    data.getInt(i, ByteOrder.LITTLE_ENDIAN), UnsafeUtils.getInt(array, i, ByteOrder.BIG_ENDIAN));
         }
     }
 
@@ -45,13 +50,17 @@ public class UnsafeUtilsTest {
     @Test
     void getLongTest() {
         for (int i = 0; i < ARRAY_SIZE + 1 - Long.BYTES; i++) {
-            assertEquals(data.getLong(i), UnsafeUtils.getLong(array, i, ByteOrder.BIG_ENDIAN),
+            assertEquals(
+                    data.getLong(i),
+                    UnsafeUtils.getLong(array, i, ByteOrder.BIG_ENDIAN),
                     "getLong() without a ByteOrder should default to BIG_ENDIAN");
             assertEquals(data.getLong(i, ByteOrder.BIG_ENDIAN), UnsafeUtils.getLong(array, i, ByteOrder.BIG_ENDIAN));
-            assertEquals(data.getLong(i, ByteOrder.LITTLE_ENDIAN), UnsafeUtils.getLong(array, i, ByteOrder.LITTLE_ENDIAN));
-            assertNotEquals(data.getLong(i, ByteOrder.LITTLE_ENDIAN), UnsafeUtils.getLong(array, i, ByteOrder.BIG_ENDIAN));
-            assertNotEquals(data.getLong(i, ByteOrder.BIG_ENDIAN), UnsafeUtils.getLong(array, i, ByteOrder.LITTLE_ENDIAN));
+            assertEquals(
+                    data.getLong(i, ByteOrder.LITTLE_ENDIAN), UnsafeUtils.getLong(array, i, ByteOrder.LITTLE_ENDIAN));
+            assertNotEquals(
+                    data.getLong(i, ByteOrder.LITTLE_ENDIAN), UnsafeUtils.getLong(array, i, ByteOrder.BIG_ENDIAN));
+            assertNotEquals(
+                    data.getLong(i, ByteOrder.BIG_ENDIAN), UnsafeUtils.getLong(array, i, ByteOrder.LITTLE_ENDIAN));
         }
     }
-
 }
