@@ -157,7 +157,7 @@ class JsonCodecParseMethodGenerator {
             final StringBuilder origSB, final Field field, final String valueGetter) {
         final StringBuilder sb = new StringBuilder();
         final boolean isMapField = field instanceof SingleField && ((SingleField) field).isMapField();
-        final boolean isMapFieldOrOneOf = isMapField || field.parent() != null;
+        final boolean isNotMapFieldOrOneOf = !isMapField && field.parent() == null;
         if (field.repeated()) {
             if (field.type() == Field.FieldType.MESSAGE) {
                 sb.append(("parseObjArray(checkSize(\"$fieldName\", $valueGetter.arr().value(), $maxSize), "
@@ -175,12 +175,13 @@ class JsonCodecParseMethodGenerator {
                     case FLOAT -> sb.append("parseFloat(v)");
                     case DOUBLE -> sb.append("parseDouble(v)");
                     case STRING ->
-                        sb.append((isMapFieldOrOneOf ? "toUtf8Bytes(" : "") +
-                                "unescape(checkSize(\"$fieldName\", v.STRING().getText(), $maxSize))"
-                                .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
-                                .replace("$fieldName", field.name()) +
-                                (isMapFieldOrOneOf ? ")" : "")
-                        );
+                        sb.append((isNotMapFieldOrOneOf ? "toUtf8Bytes(" : "")
+                                + "unescape(checkSize(\"$fieldName\", v.STRING().getText(), $maxSize))"
+                                        .replace(
+                                                "$maxSize",
+                                                field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
+                                        .replace("$fieldName", field.name())
+                                + (isNotMapFieldOrOneOf ? ")" : ""));
                     case BOOL -> sb.append("parseBoolean(v)");
 
                     // maxSize * 2 - because Base64. The *2 math isn't precise, but it's good enough for our purposes.
@@ -202,12 +203,13 @@ class JsonCodecParseMethodGenerator {
                 case "FloatValue" -> sb.append("parseFloat($valueGetter)");
                 case "DoubleValue" -> sb.append("parseDouble($valueGetter)");
                 case "StringValue" ->
-                    sb.append((isMapFieldOrOneOf ? "toUtf8Bytes(" : "") +
-                            "unescape(checkSize(\"$fieldName\", $valueGetter.STRING().getText(), $maxSize))"
-                            .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
-                            .replace("$fieldName", field.name()) +
-                            (isMapFieldOrOneOf ? ")" : "")
-                    );
+                    sb.append((isNotMapFieldOrOneOf ? "toUtf8Bytes(" : "")
+                            + "unescape(checkSize(\"$fieldName\", $valueGetter.STRING().getText(), $maxSize))"
+                                    .replace(
+                                            "$maxSize",
+                                            field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
+                                    .replace("$fieldName", field.name())
+                            + (isNotMapFieldOrOneOf ? ")" : ""));
                 case "BoolValue" -> sb.append("parseBoolean($valueGetter)");
 
                 // maxSize * 2 - because Base64. The *2 math isn't precise, but it's good enough for our purposes:
@@ -252,12 +254,13 @@ class JsonCodecParseMethodGenerator {
                 case FLOAT -> sb.append("parseFloat($valueGetter)");
                 case DOUBLE -> sb.append("parseDouble($valueGetter)");
                 case STRING ->
-                    sb.append((isMapFieldOrOneOf ? "toUtf8Bytes(" : "") +
-                            "unescape(checkSize(\"$fieldName\", $valueGetter.STRING().getText(), $maxSize))"
-                            .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
-                            .replace("$fieldName", field.name()) +
-                            (isMapFieldOrOneOf ? ")" : "")
-                    );
+                    sb.append((isNotMapFieldOrOneOf ? "toUtf8Bytes(" : "")
+                            + "unescape(checkSize(\"$fieldName\", $valueGetter.STRING().getText(), $maxSize))"
+                                    .replace(
+                                            "$maxSize",
+                                            field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
+                                    .replace("$fieldName", field.name())
+                            + (isNotMapFieldOrOneOf ? ")" : ""));
                 case BOOL -> sb.append("parseBoolean($valueGetter)");
 
                 // maxSize * 2 - because Base64. The *2 math isn't precise, but it's good enough for our purposes:

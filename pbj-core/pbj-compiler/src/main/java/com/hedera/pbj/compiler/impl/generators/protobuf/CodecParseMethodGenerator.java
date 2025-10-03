@@ -498,9 +498,10 @@ class CodecParseMethodGenerator {
             case FIXED64 -> "readFixed64(input)";
             case SFIXED64 -> "readSignedFixed64(input)";
             case STRING ->
-                "readString%s(input, %s)".formatted(
-                        field.hasDifferentStorageType() ? "Raw" : "",
-                        field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
+                "readString%s(input, %s)"
+                        .formatted(
+                                field.hasDifferentStorageType() ? "Raw" : "",
+                                field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
             case BOOL -> "readBool(input)";
             case BYTES ->
                 "readBytes(input, %s)".formatted(field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
