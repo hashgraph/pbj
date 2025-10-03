@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.ParseException;
@@ -45,5 +46,31 @@ public class MaxSizeTest {
         data.reset();
 
         assertThrows(ParseException.class, () -> MessageWithString.PROTOBUF.parse(data));
+    }
+
+    @Test
+    void testCustomMaxSize() throws Exception {
+        final MessageWithString msg = MessageWithString.newBuilder()
+                .aTestString("A reasonably long string.")
+                .build();
+        final BufferedData data = BufferedData.allocate(MessageWithString.PROTOBUF.measureRecord(msg));
+        MessageWithString.PROTOBUF.write(msg, data);
+
+        // First try the default maxSize:
+        data.resetPosition();
+        assertEquals(msg, MessageWithString.PROTOBUF.parse(data, false, false, Integer.MAX_VALUE));
+
+        // Then try a custom, very-huge maxSize:
+        data.resetPosition();
+        assertEquals(msg, MessageWithString.PROTOBUF.parse(data, false, false, Integer.MAX_VALUE, Integer.MAX_VALUE));
+
+        // Then try a custom, large-enough maxSize:
+        data.resetPosition();
+        assertEquals(msg, MessageWithString.PROTOBUF.parse(data, false, false, Integer.MAX_VALUE, 666));
+
+        // Finally, try a small, not-sufficient maxSize:
+        data.resetPosition();
+        assertThrows(
+                ParseException.class, () -> MessageWithString.PROTOBUF.parse(data, false, false, Integer.MAX_VALUE, 6));
     }
 }

@@ -120,18 +120,53 @@ public final class JsonTools {
     }
 
     /**
+     * Check the size of the list and throw ParseException if it exceeds `maxSize`.
+     * @param fieldName field name
+     * @param list the list
+     * @param maxSize the maximum size allowed
+     * @return the list itself
+     * @param <T> the type of elements in the list
+     * @throws ParseException if the list size exceeds `maxSize`
+     */
+    public static <T> List<T> checkSize(@NonNull final String fieldName, @NonNull final List<T> list, final int maxSize)
+            throws ParseException {
+        if (list.size() > maxSize) {
+            throw new ParseException(fieldName + " size " + list.size() + " is greater than max " + maxSize);
+        }
+        return list;
+    }
+
+    /**
+     * Check the size of the string and throw UncheckedParseException if it exceeds `maxSize`.
+     * @param fieldName field name
+     * @param string the string
+     * @param maxSize the maximum size allowed
+     * @return the string itself
+     * @throws UncheckedParseException if the string size exceeds `maxSize`
+     */
+    public static String checkSize(@NonNull final String fieldName, @NonNull final String string, final int maxSize)
+            throws UncheckedParseException {
+        if (string.length() > maxSize) {
+            throw new UncheckedParseException(
+                    new ParseException(fieldName + " size " + string.length() + " is greater than max " + maxSize));
+        }
+        return string;
+    }
+
+    /**
      * Parse a JSON Object array from a JSONParser.ArrContext into a list of objects.
      *
-     * @param arrContext the JSONParser.ArrContext to parse
+     * @param list the JSON list to parse
      * @param codec the JsonCodec to use to parse the objects
      * @return the list of parsed objects
      * @param <T> the type of the objects to parse
      */
-    public static <T> List<T> parseObjArray(JSONParser.ArrContext arrContext, JsonCodec<T> codec, final int maxDepth) {
-        return arrContext.value().stream()
+    public static <T> List<T> parseObjArray(
+            List<JSONParser.ValueContext> list, JsonCodec<T> codec, final int maxDepth, final int maxSize) {
+        return list.stream()
                 .map(v -> {
                     try {
-                        return codec.parse(v.obj(), false, maxDepth - 1);
+                        return codec.parse(v.obj(), false, maxDepth - 1, maxSize);
                     } catch (ParseException e) {
                         throw new UncheckedParseException(e);
                     }
@@ -506,15 +541,15 @@ public final class JsonTools {
                                     case STRING -> '"' + escape((String) item) + '"';
                                     case BYTES -> '"' + ((Bytes) item).toBase64() + '"';
                                     case INT32, SINT32, UINT32, FIXED32, SFIXED32 -> Integer.toString((Integer) item);
-                                    case INT64, SINT64, UINT64, FIXED64, SFIXED64 -> '"'
-                                            + Long.toString((Long) item)
-                                            + '"';
+                                    case INT64, SINT64, UINT64, FIXED64, SFIXED64 ->
+                                        '"' + Long.toString((Long) item) + '"';
                                     case FLOAT -> Float.toString((Float) item);
                                     case DOUBLE -> Double.toString((Double) item);
                                     case BOOL -> Boolean.toString((Boolean) item);
                                     case ENUM -> '"' + ((EnumWithProtoMetadata) item).protoName() + '"';
-                                    case MESSAGE -> throw new UnsupportedOperationException(
-                                            "No expected here should have called other arrayField() method");
+                                    case MESSAGE ->
+                                        throw new UnsupportedOperationException(
+                                                "No expected here should have called other arrayField() method");
                                     case MAP -> throw new UnsupportedOperationException("Arrays of maps not supported");
                                 };
                             }
