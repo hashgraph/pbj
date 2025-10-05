@@ -60,85 +60,29 @@ final class CodecWriteMethodGenerator {
             final List<Field> fields,
             final Function<Field, String> getValueBuilder,
             final boolean skipDefault) {
-        // Flatten oneOf fields to subfields and sort all by field number (like protoc does)
-        final List<Field> flattenedFields = fields.stream()
+        // IMPORTANT: We flatten oneOf subfields and sort all fields by field number to match protoc's behavior.
+        // Each oneOf subfield gets an individual if-check at its position in the field sequence.
+        //
+        // Why not use a switch statement?
+        // - Switch statements consolidate all oneOf cases into a single block at the position of the first subfield
+        // - This breaks field ordering when oneOf subfields are INTERLEAVED with regular fields
+        // - Example: message with oneOf fields 1 & 16, and regular field 3
+        //   * Switch at position 1 would write field 16 before field 3 (WRONG!)
+        //   * Individual if-checks write fields in correct order: 1 or skip, then 3, then 16 or skip
+        //
+        // The if-check approach is correct AND performant because:
+        // - Only ONE if-check executes per oneOf (the field that's actually set)
+        // - JVM optimizes branch prediction for these patterns
+        // - Correctness is more important than micro-optimizations
+        return fields.stream()
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF
                         ? ((OneOfField) field).fields().stream()
                         : java.util.stream.Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
-                .toList();
-
-        // Track which oneOf parents we've already generated switches for (using identity, not equals/hashCode)
-        final java.util.Set<OneOfField> processedOneOfs =
-                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-
-        // Now iterate through flattened fields
-        final StringBuilder result = new StringBuilder();
-        for (final Field field : flattenedFields) {
-            if (field.parent() == null) {
-                // Regular field -> generate normal write
-                result.append(generateFieldWriteLines(
-                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault, false));
-                result.append("\n");
-            } else {
-                // This is a oneOf subfield
-                final OneOfField parentOneOf = field.parent();
-
-                if (!processedOneOfs.contains(parentOneOf)) {
-                    // First time seeing this oneOf parent -> generate switch for ALL its subfields
-                    result.append(generateOneOfSwitchBlock(parentOneOf, modelClassName, schemaClassName));
-                    result.append("\n");
-                    processedOneOfs.add(parentOneOf);
-                }
-                // Else skip this field (already handled in the switch)
-            }
-        }
-
-        return result.toString().indent(DEFAULT_INDENT);
-    }
-
-    /**
-     * Generate a switch statement block for oneOf fields.
-     *
-     * @param oneOfField The oneOf field containing all cases
-     * @param modelClassName The model class name
-     * @param schemaClassName The schema class name
-     * @return java code for switch statement handling all oneOf cases
-     */
-    private static String generateOneOfSwitchBlock(
-            final OneOfField oneOfField, final String modelClassName, final String schemaClassName) {
-        final String switchVar = "data.%s().kind()".formatted(oneOfField.nameCamelFirstLower());
-
-        // Build switch cases for each field in the oneOf
-        final String cases = oneOfField.fields().stream()
-                .sorted(Comparator.comparingInt(Field::fieldNumber))
-                .map(field -> {
-                    final String caseLabel = Common.camelToUpperSnake(field.name());
-                    final String getValueCode = "data.%s().as()".formatted(oneOfField.nameCamelFirstLower());
-                    // Generate field write without prefix comment/if (we're in switch context)
-                    final String fieldWrite =
-                            generateFieldWriteLines(field, modelClassName, schemaClassName, getValueCode, false, true);
-
-                    return "case %s -> { // [%d] - %s\n%s\n}"
-                            .formatted(caseLabel, field.fieldNumber(), field.name(), fieldWrite.indent(DEFAULT_INDENT));
-                })
-                .collect(Collectors.joining("\n"));
-
-        // spotless:off
-        return """
-                // OneOf field $oneOfName ($numCases cases)
-                switch ($switchVar) {
-                    $cases
-                    case UNSET -> {
-                        // oneOf not set, nothing to write
-                    }
-                }
-                """
-                .replace("$oneOfName", oneOfField.name())
-                .replace("$numCases", String.valueOf(oneOfField.fields().size()))
-                .replace("$switchVar", switchVar)
-                .replace("$cases", cases.indent(DEFAULT_INDENT));
-        // spotless:on
+                .map(field -> generateFieldWriteLines(
+                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
+                .collect(Collectors.joining("\n"))
+                .indent(DEFAULT_INDENT);
     }
 
     /**
@@ -148,7 +92,6 @@ final class CodecWriteMethodGenerator {
      * @param modelClassName The model class name for model class for message type we are generating writer for
      * @param getValueCode java code to get the value of field
      * @param skipDefault skip writing the field if it has default value (for non-oneOf only)
-     * @param inSwitchContext true if generating code for use inside a switch statement (no prefix comment or if-check)
      * @return java code to write field to output
      */
     private static String generateFieldWriteLines(
@@ -156,22 +99,16 @@ final class CodecWriteMethodGenerator {
             final String modelClassName,
             final String schemaClassName,
             String getValueCode,
-            boolean skipDefault,
-            boolean inSwitchContext) {
+            boolean skipDefault) {
         final String fieldDef = schemaClassName + "." + Common.camelToUpperSnake(field.name());
-        String prefix = "";
+        String prefix = "// [%d] - %s%n".formatted(field.fieldNumber(), field.name());
 
-        // Only generate prefix comment and if-check when NOT in switch context
-        if (!inSwitchContext) {
-            prefix = "// [%d] - %s%n".formatted(field.fieldNumber(), field.name());
-
-            if (field.parent() != null) {
-                final OneOfField oneOfField = field.parent();
-                final String oneOfType = "%s.%sOneOfType".formatted(modelClassName, oneOfField.nameCamelFirstUpper());
-                getValueCode = "data.%s().as()".formatted(oneOfField.nameCamelFirstLower());
-                prefix += "if (data.%s().kind() == %s.%s)%n"
-                        .formatted(oneOfField.nameCamelFirstLower(), oneOfType, Common.camelToUpperSnake(field.name()));
-            }
+        if (field.parent() != null) {
+            final OneOfField oneOfField = field.parent();
+            final String oneOfType = "%s.%sOneOfType".formatted(modelClassName, oneOfField.nameCamelFirstUpper());
+            getValueCode = "data.%s().as()".formatted(oneOfField.nameCamelFirstLower());
+            prefix += "if (data.%s().kind() == %s.%s)%n"
+                    .formatted(oneOfField.nameCamelFirstLower(), oneOfType, Common.camelToUpperSnake(field.name()));
         }
         // spotless:off
         final String writeMethodName = field.methodNameType();
