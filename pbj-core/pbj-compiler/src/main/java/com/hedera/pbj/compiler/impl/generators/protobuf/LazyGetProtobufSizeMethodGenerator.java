@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
-import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
-
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
+
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 /**
  * Code to generate the measure record method for Codec classes. This measures the number of bytes that would be
@@ -75,7 +77,7 @@ public class LazyGetProtobufSizeMethodGenerator {
         return fields.stream()
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF
                         ? ((OneOfField) field).fields().stream()
-                        : java.util.stream.Stream.of(field))
+                        : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldSizeOfLines(
                         field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
