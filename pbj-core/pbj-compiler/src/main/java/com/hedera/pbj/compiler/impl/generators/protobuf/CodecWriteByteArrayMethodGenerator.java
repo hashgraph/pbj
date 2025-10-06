@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
-import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
-
 import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
+
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 /**
  * Code to generate the write method for Codec classes.
@@ -64,6 +65,20 @@ final class CodecWriteByteArrayMethodGenerator {
             final List<Field> fields,
             final Function<Field, String> getValueBuilder,
             final boolean skipDefault) {
+        // IMPORTANT: We flatten oneOf subfields and sort all fields by field number to match protoc's behavior.
+        // Each oneOf subfield gets an individual if-check at its position in the field sequence.
+        //
+        // Why not use a switch statement?
+        // - Switch statements consolidate all oneOf cases into a single block at the position of the first subfield
+        // - This breaks field ordering when oneOf subfields are INTERLEAVED with regular fields
+        // - Example: message with oneOf fields 1 & 16, and regular field 3
+        //   * Switch at position 1 would write field 16 before field 3 (WRONG!)
+        //   * Individual if-checks write fields in correct order: 1 or skip, then 3, then 16 or skip
+        //
+        // The if-check approach is correct AND performant because:
+        // - Only ONE if-check executes per oneOf (the field that's actually set)
+        // - JVM optimizes branch prediction for these patterns
+        // - Correctness is more important than micro-optimizations
         return fields.stream()
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF
                         ? ((OneOfField) field).fields().stream()
