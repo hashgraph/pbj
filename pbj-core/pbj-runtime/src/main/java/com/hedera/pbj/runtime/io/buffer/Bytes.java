@@ -237,22 +237,22 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     @Override
     public int getInt(final long offset) {
-        return UnsafeUtils.getInt(buffer, Math.toIntExact(start + offset));
+        return getInt(offset, ByteOrder.BIG_ENDIAN);
     }
 
     @Override
     public int getInt(final long offset, @NonNull final ByteOrder byteOrder) {
-        return byteOrder == ByteOrder.BIG_ENDIAN ? getInt(offset) : Integer.reverseBytes(getInt(offset));
+        return UnsafeUtils.getInt(buffer, Math.toIntExact(start + offset), byteOrder);
     }
 
     @Override
     public long getLong(final long offset) {
-        return UnsafeUtils.getLong(buffer, Math.toIntExact(start + offset));
+        return getLong(offset, ByteOrder.BIG_ENDIAN);
     }
 
     @Override
     public long getLong(final long offset, @NonNull final ByteOrder byteOrder) {
-        return byteOrder == ByteOrder.BIG_ENDIAN ? getLong(offset) : Long.reverseBytes(getLong(offset));
+        return UnsafeUtils.getLong(buffer, Math.toIntExact(start + offset), byteOrder);
     }
 
     /**

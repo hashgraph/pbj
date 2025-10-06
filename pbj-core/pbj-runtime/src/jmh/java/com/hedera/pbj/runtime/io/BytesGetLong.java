@@ -2,6 +2,7 @@
 package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.nio.ByteOrder;
 import java.util.Random;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
@@ -41,7 +42,7 @@ public class BytesGetLong {
     @Benchmark
     public void testUnsafeGetLong(final Blackhole blackhole) {
         for (int i = 0; i < size + 1 - Long.BYTES; i++) {
-            blackhole.consume(UnsafeUtils.getLong(array, i));
+            blackhole.consume(UnsafeUtils.getLong(array, i, ByteOrder.BIG_ENDIAN));
         }
     }
 }
