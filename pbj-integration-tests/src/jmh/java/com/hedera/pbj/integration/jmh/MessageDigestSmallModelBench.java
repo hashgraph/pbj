@@ -98,7 +98,7 @@ public class MessageDigestSmallModelBench {
 
     public static void main(String[] args) throws Exception {
         Options opt = new OptionsBuilder()
-                .include(MessageDigestBench.class.getSimpleName())
+                .include(MessageDigestSmallModelBench.class.getSimpleName())
                 .build();
 
         new Runner(opt).run();
