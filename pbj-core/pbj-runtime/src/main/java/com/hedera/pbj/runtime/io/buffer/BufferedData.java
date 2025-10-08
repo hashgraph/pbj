@@ -16,6 +16,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
+import java.security.MessageDigest;
 
 /**
  * A buffer backed by a {@link ByteBuffer} that is a {@link BufferedSequentialData} (and therefore contains
@@ -893,6 +894,19 @@ public sealed class BufferedData
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Read all remaining bytes from this BufferedData object and write them into the given MessageDigest object.
+     * @param digest a MessageDigest object to write to
+     */
+    @Override
+    public void writeTo(@NonNull final MessageDigest digest) {
+        // The current implementation in JDK supports array-based ByteBuffers directly and efficiently,
+        // and for direct buffers, it creates a temporary array and reads bytes in chunks, which seems
+        // more reasonable than allocating a single large byte array to consume all the data at once.
+        // So we probably don't need faster versions of this method because this one should be the fastest.
+        digest.update(buffer);
     }
 
     // Helper methods

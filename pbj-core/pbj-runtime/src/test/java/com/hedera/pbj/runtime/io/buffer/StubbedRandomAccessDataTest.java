@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.security.MessageDigest;
 
 public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
 
@@ -63,6 +64,11 @@ public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+        }
+
+        @Override
+        public void writeTo(@NonNull MessageDigest digest) {
+            digest.update(bytes);
         }
     }
 }
