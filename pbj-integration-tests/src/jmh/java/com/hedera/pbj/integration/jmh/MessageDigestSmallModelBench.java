@@ -3,8 +3,8 @@ package com.hedera.pbj.integration.jmh;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.test.proto.pbj.Everything;
-import com.hedera.pbj.test.proto.pbj.tests.EverythingTest;
+import com.hedera.pbj.test.proto.pbj.MessageWithBytes;
+import com.hedera.pbj.test.proto.pbj.tests.MessageWithBytesTest;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +32,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @Measurement(iterations = 5)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
-public class MessageDigestBench {
+public class MessageDigestSmallModelBench {
     private static final int INVOCATIONS = 20_000;
 
     @State(Scope.Thread)
@@ -41,8 +41,8 @@ public class MessageDigestBench {
         // and whether these particular ones are "good" or "bad" for the purpose of the bench.
         // Ideally, we'd run it for every model. However, the Java annotation parameter must be
         // a compile time constant, so it's impossible to infer all the possible indices from the
-        // EverythingTest.ARGUMENTS directly here. So hard-coding a few random indices is our best bet here:
-        @Param({"5", "10", "16", "51"})
+        // MessageWithBytesTest.ARGUMENTS directly here. So hard-coding a few random indices is our best bet here:
+        @Param({"0", "1", "2"})
         int everythingTestArgumentsIndex;
 
         MessageDigest messageDigest;
@@ -64,12 +64,12 @@ public class MessageDigestBench {
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void benchMessageDigest(final BenchState state, final Blackhole blackhole) {
-        final Everything model = EverythingTest.ARGUMENTS.get(state.everythingTestArgumentsIndex);
+        final MessageWithBytes model = MessageWithBytesTest.ARGUMENTS.get(state.everythingTestArgumentsIndex);
 
         for (int i = 1; i <= INVOCATIONS; i++) {
             try {
                 final BufferedData bd = BufferedData.allocate(model.protobufSize());
-                Everything.PROTOBUF.write(model, bd);
+                MessageWithBytes.PROTOBUF.write(model, bd);
                 bd.flip();
                 final byte[] bytes = new byte[model.protobufSize()];
                 bd.readBytes(bytes);
@@ -84,11 +84,11 @@ public class MessageDigestBench {
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void benchWritableMessageDigest(final BenchState state, final Blackhole blackhole) {
-        final Everything model = EverythingTest.ARGUMENTS.get(state.everythingTestArgumentsIndex);
+        final MessageWithBytes model = MessageWithBytesTest.ARGUMENTS.get(state.everythingTestArgumentsIndex);
 
         for (int i = 1; i <= INVOCATIONS; i++) {
             try {
-                Everything.PROTOBUF.write(model, state.writableMessageDigest);
+                MessageWithBytes.PROTOBUF.write(model, state.writableMessageDigest);
                 blackhole.consume(state.messageDigest.digest());
             } catch (Exception e) {
                 new RuntimeException(e).printStackTrace();
