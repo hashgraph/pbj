@@ -432,7 +432,7 @@ public final class TestGenerator implements Generator {
 
                         // Show hex dump comparison (first 200 bytes or all if shorter)
                         int dumpLength = Math.min(200, Math.max(pbjLength, protocLength));
-                        System.err.println("\nHex comparison (first " + dumpLength + " bytes):");
+                        System.err.println("\\nHex comparison (first " + dumpLength + " bytes):");
                         System.err.println("Position | PBJ Byte | ProtoC Byte | Match");
                         System.err.println("---------|----------|-------------|------");
                         for (int i = 0; i < dumpLength; i++) {
@@ -442,9 +442,9 @@ public final class TestGenerator implements Generator {
                             System.err.printf("%8d | %8s | %11s | %5s%n", i, pbjHex, protocHex, match);
                         }
 
-                        System.err.println("\nPBJ bytes (hex): " + bytesToHex(pbjBytes));
+                        System.err.println("\\nPBJ bytes (hex): " + bytesToHex(pbjBytes));
                         System.err.println("ProtoC bytes (hex): " + bytesToHex(protocBytes));
-                        System.err.println("============================================\n");
+                        System.err.println("============================================\\n");
                     }
                     assertEquals(dataBuffer, dataBuffer2);
                 
