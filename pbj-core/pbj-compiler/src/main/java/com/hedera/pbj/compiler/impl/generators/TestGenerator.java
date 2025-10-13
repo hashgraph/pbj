@@ -509,6 +509,28 @@ public final class TestGenerator implements Generator {
                     final var codecDefaultInstance = codec.getDefaultInstance();
                     assertEquals($modelClassName.DEFAULT, codecDefaultInstance);
                 }
+
+                /**
+                 * Helper method to convert byte array to hex string for debugging.
+                 *
+                 * @param bytes the byte array to convert
+                 * @return hex string representation
+                 */
+                private static String bytesToHex(byte[] bytes) {
+                    if (bytes == null || bytes.length == 0) {
+                        return "[]";
+                    }
+                    StringBuilder sb = new StringBuilder("[");
+                    for (int i = 0; i < Math.min(bytes.length, 100); i++) {
+                        if (i > 0) sb.append(" ");
+                        sb.append(String.format("%02X", bytes[i]));
+                    }
+                    if (bytes.length > 100) {
+                        sb.append(" ... (").append(bytes.length - 100).append(" more bytes)");
+                    }
+                    sb.append("]");
+                    return sb.toString();
+                }
                 """
                 .replace("$simpleModelClassName", modelClassName.replace(".", ""))
                 .replace("$modelClassName",modelClassName)
