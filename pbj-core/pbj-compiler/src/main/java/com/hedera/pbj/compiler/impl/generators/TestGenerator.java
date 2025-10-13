@@ -257,6 +257,28 @@ public final class TestGenerator implements Generator {
         }
     }
 
+    /**
+     * Helper method to convert byte array to hex string for debugging.
+     *
+     * @param bytes the byte array to convert
+     * @return hex string representation
+     */
+    private static String bytesToHex(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < Math.min(bytes.length, 100); i++) {
+            if (i > 0) sb.append(" ");
+            sb.append(String.format("%02X", bytes[i]));
+        }
+        if (bytes.length > 100) {
+            sb.append(" ... (").append(bytes.length - 100).append(" more bytes)");
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
     private static Field.FieldType getOptionalConvertedFieldType(final Field field) {
         return switch (field.messageType()) {
             case "StringValue" -> Field.FieldType.STRING;
@@ -383,6 +405,47 @@ public final class TestGenerator implements Generator {
                     dataBuffer2.flip();
                 
                     // compare written bytes
+                    if (!dataBuffer.equals(dataBuffer2)) {
+                        // DETAILED DEBUGGING: Show byte-by-byte mismatch information
+                        final int pbjLength = (int)dataBuffer.remaining();
+                        final int protocLength = (int)dataBuffer2.remaining();
+
+                        System.err.println("========== BYTE MISMATCH DETECTED ==========");
+                        System.err.println("Model class: " + modelObj.getClass().getName());
+                        System.err.println("PBJ length: " + pbjLength + " bytes");
+                        System.err.println("ProtoC length: " + protocLength + " bytes");
+                        System.err.println("Model object: " + modelObj);
+
+                        // Convert buffers to byte arrays for comparison
+                        dataBuffer.resetPosition();
+                        dataBuffer2.resetPosition();
+                        byte[] pbjBytes = new byte[pbjLength];
+                        byte[] protocBytes = new byte[protocLength];
+                        dataBuffer.readBytes(pbjBytes);
+                        dataBuffer2.readBytes(protocBytes);
+
+                        // Find first mismatch position
+                        int mismatchPos = Arrays.mismatch(pbjBytes, protocBytes);
+                        if (mismatchPos != -1) {
+                            System.err.println("First mismatch at byte position: " + mismatchPos);
+                        }
+
+                        // Show hex dump comparison (first 200 bytes or all if shorter)
+                        int dumpLength = Math.min(200, Math.max(pbjLength, protocLength));
+                        System.err.println("\nHex comparison (first " + dumpLength + " bytes):");
+                        System.err.println("Position | PBJ Byte | ProtoC Byte | Match");
+                        System.err.println("---------|----------|-------------|------");
+                        for (int i = 0; i < dumpLength; i++) {
+                            String pbjHex = i < pbjLength ? String.format("0x%02X", pbjBytes[i]) : "----";
+                            String protocHex = i < protocLength ? String.format("0x%02X", protocBytes[i]) : "----";
+                            String match = (i < pbjLength && i < protocLength && pbjBytes[i] == protocBytes[i]) ? "✓" : "✗";
+                            System.err.printf("%8d | %8s | %11s | %5s%n", i, pbjHex, protocHex, match);
+                        }
+
+                        System.err.println("\nPBJ bytes (hex): " + bytesToHex(pbjBytes));
+                        System.err.println("ProtoC bytes (hex): " + bytesToHex(protocBytes));
+                        System.err.println("============================================\n");
+                    }
                     assertEquals(dataBuffer, dataBuffer2);
                 
                     // parse those bytes again with PBJ
