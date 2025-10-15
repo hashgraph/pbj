@@ -12,7 +12,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Code to generate the write method for Codec classes.
@@ -81,7 +80,7 @@ final class CodecWriteByteArrayMethodGenerator {
         return fields.stream()
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF
                         ? ((OneOfField) field).fields().stream()
-                        : Stream.of(field))
+                        : java.util.stream.Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldWriteLines(
                         field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))

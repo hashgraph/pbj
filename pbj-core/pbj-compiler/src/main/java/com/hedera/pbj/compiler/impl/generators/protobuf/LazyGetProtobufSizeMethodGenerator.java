@@ -12,7 +12,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Code to generate the measure record method for Codec classes. This measures the number of bytes that would be
@@ -76,7 +75,7 @@ public class LazyGetProtobufSizeMethodGenerator {
         return fields.stream()
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF
                         ? ((OneOfField) field).fields().stream()
-                        : Stream.of(field))
+                        : java.util.stream.Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldSizeOfLines(
                         field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
