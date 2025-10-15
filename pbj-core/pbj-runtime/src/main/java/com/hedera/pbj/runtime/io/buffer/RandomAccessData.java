@@ -10,6 +10,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 /**
  * Represents data which may be accessed out of order in some random manner. Unlike {@link SequentialData},
@@ -570,6 +571,12 @@ public interface RandomAccessData {
      * @param length The number of bytes to extract.
      */
     void writeTo(@NonNull final OutputStream outStream, final int offset, final int length);
+
+    /**
+     * Writes the entire copy of the data into a given MessageDigest object.
+     * @param digest a MessageDigest to write data to
+     */
+    void writeTo(@NonNull final MessageDigest digest);
 
     /**
      * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative.

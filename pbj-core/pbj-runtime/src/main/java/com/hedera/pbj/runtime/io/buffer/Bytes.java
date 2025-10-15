@@ -373,6 +373,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      *
      * @param digest the MessageDigest to copy into
      */
+    @Override
     public void writeTo(@NonNull final MessageDigest digest) {
         digest.update(buffer, start, length);
     }

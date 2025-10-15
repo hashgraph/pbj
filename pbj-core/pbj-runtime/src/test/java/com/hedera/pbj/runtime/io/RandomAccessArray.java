@@ -4,6 +4,7 @@ package com.hedera.pbj.runtime.io;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.OutputStream;
+import java.security.MessageDigest;
 
 /**
  * A simple implementation of RandomAccessData used to test default methods in the interface.
@@ -38,5 +39,10 @@ public class RandomAccessArray implements RandomAccessData {
     @Override
     public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void writeTo(@NonNull MessageDigest digest) {
+        digest.update(array);
     }
 }
