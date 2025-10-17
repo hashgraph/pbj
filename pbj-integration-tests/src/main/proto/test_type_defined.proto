@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package pbj.integ.test.issue631.defined;
+
+// <<<pbj.java_package = "com.hedera.pbj.test.issue631.defined">>>
+
+/**
+ * A test type to be imported by another proto file
+ */
+message BlockItem {
+  /**
+   * A test field
+   */
+  string name = 1;
+}
