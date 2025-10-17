@@ -60,7 +60,11 @@ public final class LookupHelper {
     private static final String FAILED_TO_FIND_LOCAL_MSG_MAP_MESSAGE =
             "Failed to find messageMapLocal for proto file [%s]";
     private static final String FAILED_TO_FIND_MSG_TYPE_MESSAGE =
-            "Failed to find fully qualified message type for [%s] in file [%s] imports = %s";
+            "Failed to find fully qualified message type for [%s] in file [%s]%n" + "Imports: %s%n"
+                    + "This usually means:%n"
+                    + "  - The type is not imported (add: import \"path/to/file.proto\")%n"
+                    + "  - The type name is misspelled%n"
+                    + "  - The type is in a different package than expected";
     private static final String PACKAGE_NOT_FOUND_MESSAGE =
             "Could not find %s package for message or enum [%s] in file [%s]";
     private static final String LIMITED_CONTEXT_OPTIONS_SUPPORT_MESSAGE =
@@ -68,7 +72,10 @@ public final class LookupHelper {
     private static final String FILE_MISSING_PACKAGE_OPTION_MESSAGE =
             "%sProto file [%s] does not contain \"%s\" or \"%s\" options.%n";
     private static final String IMPORT_NOT_FOUND_MESSAGE =
-            "Import \"%s\" in proto file \"%s\" can not be found in src files.";
+            "Import \"%s\" in proto file \"%s\" can not be found in src files.%n" + "Please verify:%n"
+                    + "  - The import path is correct%n"
+                    + "  - The imported .proto file is in your source directory%n"
+                    + "  - The file path uses forward slashes (/) even on Windows";
 
     /**
      * A non-null suffix to add to the Java package name of generated PBJ classes when an explicit `pbj.java_package`
@@ -249,7 +256,8 @@ public final class LookupHelper {
         final Object[] importsArray =
                 protoFileImports.get(protoSrcFile.getAbsolutePath()).toArray();
         final String importsString = Arrays.toString(importsArray);
-        throw new PbjCompilerException(FAILED_TO_FIND_MSG_TYPE_MESSAGE.formatted(context, protoSrcFile, importsString));
+        throw new PbjCompilerException(
+                FAILED_TO_FIND_MSG_TYPE_MESSAGE.formatted(context.getText(), protoSrcFile, importsString));
     }
 
     /**
