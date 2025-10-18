@@ -53,7 +53,7 @@ dependencies.constraints {
     // Code generation
     api("org.antlr:antlr4:$antlr")
     api("com.google.protobuf:protoc:$protobuf")
-    api("io.grpc:protoc-gen-grpc-java:1.72.0")
+    api("io.grpc:protoc-gen-grpc-java:1.76.0")
 
     // Testing only
     api("com.google.guava:guava:33.5.0-jre") { because("com.google.common") }
