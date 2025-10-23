@@ -20,7 +20,7 @@ public class WritableMessageDigest implements WritableSequentialData {
     /**
      * A fake position that we keep increasing as we add data. We have to maintain it because there's code
      * in ProtoWriterTools that checks the position before and after writing data, and errors out if the position
-     * hasn't changed as expected.
+     * hasn't changed as expected. Both `reset()` and `digest()` reset the position to zero.
      */
     private long position = 0;
 
@@ -30,6 +30,22 @@ public class WritableMessageDigest implements WritableSequentialData {
      */
     public WritableMessageDigest(@NonNull final MessageDigest digest) {
         this.digest = Objects.requireNonNull(digest);
+    }
+
+    /**
+     * A delegate for the wrapped MessageDigest.reset() method.
+     */
+    public void reset() {
+        position = 0;
+        digest.reset();
+    }
+
+    /**
+     * A delegate for the wrapped MessageDigest.digest() method.
+     */
+    public byte[] digest() {
+        position = 0;
+        return digest.digest();
     }
 
     @Override

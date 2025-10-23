@@ -43,11 +43,10 @@ public class WritableMessageDigestTest {
         final MessageDigest ctrlDigest = buildDigest();
         ctrlDigest.update(b);
 
-        final MessageDigest testDigest = buildDigest();
-        final WritableMessageDigest wmd = new WritableMessageDigest(testDigest);
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
         wmd.writeByte(b);
 
-        assertArrayEquals(ctrlDigest.digest(), testDigest.digest());
+        assertArrayEquals(ctrlDigest.digest(), wmd.digest());
     }
 
     private static final byte[] FULL_RANGE_ARRAY = new byte[256];
