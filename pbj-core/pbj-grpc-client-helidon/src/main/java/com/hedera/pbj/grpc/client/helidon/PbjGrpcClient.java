@@ -33,6 +33,8 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
     private final PbjGrpcClientConfig config;
 
     private final Http2Client http2Client;
+    private final ClientUri baseUri;
+    private final String resolvedAuthority;
 
     private final ClientConnection clientConnection;
     private final Http2ClientConnection connection;
@@ -46,8 +48,15 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
         this.webClient = webClient;
         this.config = config;
         this.http2Client = webClient.client(Http2Client.PROTOCOL);
+        this.baseUri = this.http2Client
+                .prototype()
+                .baseUri()
+                .orElseThrow(() -> new IllegalStateException("No base URI provided in the WebClient."));
+        this.resolvedAuthority = config.authority()
+                .filter(authority -> !authority.isBlank())
+                .orElseGet(() -> createAuthorityFromClientUri(this.baseUri));
 
-        this.clientConnection = createClientConnection();
+        this.clientConnection = createClientConnection(this.baseUri);
         this.connection = createHttp2ClientConnection(clientConnection);
     }
 
@@ -86,7 +95,7 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
         return new PbjGrpcCall(
                 this,
                 createPbjGrpcClientStream(connection, clientConnection),
-                new Options(config.authority(), config.contentType()),
+                new Options(Optional.of(resolvedAuthority), config.contentType()),
                 fullMethodName,
                 requestCodec,
                 replyCodec,
@@ -145,11 +154,7 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
     /** Simple implementation of the {@link ServiceInterface.RequestOptions} interface. */
     private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
 
-    private ClientConnection createClientConnection() {
-        final ClientUri clientUri = ((Http2ClientImpl) http2Client)
-                .prototype()
-                .baseUri()
-                .orElseThrow(() -> new IllegalStateException("No base URI provided in the WebClient."));
+    private ClientConnection createClientConnection(final ClientUri clientUri) {
         // We cannot (don't want to) establish connections when unit-testing, so we use a marker:
         if ("pbj-unit-test-host".equals(clientUri.host())) {
             return null;
@@ -166,5 +171,17 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
         return TcpClientConnection.create(
                         webClient, connectionKey, Collections.emptyList(), connection -> false, connection -> {})
                 .connect();
+    }
+
+    private static String createAuthorityFromClientUri(final ClientUri clientUri) {
+        final String host = clientUri.host();
+        if (host == null || host.isBlank()) {
+            throw new IllegalStateException("Cannot derive authority because the base URI host is empty.");
+        }
+        final int port = clientUri.port();
+        if (port > 0) {
+            return host + ":" + port;
+        }
+        return host;
     }
 }
