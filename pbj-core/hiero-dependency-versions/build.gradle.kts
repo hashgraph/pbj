@@ -1,11 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins {
-    id("org.hiero.gradle.base.lifecycle")
-    id("org.hiero.gradle.base.jpms-modules")
-    id("org.hiero.gradle.check.spotless")
-    id("org.hiero.gradle.check.spotless-kotlin")
-}
-
 group = "com.hedera.hashgraph"
 
 val antlr = "4.13.2"
@@ -50,16 +43,21 @@ dependencies.constraints {
         because("io.helidon.builder.codegen")
     }
 
-    // Code generation
+    // Code generation tools
     api("org.antlr:antlr4:$antlr")
     api("com.google.protobuf:protoc:$protobuf")
     api("io.grpc:protoc-gen-grpc-java:1.72.0")
+    tasks.checkVersionConsistency {
+        excludes.add("org.antlr:antlr4")
+        excludes.add("com.google.protobuf:protoc")
+        excludes.add("io.grpc:protoc-gen-grpc-java")
+    }
 
     // Testing only
     api("com.google.guava:guava:33.5.0-jre") { because("com.google.common") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
-    api("net.bytebuddy:byte-buddy:1.17.6") { because("net.bytebuddy") }
+    api("net.bytebuddy:byte-buddy:1.17.7") { because("net.bytebuddy") }
     api("org.assertj:assertj-core:3.27.6") { because("org.assertj.core") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
