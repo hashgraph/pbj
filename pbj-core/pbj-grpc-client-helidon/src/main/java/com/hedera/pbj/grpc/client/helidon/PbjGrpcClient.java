@@ -56,7 +56,7 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
                 .filter(authority -> !authority.isBlank())
                 .orElseGet(() -> createAuthorityFromClientUri(this.baseUri));
 
-        this.clientConnection = createClientConnection(this.baseUri);
+        this.clientConnection = createClientConnection();
         this.connection = createHttp2ClientConnection(clientConnection);
     }
 
@@ -154,15 +154,15 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
     /** Simple implementation of the {@link ServiceInterface.RequestOptions} interface. */
     private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
 
-    private ClientConnection createClientConnection(final ClientUri clientUri) {
+    private ClientConnection createClientConnection() {
         // We cannot (don't want to) establish connections when unit-testing, so we use a marker:
-        if ("pbj-unit-test-host".equals(clientUri.host())) {
+        if ("pbj-unit-test-host".equals(this.baseUri.host())) {
             return null;
         }
         final ConnectionKey connectionKey = new ConnectionKey(
-                clientUri.scheme(),
-                clientUri.host(),
-                clientUri.port(),
+                this.baseUri.scheme(),
+                this.baseUri.host(),
+                this.baseUri.port(),
                 config.readTimeout(),
                 config.tls(),
                 DefaultDnsResolver.create(),
