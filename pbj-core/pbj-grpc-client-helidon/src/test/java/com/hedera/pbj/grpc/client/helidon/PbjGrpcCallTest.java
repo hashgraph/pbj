@@ -51,7 +51,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -66,7 +65,7 @@ public class PbjGrpcCallTest {
     private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
 
     private static final Options OPTIONS =
-            new Options(Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC);
+            new Options(Optional.of("expected-authority"), ServiceInterface.RequestOptions.APPLICATION_GRPC);
 
     @Mock
     private PbjGrpcClient grpcClient;
@@ -117,7 +116,6 @@ public class PbjGrpcCallTest {
     }
 
     @ParameterizedTest
-    @NullSource
     @ValueSource(strings = {"test authority"})
     public void testConstructor(final String authority) {
         final PbjGrpcCall call = createCall(

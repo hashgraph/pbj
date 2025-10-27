@@ -84,7 +84,10 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
 
         // send HEADERS frame
         final WritableHeaders<?> headers = WritableHeaders.create();
-        requestOptions.authority().ifPresent(authority -> headers.add(Http2Headers.AUTHORITY_NAME, authority));
+        final String authority = requestOptions
+                .authority()
+                .orElseThrow(() -> new IllegalStateException("gRPC request requires an :authority value."));
+        headers.add(Http2Headers.AUTHORITY_NAME, authority);
         headers.add(Http2Headers.METHOD_NAME, "POST");
         headers.add(Http2Headers.PATH_NAME, "/" + fullMethodName);
         headers.add(Http2Headers.SCHEME_NAME, "http");

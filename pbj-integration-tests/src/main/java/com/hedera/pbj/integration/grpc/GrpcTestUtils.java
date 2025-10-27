@@ -37,8 +37,12 @@ public class GrpcTestUtils {
         final WebClient webClient =
                 WebClient.builder().baseUri("http://localhost:" + port).tls(tls).build();
 
+        // If the requestOptions doesn't have an authority, provide one based on the port
+        final Optional<String> authority =
+                requestOptions.authority().isPresent() ? requestOptions.authority() : Optional.of("localhost:" + port);
+
         final PbjGrpcClientConfig config =
-                new PbjGrpcClientConfig(READ_TIMEOUT, tls, requestOptions.authority(), requestOptions.contentType());
+                new PbjGrpcClientConfig(READ_TIMEOUT, tls, authority, requestOptions.contentType());
 
         return new PbjGrpcClient(webClient, config);
     }

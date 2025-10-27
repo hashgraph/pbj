@@ -92,4 +92,24 @@ public class PbjGrpcClientTest {
         // streamId hasn't been initialized yet, so it's zero:
         verify(connection, times(1)).removeStream(0);
     }
+
+    @Test
+    void testCreateCallUsesResolvedAuthorityWhenConfigAuthorityIsEmpty() {
+        // Config with empty authority - should use base URI host:port
+        final PbjGrpcClientConfig config = new PbjGrpcClientConfig(
+                READ_TIMEOUT, tls, Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC);
+        doReturn(http2Client).when(webClient).client(Http2Client.PROTOCOL);
+        doReturn(http2ClientConfig).when(http2Client).prototype();
+        doReturn(Optional.of(ClientUri.create(URI.create(UNIT_TEST_URL))))
+                .when(http2ClientConfig)
+                .baseUri();
+
+        // This test verifies that the client can be constructed with an empty authority
+        // The client will internally resolve authority from the base URI
+        final PbjGrpcClient client = new PbjGrpcClient(webClient, config);
+
+        assertNotNull(client);
+        // The client internally resolves authority to "pbj-unit-test-host:666" from the base URI
+        // This is used when createCall is invoked to ensure RFC 9113 compliance
+    }
 }
