@@ -28,6 +28,13 @@ import java.util.HexFormat;
 
 /**
  * An immutable representation of a byte array. This class is designed to be efficient and usable across threads.
+ * <p>
+ * Note that the immutability implementation here serves the primary purpose of preventing silly mistakes rather than
+ * as a security feature. By using some non-trivial APIs provided by this class, it's actually possible to obtain
+ * a reference to the underlying Java byte array that stores the data and modify it. While it's an undesirable side
+ * effect, these APIs exist by design to allow for faster performance. It is assumed that the users of these APIs
+ * will not try to modify the data on purpose. See `writeTo()`, `updateSignature()`, and `verifySignature()` methods
+ * Javadocs below for more details.
  */
 @SuppressWarnings("unused")
 public final class Bytes implements RandomAccessData, Comparable<Bytes> {
@@ -290,6 +297,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * A helper method for efficient copy of our data into another ByteBuffer.
      * The destination buffers position is updated.
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
      * @param dstBuffer the buffer to copy into
      */
@@ -300,6 +308,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * A helper method for efficient copy of our data into another ByteBuffer.
      * The destination buffers position is updated.
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
      * @param dstBuffer the buffer to copy into
      * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
@@ -323,6 +332,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     /**
      * {@inheritDoc}
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      */
     @Override
     public void writeTo(@NonNull final OutputStream outStream) {
@@ -335,6 +345,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     /**
      * {@inheritDoc}
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      */
     @Override
     public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
@@ -348,6 +359,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * A helper method for efficient copy of our data into an WritableSequentialData without creating a defensive copy
      * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
      * @param wsd the OutputStream to copy into
      */
@@ -358,6 +370,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * A helper method for efficient copy of our data into an WritableSequentialData without creating a defensive copy
      * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
      * @param wsd The OutputStream to copy into.
      * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
@@ -370,6 +383,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * A helper method for efficient copy of our data into an MessageDigest without creating a defensive copy
      * of the data. The implementation relies on a well-behaved MessageDigest that doesn't modify the buffer data.
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
      * @param digest the MessageDigest to copy into
      */
@@ -381,6 +395,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * A helper method for efficient copy of our data into an MessageDigest without creating a defensive copy
      * of the data. The implementation relies on a well-behaved MessageDigest that doesn't modify the buffer data.
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
      * @param digest the MessageDigest to copy into
      * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
@@ -393,6 +408,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * Same as {@link #updateSignature(Signature, int, int)} with offset 0 and length equal to the length of this
      * {@link Bytes} object.
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      */
     public void updateSignature(@NonNull final Signature signature) throws SignatureException {
         signature.update(buffer, start, length);
@@ -403,6 +419,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * The implementation relies on a well-behaved Signature that doesn't modify the buffer data. Calls the
      * {@link Signature#update(byte[], int, int)} method with all the data in this {@link Bytes} object. This method
      * should be used when the data in the buffer should be validated or signed.
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
      * @param signature The Signature to update
      * @param offset    The offset from the start of this {@link Bytes} object to get the bytes from
@@ -418,6 +435,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     /**
      * Same as {@link #verifySignature(Signature, int, int)} with offset 0 and length equal to the length of this
      * {@link Bytes} object.
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      */
     public boolean verifySignature(@NonNull final Signature signature) throws SignatureException {
         return signature.verify(buffer, start, length);
@@ -428,6 +446,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * The implementation relies on a well-behaved Signature that doesn't modify the buffer data. Calls the
      * {@link Signature#verify(byte[], int, int)} method with all the data in this {@link Bytes} object. This method
      * should be used when the data in the buffer is a signature that should be verified.
+     * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
      * @param signature the Signature to use to verify
      * @param offset    The offset from the start of this {@link Bytes} object to get the bytes from
