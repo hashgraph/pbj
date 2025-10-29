@@ -66,6 +66,13 @@ public interface ServiceInterface extends AutoCloseable {
         String APPLICATION_GRPC_JSON = "application/grpc+json";
 
         /**
+         * Default maximum message size in bytes ({@value}).
+         *
+         * @see #maxMessageSizeBytes()
+         */
+        int DEFAULT_MAX_MESSAGE_SIZE_BYTES = 1024 * 10; // 10KB
+
+        /**
          * The authority of the client that is connecting to the service. This is the value of the ":authority" header
          * in the HTTP/2 request. This value is used by the service to determine the client's identity. It may be that
          * no authority is provided, in which case this method will return an empty optional.
@@ -101,6 +108,15 @@ public interface ServiceInterface extends AutoCloseable {
          */
         @NonNull
         String contentType();
+
+        /**
+         * Maximum size of any message in bytes. Defaults to {@value #DEFAULT_MAX_MESSAGE_SIZE_BYTES}.
+         *
+         * @return the maximum number of bytes a single message can be
+         */
+        default int maxMessageSizeBytes() {
+            return DEFAULT_MAX_MESSAGE_SIZE_BYTES;
+        }
     }
 
     /** Gets the simple name of the service. For example, "HelloService". */
