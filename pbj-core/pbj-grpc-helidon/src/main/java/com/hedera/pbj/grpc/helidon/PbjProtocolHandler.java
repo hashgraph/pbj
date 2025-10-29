@@ -277,7 +277,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // used to decide on the best way to parse or handle the request.
             final var options = new Options(
                     Optional.ofNullable(headers.authority()), // the client (see http2 spec)
-                    contentType);
+                    contentType,
+                    config.maxMessageSizeBytes());
 
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
@@ -721,7 +722,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     }
 
     /** Simple implementation of the {@link ServiceInterface.RequestOptions} interface. */
-    private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
+    private record Options(Optional<String> authority, String contentType, int maxMessageSizeBytes)
+            implements ServiceInterface.RequestOptions {}
 
     /**
      * A {@link ScheduledFuture} that does nothing. This is used when there is no deadline set for
