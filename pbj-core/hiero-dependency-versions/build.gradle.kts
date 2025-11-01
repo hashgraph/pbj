@@ -46,7 +46,7 @@ dependencies.constraints {
     // Code generation tools
     api("org.antlr:antlr4:$antlr")
     api("com.google.protobuf:protoc:$protobuf")
-    api("io.grpc:protoc-gen-grpc-java:1.72.0")
+    api("io.grpc:protoc-gen-grpc-java:1.76.0")
     tasks.checkVersionConsistency {
         excludes.add("org.antlr:antlr4")
         excludes.add("com.google.protobuf:protoc")
