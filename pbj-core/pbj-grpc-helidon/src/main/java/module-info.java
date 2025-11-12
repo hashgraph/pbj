@@ -19,6 +19,7 @@ module com.hedera.pbj.grpc.helidon {
     requires transitive io.helidon.webserver;
     requires io.helidon.common.buffers;
     requires io.helidon.common.media.type;
+    requires io.helidon.common.socket;
     requires io.helidon.common.uri;
     requires io.helidon.http.http2;
     requires io.helidon.http;

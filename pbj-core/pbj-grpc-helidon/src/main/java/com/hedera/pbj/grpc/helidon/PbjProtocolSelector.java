@@ -61,7 +61,7 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
      */
     @Override
     public SubProtocolResult subProtocol(
-            @NonNull final ConnectionContext ctx, // unused
+            @NonNull final ConnectionContext ctx,
             @NonNull final HttpPrologue prologue,
             @NonNull final Http2Headers headers,
             @NonNull final Http2StreamWriter streamWriter,
@@ -112,6 +112,7 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
                         currentStreamState,
                         config,
                         route,
-                        deadlineDetector));
+                        deadlineDetector,
+                        ctx));
     }
 }

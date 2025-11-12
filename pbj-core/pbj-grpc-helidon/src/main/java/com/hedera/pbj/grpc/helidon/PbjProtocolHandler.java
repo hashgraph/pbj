@@ -40,6 +40,7 @@ import io.helidon.http.http2.Http2RstStream;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
+import io.helidon.webserver.ConnectionContext;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
 import java.util.List;
 import java.util.Objects;
@@ -78,6 +79,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private final int streamId;
     private final FlowControl.Outbound flowControl;
     private final AtomicReference<Http2StreamState> currentStreamState;
+    private final ConnectionContext connectionContext;
 
     /**
      * The service method that this connection was created for. The route has information about the
@@ -164,7 +166,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             @NonNull final Http2StreamState currentStreamState,
             @NonNull final PbjConfig config,
             @NonNull final PbjMethodRoute route,
-            @NonNull final DeadlineDetector deadlineDetector) {
+            @NonNull final DeadlineDetector deadlineDetector,
+            @NonNull final ConnectionContext ctx) {
         this.headers = requireNonNull(headers);
         this.streamWriter = requireNonNull(streamWriter);
         this.streamId = streamId;
@@ -173,6 +176,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         this.config = requireNonNull(config);
         this.route = requireNonNull(route);
         this.deadlineDetector = requireNonNull(deadlineDetector);
+        this.connectionContext = ctx;
     }
 
     /**
@@ -718,6 +722,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 }
                 return Http2StreamState.CLOSED;
             });
+        }
+
+        @Override
+        public void closeConnection() {
+            connectionContext.serverSocket().close();
         }
     }
 
