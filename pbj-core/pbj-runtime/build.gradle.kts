@@ -12,7 +12,6 @@ description =
 testModuleInfo {
     requires("com.google.protobuf")
     requires("org.assertj.core")
-    requires("net.bytebuddy")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
