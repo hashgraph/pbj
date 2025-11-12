@@ -535,6 +535,11 @@ public final class Pipelines {
         public void clientEndStreamReceived() {
             // nothing to do, as onComplete is always called inside onNext
         }
+
+        @Override
+        public void closeConnection() {
+            replies.closeConnection();
+        }
     }
 
     /**
@@ -629,6 +634,11 @@ public final class Pipelines {
             // if the client stream is ended, the entire pipeline is ended
             onComplete();
         }
+
+        @Override
+        public void closeConnection() {
+            replies.closeConnection();
+        }
     }
 
     /**
@@ -717,6 +727,11 @@ public final class Pipelines {
         public void clientEndStreamReceived() {
             onComplete();
         }
+
+        @Override
+        public void closeConnection() {
+            replies.closeConnection();
+        }
     }
 
     /**
@@ -796,6 +811,11 @@ public final class Pipelines {
             // nothing to do
             // the server will continue streaming, since the message coming from the client is a subscription request
         }
+
+        @Override
+        public void closeConnection() {
+            replies.closeConnection();
+        }
     }
 
     /**
@@ -851,6 +871,11 @@ public final class Pipelines {
         @Override
         public void onComplete() {
             next.onComplete();
+        }
+
+        @Override
+        public void closeConnection() {
+            next.closeConnection();
         }
     }
 }

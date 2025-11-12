@@ -15,6 +15,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import greeter.HelloReply;
 import greeter.HelloRequest;
 import io.helidon.common.buffers.BufferData;
+import io.helidon.common.buffers.DataReader;
+import io.helidon.common.buffers.DataWriter;
+import io.helidon.common.socket.PeerInfo;
 import io.helidon.common.uri.UriEncoding;
 import io.helidon.http.Header;
 import io.helidon.http.HeaderNames;
@@ -29,12 +32,16 @@ import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.metrics.api.Metrics;
+import io.helidon.webserver.ConnectionContext;
+import io.helidon.webserver.ListenerContext;
+import io.helidon.webserver.Router;
 import io.netty.handler.codec.http2.Http2Flags;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -56,6 +63,7 @@ class PbjProtocolHandlerTest {
     private PbjMethodRoute route;
     private DeadlineDetectorStub deadlineDetector;
     private ServiceInterfaceStub service;
+    private ConnectionContext connectionContext;
 
     @BeforeEach
     void setUp() {
@@ -68,6 +76,57 @@ class PbjProtocolHandlerTest {
         service = new ServiceInterfaceStub();
         route = new PbjMethodRoute(service, ServiceInterfaceStub.METHOD);
         deadlineDetector = new DeadlineDetectorStub();
+        connectionContext = new ConnectionContext() {
+            @Override
+            public ListenerContext listenerContext() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ExecutorService executor() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public DataWriter dataWriter() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public DataReader dataReader() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Router router() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public PeerInfo remotePeer() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public PeerInfo localPeer() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean isSecure() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String socketId() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String childSocketId() {
+                throw new UnsupportedOperationException();
+            }
+        };
 
         Metrics.globalRegistry().close(); // reset the counters
         assertThat(route.requestCounter().count()).isZero();
@@ -90,7 +149,15 @@ class PbjProtocolHandlerTest {
 
         // Initializing the handler will throw an error because the content types are unsupported
         final var handler = new PbjProtocolHandler(
-                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
         handler.init();
 
         // Even though the request failed, it was made, and should be counted
@@ -137,7 +204,15 @@ class PbjProtocolHandlerTest {
 
         // Initialize will succeed!
         final var handler = new PbjProtocolHandler(
-                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
         handler.init();
         assertThat(route.requestCounter().count()).isEqualTo(1);
 
@@ -164,7 +239,15 @@ class PbjProtocolHandlerTest {
         h.add(HeaderNames.CONTENT_TYPE, "application/grpc");
         headers = Http2Headers.create(h);
         final PbjProtocolHandler handler = new PbjProtocolHandler(
-                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
         handler.init();
 
         final Bytes emptyData = createRequestData("");
@@ -195,7 +278,15 @@ class PbjProtocolHandlerTest {
 
         // Initializing the handler will throw an error because the content types are unsupported
         final var handler = new PbjProtocolHandler(
-                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
         handler.init();
 
         // Even though the request failed, it was made, and should be counted
@@ -264,7 +355,15 @@ class PbjProtocolHandlerTest {
 
         // Initializing the handler will throw an error because the content types are unsupported
         final var handler = new PbjProtocolHandler(
-                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
         handler.init();
 
         // Even though the request failed, it was made, and should be counted
@@ -319,7 +418,15 @@ class PbjProtocolHandlerTest {
                 GreeterService.GreeterMethod.sayHelloStreamReply);
 
         final var handler = new PbjProtocolHandler(
-                headers, streamWriter, streamId, flowControl, currentStreamState, config, route, deadlineDetector);
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
         handler.init();
         sendAllData(handler, createRequestData("Alice"));
 
