@@ -205,7 +205,7 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         // record style getters
-        bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed);
+        bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed, false);
         bodyContent += "\n";
 
         bodyContent +=
@@ -356,11 +356,17 @@ public final class ModelGenerator implements Generator {
 
     /**
      * Generating method that generates getters for the record style accessors. Needed now we use class not record.
+     * <p>
+     * We generate the getters in both the model itself and in its builder. The builder already has a no-arg build()
+     * method defined. If a protobuf model defines a field named "build", then the getter method name would clash
+     * with it. So we use the `guardBuildFieldName` argument to help prefix such getter method name with "_"
+     * to avoid a clash.
      *
      * @param fields the fields to use for the code generation
+     * @param guardBuildFieldName if true and the field name is "build", then prefix the getter with "_"
      * @return the generated code
      */
-    private static String generateRecordStyleGetters(final List<Field> fields) {
+    private static String generateRecordStyleGetters(final List<Field> fields, final boolean guardBuildFieldName) {
         return fields.stream()
                 .map(field -> {
                     String fieldComment = field.comment();
@@ -372,11 +378,15 @@ public final class ModelGenerator implements Generator {
                      *
                      * @return the value of the $fieldName field
                      */
-                    public $fieldType $fieldName() {
+                    public $fieldType $methodName() {
                         return $fieldName;
                     }
                     """
                             .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
+                            .replace(
+                                    "$methodName",
+                                    (guardBuildFieldName && "build".equals(field.nameCamelFirstLower()) ? "_" : "")
+                                            + field.nameCamelFirstLower())
                             .replace("$fieldName", field.nameCamelFirstLower())
                             .replace("$fieldType", field.javaFieldType())
                             .indent(DEFAULT_INDENT);
@@ -1154,7 +1164,19 @@ public final class ModelGenerator implements Generator {
                     return new $javaRecordName($recordParams);
                 }
 
-            $builderMethods}"""
+            $builderMethods
+
+
+            // Generated record-style getters for the current state of the builder follow below.
+            // NOTE: for performance reasons, repeated fields are initialized with unmodifiable lists. Similarly,
+            // Builder.repeatedField(Type... values) methods would wrap the values into unmodifiable lists.
+            // If an application needs to dynamically modify repeated fields in builders, then it must first call
+            // the Builder.repeatedField(List<Type> list) method and supply a modifiable list, such as an ArrayList
+            // instance. After that, the application must only use the getter method to access the list.
+            // If the application wants to finalize the list after the building is finished, then it may call
+            // Builder.repeatedField(builder.repeatedField().toArray(new Type[0])) as one last final step.
+
+            $getterMethods}"""
                 .replace("$fields", fields.stream().map(field ->
                         getFieldAnnotations(field)
                                 + "private " + field.javaFieldType()
@@ -1166,6 +1188,7 @@ public final class ModelGenerator implements Generator {
                 .replace("$javaRecordName",javaRecordName)
                 .replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
                 .replace("$builderMethods", String.join("\n", builderMethods))
+                .replace("$getterMethods", generateRecordStyleGetters(fields, true))
                 .indent(DEFAULT_INDENT);
         // spotless:on
     }
