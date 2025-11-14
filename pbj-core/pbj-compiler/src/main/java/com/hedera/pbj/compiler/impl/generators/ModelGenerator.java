@@ -1171,10 +1171,11 @@ public final class ModelGenerator implements Generator {
             // NOTE: for performance reasons, repeated fields are initialized with unmodifiable lists. Similarly,
             // Builder.repeatedField(Type... values) methods would wrap the values into unmodifiable lists.
             // If an application needs to dynamically modify repeated fields in builders, then it must first call
-            // the Builder.repeatedField(List<Type> list) method and supply a modifiable list, such as an ArrayList
-            // instance. After that, the application must only use the getter method to access the list.
-            // If the application wants to finalize the list after the building is finished, then it may call
-            // Builder.repeatedField(builder.repeatedField().toArray(new Type[0])) as one last final step.
+            // the Builder.repeatedField(List<Type> list) method and supply a modifiable list, such as
+            // an com.hedera.pbj.runtime.UnmodifiableArrayList instance.
+            // After that, the application must only use the getter method to access the list.
+            // To finalize the list once its building is finished, simply call
+            // ((UnmodifiableArrayList) builder.repeatedField()).makeReadOnly().
 
             $getterMethods}"""
                 .replace("$fields", fields.stream().map(field ->

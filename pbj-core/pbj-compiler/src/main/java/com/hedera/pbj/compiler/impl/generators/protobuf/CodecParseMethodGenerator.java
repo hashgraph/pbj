@@ -88,6 +88,7 @@ class CodecParseMethodGenerator {
                         List<UnknownField> $unknownFields = null;
 
                         $parseLoop
+                $listFieldsWriteProtection
                         if ($unknownFields != null) {
                             Collections.sort($unknownFields);
                             $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
@@ -109,6 +110,11 @@ class CodecParseMethodGenerator {
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
         )
         .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields, schemaClassName), "", schemaClassName))
+        .replace("$listFieldsWriteProtection", fields.stream()
+                .filter(Field::repeated)
+                .map(field -> "if (temp_" + field.name() + " instanceof UnmodifiableArrayList ual) ual.makeReadOnly();")
+                .collect(Collectors.joining("\n"))
+                .indent(DEFAULT_INDENT * 2))
         .indent(DEFAULT_INDENT);
         // spotless:on
     }
