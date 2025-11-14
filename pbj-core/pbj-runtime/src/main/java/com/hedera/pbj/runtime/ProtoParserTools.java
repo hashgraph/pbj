@@ -12,7 +12,6 @@ import java.nio.ByteOrder;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -47,7 +46,7 @@ public final class ProtoParserTools {
      */
     public static <T> List<T> addToList(List<T> list, T newItem) {
         if (list == Collections.EMPTY_LIST) {
-            list = new ArrayList<>();
+            list = new UnmodifiableArrayList<>();
         }
         list.add(newItem);
         return list;
