@@ -9,6 +9,7 @@ import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,6 @@ public final class EnumGenerator {
                 : cleanDocStr(enumDef.docComment().getText().replaceAll("\n \\*\s*\n", "\n * <br>\n"));
         String deprecated = "";
         final Map<Integer, EnumValue> enumValues = new HashMap<>();
-        int maxIndex = 0;
         for (var item : enumDef.enumBody().enumElement()) {
             if (item.enumField() != null && item.enumField().ident() != null) {
                 final var enumValueName = item.enumField().ident().getText();
@@ -64,7 +64,6 @@ public final class EnumGenerator {
                                         .replaceAll("\n[\t\s]+\\*\\*?", "\n") // remove doc indenting
                                         .replaceAll("/n\s*/n", "/n") //  remove empty lines
                         );
-                maxIndex = Math.max(maxIndex, enumNumber);
                 // extract if the enum is marks as deprecated
                 boolean deprecatedEnumValue = false;
                 if (item.enumField().enumValueOptions() != null
@@ -90,7 +89,7 @@ public final class EnumGenerator {
             }
         }
 
-        writer.append(createEnum(javaDocComment, deprecated, enumName, maxIndex, enumValues, false));
+        writer.append(createEnum(javaDocComment, deprecated, enumName, enumValues, false));
     }
 
     /**
@@ -99,7 +98,6 @@ public final class EnumGenerator {
      * @param javaDocComment either enum javadoc comment or empty string
      * @param deprecated either @deprecated string or empty string
      * @param enumName the name for enum
-     * @param maxIndex the max ordinal for enum
      * @param enumValues map of ordinal to enum value
      * @param addUnknown when true we add an enum value for one of
      * @return string code for enum
@@ -108,10 +106,9 @@ public final class EnumGenerator {
             String javaDocComment,
             String deprecated,
             String enumName,
-            int maxIndex,
             Map<Integer, EnumValue> enumValues,
             boolean addUnknown) {
-        final List<String> enumValuesCode = new ArrayList<>(maxIndex);
+        final List<String> enumValuesCode = new ArrayList<>(enumValues.size());
         if (addUnknown) {
             // spotless:off
             enumValuesCode.add(
@@ -122,29 +119,30 @@ public final class EnumGenerator {
                     UNSET(-1, "UNSET")""");
             // spotless:on
         }
-        for (int i = 0; i <= maxIndex; i++) {
-            final EnumValue enumValue = enumValues.get(i);
-            if (enumValue != null) {
-                // spotless:off
-                final String cleanedEnumComment = enumValue.javaDoc.contains("\n") ?
-                    """
-                    /**
-                     * $enumJavadoc
-                     */
-                    """
-                    .replace("$enumJavadoc",
-                            enumValue.javaDoc.replaceAll("\n\s*","\n * ")) :
-                    """
-                    /** $enumJavadoc */
-                    """
-                    .replace("$enumJavadoc", enumValue.javaDoc);
-                final String deprecatedText = enumValue.deprecated ? "@Deprecated\n" : "";
-                enumValuesCode.add("%s%s%s(%d, \"%s\")"
-                        .formatted(cleanedEnumComment, deprecatedText, camelToUpperSnake(enumValue.name), i,
-                                enumValue.name));
-                // spotless:on
-            }
-        }
+        enumValues.entrySet().stream()
+                .sorted(Comparator.comparingInt(Map.Entry::getKey))
+                .forEach(entry -> {
+                    final int enumNumber = entry.getKey();
+                    final EnumValue enumValue = entry.getValue();
+                    // spotless:off
+                    final String cleanedEnumComment = enumValue.javaDoc.contains("\n") ?
+                            """
+                            /**
+                             * $enumJavadoc
+                             */
+                            """
+                                    .replace("$enumJavadoc",
+                                            enumValue.javaDoc.replaceAll("\n\s*","\n * ")) :
+                            """
+                            /** $enumJavadoc */
+                            """
+                                    .replace("$enumJavadoc", enumValue.javaDoc);
+                    final String deprecatedText = enumValue.deprecated ? "@Deprecated\n" : "";
+                    enumValuesCode.add("%s%s%s(%d, \"%s\")"
+                            .formatted(cleanedEnumComment, deprecatedText, camelToUpperSnake(enumValue.name), enumNumber,
+                                    enumValue.name));
+                    // spotless:on
+                });
         // spotless:off
         return """
                 $javaDocComment

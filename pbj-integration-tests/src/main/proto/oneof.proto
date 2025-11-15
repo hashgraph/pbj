@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>> This comment is special code for setting PBJ Compiler java package
+
+import "bytes.proto";
+
+/**
+ * Verifies if a reversed order of field numbers in a oneOf definition works.
+ * Note that below, the oneOf with number 30 precedes the oneOf with number 16.
+ */
+message OneOfWithReversedFieldNumberOrder {
+  oneof staked_id {
+    MessageWithBytes staked_account_id = 30;
+    int64 staked_node_id = 16;
+  }
+}
