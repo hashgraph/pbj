@@ -1131,6 +1131,21 @@ public final class ModelGenerator implements Generator {
         for (final Field field : fields) {
             if (field.type() == Field.FieldType.ONE_OF) {
                 final OneOfField oneOfField = (OneOfField) field;
+                // spotless:off
+                builderMethods.add("""
+                        /**
+                         * Clear $fieldToSet oneof by setting it to UNSET.
+                         */
+                        public void clear$fieldName() {
+                            this.$fieldToSet = $fieldValue;
+                        }
+                        """
+                        .replace("$fieldName", oneOfField.nameCamelFirstUpper())
+                        .replace("$fieldToSet", oneOfField.nameCamelFirstLower())
+                        .replace("$fieldValue", getDefaultValue(oneOfField, msgDef, lookupHelper))
+                        .indent(DEFAULT_INDENT)
+                );
+                // spotless:on
                 for (final Field subField : oneOfField.fields()) {
                     generateBuilderMethods(builderMethods, msgDef, subField, lookupHelper);
                 }
