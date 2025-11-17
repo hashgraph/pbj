@@ -12,4 +12,3 @@ mainModuleInfo {
     annotationProcessor("io.helidon.codegen.apt")
     annotationProcessor("io.helidon.builder.codegen")
 }
-
