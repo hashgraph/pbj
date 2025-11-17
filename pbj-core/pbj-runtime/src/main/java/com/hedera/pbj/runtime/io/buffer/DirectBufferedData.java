@@ -159,6 +159,7 @@ final class DirectBufferedData extends BufferedData {
     @Override
     public Bytes readBytes(final int len) {
         validateLen(len);
+        if (len == 0) return Bytes.EMPTY;
         final int pos = buffer.position();
         validateCanRead(pos, len);
         final byte[] res = new byte[len];
