@@ -4,6 +4,7 @@ package com.hedera.pbj.runtime.io.buffer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.ReadableSequentialTestBase;
@@ -291,6 +292,15 @@ abstract class BufferedDataTestBase {
         bytes[3] = 127;
         bytes[4] = 127;
         assertArrayEquals(bytesOrig, readBytes.toByteArray());
+    }
+
+    @Test
+    void readBytesReturnsConstantEmptyForZeroLength() {
+        byte[] bytes = new byte[] {1, 2, 3, 4, 5};
+        final var buf = wrap(bytes);
+        final Bytes readBytes = buf.readBytes(0);
+        // NOTE: assertSame and not assertEquals, by design:
+        assertSame(Bytes.EMPTY, readBytes);
     }
 
     @Test
