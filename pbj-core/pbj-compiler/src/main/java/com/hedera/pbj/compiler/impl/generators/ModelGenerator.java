@@ -879,7 +879,6 @@ public final class ModelGenerator implements Generator {
         final List<String> oneofGetters = new ArrayList<>();
         final var oneOfField = new OneOfField(item.oneof(), javaRecordName, lookupHelper);
         final var enumName = oneOfField.nameCamelFirstUpper() + "OneOfType";
-        final int maxIndex = oneOfField.fields().getLast().fieldNumber();
         final Map<Integer, EnumValue> enumValues = new HashMap<>();
         // spotless:off
         for (final var field : oneOfField.fields()) {
@@ -949,8 +948,8 @@ public final class ModelGenerator implements Generator {
                              */"""
                         .formatted(oneOfField.name());
         // spotless:on
-        final String enumString = createEnum(enumComment, "", enumName, maxIndex, enumValues, true)
-                .indent(DEFAULT_INDENT * 2);
+        final String enumString =
+                createEnum(enumComment, "", enumName, enumValues, true).indent(DEFAULT_INDENT * 2);
         oneofEnums.add(enumString);
         fields.add(oneOfField);
         imports.accept("com.hedera.pbj.runtime.*");
