@@ -475,6 +475,8 @@ public final class ServiceGenerator {
                     System.err.printf(
                             "Unhandled Option: %s%n", item.optionStatement().getText());
                 }
+            } else if (item.optionComment() != null || item.emptyStatement_() != null) {
+                // Ignore these
             } else {
                 System.err.printf("ServiceGenerator Warning - Unknown element: %s -- %s%n", item, item.getText());
             }

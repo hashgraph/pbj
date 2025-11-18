@@ -97,7 +97,10 @@ public final class ModelGenerator implements Generator {
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
-            if (item.messageDef() != null) { // process sub messages down below in generateClass()
+            if (item.messageDef() != null
+                    || item.enumDef() != null
+                    || item.DOC_COMMENT()
+                            != null) { // process sub messages and inner enums down below in generateClass()
             } else if (item.oneof() != null) { // process one ofs
                 oneofGetters.addAll(generateCodeForOneOf(
                         lookupHelper, item, javaRecordName, writer::addImport, oneofEnums, fields));

@@ -45,7 +45,9 @@ public final class TestGenerator implements Generator {
         writer.addImport(lookupHelper.getPackage(FileType.MODEL, msgDef) + ".*");
 
         for (final var item : msgDef.messageBody().messageElement()) {
-            if (item.messageDef() != null) { // process sub messages down below
+            if (item.messageDef() != null
+                    || item.enumDef() != null
+                    || item.DOC_COMMENT() != null) { // process sub messages down below
             } else if (item.oneof() != null) { // process one ofs
                 final var field = new OneOfField(item.oneof(), modelClassName, lookupHelper);
                 fields.add(field);

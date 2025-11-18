@@ -84,6 +84,8 @@ public final class EnumGenerator {
                     System.err.printf(
                             "Unhandled Option: %s%n", item.optionStatement().getText());
                 }
+            } else if (item.reserved() != null) {
+                // Ignore reserved enum values
             } else {
                 System.err.printf("EnumGenerator Warning - Unknown element: %s -- %s%n", item, item.getText());
             }
