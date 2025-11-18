@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package pbj.integ.test.enumeration.reserved;
+option java_multiple_files = true;
+
+enum PbjEnumReserved {
+  reserved 6;
+
+  READ_STREAM_UNKNOWN_TEST = 0;
+  READ_STREAM_INSUFFICIENT_BALANCE_TEST = 1;
+  READ_STREAM_SUCCESS_TEST = 2;
+  READ_STREAM_INVALID_START_BLOCK_NUMBER_TEST = 3;
+  READ_STREAM_INVALID_END_BLOCK_NUMBER_TEST = 4;
+  READ_STREAM_NOT_AVAILABLE_TEST = 5;
+}
+
+message MessageWithReservedEnum {
+  PbjEnumReserved the_enum_with_reserved_values = 1;
+}

@@ -170,6 +170,7 @@ enumElement
   : optionStatement
   | optionComment
   | enumField
+  | reserved
   | emptyStatement_
   ;
 
@@ -205,6 +206,7 @@ messageElement
   | mapField
   | reserved
   | emptyStatement_
+  | DOC_COMMENT
   ;
 
 // service
