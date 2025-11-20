@@ -9,7 +9,7 @@ import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLIC
 import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_JSON;
 import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO;
 import static java.lang.System.Logger.Level.DEBUG;
-import static java.lang.System.Logger.Level.ERROR;
+import static java.lang.System.Logger.Level.INFO;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
@@ -306,9 +306,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             error();
         } catch (final Exception unknown) {
             route.failedUnknownRequestCounter().increment();
-            LOGGER.log(ERROR, "Failed to initialize grpc protocol handler", unknown);
-            new TrailerOnlyBuilder().grpcStatus(GrpcStatus.UNKNOWN).send();
-            error();
+            LOGGER.log(INFO, "Failed to initialize grpc protocol handler", unknown);
+            // If the socket is closed, then sending the trailers would fail too.
+            // But we still want to call error() so that we clean up resources:
+            try {
+                new TrailerOnlyBuilder().grpcStatus(GrpcStatus.UNKNOWN).send();
+            } finally {
+                error();
+            }
         }
     }
 
