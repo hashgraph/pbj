@@ -265,6 +265,24 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a enum protoOrdinal to data output.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param protoOrdinal the enum value to write
+     */
+    public static void writeEnumProtoOrdinal(WritableSequentialData out, FieldDefinition field, int protoOrdinal) {
+        assert field.type() == FieldType.ENUM : "Not an enum type " + field;
+        assert !field.repeated() : "Use writeEnumList with repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && protoOrdinal == 0) {
+            return;
+        }
+        writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
+        out.writeVarInt(protoOrdinal, false);
+    }
+
+    /**
      * Write a string to data output, assuming the field is non-repeated.
      *
      * @param out The data output to write to
@@ -868,8 +886,8 @@ public final class ProtoWriterTools {
      * @param field the descriptor for the field we are writing
      * @param list the list of enums value to write
      */
-    public static void writeEnumList(
-            WritableSequentialData out, FieldDefinition field, List<? extends EnumWithProtoMetadata> list) {
+    public static void writeEnumListProtoOrdinals(
+            WritableSequentialData out, FieldDefinition field, List<Integer> list) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert field.repeated() : "Use writeEnum with non-repeated types";
         // When not a oneOf don't write default value
@@ -879,12 +897,12 @@ public final class ProtoWriterTools {
         final int listSize = list.size();
         int size = 0;
         for (int i = 0; i < listSize; i++) {
-            size += sizeOfUnsignedVarInt32(list.get(i).protoOrdinal());
+            size += sizeOfUnsignedVarInt32(list.get(i));
         }
         writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarInt(size, false);
         for (int i = 0; i < listSize; i++) {
-            out.writeVarInt(list.get(i).protoOrdinal(), false);
+            out.writeVarInt(list.get(i), false);
         }
     }
 
@@ -1281,11 +1299,12 @@ public final class ProtoWriterTools {
      * @param enumValue enum value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfEnum(FieldDefinition field, EnumWithProtoMetadata enumValue) {
-        if (!field.oneOf() && (enumValue == null || enumValue.protoOrdinal() == 0)) {
+    public static int sizeOfEnum(FieldDefinition field, Object enumValue) {
+        if (!field.oneOf() && (enumValue == null || EnumWithProtoMetadata.protoOrdinal(enumValue) == 0)) {
             return 0;
         }
-        return sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(enumValue.protoOrdinal());
+        return sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG)
+                + sizeOfVarInt32(EnumWithProtoMetadata.protoOrdinal(enumValue));
     }
 
     /**
@@ -1505,7 +1524,7 @@ public final class ProtoWriterTools {
      * @param list enum list value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    public static int sizeOfEnumList(FieldDefinition field, List<? extends EnumWithProtoMetadata> list) {
+    public static int sizeOfEnumList(FieldDefinition field, List<?> list) {
         // When not a oneOf don't write default value
         if (!field.oneOf() && list.isEmpty()) {
             return 0;
@@ -1513,7 +1532,7 @@ public final class ProtoWriterTools {
         int size = 0;
         final int listSize = list.size();
         for (int i = 0; i < listSize; i++) {
-            size += sizeOfUnsignedVarInt64(list.get(i).protoOrdinal());
+            size += sizeOfUnsignedVarInt64(EnumWithProtoMetadata.protoOrdinal(list.get(i)));
         }
         return sizeOfTag(field, WIRE_TYPE_DELIMITED) + sizeOfVarInt32(size) + size;
     }

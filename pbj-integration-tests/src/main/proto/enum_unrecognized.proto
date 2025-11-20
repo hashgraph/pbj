@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package pbj.integ.test.enumeration.reserved;
+option java_multiple_files = true;
+
+// Note: constant names don't really matter. Only ordinals matter for enums:
+enum PbjEnumUnrecognized1 {
+  A1 = 0;
+  B1 = 1;
+  C1 = 2;
+}
+enum PbjEnumUnrecognized2 {
+  A2 = 0;
+  B2 = 1;
+  C2 = 2;
+  D2 = 3; // This constant is unknown to the PbjEnumUnrecognized1 above
+}
+
+// The two messages below should be "binary-compatible" on the wire, so that we can serialize/deserialize both
+// to/from the same bytes:
+message MessageWithUnrecognizedEnum1 {
+  PbjEnumUnrecognized1 enum_value = 1;
+  repeated PbjEnumUnrecognized1 enum_list = 2;
+}
+message MessageWithUnrecognizedEnum2 {
+  PbjEnumUnrecognized2 enum_value = 1;
+  repeated PbjEnumUnrecognized2 enum_list = 2;
+}

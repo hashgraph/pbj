@@ -664,6 +664,29 @@ public final class ProtoArrayWriterTools {
     }
 
     /**
+     * Write a enum protoOrdinal to data output
+     *
+     * @param output the byte array to write to
+     * @param offset the offset to start writing at
+     * @param field the descriptor for the field we are writing
+     * @param protoOrdinal the enum value to write
+     * @return the number of bytes written
+     */
+    public static int writeEnumProtoOrdinal(
+            @NonNull final byte[] output, final int offset, @NonNull final FieldDefinition field, int protoOrdinal) {
+        assert field.type() == FieldType.ENUM : "Not an enum type " + field;
+        assert !field.repeated() : "Use writeEnumList with repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && protoOrdinal == 0) {
+            return 0;
+        }
+        int bytesWritten = 0;
+        bytesWritten += writeTag(output, offset, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
+        bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, protoOrdinal);
+        return bytesWritten;
+    }
+
+    /**
      * Write a message to data output, assuming the corresponding field is non-repeated.
      *
      * @param <T> type of message
@@ -1068,11 +1091,8 @@ public final class ProtoArrayWriterTools {
      * @param list the list of enums value to write
      * @return the number of bytes written
      */
-    public static int writeEnumList(
-            @NonNull final byte[] output,
-            final int offset,
-            FieldDefinition field,
-            List<? extends EnumWithProtoMetadata> list) {
+    public static int writeEnumListProtoOrdinals(
+            @NonNull final byte[] output, final int offset, FieldDefinition field, List<Integer> list) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert field.repeated() : "Use writeEnum with non-repeated types";
         // When not a oneOf don't write default value
@@ -1082,14 +1102,13 @@ public final class ProtoArrayWriterTools {
         final int listSize = list.size();
         int size = 0;
         for (int i = 0; i < listSize; i++) {
-            size += sizeOfUnsignedVarInt32(list.get(i).protoOrdinal());
+            size += sizeOfUnsignedVarInt32(list.get(i));
         }
         int bytesWritten = 0;
         bytesWritten += writeTag(output, offset + bytesWritten, field, WIRE_TYPE_DELIMITED);
         bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, size);
         for (int i = 0; i < listSize; i++) {
-            bytesWritten += writeUnsignedVarInt(
-                    output, offset + bytesWritten, list.get(i).protoOrdinal());
+            bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, list.get(i));
         }
         return bytesWritten;
     }
