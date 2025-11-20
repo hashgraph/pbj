@@ -103,8 +103,11 @@ class CodecParseMethodGenerator {
                 }
                 """
         .replace("$modelClassName",modelClassName)
-        .replace("$fieldDefs",fields.stream().map(field -> "    %s temp_%s = %s;".formatted(field.javaFieldType(),
-                field.name(), field.javaDefault())).collect(Collectors.joining("\n")))
+        .replace("$fieldDefs",fields.stream().map(field -> {
+            final String javaFieldType = field.type() == Field.FieldType.ENUM ? field.repeated() ? "List" :  "Object" : field.javaFieldType();
+            return "    %s temp_%s = %s;".formatted(javaFieldType,
+                            field.name(), field.javaDefault());
+        }).collect(Collectors.joining("\n")))
         .replace("$fieldsList",
                 fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", "))
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
@@ -241,7 +244,26 @@ class CodecParseMethodGenerator {
         // spotless:off
         sb.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
-        sb.append("""
+        final String preRead;
+        if (field.type() == Field.FieldType.ENUM) {
+            // spotless:off
+            preRead = """
+                    final int enumOrdinal = readEnum(input);
+                    Object value = $enumName.fromProtobufOrdinal(enumOrdinal);
+                    if (value == $enumName.UNRECOGNIZED) {
+                       value = Integer.valueOf(enumOrdinal);
+                    }
+                    
+                    """
+                    .replace("$enumName", Common.snakeToCamel(field.messageType(), true))
+                    .indent(DEFAULT_INDENT)
+            ;
+            // spotless:on
+        } else {
+            preRead = "";
+        }
+        sb.append(
+                """
                 // Read the length of packed repeated field data
                 final long length = input.readVarInt(false);
                 if (length > $maxSize) {
@@ -254,18 +276,18 @@ class CodecParseMethodGenerator {
                 final long beforePosition = input.position();
                 input.limit(input.position() + length);
                 while (input.hasRemaining()) {
-                    $tempFieldName = addToList($tempFieldName,$readMethod);
+                    $preRead$tempFieldName = addToList($tempFieldName,$readMethod);
                 }
                 input.limit(beforeLimit);
                 if (input.position() != beforePosition + length) {
                     throw new BufferUnderflowException();
                 }"""
-                .replace("$tempFieldName", "temp_" + field.name())
-                .replace("$readMethod", readMethod(field))
-                .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
-                .replace("$fieldName", field.name())
-                .indent(DEFAULT_INDENT)
-        );
+                        .replace("$tempFieldName", "temp_" + field.name())
+                        .replace("$preRead", preRead)
+                        .replace("$readMethod", field.type() == Field.FieldType.ENUM ? "value" : readMethod(field))
+                        .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
+                        .replace("$fieldName", field.name())
+                        .indent(DEFAULT_INDENT));
         sb.append("\n}\n");
         // spotless:on
     }
@@ -414,6 +436,17 @@ class CodecParseMethodGenerator {
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
             );
             // spotless:on
+        } else if (field.type() == Field.FieldType.ENUM) {
+            // spotless:off
+            sb.append("""
+                        final int enumOrdinal = readEnum(input);
+                        final var value = $enumName.fromProtobufOrdinal(enumOrdinal);
+                        """
+                    .replace("$enumName", Common.snakeToCamel(field.messageType(), true))
+                    .replace("$fieldName", field.name())
+                    .indent(DEFAULT_INDENT)
+            );
+            // spotless:on
         } else {
             sb.append(("final var value = " + readMethod(field) + ";\n").indent(DEFAULT_INDENT));
         }
@@ -447,6 +480,16 @@ class CodecParseMethodGenerator {
                 }
                 """.formatted(field.name(), field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize",
                         mapField.keyField().name(), mapField.valueField().name()));
+        } else if (field.type() == Field.FieldType.ENUM) {
+            // spotless:off
+            sb.append("""
+                        temp_$fieldName = value != $enumName.UNRECOGNIZED ? value : Integer.valueOf(enumOrdinal);
+                        """
+                    .replace("$enumName", Common.snakeToCamel(field.messageType(), true))
+                    .replace("$fieldName", field.name())
+                    .indent(DEFAULT_INDENT)
+            );
+            // spotless:on
         } else {
             sb.append("temp_%s = value;\n".formatted(field.name()));
         }
@@ -476,8 +519,9 @@ class CodecParseMethodGenerator {
             };
         }
         return switch (field.type()) {
-            case ENUM ->
-                "%s.fromProtobufOrdinal(readEnum(input))".formatted(Common.snakeToCamel(field.messageType(), true));
+            //            case ENUM ->
+            //
+            // "%s.fromProtobufOrdinal(readEnum(input))".formatted(Common.snakeToCamel(field.messageType(), true));
             case INT32 -> "readInt32(input)";
             case UINT32 -> "readUint32(input)";
             case SINT32 -> "readSignedInt32(input)";
@@ -496,6 +540,7 @@ class CodecParseMethodGenerator {
             case BYTES ->
                 "readBytes(input, %s)".formatted(field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
             case MESSAGE -> field.parseCode();
+            case ENUM -> throw new PbjCompilerException("Should never happen, enum handled elsewhere");
             case ONE_OF -> throw new PbjCompilerException("Should never happen, oneOf handled elsewhere");
             case MAP -> throw new PbjCompilerException("Should never happen, map handled elsewhere");
         };

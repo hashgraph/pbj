@@ -285,7 +285,10 @@ public final class TestGenerator implements Generator {
             case BOOL -> "BOOLEAN_TESTS_LIST";
             case STRING -> "STRING_TESTS_LIST";
             case BYTES -> "BYTES_TESTS_LIST";
-            case ENUM -> "Arrays.asList(%s.values())".formatted(javaFieldType);
+            // Skip the special UNRECOGNIZED constant in tests because it cannot(shouldn't) be set by client code
+            case ENUM ->
+                "Arrays.asList(%s.values()).stream().filter(e -> !\"UNRECOGNIZED\".equals(e.name())).toList()"
+                        .formatted(javaFieldType);
             case ONE_OF ->
                 throw new RuntimeException("Should never happen, should have been caught in generateTestData()");
             case MESSAGE -> "%s%s.ARGUMENTS".formatted(javaFieldType, FileAndPackageNamesConfig.TEST_JAVA_FILE_SUFFIX);

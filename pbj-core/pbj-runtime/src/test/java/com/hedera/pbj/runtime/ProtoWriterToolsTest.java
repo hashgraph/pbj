@@ -1358,7 +1358,7 @@ class ProtoWriterToolsTest {
         T read(BufferedData bd, long pos);
     }
 
-    private static final List<EnumWithProtoMetadata> testEnumList = List.of(mockEnum(0), mockEnum(2), mockEnum(1));
+    private static final List<Integer> testEnumList = List.of(0, 2, 1);
 
     // https://clement-jean.github.io/packed_vs_unpacked_repeated_fields/
     private static Stream<Arguments> provideWritePackedListArguments() {
@@ -1383,18 +1383,18 @@ class ProtoWriterToolsTest {
                         (ReaderMethod<Boolean>) (BufferedData bd, long pos) -> (bd.getInt(pos) != 0 ? true : false)),
                 Arguments.of(
                         ENUM,
-                        (WriterMethod<? extends EnumWithProtoMetadata>) ProtoWriterTools::writeEnumList,
+                        (WriterMethod<Integer>) ProtoWriterTools::writeEnumListProtoOrdinals,
                         testEnumList,
                         3,
-                        (ReaderMethod<? extends EnumWithProtoMetadata>) (BufferedData bd, long pos) -> {
+                        (ReaderMethod<Integer>) (BufferedData bd, long pos) -> {
                             final int ordinal = bd.getVarInt(pos, false);
-                            for (EnumWithProtoMetadata e : testEnumList) {
-                                if (e.protoOrdinal() == ordinal) return e;
+                            for (Integer e : testEnumList) {
+                                if (e == ordinal) return e;
                             }
                             throw new RuntimeException("Unexpected ordinal " + ordinal
                                     + " for test enum list "
                                     + testEnumList.stream()
-                                            .map(e -> "" + e.protoOrdinal() + ": " + e.protoName())
+                                            .map(e -> "" + e)
                                             .collect(Collectors.joining(",", "{", "}")));
                         }));
     }

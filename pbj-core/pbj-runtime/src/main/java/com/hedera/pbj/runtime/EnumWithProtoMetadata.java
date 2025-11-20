@@ -18,4 +18,22 @@ public interface EnumWithProtoMetadata {
      * @return The original field name in protobuf for this type
      */
     String protoName();
+
+    /**
+     * Returns a protoOrdinal for an EnumWithProtoMetadata, or the value itself for an Integer,
+     * or throws IllegalArgumentException otherwise.
+     * @param obj either an EnumWithProtoMetadata or an Integer
+     * @return a protoOrdinal of the given "enum value"
+     * @throws IllegalArgumentException if the given object is not EnumWithProtoMetadata or Integer
+     */
+    static int protoOrdinal(final Object obj) {
+        if (obj instanceof EnumWithProtoMetadata pbjEnum) {
+            return pbjEnum.protoOrdinal();
+        } else if (obj instanceof Integer intObj) {
+            return intObj;
+        } else {
+            throw new IllegalArgumentException("EnumWithProtoMetadata or Integer are supported only, got "
+                    + obj.getClass().getName());
+        }
+    }
 }

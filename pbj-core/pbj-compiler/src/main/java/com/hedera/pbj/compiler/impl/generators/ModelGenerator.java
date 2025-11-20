@@ -183,11 +183,19 @@ public final class ModelGenerator implements Generator {
                     } else {
                         fieldComment = "/** " + fieldPrefix + fieldComment + " */\n";
                     }
+                    final String javaFieldType = field.type() == FieldType.ENUM
+                            ? field.repeated() ? "List<?>" : "Object"
+                            : field.javaFieldType();
+                    if (field.type() == FieldType.ENUM) {
+                        // A trick to save memory:
+                        fieldComment = "// Enum \"Object\" is either " + field.javaFieldTypeBase()
+                                + " or Integer representing its protoOrdinal value:\n" + fieldComment;
+                    }
                     return fieldComment
                             + "private "
                             + (field.fieldNumber() != -1 ? "final " : "")
                             + getFieldAnnotations(field)
-                            + field.javaFieldType() + " " + field.nameCamelFirstLower()
+                            + javaFieldType + " " + field.nameCamelFirstLower()
                             + (field.fieldNumber() == -1 ? " = -1" : "")
                             + ";";
                 })
@@ -199,13 +207,23 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
         bodyContent += "\n";
 
-        // constructors: w/o unknownFields, and with unknownFields
-        bodyContent +=
-                generateConstructor(javaRecordName, fields, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+        // constructors: w/o unknownFields, and with unknownFields; both w/ real enums and with Object
+        bodyContent += generateConstructor(
+                javaRecordName, fields, false, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
         bodyContent += "\n";
-        bodyContent +=
-                generateConstructor(javaRecordName, fields, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+        if (hasEnums(fieldsNoPrecomputed)) {
+            bodyContent += generateConstructor(
+                    javaRecordName, fields, false, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+            bodyContent += "\n";
+        }
+        bodyContent += generateConstructor(
+                javaRecordName, fields, true, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
         bodyContent += "\n";
+        if (hasEnums(fieldsNoPrecomputed)) {
+            bodyContent += generateConstructor(
+                    javaRecordName, fields, true, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+            bodyContent += "\n";
+        }
 
         // record style getters
         bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed, false);
@@ -375,6 +393,65 @@ public final class ModelGenerator implements Generator {
                     String fieldComment = field.comment();
                     String fieldCommentLowerFirst =
                             fieldComment.substring(0, 1).toLowerCase() + fieldComment.substring(1);
+                    final String fieldValue;
+                    if (field.type() != FieldType.ENUM) {
+                        fieldValue = field.nameCamelFirstLower();
+                    } else {
+                        if (field.repeated()) {
+                            // FUTURE WORK: cache the result
+                            fieldValue =
+                                    field.javaFieldTypeBase() + ".fromObjects(" + field.nameCamelFirstLower() + ")";
+                        } else {
+                            fieldValue = field.javaFieldType() + ".fromObject(" + field.nameCamelFirstLower() + ")";
+                        }
+                    }
+                    final String methodName =
+                            (guardBuildFieldName && "build".equals(field.nameCamelFirstLower()) ? "_" : "")
+                                    + field.nameCamelFirstLower();
+                    final String extraGetter;
+                    if (field.type() == FieldType.ENUM) {
+                        if (field.repeated()) {
+                            extraGetter =
+                                    """
+
+                            /**
+                             * Get the protoOrdinals for field $fieldCommentLowerFirst,
+                             * even for UNRECOGNIZED values.
+                             *
+                             * @return a list of protoOrdinals
+                             */
+                            public List<Integer> $methodNameProtoOrdinals() {
+                                return $enumName.toProtoOrdinals($fieldValue);
+                            }
+                            """
+                                            .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
+                                            .replace("$methodName", methodName)
+                                            .replace("$fieldValue", field.nameCamelFirstLower())
+                                            .replace("$enumName", field.javaFieldTypeBase())
+                                            .indent(DEFAULT_INDENT);
+                        } else {
+                            extraGetter =
+                                    """
+
+                            /**
+                             * Get the protoOrdinal for field $fieldCommentLowerFirst,
+                             * even for an UNRECOGNIZED value.
+                             *
+                             * @return the value of the $fieldName field
+                             */
+                            public int $methodNameProtoOrdinal() {
+                                return $enumName.toProtoOrdinal($fieldValue);
+                            }
+                            """
+                                            .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
+                                            .replace("$methodName", methodName)
+                                            .replace("$fieldValue", field.nameCamelFirstLower())
+                                            .replace("$enumName", field.javaFieldType())
+                                            .indent(DEFAULT_INDENT);
+                        }
+                    } else {
+                        extraGetter = "";
+                    }
                     return """
                     /**
                      * Get field $fieldCommentLowerFirst
@@ -382,16 +459,15 @@ public final class ModelGenerator implements Generator {
                      * @return the value of the $fieldName field
                      */
                     public $fieldType $methodName() {
-                        return $fieldName;
+                        return $fieldValue;
                     }
+                    $extraGetter
                     """
                             .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
-                            .replace(
-                                    "$methodName",
-                                    (guardBuildFieldName && "build".equals(field.nameCamelFirstLower()) ? "_" : "")
-                                            + field.nameCamelFirstLower())
-                            .replace("$fieldName", field.nameCamelFirstLower())
+                            .replace("$methodName", methodName)
+                            .replace("$fieldValue", fieldValue)
                             .replace("$fieldType", field.javaFieldType())
+                            .replace("$extraGetter", extraGetter)
                             .indent(DEFAULT_INDENT);
                 })
                 .collect(Collectors.joining("\n"));
@@ -667,6 +743,7 @@ public final class ModelGenerator implements Generator {
             final String constructorName,
             final List<Field> fields,
             final boolean initUnknownFields,
+            final boolean objectForEnum,
             final List<Field> fieldsNoPrecomputed,
             final boolean shouldThrowOnOneOfNull,
             final MessageDefContext msgDef,
@@ -689,9 +766,16 @@ public final class ModelGenerator implements Generator {
                                 field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
                 ).collect(Collectors.joining(" ")))
                 .replace("$constructorName", constructorName)
-                .replace("$constructorParams",fieldsNoPrecomputed.stream().map(field ->
-                        field.javaFieldType() + " " + field.nameCamelFirstLower()
-                ).collect(Collectors.joining(", ")))
+                .replace("$constructorParams",fieldsNoPrecomputed.stream().map(field -> {
+                    if (field.type() == FieldType.ENUM && field.repeated()) {
+                        return "List<?>" + " " + field.nameCamelFirstLower();
+                    }
+                    if (objectForEnum && field.type() == FieldType.ENUM) {
+                        return "Object" + " " + field.nameCamelFirstLower();
+                    } else {
+                        return field.javaFieldType() + " " + field.nameCamelFirstLower();
+                    }
+                }).collect(Collectors.joining(", ")))
                 .replace("$unknownFieldsParam", initUnknownFields
                         ? ((fieldsNoPrecomputed.isEmpty() ? "" : ", ") + "final List<UnknownField> $unknownFields")
                         : "")
@@ -956,6 +1040,7 @@ public final class ModelGenerator implements Generator {
         oneofEnums.add(enumString);
         fields.add(oneOfField);
         imports.accept("com.hedera.pbj.runtime.*");
+        imports.accept("java.util.List");
         return oneofGetters;
     }
 
@@ -1171,7 +1256,9 @@ public final class ModelGenerator implements Generator {
                 public Builder() { $unknownFields = null; }
             
             $prePopulatedBuilder
+            $prePopulatedObjectForEnumBuilder
             $prePopulatedWithUnknownFieldsBuilder
+            $prePopulatedWithUnknownFieldsObjectForEnumBuilder
                 /**
                  * Build a new model record with data set on builder
                  *
@@ -1195,14 +1282,17 @@ public final class ModelGenerator implements Generator {
             // ((UnmodifiableArrayList) builder.repeatedField()).makeReadOnly().
 
             $getterMethods}"""
-                .replace("$fields", fields.stream().map(field ->
-                        getFieldAnnotations(field)
-                                + "private " + field.javaFieldType()
-                                + " " + field.nameCamelFirstLower()
-                                + " = " + getDefaultValue(field, msgDef, lookupHelper)
-                        ).collect(Collectors.joining(";\n    ")))
-                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, fields, false, msgDef, lookupHelper))
-                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, fields, false, msgDef, lookupHelper))
+                .replace("$fields", fields.stream().map(field -> {
+                    final String javaFieldType = field.type() == FieldType.ENUM ? field.repeated() ? "List<?>" : "Object" : field.javaFieldType();
+                    return getFieldAnnotations(field)
+                            + "private " + javaFieldType
+                            + " " + field.nameCamelFirstLower()
+                            + " = " + getDefaultValue(field, msgDef, lookupHelper);
+                }).collect(Collectors.joining(";\n    ")))
+                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, false, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, false, true, fields, false, msgDef, lookupHelper) : "")
+                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, false, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedWithUnknownFieldsObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, true, true, fields, false, msgDef, lookupHelper) : "")
                 .replace("$javaRecordName",javaRecordName)
                 .replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
                 .replace("$builderMethods", String.join("\n", builderMethods))
@@ -1225,5 +1315,12 @@ public final class ModelGenerator implements Generator {
         } else {
             return field.javaDefault();
         }
+    }
+
+    // Check for non-repeated enums so that we could generate Object constructors.
+    // This doesn't work for repeated fields because List<Enum> and List<Object> are the same for JVM/javac,
+    // so for repeated enums we're forced to only use the List<?> type.
+    private static boolean hasEnums(final List<Field> fields) {
+        return fields.stream().anyMatch(field -> field.type() == Field.FieldType.ENUM && !field.repeated());
     }
 }
