@@ -103,7 +103,8 @@ public class UnknownFieldsTest {
     public void testUnknownFieldsInInnerMessage() throws Exception {
         // write MessageWithBytesAndString
         MessageWithBytesAndString messageWithBytesAndString = new MessageWithBytesAndString(TEST_BYTES, TEST_STRING);
-        final Bytes messageWithBytesAndStringBytes = MessageWithBytesAndString.PROTOBUF.toBytes(messageWithBytesAndString);
+        final Bytes messageWithBytesAndStringBytes =
+                MessageWithBytesAndString.PROTOBUF.toBytes(messageWithBytesAndString);
 
         // then read it as MessageWithBytes with unknown fields
         final MessageWithBytes messageWithBytes = MessageWithBytes.PROTOBUF.parse(
@@ -126,8 +127,8 @@ public class UnknownFieldsTest {
 
         // now confirm that user can retrieve unknown fields when using expanded message MessageWithBytesAndString
         final Bytes messageWithBytesBytes = MessageWithBytes.PROTOBUF.toBytes(parsedBytes);
-        final MessageWithBytesAndString messageWithBytesAndStringParsed = MessageWithBytesAndString.PROTOBUF.parse(
-                messageWithBytesBytes.toReadableSequentialData());
+        final MessageWithBytesAndString messageWithBytesAndStringParsed =
+                MessageWithBytesAndString.PROTOBUF.parse(messageWithBytesBytes.toReadableSequentialData());
         assertTrue(messageWithBytesAndStringParsed.getUnknownFields().isEmpty());
         assertEquals(messageWithBytesAndString, messageWithBytesAndStringParsed);
     }
