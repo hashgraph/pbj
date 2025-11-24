@@ -114,7 +114,8 @@ public class UnknownFieldsTest {
                 new OneOf<>(MessageWithBytesWrapper.MessageValidOneOfType.MESSAGE_WITH_BYTES, messageWithBytes));
         assertFalse(
                 messageWithBytesWrapper.messageWithBytes().getUnknownFields().isEmpty());
-        assertEquals(1, messageWithBytesWrapper.getUnknownFields().size());
+        assertEquals(
+                1, messageWithBytesWrapper.messageWithBytes().getUnknownFields().size());
 
         // write to bytes to simulate sending over the wire
         final Bytes messageWithBytesWrapperBytes = MessageWithBytesWrapper.PROTOBUF.toBytes(messageWithBytesWrapper);
