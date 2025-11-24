@@ -106,7 +106,7 @@ jobs:
         run: ./gradlew check
 
       - name: Publish JUnit Test Report (PBJ Core)
-        uses: step-security/publish-unit-test-result-action@c8537a200a435e2560109a6a8ed9cac838b62656 # v2.20.5
+        uses: step-security/publish-unit-test-result-action@32f89bf71205087367e3fe317be553f2ee59a5b0 # v2.21.0
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           check_name: JUnit Test Report
@@ -132,7 +132,7 @@ jobs:
         run: ./gradlew check
 
       - name: Publish Integration Test Report (PBJ Integration)
-        uses: step-security/publish-unit-test-result-action@c8537a200a435e2560109a6a8ed9cac838b62656 # v2.3.0
+        uses: step-security/publish-unit-test-result-action@32f89bf71205087367e3fe317be553f2ee59a5b0 # v2.3.0
         if: ${{ inputs.enable-integration-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
         with:
           check_name: Integration Test Report
