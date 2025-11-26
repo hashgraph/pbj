@@ -13,3 +13,13 @@ option java_multiple_files = true;
 message MessageWithBytes {
   bytes bytesField = 1;
 }
+
+/**
+ * Sample protobuf with MessageWithBytes as a oneof child message field.
+ */
+message MessageWithBytesWrapper {
+  oneof message_valid {
+    MessageWithBytes messageWithBytes = 1;
+    bool valid = 2;
+  }
+}
