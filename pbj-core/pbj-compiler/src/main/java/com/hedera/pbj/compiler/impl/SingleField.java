@@ -216,7 +216,8 @@ public record SingleField(
     @Override
     public String parseCode() {
         if (type == FieldType.MESSAGE) {
-            return "%s.PROTOBUF.parse(input, strictMode, parseUnknownFields, maxDepth - 1)".formatted(messageType);
+            return "%s.PROTOBUF.parse(input, strictMode, parseUnknownFields, maxDepth - 1, maxSize)"
+                    .formatted(messageType);
         } else {
             return "input";
         }

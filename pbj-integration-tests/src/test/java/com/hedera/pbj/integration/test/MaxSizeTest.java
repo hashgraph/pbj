@@ -4,9 +4,12 @@ package com.hedera.pbj.integration.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.test.proto.pbj.Everything;
+import com.hedera.pbj.test.proto.pbj.InnerEverything;
 import com.hedera.pbj.test.proto.pbj.MessageWithBytes;
 import com.hedera.pbj.test.proto.pbj.MessageWithString;
 import org.junit.jupiter.api.Test;
@@ -72,5 +75,46 @@ public class MaxSizeTest {
         data.resetPosition();
         assertThrows(
                 ParseException.class, () -> MessageWithString.PROTOBUF.parse(data, false, false, Integer.MAX_VALUE, 6));
+    }
+
+    @Test
+    void testNestedMaxSize() throws Exception {
+        // This message, an inner nested message within it, as well as a field in that inner message all exceed the
+        // DEFAULT_MAX_SIZE:
+        final Everything everything = Everything.newBuilder()
+                .innerEverything(
+                        InnerEverything.newBuilder().bytesField(Bytes.wrap("1".repeat(Codec.DEFAULT_MAX_SIZE + 1))))
+                .build();
+        final Bytes bytes = Everything.PROTOBUF.toBytes(everything);
+
+        // Try negative cases first:
+        assertThrows(ParseException.class, () -> Everything.PROTOBUF.parse(bytes.toReadableSequentialData()));
+        assertThrows(
+                ParseException.class,
+                () -> Everything.PROTOBUF.parse(
+                        bytes.toReadableSequentialData(), false, false, Codec.DEFAULT_MAX_DEPTH, 256));
+        assertThrows(
+                ParseException.class,
+                () -> Everything.PROTOBUF.parse(
+                        bytes.toReadableSequentialData(),
+                        false,
+                        false,
+                        Codec.DEFAULT_MAX_DEPTH,
+                        Codec.DEFAULT_MAX_SIZE));
+        // +1 still shouldn't work because the outer and the inner objects are still larger:
+        assertThrows(
+                ParseException.class,
+                () -> Everything.PROTOBUF.parse(
+                        bytes.toReadableSequentialData(),
+                        false,
+                        false,
+                        Codec.DEFAULT_MAX_DEPTH,
+                        Codec.DEFAULT_MAX_SIZE + 1));
+
+        // Now try supplying a large enough maxSize to parse it:
+        final Everything parsedEverything = Everything.PROTOBUF.parse(
+                bytes.toReadableSequentialData(), false, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE * 2);
+
+        assertEquals(everything, parsedEverything);
     }
 }
