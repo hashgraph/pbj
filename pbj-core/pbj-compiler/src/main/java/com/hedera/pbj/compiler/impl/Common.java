@@ -286,7 +286,7 @@ public final class Common {
                     generatedCodeSoFar +=
                             ("""
                             if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
-                               result = 31 * result + Integer.hashCode($fieldName.protoOrdinal());
+                               result = 31 * result + Integer.hashCode(EnumWithProtoMetadata.protoOrdinal($fieldName));
                             }
                             """)
                                     .replace("$fieldName", f.nameCamelFirstLower());
@@ -320,55 +320,62 @@ public final class Common {
     @NonNull
     private static String getPrimitiveWrapperHashCodeGeneration(String generatedCodeSoFar, Field f) {
         switch (f.messageType()) {
-            case "StringValue" -> generatedCodeSoFar +=
-                    ("""
+            case "StringValue" ->
+                generatedCodeSoFar +=
+                        ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + $fieldName.hashCode();
                     }
                     """)
-                            .replace("$fieldName", f.nameCamelFirstLower());
-            case "BoolValue" -> generatedCodeSoFar +=
-                    ("""
+                                .replace("$fieldName", f.nameCamelFirstLower());
+            case "BoolValue" ->
+                generatedCodeSoFar +=
+                        ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + Boolean.hashCode($fieldName);
                     }
                     """)
-                            .replace("$fieldName", f.nameCamelFirstLower());
-            case "Int32Value", "UInt32Value" -> generatedCodeSoFar +=
-                    ("""
+                                .replace("$fieldName", f.nameCamelFirstLower());
+            case "Int32Value", "UInt32Value" ->
+                generatedCodeSoFar +=
+                        ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + Integer.hashCode($fieldName);
                     }
                     """)
-                            .replace("$fieldName", f.nameCamelFirstLower());
-            case "Int64Value", "UInt64Value" -> generatedCodeSoFar +=
-                    ("""
+                                .replace("$fieldName", f.nameCamelFirstLower());
+            case "Int64Value", "UInt64Value" ->
+                generatedCodeSoFar +=
+                        ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + Long.hashCode($fieldName);
                     }
                     """)
-                            .replace("$fieldName", f.nameCamelFirstLower());
-            case "FloatValue" -> generatedCodeSoFar +=
-                    ("""
+                                .replace("$fieldName", f.nameCamelFirstLower());
+            case "FloatValue" ->
+                generatedCodeSoFar +=
+                        ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + Float.hashCode($fieldName);
                     }
                     """)
-                            .replace("$fieldName", f.nameCamelFirstLower());
-            case "DoubleValue" -> generatedCodeSoFar +=
-                    ("""
+                                .replace("$fieldName", f.nameCamelFirstLower());
+            case "DoubleValue" ->
+                generatedCodeSoFar +=
+                        ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + Double.hashCode($fieldName);
                     }
                     """)
-                            .replace("$fieldName", f.nameCamelFirstLower());
-            case "BytesValue" -> generatedCodeSoFar +=
-                    ("""
+                                .replace("$fieldName", f.nameCamelFirstLower());
+            case "BytesValue" ->
+                generatedCodeSoFar +=
+                        ("""
                     if ($fieldName != null && !$fieldName.equals(DEFAULT.$fieldName)) {
                         result = 31 * result + ($fieldName == null ? 0 : $fieldName.hashCode());
                     }
                     """)
-                            .replace("$fieldName", f.nameCamelFirstLower());
+                                .replace("$fieldName", f.nameCamelFirstLower());
             default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
         }
         return generatedCodeSoFar;
@@ -543,8 +550,9 @@ public final class Common {
                     "UInt64Value",
                     "FloatValue",
                     "DoubleValue",
-                    "BytesValue" -> generatedCodeSoFar +=
-                    ("""
+                    "BytesValue" ->
+                generatedCodeSoFar +=
+                        ("""
                     if (this.$fieldName == null && thatObj.$fieldName != null) {
                         return false;
                     }
@@ -552,7 +560,7 @@ public final class Common {
                         return false;
                     }
                     """)
-                            .replace("$fieldName", f.nameCamelFirstLower());
+                                .replace("$fieldName", f.nameCamelFirstLower());
             default -> throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
         }
         return generatedCodeSoFar;
@@ -693,12 +701,17 @@ public final class Common {
                    return 1;
                }
                if ($fieldName != null) {
-                   result = $fieldName.compareTo(thatObj.$fieldName);
+                   result = $doCompare;
                }
                if (result != 0) {
                    return result;
                }
                """
+                .replace(
+                        "$doCompare",
+                        f.type() == Field.FieldType.ENUM
+                                ? f.javaFieldType() + ".compare($fieldName, thatObj.$fieldName)"
+                                : "$fieldName.compareTo(thatObj.$fieldName)")
                 .replace("$fieldName", f.nameCamelFirstLower());
     }
 
@@ -760,8 +773,8 @@ public final class Common {
                     case "UInt64Value" -> "java.lang.Long.compareUnsigned($fieldName, thatObj.$fieldName)";
                     case "FloatValue" -> "java.lang.Float.compare($fieldName, thatObj.$fieldName)";
                     case "DoubleValue" -> "java.lang.Double.compare($fieldName, thatObj.$fieldName)";
-                    default -> throw new UnsupportedOperationException(
-                            "Unhandled optional message type:" + f.messageType());
+                    default ->
+                        throw new UnsupportedOperationException("Unhandled optional message type:" + f.messageType());
                 };
 
         return template.replace("$compareStatement", compareStatement).replace("$fieldName", f.nameCamelFirstLower());

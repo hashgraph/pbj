@@ -25,7 +25,16 @@ final class CodecWriteByteArrayMethodGenerator {
                 modelClassName,
                 schemaClassName,
                 fields,
-                field -> " data.%s()".formatted(field.nameCamelFirstLower()),
+                field -> {
+                    if (field.type() == Field.FieldType.ENUM) {
+                        if (field.repeated()) {
+                            return "data.%sProtoOrdinals()".formatted(field.nameCamelFirstLower());
+                        } else {
+                            return "data.%sProtoOrdinal()".formatted(field.nameCamelFirstLower());
+                        }
+                    }
+                    return " data.%s()".formatted(field.nameCamelFirstLower());
+                },
                 true);
         // spotless:off
         return
@@ -131,7 +140,7 @@ final class CodecWriteByteArrayMethodGenerator {
             }
             if (field.repeated()) {
                 return prefix + switch(field.type()) {
-                    case ENUM -> "offset += ProtoArrayWriterTools.writeEnumList(output, offset, %s, %s);"
+                    case ENUM -> "offset += ProtoArrayWriterTools.writeEnumListProtoOrdinals(output, offset, %s, %s);"
                             .formatted(fieldDef, getValueCode);
                     case MESSAGE -> "offset += ProtoArrayWriterTools.writeMessageList(output, offset, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, codecReference);
@@ -203,7 +212,8 @@ final class CodecWriteByteArrayMethodGenerator {
                         .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT));
             } else {
                 return prefix + switch(field.type()) {
-                    case ENUM -> "offset += ProtoArrayWriterTools.writeEnum(output, offset, %s, %s);"
+                    case ENUM -> "offset += ProtoArrayWriterTools.writeEnumProtoOrdinal(output, offset, %s, (%s)$suffix);"
+                            .replace("$suffix", field.parent() == null ? "" : ".protoOrdinal()")
                             .formatted(fieldDef, getValueCode);
                     case STRING -> "offset += ProtoArrayWriterTools.writeString(output, offset, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, skipDefault);

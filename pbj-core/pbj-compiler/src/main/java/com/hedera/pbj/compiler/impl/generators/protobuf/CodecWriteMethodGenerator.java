@@ -25,7 +25,16 @@ final class CodecWriteMethodGenerator {
                 modelClassName,
                 schemaClassName,
                 fields,
-                field -> "data.%s()".formatted(field.nameCamelFirstLower()),
+                field -> {
+                    if (field.type() == Field.FieldType.ENUM) {
+                        if (field.repeated()) {
+                            return "data.%sProtoOrdinals()".formatted(field.nameCamelFirstLower());
+                        } else {
+                            return "data.%sProtoOrdinal()".formatted(field.nameCamelFirstLower());
+                        }
+                    }
+                    return "data.%s()".formatted(field.nameCamelFirstLower());
+                },
                 true);
         // spotless:off
         return
@@ -93,7 +102,7 @@ final class CodecWriteMethodGenerator {
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = "%s.%sOneOfType".formatted(modelClassName, oneOfField.nameCamelFirstUpper());
-            getValueCode = "data.%s().as()".formatted(oneOfField.nameCamelFirstLower());
+            getValueCode = "(%s)data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
             prefix += "if (data.%s().kind() == %s.%s)%n"
                     .formatted(oneOfField.nameCamelFirstLower(), oneOfType, Common.camelToUpperSnake(field.name()));
         }
@@ -126,7 +135,7 @@ final class CodecWriteMethodGenerator {
             }
             if (field.repeated()) {
                 return prefix + switch(field.type()) {
-                    case ENUM -> "writeEnumList(out, %s, %s);"
+                    case ENUM -> "writeEnumListProtoOrdinals(out, %s, %s);"
                             .formatted(fieldDef, getValueCode);
                     case MESSAGE -> "writeMessageList(out, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, codecReference);
@@ -183,7 +192,8 @@ final class CodecWriteMethodGenerator {
                         .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT));
             } else {
                 return prefix + switch(field.type()) {
-                    case ENUM -> "writeEnum(out, %s, %s);"
+                    case ENUM -> "writeEnumProtoOrdinal(out, %s, (%s)$suffix);"
+                            .replace("$suffix", field.parent() == null ? "" : ".protoOrdinal()")
                             .formatted(fieldDef, getValueCode);
                     case STRING -> "writeString(out, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, skipDefault);

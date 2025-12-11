@@ -91,6 +91,7 @@ public final class EnumGenerator {
             }
         }
 
+        writer.addImport("java.util.List");
         writer.append(createEnum(javaDocComment, deprecated, enumName, enumValues, false));
     }
 
@@ -146,18 +147,30 @@ public final class EnumGenerator {
                     // spotless:on
                 });
         // spotless:off
+
+        if (!addUnknown) { // !addUnknown to avoid a clash with OneOf UNSET above.
+            // spotless:off
+            enumValuesCode.add(
+                    """
+                    /**
+                     * Enum value for unrecognized protoOrdinal values.
+                     */
+                    UNRECOGNIZED(-1, "UNRECOGNIZED")""");
+            // spotless:on
+        }
+
         return """
                 $javaDocComment
                 $deprecated$public enum $enumName
                         implements com.hedera.pbj.runtime.EnumWithProtoMetadata {
                 $enumValues;
-                
+
                     /** The field ordinal in protobuf for this type */
                     private final int protoOrdinal;
-                
+
                     /** The original field name in protobuf for this type */
                     private final String protoName;
-                
+
                     /**
                      * OneOf Type Enum Constructor
                      *
@@ -168,7 +181,7 @@ public final class EnumGenerator {
                         this.protoOrdinal = protoOrdinal;
                         this.protoName = protoName;
                     }
-                
+
                     /**
                      * Get the oneof field ordinal in protobuf for this type
                      *
@@ -177,7 +190,7 @@ public final class EnumGenerator {
                     public int protoOrdinal() {
                         return protoOrdinal;
                     }
-                
+
                     /**
                      * Get the original field name in protobuf for this type
                      *
@@ -186,7 +199,7 @@ public final class EnumGenerator {
                     public String protoName() {
                         return protoName;
                     }
-                
+
                     /**
                      * Get enum from protobuf ordinal
                      *
@@ -197,10 +210,10 @@ public final class EnumGenerator {
                     public static $enumName fromProtobufOrdinal(int ordinal) {
                         return switch(ordinal) {
                             $caseStatements
-                            default -> throw new IllegalArgumentException("Unknown protobuf ordinal "+ordinal);
+                            default -> $unknownValue;
                         };
                     }
-                
+
                     /**
                      * Get enum from string name, supports the enum or protobuf format name
                      *
@@ -213,29 +226,122 @@ public final class EnumGenerator {
                             default -> throw new IllegalArgumentException("Unknown token kyc status "+name);
                         };
                     }
+
+                    /**
+                     * Get enum from an $enumName or an unrecognized object (likely an Integer, but we don't check here.)
+                     *
+                     * @param obj an object
+                     * @return enum for matching ordinal, or UNRECOGNIZED/UNSET value
+                     */
+                    public static $enumName fromObject(Object obj) {
+                        if (obj instanceof $enumName pbjEnum) {
+                            return pbjEnum;
+                        } else {
+                            return $enumName.$unknownValue;
+                        }
+                    }
+
+                    /**
+                     * Get a list of enums from a list of $enumName or unrecognized objects (likely Integers, but we don't check here.)
+                     * Note that this method creates a new list, so it's best to cache the result.
+                     *
+                     * @param list a list of objects
+                     * @return a list of enum or UNRECOGNIZED/UNSET values
+                     */
+                    public static List<$enumName> fromObjects(List<?> list) {
+                        return list.stream().map($enumName::fromObject).toList();
+                    }
+
+                    /**
+                     * Get protoOrdinal for an enum or Integer object, or throw IllegalArgumentException.
+                     *
+                     * @param obj an object
+                     * @return protoOrdinal of the object
+                     */
+                    public static int toProtoOrdinal(Object obj) {
+                        if (obj instanceof $enumName pbjEnum) {
+                            return pbjEnum.protoOrdinal();
+                        } else if (obj instanceof Integer i) {
+                            return i;
+                        } else {
+                            throw new IllegalArgumentException("Neither $enumName, nor Integer, but: " + obj.getClass().getName());
+                        }
+                    }
+
+                    /**
+                     * Get protoOrdinals for enums or Integers objects, or throw IllegalArgumentException.
+                     * Note that this method creates a new list, so it's best to cache the result.
+                     *
+                     * @param list a list of enum or Integer objects
+                     * @return a list of their protoOrdinals
+                     */
+                    public static List<Integer> toProtoOrdinals(List<?> list) {
+                        return list.stream().map($enumName::toProtoOrdinal).toList();
+                    }
+
+                    /**
+                     * Compare two objects, each of them could be an enum or an Integer representing a protoOrdinal value.
+                     */
+                    public static int compare(final Object o1, final Object o2) {
+                        if (o1 instanceof $enumName e1 && o2 instanceof $enumName e2) {
+                            return e1.compareTo(e2);
+                        }
+                        if (o1 == null && o2 != null) {
+                            return -1;
+                        }
+                        if (o1 != null && o2 == null) {
+                            return 1;
+                        }
+                        // Both non-null here
+                        final int i1, i2;
+                        if (o1 instanceof $enumName e1) {
+                            i1 = e1.protoOrdinal();
+                        } else if (o1 instanceof Integer ii1) {
+                            i1 = ii1.intValue();
+                        } else {
+                            throw new IllegalArgumentException("o1 is neither $enumName, nor Integer. It's: " + o1.getClass().getName());
+                        }
+                        if (o2 instanceof $enumName e2) {
+                            i2 = e2.protoOrdinal();
+                        } else if (o2 instanceof Integer ii2) {
+                            i2 = ii2.intValue();
+                        } else {
+                            throw new IllegalArgumentException("o2 is neither $enumName, nor Integer. It's: " + o2.getClass().getName());
+                        }
+                        return Integer.compare(i1, i2);
+                    }
                 }
                 """
                 .replace("$javaDocComment", javaDocComment)
                 .replace("$deprecated$", deprecated)
                 .replace("$enumName", enumName)
                 .replace("$enumValues", String.join(",\n\n", enumValuesCode).indent(DEFAULT_INDENT))
-                .replace("$caseStatements", enumValues.entrySet()
-                        .stream()
-                        .map((entry) -> "case %s -> %s;"
-                                .formatted(entry.getKey(), camelToUpperSnake(entry.getValue().name))
-                                .indent(DEFAULT_INDENT * 3))
-                        .collect(Collectors.joining("\n")))
-                .replace("$fromStringCaseStatements", enumValues.values().stream().map(enumValue -> {
-                    if (camelToUpperSnake(enumValue.name).equals(enumValue.name)) {
-                        return "case \"%s\" -> %s;"
-                                .formatted(enumValue.name, camelToUpperSnake(enumValue.name))
-                                .indent(DEFAULT_INDENT * 3);
-                    } else {
-                        return "case \"%s\", \"%s\" -> %s;"
-                                .formatted(enumValue.name, camelToUpperSnake(enumValue.name),
-                                        camelToUpperSnake(enumValue.name)).indent(DEFAULT_INDENT * 3);
-                    }
-                }).collect(Collectors.joining("\n")));
+                .replace(
+                        "$caseStatements",
+                        enumValues.entrySet().stream()
+                                .map((entry) -> "case %s -> %s;"
+                                        .formatted(entry.getKey(), camelToUpperSnake(entry.getValue().name))
+                                        .indent(DEFAULT_INDENT * 3))
+                                .collect(Collectors.joining("\n")))
+                .replace(
+                        "$fromStringCaseStatements",
+                        enumValues.values().stream()
+                                .map(enumValue -> {
+                                    if (camelToUpperSnake(enumValue.name).equals(enumValue.name)) {
+                                        return "case \"%s\" -> %s;"
+                                                .formatted(enumValue.name, camelToUpperSnake(enumValue.name))
+                                                .indent(DEFAULT_INDENT * 3);
+                                    } else {
+                                        return "case \"%s\", \"%s\" -> %s;"
+                                                .formatted(
+                                                        enumValue.name,
+                                                        camelToUpperSnake(enumValue.name),
+                                                        camelToUpperSnake(enumValue.name))
+                                                .indent(DEFAULT_INDENT * 3);
+                                    }
+                                })
+                                .collect(Collectors.joining("\n")))
+                .replace("$unknownValue", addUnknown ? "UNSET" : "UNRECOGNIZED");
         // spotless:on
     }
 }

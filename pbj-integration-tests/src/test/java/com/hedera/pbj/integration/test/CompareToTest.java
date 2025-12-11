@@ -273,7 +273,9 @@ class CompareToTest {
     }
 
     private static ComparableEnum nextEnum() {
-        return ComparableEnum.fromProtobufOrdinal(RandomGenerator.getDefault().nextInt(ComparableEnum.values().length));
+        // -1 to omit the last UNRECOGNIZED enum value because it cannot(shouldn't) be set by client code:
+        return ComparableEnum.fromProtobufOrdinal(
+                RandomGenerator.getDefault().nextInt(ComparableEnum.values().length - 1));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
