@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-import io.helidon.common.features.api.Features;
+import io.helidon.common.features.api.Feature;
 import io.helidon.common.features.api.HelidonFlavor;
+import io.helidon.common.features.api.Preview;
 
-@Features.Preview
-@Features.Name("PBJConfig")
-@Features.Description("WebServer gRPC-PBJ Config")
-@Features.Flavor(HelidonFlavor.SE)
-@Features.Path({"WebServer", "PBJ"})
+@Preview
+@Feature(
+        value = "PBJConfig",
+        description = "WebServer gRPC-PBJ Config",
+        in = HelidonFlavor.SE,
+        path = {"WebServer", "PBJ"})
 module com.hedera.pbj.grpc.helidon.config {
     requires transitive io.helidon.builder.api;
     requires transitive io.helidon.common.config; // indirectly used on API of generated 'PbjConfig'
