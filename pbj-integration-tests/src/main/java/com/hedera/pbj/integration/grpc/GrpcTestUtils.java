@@ -4,11 +4,13 @@ package com.hedera.pbj.integration.grpc;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
+import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.locks.LockSupport;
 
 /** Misc utils for GRPC tests. */
@@ -33,6 +35,14 @@ public class GrpcTestUtils {
     }
 
     public static GrpcClient createGrpcClient(final int port, final ServiceInterface.RequestOptions requestOptions) {
+        return createGrpcClient(port, requestOptions, GrpcCompression.IDENTITY, GrpcCompression.getDecompressorNames());
+    }
+
+    public static GrpcClient createGrpcClient(
+            final int port,
+            final ServiceInterface.RequestOptions requestOptions,
+            String encoding,
+            Set<String> acceptEncodings) {
         final Tls tls = Tls.builder().enabled(false).build();
         final WebClient webClient =
                 WebClient.builder().baseUri("http://localhost:" + port).tls(tls).build();
@@ -41,8 +51,8 @@ public class GrpcTestUtils {
         final Optional<String> authority =
                 requestOptions.authority().isPresent() ? requestOptions.authority() : Optional.of("localhost:" + port);
 
-        final PbjGrpcClientConfig config =
-                new PbjGrpcClientConfig(READ_TIMEOUT, tls, authority, requestOptions.contentType());
+        final PbjGrpcClientConfig config = new PbjGrpcClientConfig(
+                READ_TIMEOUT, tls, authority, requestOptions.contentType(), encoding, acceptEncodings);
 
         return new PbjGrpcClient(webClient, config);
     }

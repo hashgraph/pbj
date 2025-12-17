@@ -135,7 +135,7 @@ public class PbjGrpcCallTest {
                         .collect(Collectors.joining("|||")));
         assertEquals(
                 "identity",
-                http2Headers.httpHeaders().get(HeaderNames.ACCEPT_ENCODING).allValues().stream()
+                http2Headers.httpHeaders().get(HeaderNames.createFromLowercase("grpc-encoding")).allValues().stream()
                         .collect(Collectors.joining("|||")));
 
         // It submits a private method reference, so this is the best we can do:

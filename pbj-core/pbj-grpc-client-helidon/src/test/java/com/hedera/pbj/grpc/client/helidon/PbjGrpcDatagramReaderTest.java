@@ -33,14 +33,18 @@ public class PbjGrpcDatagramReaderTest {
         // Trivial case of a zero-size datagram
         BufferData zeroData = BufferData.create(new byte[] {0, 0, 0, 0, 0});
         reader.add(zeroData);
-        BufferData bufferData = reader.extractNextDatagram();
+        PbjGrpcDatagramReader.Datagram datagram = reader.extractNextDatagram();
+        assertEquals(0, datagram.compressedFlag());
+        BufferData bufferData = datagram.data();
         assertNotNull(bufferData);
         assertEquals(0, bufferData.available());
 
         // 1 byte long datagram
         BufferData oneData = BufferData.create(new byte[] {0, 0, 0, 0, 1, 66});
         reader.add(oneData);
-        bufferData = reader.extractNextDatagram();
+        datagram = reader.extractNextDatagram();
+        assertEquals(0, datagram.compressedFlag());
+        bufferData = datagram.data();
         assertNotNull(bufferData);
         assertEquals(1, bufferData.available());
         assertEquals(66, bufferData.read());
@@ -52,7 +56,9 @@ public class PbjGrpcDatagramReaderTest {
         manyData.writeInt32(data.getBytes().length);
         manyData.write(data.getBytes());
         reader.add(manyData);
-        bufferData = reader.extractNextDatagram();
+        datagram = reader.extractNextDatagram();
+        assertEquals(0, datagram.compressedFlag());
+        bufferData = datagram.data();
         assertNotNull(bufferData);
         assertEquals(data.getBytes().length, bufferData.available());
         assertEquals(data, bufferData.readString(data.getBytes().length));
@@ -81,7 +87,9 @@ public class PbjGrpcDatagramReaderTest {
         BufferData finalData = BufferData.create(Arrays.copyOfRange(data.getBytes(), 8, data.getBytes().length));
         reader.add(finalData);
 
-        BufferData bufferData = reader.extractNextDatagram();
+        PbjGrpcDatagramReader.Datagram datagram = reader.extractNextDatagram();
+        assertEquals(0, datagram.compressedFlag());
+        BufferData bufferData = datagram.data();
         assertNotNull(bufferData);
         assertEquals(data.getBytes().length, bufferData.available());
         assertEquals(data, bufferData.readString(data.getBytes().length));
@@ -113,7 +121,9 @@ public class PbjGrpcDatagramReaderTest {
         // At this point the writePosition is at 1006 or something like that.
         // Let's read the first datagram and mark almost the entire buffer free
         // (except for that zero byte that we've just added above):
-        BufferData bufferData = reader.extractNextDatagram();
+        PbjGrpcDatagramReader.Datagram datagram = reader.extractNextDatagram();
+        assertEquals(0, datagram.compressedFlag());
+        BufferData bufferData = datagram.data();
         assertNotNull(bufferData);
         assertEquals(dataString.getBytes().length, bufferData.available());
         assertEquals(dataString, bufferData.readString(dataString.getBytes().length));
@@ -133,7 +143,9 @@ public class PbjGrpcDatagramReaderTest {
         // The buffer is private, so we cannot check it. But we should be able to
         // read back the last datagram. And more importantly, the flipping logic
         // is now covered by tests.
-        BufferData newBufferData = reader.extractNextDatagram();
+        PbjGrpcDatagramReader.Datagram newDatagram = reader.extractNextDatagram();
+        assertEquals(0, newDatagram.compressedFlag());
+        BufferData newBufferData = newDatagram.data();
         assertNotNull(newBufferData);
         assertEquals(newDataString.getBytes().length, newBufferData.available());
         assertEquals(newDataString, newBufferData.readString(newDataString.getBytes().length));
@@ -151,7 +163,9 @@ public class PbjGrpcDatagramReaderTest {
 
         // Read them back and check them:
         datagrams.forEach(dataString -> {
-            BufferData bufferData = reader.extractNextDatagram();
+            PbjGrpcDatagramReader.Datagram datagram = reader.extractNextDatagram();
+            assertEquals(0, datagram.compressedFlag());
+            BufferData bufferData = datagram.data();
             assertNotNull(bufferData);
             assertEquals(dataString.getBytes().length, bufferData.available());
             assertEquals(dataString, bufferData.readString(dataString.getBytes().length));
