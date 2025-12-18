@@ -108,8 +108,9 @@ public class GrpcCompression {
     }
 
     /**
-     * A utility method to help process "grpc-accept-encoding" header.
-     * @param encodingList all values of the "grpc-accept-encoding" header as received from remote peer
+     * A utility method to help process "grpc-encoding" header. Note that it should normally contain just a single
+     * value. Multiple values result in an exception. No values default to the "identity" decompressor.
+     * @param encodingList all values of the "grpc-encoding" header as received from remote peer
      * @return a Decompressor that should be used to decompress bytes received from the peer
      * @throws IllegalStateException if the Decompressor cannot be determined
      */
