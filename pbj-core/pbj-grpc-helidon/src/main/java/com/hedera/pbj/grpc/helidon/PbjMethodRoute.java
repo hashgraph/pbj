@@ -24,6 +24,9 @@ final class PbjMethodRoute extends PbjRoute {
     private final ServiceInterface service;
 
     @NonNull
+    private final PbjGrpcServiceConfig serviceConfig;
+
+    @NonNull
     private final ServiceInterface.Method method;
 
     @NonNull
@@ -62,8 +65,12 @@ final class PbjMethodRoute extends PbjRoute {
      * @param service The service that the method belongs to
      * @param method The method that this route represents
      */
-    PbjMethodRoute(@NonNull final ServiceInterface service, @NonNull final ServiceInterface.Method method) {
+    PbjMethodRoute(
+            @NonNull final ServiceInterface service,
+            @NonNull final PbjGrpcServiceConfig serviceConfig,
+            @NonNull final ServiceInterface.Method method) {
         this.service = requireNonNull(service);
+        this.serviceConfig = requireNonNull(serviceConfig);
         this.method = requireNonNull(method);
 
         final var serviceName = service.fullName();
@@ -130,6 +137,12 @@ final class PbjMethodRoute extends PbjRoute {
     @NonNull
     ServiceInterface service() {
         return service;
+    }
+
+    /** The {@link PbjGrpcServiceConfig} for this route. */
+    @NonNull
+    PbjGrpcServiceConfig serviceConfig() {
+        return serviceConfig;
     }
 
     /** The full path, such as `/example.HelloService/SayHello`. */

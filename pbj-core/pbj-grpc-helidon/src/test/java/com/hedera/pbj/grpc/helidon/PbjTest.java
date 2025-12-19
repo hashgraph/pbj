@@ -266,7 +266,7 @@ class PbjTest {
             try (var response = CLIENT.post()
                     .contentType(APPLICATION_GRPC_PROTO)
                     .path(SAY_HELLO_PATH)
-                    .header(HeaderNames.create("grpc-accept-encoding"), "gzip, deflate")
+                    .header(HeaderNames.create("grpc-accept-encoding"), "deflate, zstd")
                     .submit(messageBytes(SIMPLE_REQUEST))) {
 
                 assertThat(response.status().code()).isEqualTo(200);
@@ -279,7 +279,7 @@ class PbjTest {
                 assertThat(response.headers()
                                 .get(HeaderNames.create("grpc-accept-encoding"))
                                 .get())
-                        .isEqualTo("identity");
+                        .contains("identity", "gzip");
             }
         }
     }
@@ -339,7 +339,7 @@ class PbjTest {
          * unsupported compression schemes.
          */
         @ParameterizedTest
-        @ValueSource(strings = {"gzip", "deflate", "random"})
+        @ValueSource(strings = {"zstd", "deflate", "random"})
         void compressionNotSupported(final String grpcEncoding) {
             try (var response = CLIENT.post()
                     .contentType(APPLICATION_GRPC_PROTO)
@@ -373,7 +373,7 @@ class PbjTest {
                 assertThat(response.headers()
                                 .get(HeaderNames.create("grpc-accept-encoding"))
                                 .get())
-                        .isEqualTo("identity");
+                        .contains("identity", "gzip");
             }
         }
 
@@ -395,7 +395,7 @@ class PbjTest {
                 assertThat(response.headers()
                                 .get(HeaderNames.create("grpc-accept-encoding"))
                                 .get())
-                        .isEqualTo("identity");
+                        .contains("identity", "gzip");
             }
         }
     }

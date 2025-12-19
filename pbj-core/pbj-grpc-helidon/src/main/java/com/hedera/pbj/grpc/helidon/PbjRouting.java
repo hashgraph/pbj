@@ -94,14 +94,27 @@ public class PbjRouting implements Routing {
         }
 
         /**
-         * Configure grpc service.
+         * Configure grpc service using the `PbjGrpcServiceConfig.DEFAULT`.
          *
          * @param service service to add
          * @return updated builder
          */
         @NonNull
         public Builder service(@NonNull final ServiceInterface service) {
-            return route(new PbjServiceRoute(service));
+            return service(service, PbjGrpcServiceConfig.DEFAULT);
+        }
+
+        /**
+         * Configure grpc service.
+         *
+         * @param service service to add
+         * @param serviceConfig service configuration
+         * @return updated builder
+         */
+        @NonNull
+        public Builder service(
+                @NonNull final ServiceInterface service, @NonNull final PbjGrpcServiceConfig serviceConfig) {
+            return route(new PbjServiceRoute(service, serviceConfig));
         }
 
         @NonNull
