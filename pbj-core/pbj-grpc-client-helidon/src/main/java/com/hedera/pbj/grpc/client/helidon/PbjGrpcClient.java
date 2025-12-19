@@ -89,9 +89,6 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
             final Codec<RequestT> requestCodec,
             final Codec<ReplyT> replyCodec,
             final Pipeline<ReplyT> pipeline) {
-        // FUTURE WORK: should probably cache the connection and re-use it for subsequent createCall() calls.
-        // Also, might have to pull some connection initialization code out of the Call class, so that the latter
-        // only ever creates streams over an existing TCP/HTTP2 connection.
         return new PbjGrpcCall(
                 this,
                 createPbjGrpcClientStream(connection, clientConnection),

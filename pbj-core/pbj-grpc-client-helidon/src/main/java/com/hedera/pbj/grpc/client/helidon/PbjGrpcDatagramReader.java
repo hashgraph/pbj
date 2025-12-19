@@ -8,7 +8,7 @@ import java.nio.BufferOverflowException;
  * An abstraction responsible for building complete GRPC datagrams out of individual data frames.
  * <p>
  * Each datagram has a prefix consisting of a compression flag
- * and a size of the datagram. Note that this class doesn't support compression currently.
+ * and a size of the datagram.
  * However, due to the HTTP2 flow control, a single GRPC datagram may be split accross multiple
  * individual data frames, and the GRPC client must use the size of the datagram in order to reconstruct
  * the entire datagram so that its content can actually be parsed by a reply type marshaler.
@@ -23,6 +23,9 @@ import java.nio.BufferOverflowException;
  * This class is not thread-safe. The client is responsible for synchronizing access to its APIs.
  */
 class PbjGrpcDatagramReader {
+
+    /** A GRPC Datagram that includes a `compressedFlag` and `data`. */
+    record Datagram(int compressedFlag, BufferData data) {}
 
     /**
      * A GRPC datagram has a prefix with 1 byte representing a compression flag,
@@ -115,7 +118,7 @@ class PbjGrpcDatagramReader {
      * or return null if the datagram is incomplete yet and more data needs to be added to this reader.
      * @return the GRPC datagram data payload, or null if not ready yet
      */
-    BufferData extractNextDatagram() {
+    Datagram extractNextDatagram() {
         final int size = getNextSize();
         if (size == -1) {
             return null;
@@ -124,10 +127,11 @@ class PbjGrpcDatagramReader {
         // We have a complete datagram (and perhaps also a start of the next datagram) in the buffer.
         // Let's extract the complete one. Note that we only return the data bytes because higher level code
         // shouldn't be concerned with the details of the GRPC header.
-        // So if we want to support compression in the future, it has to be implemented here somewhere.
         final BufferData data = BufferData.create(size);
 
-        // Skip the header because we've already read the size, and we ignore the compression:
+        final int compressedFlag = Byte.toUnsignedInt(buffer[readPosition % buffer.length]);
+
+        // Skip the header because we've already read the size and the compressed flag.
         // The `buffer` is circular. The position is wrapped on the `buffer.length` if it's past the tail.
         readPosition += PREFIX_LENGTH;
         readPosition %= buffer.length;
@@ -146,7 +150,7 @@ class PbjGrpcDatagramReader {
         // Adjust the length
         length -= PREFIX_LENGTH + size;
 
-        return data;
+        return new Datagram(compressedFlag, data);
     }
 
     /** Ensure there's enough capacity to write more data, or throw BufferOverflowException. */

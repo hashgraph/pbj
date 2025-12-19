@@ -4,6 +4,7 @@ package com.hedera.pbj.grpc.client.helidon;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
+import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -48,6 +49,8 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
     private static final BufferData EMPTY_BUFFER_DATA = BufferData.empty();
     private static final HeaderName GRPC_STATUS = HeaderNames.createFromLowercase("grpc-status");
     private static final HeaderName GRPC_MESSAGE = HeaderNames.createFromLowercase("grpc-message");
+    private static final HeaderName GRPC_ENCODING = HeaderNames.createFromLowercase("grpc-encoding");
+    private static final HeaderName GRPC_ACCEPT_ENCODING = HeaderNames.createFromLowercase("grpc-accept-encoding");
 
     private final PbjGrpcClient grpcClient;
     private final Codec<RequestT> requestCodec;
@@ -55,6 +58,9 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
     private final Pipeline<ReplyT> pipeline;
 
     private final Http2ClientStream clientStream;
+
+    // grpc-encoding to use for sending requests, e.g. "identity", or "gzip" (w/o quotes)
+    private final String grpcOutgoingEncoding;
 
     /**
      * Create a new GRPC call, start a replies receiving loop in the underlying Helidon WebClient executor,
@@ -82,6 +88,12 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
 
         this.clientStream = clientStream;
 
+        if (GrpcCompression.getCompressor(grpcClient.getConfig().encoding()) != null) {
+            this.grpcOutgoingEncoding = grpcClient.getConfig().encoding();
+        } else {
+            this.grpcOutgoingEncoding = GrpcCompression.IDENTITY;
+        }
+
         // send HEADERS frame
         final WritableHeaders<?> headers = WritableHeaders.create();
         final String authority = requestOptions
@@ -92,7 +104,9 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
         headers.add(Http2Headers.PATH_NAME, "/" + fullMethodName);
         headers.add(Http2Headers.SCHEME_NAME, "http");
         headers.add(HeaderValues.create(HeaderNames.CONTENT_TYPE, requestOptions.contentType()));
-        headers.add(HeaderValues.create(HeaderNames.ACCEPT_ENCODING, "identity"));
+        headers.add(HeaderValues.create(
+                GRPC_ACCEPT_ENCODING, String.join(",", grpcClient.getConfig().acceptEncodings())));
+        headers.add(HeaderValues.create(GRPC_ENCODING, grpcOutgoingEncoding));
         clientStream.writeHeaders(Http2Headers.create(headers), false);
 
         // We must start this loop only AFTER writing headers above because that operation initializes
@@ -107,12 +121,13 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
      */
     @Override
     public void sendRequest(final RequestT request, final boolean endOfStream) {
-        final Bytes bytes = requestCodec.toBytes(request);
+        final Bytes requestBytes = requestCodec.toBytes(request);
+        final Bytes bytes = GrpcCompression.getCompressor(grpcOutgoingEncoding).compress(requestBytes);
         final BufferData bufferData =
                 BufferData.create(PbjGrpcDatagramReader.PREFIX_LENGTH + Math.toIntExact(bytes.length()));
 
         // GRPC datagram header
-        bufferData.write(0); // 0 means no compression
+        bufferData.write(GrpcCompression.IDENTITY.equals(grpcOutgoingEncoding) ? 0 : 1);
         bufferData.writeUnsignedInt32(Math.toIntExact(bytes.length()));
 
         // GRPC datagram data payload
@@ -133,12 +148,11 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
 
     private void receiveRepliesLoop() {
         try {
-            boolean headersRead = false;
+            Http2Headers http2Headers = null;
             do {
                 try {
-                    clientStream.readHeaders();
+                    http2Headers = clientStream.readHeaders();
                     // FUTURE WORK: examine the headers to check the content type, encoding, custom headers, etc.
-                    headersRead = true;
                 } catch (StreamTimeoutException ignored) {
                     // FUTURE WORK: implement an uber timeout to return
 
@@ -152,7 +166,12 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                     // happens. However, pinging on timeout seems to work smoothly so far.
                     clientStream.sendPing();
                 }
-            } while (!headersRead && isStreamOpen());
+            } while (http2Headers == null && isStreamOpen());
+
+            final GrpcCompression.Decompressor decompressor = GrpcCompression.determineDecompressor(
+                    http2Headers != null && http2Headers.httpHeaders() != null
+                            ? fetchHeader(http2Headers.httpHeaders(), GRPC_ENCODING)
+                            : null);
 
             // read data from stream
             final PbjGrpcDatagramReader datagramReader = new PbjGrpcDatagramReader();
@@ -173,13 +192,23 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                     datagramReader.add(bufferData);
 
                     // ...and then feed all complete GRPC datagrams to the pipeline:
-                    BufferData data;
-                    while ((data = datagramReader.extractNextDatagram()) != null) {
+                    PbjGrpcDatagramReader.Datagram datagram;
+                    while ((datagram = datagramReader.extractNextDatagram()) != null) {
+                        if (datagram.compressedFlag() != 0 && datagram.compressedFlag() != 1) {
+                            throw new IllegalStateException("GRPC datagram compressed flag " + datagram.compressedFlag()
+                                    + " is unsupported. Only 0 and 1 are valid.");
+                        }
+                        BufferData data = datagram.data();
                         final byte[] array = data.readBytes();
                         final Bytes bytes = Bytes.wrap(array);
+                        // If the compressedFlag is 0, then per the specification, the message isn't compressed
+                        // regardless of the grpc-encoding value:
+                        // https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
+                        final Bytes replyBytes =
+                                datagram.compressedFlag() == 1 ? decompressor.decompress(bytes) : bytes;
 
                         try {
-                            final ReplyT reply = replyCodec.parse(bytes);
+                            final ReplyT reply = replyCodec.parse(replyBytes);
                             pipeline.onNext(reply);
                         } catch (ParseException e) {
                             pipeline.onError(e);
