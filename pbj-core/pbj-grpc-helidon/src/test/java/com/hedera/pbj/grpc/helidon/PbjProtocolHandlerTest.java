@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
+import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -40,6 +41,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
@@ -74,7 +76,7 @@ class PbjProtocolHandlerTest {
         currentStreamState = Http2StreamState.OPEN;
         config = new PbjConfigStub();
         service = new ServiceInterfaceStub();
-        route = new PbjMethodRoute(service, ServiceInterfaceStub.METHOD);
+        route = new PbjMethodRoute(service, PbjGrpcServiceConfig.DEFAULT, ServiceInterfaceStub.METHOD);
         deadlineDetector = new DeadlineDetectorStub();
         connectionContext = new ConnectionContext() {
             @Override
@@ -263,12 +265,59 @@ class PbjProtocolHandlerTest {
         assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
     }
 
+    @Test
+    void acceptEncodingIncludesIdentityIfServerConfigIsEmpty() {
+        final WritableHeaders<?> h = WritableHeaders.create();
+        h.add(HeaderNames.CONTENT_TYPE, "application/grpc");
+        headers = Http2Headers.create(h);
+        final PbjProtocolHandler handler = new PbjProtocolHandler(
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                new PbjMethodRoute(
+                        service, new PbjGrpcServiceConfig("identity", Set.of()), ServiceInterfaceStub.METHOD),
+                deadlineDetector,
+                connectionContext);
+        handler.init();
+
+        final Bytes emptyData = createRequestData("");
+        sendAllData(handler, emptyData);
+
+        assertThat(service.calledMethod).isSameAs(ServiceInterfaceStub.METHOD);
+        assertThat(service.receivedBytes).contains(emptyData);
+        assertThat(service.opts.contentType()).isEqualTo("application/grpc+proto");
+
+        assertThat(route.failedGrpcRequestCounter().count()).isZero();
+        assertThat(route.failedHttpRequestCounter().count()).isZero();
+        assertThat(route.failedUnknownRequestCounter().count()).isZero();
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+
+        final var responseHeaderFrame = streamWriter.writtenHeaders.getFirst();
+        assertThat(responseHeaderFrame.status()).isEqualTo(Status.OK_200);
+
+        final var responseHeaders =
+                responseHeaderFrame.httpHeaders().stream().collect(Collectors.toMap(Header::name, Header::values));
+        assertThat(responseHeaders)
+                .contains(
+                        entry("Content-Type", "application/grpc"),
+                        entry("grpc-encoding", "identity"),
+                        entry("grpc-accept-encoding", "identity"));
+
+        // This test creates a new route which registers metrics similar to what the default route registers.
+        // This somehow causes the @BeforeEach method to see non-zero metric counters even after a reset.
+        // So we reset the counters at the end of this test manually:
+        Metrics.globalRegistry().close();
+    }
+
     /**
      * These are perfectly valid encodings, but none of them are supported at this time.
      *
      * @param encoding the encoding to test with.
      */
-    @ValueSource(strings = {"gzip", "compress", "deflate", "br", "zstd", "gzip, deflate;q=0.5"})
+    @ValueSource(strings = {"compress", "deflate", "br", "zstd", "gzip, deflate;q=0.5"})
     @ParameterizedTest
     void unsupportedGrpcEncodings(String encoding) {
         final var h = WritableHeaders.create();
@@ -350,7 +399,7 @@ class PbjProtocolHandlerTest {
     void supportedComplexEncodingsWithIdentity(String encoding) {
         final var h = WritableHeaders.create();
         h.add(HeaderNames.CONTENT_TYPE, "application/grpc+proto");
-        h.add(HeaderNames.create("grpc-encoding"), encoding);
+        h.add(HeaderNames.create("grpc-accept-encoding"), encoding);
         headers = Http2Headers.create(h);
 
         // Initializing the handler will throw an error because the content types are unsupported
@@ -384,10 +433,76 @@ class PbjProtocolHandlerTest {
 
         final var responseHeaders =
                 responseHeaderFrame.httpHeaders().stream().collect(Collectors.toMap(Header::name, Header::values));
-        assertThat(responseHeaders)
-                .contains(entry("Content-Type", "application/grpc+proto"), entry("grpc-accept-encoding", "identity"));
+        assertThat(responseHeaders).contains(entry("Content-Type", "application/grpc+proto"));
+        assertThat(responseHeaders).containsKey("grpc-accept-encoding");
+        assertThat(responseHeaders.get("grpc-accept-encoding")).contains("identity", "gzip");
 
         // The stream should be closed
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+    }
+
+    @Test
+    void compressionFlagNotZeroOrOneProducesError() {
+        final WritableHeaders<?> h = WritableHeaders.create();
+        h.add(HeaderNames.CONTENT_TYPE, "application/grpc");
+        headers = Http2Headers.create(h);
+        final PbjProtocolHandler handler = new PbjProtocolHandler(
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
+        handler.init();
+
+        final Bytes bytes = createRequestData("");
+        final var frameHeader = createDataFrameHeader((int) bytes.length());
+        final var buf = createDataFrameBytes(2, bytes);
+        handler.data(frameHeader, buf);
+
+        assertThat(service.calledMethod).isSameAs(ServiceInterfaceStub.METHOD);
+        assertThat(service.opts.contentType()).isEqualTo("application/grpc+proto");
+        assertThat(service.error).isInstanceOf(GrpcException.class);
+        final GrpcException error = (GrpcException) service.error;
+        assertThat(error.status()).isEqualTo(GrpcStatus.UNIMPLEMENTED);
+        assertThat(error.getMessage()).isEqualTo("Compression flag 2 is not supported. Only 0 and 1 are supported.");
+    }
+
+    @Test
+    void compressedPayloadCallsDecompressor() {
+        final WritableHeaders<?> h = WritableHeaders.create();
+        h.add(HeaderNames.CONTENT_TYPE, "application/grpc");
+        h.add(HeaderNames.createFromLowercase("grpc-encoding"), "gzip");
+        headers = Http2Headers.create(h);
+        final PbjProtocolHandler handler = new PbjProtocolHandler(
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
+        handler.init();
+
+        final Bytes uncompressedBytes = createRequestData("test");
+        final Bytes bytes = GrpcCompression.getCompressor("gzip").compress(uncompressedBytes);
+        final var frameHeader = createDataFrameHeader((int) bytes.length());
+        final var buf = createDataFrameBytes(1, bytes);
+        handler.data(frameHeader, buf);
+
+        assertThat(service.calledMethod).isSameAs(ServiceInterfaceStub.METHOD);
+        assertThat(service.opts.contentType()).isEqualTo("application/grpc+proto");
+        assertThat(service.error).isNull();
+        assertThat(service.receivedBytes).contains(uncompressedBytes);
+
+        assertThat(route.failedGrpcRequestCounter().count()).isZero();
+        assertThat(route.failedHttpRequestCounter().count()).isZero();
+        assertThat(route.failedUnknownRequestCounter().count()).isZero();
         assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
     }
 
@@ -415,6 +530,7 @@ class PbjProtocolHandlerTest {
                         replyRef.set(replies);
                     }
                 },
+                PbjGrpcServiceConfig.DEFAULT,
                 GreeterService.GreeterMethod.sayHelloStreamReply);
 
         final var handler = new PbjProtocolHandler(
@@ -456,15 +572,15 @@ class PbjProtocolHandlerTest {
 
     private void sendAllData(PbjProtocolHandler handler, Bytes bytes) {
         final var frameHeader = createDataFrameHeader((int) bytes.length());
-        final var buf = createDataFrameBytes(bytes);
+        final var buf = createDataFrameBytes(0, bytes);
         handler.data(frameHeader, buf);
     }
 
-    private BufferData createDataFrameBytes(Bytes data) {
+    private BufferData createDataFrameBytes(int compressedFlag, Bytes data) {
         try {
             final var buf = new ByteArrayOutputStream((int) data.length() + 5);
             final var s = new DataOutputStream(buf);
-            s.writeByte(0);
+            s.writeByte(compressedFlag);
             s.writeInt((int) data.length());
             data.writeTo(s);
             return BufferData.create(buf.toByteArray());

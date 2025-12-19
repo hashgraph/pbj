@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.grpc;
 
+import static java.lang.System.Logger.Level.DEBUG;
+
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -15,6 +17,8 @@ import java.util.zip.GZIPOutputStream;
  * A registry of GRPC compressors and decompressors (commonly - transformers) supported by PBJ GRPC server and client.
  */
 public class GrpcCompression {
+    private static final System.Logger LOGGER = System.getLogger(GrpcCompression.class.getName());
+
     /** The default encoding name that doesn't use compression. */
     public static final String IDENTITY = "identity";
 
@@ -117,6 +121,10 @@ public class GrpcCompression {
     public static Decompressor determineDecompressor(List<String> encodingList) {
         if (encodingList == null || encodingList.isEmpty()) {
             if (GrpcCompression.getDecompressor(GrpcCompression.IDENTITY) != null) {
+                if (LOGGER.isLoggable(DEBUG)) {
+                    LOGGER.log(
+                            DEBUG, "GrpcCompression.determineDecompressor: identity (by default) for " + encodingList);
+                }
                 return GrpcCompression.getDecompressor(GrpcCompression.IDENTITY);
             } else {
                 throw new IllegalStateException(
@@ -128,11 +136,68 @@ public class GrpcCompression {
         } else {
             final String encoding = encodingList.get(0);
             if (GrpcCompression.getDecompressor(encoding) != null) {
+                if (LOGGER.isLoggable(DEBUG)) {
+                    LOGGER.log(DEBUG, "GrpcCompression.determineDecompressor: " + encoding + " for " + encodingList);
+                }
                 return GrpcCompression.getDecompressor(encoding);
             } else {
                 throw new IllegalStateException("GRPC peer uses an unsupported encoding: '" + encoding
                         + "' while only the following are supported: " + GrpcCompression.getDecompressorNames());
             }
         }
+    }
+
+    /**
+     * A utility method to help process "grpc-accept-encoding" header and determine the name of a Compressor.
+     * @param acceptEncoding "grpc-accept-encoding" header as received from remote peer
+     * @param encoding a preferred encoding per the local peer configuration
+     * @return the name of a Compressor to use for sending data to the remote peer
+     */
+    public static String determineCompressorName(List<String> acceptEncoding, String encoding) {
+        final List<String> supportedAcceptEncodings = acceptEncoding.stream()
+                .filter(ae -> GrpcCompression.getCompressorNames().stream()
+                        .anyMatch(sae -> ae.equals(sae) || ae.startsWith(sae + ";")))
+                .toList();
+
+        if (supportedAcceptEncodings.isEmpty()) {
+            // This seems safer than erroring-out outright because: 1) the header may have been missing in
+            // the first place, so a client may have listed only "special" encodings, such as "gzip" here,
+            // and 2) "identity" is likely supported. In the worst case we'll catch an error
+            // when we send a reply back to the client.
+            // Note that it would be unsafe to force using the `encoding` here because if it's not "identity",
+            // then it may indeed be unsupported by the remote peer.
+            if (LOGGER.isLoggable(DEBUG)) {
+                LOGGER.log(
+                        DEBUG,
+                        "GrpcCompression.determineCompressorName: identity (by default) with preferred " + encoding
+                                + ", acceptEncoding: " + acceptEncoding + ", and supportedAcceptEncoding: "
+                                + supportedAcceptEncodings);
+            }
+            return GrpcCompression.IDENTITY;
+        }
+
+        if (supportedAcceptEncodings.contains(encoding)) {
+            if (LOGGER.isLoggable(DEBUG)) {
+                LOGGER.log(
+                        DEBUG,
+                        "GrpcCompression.determineCompressorName: " + encoding + " (as preferred)"
+                                + ", acceptEncoding: "
+                                + acceptEncoding + ", and supportedAcceptEncoding: "
+                                + supportedAcceptEncodings);
+            }
+            return encoding;
+        }
+
+        // FUTURE WORK: might be smarter and choose "the best" one.
+        // But currently we don't have a definition for what is "the best".
+        if (LOGGER.isLoggable(DEBUG)) {
+            LOGGER.log(
+                    DEBUG,
+                    "GrpcCompression.determineCompressorName: " + supportedAcceptEncodings.get(0) + " with preferred "
+                            + encoding
+                            + ", acceptEncoding: " + acceptEncoding + ", and supportedAcceptEncoding: "
+                            + supportedAcceptEncodings);
+        }
+        return supportedAcceptEncodings.get(0);
     }
 }

@@ -14,6 +14,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
+import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -24,6 +25,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.buffers.BufferData;
 import io.helidon.common.uri.UriEncoding;
 import io.helidon.http.Header;
+import io.helidon.http.HeaderName;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
 import io.helidon.http.HttpException;
@@ -62,11 +64,8 @@ import java.util.regex.Pattern;
 final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler {
     private static final System.Logger LOGGER = System.getLogger(PbjProtocolHandler.class.getName());
 
-    /** The only grpc-encoding supported by this implementation. */
-    private static final String IDENTITY = "identity";
-
-    /** A pre-created and cached *response* header for "grpc-encoding: identity". */
-    private static final Header GRPC_ENCODING_IDENTITY = HeaderValues.createCached("grpc-encoding", IDENTITY);
+    private static final HeaderName GRPC_ENCODING = HeaderNames.createFromLowercase("grpc-encoding");
+    private static final HeaderName GRPC_ACCEPT_ENCODING = HeaderNames.createFromLowercase("grpc-accept-encoding");
 
     /** The regular expression used to parse the grpc-timeout header. */
     private static final String GRPC_TIMEOUT_REGEX = "(\\d{1,8})([HMSmun])";
@@ -123,6 +122,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      */
     private int entityBytesIndex = 0;
 
+    /** The compressedFlag for the current entityBytes. */
+    private int entityIsCompressed = 0;
+
     /** States for currentReadState state ,machine */
     enum ReadState {
         /**
@@ -156,6 +158,22 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * <p>Method calls on this object are thread-safe.
      */
     private Pipeline<? super Bytes> pipeline;
+
+    /**
+     * A Decompressor for incoming requests.
+     *
+     * <p>This member isn't final because it is set in the {@link #init()} method. It should not be
+     * set at any other time.
+     */
+    private GrpcCompression.Decompressor decompressor;
+
+    /**
+     * An encoding for outgoing replies, e.g. "identity", or "gzip".
+     *
+     * <p>This member isn't final because it is set in the {@link #init()} method. It should not be
+     * set at any other time.
+     */
+    private String outgoingEncoding = GrpcCompression.IDENTITY;
 
     /** Create a new instance */
     PbjProtocolHandler(
@@ -212,32 +230,16 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                         }
                     };
 
-            // This implementation currently only supports "identity" compression.
-            //
-            // As per the documentation:
-            // If a client message is compressed by an algorithm that is not supported by a server,
-            // the message will result in an UNIMPLEMENTED error status on the server. The server
-            // will include a grpc-accept-encoding header [in] the response which specifies the
-            // algorithms that the server accepts.
-            //
-            // Note that in the HeadersBuilder we ALWAYS set the grpc-accept-encoding header.
-            // FUTURE: Add support for the other compression schemes and let the response be in the
-            // same scheme that was sent to us, or another scheme in "grpc-accept-encoding" that
-            // we support, or identity.
             final var encodings = requestHeaders.contains(GRPC_ENCODING)
                     ? requestHeaders.get(GRPC_ENCODING).allValues(true)
-                    : List.of(IDENTITY);
-            boolean identitySpecified = false;
-            for (final var encoding : encodings) {
-                if (encoding.startsWith(IDENTITY)) {
-                    identitySpecified = true;
-                    break;
-                }
-            }
-            if (!identitySpecified) {
+                    : List.of(GrpcCompression.IDENTITY);
+            try {
+                this.decompressor = GrpcCompression.determineDecompressor(encodings);
+            } catch (IllegalStateException ex) {
                 throw new GrpcException(
                         GrpcStatus.UNIMPLEMENTED,
-                        "Decompressor is not installed for grpc-encoding \"" + String.join(", ", encodings) + "\"");
+                        "Decompressor is not installed for grpc-encoding \"" + String.join(", ", encodings) + "\"",
+                        ex);
             }
 
             // The client may have sent a "grpc-accept-encoding" header. Note that
@@ -253,10 +255,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             //
             // This seems to support the notion that compression can be enabled or disabled
             // irrespective of the grpc-accept-encoding header.
-
-            // FUTURE: If the client sends a "grpc-accept-encoding", and if we support one of them,
-            // then we should pick one and use it in the response. Otherwise, we should not have
-            // any compression.
+            this.outgoingEncoding = GrpcCompression.determineCompressorName(
+                    requestHeaders.contains(GRPC_ACCEPT_ENCODING)
+                            ? requestHeaders.get(GRPC_ACCEPT_ENCODING).allValues(true)
+                            : List.of(),
+                    route.serviceConfig().encoding());
+            if (LOGGER.isLoggable(DEBUG)) {
+                LOGGER.log(DEBUG, "outgoingEncoding: " + outgoingEncoding);
+            }
 
             // If the grpc-timeout header is present, determine when that timeout would occur, or
             // default to a future that is so far in the future it will never happen.
@@ -267,7 +273,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // the service interface, but as far as the protocol is concerned, this was a valid
             // request. Send the headers back to the client (the messages and trailers will be sent
             // later).
-            sendResponseHeaders(GRPC_ENCODING_IDENTITY, requestContentType, emptyList());
+            sendResponseHeaders(
+                    HeaderValues.create(
+                            GRPC_ACCEPT_ENCODING,
+                            route.serviceConfig().acceptEncodings().isEmpty()
+                                    ? GrpcCompression.IDENTITY
+                                    : String.join(",", route.serviceConfig().acceptEncodings())),
+                    requestContentType,
+                    emptyList());
 
             // NOTE: The specification mentions the "Message-Type" header. Like everyone else, we're
             // just going to ignore that header. See https://github.com/grpc/grpc/issues/12468.
@@ -351,12 +364,13 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             while (data.available() > 0) {
                 switch (currentReadState) {
                     case START: {
-                        // Read whether this message is compressed. We do not currently support
-                        // compression.
-                        final var isCompressed = (data.read() == 1);
-                        if (isCompressed) {
-                            // The error will eventually result in the stream being closed
-                            throw new GrpcException(GrpcStatus.UNIMPLEMENTED, "Compression is not supported");
+                        // Read whether this message is compressed.
+                        entityIsCompressed = data.read();
+                        if (entityIsCompressed != 0 && entityIsCompressed != 1) {
+                            throw new GrpcException(
+                                    GrpcStatus.UNIMPLEMENTED,
+                                    "Compression flag " + entityIsCompressed
+                                            + " is not supported. Only 0 and 1 are supported.");
                         }
                         currentReadState = ReadState.READ_LENGTH;
                         numOfPartReadBytes = 0;
@@ -417,7 +431,10 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                             currentReadState = ReadState.START;
                             // Grab and wrap the bytes and reset to being reading the next
                             // message
-                            final var bytes = Bytes.wrap(entityBytes);
+                            var bytes = Bytes.wrap(entityBytes);
+                            if (entityIsCompressed == 1) {
+                                bytes = decompressor.decompress(bytes);
+                            }
                             pipeline.onNext(bytes);
                             entityBytesIndex = 0;
                             entityBytes = null;
@@ -540,7 +557,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         grpcHeaders.set(HeaderNames.TRAILER, "grpc-status, grpc-message");
         grpcHeaders.set(Http2Headers.STATUS_NAME, Status.OK_200.code());
         grpcHeaders.contentType(contentType);
-        grpcHeaders.set(GRPC_ACCEPT_ENCODING, IDENTITY);
+        grpcHeaders.set(GRPC_ENCODING, outgoingEncoding);
+        grpcHeaders.set(GRPC_ACCEPT_ENCODING, GrpcCompression.IDENTITY);
         customMetadata.forEach(grpcHeaders::set);
         if (messageEncoding != null) {
             grpcHeaders.set(messageEncoding);
@@ -604,7 +622,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
          */
         protected void send(@NonNull final WritableHeaders<?> httpHeaders, @NonNull final Http2Headers http2Headers) {
             httpHeaders.set(requireNonNull(GrpcHeaders.header(requireNonNull(grpcStatus))));
-            httpHeaders.set(GRPC_ACCEPT_ENCODING, IDENTITY);
+            httpHeaders.set(GRPC_ACCEPT_ENCODING, GrpcCompression.IDENTITY);
             customMetadata.forEach(httpHeaders::set);
             if (statusMessage != null) {
                 final var percentEncodedMessage = UriEncoding.encodeUri(statusMessage);
@@ -677,11 +695,13 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         @Override
         public void onNext(@NonNull final Bytes response) {
             try {
-                final int length = (int) response.length();
+                final Bytes compressedResponse =
+                        GrpcCompression.getCompressor(outgoingEncoding).compress(response);
+                final int length = (int) compressedResponse.length();
                 final var bufferData = BufferData.create(5 + length);
-                bufferData.write(0); // 0 means no compression
+                bufferData.write(GrpcCompression.IDENTITY.equals(outgoingEncoding) ? 0 : 1);
                 bufferData.writeUnsignedInt32(length);
-                bufferData.write(response.toByteArray());
+                bufferData.write(compressedResponse.toByteArray());
                 final var header = Http2FrameHeader.create(
                         bufferData.available(), Http2FrameTypes.DATA, Http2Flag.DataFlags.create(0), streamId);
 

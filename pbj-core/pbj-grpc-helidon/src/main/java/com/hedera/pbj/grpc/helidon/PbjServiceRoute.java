@@ -22,10 +22,10 @@ class PbjServiceRoute extends PbjRoute {
      *
      * @param service the service to represent
      */
-    PbjServiceRoute(@NonNull final ServiceInterface service) {
+    PbjServiceRoute(@NonNull final ServiceInterface service, @NonNull final PbjGrpcServiceConfig serviceConfig) {
         this.serviceName = requireNonNull(service).serviceName();
         this.routes = service.methods().stream()
-                .map(method -> new PbjMethodRoute(service, method))
+                .map(method -> new PbjMethodRoute(service, requireNonNull(serviceConfig), method))
                 .toList();
     }
 
