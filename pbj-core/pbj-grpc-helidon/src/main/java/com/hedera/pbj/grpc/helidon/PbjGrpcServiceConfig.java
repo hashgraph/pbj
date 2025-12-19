@@ -16,6 +16,6 @@ import java.util.Set;
  * @param acceptEncodings accepted encodings for incoming messages
  */
 public record PbjGrpcServiceConfig(String encoding, Set<String> acceptEncodings) {
-    public static PbjGrpcServiceConfig DEFAULT =
+    public static final PbjGrpcServiceConfig DEFAULT =
             new PbjGrpcServiceConfig(GrpcCompression.IDENTITY, GrpcCompression.getDecompressorNames());
 }
