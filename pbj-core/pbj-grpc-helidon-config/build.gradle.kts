@@ -7,7 +7,7 @@ description = "Configuration for a Helidon gRPC plugin for PBJ"
 tasks.compileJava { options.compilerArgs.remove("-Werror") }
 
 mainModuleInfo {
-    annotationProcessor("io.helidon.common.features.processor")
+    annotationProcessor("io.helidon.common.features.codegen")
     annotationProcessor("io.helidon.config.metadata.processor")
     annotationProcessor("io.helidon.codegen.apt")
     annotationProcessor("io.helidon.builder.codegen")
