@@ -2,7 +2,7 @@
 group = "com.hedera.hashgraph"
 
 val antlr = "4.13.2"
-val grpc = "1.76.0"
+val grpc = "1.78.0"
 val helidon = "4.3.3"
 val protobuf = "4.33.2"
 
