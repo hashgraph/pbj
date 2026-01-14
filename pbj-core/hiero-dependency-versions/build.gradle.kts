@@ -9,7 +9,7 @@ val protobuf = "4.33.2"
 val junit5 = "6.0.2"
 val mockito = "5.21.0"
 
-dependencies { api(platform("io.netty:netty-bom:4.2.6.Final")) }
+dependencies { api(platform("io.netty:netty-bom:4.2.9.Final")) }
 
 dependencies.constraints {
     api("org.antlr:antlr4-runtime:$antlr") { because("org.antlr.antlr4.runtime") }
