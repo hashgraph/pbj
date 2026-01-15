@@ -560,6 +560,10 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     public boolean equals(@Nullable final Object o) {
         if (this == o) return true;
         if (!(o instanceof Bytes that)) return false;
+        // Don't force the hashCode computation, but if both are present, then we can short-circuit the logic:
+        if (hashCode != 0 && that.hashCode != 0 && hashCode != that.hashCode) {
+            return false;
+        }
         return Arrays.equals(buffer, start, start + length, that.buffer, that.start, that.start + that.length);
     }
 
