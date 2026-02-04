@@ -54,4 +54,18 @@ public class UnrecognizedEnumTest {
         assertEquals(
                 List.of(PbjEnumUnrecognized2.A2, PbjEnumUnrecognized2.D2, PbjEnumUnrecognized2.B2), m22.enumList());
     }
+
+    @Test
+    public void testDefaultValue() throws Exception {
+        // This initializes the enum value in the model to be literally `null` rather than the default:
+        final MessageWithUnrecognizedEnum1 msg =
+                MessageWithUnrecognizedEnum1.newBuilder().enumValue(null).build();
+
+        // However, reading it from the model MUST return the "protobuf default" value, which is at the protoOrdinal 0:
+        assertEquals(PbjEnumUnrecognized1.A1, msg.enumValue());
+
+        // Play the same trick using the ctor:
+        final MessageWithUnrecognizedEnum1 msg2 = new MessageWithUnrecognizedEnum1(null, null);
+        assertEquals(PbjEnumUnrecognized1.A1, msg2.enumValue());
+    }
 }
