@@ -234,7 +234,10 @@ public final class EnumGenerator {
                      * @return enum for matching ordinal, or UNRECOGNIZED/UNSET value
                      */
                     public static $enumName fromObject(Object obj) {
-                        if (obj instanceof $enumName pbjEnum) {
+                        if (obj == null) {
+                            // Per protobuf spec, must return the default (protoOrdinal 0) when unset (null):
+                            return fromProtobufOrdinal(0);
+                        } else if (obj instanceof $enumName pbjEnum) {
                             return pbjEnum;
                         } else {
                             return $enumName.$unknownValue;
