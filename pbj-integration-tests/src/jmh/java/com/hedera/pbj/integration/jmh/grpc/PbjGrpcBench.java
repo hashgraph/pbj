@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh.grpc;
 
+import com.hedera.pbj.grpc.helidon.PbjGrpcServiceConfig;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.integration.grpc.GrpcTestUtils;
 import com.hedera.pbj.integration.grpc.PortsAllocator;
@@ -8,6 +9,7 @@ import com.hedera.pbj.runtime.grpc.GrpcClient;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import io.helidon.webserver.WebServer;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
@@ -39,8 +41,9 @@ import pbj.integration.tests.pbj.integration.tests.HelloRequest;
  * Global parameters:
  *  - the warmup and measurement iterations in annotations below
  *  - INVOCATIONS constant at the top of the class below
- * Benchmark parameters:
+ * Benchmark state parameters:
  *  - PayloadWeight enum
+ *  - encodings (e.g. "gzip", or "gzip,identity")
  *  - streamCount in StreamingState below
  */
 @SuppressWarnings("unused")
@@ -50,7 +53,7 @@ import pbj.integration.tests.pbj.integration.tests.HelloRequest;
 @Measurement(iterations = 5)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
-public class GrpcBench {
+public class PbjGrpcBench {
     private static final int INVOCATIONS = 20_000;
 
     private record ServerHandle(WebServer server) implements AutoCloseable {
@@ -59,18 +62,26 @@ public class GrpcBench {
             server.stop();
         }
 
-        static ServerHandle start(final int port, final ServiceInterface service) {
+        static ServerHandle start(
+                final int port, final ServiceInterface service, final PbjGrpcServiceConfig serviceConfig) {
             return new ServerHandle(WebServer.builder()
                     .port(port)
-                    .addRouting(PbjRouting.builder().service(service))
+                    .addRouting(PbjRouting.builder().service(service, serviceConfig))
                     .maxPayloadSize(10000)
                     .build()
                     .start());
         }
     }
 
-    static GreeterInterface.GreeterClient createClient(final int port) {
-        final GrpcClient grpcClient = GrpcTestUtils.createGrpcClient(port, GrpcTestUtils.PROTO_OPTIONS);
+    static GreeterInterface.GreeterClient createClient(final int port, final String[] encodings) {
+        final GrpcClient grpcClient;
+        if (encodings == null || encodings.length == 0) {
+            grpcClient = GrpcTestUtils.createGrpcClient(port, GrpcTestUtils.PROTO_OPTIONS);
+        } else {
+            grpcClient =
+                    GrpcTestUtils.createGrpcClient(port, GrpcTestUtils.PROTO_OPTIONS, encodings[0], Set.of(encodings));
+        }
+
         return new GreeterInterface.GreeterClient(grpcClient, GrpcTestUtils.PROTO_OPTIONS);
     }
 
@@ -79,14 +90,20 @@ public class GrpcBench {
         @Param
         PayloadWeight weight;
 
+        @Param({"identity", "gzip"})
+        String encodings;
+
         PortsAllocator.Port port;
         ServerHandle server;
         GreeterInterface.GreeterClient client;
 
         void setup(int streamCount) {
+            final String[] splitEncodings = encodings.split(",");
+            final PbjGrpcServiceConfig serviceConfig =
+                    new PbjGrpcServiceConfig(splitEncodings[0], Set.of(splitEncodings));
             port = GrpcTestUtils.PORTS.acquire();
-            server = ServerHandle.start(port.port(), new GreeterService(weight, streamCount));
-            client = createClient(port.port());
+            server = ServerHandle.start(port.port(), new GreeterService(weight, streamCount), serviceConfig);
+            client = createClient(port.port(), splitEncodings);
         }
 
         @Setup(Level.Invocation)
@@ -96,19 +113,35 @@ public class GrpcBench {
 
         @TearDown(Level.Invocation)
         public void tearDown() {
-            client.close();
+            try {
+                client.close();
+            } catch (Exception ex) {
+                new RuntimeException(ex).printStackTrace();
+            }
             client = null;
-            server.close();
+            try {
+                server.close();
+            } catch (Exception ex) {
+                new RuntimeException(ex).printStackTrace();
+            }
             server = null;
-            port.close();
+            try {
+                port.close();
+            } catch (Exception ex) {
+                new RuntimeException(ex).printStackTrace();
+            }
             port = null;
         }
     }
 
+    // There's code duplicated from UnaryState above. It's because JMH is having troubles when states use inheritance.
     @State(Scope.Thread)
     public static class StreamingState {
         @Param
         PayloadWeight weight;
+
+        @Param({"identity", "gzip"})
+        String encodings;
 
         @Param({"1", "10"})
         int streamCount;
@@ -118,9 +151,12 @@ public class GrpcBench {
         GreeterInterface.GreeterClient client;
 
         void setup(int streamCount) {
+            final String[] splitEncodings = encodings.split(",");
+            final PbjGrpcServiceConfig serviceConfig =
+                    new PbjGrpcServiceConfig(splitEncodings[0], Set.of(splitEncodings));
             port = GrpcTestUtils.PORTS.acquire();
-            server = ServerHandle.start(port.port(), new GreeterService(weight, streamCount));
-            client = createClient(port.port());
+            server = ServerHandle.start(port.port(), new GreeterService(weight, streamCount), serviceConfig);
+            client = createClient(port.port(), splitEncodings);
         }
 
         @Setup(Level.Invocation)
@@ -130,11 +166,23 @@ public class GrpcBench {
 
         @TearDown(Level.Invocation)
         public void tearDown() {
-            client.close();
+            try {
+                client.close();
+            } catch (Exception ex) {
+                new RuntimeException(ex).printStackTrace();
+            }
             client = null;
-            server.close();
+            try {
+                server.close();
+            } catch (Exception ex) {
+                new RuntimeException(ex).printStackTrace();
+            }
             server = null;
-            port.close();
+            try {
+                port.close();
+            } catch (Exception ex) {
+                new RuntimeException(ex).printStackTrace();
+            }
             port = null;
         }
     }
@@ -142,21 +190,21 @@ public class GrpcBench {
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void benchUnary(final UnaryState state, final Blackhole blackhole) {
-        for (int i = 1; i <= INVOCATIONS; i++) {
-            try {
+        try {
+            for (int i = 1; i <= INVOCATIONS; i++) {
                 blackhole.consume(state.client.sayHello(state.weight.requestSupplier.get()));
-            } catch (Exception e) {
-                // Keep running because network may fail sometimes.
-                new RuntimeException(e).printStackTrace();
             }
+        } catch (Exception e) {
+            // Keep running because network may fail sometimes.
+            new RuntimeException(e).printStackTrace();
         }
     }
 
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void benchServerStreaming(final StreamingState state, final Blackhole blackhole) {
-        for (int i = 1; i <= INVOCATIONS; i++) {
-            try {
+        try {
+            for (int i = 1; i <= INVOCATIONS; i++) {
                 final CountDownLatch latch = new CountDownLatch(1);
                 state.client.sayHelloStreamReply(state.weight.requestSupplier.get(), new Pipeline<>() {
                     @Override
@@ -178,20 +226,20 @@ public class GrpcBench {
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    Thread.currentThread().interrupt();
                 }
-            } catch (Exception e) {
-                // Keep running because network may fail sometimes.
-                new RuntimeException(e).printStackTrace();
             }
+        } catch (Exception e) {
+            // Keep running because network may fail sometimes.
+            new RuntimeException(e).printStackTrace();
         }
     }
 
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void benchClientStreaming(final StreamingState state, final Blackhole blackhole) {
-        for (int i = 1; i <= INVOCATIONS; i++) {
-            try {
+        try {
+            for (int i = 1; i <= INVOCATIONS; i++) {
                 final CountDownLatch latch = new CountDownLatch(1);
                 final Pipeline<? super HelloRequest> requests = state.client.sayHelloStreamRequest(new Pipeline<>() {
                     @Override
@@ -221,20 +269,20 @@ public class GrpcBench {
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    Thread.currentThread().interrupt();
                 }
-            } catch (Exception e) {
-                // Keep running because network may fail sometimes.
-                new RuntimeException(e).printStackTrace();
             }
+        } catch (Exception e) {
+            // Keep running because network may fail sometimes.
+            new RuntimeException(e).printStackTrace();
         }
     }
 
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void benchBidiStreaming(final StreamingState state, final Blackhole blackhole) {
-        for (int i = 1; i <= INVOCATIONS; i++) {
-            try {
+        try {
+            for (int i = 1; i <= INVOCATIONS; i++) {
                 final CountDownLatch latch = new CountDownLatch(1);
                 final Pipeline<? super HelloRequest> requests = state.client.sayHelloStreamBidi(new Pipeline<>() {
                     @Override
@@ -264,18 +312,18 @@ public class GrpcBench {
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    Thread.currentThread().interrupt();
                 }
-            } catch (Exception e) {
-                // Keep running because network may fail sometimes.
-                new RuntimeException(e).printStackTrace();
             }
+        } catch (Exception e) {
+            // Keep running because network may fail sometimes.
+            new RuntimeException(e).printStackTrace();
         }
     }
 
     public static void main(String[] args) throws Exception {
         Options opt =
-                new OptionsBuilder().include(GrpcBench.class.getSimpleName()).build();
+                new OptionsBuilder().include(PbjGrpcBench.class.getSimpleName()).build();
 
         new Runner(opt).run();
     }
