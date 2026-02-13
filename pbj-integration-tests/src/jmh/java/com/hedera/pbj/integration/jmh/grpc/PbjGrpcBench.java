@@ -116,19 +116,19 @@ public class PbjGrpcBench {
             try {
                 client.close();
             } catch (Exception ex) {
-                new RuntimeException(ex).printStackTrace();
+                ex.printStackTrace();
             }
             client = null;
             try {
                 server.close();
             } catch (Exception ex) {
-                new RuntimeException(ex).printStackTrace();
+                ex.printStackTrace();
             }
             server = null;
             try {
                 port.close();
             } catch (Exception ex) {
-                new RuntimeException(ex).printStackTrace();
+                ex.printStackTrace();
             }
             port = null;
         }
@@ -169,19 +169,19 @@ public class PbjGrpcBench {
             try {
                 client.close();
             } catch (Exception ex) {
-                new RuntimeException(ex).printStackTrace();
+                ex.printStackTrace();
             }
             client = null;
             try {
                 server.close();
             } catch (Exception ex) {
-                new RuntimeException(ex).printStackTrace();
+                ex.printStackTrace();
             }
             server = null;
             try {
                 port.close();
             } catch (Exception ex) {
-                new RuntimeException(ex).printStackTrace();
+                ex.printStackTrace();
             }
             port = null;
         }
@@ -196,7 +196,7 @@ public class PbjGrpcBench {
             }
         } catch (Exception e) {
             // Keep running because network may fail sometimes.
-            new RuntimeException(e).printStackTrace();
+            e.printStackTrace();
         }
     }
 
@@ -216,7 +216,9 @@ public class PbjGrpcBench {
                     public void onSubscribe(Flow.Subscription subscription) {}
 
                     @Override
-                    public void onError(Throwable throwable) {}
+                    public void onError(Throwable throwable) {
+                        new RuntimeException(throwable).printStackTrace();
+                    }
 
                     @Override
                     public void onComplete() {
@@ -231,7 +233,7 @@ public class PbjGrpcBench {
             }
         } catch (Exception e) {
             // Keep running because network may fail sometimes.
-            new RuntimeException(e).printStackTrace();
+            e.printStackTrace();
         }
     }
 
@@ -274,7 +276,7 @@ public class PbjGrpcBench {
             }
         } catch (Exception e) {
             // Keep running because network may fail sometimes.
-            new RuntimeException(e).printStackTrace();
+            e.printStackTrace();
         }
     }
 
@@ -317,7 +319,7 @@ public class PbjGrpcBench {
             }
         } catch (Exception e) {
             // Keep running because network may fail sometimes.
-            new RuntimeException(e).printStackTrace();
+            e.printStackTrace();
         }
     }
 
