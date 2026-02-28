@@ -1,0 +1,55 @@
+name: "000: [FLOW] PR Formatting"
+on:
+  pull_request_target:
+    types:
+      - assigned
+      - unassigned
+      - labeled
+      - unlabeled
+      - opened
+      - reopened
+      - edited
+      - converted_to_draft
+      - ready_for_review
+      - review_requested
+      - review_request_removed
+      - locked
+      - unlocked
+      - synchronize
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  statuses: write
+
+jobs:
+  title-check:
+    name: Title Check
+    runs-on: network-node-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        with:
+          egress-policy: audit
+
+      - name: Check PR Title
+        uses: step-security/action-semantic-pull-request@bc0cf74f5be4ce34accdec1ae908dff38dc5def1 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  assignee-check:
+    name: Assignee Check
+    runs-on: network-node-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        with:
+          egress-policy: audit
+
+      - name: Check Assignee
+        if: ${{ github.event.pull_request.assignees == null || github.event.pull_request.assignees[0] == null }}
+        run: |
+          echo "Assignee is not set. Failing the workflow."
+          exit 1
