@@ -71,7 +71,7 @@ configurations.testRuntimeClasspath {
 
 // IMPROVE: Test code should not have a direct dependency to 'com.hedera.pbj.compiler'
 dependencies {
-    implementation("com.github.luben:zstd-jni")
+    jmhImplementation("com.github.luben:zstd-jni")
     testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive = false }
 }
 
