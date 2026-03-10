@@ -77,4 +77,5 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-http2:$helidon") {
         because("io.helidon.webclient.http2")
     }
+    api("com.github.luben:zstd-jni:1.5.5-11") { because("com.github.luben.zstd") }
 }
