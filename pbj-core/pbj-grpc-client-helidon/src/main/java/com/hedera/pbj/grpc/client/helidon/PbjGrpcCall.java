@@ -21,6 +21,8 @@ import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.webclient.http2.Http2ClientStream;
 import io.helidon.webclient.http2.StreamTimeoutException;
+import java.io.UncheckedIOException;
+import java.net.SocketException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -194,13 +196,29 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
 
             // read data from stream
             final PbjGrpcDatagramReader datagramReader = new PbjGrpcDatagramReader();
+            boolean repliesReceived = false;
             while (isStreamOpen() && !clientStream.trailers().isDone() && clientStream.hasEntity()) {
                 final Http2FrameData frameData;
                 try {
                     frameData = clientStream.readOne(grpcClient.getConfig().readTimeout());
                 } catch (StreamTimeoutException e) {
                     // Check if the connection is alive. See a comment above about the KeepAlive timeout.
-                    clientStream.sendPing();
+                    try {
+                        clientStream.sendPing();
+                    } catch (UncheckedIOException uioe) {
+                        // And the connection may in fact be closed.
+                        if (repliesReceived
+                                && uioe.getCause() instanceof SocketException se
+                                && se.getMessage() != null
+                                && se.getMessage().contains("Socket closed")) {
+                            // We won't be able to read trailers anyway because the connection is closed.
+                            // Since at least one reply has been received and processed, complete the call:
+                            pipeline.onComplete();
+                            return;
+                        }
+                        // Either we've never received a single reply yet, or this isn't a "Socket closed".
+                        throw uioe;
+                    }
                     // FUTURE WORK: implement an uber timeout to return
                     continue;
                 }
@@ -230,6 +248,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                         try {
                             final ReplyT reply = replyCodec.parse(replyBytes);
                             pipeline.onNext(reply);
+                            repliesReceived = true;
                         } catch (ParseException e) {
                             pipeline.onError(e);
                             // We won't be able to proceed probably because parsing failed.
