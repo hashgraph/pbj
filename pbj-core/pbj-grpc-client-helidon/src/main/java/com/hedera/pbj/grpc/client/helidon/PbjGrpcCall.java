@@ -21,6 +21,8 @@ import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.webclient.http2.Http2ClientStream;
 import io.helidon.webclient.http2.StreamTimeoutException;
+import java.io.UncheckedIOException;
+import java.net.SocketException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -51,6 +53,24 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
     private static final HeaderName GRPC_MESSAGE = HeaderNames.createFromLowercase("grpc-message");
     private static final HeaderName GRPC_ENCODING = HeaderNames.createFromLowercase("grpc-encoding");
     private static final HeaderName GRPC_ACCEPT_ENCODING = HeaderNames.createFromLowercase("grpc-accept-encoding");
+
+    private static final PbjGrpcNetworkBytesInspector NO_OP_NETWORK_BYTES_INSPECTOR =
+            new PbjGrpcNetworkBytesInspector() {};
+
+    private static PbjGrpcNetworkBytesInspector networkBytesInspector = NO_OP_NETWORK_BYTES_INSPECTOR;
+
+    /**
+     * Install a PbjGrpcNetworkBytesInspector, which may be null to reset it to no-op.
+     * This is an internal API that isn't suited for general-purpose applications.
+     * See `PbjGrpcNetworkBytesInspector` javadoc for more details.
+     * This method is not thread-safe and relies on eventual consistency to take effect. So it's best to invoke it early
+     * in the application startup.
+     * @param networkBytesInspector a PbjGrpcNetworkBytesInspector instance
+     */
+    public static void setNetworkBytesInspector(PbjGrpcNetworkBytesInspector networkBytesInspector) {
+        PbjGrpcCall.networkBytesInspector =
+                networkBytesInspector != null ? networkBytesInspector : NO_OP_NETWORK_BYTES_INSPECTOR;
+    }
 
     private final PbjGrpcClient grpcClient;
     private final Codec<RequestT> requestCodec;
@@ -123,6 +143,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
     public void sendRequest(final RequestT request, final boolean endOfStream) {
         final Bytes requestBytes = requestCodec.toBytes(request);
         final Bytes bytes = GrpcCompression.getCompressor(grpcOutgoingEncoding).compress(requestBytes);
+        PbjGrpcCall.networkBytesInspector.sent(bytes);
         final BufferData bufferData =
                 BufferData.create(PbjGrpcDatagramReader.PREFIX_LENGTH + Math.toIntExact(bytes.length()));
 
@@ -175,13 +196,29 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
 
             // read data from stream
             final PbjGrpcDatagramReader datagramReader = new PbjGrpcDatagramReader();
+            boolean repliesReceived = false;
             while (isStreamOpen() && !clientStream.trailers().isDone() && clientStream.hasEntity()) {
                 final Http2FrameData frameData;
                 try {
                     frameData = clientStream.readOne(grpcClient.getConfig().readTimeout());
                 } catch (StreamTimeoutException e) {
                     // Check if the connection is alive. See a comment above about the KeepAlive timeout.
-                    clientStream.sendPing();
+                    try {
+                        clientStream.sendPing();
+                    } catch (UncheckedIOException uioe) {
+                        // And the connection may in fact be closed.
+                        if (repliesReceived
+                                && uioe.getCause() instanceof SocketException se
+                                && se.getMessage() != null
+                                && se.getMessage().contains("Socket closed")) {
+                            // We won't be able to read trailers anyway because the connection is closed.
+                            // Since at least one reply has been received and processed, complete the call:
+                            pipeline.onComplete();
+                            return;
+                        }
+                        // Either we've never received a single reply yet, or this isn't a "Socket closed".
+                        throw uioe;
+                    }
                     // FUTURE WORK: implement an uber timeout to return
                     continue;
                 }
@@ -201,6 +238,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                         BufferData data = datagram.data();
                         final byte[] array = data.readBytes();
                         final Bytes bytes = Bytes.wrap(array);
+                        PbjGrpcCall.networkBytesInspector.received(bytes);
                         // If the compressedFlag is 0, then per the specification, the message isn't compressed
                         // regardless of the grpc-encoding value:
                         // https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
@@ -215,6 +253,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                                     Codec.DEFAULT_MAX_DEPTH,
                                     grpcClient.getConfig().maxSize());
                             pipeline.onNext(reply);
+                            repliesReceived = true;
                         } catch (ParseException e) {
                             pipeline.onError(e);
                             // We won't be able to proceed probably because parsing failed.

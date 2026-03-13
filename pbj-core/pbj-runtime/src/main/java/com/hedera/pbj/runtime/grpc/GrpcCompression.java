@@ -7,6 +7,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,16 +86,30 @@ public class GrpcCompression {
         }
     }
 
-    private static final Map<String, Compressor> COMPRESSOR_MAP = Map.of(
-            IdentityGrpcTransformer.NAME, IdentityGrpcTransformer.INSTANCE,
-            GzipGrpcTransformer.NAME, GzipGrpcTransformer.INSTANCE);
-    private static final Map<String, Decompressor> DECOMPRESSOR_MAP = Map.of(
-            IdentityGrpcTransformer.NAME, IdentityGrpcTransformer.INSTANCE,
-            GzipGrpcTransformer.NAME, GzipGrpcTransformer.INSTANCE);
+    private static final Map<String, Compressor> COMPRESSOR_MAP = new HashMap<>();
+    private static final Map<String, Decompressor> DECOMPRESSOR_MAP = new HashMap<>();
+
+    /** Register a Compressor, potentially overwriting an existing registration for `name`. */
+    public static void registerCompressor(String name, Compressor compressor) {
+        COMPRESSOR_MAP.put(name, compressor);
+    }
+
+    /** Register a Decompressor, potentially overwriting an existing registration for `name`. */
+    public static void registerDecompressor(String name, Decompressor decompressor) {
+        DECOMPRESSOR_MAP.put(name, decompressor);
+    }
+
+    static {
+        registerCompressor(IdentityGrpcTransformer.NAME, IdentityGrpcTransformer.INSTANCE);
+        registerCompressor(GzipGrpcTransformer.NAME, GzipGrpcTransformer.INSTANCE);
+
+        registerDecompressor(IdentityGrpcTransformer.NAME, IdentityGrpcTransformer.INSTANCE);
+        registerDecompressor(GzipGrpcTransformer.NAME, GzipGrpcTransformer.INSTANCE);
+    }
 
     /** Return names of all known compressors. */
     public static Set<String> getCompressorNames() {
-        return COMPRESSOR_MAP.keySet();
+        return Collections.unmodifiableSet(COMPRESSOR_MAP.keySet());
     }
 
     /** Return a known Compressor by its name, or null if unknown. */
@@ -103,7 +119,7 @@ public class GrpcCompression {
 
     /** Return names of all known decompressors. */
     public static Set<String> getDecompressorNames() {
-        return DECOMPRESSOR_MAP.keySet();
+        return Collections.unmodifiableSet(DECOMPRESSOR_MAP.keySet());
     }
 
     /** Return a known Decompressor by its name, or null if unknown. */
@@ -129,7 +145,7 @@ public class GrpcCompression {
             } else {
                 throw new IllegalStateException(
                         "GRPC peer didn't provide grpc-encoding header and 'identity' is unsupported, only the following are supported: "
-                                + GrpcCompression.getDecompressorNames());
+                                + DECOMPRESSOR_MAP.keySet());
             }
         } else if (encodingList.size() > 1) {
             throw new IllegalStateException("GRPC peer specified multiple encodings at once: " + encodingList);
@@ -142,7 +158,7 @@ public class GrpcCompression {
                 return GrpcCompression.getDecompressor(encoding);
             } else {
                 throw new IllegalStateException("GRPC peer uses an unsupported encoding: '" + encoding
-                        + "' while only the following are supported: " + GrpcCompression.getDecompressorNames());
+                        + "' while only the following are supported: " + DECOMPRESSOR_MAP.keySet());
             }
         }
     }
@@ -155,8 +171,8 @@ public class GrpcCompression {
      */
     public static String determineCompressorName(List<String> acceptEncoding, String encoding) {
         final List<String> supportedAcceptEncodings = acceptEncoding.stream()
-                .filter(ae -> GrpcCompression.getCompressorNames().stream()
-                        .anyMatch(sae -> ae.equals(sae) || ae.startsWith(sae + ";")))
+                .filter(ae ->
+                        COMPRESSOR_MAP.keySet().stream().anyMatch(sae -> ae.equals(sae) || ae.startsWith(sae + ";")))
                 .toList();
 
         if (supportedAcceptEncodings.isEmpty()) {

@@ -56,6 +56,7 @@ jmhModuleInfo {
     requires("com.google.protobuf.util")
     requires("io.helidon.common")
     requires("io.helidon.webserver")
+    requires("com.github.luben.zstd_jni")
 }
 
 // version is added to module-info.class files
@@ -69,7 +70,10 @@ configurations.testRuntimeClasspath {
 }
 
 // IMPROVE: Test code should not have a direct dependency to 'com.hedera.pbj.compiler'
-dependencies { testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive = false } }
+dependencies {
+    jmhImplementation("com.github.luben:zstd-jni")
+    testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive = false }
+}
 
 dependencyAnalysis { issues { all { onAny { exclude("com.hedera.pbj:pbj-compiler") } } } }
 

@@ -3,6 +3,7 @@ package com.hedera.pbj.integration.jmh.grpc;
 
 import com.hedera.pbj.grpc.helidon.PbjGrpcServiceConfig;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
+import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.integration.grpc.GrpcTestUtils;
 import com.hedera.pbj.integration.grpc.PortsAllocator;
 import com.hedera.pbj.runtime.Codec;
@@ -50,25 +51,39 @@ import pbj.integration.tests.pbj.integration.tests.HelloRequest;
 @SuppressWarnings("unused")
 @State(Scope.Benchmark)
 @Fork(1)
-@Warmup(iterations = 2)
-@Measurement(iterations = 5)
+@Warmup(iterations = 1)
+@Measurement(iterations = 3)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
 public class PbjGrpcBench {
-    private static final int INVOCATIONS = 20_000;
+    private static final int INVOCATIONS = 2_000;
 
-    private record ServerHandle(WebServer server) implements AutoCloseable {
+    static {
+        new ZstdGrpcTransformer().register("zstd");
+
+        // 1Gbps network:
+        NetworkLatencySimulator.simulate(1_000, false);
+    }
+
+    public record ServerHandle(WebServer server) implements AutoCloseable {
         @Override
         public void close() {
             server.stop();
         }
 
-        static ServerHandle start(
+        public static ServerHandle start(
                 final int port, final ServiceInterface service, final PbjGrpcServiceConfig serviceConfig) {
+            final int maxPayloadSize = 20 * 1024 * 1024;
+            final PbjConfig pbjConfig = PbjConfig.builder()
+                    .name("pbj")
+                    .maxMessageSizeBytes(maxPayloadSize)
+                    .build();
+            ;
             return new ServerHandle(WebServer.builder()
                     .port(port)
+                    .addProtocol(pbjConfig)
                     .addRouting(PbjRouting.builder().service(service, serviceConfig))
-                    .maxPayloadSize(10000)
+                    .maxPayloadSize(maxPayloadSize)
                     .build()
                     .start());
         }
@@ -91,7 +106,7 @@ public class PbjGrpcBench {
         @Param
         PayloadWeight weight;
 
-        @Param({"identity", "gzip"})
+        @Param({"identity", "gzip", "zstd"})
         String encodings;
 
         PortsAllocator.Port port;
@@ -138,10 +153,13 @@ public class PbjGrpcBench {
     // There's code duplicated from UnaryState above. It's because JMH is having troubles when states use inheritance.
     @State(Scope.Thread)
     public static class StreamingState {
-        @Param
+        // Skip the SUPER weight as it would be too slow.
+        @Param({"LIGHT", "NORMAL", "HEAVY"})
         PayloadWeight weight;
 
-        @Param({"identity", "gzip"})
+        // Streaming benchmarks are much slower than unary. Also, compression benchmarks are much slower than identity.
+        // So for streaming, only test the identity:
+        @Param({"identity"})
         String encodings;
 
         @Param({"1", "10"})
