@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -64,10 +64,6 @@ public class WritableMessageDigestTest {
                 new byte[] {66, 77},
                 new byte[] {(byte) -128, (byte) -63, (byte) 0, (byte) 1, (byte) 65, (byte) 127},
                 FULL_RANGE_ARRAY);
-    }
-
-    private static Stream<Arguments> provideByteArrayArguments() {
-        return provideByteArrays().map(Arguments::of);
     }
 
     @ParameterizedTest
@@ -155,8 +151,29 @@ public class WritableMessageDigestTest {
         final Bytes bytes = Bytes.wrap(array);
         final MessageDigest testDigest = buildDigest();
         final WritableMessageDigest wmd = new WritableMessageDigest(testDigest);
-        wmd.writeBytes((RandomAccessData) bytes);
+        wmd.writeBytes(bytes);
 
         assertArrayEquals(ctrlDigest.digest(), testDigest.digest());
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideByteArrays")
+    void testDigestInto(byte[] array) {
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        wmd.writeBytes(array);
+        assertEquals(array.length, wmd.position());
+
+        final byte[] output = new byte[expectedDigest.length + 4];
+        Arrays.fill(output, (byte) 0x55);
+        wmd.digestInto(output, 2);
+
+        assertEquals(0, wmd.position());
+        assertArrayEquals(expectedDigest, Arrays.copyOfRange(output, 2, 2 + expectedDigest.length));
+        assertArrayEquals(new byte[] {(byte) 0x55, (byte) 0x55}, Arrays.copyOfRange(output, 0, 2));
+        assertArrayEquals(new byte[] {(byte) 0x55, (byte) 0x55}, Arrays.copyOfRange(output, 2 + expectedDigest.length, output.length));
     }
 }
