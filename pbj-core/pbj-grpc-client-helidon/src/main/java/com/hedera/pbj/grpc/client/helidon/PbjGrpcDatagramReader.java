@@ -34,10 +34,8 @@ class PbjGrpcDatagramReader {
      */
     static final int PREFIX_LENGTH = 5;
 
-    // These are arbitrary limits, but they seem sane and support the immediate use-case.
-    // It would be nice to make them configurable in the future.
+    // This is an arbitrary initial size, but it seems reasonable.
     private static final int INITIAL_BUFFER_SIZE = 1024;
-    private static final int MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 
     /**
      * A buffer for incoming data. We copy the incoming BufferData objects into this buffer
@@ -49,7 +47,12 @@ class PbjGrpcDatagramReader {
      * byte arrays when adding data to the buffer. Also, it doesn't support a capacity limit which
      * may be important to prevent OOM. For this reason, we use a low-level circular byte array here.
      */
-    private byte[] buffer = new byte[INITIAL_BUFFER_SIZE];
+    private byte[] buffer;
+
+    /**
+     * The maximum size of the buffer.
+     */
+    private final int maxBufferSize;
 
     /** Where we read data from. */
     private int readPosition = 0;
@@ -59,6 +62,11 @@ class PbjGrpcDatagramReader {
 
     /** The length of the actual data added to the reader. Note that the buffer is circular. */
     private int length = 0;
+
+    PbjGrpcDatagramReader(final int maxBufferSize) {
+        this.maxBufferSize = maxBufferSize;
+        this.buffer = new byte[Math.min(INITIAL_BUFFER_SIZE, maxBufferSize)];
+    }
 
     /**
      * Add a new piece of data to this reader. It may be a complete GRPC datagram, or a piece of it,
@@ -161,12 +169,12 @@ class PbjGrpcDatagramReader {
         }
 
         final int newLength = buffer.length + (minCapacity - currentCapacity);
-        if (newLength > MAX_BUFFER_SIZE) {
+        if (newLength > maxBufferSize) {
             throw new BufferOverflowException();
         }
 
         // Prefer to double the size each time. But resort to the newLength if it's greater, and respect the max limit.
-        final int actualNewLength = Math.min(Math.max(buffer.length * 2, newLength), MAX_BUFFER_SIZE);
+        final int actualNewLength = Math.min(Math.max(buffer.length * 2, newLength), maxBufferSize);
         final byte[] newBuffer = new byte[actualNewLength];
 
         if (length > 0) {

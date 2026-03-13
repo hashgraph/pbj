@@ -13,9 +13,11 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class PbjGrpcDatagramReaderTest {
+    private static final int MAX_BUFFER_SIZE = 10 * 1024 * 1024;
+
     @Test
     void checkBufferOverflow() {
-        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader();
+        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(MAX_BUFFER_SIZE);
 
         // First, test the happy case, fill up the buffer to the current max limit (note that it's hard-coded here):
         BufferData goodData = BufferData.create("a".repeat(10 * 1024 * 1024));
@@ -28,7 +30,7 @@ public class PbjGrpcDatagramReaderTest {
 
     @Test
     void testSingleCompleteDatagram() {
-        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader();
+        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(MAX_BUFFER_SIZE);
 
         // Trivial case of a zero-size datagram
         BufferData zeroData = BufferData.create(new byte[] {0, 0, 0, 0, 0});
@@ -66,7 +68,7 @@ public class PbjGrpcDatagramReaderTest {
 
     @Test
     void testSplitDatagram() {
-        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader();
+        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(MAX_BUFFER_SIZE);
 
         // This is very similar to the many bytes long datagram test above, but we feed the reader
         // little by little instead of adding the entire datagram at once:
@@ -97,7 +99,7 @@ public class PbjGrpcDatagramReaderTest {
 
     @Test
     void testFlipCircularBuffer() {
-        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader();
+        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(MAX_BUFFER_SIZE);
 
         // The initial size is currently 1024, so fill it up almost completely:
         String dataString = "a".repeat(1000);
@@ -177,7 +179,7 @@ public class PbjGrpcDatagramReaderTest {
 
     @Test
     void testEnlargePartiallyFilledBuffer() {
-        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader();
+        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(MAX_BUFFER_SIZE);
 
         // Add two datagrams of 1000 bytes, which will enlarge the initial 1024 bytes buffer
         testDatagrams(reader, List.of("a".repeat(1000), "b".repeat(1000)));
