@@ -48,6 +48,33 @@ public class WritableMessageDigest implements WritableSequentialData {
         return digest.digest();
     }
 
+    /**
+     * A delegate for the wrapped {@link MessageDigest#digest(byte[], int, int)} method.
+     *
+     * <p>The digest is written into {@code buf} starting at {@code offset}. The length used is
+     * {@link MessageDigest#getDigestLength()}, and {@link #position()} is reset to {@code 0},
+     * matching the behavior of {@link #digest()}.
+     *
+     * Note: it's a responsibility of the caller to ensure that {@code buf} is large enough to hold the digest and
+     * that offset is within bounds.
+     *
+     * @param buf the destination buffer for the digest bytes
+     * @param offset the offset in {@code buf} where digest bytes are written
+     * @throws RuntimeException if writing the digest into the destination buffer fails
+     * @throws IllegalArgumentException if {@code offset} is out of bounds of {@code buf}
+     * @throws RuntimeException if the digest operation fails, for example if the output buffer is too small to hold the digest
+     * @see MessageDigest#digest(byte[], int, int)
+     *
+     */
+    public void digestInto(final byte[] buf, final int offset) {
+        position = 0;
+        try {
+            digest.digest(buf, offset, digest.getDigestLength());
+        } catch (final java.security.DigestException e) {
+            throw new RuntimeException("Failed to write digest into buffer", e);
+        }
+    }
+
     @Override
     public void writeByte(byte b) throws BufferOverflowException, UncheckedIOException {
         digest.update(b);
