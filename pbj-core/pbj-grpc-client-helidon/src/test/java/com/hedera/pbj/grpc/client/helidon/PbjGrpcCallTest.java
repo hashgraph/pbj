@@ -21,6 +21,7 @@ import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import io.helidon.common.buffers.BufferData;
 import io.helidon.common.tls.Tls;
@@ -269,7 +270,14 @@ public class PbjGrpcCallTest {
         doReturn(bufferData).when(data).data();
 
         final Object reply = mock(Object.class);
-        doReturn(reply).when(replyCodec).parse(eq(Bytes.wrap(new byte[] {6})));
+        doReturn(reply)
+                .when(replyCodec)
+                .parse(
+                        any(ReadableSequentialData.class),
+                        eq(false),
+                        eq(false),
+                        eq(Codec.DEFAULT_MAX_DEPTH),
+                        eq(Codec.DEFAULT_MAX_SIZE));
 
         runnable.run();
 
@@ -324,7 +332,14 @@ public class PbjGrpcCallTest {
         doReturn(bufferData).when(data).data();
 
         final ParseException exception = new ParseException("test");
-        doThrow(exception).when(replyCodec).parse(eq(Bytes.wrap(new byte[] {6})));
+        doThrow(exception)
+                .when(replyCodec)
+                .parse(
+                        any(ReadableSequentialData.class),
+                        eq(false),
+                        eq(false),
+                        eq(Codec.DEFAULT_MAX_DEPTH),
+                        eq(Codec.DEFAULT_MAX_SIZE));
 
         runnable.run();
 

@@ -246,7 +246,12 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                                 datagram.compressedFlag() == 1 ? decompressor.decompress(bytes) : bytes;
 
                         try {
-                            final ReplyT reply = replyCodec.parse(replyBytes);
+                            final ReplyT reply = replyCodec.parse(
+                                    replyBytes.toReadableSequentialData(),
+                                    false,
+                                    false,
+                                    Codec.DEFAULT_MAX_DEPTH,
+                                    grpcClient.getConfig().maxSize());
                             pipeline.onNext(reply);
                             repliesReceived = true;
                         } catch (ParseException e) {

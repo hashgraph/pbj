@@ -6,6 +6,7 @@ import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.integration.grpc.GrpcTestUtils;
 import com.hedera.pbj.integration.grpc.PortsAllocator;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
@@ -93,8 +94,8 @@ public class PbjGrpcBench {
         if (encodings == null || encodings.length == 0) {
             grpcClient = GrpcTestUtils.createGrpcClient(port, GrpcTestUtils.PROTO_OPTIONS);
         } else {
-            grpcClient =
-                    GrpcTestUtils.createGrpcClient(port, GrpcTestUtils.PROTO_OPTIONS, encodings[0], Set.of(encodings));
+            grpcClient = GrpcTestUtils.createGrpcClient(
+                    port, GrpcTestUtils.PROTO_OPTIONS, encodings[0], Set.of(encodings), Codec.DEFAULT_MAX_SIZE);
         }
 
         return new GreeterInterface.GreeterClient(grpcClient, GrpcTestUtils.PROTO_OPTIONS);

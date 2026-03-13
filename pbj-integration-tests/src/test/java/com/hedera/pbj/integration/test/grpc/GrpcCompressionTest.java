@@ -7,6 +7,7 @@ import com.hedera.pbj.grpc.helidon.PbjGrpcServiceConfig;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.integration.grpc.GrpcTestUtils;
 import com.hedera.pbj.integration.grpc.PortsAllocator;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -28,8 +29,8 @@ public class GrpcCompressionTest {
             server.setSayHello(request ->
                     HelloReply.newBuilder().message("Hello " + request.name()).build());
 
-            try (final GrpcClient grpcClient =
-                    GrpcTestUtils.createGrpcClient(port.port(), GrpcTestUtils.PROTO_OPTIONS, "gzip", Set.of("gzip"))) {
+            try (final GrpcClient grpcClient = GrpcTestUtils.createGrpcClient(
+                    port.port(), GrpcTestUtils.PROTO_OPTIONS, "gzip", Set.of("gzip"), Codec.DEFAULT_MAX_SIZE)) {
                 final GreeterInterface.GreeterClient client =
                         new GreeterInterface.GreeterClient(grpcClient, GrpcTestUtils.PROTO_OPTIONS);
 
@@ -107,8 +108,8 @@ public class GrpcCompressionTest {
             handle.setSayHello(request ->
                     HelloReply.newBuilder().message("Hello " + request.name()).build());
 
-            try (final GrpcClient grpcClient =
-                    GrpcTestUtils.createGrpcClient(port.port(), GrpcTestUtils.PROTO_OPTIONS, "gzip", Set.of("gzip"))) {
+            try (final GrpcClient grpcClient = GrpcTestUtils.createGrpcClient(
+                    port.port(), GrpcTestUtils.PROTO_OPTIONS, "gzip", Set.of("gzip"), Codec.DEFAULT_MAX_SIZE)) {
                 final GreeterInterface.GreeterClient client =
                         new GreeterInterface.GreeterClient(grpcClient, GrpcTestUtils.PROTO_OPTIONS);
 

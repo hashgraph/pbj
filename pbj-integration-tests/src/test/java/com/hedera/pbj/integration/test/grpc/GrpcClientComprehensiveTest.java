@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.integration.grpc.GrpcTestUtils;
 import com.hedera.pbj.integration.grpc.PortsAllocator;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
+import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import java.util.ArrayList;
@@ -105,6 +107,32 @@ public class GrpcClientComprehensiveTest {
             final HelloReply reply = client.sayHello(request);
 
             assertEquals("Hello test name", reply.message());
+        }
+    }
+
+    @Test
+    void testUnaryMethodReceivingExtraLargePayload() {
+        try (final PortsAllocator.Port port = GrpcTestUtils.PORTS.acquire();
+                final GrpcServerGreeterHandle server = serverFactory.apply(port.port())) {
+            server.start();
+            final String extraLongString = "a".repeat(Codec.DEFAULT_MAX_SIZE * 2);
+            server.setSayHello(
+                    request -> HelloReply.newBuilder().message(extraLongString).build());
+
+            final GrpcClient grpcClient = GrpcTestUtils.createGrpcClient(
+                    port.port(),
+                    GrpcTestUtils.PROTO_OPTIONS,
+                    GrpcCompression.IDENTITY,
+                    GrpcCompression.getDecompressorNames(),
+                    Codec.DEFAULT_MAX_SIZE * 2);
+            final GreeterInterface.GreeterClient client =
+                    new GreeterInterface.GreeterClient(grpcClient, GrpcTestUtils.PROTO_OPTIONS);
+
+            final HelloRequest request =
+                    HelloRequest.newBuilder().name("test name").build();
+            final HelloReply reply = client.sayHello(request);
+
+            assertEquals(extraLongString, reply.message());
         }
     }
 
