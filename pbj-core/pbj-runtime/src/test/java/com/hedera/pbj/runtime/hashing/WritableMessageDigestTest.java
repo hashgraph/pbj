@@ -174,6 +174,8 @@ public class WritableMessageDigestTest {
         assertEquals(0, wmd.position());
         assertArrayEquals(expectedDigest, Arrays.copyOfRange(output, 2, 2 + expectedDigest.length));
         assertArrayEquals(new byte[] {(byte) 0x55, (byte) 0x55}, Arrays.copyOfRange(output, 0, 2));
-        assertArrayEquals(new byte[] {(byte) 0x55, (byte) 0x55}, Arrays.copyOfRange(output, 2 + expectedDigest.length, output.length));
+        assertArrayEquals(
+                new byte[] {(byte) 0x55, (byte) 0x55},
+                Arrays.copyOfRange(output, 2 + expectedDigest.length, output.length));
     }
 }
