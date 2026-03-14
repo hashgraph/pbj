@@ -175,7 +175,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
 
             // read data from stream
             final PbjGrpcDatagramReader datagramReader =
-                    new PbjGrpcDatagramReader(grpcClient.getConfig().maxSize());
+                    new PbjGrpcDatagramReader(grpcClient.getConfig().maxIncomingBufferSize());
             while (isStreamOpen() && !clientStream.trailers().isDone() && clientStream.hasEntity()) {
                 final Http2FrameData frameData;
                 try {
