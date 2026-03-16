@@ -41,7 +41,8 @@ public class GrpcTestUtils {
                 requestOptions,
                 GrpcCompression.IDENTITY,
                 GrpcCompression.getDecompressorNames(),
-                Codec.DEFAULT_MAX_SIZE);
+                Codec.DEFAULT_MAX_SIZE,
+                Codec.DEFAULT_MAX_SIZE * 5);
     }
 
     public static GrpcClient createGrpcClient(
@@ -49,7 +50,8 @@ public class GrpcTestUtils {
             final ServiceInterface.RequestOptions requestOptions,
             String encoding,
             Set<String> acceptEncodings,
-            int maxSize) {
+            int maxSize,
+            int maxIncomingBufferSize) {
         final Tls tls = Tls.builder().enabled(false).build();
         final WebClient webClient =
                 WebClient.builder().baseUri("http://localhost:" + port).tls(tls).build();
@@ -59,7 +61,14 @@ public class GrpcTestUtils {
                 requestOptions.authority().isPresent() ? requestOptions.authority() : Optional.of("localhost:" + port);
 
         final PbjGrpcClientConfig config = new PbjGrpcClientConfig(
-                READ_TIMEOUT, tls, authority, requestOptions.contentType(), encoding, acceptEncodings, maxSize);
+                READ_TIMEOUT,
+                tls,
+                authority,
+                requestOptions.contentType(),
+                encoding,
+                acceptEncodings,
+                maxSize,
+                maxIncomingBufferSize);
 
         return new PbjGrpcClient(webClient, config);
     }

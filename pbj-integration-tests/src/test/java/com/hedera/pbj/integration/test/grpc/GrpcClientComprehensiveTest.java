@@ -124,7 +124,8 @@ public class GrpcClientComprehensiveTest {
                     GrpcTestUtils.PROTO_OPTIONS,
                     GrpcCompression.IDENTITY,
                     GrpcCompression.getDecompressorNames(),
-                    Codec.DEFAULT_MAX_SIZE * 2);
+                    Codec.DEFAULT_MAX_SIZE * 2,
+                    Codec.DEFAULT_MAX_SIZE * 5);
             final GreeterInterface.GreeterClient client =
                     new GreeterInterface.GreeterClient(grpcClient, GrpcTestUtils.PROTO_OPTIONS);
 

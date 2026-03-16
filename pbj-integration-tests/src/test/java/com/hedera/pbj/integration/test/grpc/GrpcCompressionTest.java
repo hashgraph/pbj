@@ -30,7 +30,12 @@ public class GrpcCompressionTest {
                     HelloReply.newBuilder().message("Hello " + request.name()).build());
 
             try (final GrpcClient grpcClient = GrpcTestUtils.createGrpcClient(
-                    port.port(), GrpcTestUtils.PROTO_OPTIONS, "gzip", Set.of("gzip"), Codec.DEFAULT_MAX_SIZE)) {
+                    port.port(),
+                    GrpcTestUtils.PROTO_OPTIONS,
+                    "gzip",
+                    Set.of("gzip"),
+                    Codec.DEFAULT_MAX_SIZE,
+                    Codec.DEFAULT_MAX_SIZE * 5)) {
                 final GreeterInterface.GreeterClient client =
                         new GreeterInterface.GreeterClient(grpcClient, GrpcTestUtils.PROTO_OPTIONS);
 
@@ -109,7 +114,12 @@ public class GrpcCompressionTest {
                     HelloReply.newBuilder().message("Hello " + request.name()).build());
 
             try (final GrpcClient grpcClient = GrpcTestUtils.createGrpcClient(
-                    port.port(), GrpcTestUtils.PROTO_OPTIONS, "gzip", Set.of("gzip"), Codec.DEFAULT_MAX_SIZE)) {
+                    port.port(),
+                    GrpcTestUtils.PROTO_OPTIONS,
+                    "gzip",
+                    Set.of("gzip"),
+                    Codec.DEFAULT_MAX_SIZE,
+                    Codec.DEFAULT_MAX_SIZE * 5)) {
                 final GreeterInterface.GreeterClient client =
                         new GreeterInterface.GreeterClient(grpcClient, GrpcTestUtils.PROTO_OPTIONS);
 
