@@ -95,7 +95,12 @@ public class PbjGrpcBench {
             grpcClient = GrpcTestUtils.createGrpcClient(port, GrpcTestUtils.PROTO_OPTIONS);
         } else {
             grpcClient = GrpcTestUtils.createGrpcClient(
-                    port, GrpcTestUtils.PROTO_OPTIONS, encodings[0], Set.of(encodings), Codec.DEFAULT_MAX_SIZE);
+                    port,
+                    GrpcTestUtils.PROTO_OPTIONS,
+                    encodings[0],
+                    Set.of(encodings),
+                    Codec.DEFAULT_MAX_SIZE,
+                    Codec.DEFAULT_MAX_SIZE * 5);
         }
 
         return new GreeterInterface.GreeterClient(grpcClient, GrpcTestUtils.PROTO_OPTIONS);

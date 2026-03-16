@@ -11,6 +11,10 @@ import java.util.Set;
 /**
  * Configuration for PBJ GRPC client.
  * @param maxSize the maximum size of messages that the client is able to receive, defaults to Codec.DEFAULT_MAX_SIZE.
+ * @param maxIncomingBufferSize the max size of an incoming buffer for receiving messages. Must be larger than
+ *                              the `maxSize` to account for protobuf metadata as well as support high rate of ingress
+ *                              of multiple messages, especially in case of server or bidi streaming.
+ *                              Defaults to Codec.DEFAULT_MAX_SIZE * 5.
  */
 public record PbjGrpcClientConfig(
         /** A read timeout. Duration.ofSeconds(10) is a good default. */
@@ -37,7 +41,8 @@ public record PbjGrpcClientConfig(
          * Note that the encoding must be registered as a `Decompressor` with `GrpcCompression` to actually be supported.
          */
         Set<String> acceptEncodings,
-        int maxSize) {
+        int maxSize,
+        int maxIncomingBufferSize) {
 
     /** For backward compatibility before encodings were introduced. */
     public PbjGrpcClientConfig(Duration readTimeout, Tls tls, Optional<String> authority, String contentType) {
@@ -48,7 +53,8 @@ public record PbjGrpcClientConfig(
                 contentType,
                 GrpcCompression.IDENTITY,
                 GrpcCompression.getDecompressorNames(),
-                Codec.DEFAULT_MAX_SIZE);
+                Codec.DEFAULT_MAX_SIZE,
+                Codec.DEFAULT_MAX_SIZE * 5);
     }
 
     /** For backward compatibility before maxSize was introduced. */
@@ -59,6 +65,14 @@ public record PbjGrpcClientConfig(
             String contentType,
             String encoding,
             Set<String> acceptEncodings) {
-        this(readTimeout, tls, authority, contentType, encoding, acceptEncodings, Codec.DEFAULT_MAX_SIZE);
+        this(
+                readTimeout,
+                tls,
+                authority,
+                contentType,
+                encoding,
+                acceptEncodings,
+                Codec.DEFAULT_MAX_SIZE,
+                Codec.DEFAULT_MAX_SIZE * 5);
     }
 }
