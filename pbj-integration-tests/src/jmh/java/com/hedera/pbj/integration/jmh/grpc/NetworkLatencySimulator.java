@@ -12,6 +12,11 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
  * instead of leveraging the fast network.
  * A slow network would show that compression may be useful sometimes. Specifically, for larger, compressible
  * payloads. Smaller payloads (<8K) never benefit from compression.
+ * <p>
+ * The network latency simulator uses the PbjGrpcNetworkBytesInspector feature of the PbjGrpcCall, which is
+ * a static entity, meaning that it affects any and all PbjGrpcCall objects in the same JVM. This is by design
+ * for performance reasons. However, users of this Simulator should be aware of this and not try to use it
+ * from multiple threads with different latency parameters at once.
  */
 public class NetworkLatencySimulator {
     // ms 1e-3, us 1e-6, ns 1e-9:
@@ -31,9 +36,9 @@ public class NetworkLatencySimulator {
 
             private void sleep(long bytes) {
                 final long nanos = nanosPerByte * bytes;
-                try {
-                    Thread.sleep(nanos / NANOS_IN_MILLI, (int) (nanos % NANOS_IN_MILLI));
-                } catch (InterruptedException ignore) {
+                final long deadline = System.nanoTime() + nanos;
+                while (System.nanoTime() < deadline) {
+                    Thread.onSpinWait();
                 }
             }
 

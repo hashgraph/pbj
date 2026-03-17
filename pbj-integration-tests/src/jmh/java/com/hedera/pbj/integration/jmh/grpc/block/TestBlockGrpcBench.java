@@ -7,8 +7,11 @@ import com.hedera.pbj.integration.grpc.PortsAllocator;
 import com.hedera.pbj.integration.jmh.grpc.NetworkLatencySimulator;
 import com.hedera.pbj.integration.jmh.grpc.PbjGrpcBench;
 import com.hedera.pbj.integration.jmh.grpc.ZstdGrpcTransformer;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
 import com.hedera.pbj.runtime.grpc.Pipeline;
+import java.io.UncheckedIOException;
+import java.net.SocketException;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
@@ -54,12 +57,12 @@ import pbj.integration.tests.pbj.integration.tests.TestBlockStreamerInterface;
 @OutputTimeUnit(TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
 public class TestBlockGrpcBench {
-    private static final int INVOCATIONS = 2_000;
+    private static final int INVOCATIONS = 400;
 
     static {
         new ZstdGrpcTransformer(-5).register("zstd-5");
-        new ZstdGrpcTransformer(0).register("zstd0");
         new ZstdGrpcTransformer(3).register("zstd"); // the default level
+        new ZstdGrpcTransformer(10).register("zstd10");
 
         // 1Gbps network:
         NetworkLatencySimulator.simulate(1_000, true);
@@ -70,8 +73,13 @@ public class TestBlockGrpcBench {
         if (encodings == null || encodings.length == 0) {
             grpcClient = GrpcTestUtils.createGrpcClient(port, GrpcTestUtils.PROTO_OPTIONS);
         } else {
-            grpcClient =
-                    GrpcTestUtils.createGrpcClient(port, GrpcTestUtils.PROTO_OPTIONS, encodings[0], Set.of(encodings));
+            grpcClient = GrpcTestUtils.createGrpcClient(
+                    port,
+                    GrpcTestUtils.PROTO_OPTIONS,
+                    encodings[0],
+                    Set.of(encodings),
+                    Codec.DEFAULT_MAX_SIZE,
+                    Codec.DEFAULT_MAX_SIZE * 5);
         }
 
         return new TestBlockStreamerInterface.TestBlockStreamerClient(grpcClient, GrpcTestUtils.PROTO_OPTIONS);
@@ -82,7 +90,7 @@ public class TestBlockGrpcBench {
         @Param({"102400", "524288", "2048000"})
         int maxBlockSize;
 
-        @Param({"identity", "gzip", "zstd", "zstd0", "zstd-5"})
+        @Param({"identity", "gzip", "zstd", "zstd10", "zstd-5"})
         String encodings;
 
         PortsAllocator.Port port;
@@ -156,8 +164,19 @@ public class TestBlockGrpcBench {
 
                 @Override
                 public void onError(Throwable throwable) {
-                    new RuntimeException(throwable).printStackTrace();
                     latch.countDown();
+                    if (throwable instanceof UncheckedIOException uioe
+                            && uioe.getCause() instanceof SocketException se
+                            && se.getMessage() != null
+                            && se.getMessage().contains("Socket closed")) {
+                        // A streaming server may close its connection sometimes before
+                        // the client has received and processed all the replies. However, the client's
+                        // PbjGrpcCall may try and ping the server during the processing. This results in
+                        // calling this method. And this seems to happen often enough to print this error
+                        // more often than we'd like. So we just ignore this particular error altogether here.
+                        return;
+                    }
+                    new RuntimeException(throwable).printStackTrace();
                 }
 
                 @Override

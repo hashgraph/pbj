@@ -90,12 +90,12 @@ public class GrpcCompression {
     private static final Map<String, Decompressor> DECOMPRESSOR_MAP = new HashMap<>();
 
     /** Register a Compressor, potentially overwriting an existing registration for `name`. */
-    public static void registerCompressor(String name, Compressor compressor) {
+    public static synchronized void registerCompressor(String name, Compressor compressor) {
         COMPRESSOR_MAP.put(name, compressor);
     }
 
     /** Register a Decompressor, potentially overwriting an existing registration for `name`. */
-    public static void registerDecompressor(String name, Decompressor decompressor) {
+    public static synchronized void registerDecompressor(String name, Decompressor decompressor) {
         DECOMPRESSOR_MAP.put(name, decompressor);
     }
 
