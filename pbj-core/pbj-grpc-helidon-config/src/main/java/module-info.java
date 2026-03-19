@@ -15,6 +15,7 @@ module com.hedera.pbj.grpc.helidon.config {
     requires io.helidon.webserver;
     requires static io.helidon.common.features.api;
     requires static io.helidon.config.metadata.codegen;
+    requires static io.helidon.config.metadata;
 
     exports com.hedera.pbj.grpc.helidon.config;
 }

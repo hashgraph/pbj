@@ -38,8 +38,8 @@ dependencies.constraints {
     api("io.helidon.config.metadata:helidon-config-metadata-codegen:$helidon") {
         because("io.helidon.config.metadata.codegen")
     }
-    api("io.helidon.config:helidon-config-metadata-processor:$helidon") {
-        because("io.helidon.config.metadata.processor")
+    api("io.helidon.config:helidon-config-metadata:$helidon") {
+        because("io.helidon.config.metadata")
     }
     api("io.helidon.codegen:helidon-codegen-apt:$helidon") { because("io.helidon.codegen.apt") }
     api("io.helidon.builder:helidon-builder-codegen:$helidon") {

@@ -5,6 +5,9 @@ import io.helidon.builder.api.Option;
 import io.helidon.builder.api.Prototype;
 import io.helidon.webserver.spi.ProtocolConfig;
 
+/**
+ * Blueprint for PbjConfig.
+ */
 @Prototype.Blueprint
 @Prototype.Configured("pbj")
 @Prototype.Provides(ProtocolConfig.class)
