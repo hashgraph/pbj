@@ -11,6 +11,8 @@ javaModules {
     }
 }
 
+// The patch rules below can be removed once "org.hiero.gradle.build" contains the following update:
+// https://github.com/hiero-ledger/hiero-gradle-conventions/issues/444
 @Suppress("UnstableApiUsage")
 gradle.lifecycle.beforeProject {
     plugins.withId("org.hiero.gradle.base.jpms-modules") {
