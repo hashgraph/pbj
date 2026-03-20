@@ -3,7 +3,7 @@ group = "com.hedera.hashgraph"
 
 val antlr = "4.13.2"
 val grpc = "1.79.0"
-val helidon = "4.3.4"
+val helidon = "4.4.0"
 val protobuf = "4.34.0"
 
 val junit5 = "6.0.3"
@@ -38,8 +38,8 @@ dependencies.constraints {
     api("io.helidon.config.metadata:helidon-config-metadata-codegen:$helidon") {
         because("io.helidon.config.metadata.codegen")
     }
-    api("io.helidon.config:helidon-config-metadata-processor:$helidon") {
-        because("io.helidon.config.metadata.processor")
+    api("io.helidon.config:helidon-config-metadata:$helidon") {
+        because("io.helidon.config.metadata")
     }
     api("io.helidon.codegen:helidon-codegen-apt:$helidon") { because("io.helidon.codegen.apt") }
     api("io.helidon.builder:helidon-builder-codegen:$helidon") {
