@@ -33,9 +33,3 @@ testModuleInfo {
 
     exportsTo("com.google.protobuf") // for test protobufs
 }
-
-extraJavaModuleInfo {
-    module("io.micrometer:micrometer-registry-otlp", "micrometer.registry.otlp")
-    module("io.opentelemetry.proto:opentelemetry-proto", "io.opentelemetry.proto")
-    module("io.prometheus:simpleclient", "simpleclient") { requires("simpleclient.tracer.common") }
-}
