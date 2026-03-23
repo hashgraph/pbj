@@ -8,7 +8,7 @@ tasks.compileJava { options.compilerArgs.remove("-Werror") }
 
 mainModuleInfo {
     annotationProcessor("io.helidon.common.features.codegen")
-    annotationProcessor("io.helidon.config.metadata.processor")
+    annotationProcessor("io.helidon.config.metadata.codegen")
     annotationProcessor("io.helidon.codegen.apt")
     annotationProcessor("io.helidon.builder.codegen")
 }

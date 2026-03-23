@@ -15,6 +15,7 @@ module com.hedera.pbj.grpc.helidon {
     requires transitive com.hedera.pbj.runtime;
     requires transitive io.helidon.common.config;
     requires transitive io.helidon.common;
+    requires transitive io.helidon.config;
     requires transitive io.helidon.webserver.http2;
     requires transitive io.helidon.webserver;
     requires io.helidon.common.buffers;
