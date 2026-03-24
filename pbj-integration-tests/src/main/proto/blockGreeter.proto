@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package pbj.integration.tests;
+option java_multiple_files = true;
+
+/**
+ * An approximation of a Block streamer for JMH benchmarking.
+ */
+service TestBlockStreamer {
+  rpc getBlock (TestBlockRequest) returns (TestBlock) {}
+  rpc streamBlocks (stream TestBlockRequest) returns (stream TestBlock) {}
+}
+
+/** A very poor representation of a request compared to the real service, but we're mostly interested in blocks/items. */
+message TestBlockRequest {
+  int32 num = 1;
+}
+
+/** A block. */
+message TestBlock {
+  repeated TestBlockItem items = 1;
+}
+
+/**
+ * A bytes approximation of a block item.
+ * This is loosely based on
+ * https://github.com/hiero-ledger/hiero-consensus-node/blob/main/hapi/hedera-protobuf-java-api/src/main/proto/block/stream/block_item.proto
+ * replacing every message with bytes because they look the same on the wire.
+ */
+message TestBlockItem {
+  oneof item {
+    bytes b1 = 1;
+    bytes b2 = 2;
+    bytes b3 = 3;
+    bytes b4 = 4;
+    bytes b5 = 5;
+    bytes b6 = 6;
+    bytes b7 = 7;
+    bytes b8 = 8;
+    bytes b9 = 9;
+    bytes b10 = 10;
+    bytes b11 = 11;
+    bytes b12 = 12;
+    bytes b13 = 13;
+    bytes b14 = 14;
+    bytes b15 = 15;
+    bytes b16 = 16;
+    bytes b17 = 17;
+    bytes b18 = 18;
+    bytes b19 = 19;
+    bytes b20 = 20;
+  }
+}

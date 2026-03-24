@@ -11,8 +11,9 @@ import pbj.integration.tests.pbj.integration.tests.HelloRequest;
  */
 public enum PayloadWeight {
     LIGHT(() -> GreeterService.EMPTY_REQUEST, request -> GreeterService.EMPTY_REPLY),
-    NORMAL(() -> new HelloRequest("a".repeat(256)), request -> new HelloReply(request.name())),
-    HEAVY(() -> new HelloRequest("a".repeat(8192)), request -> new HelloReply(request.name()));
+    NORMAL(() -> new HelloRequest(GreeterService.NORMAL_PAYLOAD_STRING), request -> new HelloReply(request.name())),
+    HEAVY(() -> new HelloRequest(GreeterService.HEAVY_PAYLOAD_STRING), request -> new HelloReply(request.name())),
+    SUPER(() -> new HelloRequest(GreeterService.SUPER_PAYLOAD_STRING), request -> new HelloReply(request.name()));
 
     public final Supplier<HelloRequest> requestSupplier;
     public final Function<HelloRequest, HelloReply> replyProvider;

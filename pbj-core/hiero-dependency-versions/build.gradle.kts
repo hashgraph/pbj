@@ -54,6 +54,7 @@ dependencies.constraints {
         excludes.add("org.antlr:antlr4")
         excludes.add("com.google.protobuf:protoc")
         excludes.add("io.grpc:protoc-gen-grpc-java")
+        excludes.add("com.github.luben:zstd-jni")
     }
 
     // Testing only
@@ -77,4 +78,5 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-http2:$helidon") {
         because("io.helidon.webclient.http2")
     }
+    api("com.github.luben:zstd-jni:1.5.5-11") { because("com.github.luben.zstd") }
 }
