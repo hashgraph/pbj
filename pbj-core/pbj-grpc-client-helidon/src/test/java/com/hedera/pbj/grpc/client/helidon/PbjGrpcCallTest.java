@@ -24,6 +24,7 @@ import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import io.helidon.common.buffers.BufferData;
+import io.helidon.common.buffers.DataWriter;
 import io.helidon.common.tls.Tls;
 import io.helidon.http.Header;
 import io.helidon.http.HeaderName;
@@ -75,6 +76,9 @@ public class PbjGrpcCallTest {
     private ClientConnection clientConnection;
 
     @Mock
+    private DataWriter dataWriter;
+
+    @Mock
     private Http2ClientConnection connection;
 
     @Mock
@@ -107,6 +111,9 @@ public class PbjGrpcCallTest {
     private PbjGrpcCall createCall(final ServiceInterface.RequestOptions options) {
         doReturn(webClient).when(grpcClient).getWebClient();
         doReturn(executor).when(webClient).executor();
+        // Only used in tests that verify timeout pings:
+        lenient().doReturn(clientConnection).when(grpcClient).getClientConnection();
+        lenient().doReturn(dataWriter).when(clientConnection).writer();
 
         final PbjGrpcClientConfig config =
                 new PbjGrpcClientConfig(READ_TIMEOUT, tls, OPTIONS.authority(), OPTIONS.contentType());
@@ -230,7 +237,8 @@ public class PbjGrpcCallTest {
 
         runnable.run();
 
-        verify(grpcClientStream, times(1)).sendPing();
+        // A ping:
+        verify(dataWriter, times(1)).writeNow(any(BufferData.class));
         verify(pipeline, times(1)).onComplete();
         verifyNoMoreInteractions(pipeline);
     }
@@ -283,7 +291,8 @@ public class PbjGrpcCallTest {
 
         verify(pipeline, times(1)).onNext(reply);
         verify(pipeline, times(1)).onComplete();
-        if (isTimeout) verify(grpcClientStream, times(1)).sendPing();
+        // A ping:
+        if (isTimeout) verify(dataWriter, times(1)).writeNow(any(BufferData.class));
         verifyNoMoreInteractions(pipeline);
     }
 

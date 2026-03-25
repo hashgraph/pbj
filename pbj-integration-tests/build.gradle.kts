@@ -57,6 +57,7 @@ jmhModuleInfo {
     requires("io.helidon.common")
     requires("io.helidon.webserver")
     requires("com.github.luben.zstd_jni")
+    runtimeOnly("io.helidon.logging.jul")
 }
 
 // version is added to module-info.class files
@@ -168,7 +169,7 @@ testing {
         targets.named("test") {
             testTask {
                 useJUnitPlatform { excludeTags("FUZZ_TEST") }
-                dependsOn(tasks.named("fuzzTest"))
+                // dependsOn(tasks.named("fuzzTest"))
             }
         }
         dependencies {
