@@ -57,6 +57,7 @@ jmhModuleInfo {
     requires("io.helidon.common")
     requires("io.helidon.webserver")
     requires("com.github.luben.zstd_jni")
+    runtimeOnly("io.helidon.logging.jul")
 }
 
 // version is added to module-info.class files

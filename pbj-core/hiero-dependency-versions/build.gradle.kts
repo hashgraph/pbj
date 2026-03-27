@@ -45,6 +45,7 @@ dependencies.constraints {
     api("io.helidon.builder:helidon-builder-codegen:$helidon") {
         because("io.helidon.builder.codegen")
     }
+    api("io.helidon.logging:helidon-logging-jul:$helidon") { because("io.helidon.logging.jul") }
 
     // Code generation tools
     api("org.antlr:antlr4:$antlr")
@@ -55,6 +56,7 @@ dependencies.constraints {
         excludes.add("com.google.protobuf:protoc")
         excludes.add("io.grpc:protoc-gen-grpc-java")
         excludes.add("com.github.luben:zstd-jni")
+        excludes.add("io.helidon.logging:helidon-logging-jul")
     }
 
     // Testing only

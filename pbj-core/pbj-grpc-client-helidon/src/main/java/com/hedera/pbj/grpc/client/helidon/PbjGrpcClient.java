@@ -107,6 +107,10 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
         return http2Client;
     }
 
+    ClientConnection getClientConnection() {
+        return clientConnection;
+    }
+
     Http2ClientConnection createHttp2ClientConnection(final ClientConnection clientConnection) {
         if (clientConnection == null) {
             // Must be a unit test, there's no any actual connections established, nothing to do.
