@@ -4,6 +4,7 @@ package com.hedera.pbj.runtime.grpc;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -116,6 +117,26 @@ public interface ServiceInterface extends AutoCloseable {
          */
         default int maxMessageSizeBytes() {
             return DEFAULT_MAX_MESSAGE_SIZE_BYTES;
+        }
+
+        /**
+         * Metadata associated with a request. Key names MUST NOT start with "grpc-" prefix. The metadata is sent
+         * via HTTP2 headers, and the total size of the headers, both system and these custom metadata headers,
+         * is often limited by 8KB. So the metadata mechanism is only suited for passing samll amounts of data.
+         * Also, in HTTP2, header names are usually all-lower-case, so it's strongly recommended to use lower-case
+         * key names in this map.
+         * <p>
+         * A client application can implement this method in a RequestOptions object that it passes to a client
+         * stub constructor, e.g. the GreeterInterface.GreeterClient, or its service call methods that accept
+         * the additional RequestOptions argument.
+         * <p>
+         * A server application can access the client's metadata using the RequestOptions parameter passed to the
+         * ServiceInterface stub methods.
+         *
+         * @return an immutable, non-null, but possibly empty Map to access metadata values using their keys
+         */
+        default Map<String, String> metadata() {
+            return Map.of();
         }
     }
 

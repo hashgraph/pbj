@@ -2,6 +2,7 @@
 package com.hedera.pbj.runtime.grpc;
 
 import com.hedera.pbj.runtime.Codec;
+import java.util.Map;
 
 /**
  * An interface for GRPC client.
@@ -19,9 +20,14 @@ public interface GrpcClient extends AutoCloseable {
      * @param requestCodec a PBJ codec for requests
      * @param replyCodec a PBJ codec for replies
      * @param pipeline a pipeline for receiving replies
+     * @param metadata metadata to be sent to the service
      */
     <RequestT, ReplyT> GrpcCall<RequestT, ReplyT> createCall(
-            String fullMethodName, Codec<RequestT> requestCodec, Codec<ReplyT> replyCodec, Pipeline<ReplyT> pipeline);
+            String fullMethodName,
+            Codec<RequestT> requestCodec,
+            Codec<ReplyT> replyCodec,
+            Pipeline<ReplyT> pipeline,
+            Map<String, String> metadata);
 
     /**
      * Closes this GrpcClient instance releasing all resources, such as open network connections etc.

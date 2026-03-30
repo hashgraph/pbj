@@ -23,6 +23,7 @@ import java.io.UncheckedIOException;
 import java.net.SocketException;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -82,17 +83,20 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
      * @param requestCodec a PBJ codec for requests that MUST correspond to the content type in the PbjGrpcClientConfig
      * @param replyCodec a PBJ codec for replies that MUST correspond to the content type in the PbjGrpcClientConfig
      * @param pipeline a pipeline for receiving replies
+     * @param metadata metadata to be sent to the service
      */
     @Override
     public <RequestT, ReplyT> GrpcCall<RequestT, ReplyT> createCall(
             final String fullMethodName,
             final Codec<RequestT> requestCodec,
             final Codec<ReplyT> replyCodec,
-            final Pipeline<ReplyT> pipeline) {
+            final Pipeline<ReplyT> pipeline,
+            final Map<String, String> metadata) {
+        final Options options = new Options(Optional.of(resolvedAuthority), config.contentType(), metadata);
         return new PbjGrpcCall(
                 this,
                 createPbjGrpcClientStream(connection, clientConnection),
-                new Options(Optional.of(resolvedAuthority), config.contentType()),
+                options,
                 fullMethodName,
                 requestCodec,
                 replyCodec,
@@ -153,7 +157,8 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
     }
 
     /** Simple implementation of the {@link ServiceInterface.RequestOptions} interface. */
-    private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
+    private record Options(Optional<String> authority, String contentType, Map<String, String> metadata)
+            implements ServiceInterface.RequestOptions {}
 
     private ClientConnection createClientConnection() {
         // We cannot (don't want to) establish connections when unit-testing, so we use a marker:
