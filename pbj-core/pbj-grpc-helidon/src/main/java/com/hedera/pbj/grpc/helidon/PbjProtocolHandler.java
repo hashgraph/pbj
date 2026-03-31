@@ -45,6 +45,7 @@ import io.helidon.http.http2.Http2WindowUpdate;
 import io.helidon.webserver.ConnectionContext;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -55,6 +56,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of gRPC based on PBJ. This class specifically contains the glue logic for bridging
@@ -242,6 +244,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                         ex);
             }
 
+            // Metadata, aka additional GRPC headers, provided by the client with the request.
+            final Map<String, String> metadata = requestHeaders.stream()
+                    .filter(header -> !header.name().toLowerCase().startsWith("grpc-"))
+                    .collect(Collectors.toUnmodifiableMap(Header::name, Header::values));
+
             // The client may have sent a "grpc-accept-encoding" header. Note that
             // "grpc-accept-encoding" is not well specified. I am following what I see work with
             // the grpc.io client library, and the definition of "accept-encoding" for HTTP, such
@@ -295,7 +302,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             final var options = new Options(
                     Optional.ofNullable(headers.authority()), // the client (see http2 spec)
                     contentType,
-                    config.maxMessageSizeBytes());
+                    config.maxMessageSizeBytes(),
+                    metadata);
 
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
@@ -756,7 +764,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     }
 
     /** Simple implementation of the {@link ServiceInterface.RequestOptions} interface. */
-    private record Options(Optional<String> authority, String contentType, int maxMessageSizeBytes)
+    private record Options(
+            Optional<String> authority, String contentType, int maxMessageSizeBytes, Map<String, String> metadata)
             implements ServiceInterface.RequestOptions {}
 
     /**

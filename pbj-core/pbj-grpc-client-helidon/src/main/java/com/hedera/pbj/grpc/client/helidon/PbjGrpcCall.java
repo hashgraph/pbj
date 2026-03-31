@@ -129,6 +129,21 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
         headers.add(HeaderValues.create(
                 GRPC_ACCEPT_ENCODING, String.join(",", grpcClient.getConfig().acceptEncodings())));
         headers.add(HeaderValues.create(GRPC_ENCODING, grpcOutgoingEncoding));
+
+        if (requestOptions.metadata() != null && !requestOptions.metadata().isEmpty()) {
+            for (String key : requestOptions.metadata().keySet()) {
+                if (key.startsWith("grpc-")) {
+                    throw new IllegalArgumentException(
+                            "Custom metadata key names must not start with grpc- prefix, got: " + key);
+                }
+
+                String value = requestOptions.metadata().get(key);
+                if (value != null) {
+                    headers.add(HeaderNames.create(key), value);
+                }
+            }
+        }
+
         clientStream.writeHeaders(Http2Headers.create(headers), false);
 
         // We must start this loop only AFTER writing headers above because that operation initializes

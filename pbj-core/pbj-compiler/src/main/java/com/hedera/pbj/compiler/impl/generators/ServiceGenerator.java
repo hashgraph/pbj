@@ -54,7 +54,7 @@ public final class ServiceGenerator {
                     .indent(indent);
         }
 
-        private String formatMethodSignature(String methodModifier) {
+        private String formatMethodSignature(String methodModifier, boolean withRequestOptions) {
             // Examples:
             //    // Unary, a single request/response call.
             //    HelloReply sayHello(HelloRequest request);
@@ -97,12 +97,15 @@ public final class ServiceGenerator {
             if (requestStream || replyStream) {
                 sb.append("@NonNull final Pipeline<? super ").append(replyType).append("> replies");
             }
+            if (withRequestOptions) {
+                sb.append(", ").append("@NonNull final RequestOptions requestOptions");
+            }
             sb.append(")");
 
             return sb.toString();
         }
 
-        String formatMethodDeclaration() {
+        String formatMethodDeclaration(String methodModifier, boolean withRequestOptions, boolean withSemicolon) {
             final StringBuilder sb = new StringBuilder();
             if (javaDoc.contains("\n")) {
                 sb.append("/**\n");
@@ -112,33 +115,111 @@ public final class ServiceGenerator {
                 sb.append("/** ").append(javaDoc).append(" */\n");
             }
 
-            sb.append(formatMethodSignature(null));
-            sb.append(";");
+            sb.append(formatMethodSignature(methodModifier, withRequestOptions));
+            if (withSemicolon) {
+                sb.append(";");
+            }
+
+            return sb.toString();
+        }
+
+        /**
+         * Format a default implementation of a handler method.
+         * @param withRequestOptions if true, add the RequestOptions arg and delegate to the method w/o the arg;
+         *                           if false, the generated implementation throws.
+         * @return the default method implementation for a handler
+         */
+        String formatDefaultMethod(boolean withRequestOptions) {
+            final StringBuilder sb = new StringBuilder();
+
+            sb.append(formatMethodDeclaration("default", withRequestOptions, false));
+            sb.append(" {\n");
+            if (!withRequestOptions) {
+                sb.append("    throw new UnsupportedOperationException(\"unimplemented\")");
+            } else {
+                // return type:
+                if (!requestStream && !replyStream) {
+                    sb.append("    return ");
+                } else if (!requestStream) {
+                    sb.append("    ");
+                } else {
+                    sb.append("    return ");
+                }
+
+                // name and args:
+                sb.append(name).append('(');
+                if (!requestStream) {
+                    sb.append("request");
+                    if (replyStream) {
+                        sb.append(", ");
+                    }
+                }
+                if (requestStream || replyStream) {
+                    sb.append("replies");
+                }
+                sb.append(")");
+            }
+
+            sb.append(";\n}\n");
+
+            return sb.toString();
+        }
+
+        String formatDelegateToMethodWithOptions() {
+            final StringBuilder sb = new StringBuilder();
+
+            // return type:
+            if (!requestStream && !replyStream) {
+                sb.append("return ");
+            } else if (!requestStream) {
+                // no-op because void return type
+            } else {
+                sb.append("return ");
+            }
+
+            // name and args:
+            sb.append(name).append('(');
+            if (!requestStream) {
+                sb.append("request");
+                if (replyStream) {
+                    sb.append(", ");
+                }
+            }
+            if (requestStream || replyStream) {
+                sb.append("replies");
+            }
+            sb.append(", this.requestOptions);");
 
             return sb.toString();
         }
 
         String formatCaseStatement() {
             final String kind;
+            final String methodLambda;
             if (!requestStream && !replyStream) {
                 kind = "unary";
+                methodLambda = "request -> " + name + "(request, options)";
             } else if (requestStream && !replyStream) {
                 kind = "clientStreaming";
+                methodLambda = "typedReplies -> " + name + "(typedReplies, options)";
             } else if (!requestStream && replyStream) {
                 kind = "serverStreaming";
+                methodLambda = "(request, typedReplies) -> " + name + "(request, typedReplies, options)";
             } else {
                 kind = "bidiStreaming";
+                methodLambda = "typedReplies -> " + name + "(typedReplies, options)";
             }
 
             return """
                     case $methodName -> Pipelines.<$requestType, $replyType>$kind()
                             .mapRequest(bytes -> parse$simpleRequestType(bytes, options))
-                            .method(this::$methodName)
+                            .method($methodLambda)
                             .mapResponse(reply -> serialize$simpleReplyType(reply, options))
                             .respondTo(replies)
                             .build();
                     """
                     .replace("$methodName", name)
+                    .replace("$methodLambda", methodLambda)
                     .replace("$requestType", requestType)
                     .replace("$simpleRequestType", requestType.replace(".", ""))
                     .replace("$replyType", replyType)
@@ -149,7 +230,12 @@ public final class ServiceGenerator {
         private String formatUnaryMethodImplementation() {
             return """
                         @Override
-                        $methodSignature {
+                        $methodSignatureWithoutOptions {
+                            $delegateToMethodWithOptions
+                        }
+
+                        @Override
+                        $methodSignatureWithOptions {
                             final AtomicReference<$replyType> replyRef = new AtomicReference<>();
                             final AtomicReference<Throwable> errorRef = new AtomicReference<>();
                             final CountDownLatch latch = new CountDownLatch(1);
@@ -181,7 +267,8 @@ public final class ServiceGenerator {
                                     FULL_NAME + "/$methodName",
                                     get$simpleRequestTypeCodec(requestOptions),
                                     get$simpleReplyTypeCodec(requestOptions),
-                                    pipeline
+                                    pipeline,
+                                    requestOptions.metadata()
                                     );
                             call.sendRequest(request, true);
                             try {
@@ -203,7 +290,9 @@ public final class ServiceGenerator {
                             throw new RuntimeException("Call to $methodName completed w/o receiving a reply or an error explicitly. The request was: " + request);
                         }
                         """
-                    .replace("$methodSignature", formatMethodSignature("public"))
+                    .replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
+                    .replace("$delegateToMethodWithOptions", formatDelegateToMethodWithOptions())
+                    .replace("$methodSignatureWithOptions", formatMethodSignature("public", true))
                     .replace("$requestType", requestType)
                     .replace("$simpleRequestType", requestType.replace(".", ""))
                     .replace("$replyType", replyType)
@@ -214,7 +303,12 @@ public final class ServiceGenerator {
         private String formatClientStreamingMethodImplementation() {
             return """
                         @Override
-                        $methodSignature {
+                        $methodSignatureWithoutOptions {
+                            $delegateToMethodWithOptions
+                        }
+
+                        @Override
+                        $methodSignatureWithOptions {
                             final AtomicReference<$replyType> replyRef = new AtomicReference<>();
                             final Pipeline<$replyType> pipeline = new Pipeline<>() {
                                 @Override
@@ -243,7 +337,8 @@ public final class ServiceGenerator {
                                     FULL_NAME + "/$methodName",
                                     get$simpleRequestTypeCodec(requestOptions),
                                     get$simpleReplyTypeCodec(requestOptions),
-                                    pipeline
+                                    pipeline,
+                                    requestOptions.metadata()
                                     );
 
                             return new Pipeline<$requestType>() {
@@ -266,7 +361,9 @@ public final class ServiceGenerator {
                             };
                         }
                         """
-                    .replace("$methodSignature", formatMethodSignature("public"))
+                    .replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
+                    .replace("$delegateToMethodWithOptions", formatDelegateToMethodWithOptions())
+                    .replace("$methodSignatureWithOptions", formatMethodSignature("public", true))
                     .replace("$requestType", requestType)
                     .replace("$simpleRequestType", requestType.replace(".", ""))
                     .replace("$replyType", replyType)
@@ -277,7 +374,12 @@ public final class ServiceGenerator {
         private String formatServerStreamingMethodImplementation() {
             return """
                         @Override
-                        $methodSignature {
+                        $methodSignatureWithoutOptions {
+                            $delegateToMethodWithOptions
+                        }
+
+                        @Override
+                        $methodSignatureWithOptions {
                             final CountDownLatch latch = new CountDownLatch(1);
                             final Pipeline<$replyType> pipeline = new Pipeline<>() {
                                 @Override
@@ -304,7 +406,8 @@ public final class ServiceGenerator {
                                     FULL_NAME + "/$methodName",
                                     get$simpleRequestTypeCodec(requestOptions),
                                     get$simpleReplyTypeCodec(requestOptions),
-                                    pipeline
+                                    pipeline,
+                                    requestOptions.metadata()
                                     );
                             call.sendRequest(request, true);
                             try {
@@ -318,7 +421,9 @@ public final class ServiceGenerator {
                             // Alternatively, the client could time out if the replies pipeline never saw onComplete().
                         }
                         """
-                    .replace("$methodSignature", formatMethodSignature("public"))
+                    .replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
+                    .replace("$delegateToMethodWithOptions", formatDelegateToMethodWithOptions())
+                    .replace("$methodSignatureWithOptions", formatMethodSignature("public", true))
                     .replace("$requestType", requestType)
                     .replace("$simpleRequestType", requestType.replace(".", ""))
                     .replace("$replyType", replyType)
@@ -329,7 +434,12 @@ public final class ServiceGenerator {
         private String formatBidiStreamingMethodImplementation() {
             return """
                         @Override
-                        $methodSignature {
+                        $methodSignatureWithoutOptions {
+                            $delegateToMethodWithOptions
+                        }
+
+                        @Override
+                        $methodSignatureWithOptions {
                             final Pipeline<$replyType> pipeline = new Pipeline<>() {
                                 @Override
                                 public void onSubscribe(final Flow.Subscription subscription) {
@@ -353,7 +463,8 @@ public final class ServiceGenerator {
                                     FULL_NAME + "/$methodName",
                                     get$simpleRequestTypeCodec(requestOptions),
                                     get$simpleReplyTypeCodec(requestOptions),
-                                    pipeline
+                                    pipeline,
+                                    requestOptions.metadata()
                                     );
 
                             return new Pipeline<$requestType>() {
@@ -377,7 +488,9 @@ public final class ServiceGenerator {
                             };
                         }
                         """
-                    .replace("$methodSignature", formatMethodSignature("public"))
+                    .replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
+                    .replace("$delegateToMethodWithOptions", formatDelegateToMethodWithOptions())
+                    .replace("$methodSignatureWithOptions", formatMethodSignature("public", true))
                     .replace("$requestType", requestType)
                     .replace("$simpleRequestType", requestType.replace(".", ""))
                     .replace("$replyType", replyType)
@@ -517,7 +630,7 @@ public final class ServiceGenerator {
                 $methodNames
                     }
                 
-                $methodSignatures
+                $serviceMethods
                 
                     @NonNull
                     default String serviceName() {
@@ -554,7 +667,23 @@ public final class ServiceGenerator {
                 $getCodecMethods
                 $requestReplySerdeMethods
                 
-                    /** A client class for $serviceName. */
+                    /**
+                     * A client class for $serviceName.
+                     * <p>
+                     * Its constructor accepts the default RequestOptions for all requests. Individual service call
+                     * methods have versions that accept a RequestOptions argument which overrides this default value
+                     * for that specific call.
+                     * <p>
+                     * In the context of a client, these RequestOptions control the contentType used to encode/decode
+                     * requests and replies, and the contentType MUST match the contentType defined in the PbjGrpcClientConfig
+                     * that the PbjGrpcClient was created with. The behavior is undefined if a per-request (or the per-stub)
+                     * RequestOptions.contentType() differs from that. With the exception of the metadata, all the other
+                     * RequestOptions values are unused in the client code.
+                     * <p>
+                     * However, the RequestOptions.metadata() is something that a client application may change freely
+                     * from one request to another, and this is the primary reason for the overridden method versions
+                     * in this client stub class.
+                     */
                     public class $serviceNameClient implements $serviceName$suffix {
                         private final GrpcClient grpcClient;
                         private final RequestOptions requestOptions;
@@ -578,7 +707,9 @@ public final class ServiceGenerator {
                 .replace("$serviceName", serviceName)
                 .replace("$suffix", SUFFIX)
                 .replace("$methodNames", RPC.formatForEach(rpcList, RPC::name, ",\n", DEFAULT_INDENT * 2))
-                .replace("$methodSignatures", RPC.formatForEach(rpcList, RPC::formatMethodDeclaration, "\n\n", DEFAULT_INDENT))
+                .replace("$serviceMethods", RPC.formatForEach(rpcList, rpc ->
+                    rpc.formatDefaultMethod(true) + "\n" + rpc.formatDefaultMethod(false)
+                , "\n\n", DEFAULT_INDENT))
                 .replace("$fullyQualifiedProtoServiceName", lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(serviceDef))
                 .replace("$methodCaseStatements", RPC.formatForEach(rpcList, RPC::formatCaseStatement, "\n", DEFAULT_INDENT * 4))
                 .replace("$getCodecMethods", formatGetCodecMethods(rpcList).indent(DEFAULT_INDENT))
