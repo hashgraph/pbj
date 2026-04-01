@@ -13,6 +13,7 @@ import static java.lang.System.Logger.Level.INFO;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.grpc.common.compression.ZstdGrpcTransformer;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.GrpcException;
@@ -64,6 +65,10 @@ import java.util.stream.Collectors;
  * created for each new connection, and each connection is made to a specific method endpoint.
  */
 final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler {
+    static {
+        new ZstdGrpcTransformer().register("zstd");
+    }
+
     private static final System.Logger LOGGER = System.getLogger(PbjProtocolHandler.class.getName());
 
     private static final HeaderName GRPC_ENCODING = HeaderNames.createFromLowercase("grpc-encoding");

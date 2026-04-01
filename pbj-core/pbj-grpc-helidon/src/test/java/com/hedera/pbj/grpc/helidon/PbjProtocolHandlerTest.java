@@ -317,7 +317,7 @@ class PbjProtocolHandlerTest {
      *
      * @param encoding the encoding to test with.
      */
-    @ValueSource(strings = {"compress", "deflate", "br", "zstd", "gzip, deflate;q=0.5"})
+    @ValueSource(strings = {"compress", "deflate", "br", "rar", "gzip, deflate;q=0.5"})
     @ParameterizedTest
     void unsupportedGrpcEncodings(String encoding) {
         final var h = WritableHeaders.create();
