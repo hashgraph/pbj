@@ -266,7 +266,7 @@ class PbjTest {
             try (var response = CLIENT.post()
                     .contentType(APPLICATION_GRPC_PROTO)
                     .path(SAY_HELLO_PATH)
-                    .header(HeaderNames.create("grpc-accept-encoding"), "deflate, zstd")
+                    .header(HeaderNames.create("grpc-accept-encoding"), "deflate, rar")
                     .submit(messageBytes(SIMPLE_REQUEST))) {
 
                 assertThat(response.status().code()).isEqualTo(200);
@@ -339,7 +339,7 @@ class PbjTest {
          * unsupported compression schemes.
          */
         @ParameterizedTest
-        @ValueSource(strings = {"zstd", "deflate", "random"})
+        @ValueSource(strings = {"rar", "deflate", "random"})
         void compressionNotSupported(final String grpcEncoding) {
             try (var response = CLIENT.post()
                     .contentType(APPLICATION_GRPC_PROTO)

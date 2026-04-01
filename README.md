@@ -39,6 +39,7 @@ striving for.
     * ### [**Grpc Helidon** `pbj-grpc-helidon`](pbj-core/pbj-grpc-helidon/README.md)
     * ### [**Grpc Helidon Config** `pbj-grpc-helidon-config](pbj-core/pbj-grpc-helidon-config/README.md)
     * ### [**Grpc Client Helidon** `pbj-grpc-client-helidon`](pbj-core/pbj-grpc-client-helidon/README.md)
+    * ### [**Grpc Common Code** `pbj-grpc-common`](pbj-core/pbj-grpc-client-helidon/README.md)
   * ### [**Integration Tests** `pbj-integration-tests`](pbj-integration-tests/README.md) 
 
 ## Build Libraries
@@ -56,7 +57,5 @@ protobuf features and insure all the generated code is tested for hiero node use
 PBJ is a long term project with many goals. Here are some of the long term goals:
   * Support all Protobuf Features
   * Support new versions of Protobuf as possible
-  * Generate GRPC Services
-  * Built in GRPC-Web support
   * Auto mapping GRPC APIs to JSON REST APIs
   * JSON REST performance as good as GRPC

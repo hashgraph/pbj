@@ -2,4 +2,5 @@
 dependencies {
     published(project(":pbj-grpc-helidon"))
     published(project(":pbj-grpc-client-helidon"))
+    published(project(":pbj-grpc-common"))
 }

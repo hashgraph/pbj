@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh.grpc.block;
 
+import com.hedera.pbj.grpc.common.compression.ZstdGrpcTransformer;
 import com.hedera.pbj.grpc.helidon.PbjGrpcServiceConfig;
 import com.hedera.pbj.integration.grpc.GrpcTestUtils;
 import com.hedera.pbj.integration.grpc.PortsAllocator;
 import com.hedera.pbj.integration.jmh.grpc.NetworkLatencySimulator;
 import com.hedera.pbj.integration.jmh.grpc.PbjGrpcBench;
-import com.hedera.pbj.integration.jmh.grpc.ZstdGrpcTransformer;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -61,7 +61,7 @@ public class TestBlockGrpcBench {
 
     static {
         new ZstdGrpcTransformer(-5).register("zstd-5");
-        new ZstdGrpcTransformer(3).register("zstd"); // the default level
+        // new ZstdGrpcTransformer(3).register("zstd"); // supported by PBJ by default
         new ZstdGrpcTransformer(10).register("zstd10");
 
         // 1Gbps network:

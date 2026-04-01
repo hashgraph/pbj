@@ -55,7 +55,6 @@ dependencies.constraints {
         excludes.add("org.antlr:antlr4")
         excludes.add("com.google.protobuf:protoc")
         excludes.add("io.grpc:protoc-gen-grpc-java")
-        excludes.add("com.github.luben:zstd-jni")
         excludes.add("io.helidon.logging:helidon-logging-jul")
     }
 

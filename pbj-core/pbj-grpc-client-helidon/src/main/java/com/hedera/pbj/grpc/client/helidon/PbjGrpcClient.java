@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.grpc.client.helidon;
 
+import com.hedera.pbj.grpc.common.compression.ZstdGrpcTransformer;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
@@ -30,6 +31,10 @@ import java.util.Optional;
  * A PBJ GRPC client that uses the Helidon WebClient and its HTTP2 client implementation to call remote GRPC services.
  */
 public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
+    static {
+        new ZstdGrpcTransformer().register("zstd");
+    }
+
     private final WebClient webClient;
     private final PbjGrpcClientConfig config;
 

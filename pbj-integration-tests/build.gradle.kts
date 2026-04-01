@@ -53,10 +53,10 @@ testModuleInfo {
 
 jmhModuleInfo {
     requires("com.hedera.pbj.runtime")
+    requires("com.hedera.pbj.grpc.common")
     requires("com.google.protobuf.util")
     requires("io.helidon.common")
     requires("io.helidon.webserver")
-    requires("com.github.luben.zstd_jni")
     runtimeOnly("io.helidon.logging.jul")
 }
 
@@ -72,7 +72,7 @@ configurations.testRuntimeClasspath {
 
 // IMPROVE: Test code should not have a direct dependency to 'com.hedera.pbj.compiler'
 dependencies {
-    jmhImplementation("com.github.luben:zstd-jni")
+    jmhImplementation("com.hedera.pbj:pbj-grpc-common")
     testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive = false }
 }
 

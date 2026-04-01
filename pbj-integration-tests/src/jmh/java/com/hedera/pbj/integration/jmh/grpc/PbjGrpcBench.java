@@ -59,8 +59,6 @@ public class PbjGrpcBench {
     private static final int INVOCATIONS = 2_000;
 
     static {
-        new ZstdGrpcTransformer().register("zstd");
-
         // 1Gbps network:
         NetworkLatencySimulator.simulate(1_000, false);
     }
