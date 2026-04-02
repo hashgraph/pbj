@@ -17,13 +17,13 @@ public class UnsafeUtils {
 
     private static final VarHandle BYTE_ARRAY_HANDLE = MethodHandles.arrayElementVarHandle(byte[].class);
     private static final VarHandle INT_LITTLE_ENDIAN_BYTE_ARRAY_VIEW_HANDLE =
-            MethodHandles.byteArrayViewVarHandle(int[].class, java.nio.ByteOrder.LITTLE_ENDIAN);
+            MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
     private static final VarHandle INT_BIG_ENDIAN_BYTE_ARRAY_VIEW_HANDLE =
-            MethodHandles.byteArrayViewVarHandle(int[].class, java.nio.ByteOrder.BIG_ENDIAN);
+            MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle LONG_LITTLE_ENDIAN_BYTE_ARRAY_VIEW_HANDLE =
-            MethodHandles.byteArrayViewVarHandle(long[].class, java.nio.ByteOrder.LITTLE_ENDIAN);
+            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
     private static final VarHandle LONG_BIG_ENDIAN_BYTE_ARRAY_VIEW_HANDLE =
-            MethodHandles.byteArrayViewVarHandle(long[].class, java.nio.ByteOrder.BIG_ENDIAN);
+            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
     private UnsafeUtils() {}
 
