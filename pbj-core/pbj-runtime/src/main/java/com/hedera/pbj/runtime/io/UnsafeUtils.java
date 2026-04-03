@@ -1,55 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
-import java.lang.reflect.Field;
-import java.nio.Buffer;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import sun.misc.Unsafe;
 
 /**
- * A set of utility methods on top of sun.misc.Unsafe
+ * A set of utility methods for faster access to memory of arrays and buffers.
+ * This class used to rely on sun.misc.Unsafe, but has since been migrated to use modern Java 22+ APIs.
  */
 public class UnsafeUtils {
 
-    private static final Unsafe UNSAFE;
-
-    /**
-     * Field offset of the byte[] class
-     */
-    private static final int BYTE_ARRAY_BASE_OFFSET;
-
-    /**
-     * Direct byte buffer "address" field offset. This is not the address of the buffer,
-     * but the offset of the field, which contains the address of the buffer
-     */
-    private static final long DIRECT_BYTEBUFFER_ADDRESS_OFFSET;
-
-    static {
-        try {
-            final Field theUnsafeField = Unsafe.class.getDeclaredField("theUnsafe");
-            theUnsafeField.setAccessible(true);
-            UNSAFE = (Unsafe) theUnsafeField.get(null);
-            BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
-            final Field addressField = Buffer.class.getDeclaredField("address");
-            DIRECT_BYTEBUFFER_ADDRESS_OFFSET = UNSAFE.objectFieldOffset(addressField);
-        } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
-            throw new InternalError(e);
-        }
-    }
+    private static final VarHandle BYTE_ARRAY_HANDLE = MethodHandles.arrayElementVarHandle(byte[].class);
+    private static final VarHandle INT_LITTLE_ENDIAN_BYTE_ARRAY_VIEW_HANDLE =
+            MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+    private static final VarHandle INT_BIG_ENDIAN_BYTE_ARRAY_VIEW_HANDLE =
+            MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    private static final VarHandle LONG_LITTLE_ENDIAN_BYTE_ARRAY_VIEW_HANDLE =
+            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
+    private static final VarHandle LONG_BIG_ENDIAN_BYTE_ARRAY_VIEW_HANDLE =
+            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
     private UnsafeUtils() {}
-
-    /**
-     * Get byte array element at a given offset. Identical to arr[offset].
-     */
-    public static byte getArrayByte(final byte[] arr, final int offset) {
-        if (arr.length <= offset) {
-            throw new IndexOutOfBoundsException();
-        }
-        return getArrayByteNoChecks(arr, offset);
-    }
 
     /**
      * Get byte array element at a given offset. Identical to arr[offset], but faster,
@@ -58,7 +34,7 @@ public class UnsafeUtils {
      * <p><b>Use with caution!</b>
      */
     public static byte getArrayByteNoChecks(final byte[] arr, final int offset) {
-        return UNSAFE.getByte(arr, BYTE_ARRAY_BASE_OFFSET + offset);
+        return (byte) BYTE_ARRAY_HANDLE.get(arr, offset);
     }
 
     /**
@@ -79,7 +55,7 @@ public class UnsafeUtils {
      * <p><b>Use with caution!</b>
      */
     public static byte getHeapBufferByteNoChecks(final ByteBuffer buf, final int offset) {
-        return UNSAFE.getByte(buf.array(), BYTE_ARRAY_BASE_OFFSET + offset);
+        return (byte) BYTE_ARRAY_HANDLE.get(buf.array(), offset);
     }
 
     /**
@@ -98,8 +74,7 @@ public class UnsafeUtils {
      * because no buffer range checks are performed. May only be called for direct byte buffers.
      */
     public static byte getDirectBufferByteNoChecks(final ByteBuffer buf, final int offset) {
-        final long address = UNSAFE.getLong(buf, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
-        return UNSAFE.getByte(null, address + offset);
+        return MemorySegment.ofBuffer(buf.duplicate().clear()).get(ValueLayout.JAVA_BYTE, offset);
     }
 
     /**
@@ -116,8 +91,9 @@ public class UnsafeUtils {
         if (arr.length < offset + Integer.BYTES) {
             throw new BufferUnderflowException();
         }
-        final int value = UNSAFE.getInt(arr, BYTE_ARRAY_BASE_OFFSET + offset);
-        return byteOrder != ByteOrder.nativeOrder() ? Integer.reverseBytes(value) : value;
+        return byteOrder == ByteOrder.BIG_ENDIAN
+                ? (int) INT_BIG_ENDIAN_BYTE_ARRAY_VIEW_HANDLE.get(arr, offset)
+                : (int) INT_LITTLE_ENDIAN_BYTE_ARRAY_VIEW_HANDLE.get(arr, offset);
     }
 
     /**
@@ -134,8 +110,9 @@ public class UnsafeUtils {
         if (arr.length < offset + Long.BYTES) {
             throw new BufferUnderflowException();
         }
-        final long value = UNSAFE.getLong(arr, BYTE_ARRAY_BASE_OFFSET + offset);
-        return byteOrder != ByteOrder.nativeOrder() ? Long.reverseBytes(value) : value;
+        return byteOrder == ByteOrder.BIG_ENDIAN
+                ? (long) LONG_BIG_ENDIAN_BYTE_ARRAY_VIEW_HANDLE.get(arr, offset)
+                : (long) LONG_LITTLE_ENDIAN_BYTE_ARRAY_VIEW_HANDLE.get(arr, offset);
     }
 
     /**
@@ -144,8 +121,12 @@ public class UnsafeUtils {
      */
     public static void getHeapBufferToArray(
             final ByteBuffer buffer, final long offset, final byte[] dst, final int dstOffset, final int length) {
-        UNSAFE.copyMemory(
-                buffer.array(), BYTE_ARRAY_BASE_OFFSET + offset, dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
+        MemorySegment.copy(
+                MemorySegment.ofBuffer(buffer.duplicate().clear()),
+                offset,
+                MemorySegment.ofArray(dst),
+                dstOffset,
+                length);
     }
 
     /**
@@ -154,8 +135,12 @@ public class UnsafeUtils {
      */
     public static void getDirectBufferToArray(
             final ByteBuffer buffer, final long offset, final byte[] dst, final int dstOffset, final int length) {
-        final long address = UNSAFE.getLong(buffer, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
-        UNSAFE.copyMemory(null, address + offset, dst, BYTE_ARRAY_BASE_OFFSET + dstOffset, length);
+        MemorySegment.copy(
+                MemorySegment.ofBuffer(buffer.duplicate().clear()),
+                offset,
+                MemorySegment.ofArray(dst),
+                dstOffset,
+                length);
     }
 
     /**
@@ -164,9 +149,12 @@ public class UnsafeUtils {
      */
     public static void getDirectBufferToDirectBuffer(
             final ByteBuffer buffer, final long offset, final ByteBuffer dst, final int dstOffset, final int length) {
-        final long address = UNSAFE.getLong(buffer, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
-        final long dstAddress = UNSAFE.getLong(dst, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
-        UNSAFE.copyMemory(null, address + offset, null, dstAddress, length);
+        MemorySegment.copy(
+                MemorySegment.ofBuffer(buffer.duplicate().clear()),
+                offset,
+                MemorySegment.ofBuffer(dst.duplicate().clear()),
+                dstOffset,
+                length);
     }
 
     /**
@@ -174,7 +162,11 @@ public class UnsafeUtils {
      */
     public static void putByteArrayToDirectBuffer(
             final ByteBuffer buffer, final long offset, final byte[] src, final int srcOffset, final int length) {
-        final long address = UNSAFE.getLong(buffer, DIRECT_BYTEBUFFER_ADDRESS_OFFSET);
-        UNSAFE.copyMemory(src, BYTE_ARRAY_BASE_OFFSET + srcOffset, null, address + offset, length);
+        MemorySegment.copy(
+                MemorySegment.ofArray(src),
+                srcOffset,
+                MemorySegment.ofBuffer(buffer.duplicate().clear()),
+                offset,
+                length);
     }
 }
