@@ -2,7 +2,7 @@
 
 This document describes how PBJ implements the Protocol Buffers specification. It covers which proto3 features are supported, how PBJ maps protobuf concepts to Java, and where PBJ intentionally deviates from standard protobuf behavior.
 
-For details on the compiler pipeline, see [code-generation.md](code-generation.md). For codec internals, see [codecs.md](codecs.md).
+For details on the compiler pipeline, see [code-generation.md](code-generation.md). For codec internals, see [codecs.md](codecs.md), [codec-protobuf.md](codec-protobuf.md), and [codec-json.md](codec-json.md). For usage examples, see [usage-guide.md](usage-guide.md).
 
 ## Introduction
 
@@ -146,7 +146,9 @@ PBJ generates regular immutable classes rather than Java records because:
 1. Records cannot have lazy-computed mutable fields. PBJ caches `hashCode()` and `protobufEncodedSize()` on first access — these cannot be record components.
 2. Records have limited constructor flexibility. PBJ needs multiple constructor overloads for unknown field handling and internal precomputation.
 
-PBJ tracks [JEP 401: Value Classes and Objects](https://openjdk.org/jeps/401) as a potential future alternative.
+This decision will be revisited when [JEP 526: Lazy Constants](https://openjdk.org/jeps/526) is finalized. Lazy constants would allow records to have lazily-computed cached fields like `hashCode()` and `protobufEncodedSize()`, removing the primary blocker for record-based generation while preserving the performance optimization.
+
+PBJ also tracks [JEP 401: Value Classes and Objects](https://openjdk.org/jeps/401), which could allow generated model objects to be value types that exist on the stack rather than the heap.
 
 ### Default Values and Wire Semantics
 
@@ -409,47 +411,9 @@ Both `hashCode()` and the protobuf-encoded size are computed lazily on first acc
 
 ## Wire Format
 
-PBJ follows the standard [Protocol Buffers encoding](https://protobuf.dev/programming-guides/encoding/). This section summarizes the key concepts for reference.
+PBJ follows the standard [Protocol Buffers encoding](https://protobuf.dev/programming-guides/encoding/). Every field on the wire is preceded by a tag encoding both the field number and wire type: `tag = (field_number << 3) | wire_type`. For detailed wire format internals, tag constants, and codec implementation, see [codec-protobuf.md](codec-protobuf.md).
 
-### Tags
-
-Every field on the wire is preceded by a **tag** — a varint encoding both the field number and wire type:
-
-```
-tag = (field_number << 3) | wire_type
-```
-
-### Wire Types
-
-| Value | Name | Used for |
-|-------|------|----------|
-| 0 | Varint | int32, int64, uint32, uint64, sint32, sint64, bool, enum |
-| 1 | 64-bit | fixed64, sfixed64, double |
-| 2 | Length-delimited | string, bytes, messages, packed repeated fields, map entries |
-| 5 | 32-bit | fixed32, sfixed32, float |
-
-Wire types 3 and 4 (start/end group) are deprecated proto2 features and not supported.
-
-### Unknown Fields
-
-When PBJ encounters a field number not defined in the schema, it can handle it in three ways:
-
-| Mode | Behavior | Use case |
-|------|----------|----------|
-| **Skip** (default) | Reads and discards the bytes | Normal operation, forward compatibility |
-| **Strict** | Throws `UnknownFieldException` | Validation, detecting schema mismatches |
-| **Collect** | Stores as `UnknownField` objects | Round-trip fidelity, preserving unrecognized data |
-
-Collected unknown fields are included in re-serialization, sorted by field number for determinism.
-
-### Safety Limits
-
-PBJ enforces safety limits during parsing to prevent denial-of-service attacks from malicious payloads:
-
-- **`maxSize`** (default: 2 MB) — maximum size of any length-delimited field (string, bytes, message, repeated)
-- **`maxDepth`** (default: 512) — maximum nesting depth for recursive message parsing
-
-These can be overridden per parse call.
+Unknown fields can be skipped (default), rejected in strict mode, or collected for round-trip fidelity. Safety limits (`maxSize` default 2 MB, `maxDepth` default 512) prevent denial-of-service attacks. See [codecs.md](codecs.md) for details.
 
 ## JSON Mapping
 

@@ -57,12 +57,7 @@ Before any code generation, `PbjCompiler` builds a `LookupHelper` by parsing eve
 | `enumNames` | — | Set of all fully qualified enum names |
 | `comparableFieldsByMsg` | Message name | List of comparable field names |
 
-The `LookupHelper` resolves Java packages using a priority chain:
-
-1. `pbj.java_package` option in a special comment (`// <<<pbj.java_package = "...">>>`) — highest priority
-2. `pbj.message_java_package` / `pbj.enum_java_package` / `pbj.service_java_package` per-definition options
-3. Standard protoc `java_package` option + `javaPackageSuffix`
-4. Proto `package` statement + `javaPackageSuffix` — fallback
+The `LookupHelper` resolves Java packages using a priority chain (PBJ comment option → per-definition options → standard `java_package` + suffix → proto `package` + suffix). For the full resolution rules, see [protobuf-and-schemas.md](protobuf-and-schemas.md#package-resolution).
 
 **Phase 2 — Per-file generation:**
 

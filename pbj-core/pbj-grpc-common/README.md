@@ -1,9 +1,9 @@
-# PBJ GRPC Helidon
+# PBJ gRPC Common
 
-This project produces a module with a common code used by both PBJ gRPC client and server
-that may not be suitable for the generic and lightweight `pbj-runtime` module due to extra dependencies.
-Examples of such code include:
-- common classes that depend on Helidon libraries,
-- code with external, potentially heavy dependencies, such as compressor/decompressor implementations
+Shared code used by both the PBJ gRPC client and server that is not suitable for the lightweight `pbj-runtime` module due to extra dependencies. Examples include:
+- Common classes that depend on Helidon libraries
+- Compression implementations (gzip, zstd) with external dependencies
 
-It produces `pbj-grpc-common-VERSION.jar`
+It produces `pbj-grpc-common-VERSION.jar`.
+
+For the overall gRPC architecture, see [architecture.md](../../docs/architecture.md#grpc-architecture).
