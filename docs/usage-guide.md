@@ -82,15 +82,29 @@ option (pbj.service_java_package) = "com.example.services";
 
 ### Comparable Messages
 
-Mark a message as comparable to generate a `compareTo()` method:
+Add the `pbj.comparable` option to generate a `compareTo()` method (the class will implement `Comparable<T>`). You can make all fields comparable or specify a subset:
 
 ```protobuf
+// All fields are comparable
+// <<<pbj.comparable = "seconds, nanos">>>
 message Timestamp {
-    option (pbj.comparable) = true;
     int64 seconds = 1;
     int32 nanos = 2;
 }
+
+// Only a subset of fields — non-listed fields are ignored in comparison
+// <<<pbj.comparable = "accountId, balance">>>
+message Account {
+    int64 accountId = 1;
+    int64 balance = 2;
+    string memo = 3;              // not included in compareTo()
+    repeated int32 tags = 4;      // repeated fields cannot be comparable
+}
 ```
+
+The generated `compareTo()` compares fields in the order listed, using the appropriate comparison for each type (`Integer.compare()`, `Long.compareUnsigned()`, null-safe `String.compareTo()`, etc.). Nested message fields must themselves be comparable.
+
+Supported in the comparable list: all scalar types, strings, bytes, enums, messages, oneOf fields, and wrapper types. Repeated fields and map fields cannot be included.
 
 ## Working with Generated Model Objects
 
@@ -295,26 +309,116 @@ try (var output = new WritableStreamingData(new FileOutputStream(file))) {
 
 ### The `Bytes` Type
 
-PBJ uses `Bytes` instead of `byte[]` for immutable byte sequences:
+PBJ uses `Bytes` instead of `byte[]` for immutable byte sequences. It implements `RandomAccessData` and `Comparable<Bytes>`.
 
 ```java
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 
-// Wrap a byte array (does not copy)
-Bytes data = Bytes.wrap(byteArray);
+// --- Creation ---
+Bytes data = Bytes.wrap(byteArray);              // wrap byte[] (no copy)
+Bytes data = Bytes.wrap(byteArray, offset, len); // wrap slice (no copy)
+Bytes data = Bytes.wrap("hello");                // from UTF-8 string
+Bytes data = Bytes.fromHex("3de47629...");       // from hex string
+Bytes data = Bytes.fromBase64("SGVsbG8=");       // from Base64 string
+Bytes merged = Bytes.merge(bytes1, bytes2);      // concatenate two Bytes
 
-// From hex string
-Bytes hash = Bytes.fromHex("3de47629fe289fc7...");
+// --- Conversion ---
+byte[] array = data.toByteArray();               // to byte[] (copies)
+String hex = data.toHex();                       // to hex string
+String b64 = data.toBase64();                    // to Base64 string
+String utf8 = data.asUtf8String(0, data.length()); // decode as UTF-8
 
-// Convert back to byte array (copies)
-byte[] array = data.toByteArray();
+// --- Slicing and searching ---
+Bytes slice = data.slice(offset, length);        // zero-copy view of sub-range
+Bytes appended = data.append(moreBytes);         // concatenate (creates new Bytes)
+Bytes copy = data.replicate();                   // defensive copy
+boolean found = data.contains(needle);           // substring search
+int pos = Bytes.indexOf(haystack, needle);       // find offset of needle
 
-// Efficient digest without copying
-data.writeTo(messageDigest);
-
-// Get as ReadableSequentialData for parsing
+// --- I/O integration ---
 ReadableSequentialData rsd = data.toReadableSequentialData();
+InputStream is = data.toInputStream();           // zero-copy InputStream
+data.writeTo(outputStream);                      // write to OutputStream
+data.writeTo(byteBuffer);                        // write to ByteBuffer
+data.writeTo(writableSequentialData);            // write to any WritableSequentialData
+
+// --- Cryptographic operations (zero-copy) ---
+data.writeTo(messageDigest);                     // feed into MessageDigest
+data.writeTo(messageDigest, offset, length);     // feed slice
+data.updateSignature(signature);                 // update java.security.Signature
+data.updateSignature(signature, offset, length);
+boolean valid = data.verifySignature(signature); // verify Signature
+
+// --- Low-level access ---
+byte b = data.getByte(offset);                   // single byte
+int i = data.getInt(offset);                     // 4 bytes, big-endian
+long l = data.getLong(offset);                   // 8 bytes, big-endian
+int vi = data.getVarInt(offset, zigZag);         // protobuf varint
+long vl = data.getVarLong(offset, zigZag);       // protobuf varlong
+
+// --- Sorting ---
+Bytes.SORT_BY_LENGTH          // Comparator: shorter first
+Bytes.SORT_BY_SIGNED_VALUE    // Comparator: signed byte comparison
+Bytes.SORT_BY_UNSIGNED_VALUE  // Comparator: unsigned byte comparison
 ```
+
+`Bytes.EMPTY` is a singleton empty instance. The `compareTo()` method performs unsigned lexicographic comparison.
+
+### `BufferedData` — In-Memory Buffers
+
+`BufferedData` is a sealed class wrapping a `ByteBuffer` that implements both `ReadableSequentialData` and `WritableSequentialData`. It has two subclasses selected automatically:
+
+- **`ByteArrayBufferedData`** — backed by a heap byte array. Use for short-lived, general-purpose buffers.
+- **`DirectBufferedData`** — backed by off-heap (direct) memory. Use for long-lived buffers or when interacting with native I/O.
+
+```java
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+
+// Heap allocation (most common)
+BufferedData buf = BufferedData.allocate(1024);
+
+// Off-heap allocation (for long-lived, performance-critical buffers)
+BufferedData buf = BufferedData.allocateOffHeap(1024);
+
+// Wrap existing data
+BufferedData buf = BufferedData.wrap(byteArray);
+BufferedData buf = BufferedData.wrap(byteBuffer);  // auto-selects subclass
+
+// Use as both reader and writer
+buf.writeInt(42);
+buf.writeBytes(someBytes);
+buf.flip();  // switch from writing to reading
+int value = buf.readInt();
+
+// Convert to other types
+InputStream is = buf.toInputStream();  // zero-copy
+```
+
+`BufferedData.EMPTY_BUFFER` is a singleton empty read-only buffer.
+
+### `WritableMessageDigest` — Hashing During Serialization
+
+`WritableMessageDigest` wraps a `MessageDigest` as a `WritableSequentialData`, allowing you to compute a hash of serialized data as it's being written — without buffering the entire message first:
+
+```java
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
+
+MessageDigest md = MessageDigest.getInstance("SHA-384");
+WritableMessageDigest wmd = new WritableMessageDigest(md);
+
+// Write serialized data directly into the digest
+MyMessage.PROTOBUF.write(message, wmd);
+
+// Get the hash — no intermediate byte[] needed
+byte[] hash = wmd.digest();  // also resets for reuse
+
+// Or write the digest directly into a buffer
+wmd.reset();
+MyMessage.PROTOBUF.write(anotherMessage, wmd);
+wmd.digestInto(outputBuffer, offset);
+```
+
+This is particularly useful in the consensus node where message hashes are computed during serialization for state proofs and signatures.
 
 ### Error Handling
 
@@ -502,6 +606,55 @@ WebServer.builder()
         .start();
 ```
 
+### gRPC Compression
+
+PBJ's gRPC layer negotiates compression via standard `grpc-encoding` / `grpc-accept-encoding` HTTP/2 headers. Two compressors are built-in and registered automatically:
+
+| Algorithm | Header value | Notes |
+|-----------|-------------|-------|
+| Identity (none) | `identity` | Default, always available |
+| Gzip | `gzip` | Always available |
+
+#### Adding Zstandard (zstd) Compression
+
+Zstd support is in the `pbj-grpc-common` module:
+
+```kotlin
+dependencies {
+    implementation("com.hedera.pbj:pbj-grpc-common:<version>")
+}
+```
+
+Register it at application startup:
+
+```java
+import com.hedera.pbj.grpc.common.compression.ZstdGrpcTransformer;
+
+// Register with default compression level (3)
+new ZstdGrpcTransformer().register("zstd");
+
+// Or with a custom compression level (-5 to 22)
+new ZstdGrpcTransformer(6).register("zstd");
+```
+
+#### Custom Compression Algorithms
+
+Implement `GrpcCompression.Compressor` and `GrpcCompression.Decompressor` (or `GrpcCompression.GrpcTransformer` for both):
+
+```java
+import com.hedera.pbj.runtime.grpc.GrpcCompression;
+
+// Register a custom compressor/decompressor
+GrpcCompression.registerCompressor("snappy", mySnappyCompressor);
+GrpcCompression.registerDecompressor("snappy", mySnappyDecompressor);
+
+// Query available algorithms
+Set<String> compressors = GrpcCompression.getCompressorNames();
+Set<String> decompressors = GrpcCompression.getDecompressorNames();
+```
+
+Compression is negotiated automatically — the server selects the best algorithm from the client's `grpc-accept-encoding` header that it also supports.
+
 ## gRPC Client
 
 ### Creating a Client
@@ -562,6 +715,67 @@ Pipeline<SubscribeStreamResponse> handler = new Pipeline<>() {
     }
 };
 ```
+
+## Unparsed Types Pattern
+
+A useful proto schema design pattern for performance-sensitive systems is defining "unparsed" message variants that use `bytes` fields instead of typed message fields. This allows passing data through without deserializing it.
+
+### Defining Unparsed Messages
+
+Define a parallel message where nested message fields are replaced with `bytes`:
+
+```protobuf
+// Regular (fully typed) message
+message BlockItem {
+    oneof item {
+        BlockHeader block_header = 1;
+        EventHeader event_header = 2;
+        TransactionResult transaction_result = 5;
+        BlockProof block_proof = 9;
+    }
+}
+
+// Unparsed variant — same field numbers, but bytes instead of typed messages
+message BlockItemUnparsed {
+    oneof item {
+        bytes block_header = 1;
+        bytes event_header = 2;
+        bytes transaction_result = 5;
+        bytes block_proof = 9;
+    }
+}
+```
+
+Because both messages use the same field numbers and wire type 2 (length-delimited), they are wire-compatible — bytes serialized as `BlockItem` can be parsed as `BlockItemUnparsed` and vice versa.
+
+### When to Use This Pattern
+
+- **Pass-through services** — A proxy or relay that forwards data without inspecting every field
+- **Deferred parsing** — Parse only the fields you need (e.g., read just the header), leave the rest as bytes
+- **Forward compatibility** — An unparsed variant won't fail to parse when the inner message adds new fields in a newer schema version
+- **Performance** — Avoid the cost of deserializing and re-serializing nested messages that you don't need to inspect
+
+### Usage Example
+
+```java
+// Parse as unparsed — individual items remain as raw bytes
+BlockUnparsed block = BlockUnparsed.PROTOBUF.parse(rawBytes);
+
+// Inspect only what you need
+for (BlockItemUnparsed item : block.blockItems()) {
+    if (item.hasBlockHeader()) {
+        // Parse just this one field when needed
+        BlockHeader header = BlockHeader.PROTOBUF.parse(item.blockHeader());
+        long blockNumber = header.number();
+    }
+    // Other items stay as bytes — no parsing cost
+}
+
+// Convert between parsed and unparsed when needed
+Block fullyParsed = Block.PROTOBUF.parse(BlockUnparsed.PROTOBUF.toBytes(unparsedBlock));
+```
+
+This pattern is used extensively in the [Hiero Block Node](https://github.com/hiero-ledger/hiero-block-node) for streaming block data through the system efficiently.
 
 ## See Also
 
