@@ -2,7 +2,7 @@
 
 This document describes the high-level architecture of PBJ — its module structure, component relationships, data flows, and key design decisions.
 
-For protobuf specification coverage, see [protobuf-and-schemas.md](protobuf-and-schemas.md). For compiler internals, see [code-generation.md](code-generation.md). For codec details, see [codecs.md](codecs.md).
+For protobuf specification coverage, see [protobuf-and-schemas.md](protobuf-and-schemas.md). For compiler internals, see [code-generation.md](code-generation.md). For codec details, see [codecs.md](codecs.md), [codec-protobuf.md](codec-protobuf.md), and [codec-json.md](codec-json.md).
 
 ## System Overview
 
@@ -65,7 +65,7 @@ PBJ is organized as two independent top-level Gradle projects. All modules under
 
 ### `pbj-integration-tests/` — Validation Suite
 
-A separate Gradle project that downloads the [Hiero protobufs](https://github.com/hashgraph/hedera-protobufs) (tag v0.55.0) and generates code with both PBJ and Google `protoc`. Runs 100k+ tests to validate binary compatibility, plus JMH benchmarks and fuzz tests.
+A separate Gradle project that downloads the [Hiero protobufs](https://github.com/hiero-ledger/hiero-consensus-node) (tag v0.55.0) and generates code with both PBJ and Google `protoc`. Runs 100k+ tests to validate binary compatibility, plus JMH benchmarks and fuzz tests.
 
 ### Dependency Graph
 
@@ -126,29 +126,13 @@ The compiler is a Gradle plugin (plugin ID: `com.hedera.pbj.pbj-compiler`) that 
     (models, codecs, schemas, tests)
 ```
 
-### Generated Artifacts per Message
+### Generated Artifacts
 
-For each protobuf message, the compiler produces up to five files:
-
-| File                 | Sub-package | Generator            | Purpose                                      |
-|----------------------|-------------|----------------------|----------------------------------------------|
-| `Foo.java`           | _(base)_    | `ModelGenerator`     | Immutable model class with builder           |
-| `FooSchema.java`     | `.schema`   | `SchemaGenerator`    | Field metadata (`FieldDefinition` constants) |
-| `FooProtoCodec.java` | `.codec`    | `CodecGenerator`     | Binary protobuf serialization                |
-| `FooJsonCodec.java`  | `.codec`    | `JsonCodecGenerator` | JSON serialization                           |
-| `FooTest.java`       | `.tests`    | `TestGenerator`      | JUnit 5 round-trip and compatibility tests   |
-
-Enums produce a single file (`EnumGenerator`). Services produce a single interface file (`ServiceGenerator`).
+For each protobuf message, the compiler produces up to five Java files (model, schema, protobuf codec, JSON codec, and test). Enums and services each produce a single file. For full details on the generators and output structure, see [code-generation.md](code-generation.md#code-generators).
 
 ### Field Model
 
-Rather than a full AST, the compiler uses lightweight field records extracted directly from ANTLR parse tree contexts:
-
-- **`SingleField`** — a regular field or a variant within a oneof. Carries field number, name, type, repeated flag, and type resolution info.
-- **`OneOfField`** — a oneof block containing a list of `SingleField` variants. Generates an inner discriminator enum.
-- **`MapField`** — a map field, internally decomposed into synthetic key and value `SingleField` instances.
-
-All three implement the `Field` interface, which provides methods like `javaFieldType()`, `parseCode()`, and `schemaFieldsDef()` that generators call to emit field-specific Java code.
+The compiler uses lightweight field records (`SingleField`, `OneOfField`, `MapField`) extracted directly from ANTLR parse tree contexts, rather than a full AST. For details, see [code-generation.md](code-generation.md#field-model-intermediate-representation).
 
 ## Runtime Library
 
@@ -156,43 +140,11 @@ The runtime (`pbj-runtime`) provides everything that generated code needs at run
 
 ### Codec Interfaces
 
-The `Codec<T>` interface is the core serialization contract. Every generated message exposes singleton codec instances:
-
-```java
-public static final Codec<Foo> PROTOBUF = new FooProtoCodec();
-public static final JsonCodec<Foo> JSON = new FooJsonCodec();
-```
-
-`Codec<T>` provides parse, write, measure, and fast-equals operations. `JsonCodec<T>` extends it with JSON-specific methods (`toJSON()`, parse from JSON AST). Both enforce configurable safety limits:
-
-- **`maxSize`** (default 2 MB) — bounds any length-delimited field
-- **`maxDepth`** (default 512) — bounds recursive message nesting
+The `Codec<T>` interface is the core serialization contract. Every generated message exposes singleton `PROTOBUF` and `JSON` codec instances. Codecs provide parse, write, measure, and fast-equals operations with configurable safety limits (`maxSize` and `maxDepth`). For full details, see [codecs.md](codecs.md).
 
 ### IO Abstractions
 
-Codecs read and write through abstract sequential data interfaces, decoupling serialization from the underlying byte source:
-
-```
-              SequentialData
-             (position, limit)
-            /                  \
-ReadableSequentialData    WritableSequentialData
-  - readByte()              - writeByte()
-  - readVarInt(zigZag)      - writeVarInt(value, zigZag)
-  - readVarLong(zigZag)     - writeVarLong(value, zigZag)
-  - view(length)            - writeUTF8(String)
-```
-
-Concrete implementations:
-
-| Class                   | Backed by                     | Use case                               |
-|-------------------------|-------------------------------|----------------------------------------|
-| `BufferedData`          | `ByteBuffer` (heap or direct) | In-memory buffers, random access       |
-| `ReadableStreamingData` | `InputStream`                 | Network/file streaming reads           |
-| `WritableStreamingData` | `OutputStream`                | Network/file streaming writes          |
-| `Bytes`                 | Immutable `byte[]`            | Immutable byte sequences, field values |
-
-`BufferedData` is a sealed class with two permitted subclasses (`ByteArrayBufferedData`, `DirectBufferedData`) that optimize for heap vs. off-heap memory. All implementations track position and enforce limits.
+Codecs read and write through abstract sequential data interfaces (`ReadableSequentialData`, `WritableSequentialData`), decoupling serialization from the underlying byte source. Concrete implementations include `BufferedData` (byte buffers), `ReadableStreamingData` (input streams), `WritableStreamingData` (output streams), and `Bytes` (immutable byte sequences). For details, see [codecs.md](codecs.md#streaming-data-abstractions).
 
 ### Collection Types
 

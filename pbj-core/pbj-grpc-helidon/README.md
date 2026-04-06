@@ -1,11 +1,9 @@
-# PBJ GRPC Helidon
+# PBJ gRPC Server (Helidon)
 
-This project produces a module for Helidon that enables native support for PBJ gRPC services. The aim is to have full
-GRPC support going directly to PBJ model objects and not via protoc objects. This is also designed around a security
-philosophy of fail fast. With the aim of minimizing the server resources an attacker might consume on a single bad request.
+A gRPC server module for Helidon that enables native PBJ support — going directly to PBJ model objects without `protoc` intermediaries. Designed around a fail-fast security philosophy to minimize the server resources an attacker can consume on a single bad request.
 
-This library, along with PBJ core, provides a complete replacement for Google Protobuf and IO.GRPC libraries. It is designed to
-remove the large transitive dependencies of the Google Protobuf and IO.GRPC libraries
-to provide a more secure and performant alternative.
+This library, along with PBJ core, provides a complete replacement for Google Protobuf and `io.grpc` libraries, removing their large transitive dependency trees.
 
-It produces `pbj-grpc-helidon-VERSION.jar`
+It produces `pbj-grpc-helidon-VERSION.jar`.
+
+For detailed design documentation, see [docs/design.md](docs/design.md). For the overall gRPC architecture, see [architecture.md](../../docs/architecture.md#grpc-architecture). For usage examples, see [usage-guide.md](../../docs/usage-guide.md#grpc-services).
