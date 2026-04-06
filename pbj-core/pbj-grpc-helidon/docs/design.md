@@ -250,7 +250,7 @@ public class GreeterServiceImpl implements GreeterService {
         return HelloReply.newBuilder().setMessage(
                 "Hello " + request.getName()).build();
     }
-    
+
     // ... other methods here
 }
 ```
@@ -274,12 +274,12 @@ public class GreeterServiceImpl implements GreeterService {
             throw new GrpcException(GrpcStatus.INVALID_ARGUMENT,
                     "Name cannot be empty");
         }
-        
+
         return HelloReply.newBuilder()
                 .setMessage("Hello " + request.getName())
                 .build();
     }
-    
+
     // ... other methods here
 }
 ```
