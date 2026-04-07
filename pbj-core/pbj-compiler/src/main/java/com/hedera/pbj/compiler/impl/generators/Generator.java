@@ -6,6 +6,7 @@ import com.hedera.pbj.compiler.impl.FileSetWriter;
 import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.generators.json.JsonCodecGenerator;
 import com.hedera.pbj.compiler.impl.generators.protobuf.CodecGenerator;
+import com.hedera.pbj.compiler.impl.generators.xdr.XdrCodecGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.IOException;
 import java.util.Map;
@@ -25,6 +26,7 @@ public interface Generator {
             SchemaGenerator.class, FileSetWriter::schemaWriter,
             CodecGenerator.class, FileSetWriter::codecWriter,
             JsonCodecGenerator.class, FileSetWriter::jsonCodecWriter,
+            XdrCodecGenerator.class, FileSetWriter::xdrCodecWriter,
             TestGenerator.class, FileSetWriter::testWriter);
 
     /**

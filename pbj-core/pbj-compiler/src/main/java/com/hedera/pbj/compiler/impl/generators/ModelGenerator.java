@@ -864,12 +864,15 @@ public final class ModelGenerator implements Generator {
                 public static final Codec<$modelClass> PROTOBUF = new $qualifiedCodecClass();
                 /** JSON codec for reading and writing in JSON format */
                 public static final JsonCodec<$modelClass> JSON = new $qualifiedJsonCodecClass();
+                /** XDR codec for reading and writing in XDR format */
+                public static final XdrCodec<$modelClass> XDR = new $qualifiedXdrCodecClass();
                 /** Default instance with all fields set to default values */
                 public static final $modelClass DEFAULT = newBuilder().build();
                 """
                 .replace("$modelClass", javaRecordName)
                 .replace("$qualifiedCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.CODEC, msgDef))
                 .replace("$qualifiedJsonCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.JSON_CODEC, msgDef))
+                .replace("$qualifiedXdrCodecClass", lookupHelper.getFullyQualifiedMessageClassname(FileType.XDR_CODEC, msgDef))
                 .indent(DEFAULT_INDENT);
         // spotless:on
     }
