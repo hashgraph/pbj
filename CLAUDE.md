@@ -55,6 +55,7 @@ cd pbj-integration-tests
 - ANTLR grammar: `pbj-compiler/src/main/antlr/com/hedera/hashgraph/protoparser/grammar/Protobuf3.g4`
 - Plugin ID: `com.hedera.pbj.pbj-compiler`
 - PBJ package comment: `// <<<pbj.java_package = "com.example.package">>>`
+- XDR codec design docs: `docs/xdr/` — design, test plan, project plan, and use-case docs for the XDR (RFC 4506) serialization format
 
 ## Tech Stack
 
@@ -71,3 +72,15 @@ cd pbj-integration-tests
 - Wire format identical to Google `protoc` output
 - Generated code should look hand-written and readable
 - Generated model objects are immutable classes (not Records — see [protobuf-and-schemas.md](docs/protobuf-and-schemas.md#why-not-java-records))
+- **Security model:** fail-fast parsing with hard size limits (`DEFAULT_MAX_SIZE` = 2 MB), depth limits (`DEFAULT_MAX_DEPTH` = 512), and strict rejection of unknown/malformed data
+
+## XDR Codec (In Development)
+
+PBJ is being extended with an XDR (RFC 4506) codec for the CLPR cross-ledger protocol. Key docs:
+
+- [`docs/xdr/xdr-design.md`](docs/xdr/xdr-design.md) — Type mapping, wire format, generated code architecture, security model
+- [`docs/xdr/xdr-use-case.md`](docs/xdr/xdr-use-case.md) — Requirements, format comparison (XDR vs SSZ/Borsh/Protobuf/ABI), gas analysis
+- [`docs/xdr/xdr-test-plan.md`](docs/xdr/xdr-test-plan.md) — Unit, integration, fuzz, and performance test specifications
+- [`docs/xdr/xdr-project-plan.md`](docs/xdr/xdr-project-plan.md) — Step-by-step implementation tasks
+
+XDR security properties: canonical encoding enforced via strict validation of all sentinel values (presence flags, booleans, padding bytes, enum values, union discriminants). See `xdr-design.md` §5.12 for the full validation table.
