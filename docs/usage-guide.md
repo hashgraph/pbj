@@ -229,14 +229,15 @@ Empty repeated fields return `Collections.emptyList()`, never `null`.
 
 ### Map Fields
 
-Map fields use `PbjMap<K, V>` with deterministic key ordering:
+Map fields are exposed as standard `Map<K, V>` with deterministic key ordering:
 
 ```java
-PbjMap<String, Integer> settings = config.settings();
+Map<String, Integer> settings = config.settings();
 
-// Iterate in sorted key order (deterministic)
-for (String key : settings.getSortedKeys()) {
-    int value = settings.get(key);
+// Iterate — entries are in sorted key order (deterministic)
+for (Map.Entry<String, Integer> entry : settings.entrySet()) {
+    String key = entry.getKey();
+    int value = entry.getValue();
 }
 ```
 
@@ -625,12 +626,12 @@ dependencies {
 }
 ```
 
-Register it at application startup:
+Register it at application startup (note that Zstd is registered by default by both the PBJ gRPC client and server code):
 
 ```java
 import com.hedera.pbj.grpc.common.compression.ZstdGrpcTransformer;
 
-// Register with default compression level (3)
+// Register with default compression level (3) — already done by default
 new ZstdGrpcTransformer().register("zstd");
 
 // Or with a custom compression level (-5 to 22)
@@ -668,24 +669,14 @@ PbjGrpcClient grpcClient = PbjGrpcClient.builder()
 
 ### Making Unary Calls
 
+PBJ generates client stubs in the service interfaces. Use them for simple, type-safe calls:
+
 ```java
-// Create the request
-SubscribeStreamRequest request = SubscribeStreamRequest.newBuilder()
-        .startBlockNumber(startBlock)
-        .endBlockNumber(endBlock)
-        .build();
+// Create a typed client stub from the generated service interface
+var client = new MyServiceInterface.MyServiceClient(grpcClient, options);
 
-// Create a call with codecs and a response handler
-GrpcCall<SubscribeStreamRequest, SubscribeStreamResponse> call =
-    grpcClient.createCall(
-            "package.ServiceName/MethodName",
-            SubscribeStreamRequest.PROTOBUF,    // request codec
-            SubscribeStreamResponse.PROTOBUF,   // response codec
-            responsePipeline,                    // handles responses
-            Map.of());                           // metadata headers
-
-// Send the request
-call.sendRequest(request, true);  // true = end of stream (unary)
+// Make a unary call
+MyResponse response = client.methodName(request);
 ```
 
 ### Handling Streamed Responses

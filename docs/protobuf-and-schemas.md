@@ -186,7 +186,7 @@ msg.countOrElse(42)     // returns 42 if count was not on the wire
 
 For primitive fields (`int`, `long`, `float`, `double`, `boolean`), the getter returns the Java default (`0`, `0L`, `0.0f`, `0.0`, `false`) when absent — Java primitives cannot be `null`. The `fooOrElse()` method provides a way to distinguish "not set" from "set to default" for these types.
 
-For reference types (`String`, `Bytes`, message types), the getter returns `null` when absent.
+For reference types (message types and boxed primitive types), the getter returns `null` when absent. Note that `String`, `Bytes`, and similar "primitive-like" types are never null — they follow the same convention as Java primitives, returning empty/default values when absent.
 
 ### Rationale
 
@@ -212,7 +212,9 @@ PBJ recognizes these wrapper types and generates nullable boxed Java types inste
 
 ### Proto3 `optional` Keyword
 
-Proto3 later introduced the `optional` keyword for explicit field presence (tracking whether a field was explicitly set). **PBJ does not currently support the `optional` keyword.** Use wrapper types or oneof fields when you need to distinguish "not set" from "set to default."
+Proto3 later introduced the `optional` keyword for explicit field presence (tracking whether a field was explicitly set). **PBJ does not currently support the `optional` keyword.** Use wrapper types or `oneof` fields when you need to distinguish "not set" from "set to default."
+
+> **Note:** Support for the `optional` keyword is not yet implemented in PBJ.
 
 ## Enums
 

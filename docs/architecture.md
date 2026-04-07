@@ -318,7 +318,7 @@ ReadableSequentialData ───► Model object
 
 ### Immutable Model Objects
 
-Generated model classes are immutable — all fields are `final`, there are no setters, and construction goes through a `Builder`. This enables safe sharing across threads without synchronization, which is critical in a multi-threaded consensus node.
+Generated model classes are immutable — all fields are `final`, there are no setters, and construction goes through a `Builder`. This enables safe sharing across threads without synchronization, which is critical in multi-threaded code.
 
 ### Separation of Concerns
 
