@@ -1,61 +1,65 @@
 # PBJ Protobuf Java Library
-An alternative Google Protocol Buffers code generator, parser, and Gradle module. The project has these design goals:
- * **Modern Nice Java Objects** - parse the proto files into nice clean Java objects. With as clean as API as possible. 
-     Using the newer Java Record style getters and setters. Support latest LTS Java version features.
- * **Explicit Error Handling** - when a message field is not on the wire, return null from getter not default object. 
-     This is like Java's choice of checked exceptions over unchecked exceptions. It forces the developer to handle 
-     the error case rather than silently ignoring it. To make this easier, the generated model objects have two versions 
-     of each getter method `foo()` and `fooOrElse(defaultValue)`.
- * **Performance Optimized** - be as fast or **faster** than the standard Google ProtoC generated code
- * **Minimal Garbage Generated** - produce the minimum amount of garbage Java objects as possible
- * **Identical Binary Wire Encoding** - produce the same binary encoding as the standard Google ProtoC generated code
- * **Deterministic Binary Encoding** - produce the same binary encoding for the same input every time. This means fields 
-     are always serialized in ascending field order and all maps are sorted by key. This is needed so hashes of 
-     serialized objects and signatures of objects are dependable.
- * **Stable hashCode() and equals()** - produce stable hashCode() and equals() methods for generated model objects that 
-     are suitable for long term storage of objects in hash maps. This includes handling of new fields being added to 
-     objects so, just like wire format, fields with default value are not included in hashCode() and equals() methods. 
-     This allows new fields with default values to be added to key objects without affecting hashcode or equals. 
- * **Keep "[JEP 401: Value Classes and Objects](https://openjdk.org/jeps/401)" in mind** - If possible design generated 
-     model objects to work as Value Classes when available.
- * **Minimal 3rd party dependencies** - only use 3rd party libraries when they are really needed and are well maintained
- * **Low level protobuf read/write API** - provide low level API for manually reading/writing protobuf in buffers, byte 
-     arrays and streams. 
- * **IO.GRPC Alternative for Helidon SE** - provide an alternative to the IO.GRPC library that has low level access to bytes, no 3rd 
-     party dependencies and prioritizes fail fast for security.
- * **Generate clean readable code** - the generated code should be as clean and readable as possible, as if it was 
-     carefully written by hand.
 
-These design goals often compete with each other so this project tries to strike the right balance for use in the 
-[Hiero Consensus Node](https://github.com/hiero-ledger/hiero-consensus-node) project. The hope is that balance might well be useful in many other projects. There is still plenty of work 
-to achieve these goals, and will probably always be improvements that can be made, but this is what the project is 
-striving for.
+An alternative Google Protocol Buffers code generator, parser, and Gradle plugin. The project has these design goals:
 
-### There are 2 top level gradle projects, click any project to see more details:
+* **Modern Java Objects** — Generate clean, immutable Java classes with Record-style getters. Support latest Java version features.
+* **Explicit Error Handling** — Return `null` from getters for absent fields, not default objects. This forces the developer to handle the absent case rather than silently ignoring it. Each field has two getter forms: `foo()` and `fooOrElse(defaultValue)`.
+* **Performance Optimized** — Be as fast or faster than Google `protoc`-generated code.
+* **Minimal Garbage** — Produce the minimum amount of garbage Java objects possible.
+* **Identical Binary Wire Encoding** — Produce the same binary encoding as `protoc`.
+* **Deterministic Binary Encoding** — Fields are always serialized in ascending field order and all maps are sorted by key. This ensures hashes and signatures of serialized objects are dependable.
+* **Stable `hashCode()` and `equals()`** — Fields with default values are excluded from `hashCode()` and `equals()`, so adding new default-valued fields does not affect existing hash maps.
+* **Value Classes Ready** — Keep [JEP 401: Value Classes and Objects](https://openjdk.org/jeps/401) in mind for future generated model objects.
+* **Minimal Dependencies** — Only use third-party libraries when truly needed and well maintained.
+* **Low-Level Protobuf API** — Provide a low-level API for manually reading/writing protobuf in buffers, byte arrays, and streams.
+* **`io.grpc` Alternative** — Provide a gRPC implementation on Helidon SE with low-level access to bytes, no `io.grpc` dependency, and fail-fast security.
+* **Clean Generated Code** — Generated code should be as clean and readable as if carefully written by hand.
 
-  * ### **PBJ Core** `pbj-core` which has 4 subprojects
-    * ### [**PBJ Protobuf Schema Compiler Gradle Plugin** `pbj-compiler`](pbj-core/pbj-compiler/README.md)
-    * ### [**PBJ Runtime Library** `pbj-runtime`](pbj-core/pbj-runtime/README.md)
-    * ### [**Grpc Helidon** `pbj-grpc-helidon`](pbj-core/pbj-grpc-helidon/README.md)
-    * ### [**Grpc Helidon Config** `pbj-grpc-helidon-config](pbj-core/pbj-grpc-helidon-config/README.md)
-    * ### [**Grpc Client Helidon** `pbj-grpc-client-helidon`](pbj-core/pbj-grpc-client-helidon/README.md)
-    * ### [**Grpc Common Code** `pbj-grpc-common`](pbj-core/pbj-grpc-client-helidon/README.md)
-  * ### [**Integration Tests** `pbj-integration-tests`](pbj-integration-tests/README.md) 
+These design goals often compete with each other, so this project strikes the right balance for use in the [Hiero Consensus Node](https://github.com/hiero-ledger/hiero-consensus-node) project. There is still plenty of work to achieve these goals, but this is what the project strives for.
 
-## Build Libraries
-Running `gradle build` in `pbj-core` directory will build the libraries for compiler, runtime, and grpc.
+## Documentation
 
-## Run Integration Tests
-Running `gradle build` in `pbj-integration-tests` will check out the latest proto source files from the
-[hedera-protobufs](https://github.com/hashgraph/hedera-protobufs) repository as sample schemas and generate code using `pbj-compiler` then 
-run all the 100k+ generated unit tests which takes a few minutes. The hedera protobufs provide a good coverage of
-protobuf features and insure all the generated code is tested for hiero node use case.
+| Document | Description |
+|----------|-------------|
+| [Getting Started](docs/getting-started.md) | Quick-start guide: add PBJ to your project and use generated classes |
+| [Usage Guide](docs/usage-guide.md) | Comprehensive reference for all PBJ features with real-world examples |
+| [Architecture](docs/architecture.md) | Module structure, dependency graph, system overview, and design decisions |
+| [Protobuf & Schemas](docs/protobuf-and-schemas.md) | Protobuf spec compliance, type mappings, nullability, and PBJ extensions |
+| [Code Generation](docs/code-generation.md) | Compiler internals: pipeline, ANTLR grammar, generators |
+| [Codec Architecture](docs/codecs.md) | Shared codec interfaces, IO abstractions, and design principles |
+| [Protobuf Codec](docs/codec-protobuf.md) | Binary protobuf codec internals |
+| [JSON Codec](docs/codec-json.md) | JSON codec internals |
 
-**_These tests should be run before committing any new code for PBJ._**
+## Project Structure
 
-## Long Term Goals
-PBJ is a long term project with many goals. Here are some of the long term goals:
-  * Support all Protobuf Features
-  * Support new versions of Protobuf as possible
-  * Auto mapping GRPC APIs to JSON REST APIs
-  * JSON REST performance as good as GRPC
+There are two top-level Gradle projects:
+
+* **PBJ Core** `pbj-core/` — Main library with the following subprojects:
+  * [**PBJ Compiler**](pbj-core/pbj-compiler/README.md) `pbj-compiler` — Gradle plugin that compiles `.proto` files to Java
+  * [**PBJ Runtime**](pbj-core/pbj-runtime/README.md) `pbj-runtime` — Core runtime for generated code (codecs, IO, types)
+  * [**gRPC Helidon**](pbj-core/pbj-grpc-helidon/README.md) `pbj-grpc-helidon` — gRPC server on Helidon SE
+  * [**gRPC Helidon Config**](pbj-core/pbj-grpc-helidon-config/README.md) `pbj-grpc-helidon-config` — Helidon annotation processor config
+  * [**gRPC Client Helidon**](pbj-core/pbj-grpc-client-helidon/README.md) `pbj-grpc-client-helidon` — gRPC client using Helidon HTTP/2
+  * [**gRPC Common**](pbj-core/pbj-grpc-common/README.md) `pbj-grpc-common` — Shared gRPC utilities (compression, etc.)
+* [**Integration Tests**](pbj-integration-tests/README.md) `pbj-integration-tests/` — Generates code from Hiero protobufs and runs 100k+ tests
+
+## Build
+
+Each top-level project has its own Gradle wrapper. Run commands from the respective directory.
+
+```bash
+# Build core libraries
+cd pbj-core
+./gradlew build
+
+# Run integration tests (recommended before committing)
+cd pbj-integration-tests
+./gradlew build
+```
+
+## Long-Term Goals
+
+* Support all protobuf features (including the `optional` keyword)
+* Auto-mapping gRPC APIs to JSON REST APIs (gRPC transcoding)
+* Performance optimizations (SIMD-based varint processing)
+* Support for additional serialization formats
