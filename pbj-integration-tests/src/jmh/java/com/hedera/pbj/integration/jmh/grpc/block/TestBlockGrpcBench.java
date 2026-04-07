@@ -10,8 +10,8 @@ import com.hedera.pbj.integration.jmh.grpc.PbjGrpcBench;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
 import com.hedera.pbj.runtime.grpc.Pipeline;
+import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.SocketException;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
@@ -97,7 +97,7 @@ public class TestBlockGrpcBench {
         PbjGrpcBench.ServerHandle server;
         TestBlockStreamerInterface.TestBlockStreamerClient client;
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Trial)
         public void setup() {
             final String[] splitEncodings = encodings.split(",");
             final PbjGrpcServiceConfig serviceConfig =
@@ -108,7 +108,7 @@ public class TestBlockGrpcBench {
             client = createClient(port.port(), splitEncodings);
         }
 
-        @TearDown(Level.Invocation)
+        @TearDown(Level.Trial)
         public void tearDown() {
             try {
                 client.close();
@@ -166,9 +166,10 @@ public class TestBlockGrpcBench {
                 public void onError(Throwable throwable) {
                     latch.countDown();
                     if (throwable instanceof UncheckedIOException uioe
-                            && uioe.getCause() instanceof SocketException se
-                            && se.getMessage() != null
-                            && se.getMessage().contains("Socket closed")) {
+                            && uioe.getCause() instanceof IOException ioe
+                            && ioe.getMessage() != null
+                            // We create this message in PbjGrpcCall. It's not localized. So the check is good:
+                            && ioe.getMessage().contains("sendPing failed")) {
                         // A streaming server may close its connection sometimes before
                         // the client has received and processed all the replies. However, the client's
                         // PbjGrpcCall may try and ping the server during the processing. This results in

@@ -101,12 +101,12 @@ public class GoogleGrpcBench {
             client = ClientHandle.createClient(port.port());
         }
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Trial)
         public void setup() {
             setup(1);
         }
 
-        @TearDown(Level.Invocation)
+        @TearDown(Level.Trial)
         public void tearDown() {
             client.close();
             client = null;
@@ -135,12 +135,12 @@ public class GoogleGrpcBench {
             client = ClientHandle.createClient(port.port());
         }
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Trial)
         public void setup() {
             setup(streamCount);
         }
 
-        @TearDown(Level.Invocation)
+        @TearDown(Level.Trial)
         public void tearDown() {
             client.close();
             client = null;

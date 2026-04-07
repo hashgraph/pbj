@@ -125,12 +125,12 @@ public class PbjGrpcBench {
             client = createClient(port.port(), splitEncodings);
         }
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Trial)
         public void setup() {
             setup(1);
         }
 
-        @TearDown(Level.Invocation)
+        @TearDown(Level.Trial)
         public void tearDown() {
             try {
                 client.close();
@@ -181,12 +181,12 @@ public class PbjGrpcBench {
             client = createClient(port.port(), splitEncodings);
         }
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Trial)
         public void setup() {
             setup(streamCount);
         }
 
-        @TearDown(Level.Invocation)
+        @TearDown(Level.Trial)
         public void tearDown() {
             try {
                 client.close();
