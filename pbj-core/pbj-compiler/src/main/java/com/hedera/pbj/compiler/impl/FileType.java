@@ -13,6 +13,8 @@ public enum FileType {
     CODEC,
     /** Generated JSON codec class */
     JSON_CODEC,
+    /** Generated XDR codec class */
+    XDR_CODEC,
     /** Generated test class */
     TEST,
     /** Protoc generated model class */
