@@ -28,50 +28,55 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 /// A benchmark to compare the old UnsafeUtils and their updated implementations in PBJ 0.15.0
 @SuppressWarnings("unused")
 @State(Scope.Benchmark)
-@Fork(1)
-@Warmup(iterations = 1)
-@Measurement(iterations = 3)
+@Fork(3)
+@Warmup(iterations = 3)
+@Measurement(iterations = 5)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @BenchmarkMode(Mode.Throughput)
 public class UnsafeBench {
-    private static final int INVOCATIONS = 20_000;
-
-    private static final int SIZE = 1024 * 1024;
-
-    private static final byte[] ARRAY = new byte[SIZE];
-    private static final ByteBuffer HEAP_BUFFER = ByteBuffer.allocate(SIZE);
-    private static final ByteBuffer DIRECT_BUFFER = ByteBuffer.allocateDirect(SIZE);
-    private static final ByteBuffer DIRECT_BUFFER_2 = ByteBuffer.allocateDirect(SIZE);
-
-    private static void randomize(Random random) {
-        random.nextBytes(ARRAY);
-        HEAP_BUFFER.put(ARRAY);
-        HEAP_BUFFER.clear();
-
-        random.nextBytes(ARRAY);
-        DIRECT_BUFFER.put(ARRAY);
-        DIRECT_BUFFER.clear();
-
-        random.nextBytes(ARRAY);
-        DIRECT_BUFFER_2.put(ARRAY);
-        DIRECT_BUFFER_2.clear();
-
-        random.nextBytes(ARRAY);
-    }
+    /// Num of invocations per measurement method call. MUST be smaller than SIZE below
+    private static final int INVOCATIONS = 20 * 1024;
+    /// Size of working arrays/buffers. MUST be greater than INVOCATIONS above
+    private static final int SIZE = INVOCATIONS * 2;
+    /// Length of sub-sequences for copying between buffers/arrays. MUST be smaller than SIZE above
+    private static final int LENGTH = SIZE / 4;
 
     @State(Scope.Thread)
     public static class BenchState {
-        Random random;
+        byte[] array;
+        ByteBuffer heapBuffer;
+        ByteBuffer directBuffer;
+        ByteBuffer directBuffer2;
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Trial)
         public void setup() {
-            random = new Random(349572654);
+            array = new byte[SIZE];
+            heapBuffer = ByteBuffer.allocate(SIZE);
+            directBuffer = ByteBuffer.allocateDirect(SIZE);
+            directBuffer2 = ByteBuffer.allocateDirect(SIZE);
+
+            Random random = new Random(349572654);
             randomize(random);
         }
 
-        @TearDown(Level.Invocation)
+        @TearDown(Level.Trial)
         public void tearDown() {
-            random = null;
+        }
+
+        private void randomize(Random random) {
+            random.nextBytes(array);
+            heapBuffer.put(array);
+            heapBuffer.clear();
+
+            random.nextBytes(array);
+            directBuffer.put(array);
+            directBuffer.clear();
+
+            random.nextBytes(array);
+            directBuffer2.put(array);
+            directBuffer2.clear();
+
+            random.nextBytes(array);
         }
     }
 
@@ -80,19 +85,19 @@ public class UnsafeBench {
         @Param({"false", "true"})
         boolean littleEndian;
 
-        Random random;
+        byte[] array;
         ByteOrder byteOrder;
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Trial)
         public void setup() {
-            random = new Random(349572654);
-            randomize(random);
+            array = new byte[SIZE];
+            Random random = new Random(349572654);
+            random.nextBytes(array);
             byteOrder = littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN;
         }
 
-        @TearDown(Level.Invocation)
+        @TearDown(Level.Trial)
         public void tearDown() {
-            random = null;
             byteOrder = null;
         }
     }
@@ -101,7 +106,7 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getArrayByteNoChecks_Old(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            OldUnsafeUtils.getArrayByteNoChecks(ARRAY, state.random.nextInt(ARRAY.length));
+            blackhole.consume(OldUnsafeUtils.getArrayByteNoChecks(state.array, i));
         }
     }
 
@@ -109,7 +114,7 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getArrayByteNoChecks_New(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            UnsafeUtils.getArrayByteNoChecks(ARRAY, state.random.nextInt(ARRAY.length));
+            blackhole.consume(UnsafeUtils.getArrayByteNoChecks(state.array, i));
         }
     }
 
@@ -117,7 +122,7 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getHeapBufferByteNoChecks_Old(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            OldUnsafeUtils.getHeapBufferByteNoChecks(HEAP_BUFFER, state.random.nextInt(SIZE));
+            blackhole.consume(OldUnsafeUtils.getHeapBufferByteNoChecks(state.heapBuffer, i));
         }
     }
 
@@ -125,7 +130,7 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getHeapBufferByteNoChecks_New(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            UnsafeUtils.getHeapBufferByteNoChecks(HEAP_BUFFER, state.random.nextInt(SIZE));
+            blackhole.consume(UnsafeUtils.getHeapBufferByteNoChecks(state.heapBuffer, i));
         }
     }
 
@@ -133,7 +138,7 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getDirectBufferByteNoChecks_Old(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            OldUnsafeUtils.getDirectBufferByteNoChecks(DIRECT_BUFFER, state.random.nextInt(SIZE));
+            blackhole.consume(OldUnsafeUtils.getDirectBufferByteNoChecks(state.directBuffer, i));
         }
     }
 
@@ -141,7 +146,7 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getDirectBufferByteNoChecks_New(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            UnsafeUtils.getDirectBufferByteNoChecks(DIRECT_BUFFER, state.random.nextInt(SIZE));
+            blackhole.consume(UnsafeUtils.getDirectBufferByteNoChecks(state.directBuffer, i));
         }
     }
 
@@ -149,7 +154,7 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getInt_Old(final ByteOrderBenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            OldUnsafeUtils.getInt(ARRAY, state.random.nextInt(SIZE - Integer.BYTES), state.byteOrder);
+            blackhole.consume(OldUnsafeUtils.getInt(state.array, i, state.byteOrder));
         }
     }
 
@@ -157,7 +162,7 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getInt_New(final ByteOrderBenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            UnsafeUtils.getInt(ARRAY, state.random.nextInt(SIZE - Integer.BYTES), state.byteOrder);
+            blackhole.consume(UnsafeUtils.getInt(state.array, i, state.byteOrder));
         }
     }
 
@@ -165,7 +170,7 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getLong_Old(final ByteOrderBenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            OldUnsafeUtils.getLong(ARRAY, state.random.nextInt(SIZE - Long.BYTES), state.byteOrder);
+            blackhole.consume(OldUnsafeUtils.getLong(state.array, i, state.byteOrder));
         }
     }
 
@@ -173,7 +178,7 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getLong_New(final ByteOrderBenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            UnsafeUtils.getLong(ARRAY, state.random.nextInt(SIZE - Long.BYTES), state.byteOrder);
+            blackhole.consume(UnsafeUtils.getLong(state.array, i, state.byteOrder));
         }
     }
 
@@ -182,10 +187,8 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getHeapBufferToArray_Old(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            final int offset = state.random.nextInt(SIZE);
-            final int length = state.random.nextInt(SIZE - offset);
-            final int dstOffset = state.random.nextInt(SIZE - length);
-            OldUnsafeUtils.getHeapBufferToArray(HEAP_BUFFER, offset, ARRAY, dstOffset, length);
+            OldUnsafeUtils.getHeapBufferToArray(state.heapBuffer, i, state.array, i, LENGTH);
+            blackhole.consume(state.array);
         }
     }
 
@@ -194,10 +197,8 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getHeapBufferToArray_New(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            final int offset = state.random.nextInt(SIZE);
-            final int length = state.random.nextInt(SIZE - offset);
-            final int dstOffset = state.random.nextInt(SIZE - length);
-            UnsafeUtils.getHeapBufferToArray(HEAP_BUFFER, offset, ARRAY, dstOffset, length);
+            UnsafeUtils.getHeapBufferToArray(state.heapBuffer, i, state.array, i, LENGTH);
+            blackhole.consume(state.array);
         }
     }
 
@@ -206,10 +207,8 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getDirectBufferToArray_Old(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            final int offset = state.random.nextInt(SIZE);
-            final int length = state.random.nextInt(SIZE - offset);
-            final int dstOffset = state.random.nextInt(SIZE - length);
-            OldUnsafeUtils.getDirectBufferToArray(DIRECT_BUFFER, offset, ARRAY, dstOffset, length);
+            OldUnsafeUtils.getDirectBufferToArray(state.directBuffer, i, state.array, i, LENGTH);
+            blackhole.consume(state.array);
         }
     }
 
@@ -218,10 +217,8 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getDirectBufferToArray_New(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            final int offset = state.random.nextInt(SIZE);
-            final int length = state.random.nextInt(SIZE - offset);
-            final int dstOffset = state.random.nextInt(SIZE - length);
-            UnsafeUtils.getDirectBufferToArray(DIRECT_BUFFER, offset, ARRAY, dstOffset, length);
+            UnsafeUtils.getDirectBufferToArray(state.directBuffer, i, state.array, i, LENGTH);
+            blackhole.consume(state.array);
         }
     }
 
@@ -230,10 +227,8 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getDirectBufferToDirectBuffer_Old(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            final int offset = state.random.nextInt(SIZE);
-            final int length = state.random.nextInt(SIZE - offset);
-            final int dstOffset = state.random.nextInt(SIZE - length);
-            OldUnsafeUtils.getDirectBufferToDirectBuffer(DIRECT_BUFFER, offset, DIRECT_BUFFER_2, dstOffset, length);
+            OldUnsafeUtils.getDirectBufferToDirectBuffer(state.directBuffer, i, state.directBuffer2, i, LENGTH);
+            blackhole.consume(state.directBuffer2);
         }
     }
 
@@ -242,10 +237,8 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void getDirectBufferToDirectBuffer_New(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            final int offset = state.random.nextInt(SIZE);
-            final int length = state.random.nextInt(SIZE - offset);
-            final int dstOffset = state.random.nextInt(SIZE - length);
-            UnsafeUtils.getDirectBufferToDirectBuffer(DIRECT_BUFFER, offset, DIRECT_BUFFER_2, dstOffset, length);
+            UnsafeUtils.getDirectBufferToDirectBuffer(state.directBuffer, i, state.directBuffer2, i, LENGTH);
+            blackhole.consume(state.directBuffer2);
         }
     }
 
@@ -254,10 +247,8 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void putByteArrayToDirectBuffer_Old(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            final int offset = state.random.nextInt(SIZE);
-            final int length = state.random.nextInt(SIZE - offset);
-            final int srcOffset = state.random.nextInt(SIZE - length);
-            OldUnsafeUtils.putByteArrayToDirectBuffer(DIRECT_BUFFER, offset, ARRAY, srcOffset, length);
+            OldUnsafeUtils.putByteArrayToDirectBuffer(state.directBuffer, i, state.array, i, LENGTH);
+            blackhole.consume(state.directBuffer);
         }
     }
 
@@ -266,10 +257,8 @@ public class UnsafeBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void putByteArrayToDirectBuffer_New(final BenchState state, final Blackhole blackhole) {
         for (int i = 0; i < INVOCATIONS; i++) {
-            final int offset = state.random.nextInt(SIZE);
-            final int length = state.random.nextInt(SIZE - offset);
-            final int srcOffset = state.random.nextInt(SIZE - length);
-            UnsafeUtils.putByteArrayToDirectBuffer(DIRECT_BUFFER, offset, ARRAY, srcOffset, length);
+            UnsafeUtils.putByteArrayToDirectBuffer(state.directBuffer, i, state.array, i, LENGTH);
+            blackhole.consume(state.directBuffer);
         }
     }
 
