@@ -18,6 +18,9 @@ public final class FileAndPackageNamesConfig {
     /** Suffix for JSON codec java classes */
     public static final String JSON_CODEC_JAVA_FILE_SUFFIX = "JsonCodec";
 
+    /** Suffix for XDR codec java classes */
+    public static final String XDR_CODEC_JAVA_FILE_SUFFIX = "XdrCodec";
+
     /** The sub package where all schema java classes should be placed */
     public static final String SCHEMAS_SUBPACKAGE = "schema";
 

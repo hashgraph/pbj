@@ -301,7 +301,7 @@ public final class LookupHelper {
             case SCHEMA -> name + FileAndPackageNamesConfig.SCHEMA_JAVA_FILE_SUFFIX;
             case CODEC -> name + FileAndPackageNamesConfig.CODEC_JAVA_FILE_SUFFIX;
             case JSON_CODEC -> name + FileAndPackageNamesConfig.JSON_CODEC_JAVA_FILE_SUFFIX;
-            case XDR_CODEC -> name + "XdrCodec";
+            case XDR_CODEC -> name + FileAndPackageNamesConfig.XDR_CODEC_JAVA_FILE_SUFFIX;
             case TEST -> name + FileAndPackageNamesConfig.TEST_JAVA_FILE_SUFFIX;
         };
     }
