@@ -60,8 +60,7 @@ public class UnsafeBench {
         }
 
         @TearDown(Level.Trial)
-        public void tearDown() {
-        }
+        public void tearDown() {}
 
         private void randomize(Random random) {
             random.nextBytes(array);
