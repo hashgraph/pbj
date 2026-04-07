@@ -14,6 +14,7 @@ public record FileSetWriter(
         JavaFileWriter schemaWriter,
         JavaFileWriter codecWriter,
         JavaFileWriter jsonCodecWriter,
+        JavaFileWriter xdrCodecWriter,
         JavaFileWriter testWriter,
         boolean generateTestClasses) {
 
@@ -29,6 +30,7 @@ public record FileSetWriter(
                 JavaFileWriter.create(FileType.SCHEMA, mainOutputDir, msgDef, contextualLookupHelper),
                 JavaFileWriter.create(FileType.CODEC, mainOutputDir, msgDef, contextualLookupHelper),
                 JavaFileWriter.create(FileType.JSON_CODEC, mainOutputDir, msgDef, contextualLookupHelper),
+                JavaFileWriter.create(FileType.XDR_CODEC, mainOutputDir, msgDef, contextualLookupHelper),
                 JavaFileWriter.create(FileType.TEST, testOutputDir, msgDef, contextualLookupHelper),
                 generateTestClasses);
     }
@@ -39,6 +41,7 @@ public record FileSetWriter(
         schemaWriter.writeFile();
         codecWriter.writeFile();
         jsonCodecWriter.writeFile();
+        xdrCodecWriter.writeFile();
         if (generateTestClasses) {
             testWriter.writeFile();
         }
