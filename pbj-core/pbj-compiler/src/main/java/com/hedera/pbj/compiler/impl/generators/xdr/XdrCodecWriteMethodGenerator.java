@@ -91,14 +91,16 @@ final class XdrCodecWriteMethodGenerator {
 
         // spotless:off
         return """
-                XdrWriterTools.writeInt(output, item.%s().hasValue() ? item.%s().kind().protoOrdinal() : 0);
-                if (item.%s().hasValue()) {
+                final int %s_discriminant = ((EnumWithProtoMetadata)item.%s().kind()).protoOrdinal();
+                XdrWriterTools.writeInt(output, %s_discriminant);
+                if (%s_discriminant != 0) {
                     switch (item.%s().kind()) {
+                        case UNSET -> throw new IllegalStateException("UNSET oneof arm reached with non-zero discriminant");
                         %s
                     }
                 }
                 """
-                .formatted(fieldName, fieldName, fieldName, fieldName, switchCases);
+                .formatted(fieldName, fieldName, fieldName, fieldName, fieldName, switchCases);
         // spotless:on
     }
 

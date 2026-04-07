@@ -91,8 +91,9 @@ final class XdrCodecMeasureRecordMethodGenerator {
         // spotless:off
         return """
                 size += 4; // discriminant
-                if (item.%s().hasValue()) {
+                if (((EnumWithProtoMetadata)item.%s().kind()).protoOrdinal() != 0) {
                     switch (item.%s().kind()) {
+                        case UNSET -> throw new IllegalStateException("UNSET oneof arm reached with non-zero discriminant");
                         %s
                     }
                 }
