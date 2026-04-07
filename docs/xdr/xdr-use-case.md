@@ -194,6 +194,16 @@ There are no pre-existing Solidity XDR parsing libraries. All Solidity decoders 
 
 XDR natively supports `float` and `double` (IEEE 754). The EVM has zero floating-point support. If any future CLPR schema uses floating-point types, they could not be decoded on-chain without extremely expensive software emulation. CLPR's current schemas do not use floating point, and future schemas should avoid it for on-chain types.
 
+## 6.6 No Per-Message Boundary Enforcement
+
+PBJ's protobuf codec uses length-prefixed nested messages for boundary enforcement — setting `input.limit()` before parsing and verifying exact byte consumption afterward. XDR structs have no length prefix (RFC 4506), so this level of boundary checking is unavailable. A malformed nested message could silently consume bytes belonging to subsequent fields.
+
+**Mitigation:** PBJ's XDR codec enforces strict validation of all structural sentinel values (presence flags, booleans, padding bytes, enum values, union discriminants). These serve as implicit boundary detectors: any field misalignment caused by a nested message parsing error produces invalid sentinel values, which are rejected immediately as `ParseException`. Combined with top-level `maxSize` and `maxDepth` limits, this provides defense-in-depth without deviating from the RFC. See the [XDR Design Document](xdr-design.md) §5.9 and §5.12 for details.
+
+## 6.7 Schema Version Sensitivity
+
+XDR's positional encoding means both encoder and decoder must use the exact same schema version. Adding a field in the middle of a message, reordering fields, or changing field types will silently produce incorrect parses rather than detectable errors. XDR encoding should be treated as a **snapshot format** — suitable for deterministic hashing, storage, and same-version communication, not for protocol evolution across schema versions.
+
 ---
 
 # 7. Gas Cost Analysis for CLPR-Critical Structures

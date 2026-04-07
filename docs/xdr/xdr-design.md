@@ -273,6 +273,11 @@ The XDR presence flag follows the same convention:
 For **optional value wrappers** (StringValue, Int32Value, etc.), which PBJ models as nullable
 Java types, the presence flag correctly distinguishes null from a default value.
 
+**Canonical encoding rule:** A presence flag of `1` followed by a default value (e.g.,
+`int32 = 0`, `string = ""`, `bool = false`) is **invalid**. The writer must emit presence=0 for
+default values, and the parser must reject presence=1 with a default value during strict
+parsing. This ensures exactly one valid encoding per model state.
+
 ### 5.5 Bool Size Expansion
 
 Proto bool is a 1-byte varint. XDR bool is 4 bytes. This is inherent to XDR's 4-byte alignment
@@ -297,19 +302,37 @@ Proto enums use `protoOrdinal()` values which can be arbitrary integers (not jus
 XDR enums are also arbitrary signed ints. Direct mapping: write/read `protoOrdinal()` as a
 4-byte signed int.
 
-Proto3 enums can have values outside the known set (unrecognized). PBJ stores these as raw
-integers. XDR encodes the raw integer, preserving unknown enum values across round-trips.
+Proto3 enums can have values outside the known set (unrecognized). Since XDR is a **snapshot
+format** (both encoder and decoder must use the same schema version), unrecognized enum values
+should be **rejected** during parsing. Unlike protobuf — where unknown enum values enable schema
+evolution — XDR has no schema evolution mechanism, so accepting unknown values provides no
+benefit while silently masking data corruption or schema version mismatches. The generated
+parser should throw `ParseException` for enum values not present in the known set.
 
 ### 5.9 Nested Message Boundaries
 
 In protobuf, nested messages are length-prefixed. In XDR, structs are concatenated with no
 length prefix — the schema tells the decoder exactly what fields to expect.
 
-This design does **not** add length prefixes for nested messages, keeping the format pure XDR.
-The decoder recursively parses the nested message's fields in order.
+This design does **not** add length prefixes for nested messages, keeping the format pure XDR
+(RFC 4506 compliant). The decoder recursively parses the nested message's fields in order.
 
-**Implication:** You cannot skip a nested message without fully parsing its structure. This is
-an acceptable trade-off for a schema-driven format.
+**Implication:** You cannot skip a nested message without fully parsing its structure.
+
+**Security implication:** PBJ's protobuf codec uses nested message length prefixes for boundary
+enforcement — it sets `input.limit()` before parsing and verifies
+`position == startPos + messageLength` afterward (see `CodecParseMethodGenerator.java:374-382`).
+This detects cases where a nested parser consumes too many or too few bytes. XDR cannot do this
+because there is no declared length to compare against.
+
+**Mitigation:** The top-level `maxSize` limit prevents unbounded reads. More importantly, the
+strict validation of all sentinel values (presence flags, booleans, enum values, union
+discriminants, and padding bytes — see §5.12) means that field misalignment caused by a
+malformed nested message cascades into a detectable parse error quickly. A misaligned read
+produces invalid sentinel values (e.g., a presence flag that is neither 0 nor 1), which are
+rejected immediately. The window for silent data corruption — where misaligned bytes happen to
+form valid presence flags, valid field values, valid padding, and land exactly at the end of the
+message — is extremely narrow for any non-trivial message.
 
 ### 5.10 Map Key and Value Types
 
@@ -324,6 +347,80 @@ fixed32, fixed64, sfixed32, sfixed64, bool, string) — same restriction as prot
 Messages that reference themselves (directly or indirectly) work correctly because:
 - The presence flag (0) terminates recursion for absent nested messages
 - The `maxDepth` parameter prevents infinite recursion in malicious data
+
+### 5.12 Strict Validation of Sentinel Values (Canonical Encoding)
+
+XDR's canonical encoding guarantee depends on strict validation of all values that serve as
+structural markers. Without this validation, multiple distinct byte sequences can decode to the
+same logical value, breaking deterministic hashing. The XDR parser **must** enforce:
+
+| Sentinel | Valid values | Reject |
+|----------|-------------|--------|
+| Presence flag | `0x00000000`, `0x00000001` | Any other 4-byte value |
+| Bool value | `0x00000000`, `0x00000001` | Any other 4-byte value |
+| Padding bytes | `0x00` per byte | Any non-zero padding byte |
+| Union discriminant | Known field numbers, or `0` (unset) | Unknown field numbers |
+| Enum value | Known `protoOrdinal()` values | Unrecognized enum values |
+| Presence=1 + default value | N/A | Reject (e.g., presence=1, int32=0) |
+
+These validations collectively serve as **misalignment detectors**. Since XDR has no per-message
+length prefix (§5.9), field boundary errors in nested messages are not caught at the message
+boundary. Instead, strict sentinel validation ensures that misaligned reads produce immediately
+detectable invalid values, converting silent data corruption into fast parse failures.
+
+### 5.13 Union Discriminant Validation
+
+For `oneof` fields encoded as XDR discriminated unions, the discriminant is the proto field
+number of the active arm (or `0` for unset). The parser must reject discriminant values that
+do not match any known arm. An unknown discriminant indicates either data corruption or a schema
+version mismatch — both of which should fail fast rather than silently skip or misinterpret data.
+
+### 5.14 Repeated Field Count Limits
+
+Repeated fields are encoded with a 4-byte count prefix. This count must be validated against a
+**per-field element count limit**, not against `maxSize` (which is a byte-size limit). Using
+`maxSize` (2 MB) as an element count limit would allow, for example, 2,097,152 elements of
+`int32` — which would be 8 MB of XDR data to parse, far exceeding the intended byte limit.
+
+The element count limit is derived from the `pbj.xdr_max_length` annotation on the proto field.
+If no annotation is present, a reasonable default should be used. The generated parser enforces
+this limit before entering the element-reading loop.
+
+### 5.15 Schema Version Mismatch Detection
+
+XDR is positional with no type metadata. If the parser uses schema version N but receives data
+encoded with a different schema version (e.g., a field added in the middle per §5.2), the parser
+silently misinterprets data — reading bytes meant for one field as a different field. Unlike
+protobuf, where tag-based encoding detects unknown fields, XDR has no mechanism for this.
+
+**Mitigation:** Strict sentinel validation (§5.12) catches many cases of schema mismatch, since
+misaligned field reads produce invalid presence flags, booleans, or padding. For additional
+safety, consider including a schema version identifier (e.g., a 4-byte hash of the schema) as
+the first field of top-level messages used in on-chain or cross-system contexts.
+
+### 5.16 Top-Level Message Size
+
+XDR structs have no inherent length prefix. For streaming or framing use cases, callers must
+either:
+1. Set `input.limit()` to the known message boundary before calling `parse()`, or
+2. Use a framing layer (e.g., gRPC length-prefixed messages) that bounds the input
+
+Without one of these, a malformed message with many large variable-length fields could force the
+parser to consume unbounded data before any single-field `maxSize` check triggers. The `maxSize`
+parameter limits individual field sizes, not total message size.
+
+**Recommendation:** When XDR messages are used outside of a framing protocol, the caller should
+set `input.limit()` to the total available bytes before parsing. The generated codec should
+document this requirement.
+
+### 5.17 Integer Overflow in Size Measurement
+
+The `measureRecord()` method returns `int` and accumulates field sizes additively. XDR's larger
+per-field overhead (4-byte presence flags, 4-byte alignment padding) means size sums grow faster
+than protobuf. For messages with many variable-length fields, intermediate sums could
+theoretically overflow `int`. The implementation should use `long` arithmetic internally and
+throw if the result exceeds `Integer.MAX_VALUE`, or document that messages exceeding 2 GB are
+not supported (which is already implied by `maxSize`).
 
 ## 6. IO Layer Compatibility (Java)
 
@@ -372,14 +469,27 @@ public final class XdrParserTools {
     static long readHyper(ReadableSequentialData in)       // 8-byte big-endian long
     static float readFloat(ReadableSequentialData in)      // 4-byte IEEE754 BE float
     static double readDouble(ReadableSequentialData in)    // 8-byte IEEE754 BE double
-    static boolean readBool(ReadableSequentialData in)     // 4-byte int → boolean
-    static String readString(ReadableSequentialData in, int maxSize)  // length + data + skip padding
-    static Bytes readOpaque(ReadableSequentialData in, int maxSize)   // length + data + skip padding
+    static boolean readBool(ReadableSequentialData in)     // 4-byte int → boolean; MUST reject values != 0 or 1
+    static String readString(ReadableSequentialData in, int maxSize)  // length + data + validate padding
+    static Bytes readOpaque(ReadableSequentialData in, int maxSize)   // length + data + validate padding
     static int readEnum(ReadableSequentialData in)         // 4-byte signed int
-    static boolean readPresence(ReadableSequentialData in) // 4-byte bool → boolean
-    static void skipPadding(ReadableSequentialData in, int dataLength) // skip 0-3 pad bytes
+    static boolean readPresence(ReadableSequentialData in) // 4-byte int → boolean; MUST reject values != 0 or 1
+    static void readAndValidatePadding(ReadableSequentialData in, int dataLength) // read 0-3 pad bytes, throw if non-zero
 }
 ```
+
+**Strict validation rules for `XdrParserTools`:**
+- `readBool()` reads a 4-byte int and throws `ParseException` if the value is anything other
+  than `0` or `1`. This ensures canonical encoding — there is exactly one valid encoding for
+  each boolean value.
+- `readPresence()` reads a 4-byte int and throws `ParseException` if the value is anything other
+  than `0` or `1`. Same canonical encoding requirement.
+- `readAndValidatePadding()` reads 0–3 padding bytes and throws `ParseException` if any byte is
+  non-zero. RFC 4506 requires padding bytes to be zero; accepting non-zero padding would allow
+  multiple byte sequences to decode to the same value, breaking canonical encoding and
+  deterministic hashing guarantees.
+- `readString()` and `readOpaque()` call `readAndValidatePadding()` internally after reading
+  the data bytes.
 
 **`XdrWriterTools`** — static helper methods for writing XDR types:
 ```java
@@ -472,10 +582,17 @@ Generated `HelloRequestXdrCodec`:
 ```java
 public final class HelloRequestXdrCodec implements XdrCodec<HelloRequest> {
 
+    // Maximum element count for repeated fields (from pbj.xdr_max_length annotation, or default)
+    private static final int TAGS_MAX_COUNT = 1024;
+
     @Override
     public HelloRequest parse(ReadableSequentialData input, boolean strictMode,
             boolean parseUnknownFields, int maxDepth, int maxSize) throws ParseException {
+        if (maxDepth < 0) {
+            throw new ParseException("Reached maximum allowed depth of nested messages");
+        }
         // Field 1: name (string, optional)
+        // readPresence() validates the 4-byte int is exactly 0 or 1
         String temp_name = "";
         if (XdrParserTools.readPresence(input)) {
             temp_name = XdrParserTools.readString(input, maxSize);
@@ -486,10 +603,14 @@ public final class HelloRequestXdrCodec implements XdrCodec<HelloRequest> {
             temp_age = XdrParserTools.readInt(input);
         }
         // Field 3: tags (repeated string)
+        // Count limit uses xdr_max_length annotation, NOT maxSize (which is a byte limit)
         List<String> temp_tags = Collections.emptyList();
         final int tags_count = input.readInt();
         if (tags_count > 0) {
-            if (tags_count > maxSize) throw new ParseException("tags count exceeds maxSize");
+            if (tags_count > TAGS_MAX_COUNT) {
+                throw new ParseException("tags count " + tags_count
+                        + " exceeds max " + TAGS_MAX_COUNT);
+            }
             for (int i = 0; i < tags_count; i++) {
                 temp_tags = addToList(temp_tags, XdrParserTools.readString(input, maxSize));
             }
@@ -630,6 +751,14 @@ The XDR codec provides these properties:
 4. **4-byte aligned** — Every field starts and ends on a 4-byte boundary
 5. **No self-description** — Decoder must know the schema; no embedded type information
 6. **Big-endian** — Network byte order throughout
+7. **Fail-fast parsing** — Invalid data is rejected immediately, never silently accepted
+
+Properties 3 and 7 depend on strict validation of sentinel values (§5.12). Without these
+validations, canonical encoding is not guaranteed and malformed data may be silently accepted:
+- Non-zero padding bytes → multiple byte sequences decode to same value (breaks property 3)
+- Non-0/1 booleans → multiple encodings for true (breaks property 3)
+- Non-0/1 presence flags → undefined parse behavior (breaks property 7)
+- Unknown enum/discriminant values → silent data corruption (breaks property 7)
 
 These properties make XDR especially suitable for:
 - Deterministic hashing (same object = same hash, guaranteed)
@@ -649,6 +778,18 @@ These properties make XDR especially suitable for:
 - String/bytes alignment padding (lengths 0, 1, 2, 3, 4, 5 to test all padding cases)
 - Maximum size and depth limit enforcement
 
+### Canonical Encoding Validation Tests
+- Non-zero padding bytes → ParseException
+- Bool value `0x00000002` → ParseException
+- Bool value `0xFFFFFFFF` → ParseException
+- Presence flag `0x00000002` → ParseException
+- Presence flag = 1 with default value (int32=0, string="", bool=false) → ParseException
+- Unknown enum value → ParseException
+- Unknown union discriminant → ParseException
+- Repeated field count exceeding `xdr_max_length` → ParseException
+- Verify `hash(encode(obj)) == hash(encode(decode(encode(obj))))` for all test objects
+  (round-trip preserves canonical encoding)
+
 ### Integration Tests
 - Cross-codec consistency: verify that `XDR.parse(XDR.toBytes(obj))` equals
   `PROTOBUF.parse(PROTOBUF.toBytes(obj))` for the same model object
@@ -658,6 +799,9 @@ These properties make XDR especially suitable for:
 ### Fuzz Tests
 - Random valid model objects → XDR write → XDR parse → compare
 - Random byte arrays → XDR parse → verify graceful failure or valid object
+- Targeted mutation: take valid XDR bytes and flip single bits in padding/presence/bool/enum
+  positions → verify ParseException (not silent corruption)
+- Nested message boundary fuzzing: truncate or extend nested message data → verify failure
 
 ## 12. Open Questions
 
@@ -666,10 +810,12 @@ These properties make XDR especially suitable for:
    is consistent with PBJ's "codec-per-format" architecture principle (see `docs/codecs.md`).
    Allows adding XDR-specific methods later (e.g., `toXdrHex()`).
 
-2. **Should XDR encoding include a top-level message length prefix?**
-   Pure XDR structs don't have length prefixes. However, for streaming use cases, a 4-byte
-   length prefix before the message would allow framing. This could be an option on the codec
-   rather than part of the default encoding.
+2. ~~**Should XDR encoding include a top-level message length prefix?**~~
+   **Resolved: No**, but callers must bound the input. Pure XDR structs don't have length
+   prefixes, and adding one would deviate from RFC 4506. Instead, callers must set
+   `input.limit()` to the known message boundary before calling `parse()`, or rely on a framing
+   layer (e.g., gRPC) that bounds the input. Without this, total message size is unbounded.
+   See §5.16 for details.
 
 3. **Should we generate `XdrArrayWriterTools` (byte[] fast path) like `ProtoArrayWriterTools`?**
    This is a performance optimization. Recommend deferring to a later phase unless benchmarks
@@ -696,9 +842,9 @@ These properties make XDR especially suitable for:
 ### Phase 1: Runtime Foundation
 - Add `XDR_CODEC` to `FileType` enum
 - Create `XdrCodec<T>` interface
-- Create `XdrParserTools` class
+- Create `XdrParserTools` class (with strict validation: bool=0|1, presence=0|1, padding=0x00)
 - Create `XdrWriterTools` class
-- Unit test the parser/writer tools directly
+- Unit test the parser/writer tools directly, including canonical encoding rejection tests
 
 ### Phase 2: Code Generator
 - Create `XdrCodecGenerator` (main class)

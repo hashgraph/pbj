@@ -2,7 +2,9 @@
 
 This document describes the testing strategy for the XDR codec addition to PBJ, following
 PBJ's established three-stage testing approach: unit tests, integration tests, and performance
-benchmarks. The plan prioritizes **round-trip fidelity** and **binary compliance with RFC 4506**.
+benchmarks. The plan prioritizes **round-trip fidelity**, **binary compliance with RFC 4506**,
+and **canonical encoding validation** (strict rejection of non-canonical inputs to ensure
+deterministic hashing — see xdr-design.md §5.12 and §10).
 
 ---
 
@@ -109,8 +111,22 @@ and verify the value.
 | `readEnum` | `00 00 00 03` | `3` | §4.3 |
 | `readPresence_true` | `00 00 00 01` | `true` | §4.19 |
 | `readPresence_false` | `00 00 00 00` | `false` | §4.19 |
+| `readPresence_invalid_2` | `00 00 00 02` | Throw `ParseException` | §4.19 |
+| `readPresence_invalid_max` | `FF FF FF FF` | Throw `ParseException` | §4.19 |
+| `readBool_invalid_max` | `FF FF FF FF` | Throw `ParseException` | §4.4 |
 
-**Variable-length read methods — verify padding is consumed correctly:**
+**Padding validation — verify non-zero padding bytes are rejected (RFC 4506 §4.10):**
+
+| Test | Input Bytes | Expected |
+|------|-------------|----------|
+| `readAndValidatePadding_allZero` | `00 00 00` (3 pad bytes for dataLength=1) | No exception |
+| `readAndValidatePadding_nonZeroFirst` | `FF 00 00` (3 pad bytes for dataLength=1) | Throw `ParseException` |
+| `readAndValidatePadding_nonZeroLast` | `00 00 FF` (3 pad bytes for dataLength=1) | Throw `ParseException` |
+| `readAndValidatePadding_noPadNeeded` | (dataLength=4, 0 pad bytes) | No exception |
+| `readString_nonZeroPadding` | `00 00 00 01 41 00 00 FF` | Throw `ParseException` |
+| `readOpaque_nonZeroPadding` | `00 00 00 01 42 FF 00 00` | Throw `ParseException` |
+
+**Variable-length read methods — verify padding is consumed and validated:**
 
 | Test | Input Bytes | Expected Value |
 |------|-------------|----------------|
@@ -131,7 +147,7 @@ and verify the value.
 |------|-----------|
 | `readString_positionAdvancedPastPadding` | After reading `"A"` (1 byte), position advanced by 8 (4 len + 1 data + 3 pad) |
 | `readOpaque_positionAdvancedPastPadding` | After reading 5-byte opaque, position advanced by 12 (4 len + 5 data + 3 pad) |
-| `skipPadding_advancesCorrectly` | `skipPadding(in, 1)` advances 3 bytes; `skipPadding(in, 4)` advances 0 |
+| `readAndValidatePadding_advancesCorrectly` | `readAndValidatePadding(in, 1)` advances 3 bytes; `readAndValidatePadding(in, 4)` advances 0 |
 
 ### 1.3 Writer/Parser Round-Trip Tests
 
@@ -621,6 +637,23 @@ void maxSize_enforcedForStrings() {
 }
 ```
 
+**Repeated field count limits (xdr_max_length):**
+
+```java
+@Test
+void repeatedFieldCount_enforcedByMaxLength_notMaxSize() {
+    // Craft XDR bytes with a repeated int32 count that is large (e.g., 2,000,000)
+    // This count is less than DEFAULT_MAX_SIZE (2MB) but far exceeds
+    // the per-field xdr_max_length limit.
+    // Verify ParseException is thrown on the count check, BEFORE any elements are read.
+    // This ensures the limit is an element count, not a byte size.
+    byte[] crafted = new byte[4]; // just the count prefix
+    crafted[0] = 0x00; crafted[1] = 0x1E; crafted[2] = (byte)0x84; crafted[3] = (byte)0x80; // 2,000,000
+    assertThrows(ParseException.class,
+        () -> /* parse message with repeated field from crafted bytes */);
+}
+```
+
 ### 2.9 XDR Malformed Data Tests
 
 **File:** `XdrMalformedDataTest.java`
@@ -642,13 +675,52 @@ and `TruncatedDataTests`.
 
 | Test | Description |
 |------|-------------|
-| `invalid_boolNotZeroOrOne` | Presence flag or bool value is 2 or 0xFFFFFFFF |
+| `invalid_boolNotZeroOrOne` | Bool value is 2, 0xFFFFFFFF, or any value other than 0/1 |
+| `invalid_presenceFlagNotZeroOrOne` | Presence flag is 2, 0xFFFFFFFF, or any value other than 0/1 |
 | `invalid_negativeStringLength` | String length prefix is negative (0x80000000) |
 | `invalid_stringLengthExceedsRemaining` | Length says more bytes than available |
 | `invalid_negativeArrayCount` | Repeated field count is negative |
-| `invalid_arrayCountExceedsMaxSize` | Count > maxSize |
+| `invalid_arrayCountExceedsMaxLength` | Count exceeds per-field `xdr_max_length` limit (NOT maxSize) |
+| `invalid_unknownEnumValue` | Enum field contains a value not in the known set |
+| `invalid_unknownUnionDiscriminant` | OneOf discriminant is a field number not matching any known arm |
+| `invalid_nonZeroPaddingBytes` | String/opaque padding bytes contain non-zero values (e.g., `0xFF`) |
+| `invalid_presenceOneWithDefaultValue` | Presence=1 followed by a default value (int32=0, string="", bool=false) |
 
 All must throw `ParseException` without crashing, hanging, or allocating unbounded memory.
+
+**Canonical encoding invariant:**
+
+```java
+@Test
+void canonicalEncoding_roundTripPreservesBytes() {
+    // For every valid model object:
+    // 1. Encode to XDR bytes
+    // 2. Parse the bytes back to a model object
+    // 3. Re-encode to XDR bytes
+    // 4. Assert byte-for-byte equality between step 1 and step 3
+    // This verifies that parse(encode(obj)) produces an object whose
+    // encoding is identical to the original — no information is lost
+    // or normalized during parsing.
+    Everything obj = /* test object */;
+    Bytes encoded1 = Everything.XDR.toBytes(obj);
+    Everything parsed = Everything.XDR.parse(encoded1.toReadableSequentialData());
+    Bytes encoded2 = Everything.XDR.toBytes(parsed);
+    assertEquals(encoded1, encoded2, "XDR encoding must be canonical");
+}
+```
+
+**Targeted bit-flip mutation tests:**
+
+```java
+@ParameterizedTest
+@ValueSource(strings = {"presence", "bool", "padding", "enum", "discriminant"})
+void bitFlip_inSentinelPosition_throwsParseException(String sentinelType) {
+    // 1. Encode a valid message to XDR bytes
+    // 2. Identify byte offsets of sentinel values (presence flags, bools, padding, etc.)
+    // 3. Flip a single bit in the sentinel
+    // 4. Assert ParseException on parse (not silent corruption)
+}
+```
 
 ### 2.10 XDR Fuzz Tests
 
@@ -681,9 +753,18 @@ void fuzzXdrCodec() {
 **XDR-specific fuzz considerations:**
 - XDR has no tags or wire types, so random byte mutations are more likely to produce
   "valid-looking" data that parses without error (compared to protobuf where random tags are
-  likely invalid). The deserialization failure threshold may need to be lower than protobuf's.
+  likely invalid). However, strict sentinel validation (presence=0|1, bool=0|1, padding=0x00,
+  known enum values, known union discriminants) significantly narrows the space of valid byte
+  sequences, increasing the failure rate for random mutations.
+- The deserialization failure threshold may need to be adjusted relative to protobuf's.
 - Verify that fuzzed XDR data never causes: OOM, infinite loops, stack overflow, or
   `ArrayIndexOutOfBoundsException`.
+
+**Nested message boundary fuzz tests:**
+- Take valid XDR bytes and truncate or extend the bytes within a nested message's region
+- Verify that the parent message parse fails rather than silently misinterpreting subsequent
+  fields. With strict sentinel validation, misaligned reads should produce detectable errors
+  (invalid presence flags, bools, padding, enum values, or discriminants).
 
 ### 2.11 Schema Coverage
 

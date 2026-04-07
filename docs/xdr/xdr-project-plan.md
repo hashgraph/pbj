@@ -71,8 +71,8 @@ Build the runtime classes that generated XDR codecs will depend on. All in `pbj-
   - `readOpaque(ReadableSequentialData, int maxSize)` — read length, validate vs maxSize, read bytes, skip padding
   - `readEnum(ReadableSequentialData)` — `in.readInt()` (returns raw int)
   - `readPresence(ReadableSequentialData)` — read 4-byte int, validate 0 or 1, return boolean
-  - `skipPadding(ReadableSequentialData, int dataLength)` — skip `(4 - (len % 4)) % 4` bytes
-- Throw `ParseException` for: invalid bool values (!= 0 or 1), negative lengths, length > maxSize
+  - `readAndValidatePadding(ReadableSequentialData, int dataLength)` — read `(4 - (len % 4)) % 4` bytes, throw `ParseException` if any byte is non-zero
+- Throw `ParseException` for: invalid bool values (!= 0 or 1), invalid presence flags (!= 0 or 1), non-zero padding bytes, negative lengths, length > maxSize
 - Reference: `ProtoParserTools.java` for style conventions
 
 **Verify:** Compiles with `cd pbj-core && ./gradlew pbj-runtime:compileJava`
@@ -268,14 +268,16 @@ can both serialize and deserialize — round-trip works.
   2. Initialize temp variables for each field with defaults
   3. For each field (sorted by field number), generate code based on field kind:
      - **Singular**: read presence via `XdrParserTools.readPresence()`, if true read value
-     - **Repeated**: read count via `input.readInt()`, validate against maxSize, loop reading elements using `addToList()`
-     - **Map**: read count, validate, loop reading key-value pairs using `addToMap()`
-     - **OneOf**: read discriminant via `input.readInt()`, switch on field number to read arm
+     - **Repeated**: read count via `input.readInt()`, validate against per-field `xdr_max_length` limit (NOT maxSize — see design doc §5.14), loop reading elements using `addToList()`
+     - **Map**: read count, validate against per-field `xdr_max_length` limit, loop reading key-value pairs using `addToMap()`
+     - **OneOf**: read discriminant via `input.readInt()`, validate discriminant is a known field number or 0 (reject unknown discriminants — see design doc §5.13), switch on field number to read arm
      - **Optional wrapper**: read presence, if true read inner value
      - **Nested message**: recursively call `MessageType.XDR.parse()` with `maxDepth - 1`
   4. Post-processing: `makeReadOnly()` on `UnmodifiableArrayList` instances
   5. Construct and return model object from temp vars
-- Note: `strictMode` and `parseUnknownFields` are ignored for XDR (no unknown fields possible)
+- **Enum validation**: reject unrecognized enum values (see design doc §5.8 and §5.12)
+- **Canonical encoding**: reject presence=1 with default value (see design doc §5.4)
+- Note: `strictMode` and `parseUnknownFields` are ignored for XDR (no unknown fields possible in positional encoding)
 
 **Verify:**
 ```bash
