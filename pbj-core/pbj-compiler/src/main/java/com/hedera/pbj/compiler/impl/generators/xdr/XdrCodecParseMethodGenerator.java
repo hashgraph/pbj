@@ -115,8 +115,11 @@ final class XdrCodecParseMethodGenerator {
         } else if (field.optionalValueType()) {
             // Optional wrapper types (StringValue, Int32Value, etc.) — nullable Java type
             return "%s temp_%s = null;".formatted(field.javaFieldType(), field.name());
-        } else if (field.type() == Field.FieldType.ENUM || field.type() == Field.FieldType.MESSAGE) {
+        } else if (field.type() == Field.FieldType.ENUM) {
+            // ENUM fields: use Object to match the model's objectForEnum constructor variant
             return "Object temp_%s = null;".formatted(field.name());
+        } else if (field.type() == Field.FieldType.MESSAGE) {
+            return "%s temp_%s = null;".formatted(field.javaFieldType(), field.name());
         } else {
             // Scalar types: use the FieldType's default value
             return "%s temp_%s = %s;".formatted(
@@ -485,10 +488,10 @@ final class XdrCodecParseMethodGenerator {
                         temp_$oneOfName = new $className<>($enumClassRef.$enumCase, $armName_val);
                     }"""
                     .replace("$armFieldNumber", Integer.toString(armFieldNumber))
+                    .replace("$enumClassRef", enumClassRef)
                     .replace("$enumClass", enumClass)
                     .replace("$armName", arm.name())
                     .replace("$className", className)
-                    .replace("$enumClassRef", enumClassRef)
                     .replace("$enumCase", enumCase)
                     .replace("$oneOfName", oneOfName);
             // spotless:on
@@ -513,6 +516,20 @@ final class XdrCodecParseMethodGenerator {
      * Generate the value-read expression for a non-enum arm of a oneOf switch.
      */
     private static String generateArmValueReadExpr(final Field arm) {
+        // Optional wrapper types (Int64Value, StringValue, etc.) have no codec; read directly
+        if (arm.optionalValueType() && arm instanceof SingleField sf) {
+            return switch (sf.messageType()) {
+                case "StringValue" -> "XdrParserTools.readString(input, maxSize)";
+                case "BoolValue" -> "XdrParserTools.readBool(input)";
+                case "Int32Value", "UInt32Value" -> "XdrParserTools.readInt(input)";
+                case "Int64Value", "UInt64Value" -> "XdrParserTools.readHyper(input)";
+                case "FloatValue" -> "XdrParserTools.readFloat(input)";
+                case "DoubleValue" -> "XdrParserTools.readDouble(input)";
+                case "BytesValue" -> "XdrParserTools.readOpaque(input, maxSize)";
+                default -> throw new UnsupportedOperationException(
+                        "Unhandled optional value type in oneOf arm: " + sf.messageType());
+            };
+        }
         return switch (arm.type()) {
             case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> "XdrParserTools.readInt(input)";
             case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> "XdrParserTools.readHyper(input)";

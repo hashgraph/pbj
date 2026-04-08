@@ -63,6 +63,7 @@ public final class XdrCodecGenerator implements Generator {
         final String writeMethod = XdrCodecWriteMethodGenerator.generateWriteMethod(modelClassName, fields);
         final String measureRecordMethod =
                 XdrCodecMeasureRecordMethodGenerator.generateMeasureRecordMethod(modelClassName, fields);
+        final String parseMethod = XdrCodecParseMethodGenerator.generateParseMethod(modelClassName, fields);
 
         final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
 
@@ -80,14 +81,7 @@ public final class XdrCodecGenerator implements Generator {
                         // no-op
                     }
 
-                    @Override
-                    @NonNull
-                    public $modelClass parse(@NonNull ReadableSequentialData input,
-                            boolean strictMode, boolean parseUnknownFields,
-                            int maxDepth, int maxSize) throws ParseException {
-                        return $modelClass.DEFAULT;
-                    }
-
+                    $parseMethod
                     $writeMethod
                     $measureRecordMethod
                     @Override
@@ -113,6 +107,7 @@ public final class XdrCodecGenerator implements Generator {
                 .replace("$modelClass", modelClassName)
                 .replace("$staticModifier", staticModifier)
                 .replace("$codecClass", codecClassName)
+                .replace("$parseMethod", parseMethod)
                 .replace("$writeMethod", writeMethod)
                 .replace("$measureRecordMethod", measureRecordMethod)
         );
