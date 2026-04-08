@@ -39,6 +39,13 @@ public abstract class PbjCompilerTask extends SourceTask {
     public abstract DirectoryProperty getJavaTestOutputDirectory();
 
     /**
+     * The output directory for generated Solidity XDR decoder libraries.
+     * Only populated for proto files with the {@code pbj.solidity_decoder = "true"} option comment.
+     */
+    @OutputDirectory
+    public abstract DirectoryProperty getSolidityOutputDirectory();
+
+    /**
      * The classpath to import 'proto' files from dependencies. The task expects the proto files to be extracted from
      * the Jar files. These proto files are used for importing protobufs from other modules in the {@link #getSource()}
      * proto files. The generated code for the {@link #getSource()} proto will then have the correct Java imports.
@@ -80,7 +87,8 @@ public abstract class PbjCompilerTask extends SourceTask {
     @TaskAction
     public void perform() throws Exception {
         // Clean output directories
-        getFileOperations().delete(getJavaMainOutputDirectory(), getJavaTestOutputDirectory());
+        getFileOperations().delete(getJavaMainOutputDirectory(), getJavaTestOutputDirectory(),
+                getSolidityOutputDirectory());
 
         final var allRoots = new LinkedHashSet<>(getSourceRoots().get());
         allRoots.addAll(getClasspath().getFiles());
@@ -91,6 +99,7 @@ public abstract class PbjCompilerTask extends SourceTask {
                 allRoots,
                 getJavaMainOutputDirectory().get().getAsFile(),
                 getJavaTestOutputDirectory().get().getAsFile(),
+                getSolidityOutputDirectory().get().getAsFile(),
                 getJavaPackageSuffix().getOrNull(),
                 getGenerateTestClasses().getOrElse(Boolean.FALSE));
     }

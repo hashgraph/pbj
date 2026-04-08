@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package proto;
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>>
+
+message ClprQueueMetadata {
+    uint64 next_message_id = 1;
+    uint64 acked_message_id = 2;
+    bytes sent_running_hash = 3;
+    uint64 received_message_id = 4;
+    bytes received_running_hash = 5;
+}
+
+message ClprMessage {
+    bytes message_data = 1;
+}
+
+message ClprMessageReply {
+    bytes message_reply_data = 1;
+    uint64 message_id = 2;
+}
+
+message ClprControlMessage {
+    oneof payload {
+        ClprEndpointJoin endpoint_join = 1;
+        ClprEndpointLeave endpoint_leave = 2;
+        ClprConfigUpdate config_update = 3;
+    }
+}
+
+message ClprEndpointJoin {
+    ClprEndpoint endpoint = 1;
+}
+
+message ClprEndpointLeave {
+    bytes account_id = 1;
+}
+
+message ClprConfigUpdate {
+    bytes configuration = 1;
+}
+
+message ClprEndpoint {
+    bytes service_endpoint = 1;
+    bytes signing_certificate = 2;
+    bytes account_id = 3;
+}
+
+message ClprMessagePayload {
+    oneof payload {
+        ClprMessage message = 1;
+        ClprMessageReply message_reply = 2;
+        ClprControlMessage control = 3;
+    }
+}
+
+message ClprMessageKey {
+    string chain_id = 1;
+    uint64 message_id = 2;
+}
+
+message ClprMessageValue {
+    ClprMessagePayload payload = 1;
+    bytes running_hash_after_processing = 3;
+}
+
+message ClprSyncPayload {
+    string chain_id = 1;
+    bytes state_proof = 2;
+    bytes state_root = 4;
+    bytes queue_metadata_merkle_path = 10;
+    bytes messages_merkle_path = 11;
+    ClprQueueMetadata queue_metadata = 20;
+    repeated ClprMessagePayload messages = 22;
+}

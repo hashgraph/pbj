@@ -78,6 +78,8 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
                 project.getLayout().getBuildDirectory().dir(outputDirectory + sourceSet.getName() + "/java");
         final Provider<Directory> outputDirectoryTest =
                 project.getLayout().getBuildDirectory().dir(outputDirectory + testFolderName + "/java");
+        final Provider<Directory> outputDirectorySolidity =
+                project.getLayout().getBuildDirectory().dir(outputDirectory + sourceSet.getName() + "/solidity");
 
         // for the given source set we:
         // 1) Add a new 'pbj' virtual directory mapping
@@ -109,6 +111,7 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
                     pbjTask.getClasspath().from(extractedCompileClasspath);
                     pbjTask.getJavaMainOutputDirectory().set(outputDirectoryMain);
                     pbjTask.getJavaTestOutputDirectory().set(outputDirectoryTest);
+                    pbjTask.getSolidityOutputDirectory().set(outputDirectorySolidity);
                     pbjTask.getJavaPackageSuffix().set(pbj.getJavaPackageSuffix());
                 });
 

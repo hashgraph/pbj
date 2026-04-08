@@ -49,6 +49,9 @@ public final class LookupHelper {
 
     private static final String PBJ_COMPARABLE_OPTION_NAME = "pbj.comparable";
 
+    /** The option name for Solidity XDR decoder generation at file level */
+    private static final String PBJ_SOLIDITY_DECODER_OPTION_NAME = "pbj.solidity_decoder";
+
     /** The option name for protoc java package at file level */
     private static final String PROTOC_JAVA_PACKAGE_OPTION_NAME = "java_package";
 
@@ -108,6 +111,9 @@ public final class LookupHelper {
     /** Map from fully qualified msgDef name to a list of field names that are comparable.
      * We use a list here, because the order of the field matters. */
     private final Map<String, List<String>> comparableFieldsByMsg = new HashMap<>();
+
+    /** Set of absolute file paths for proto files with pbj.solidity_decoder = "true". */
+    private final Set<String> solidityDecoderFiles = new HashSet<>();
 
     /**
      * Map from file path to map of message/enum name to fully qualified message/enum name. This
@@ -508,6 +514,10 @@ public final class LookupHelper {
                             if (optionName.equals(PBJ_PACKAGE_OPTION_NAME)) {
                                 pbjJavaPackage = optionValue;
                             }
+                            if (optionName.equals(PBJ_SOLIDITY_DECODER_OPTION_NAME)
+                                    && "true".equalsIgnoreCase(optionValue)) {
+                                solidityDecoderFiles.add(fullQualifiedFile);
+                            }
                         }
                     }
                     if (file.getName().endsWith("pbj_custom_options.proto")) {
@@ -855,5 +865,10 @@ public final class LookupHelper {
      */
     List<String> getComparableFields(MessageDefContext message) {
         return comparableFieldsByMsg.get(getFullyQualifiedProtoNameForContext(message));
+    }
+
+    /** Returns true if the given proto file has the pbj.solidity_decoder = "true" option. */
+    public boolean hasSolidityDecoder(final String absoluteFilePath) {
+        return solidityDecoderFiles.contains(absoluteFilePath);
     }
 }

@@ -11,6 +11,7 @@ import com.hedera.pbj.compiler.impl.LookupHelper;
 import com.hedera.pbj.compiler.impl.generators.EnumGenerator;
 import com.hedera.pbj.compiler.impl.generators.Generator;
 import com.hedera.pbj.compiler.impl.generators.ServiceGenerator;
+import com.hedera.pbj.compiler.impl.generators.xdr.SolidityXdrDecoderGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.File;
@@ -38,6 +39,7 @@ public abstract class PbjCompiler {
      * @param sourceRoots folders containing the source files
      * @param mainOutputDir output directory for generated model, codecs, and schema ("main" files)
      * @param testOutputDir output directory for generated tests ("test" files)
+     * @param solidityOutputDir output directory for generated Solidity XDR decoder libraries
      * @param javaPackageSuffix an optional, nullable suffix to add to the Java package name in generated classes, e.g. ".pbj",
      *                          when an explicit `pbj.java_package` option is missing
      * @throws Exception
@@ -48,6 +50,7 @@ public abstract class PbjCompiler {
             Set<File> sourceRoots,
             File mainOutputDir,
             File testOutputDir,
+            File solidityOutputDir,
             String javaPackageSuffix,
             boolean generateTestClasses)
             throws Exception {
@@ -120,6 +123,20 @@ public abstract class PbjCompiler {
                         if (count++ < MAX_TRACE_FRAMES) System.err.println(STACK_ELEMENT_INDENT + element);
                     }
                     throw e;
+                }
+                // Solidity XDR decoder generation (only for files with pbj.solidity_decoder = "true")
+                if (lookupHelper.hasSolidityDecoder(protoFile.getAbsolutePath())) {
+                    try (final var input = new FileInputStream(protoFile)) {
+                        final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
+                        final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
+                        final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
+                        for (final var topLevelDef : parsedDoc.topLevelDef()) {
+                            if (topLevelDef.messageDef() != null) {
+                                SolidityXdrDecoderGenerator.generate(
+                                        topLevelDef.messageDef(), solidityOutputDir, contextualLookupHelper);
+                            }
+                        }
+                    }
                 }
             }
         }
