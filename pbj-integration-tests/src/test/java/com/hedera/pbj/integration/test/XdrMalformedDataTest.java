@@ -17,8 +17,7 @@ class XdrMalformedDataTest {
      */
     @Test
     void emptyInput_throwsException() {
-        assertThrows(Exception.class, () ->
-                TimestampTest.XDR.parse(Bytes.EMPTY.toReadableSequentialData()));
+        assertThrows(Exception.class, () -> TimestampTest.XDR.parse(Bytes.EMPTY.toReadableSequentialData()));
     }
 
     /**
@@ -32,8 +31,9 @@ class XdrMalformedDataTest {
         // Keep only the first 4 bytes (presence flag for seconds)
         byte[] truncated = new byte[4];
         xdr.getBytes(0, truncated, 0, 4);
-        assertThrows(Exception.class, () ->
-                TimestampTest.XDR.parse(Bytes.wrap(truncated).toReadableSequentialData()));
+        assertThrows(
+                Exception.class,
+                () -> TimestampTest.XDR.parse(Bytes.wrap(truncated).toReadableSequentialData()));
     }
 
     /**
@@ -45,10 +45,11 @@ class XdrMalformedDataTest {
         // presence=1 (4 bytes) + only 4 bytes of an 8-byte hyper
         byte[] partialHyper = new byte[] {
             0x00, 0x00, 0x00, 0x01, // presence = 1 (seconds present)
-            0x00, 0x00, 0x00, 0x00  // only 4 bytes of the 8-byte hyper
+            0x00, 0x00, 0x00, 0x00 // only 4 bytes of the 8-byte hyper
         };
-        assertThrows(Exception.class, () ->
-                TimestampTest.XDR.parse(Bytes.wrap(partialHyper).toReadableSequentialData()));
+        assertThrows(
+                Exception.class,
+                () -> TimestampTest.XDR.parse(Bytes.wrap(partialHyper).toReadableSequentialData()));
     }
 
     /**
@@ -58,11 +59,11 @@ class XdrMalformedDataTest {
     @Test
     void invalidPresenceFlag_throwsException() {
         // presence=2 (invalid — only 0 and 1 are valid)
-        byte[] invalidPresence = new byte[] {
-            0x00, 0x00, 0x00, 0x02  // invalid presence flag
+        byte[] invalidPresence = new byte[] {0x00, 0x00, 0x00, 0x02 // invalid presence flag
         };
-        assertThrows(Exception.class, () ->
-                TimestampTest.XDR.parse(Bytes.wrap(invalidPresence).toReadableSequentialData()));
+        assertThrows(
+                Exception.class,
+                () -> TimestampTest.XDR.parse(Bytes.wrap(invalidPresence).toReadableSequentialData()));
     }
 
     /**
@@ -74,9 +75,10 @@ class XdrMalformedDataTest {
         byte[] nonCanonical = new byte[] {
             0x00, 0x00, 0x00, 0x01, // presence = 1
             0x00, 0x00, 0x00, 0x00, // hyper = 0 (high 4 bytes)
-            0x00, 0x00, 0x00, 0x00  // hyper = 0 (low 4 bytes)
+            0x00, 0x00, 0x00, 0x00 // hyper = 0 (low 4 bytes)
         };
-        assertThrows(Exception.class, () ->
-                TimestampTest.XDR.parse(Bytes.wrap(nonCanonical).toReadableSequentialData()));
+        assertThrows(
+                Exception.class,
+                () -> TimestampTest.XDR.parse(Bytes.wrap(nonCanonical).toReadableSequentialData()));
     }
 }

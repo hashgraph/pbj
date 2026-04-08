@@ -38,19 +38,17 @@ public final class XdrCrossCodecConsistencyTest {
 
     @ParameterizedTest
     @MethodSource("createTimestampTestArguments")
-    void xdrRoundTrip_equalsProtobufRoundTrip_TimestampTest(
-            final NoToStringWrapper<TimestampTest> wrapper) throws Exception {
+    void xdrRoundTrip_equalsProtobufRoundTrip_TimestampTest(final NoToStringWrapper<TimestampTest> wrapper)
+            throws Exception {
         final TimestampTest original = wrapper.getValue();
 
         // Protobuf round-trip
         final Bytes protoBytes = TimestampTest.PROTOBUF.toBytes(original);
-        final TimestampTest fromProto =
-                TimestampTest.PROTOBUF.parse(protoBytes.toReadableSequentialData());
+        final TimestampTest fromProto = TimestampTest.PROTOBUF.parse(protoBytes.toReadableSequentialData());
 
         // XDR round-trip
         final Bytes xdrBytes = TimestampTest.XDR.toBytes(original);
-        final TimestampTest fromXdr =
-                TimestampTest.XDR.parse(xdrBytes.toReadableSequentialData());
+        final TimestampTest fromXdr = TimestampTest.XDR.parse(xdrBytes.toReadableSequentialData());
 
         // Both round-trips must produce equal objects
         assertEquals(fromProto, fromXdr);
@@ -80,19 +78,16 @@ public final class XdrCrossCodecConsistencyTest {
 
     @ParameterizedTest
     @MethodSource("createHashevalArguments")
-    void xdrRoundTrip_equalsProtobufRoundTrip_Hasheval(
-            final NoToStringWrapper<Hasheval> wrapper) throws Exception {
+    void xdrRoundTrip_equalsProtobufRoundTrip_Hasheval(final NoToStringWrapper<Hasheval> wrapper) throws Exception {
         final Hasheval original = wrapper.getValue();
 
         // Protobuf round-trip
         final Bytes protoBytes = Hasheval.PROTOBUF.toBytes(original);
-        final Hasheval fromProto =
-                Hasheval.PROTOBUF.parse(protoBytes.toReadableSequentialData());
+        final Hasheval fromProto = Hasheval.PROTOBUF.parse(protoBytes.toReadableSequentialData());
 
         // XDR round-trip
         final Bytes xdrBytes = Hasheval.XDR.toBytes(original);
-        final Hasheval fromXdr =
-                Hasheval.XDR.parse(xdrBytes.toReadableSequentialData());
+        final Hasheval fromXdr = Hasheval.XDR.parse(xdrBytes.toReadableSequentialData());
 
         // Both round-trips must produce equal objects
         assertEquals(fromProto, fromXdr);

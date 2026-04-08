@@ -27,10 +27,26 @@ class XdrBinaryComplianceTest {
         final TimestampTest msg = new TimestampTest(1234L, 567);
         final Bytes xdr = TimestampTest.XDR.toBytes(msg);
         final byte[] expected = new byte[] {
-            0x00, 0x00, 0x00, 0x01,                                     // presence=1 for seconds
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, (byte) 0xD2,     // hyper 1234
-            0x00, 0x00, 0x00, 0x01,                                     // presence=1 for nanos
-            0x00, 0x00, 0x02, 0x37                                      // int 567
+            0x00,
+            0x00,
+            0x00,
+            0x01, // presence=1 for seconds
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x04,
+            (byte) 0xD2, // hyper 1234
+            0x00,
+            0x00,
+            0x00,
+            0x01, // presence=1 for nanos
+            0x00,
+            0x00,
+            0x02,
+            0x37 // int 567
         };
         assertArrayEquals(expected, xdr.toByteArray());
         assertEquals(expected.length, TimestampTest.XDR.measureRecord(msg));
@@ -46,8 +62,8 @@ class XdrBinaryComplianceTest {
         final TimestampTest msg = new TimestampTest(0L, 0);
         final Bytes xdr = TimestampTest.XDR.toBytes(msg);
         final byte[] expected = new byte[] {
-            0x00, 0x00, 0x00, 0x00,  // presence=0 for seconds
-            0x00, 0x00, 0x00, 0x00   // presence=0 for nanos
+            0x00, 0x00, 0x00, 0x00, // presence=0 for seconds
+            0x00, 0x00, 0x00, 0x00 // presence=0 for nanos
         };
         assertArrayEquals(expected, xdr.toByteArray());
         assertEquals(8, xdr.length());
@@ -64,10 +80,22 @@ class XdrBinaryComplianceTest {
         final MessageWithString msg = new MessageWithString("hello");
         final Bytes xdr = MessageWithString.XDR.toBytes(msg);
         final byte[] expected = new byte[] {
-            0x00, 0x00, 0x00, 0x01,                             // presence=1 for aTestString
-            0x00, 0x00, 0x00, 0x05,                             // length = 5
-            0x68, 0x65, 0x6C, 0x6C, 0x6F,                      // "hello" UTF-8
-            0x00, 0x00, 0x00                                    // 3 padding bytes
+            0x00,
+            0x00,
+            0x00,
+            0x01, // presence=1 for aTestString
+            0x00,
+            0x00,
+            0x00,
+            0x05, // length = 5
+            0x68,
+            0x65,
+            0x6C,
+            0x6C,
+            0x6F, // "hello" UTF-8
+            0x00,
+            0x00,
+            0x00 // 3 padding bytes
         };
         assertArrayEquals(expected, xdr.toByteArray());
         assertEquals(16, xdr.length());
@@ -83,8 +111,7 @@ class XdrBinaryComplianceTest {
     void emptyString_presenceZero() {
         final MessageWithString msg = new MessageWithString("");
         final Bytes xdr = MessageWithString.XDR.toBytes(msg);
-        final byte[] expected = new byte[] {
-            0x00, 0x00, 0x00, 0x00   // presence=0 for aTestString
+        final byte[] expected = new byte[] {0x00, 0x00, 0x00, 0x00 // presence=0 for aTestString
         };
         assertArrayEquals(expected, xdr.toByteArray());
         assertEquals(4, xdr.length());

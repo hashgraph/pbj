@@ -21,8 +21,9 @@ class XdrSafetyLimitsTest {
     void xdrParse_maxDepthNegative_throws() {
         TimestampTest msg = new TimestampTest(1234L, 567);
         Bytes xdr = TimestampTest.XDR.toBytes(msg);
-        assertThrows(ParseException.class, () ->
-                TimestampTest.XDR.parse(xdr.toReadableSequentialData(), false, false, -1, Integer.MAX_VALUE));
+        assertThrows(
+                ParseException.class,
+                () -> TimestampTest.XDR.parse(xdr.toReadableSequentialData(), false, false, -1, Integer.MAX_VALUE));
     }
 
     /**
@@ -32,7 +33,8 @@ class XdrSafetyLimitsTest {
     void xdrParse_normalDepth_succeeds() throws Exception {
         TimestampTest msg = new TimestampTest(1234L, 567);
         Bytes xdr = TimestampTest.XDR.toBytes(msg);
-        TimestampTest parsed = TimestampTest.XDR.parse(xdr.toReadableSequentialData(), false, false, 64, Integer.MAX_VALUE);
+        TimestampTest parsed =
+                TimestampTest.XDR.parse(xdr.toReadableSequentialData(), false, false, 64, Integer.MAX_VALUE);
         assertEquals(msg, parsed);
     }
 
@@ -43,7 +45,8 @@ class XdrSafetyLimitsTest {
     void xdrParse_maxDepthOne_succeedsForFlatMessage() throws Exception {
         TimestampTest msg = new TimestampTest(9999L, 1);
         Bytes xdr = TimestampTest.XDR.toBytes(msg);
-        TimestampTest parsed = TimestampTest.XDR.parse(xdr.toReadableSequentialData(), false, false, 1, Integer.MAX_VALUE);
+        TimestampTest parsed =
+                TimestampTest.XDR.parse(xdr.toReadableSequentialData(), false, false, 1, Integer.MAX_VALUE);
         assertEquals(msg, parsed);
     }
 }
