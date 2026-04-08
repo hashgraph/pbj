@@ -16,8 +16,8 @@ message ClprQueueMetadata {
     uint64 next_message_id     = 1;  // XDR: 4B presence + 8B hyper = 12 bytes
     uint64 acked_message_id    = 2;  // XDR: 4B presence + 8B hyper = 12 bytes
     bytes  sent_running_hash   = 3;  // XDR: 4B presence + 32B opaque[32] = 36 bytes
-    bytes  received_running_hash = 4; // XDR: 4B presence + 32B opaque[32] = 36 bytes
-    uint64 received_message_id = 5;  // XDR: 4B presence + 8B hyper = 12 bytes
+    uint64 received_message_id = 4;  // XDR: 4B presence + 8B hyper = 12 bytes
+    bytes  received_running_hash = 5; // XDR: 4B presence + 32B opaque[32] = 36 bytes
 }
 ```
 
@@ -36,10 +36,10 @@ Offset  Size  Content
     16     8  acked_message_id value (uint64 big-endian)
     24     4  presence flag for sent_running_hash (0x00000001)
     28    32  sent_running_hash value (32 raw bytes, no length prefix)
-    60     4  presence flag for received_running_hash (0x00000001)
-    64    32  received_running_hash value (32 raw bytes, no length prefix)
-    96     4  presence flag for received_message_id (0x00000001)
-   100     8  received_message_id value (uint64 big-endian)
+    60     4  presence flag for received_message_id (0x00000001)
+    64     8  received_message_id value (uint64 big-endian)
+    72     4  presence flag for received_running_hash (0x00000001)
+    76    32  received_running_hash value (32 raw bytes, no length prefix)
 ------  ----
    108        total bytes (all fields present)
 ```
@@ -69,10 +69,10 @@ library ClprQueueMetadataXdr {
     uint256 private constant OFFSET_ACKED_MESSAGE_ID              =  16;
     uint256 private constant OFFSET_SENT_RUNNING_HASH_PRESENCE    =  24;
     uint256 private constant OFFSET_SENT_RUNNING_HASH             =  28;
-    uint256 private constant OFFSET_RECEIVED_RUNNING_HASH_PRESENCE =  60;
-    uint256 private constant OFFSET_RECEIVED_RUNNING_HASH         =  64;
-    uint256 private constant OFFSET_RECEIVED_MESSAGE_ID_PRESENCE  =  96;
-    uint256 private constant OFFSET_RECEIVED_MESSAGE_ID           = 100;
+    uint256 private constant OFFSET_RECEIVED_MESSAGE_ID_PRESENCE  =  60;
+    uint256 private constant OFFSET_RECEIVED_MESSAGE_ID           =  64;
+    uint256 private constant OFFSET_RECEIVED_RUNNING_HASH_PRESENCE =  72;
+    uint256 private constant OFFSET_RECEIVED_RUNNING_HASH         =  76;
 
     /// @notice Total byte length of a fully-present ClprQueueMetadata.
     uint256 internal constant ENCODED_SIZE = 108;
@@ -84,8 +84,8 @@ library ClprQueueMetadataXdr {
         uint64  nextMessageId;
         uint64  ackedMessageId;
         bytes32 sentRunningHash;
-        bytes32 receivedRunningHash;
         uint64  receivedMessageId;
+        bytes32 receivedRunningHash;
     }
 
     // -----------------------------------------------------------------------
@@ -108,10 +108,10 @@ library ClprQueueMetadataXdr {
                                                 offset + OFFSET_ACKED_MESSAGE_ID_PRESENCE);
         result.sentRunningHash    = _readBytes32(data, offset + OFFSET_SENT_RUNNING_HASH,
                                                  offset + OFFSET_SENT_RUNNING_HASH_PRESENCE);
-        result.receivedRunningHash = _readBytes32(data, offset + OFFSET_RECEIVED_RUNNING_HASH,
-                                                  offset + OFFSET_RECEIVED_RUNNING_HASH_PRESENCE);
         result.receivedMessageId  = _readUint64(data, offset + OFFSET_RECEIVED_MESSAGE_ID,
                                                 offset + OFFSET_RECEIVED_MESSAGE_ID_PRESENCE);
+        result.receivedRunningHash = _readBytes32(data, offset + OFFSET_RECEIVED_RUNNING_HASH,
+                                                  offset + OFFSET_RECEIVED_RUNNING_HASH_PRESENCE);
     }
 
     // -----------------------------------------------------------------------
@@ -136,16 +136,16 @@ library ClprQueueMetadataXdr {
                             offset + OFFSET_SENT_RUNNING_HASH_PRESENCE);
     }
 
-    /// @notice Read received_running_hash without decoding any other fields.
-    function receivedRunningHash(bytes calldata data, uint256 offset) internal pure returns (bytes32) {
-        return _readBytes32(data, offset + OFFSET_RECEIVED_RUNNING_HASH,
-                            offset + OFFSET_RECEIVED_RUNNING_HASH_PRESENCE);
-    }
-
     /// @notice Read received_message_id without decoding any other fields.
     function receivedMessageId(bytes calldata data, uint256 offset) internal pure returns (uint64) {
         return _readUint64(data, offset + OFFSET_RECEIVED_MESSAGE_ID,
                            offset + OFFSET_RECEIVED_MESSAGE_ID_PRESENCE);
+    }
+
+    /// @notice Read received_running_hash without decoding any other fields.
+    function receivedRunningHash(bytes calldata data, uint256 offset) internal pure returns (bytes32) {
+        return _readBytes32(data, offset + OFFSET_RECEIVED_RUNNING_HASH,
+                            offset + OFFSET_RECEIVED_RUNNING_HASH_PRESENCE);
     }
 
     // -----------------------------------------------------------------------
@@ -377,7 +377,7 @@ field 1 offset = 0  (known at compile time)
 field 2 offset = 12 (known at compile time: field 1 presence 4B + field 1 value 8B)
 field 3 offset = 24 (known at compile time: + 4B + 8B)
 field 4 offset = 60 (known at compile time: + 4B + 32B)
-field 5 offset = 96 (known at compile time: + 4B + 32B)
+field 5 offset = 72 (known at compile time: + 4B + 8B)
 ```
 
 ### Variable-length struct example (`ClprMessage` with a variable-length payload)
@@ -539,10 +539,10 @@ then the value.
 | `acked_message_id` value | CALLDATALOAD + SHR(192) + MSTORE | — | 3 ops | 9 |
 | `sent_running_hash` presence | CALLDATALOAD + SHR(224) + REQUIRE | — | 3 ops | 19 |
 | `sent_running_hash` value | CALLDATALOAD (no shift) + MSTORE | — | 2 ops | 6 |
-| `received_running_hash` presence | CALLDATALOAD + SHR(224) + REQUIRE | — | 3 ops | 19 |
-| `received_running_hash` value | CALLDATALOAD (no shift) + MSTORE | — | 2 ops | 6 |
 | `received_message_id` presence | CALLDATALOAD + SHR(224) + REQUIRE | — | 3 ops | 19 |
 | `received_message_id` value | CALLDATALOAD + SHR(192) + MSTORE | — | 3 ops | 9 |
+| `received_running_hash` presence | CALLDATALOAD + SHR(224) + REQUIRE | — | 3 ops | 19 |
+| `received_running_hash` value | CALLDATALOAD (no shift) + MSTORE | — | 2 ops | 6 |
 | Memory allocation for struct | MSTORE × 5 fields (already counted above) | — | — | 0 |
 | **Total** | | | | **~134 gas** |
 
