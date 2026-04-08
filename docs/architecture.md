@@ -128,7 +128,7 @@ The compiler is a Gradle plugin (plugin ID: `com.hedera.pbj.pbj-compiler`) that 
 
 ### Generated Artifacts
 
-For each protobuf message, the compiler produces up to five Java files (model, schema, protobuf codec, JSON codec, and test). Enums and services each produce a single file. For full details on the generators and output structure, see [code-generation.md](code-generation.md#code-generators).
+For each protobuf message, the compiler produces up to six Java files (model, schema, protobuf codec, JSON codec, XDR codec, and test). Enums and services each produce a single file. For full details on the generators and output structure, see [code-generation.md](code-generation.md#code-generators).
 
 ### Field Model
 
@@ -140,7 +140,7 @@ The runtime (`pbj-runtime`) provides everything that generated code needs at run
 
 ### Codec Interfaces
 
-The `Codec<T>` interface is the core serialization contract. Every generated message exposes singleton `PROTOBUF` and `JSON` codec instances. Codecs provide parse, write, measure, and fast-equals operations with configurable safety limits (`maxSize` and `maxDepth`). For full details, see [codecs.md](codecs.md).
+The `Codec<T>` interface is the core serialization contract. Every generated message exposes singleton `PROTOBUF`, `JSON`, and `XDR` codec instances. Codecs provide parse, write, measure, and fast-equals operations with configurable safety limits (`maxSize` and `maxDepth`). For full details, see [codecs.md](codecs.md) and [codec-xdr.md](codec-xdr.md).
 
 ### IO Abstractions
 

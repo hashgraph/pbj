@@ -5,6 +5,7 @@ This document describes PBJ's shared serialization architecture — the runtime 
 For format-specific codec details, see:
 - [codec-protobuf.md](codec-protobuf.md) — protobuf binary codec internals
 - [codec-json.md](codec-json.md) — JSON codec internals
+- [codec-xdr.md](codec-xdr.md) — XDR (RFC 4506) binary codec internals
 
 For protobuf specification coverage and type mappings, see [protobuf-and-schemas.md](protobuf-and-schemas.md).
 
@@ -18,12 +19,14 @@ For every `.proto` message, PBJ generates four artifacts:
 | **Schema class** | `HelloRequestSchema` | Static `FieldDefinition` constants and field-number lookup |
 | **Protobuf codec** | `HelloRequestProtoCodec` | Binary protobuf serialization (`implements Codec<T>`) |
 | **JSON codec** | `HelloRequestJsonCodec` | JSON serialization (`implements JsonCodec<T>`) |
+| **XDR codec** | `HelloRequestXdrCodec` | XDR (RFC 4506) binary serialization (`implements XdrCodec<T>`) |
 
 Each model class exposes singleton codec instances as static fields:
 
 ```java
 public static final Codec<HelloRequest> PROTOBUF = new HelloRequestProtoCodec();
 public static final JsonCodec<HelloRequest> JSON = new HelloRequestJsonCodec();
+public static final XdrCodec<HelloRequest> XDR = new HelloRequestXdrCodec();
 ```
 
 This means any code that has a reference to the model type can serialize/deserialize without looking up codecs externally:
@@ -38,6 +41,10 @@ Bytes bytes = HelloRequest.PROTOBUF.toBytes(msg);
 // Parse/write JSON
 HelloRequest msg = HelloRequest.JSON.parse(jsonInput);
 String json = HelloRequest.JSON.toJSON(msg);
+
+// Parse/write XDR (RFC 4506 big-endian binary)
+HelloRequest msg = HelloRequest.XDR.parse(readableData);
+Bytes xdrBytes = HelloRequest.XDR.toBytes(msg);
 ```
 
 ## Runtime Interfaces

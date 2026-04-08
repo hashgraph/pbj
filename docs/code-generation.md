@@ -127,6 +127,7 @@ Map.of(
     SchemaGenerator.class,    FileSetWriter::schemaWriter,
     CodecGenerator.class,     FileSetWriter::codecWriter,
     JsonCodecGenerator.class, FileSetWriter::jsonCodecWriter,
+    XdrCodecGenerator.class,  FileSetWriter::xdrCodecWriter,
     TestGenerator.class,      FileSetWriter::testWriter
 );
 ```
@@ -146,7 +147,7 @@ Generates a Java `record` for each protobuf message containing:
 - `toString()`, `compareTo()` (when fields are marked `pbj.comparable`)
 - Builder inner class with fluent API (`newBuilder()`, `toBuilder()`)
 - OneOf inner enums and typed accessor methods
-- Static `PROTOBUF` and `JSON` codec constants
+- Static `PROTOBUF`, `JSON`, and `XDR` codec constants
 
 ### SchemaGenerator
 
@@ -182,13 +183,29 @@ Implements `Codec<T>` for JSON serialization/deserialization. Structured similar
 - `JsonCodecParseMethodGenerator` — JSON deserialization
 - `JsonCodecWriteMethodGenerator` — JSON serialization
 
+### XdrCodecGenerator
+
+**Output:** `<MessageName>XdrCodec.java` in the `.codec` sub-package
+
+Implements `XdrCodec<T>` (which extends `Codec<T>`) for XDR (RFC 4506) binary serialization. The generator delegates to specialized sub-generators:
+
+| Sub-generator | Method generated | Purpose |
+|---------------|-----------------|---------|
+| `XdrCodecParseMethodGenerator` | `parse(ReadableSequentialData, ...)` | Deserialize from XDR binary |
+| `XdrCodecWriteMethodGenerator` | `write(T, WritableSequentialData)` | Serialize to XDR binary |
+| `XdrCodecMeasureRecordMethodGenerator` | `measureRecord(T)` | Record-based size measurement |
+| `CodecFastEqualsMethodGenerator` (shared) | `fastEquals(T, T)` | Optimized equality check |
+| `CodecDefaultInstanceMethodGenerator` (shared) | `getDefaultInstance()` | Singleton default instance |
+
+The parse method reads fields in proto field number order. Each singular field is preceded by a 4-byte presence flag. Repeated fields are preceded by a 4-byte count. OneOf fields use a 4-byte discriminant. See [codec-xdr.md](codec-xdr.md) for encoding details.
+
 ### TestGenerator
 
 **Output:** `<MessageName>Test.java` in the `.tests` sub-package (test source set)
 
 Generates JUnit 5 parameterized tests covering:
 
-- Round-trip serialization (model → bytes → model) for both protobuf and JSON codecs
+- Round-trip serialization (model → bytes → model) for protobuf, JSON, and XDR codecs
 - Equality and hash code verification
 - Unknown fields handling
 - Compatibility with Google protoc-generated classes
