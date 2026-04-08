@@ -109,7 +109,7 @@ final class XdrCodecParseMethodGenerator {
                     oneOfField.className(),
                     oneOfField.getEnumClassRef());
         } else if (field.type() == Field.FieldType.MAP) {
-            return "Map temp_%s = Collections.emptyMap();".formatted(field.name());
+            return "Map temp_%s = PbjMap.EMPTY;".formatted(field.name());
         } else if (field.repeated()) {
             return "List temp_%s = Collections.emptyList();".formatted(field.name());
         } else if (field.optionalValueType()) {
@@ -229,10 +229,6 @@ final class XdrCodecParseMethodGenerator {
                     final $enumClass $name_val = $enumClass.fromProtobufOrdinal($name_ordinal);
                     if ($name_val == $enumClass.UNRECOGNIZED) {
                         throw new ParseException("Unrecognized enum value " + $name_ordinal + " for $name");
-                    }
-                    if (((EnumWithProtoMetadata) $name_val).protoOrdinal() == 0) {
-                        throw new ParseException(
-                                "Canonical encoding violation: presence=1 with default value for $name");
                     }
                     temp_$name = $name_val;
                 }

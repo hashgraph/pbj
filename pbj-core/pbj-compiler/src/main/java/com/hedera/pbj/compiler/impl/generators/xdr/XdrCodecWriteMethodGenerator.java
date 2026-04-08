@@ -91,7 +91,8 @@ final class XdrCodecWriteMethodGenerator {
 
         // spotless:off
         return """
-                final int %s_discriminant = ((EnumWithProtoMetadata)item.%s().kind()).protoOrdinal();
+                final int %s_discriminant_raw = ((EnumWithProtoMetadata)item.%s().kind()).protoOrdinal();
+                final int %s_discriminant = %s_discriminant_raw < 0 ? 0 : %s_discriminant_raw;
                 XdrWriterTools.writeInt(output, %s_discriminant);
                 if (%s_discriminant != 0) {
                     switch (item.%s().kind()) {
@@ -100,7 +101,7 @@ final class XdrCodecWriteMethodGenerator {
                     }
                 }
                 """
-                .formatted(fieldName, fieldName, fieldName, fieldName, fieldName, switchCases);
+                .formatted(fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, switchCases);
         // spotless:on
     }
 
@@ -201,8 +202,8 @@ final class XdrCodecWriteMethodGenerator {
                  FLOAT, DOUBLE -> "item.%s() != 0".formatted(fieldName);
             case BOOL -> "item.%s()".formatted(fieldName);
             case STRING -> "!item.%s().isEmpty()".formatted(fieldName);
-            case BYTES -> "item.%s() != null && item.%s() != Bytes.EMPTY".formatted(fieldName, fieldName);
-            case ENUM -> "item.%sProtoOrdinal() != 0".formatted(fieldName);
+            case BYTES -> "item.%s() != null && item.%s().length() > 0".formatted(fieldName, fieldName);
+            case ENUM -> "item.%s() != null".formatted(fieldName);
             case MESSAGE -> "item.%s() != null".formatted(fieldName);
             default -> throw new UnsupportedOperationException(
                     "Unsupported field type for presence check: " + field.type());

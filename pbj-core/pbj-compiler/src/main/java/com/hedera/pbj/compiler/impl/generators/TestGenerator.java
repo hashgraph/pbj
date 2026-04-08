@@ -451,6 +451,40 @@ public final class TestGenerator implements Generator {
                     final var codecDefaultInstance = codec.getDefaultInstance();
                     assertEquals($modelClassName.DEFAULT, codecDefaultInstance);
                 }
+
+                @ParameterizedTest
+                @MethodSource("createModelTestArguments")
+                public void test$simpleModelClassNameXdrRoundTrip(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
+                    final $modelClassName modelObj = modelObjWrapper.getValue();
+                    final Bytes xdrBytes = $modelClassName.XDR.toBytes(modelObj);
+                    final $modelClassName parsedObj = $modelClassName.XDR.parse(xdrBytes);
+                    assertEquals(modelObj, parsedObj);
+                }
+
+                @ParameterizedTest
+                @MethodSource("createModelTestArguments")
+                public void test$simpleModelClassNameXdrMeasureConsistency(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
+                    final $modelClassName modelObj = modelObjWrapper.getValue();
+                    final int measured = $modelClassName.XDR.measureRecord(modelObj);
+                    final Bytes xdrBytes = $modelClassName.XDR.toBytes(modelObj);
+                    assertEquals(xdrBytes.length(), measured,
+                            "measureRecord must match actual XDR serialized size");
+                }
+
+                @ParameterizedTest
+                @MethodSource("createModelTestArguments")
+                public void test$simpleModelClassNameXdrFastEquals(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
+                    final $modelClassName modelObj = modelObjWrapper.getValue();
+                    final Bytes xdrBytes = $modelClassName.XDR.toBytes(modelObj);
+                    assertTrue($modelClassName.XDR.fastEquals(modelObj, xdrBytes.toReadableSequentialData()));
+                }
+
+                @Test
+                public void test$simpleModelClassNameXdrGetDefaultValueMethod() {
+                    final var codec = $modelClassName.XDR;
+                    final var codecDefaultInstance = codec.getDefaultInstance();
+                    assertEquals($modelClassName.DEFAULT, codecDefaultInstance);
+                }
                 """
                 .replace("$simpleModelClassName", modelClassName.replace(".", ""))
                 .replace("$modelClassName",modelClassName)

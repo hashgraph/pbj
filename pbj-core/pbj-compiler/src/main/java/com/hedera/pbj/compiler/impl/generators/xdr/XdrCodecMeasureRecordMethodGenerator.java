@@ -91,7 +91,7 @@ final class XdrCodecMeasureRecordMethodGenerator {
         // spotless:off
         return """
                 size += 4; // discriminant
-                if (((EnumWithProtoMetadata)item.%s().kind()).protoOrdinal() != 0) {
+                if (((EnumWithProtoMetadata)item.%s().kind()).protoOrdinal() > 0) {
                     switch (item.%s().kind()) {
                         case UNSET -> throw new IllegalStateException("UNSET oneof arm reached with non-zero discriminant");
                         %s
@@ -198,8 +198,8 @@ final class XdrCodecMeasureRecordMethodGenerator {
                  FLOAT, DOUBLE -> "item.%s() != 0".formatted(fieldName);
             case BOOL -> "item.%s()".formatted(fieldName);
             case STRING -> "!item.%s().isEmpty()".formatted(fieldName);
-            case BYTES -> "item.%s() != null && item.%s() != Bytes.EMPTY".formatted(fieldName, fieldName);
-            case ENUM -> "item.%sProtoOrdinal() != 0".formatted(fieldName);
+            case BYTES -> "item.%s() != null && item.%s().length() > 0".formatted(fieldName, fieldName);
+            case ENUM -> "item.%s() != null".formatted(fieldName);
             case MESSAGE -> "item.%s() != null".formatted(fieldName);
             default -> throw new UnsupportedOperationException(
                     "Unsupported field type for presence check: " + field.type());
