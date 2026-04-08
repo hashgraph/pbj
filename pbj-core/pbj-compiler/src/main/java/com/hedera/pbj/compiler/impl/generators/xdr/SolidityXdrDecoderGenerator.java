@@ -7,6 +7,7 @@ import static com.hedera.pbj.compiler.impl.Common.snakeToCamel;
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.FileType;
+import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.File;
@@ -16,8 +17,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Generates a Solidity XDR decoder library for a protobuf message where all fields are fixed-size scalars.
- * Messages with variable-length fields (string, bytes, repeated, oneof, map, message) are skipped.
+ * Generates a Solidity XDR decoder library for a protobuf message.
+ * <p>
+ * Fixed-size-only messages (all singular, non-repeated, non-oneof scalars) use static offset
+ * constants and individual field accessors — Pattern A.
+ * <p>
+ * Messages with any variable-length field (bytes, string, repeated, oneof, map) use a
+ * runtime pointer-advancing decode function — Pattern B — and import {@code XdrDecoderLib.sol}
+ * for shared helpers.
  */
 public final class SolidityXdrDecoderGenerator {
 
@@ -54,17 +61,7 @@ public final class SolidityXdrDecoderGenerator {
 
         /** Solidity type for the struct field. */
         String solidityType() {
-            return switch (fieldType) {
-                case INT32, SINT32, SFIXED32 -> "int32";
-                case UINT32, FIXED32 -> "uint32";
-                case INT64, SINT64, SFIXED64 -> "int64";
-                case UINT64, FIXED64 -> "uint64";
-                case FLOAT -> "bytes4";
-                case DOUBLE -> "bytes8";
-                case BOOL -> "bool";
-                case ENUM -> "uint32";
-                default -> throw new IllegalStateException("Not a fixed-size type: " + fieldType);
-            };
+            return solidityTypeForFixed(fieldType);
         }
 
         /** The right-shift amount to extract the value from a calldataload result. */
@@ -74,17 +71,41 @@ public final class SolidityXdrDecoderGenerator {
 
         /** Internal helper method name for reading this field type. */
         String helperMethod() {
-            return switch (fieldType) {
-                case INT32, SINT32, SFIXED32 -> "_readInt32";
-                case UINT32, FIXED32, ENUM -> "_readUint32";
-                case INT64, SINT64, SFIXED64 -> "_readInt64";
-                case UINT64, FIXED64 -> "_readUint64";
-                case FLOAT -> "_readBytes4";
-                case DOUBLE -> "_readBytes8";
-                case BOOL -> "_readBool";
-                default -> throw new IllegalStateException("Not a fixed-size type: " + fieldType);
-            };
+            return helperMethodForFixed(fieldType);
         }
+    }
+
+    /**
+     * Returns the Solidity type keyword for a fixed-size protobuf field type.
+     */
+    private static String solidityTypeForFixed(final Field.FieldType type) {
+        return switch (type) {
+            case INT32, SINT32, SFIXED32 -> "int32";
+            case UINT32, FIXED32 -> "uint32";
+            case INT64, SINT64, SFIXED64 -> "int64";
+            case UINT64, FIXED64 -> "uint64";
+            case FLOAT -> "bytes4";
+            case DOUBLE -> "bytes8";
+            case BOOL -> "bool";
+            case ENUM -> "uint32";
+            default -> throw new IllegalStateException("Not a fixed-size type: " + type);
+        };
+    }
+
+    /**
+     * Returns the private helper method name for reading a fixed-size protobuf field type.
+     */
+    private static String helperMethodForFixed(final Field.FieldType type) {
+        return switch (type) {
+            case INT32, SINT32, SFIXED32 -> "_readInt32";
+            case UINT32, FIXED32, ENUM -> "_readUint32";
+            case INT64, SINT64, SFIXED64 -> "_readInt64";
+            case UINT64, FIXED64 -> "_readUint64";
+            case FLOAT -> "_readBytes4";
+            case DOUBLE -> "_readBytes8";
+            case BOOL -> "_readBool";
+            default -> throw new IllegalStateException("Not a fixed-size type: " + type);
+        };
     }
 
     /**
@@ -114,7 +135,9 @@ public final class SolidityXdrDecoderGenerator {
 
     /**
      * Generate a Solidity XDR decoder library for the given message and write it to solidityOutputDir.
-     * If the message contains non-fixed-size fields, logs a note to System.err and skips those fields.
+     * <p>
+     * If the message contains any variable-length fields (bytes, string, repeated, oneof, map),
+     * uses pointer-advancing mode (Pattern B). Otherwise uses static-offset mode (Pattern A).
      *
      * @param msgDef           the ANTLR message definition context
      * @param solidityOutputDir the root output directory for .sol files
@@ -127,6 +150,28 @@ public final class SolidityXdrDecoderGenerator {
             throws IOException {
         final String messageName = msgDef.messageName().getText();
         final String javaPackage = lookupHelper.getPackage(FileType.MODEL, msgDef);
+
+        // Scan to determine if message has any variable-length fields
+        boolean hasVariable = false;
+        for (final var item : msgDef.messageBody().messageElement()) {
+            if (item.field() != null && item.field().fieldName() != null) {
+                final SingleField field = new SingleField(item.field(), lookupHelper);
+                if (field.repeated() || !isFixedSize(field.type())) {
+                    hasVariable = true;
+                    break;
+                }
+            } else if (item.oneof() != null || item.mapField() != null) {
+                hasVariable = true;
+                break;
+            }
+        }
+
+        if (hasVariable) {
+            generateVariableMode(msgDef, solidityOutputDir, lookupHelper, messageName, javaPackage);
+            return;
+        }
+
+        // ---- Fixed-only path (Pattern A) ----
 
         // Build the list of fixed-size fields with their offsets
         final List<FieldInfo> fields = new ArrayList<>();
@@ -417,6 +462,532 @@ public final class SolidityXdrDecoderGenerator {
         final File outputFile = new File(outputDir, libraryName + ".sol");
         Files.writeString(outputFile.toPath(), sb.toString());
     }
+
+    // =========================================================================
+    // Pattern B: variable-length / pointer-advancing mode
+    // =========================================================================
+
+    /**
+     * Generate a pointer-advancing Solidity XDR decoder for a message that has at least one
+     * variable-length field (bytes, string, repeated, oneof, or map).
+     */
+    private static void generateVariableMode(
+            final Protobuf3Parser.MessageDefContext msgDef,
+            final File solidityOutputDir,
+            final ContextualLookupHelper lookupHelper,
+            final String messageName,
+            final String javaPackage)
+            throws IOException {
+
+        final String libraryName = messageName + "Xdr";
+        final int packageDepth = javaPackage.split("\\.").length;
+        final String importPath = "../".repeat(packageDepth) + "XdrDecoderLib.sol";
+
+        // Accumulate struct field declarations and decode() body separately
+        final StringBuilder structFields = new StringBuilder();
+        final StringBuilder decodeBody = new StringBuilder();
+        decodeBody.append("        uint256 ptr = offset;\n");
+
+        // Track which private scalar helpers are needed (only for non-repeated singular fixed fields)
+        boolean needsInt32 = false;
+        boolean needsUint32 = false;
+        boolean needsInt64 = false;
+        boolean needsUint64 = false;
+        boolean needsBytes4 = false;
+        boolean needsBytes8 = false;
+        boolean needsBool = false;
+
+        boolean hasAnyStructField = false;
+
+        for (final var item : msgDef.messageBody().messageElement()) {
+            if (item.field() != null && item.field().fieldName() != null) {
+                final SingleField field = new SingleField(item.field(), lookupHelper);
+                final String camelName = snakeToCamel(field.name(), false);
+
+                if (!field.repeated()) {
+                    if (isFixedSize(field.type())) {
+                        // Singular fixed-size scalar: use private helper + advance ptr
+                        final int valueSize = xdrValueSize(field.type());
+                        final String solType = solidityTypeForFixed(field.type());
+                        final String helper = helperMethodForFixed(field.type());
+                        structFields.append("        ").append(solType).append(" ").append(camelName).append(";\n");
+                        decodeBody.append("        result.").append(camelName)
+                                .append(" = ").append(helper).append("(data, ptr + 4, ptr);\n");
+                        decodeBody.append("        ptr += ").append(PRESENCE_SIZE + valueSize).append(";\n");
+                        switch (helper) {
+                            case "_readUint32" -> needsUint32 = true;
+                            case "_readInt32" -> needsInt32 = true;
+                            case "_readUint64" -> needsUint64 = true;
+                            case "_readInt64" -> needsInt64 = true;
+                            case "_readBytes4" -> needsBytes4 = true;
+                            case "_readBytes8" -> needsBytes8 = true;
+                            case "_readBool" -> needsBool = true;
+                            default -> { /* unreachable */ }
+                        }
+                        hasAnyStructField = true;
+                    } else if (field.type() == Field.FieldType.BYTES
+                            || field.type() == Field.FieldType.STRING) {
+                        // Singular bytes/string: inline presence + length + variable copy
+                        final boolean isStr = field.type() == Field.FieldType.STRING;
+                        structFields.append("        ").append(isStr ? "string" : "bytes")
+                                .append(" ").append(camelName).append(";\n");
+                        decodeBody.append("        {\n");
+                        decodeBody.append("            uint256 ").append(camelName)
+                                .append("FlagPos = data.offset + ptr;\n");
+                        decodeBody.append("            uint32 ").append(camelName).append("Flag;\n");
+                        decodeBody.append("            assembly { ").append(camelName)
+                                .append("Flag := shr(224, calldataload(").append(camelName).append("FlagPos)) }\n");
+                        decodeBody.append("            require(").append(camelName)
+                                .append("Flag <= 1, \"XDR: invalid presence flag\");\n");
+                        decodeBody.append("            require(").append(camelName)
+                                .append("Flag == 1, \"XDR: required field absent\");\n");
+                        decodeBody.append("            uint32 ").append(camelName)
+                                .append("Len = XdrDecoderLib.readUint32Raw(data, ptr + 4);\n");
+                        if (isStr) {
+                            decodeBody.append("            result.").append(camelName)
+                                    .append(" = string(XdrDecoderLib.readVariableBytes(data, ptr + 8, ")
+                                    .append(camelName).append("Len));\n");
+                        } else {
+                            decodeBody.append("            result.").append(camelName)
+                                    .append(" = XdrDecoderLib.readVariableBytes(data, ptr + 8, ")
+                                    .append(camelName).append("Len);\n");
+                        }
+                        decodeBody.append("            uint32 ").append(camelName)
+                                .append("Pad = XdrDecoderLib.paddedLen(").append(camelName).append("Len);\n");
+                        decodeBody.append("            ptr += 8 + uint256(").append(camelName)
+                                .append("Len) + uint256(").append(camelName).append("Pad);\n");
+                        decodeBody.append("        }\n");
+                        hasAnyStructField = true;
+                    } else if (field.type() == Field.FieldType.MESSAGE) {
+                        System.err.println("SolidityXdrDecoderGenerator: message " + messageName
+                                + " has MESSAGE field '" + field.name()
+                                + "'; skipping in variable-mode decoder.");
+                    } else {
+                        System.err.println("SolidityXdrDecoderGenerator: message " + messageName
+                                + " has unsupported field type " + field.type()
+                                + " for field '" + field.name() + "'; skipping.");
+                    }
+                } else {
+                    // Repeated field
+                    if (isFixedSize(field.type())) {
+                        // Repeated fixed-size scalar: count + array allocation + loop
+                        final int elemSize = xdrValueSize(field.type());
+                        final String solType = solidityTypeForFixed(field.type());
+                        structFields.append("        ").append(solType).append("[] ")
+                                .append(camelName).append(";\n");
+                        decodeBody.append("        {\n");
+                        decodeBody.append("            uint32 ").append(camelName)
+                                .append("Count = XdrDecoderLib.readUint32Raw(data, ptr);\n");
+                        decodeBody.append("            ptr += 4;\n");
+                        decodeBody.append("            result.").append(camelName)
+                                .append(" = new ").append(solType).append("[](").append(camelName).append("Count);\n");
+                        decodeBody.append("            for (uint32 ").append(camelName).append("I = 0; ")
+                                .append(camelName).append("I < ").append(camelName).append("Count; ")
+                                .append(camelName).append("I++) {\n");
+                        decodeBody.append("                uint256 ").append(camelName)
+                                .append("Pos = data.offset + ptr;\n");
+                        appendFixedElemRead(decodeBody, field.type(), camelName);
+                        decodeBody.append("                result.").append(camelName).append("[")
+                                .append(camelName).append("I] = ").append(camelName).append("Elem;\n");
+                        decodeBody.append("                ptr += ").append(elemSize).append(";\n");
+                        decodeBody.append("            }\n");
+                        decodeBody.append("        }\n");
+                        hasAnyStructField = true;
+                    } else {
+                        System.err.println("SolidityXdrDecoderGenerator: message " + messageName
+                                + " has repeated non-scalar field '" + field.name()
+                                + "' of type " + field.type() + "; skipping.");
+                    }
+                }
+            } else if (item.oneof() != null) {
+                final OneOfField oneOf = new OneOfField(item.oneof(), messageName, lookupHelper);
+                final String oneofCamel = snakeToCamel(oneOf.name(), false);
+
+                // Struct: kind discriminant + one field per arm (skipping MESSAGE arms)
+                structFields.append("        uint32 ").append(oneofCamel).append("Kind;\n");
+                for (final Field arm : oneOf.fields()) {
+                    final String armCamel = snakeToCamel(arm.name(), false);
+                    if (arm.type() == Field.FieldType.MESSAGE) {
+                        System.err.println("SolidityXdrDecoderGenerator: message " + messageName
+                                + " oneof '" + oneOf.name() + "' arm '" + arm.name()
+                                + "' is MESSAGE type; skipping arm field in struct.");
+                    } else if (arm.type() == Field.FieldType.BYTES
+                            || arm.type() == Field.FieldType.STRING) {
+                        // bytes and string arms both represented as bytes in Solidity
+                        structFields.append("        bytes ").append(armCamel).append(";\n");
+                    } else if (isFixedSize(arm.type())) {
+                        structFields.append("        ").append(solidityTypeForFixed(arm.type()))
+                                .append(" ").append(armCamel).append(";\n");
+                    } else {
+                        System.err.println("SolidityXdrDecoderGenerator: message " + messageName
+                                + " oneof '" + oneOf.name() + "' arm '" + arm.name()
+                                + "' has unsupported type " + arm.type() + "; skipping.");
+                    }
+                }
+
+                // Decode: read 4-byte discriminant, then if-else chain per arm
+                decodeBody.append("        {\n");
+                decodeBody.append("            uint32 ").append(oneofCamel)
+                        .append("Disc = XdrDecoderLib.readUint32Raw(data, ptr);\n");
+                decodeBody.append("            ptr += 4;\n");
+                decodeBody.append("            result.").append(oneofCamel).append("Kind = ")
+                        .append(oneofCamel).append("Disc;\n");
+                decodeBody.append("            if (").append(oneofCamel).append("Disc == 0) {\n");
+                decodeBody.append("                // unset\n");
+                decodeBody.append("            }");
+                for (final Field arm : oneOf.fields()) {
+                    final String armCamel = snakeToCamel(arm.name(), false);
+                    decodeBody.append(" else if (").append(oneofCamel).append("Disc == ")
+                            .append(arm.fieldNumber()).append(") {\n");
+                    if (arm.type() == Field.FieldType.BYTES
+                            || arm.type() == Field.FieldType.STRING) {
+                        decodeBody.append("                uint32 ").append(armCamel)
+                                .append("ArmLen = XdrDecoderLib.readUint32Raw(data, ptr);\n");
+                        decodeBody.append("                result.").append(armCamel)
+                                .append(" = XdrDecoderLib.readVariableBytes(data, ptr + 4, ")
+                                .append(armCamel).append("ArmLen);\n");
+                        decodeBody.append("                uint32 ").append(armCamel)
+                                .append("ArmPad = XdrDecoderLib.paddedLen(").append(armCamel).append("ArmLen);\n");
+                        decodeBody.append("                ptr += 4 + uint256(").append(armCamel)
+                                .append("ArmLen) + uint256(").append(armCamel).append("ArmPad);\n");
+                    } else if (isFixedSize(arm.type())) {
+                        final int armSize = xdrValueSize(arm.type());
+                        decodeBody.append("                uint256 ").append(armCamel)
+                                .append("ArmPos = data.offset + ptr;\n");
+                        appendFixedElemRead(decodeBody, arm.type(), armCamel + "Arm");
+                        decodeBody.append("                result.").append(armCamel).append(" = ")
+                                .append(armCamel).append("ArmElem;\n");
+                        decodeBody.append("                ptr += ").append(armSize).append(";\n");
+                    } else if (arm.type() == Field.FieldType.MESSAGE) {
+                        decodeBody.append("                revert(\"XDR: MESSAGE oneof arm not supported in Solidity decoder\");\n");
+                    } else {
+                        decodeBody.append("                revert(\"XDR: unsupported oneof arm type\");\n");
+                    }
+                    decodeBody.append("            }");
+                }
+                decodeBody.append(" else {\n");
+                decodeBody.append("                revert(\"XDR: unknown oneof discriminant\");\n");
+                decodeBody.append("            }\n");
+                decodeBody.append("        }\n");
+
+                hasAnyStructField = true;
+            } else if (item.mapField() != null) {
+                System.err.println("SolidityXdrDecoderGenerator: message " + messageName
+                        + " has MAP field; skipping in variable-mode decoder.");
+            }
+        }
+
+        if (!hasAnyStructField) {
+            System.err.println("SolidityXdrDecoderGenerator: message " + messageName
+                    + " has no decodable fields in variable-mode; skipping.");
+            return;
+        }
+
+        // Assemble the full .sol file
+        final StringBuilder sb = new StringBuilder();
+
+        sb.append("// SPDX-License-Identifier: Apache-2.0\n");
+        sb.append("pragma solidity ^0.8.20;\n\n");
+        sb.append("import \"").append(importPath).append("\";\n\n");
+
+        sb.append("/// @title ").append(libraryName).append("\n");
+        sb.append("/// @notice Pure XDR decoder for ").append(messageName)
+                .append(" calldata (pointer-advancing mode).\n");
+        sb.append("///         Generated by PBJ \u2014 do not edit.\n");
+        sb.append("library ").append(libraryName).append(" {\n\n");
+
+        // Struct
+        sb.append("    /// @notice Fully decoded ").append(messageName).append(" struct.\n");
+        sb.append("    struct ").append(messageName).append(" {\n");
+        sb.append(structFields);
+        sb.append("    }\n\n");
+
+        // decode()
+        sb.append("    /// @notice Decode all fields from calldata at the given offset using pointer-advancing mode.\n");
+        sb.append("    ///         Reverts if any required field is absent or an unknown discriminant is encountered.\n");
+        sb.append("    function decode(bytes calldata data, uint256 offset)\n");
+        sb.append("        internal pure returns (").append(messageName).append(" memory result)\n");
+        sb.append("    {\n");
+        sb.append(decodeBody);
+        sb.append("    }\n");
+
+        // Private helpers (only if any fixed-size singular fields are present)
+        final boolean needsAnyHelper = needsInt32 || needsUint32 || needsInt64
+                || needsUint64 || needsBytes4 || needsBytes8 || needsBool;
+        if (needsAnyHelper) {
+            sb.append("\n    // --- Internal helpers ---\n\n");
+            sb.append("""
+                        /// @dev Read a 4-byte XDR presence flag. Reverts if not exactly 0 or 1.
+                        function _readPresence(bytes calldata data, uint256 flagOffset)
+                            private
+                            pure
+                            returns (bool present)
+                        {
+                            uint256 pos = data.offset + flagOffset;
+                            uint32 flag;
+                            assembly {
+                                flag := shr(224, calldataload(pos))
+                            }
+                            require(flag <= 1, "XDR: invalid presence flag");
+                            return flag == 1;
+                        }
+
+                    """);
+            if (needsUint32) {
+                sb.append("""
+                            /// @dev Read a 4-byte XDR unsigned int (uint32) at valueOffset, with presence check.
+                            function _readUint32(bytes calldata data, uint256 valueOffset, uint256 flagOffset)
+                                private
+                                pure
+                                returns (uint32 result)
+                            {
+                                require(_readPresence(data, flagOffset), "XDR: required field absent");
+                                uint256 pos = data.offset + valueOffset;
+                                assembly {
+                                    result := shr(224, calldataload(pos))
+                                }
+                            }
+
+                        """);
+            }
+            if (needsInt32) {
+                sb.append("""
+                            /// @dev Read a 4-byte XDR signed int (int32) at valueOffset, with presence check.
+                            function _readInt32(bytes calldata data, uint256 valueOffset, uint256 flagOffset)
+                                private
+                                pure
+                                returns (int32 result)
+                            {
+                                require(_readPresence(data, flagOffset), "XDR: required field absent");
+                                uint256 pos = data.offset + valueOffset;
+                                assembly {
+                                    result := signextend(3, shr(224, calldataload(pos)))
+                                }
+                            }
+
+                        """);
+            }
+            if (needsUint64) {
+                sb.append("""
+                            /// @dev Read an 8-byte XDR unsigned hyper (uint64) at valueOffset, with presence check.
+                            function _readUint64(bytes calldata data, uint256 valueOffset, uint256 flagOffset)
+                                private
+                                pure
+                                returns (uint64 result)
+                            {
+                                require(_readPresence(data, flagOffset), "XDR: required field absent");
+                                uint256 pos = data.offset + valueOffset;
+                                assembly {
+                                    result := shr(192, calldataload(pos))
+                                }
+                            }
+
+                        """);
+            }
+            if (needsInt64) {
+                sb.append("""
+                            /// @dev Read an 8-byte XDR signed hyper (int64) at valueOffset, with presence check.
+                            function _readInt64(bytes calldata data, uint256 valueOffset, uint256 flagOffset)
+                                private
+                                pure
+                                returns (int64 result)
+                            {
+                                require(_readPresence(data, flagOffset), "XDR: required field absent");
+                                uint256 pos = data.offset + valueOffset;
+                                assembly {
+                                    result := signextend(7, shr(192, calldataload(pos)))
+                                }
+                            }
+
+                        """);
+            }
+            if (needsBytes4) {
+                sb.append("""
+                            /// @dev Read a 4-byte XDR float (as bytes4) at valueOffset, with presence check.
+                            function _readBytes4(bytes calldata data, uint256 valueOffset, uint256 flagOffset)
+                                private
+                                pure
+                                returns (bytes4 result)
+                            {
+                                require(_readPresence(data, flagOffset), "XDR: required field absent");
+                                uint256 pos = data.offset + valueOffset;
+                                assembly {
+                                    result := and(calldataload(pos), 0xFFFFFFFF00000000000000000000000000000000000000000000000000000000)
+                                }
+                            }
+
+                        """);
+            }
+            if (needsBytes8) {
+                sb.append("""
+                            /// @dev Read an 8-byte XDR double (as bytes8) at valueOffset, with presence check.
+                            function _readBytes8(bytes calldata data, uint256 valueOffset, uint256 flagOffset)
+                                private
+                                pure
+                                returns (bytes8 result)
+                            {
+                                require(_readPresence(data, flagOffset), "XDR: required field absent");
+                                uint256 pos = data.offset + valueOffset;
+                                assembly {
+                                    result := and(calldataload(pos), 0xFFFFFFFFFFFFFFFF000000000000000000000000000000000000000000000000)
+                                }
+                            }
+
+                        """);
+            }
+            if (needsBool) {
+                sb.append("""
+                            /// @dev Read a 4-byte XDR boolean at valueOffset, with presence check.
+                            function _readBool(bytes calldata data, uint256 valueOffset, uint256 flagOffset)
+                                private
+                                pure
+                                returns (bool result)
+                            {
+                                require(_readPresence(data, flagOffset), "XDR: required field absent");
+                                uint256 pos = data.offset + valueOffset;
+                                uint32 raw;
+                                assembly {
+                                    raw := shr(224, calldataload(pos))
+                                }
+                                require(raw <= 1, "XDR: invalid boolean value");
+                                return raw == 1;
+                            }
+
+                        """);
+            }
+        }
+
+        sb.append("}\n");
+
+        // Write the .sol file
+        final String packagePath = javaPackage.replace('.', File.separatorChar);
+        final File outputDir = new File(solidityOutputDir, packagePath);
+        //noinspection ResultOfMethodCallIgnored
+        outputDir.mkdirs();
+        final File outputFile = new File(outputDir, libraryName + ".sol");
+        Files.writeString(outputFile.toPath(), sb.toString());
+    }
+
+    /**
+     * Append inline assembly to read a single fixed-size element (no presence flag) from calldata.
+     * <p>
+     * The caller must have already declared {@code uint256 {prefix}Pos = data.offset + ptr;} at
+     * 16-space indentation. This method appends the type declaration and assembly read for
+     * {@code {prefix}Elem} at 16-space indentation.
+     *
+     * @param sb     output builder
+     * @param type   fixed-size field type
+     * @param prefix variable name prefix (e.g., {@code "myField"} → vars {@code myFieldPos},
+     *               {@code myFieldElem})
+     */
+    private static void appendFixedElemRead(
+            final StringBuilder sb, final Field.FieldType type, final String prefix) {
+        final String posVar = prefix + "Pos";
+        final String elemVar = prefix + "Elem";
+        switch (type) {
+            case UINT32, FIXED32, ENUM -> {
+                sb.append("                uint32 ").append(elemVar).append(";\n");
+                sb.append("                assembly { ").append(elemVar)
+                        .append(" := shr(224, calldataload(").append(posVar).append(")) }\n");
+            }
+            case INT32, SINT32, SFIXED32 -> {
+                sb.append("                int32 ").append(elemVar).append(";\n");
+                sb.append("                assembly { ").append(elemVar)
+                        .append(" := signextend(3, shr(224, calldataload(").append(posVar).append("))) }\n");
+            }
+            case UINT64, FIXED64 -> {
+                sb.append("                uint64 ").append(elemVar).append(";\n");
+                sb.append("                assembly { ").append(elemVar)
+                        .append(" := shr(192, calldataload(").append(posVar).append(")) }\n");
+            }
+            case INT64, SINT64, SFIXED64 -> {
+                sb.append("                int64 ").append(elemVar).append(";\n");
+                sb.append("                assembly { ").append(elemVar)
+                        .append(" := signextend(7, shr(192, calldataload(").append(posVar).append("))) }\n");
+            }
+            case FLOAT -> {
+                sb.append("                bytes4 ").append(elemVar).append(";\n");
+                sb.append("                assembly { ").append(elemVar)
+                        .append(" := and(calldataload(").append(posVar)
+                        .append("), 0xFFFFFFFF00000000000000000000000000000000000000000000000000000000) }\n");
+            }
+            case DOUBLE -> {
+                sb.append("                bytes8 ").append(elemVar).append(";\n");
+                sb.append("                assembly { ").append(elemVar)
+                        .append(" := and(calldataload(").append(posVar)
+                        .append("), 0xFFFFFFFFFFFFFFFF000000000000000000000000000000000000000000000000) }\n");
+            }
+            case BOOL -> {
+                final String rawVar = prefix + "Raw";
+                sb.append("                uint32 ").append(rawVar).append(";\n");
+                sb.append("                assembly { ").append(rawVar)
+                        .append(" := shr(224, calldataload(").append(posVar).append(")) }\n");
+                sb.append("                require(").append(rawVar)
+                        .append(" <= 1, \"XDR: invalid boolean value\");\n");
+                sb.append("                bool ").append(elemVar).append(" = ").append(rawVar).append(" == 1;\n");
+            }
+            default -> throw new IllegalStateException("Not a fixed-size type: " + type);
+        }
+    }
+
+    // =========================================================================
+    // Shared library generation
+    // =========================================================================
+
+    /**
+     * Write {@code XdrDecoderLib.sol} to the root of {@code solidityOutputDir}.
+     * <p>
+     * This file is imported by all variable-length message decoders. It is idempotent — calling
+     * it multiple times for the same output directory always writes the same content.
+     *
+     * @param solidityOutputDir root output directory for .sol files
+     */
+    public static void generateSharedLib(final File solidityOutputDir) throws IOException {
+        //noinspection ResultOfMethodCallIgnored
+        solidityOutputDir.mkdirs();
+        final File outputFile = new File(solidityOutputDir, "XdrDecoderLib.sol");
+        final String content = """
+                // SPDX-License-Identifier: Apache-2.0
+                pragma solidity ^0.8.20;
+
+                /// @title XdrDecoderLib
+                /// @notice Shared XDR calldata decode helpers used by variable-length message decoders.
+                ///         Generated by PBJ \u2014 do not edit.
+                library XdrDecoderLib {
+
+                    /// @dev Read a 4-byte big-endian uint32 from calldata without a presence check.
+                    ///      Used for array counts, oneof discriminants, and variable-length field lengths.
+                    function readUint32Raw(bytes calldata data, uint256 pos)
+                        internal pure returns (uint32 value)
+                    {
+                        uint256 abs = data.offset + pos;
+                        assembly {
+                            value := shr(224, calldataload(abs))
+                        }
+                    }
+
+                    /// @dev Return the number of XDR padding bytes needed to reach the next 4-byte boundary.
+                    function paddedLen(uint32 len) internal pure returns (uint32) {
+                        unchecked { return (4 - (len % 4)) % 4; }
+                    }
+
+                    /// @dev Copy variable-length bytes from calldata into a new memory array.
+                    function readVariableBytes(bytes calldata data, uint256 pos, uint32 len)
+                        internal pure returns (bytes memory result)
+                    {
+                        result = new bytes(len);
+                        assembly {
+                            calldatacopy(add(result, 32), add(data.offset, pos), len)
+                        }
+                    }
+                }
+                """;
+        Files.writeString(outputFile.toPath(), content);
+    }
+
+    // =========================================================================
+    // Utilities
+    // =========================================================================
 
     private static String xdrTypeComment(final Field.FieldType type) {
         return switch (type) {

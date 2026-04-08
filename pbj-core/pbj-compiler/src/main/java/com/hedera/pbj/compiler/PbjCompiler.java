@@ -126,6 +126,7 @@ public abstract class PbjCompiler {
                 }
                 // Solidity XDR decoder generation (only for files with pbj.solidity_decoder = "true")
                 if (lookupHelper.hasSolidityDecoder(protoFile.getAbsolutePath())) {
+                    SolidityXdrDecoderGenerator.generateSharedLib(solidityOutputDir);
                     try (final var input = new FileInputStream(protoFile)) {
                         final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
                         final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
