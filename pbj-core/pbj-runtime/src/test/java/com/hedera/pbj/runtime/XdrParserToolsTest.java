@@ -56,16 +56,14 @@ class XdrParserToolsTest {
     @Test
     void readHyper_positive() {
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x2A);
+                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x2A);
         assertEquals(42L, XdrParserTools.readHyper(buf));
     }
 
     @Test
     void readHyper_minValue() {
         final BufferedData buf = bufOf(
-                (byte) 0x80, (byte) 0x00, (byte) 0x00, (byte) 0x00,
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00);
+                (byte) 0x80, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00);
         assertEquals(Long.MIN_VALUE, XdrParserTools.readHyper(buf));
     }
 
@@ -90,8 +88,7 @@ class XdrParserToolsTest {
     @Test
     void readDouble_one() {
         final BufferedData buf = bufOf(
-                (byte) 0x3F, (byte) 0xF0, (byte) 0x00, (byte) 0x00,
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00);
+                (byte) 0x3F, (byte) 0xF0, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00);
         assertEquals(1.0, XdrParserTools.readDouble(buf));
     }
 
@@ -199,25 +196,32 @@ class XdrParserToolsTest {
     @Test
     void readString_len1() throws ParseException {
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01,
-                (byte) 0x41, (byte) 0x00, (byte) 0x00, (byte) 0x00);
+                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01, (byte) 0x41, (byte) 0x00, (byte) 0x00, (byte) 0x00);
         assertEquals("A", XdrParserTools.readString(buf, 256));
     }
 
     @Test
     void readString_len4() throws ParseException {
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x04,
-                (byte) 0x41, (byte) 0x42, (byte) 0x43, (byte) 0x44);
+                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x04, (byte) 0x41, (byte) 0x42, (byte) 0x43, (byte) 0x44);
         assertEquals("ABCD", XdrParserTools.readString(buf, 256));
     }
 
     @Test
     void readString_len5() throws ParseException {
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x05,
-                (byte) 0x41, (byte) 0x42, (byte) 0x43, (byte) 0x44,
-                (byte) 0x45, (byte) 0x00, (byte) 0x00, (byte) 0x00);
+                (byte) 0x00,
+                (byte) 0x00,
+                (byte) 0x00,
+                (byte) 0x05,
+                (byte) 0x41,
+                (byte) 0x42,
+                (byte) 0x43,
+                (byte) 0x44,
+                (byte) 0x45,
+                (byte) 0x00,
+                (byte) 0x00,
+                (byte) 0x00);
         assertEquals("ABCDE", XdrParserTools.readString(buf, 256));
     }
 
@@ -225,8 +229,7 @@ class XdrParserToolsTest {
     void readString_utf8() throws ParseException {
         // len=2 + UTF-8 bytes for é (0xC3 0xA9) + 2 padding zeros
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x02,
-                (byte) 0xC3, (byte) 0xA9, (byte) 0x00, (byte) 0x00);
+                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x02, (byte) 0xC3, (byte) 0xA9, (byte) 0x00, (byte) 0x00);
         assertEquals("\u00E9", XdrParserTools.readString(buf, 256));
     }
 
@@ -234,18 +237,29 @@ class XdrParserToolsTest {
     void readString_exceedsMaxSize() {
         // length = 10 but maxSize = 5
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x0A,
-                (byte) 0x41, (byte) 0x42, (byte) 0x43, (byte) 0x44, (byte) 0x45,
-                (byte) 0x46, (byte) 0x47, (byte) 0x48, (byte) 0x49, (byte) 0x4A,
-                (byte) 0x00, (byte) 0x00);
+                (byte) 0x00,
+                (byte) 0x00,
+                (byte) 0x00,
+                (byte) 0x0A,
+                (byte) 0x41,
+                (byte) 0x42,
+                (byte) 0x43,
+                (byte) 0x44,
+                (byte) 0x45,
+                (byte) 0x46,
+                (byte) 0x47,
+                (byte) 0x48,
+                (byte) 0x49,
+                (byte) 0x4A,
+                (byte) 0x00,
+                (byte) 0x00);
         assertThrows(ParseException.class, () -> XdrParserTools.readString(buf, 5));
     }
 
     @Test
     void readString_nonZeroPadding() {
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01,
-                (byte) 0x41, (byte) 0x00, (byte) 0x00, (byte) 0xFF);
+                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01, (byte) 0x41, (byte) 0x00, (byte) 0x00, (byte) 0xFF);
         assertThrows(ParseException.class, () -> XdrParserTools.readString(buf, 256));
     }
 
@@ -261,8 +275,7 @@ class XdrParserToolsTest {
     @Test
     void readOpaque_len1() throws ParseException {
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01,
-                (byte) 0xFF, (byte) 0x00, (byte) 0x00, (byte) 0x00);
+                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01, (byte) 0xFF, (byte) 0x00, (byte) 0x00, (byte) 0x00);
         final Bytes result = XdrParserTools.readOpaque(buf, 256);
         assertEquals(1, result.length());
         assertEquals((byte) 0xFF, result.getByte(0));
@@ -288,21 +301,31 @@ class XdrParserToolsTest {
     void readOpaque_exceedsMaxSize() {
         // length=10, maxSize=5
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x0A,
-                (byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04, (byte) 0x05,
-                (byte) 0x06, (byte) 0x07, (byte) 0x08, (byte) 0x09, (byte) 0x0A,
-                (byte) 0x00, (byte) 0x00);
+                (byte) 0x00,
+                (byte) 0x00,
+                (byte) 0x00,
+                (byte) 0x0A,
+                (byte) 0x01,
+                (byte) 0x02,
+                (byte) 0x03,
+                (byte) 0x04,
+                (byte) 0x05,
+                (byte) 0x06,
+                (byte) 0x07,
+                (byte) 0x08,
+                (byte) 0x09,
+                (byte) 0x0A,
+                (byte) 0x00,
+                (byte) 0x00);
         assertThrows(ParseException.class, () -> XdrParserTools.readOpaque(buf, 5));
     }
 
     @Test
     void readOpaque_nonZeroPadding() {
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01,
-                (byte) 0x42, (byte) 0xFF, (byte) 0x00, (byte) 0x00);
+                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01, (byte) 0x42, (byte) 0xFF, (byte) 0x00, (byte) 0x00);
         assertThrows(ParseException.class, () -> XdrParserTools.readOpaque(buf, 256));
     }
-
 
     // ================================================================================================================
     // readString / readOpaque — negative length
@@ -310,16 +333,14 @@ class XdrParserToolsTest {
     @Test
     void readString_negativeLength() {
         // 0xFF FF FF FF = -1 as a signed int
-        final BufferedData buf = bufOf(
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF);
+        final BufferedData buf = bufOf((byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF);
         assertThrows(ParseException.class, () -> XdrParserTools.readString(buf, 256));
     }
 
     @Test
     void readOpaque_negativeLength() {
         // 0xFF FF FF FF = -1 as a signed int
-        final BufferedData buf = bufOf(
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF);
+        final BufferedData buf = bufOf((byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF);
         assertThrows(ParseException.class, () -> XdrParserTools.readOpaque(buf, 256));
     }
 
@@ -329,8 +350,7 @@ class XdrParserToolsTest {
     @Test
     void readString_positionAdvancedPastPadding() throws ParseException {
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01,
-                (byte) 0x41, (byte) 0x00, (byte) 0x00, (byte) 0x00);
+                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01, (byte) 0x41, (byte) 0x00, (byte) 0x00, (byte) 0x00);
         XdrParserTools.readString(buf, 256);
         assertEquals(8, buf.position());
     }
@@ -339,9 +359,18 @@ class XdrParserToolsTest {
     void readOpaque_positionAdvancedPastPadding() throws ParseException {
         // 5-byte opaque: 4 (len) + 5 (data) + 3 (pad) = 12
         final BufferedData buf = bufOf(
-                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x05,
-                (byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04, (byte) 0x05,
-                (byte) 0x00, (byte) 0x00, (byte) 0x00);
+                (byte) 0x00,
+                (byte) 0x00,
+                (byte) 0x00,
+                (byte) 0x05,
+                (byte) 0x01,
+                (byte) 0x02,
+                (byte) 0x03,
+                (byte) 0x04,
+                (byte) 0x05,
+                (byte) 0x00,
+                (byte) 0x00,
+                (byte) 0x00);
         XdrParserTools.readOpaque(buf, 256);
         assertEquals(12, buf.position());
     }

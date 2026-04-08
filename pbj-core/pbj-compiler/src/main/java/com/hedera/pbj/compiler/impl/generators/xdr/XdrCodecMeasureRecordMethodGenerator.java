@@ -78,8 +78,8 @@ final class XdrCodecMeasureRecordMethodGenerator {
         final String switchCases = oneOfField.fields().stream()
                 .map(arm -> {
                     final String enumCase = Common.camelToUpperSnake(arm.name());
-                    final String sizeCode = generateValueSizeCode(
-                            arm, "item.%s().as()".formatted(fieldName), modelClassName, true);
+                    final String sizeCode =
+                            generateValueSizeCode(arm, "item.%s().as()".formatted(fieldName), modelClassName, true);
                     // spotless:off
                     return """
                             case %s -> size += %s;"""
@@ -112,9 +112,7 @@ final class XdrCodecMeasureRecordMethodGenerator {
 
         final String keyType = keyField.type() == Field.FieldType.MESSAGE
                 ? ((SingleField) keyField).messageType()
-                : keyField.type() == Field.FieldType.ENUM
-                        ? keyField.javaFieldTypeBase()
-                        : keyField.type().boxedType;
+                : keyField.type() == Field.FieldType.ENUM ? keyField.javaFieldTypeBase() : keyField.type().boxedType;
         final String valueType = valueField.type() == Field.FieldType.MESSAGE
                 ? ((SingleField) valueField).messageType()
                 : valueField.type() == Field.FieldType.ENUM
@@ -193,16 +191,15 @@ final class XdrCodecMeasureRecordMethodGenerator {
             return "item.%s() != null".formatted(fieldName);
         }
         return switch (field.type()) {
-            case INT32, UINT32, SINT32, FIXED32, SFIXED32,
-                 INT64, UINT64, SINT64, FIXED64, SFIXED64,
-                 FLOAT, DOUBLE -> "item.%s() != 0".formatted(fieldName);
+            case INT32, UINT32, SINT32, FIXED32, SFIXED32, INT64, UINT64, SINT64, FIXED64, SFIXED64, FLOAT, DOUBLE ->
+                "item.%s() != 0".formatted(fieldName);
             case BOOL -> "item.%s()".formatted(fieldName);
             case STRING -> "!item.%s().isEmpty()".formatted(fieldName);
             case BYTES -> "item.%s() != null && item.%s().length() > 0".formatted(fieldName, fieldName);
             case ENUM -> "item.%s() != null".formatted(fieldName);
             case MESSAGE -> "item.%s() != null".formatted(fieldName);
-            default -> throw new UnsupportedOperationException(
-                    "Unsupported field type for presence check: " + field.type());
+            default ->
+                throw new UnsupportedOperationException("Unsupported field type for presence check: " + field.type());
         };
     }
 
@@ -221,9 +218,7 @@ final class XdrCodecMeasureRecordMethodGenerator {
             return generateOptionalValueSizeCode(field, valueExpr);
         }
 
-        final String castExpr = isOneOfArm
-                ? "(%s) %s".formatted(field.javaFieldType(), valueExpr)
-                : valueExpr;
+        final String castExpr = isOneOfArm ? "(%s) %s".formatted(field.javaFieldType(), valueExpr) : valueExpr;
 
         return switch (field.type()) {
             case INT32, UINT32, SINT32, FIXED32, SFIXED32, BOOL, ENUM, FLOAT -> "4";
@@ -238,8 +233,7 @@ final class XdrCodecMeasureRecordMethodGenerator {
                     throw new UnsupportedOperationException("MESSAGE field is not a SingleField: " + field);
                 }
             }
-            default -> throw new UnsupportedOperationException(
-                    "Unsupported field type for size: " + field.type());
+            default -> throw new UnsupportedOperationException("Unsupported field type for size: " + field.type());
         };
     }
 
@@ -256,8 +250,7 @@ final class XdrCodecMeasureRecordMethodGenerator {
             case "BoolValue", "Int32Value", "UInt32Value", "FloatValue" -> "4";
             case "Int64Value", "UInt64Value", "DoubleValue" -> "8";
             case "BytesValue" -> "XdrWriterTools.sizeOfOpaque(%s)".formatted(valueExpr);
-            default -> throw new UnsupportedOperationException(
-                    "Unhandled optional message type: " + sf.messageType());
+            default -> throw new UnsupportedOperationException("Unhandled optional message type: " + sf.messageType());
         };
     }
 }

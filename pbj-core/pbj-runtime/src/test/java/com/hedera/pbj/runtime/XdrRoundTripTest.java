@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -59,8 +57,15 @@ class XdrRoundTripTest {
     // float round-trip
 
     static Stream<Float> floatValues() {
-        return Stream.of(0.0f, 1.0f, -1.0f, -0.0f, Float.MAX_VALUE, Float.MIN_VALUE,
-                Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY);
+        return Stream.of(
+                0.0f,
+                1.0f,
+                -1.0f,
+                -0.0f,
+                Float.MAX_VALUE,
+                Float.MIN_VALUE,
+                Float.POSITIVE_INFINITY,
+                Float.NEGATIVE_INFINITY);
     }
 
     @ParameterizedTest
@@ -84,8 +89,15 @@ class XdrRoundTripTest {
     // double round-trip
 
     static Stream<Double> doubleValues() {
-        return Stream.of(0.0, 1.0, -1.0, -0.0, Double.MAX_VALUE, Double.MIN_VALUE,
-                Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+        return Stream.of(
+                0.0,
+                1.0,
+                -1.0,
+                -0.0,
+                Double.MAX_VALUE,
+                Double.MIN_VALUE,
+                Double.POSITIVE_INFINITY,
+                Double.NEGATIVE_INFINITY);
     }
 
     @ParameterizedTest

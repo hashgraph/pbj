@@ -66,8 +66,7 @@ class XdrRfcComplianceTest {
         // 1099511627776 = 0x0000010000000000
         final BufferedData buf = write(8);
         XdrWriterTools.writeHyper(buf, 1099511627776L);
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00}, toByteArray(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00}, toByteArray(buf));
     }
 
     // ================================================================================================================
@@ -87,8 +86,7 @@ class XdrRfcComplianceTest {
     void rfc_double_zero() {
         final BufferedData buf = write(8);
         XdrWriterTools.writeDouble(buf, 0.0);
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, toByteArray(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, toByteArray(buf));
     }
 
     // ================================================================================================================
@@ -109,8 +107,7 @@ class XdrRfcComplianceTest {
         final BufferedData buf = write(8);
         buf.writeBytes(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05});
         XdrWriterTools.writePadding(buf, 5);
-        assertArrayEquals(
-                new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0x00, 0x00}, toByteArray(buf));
+        assertArrayEquals(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0x00, 0x00}, toByteArray(buf));
     }
 
     @Test
@@ -138,12 +135,7 @@ class XdrRfcComplianceTest {
         final BufferedData buf = write(12);
         XdrWriterTools.writeOpaque(buf, Bytes.wrap(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05}));
         assertArrayEquals(
-                new byte[] {
-                    0x00, 0x00, 0x00, 0x05,
-                    0x01, 0x02, 0x03, 0x04, 0x05,
-                    0x00, 0x00, 0x00
-                },
-                toByteArray(buf));
+                new byte[] {0x00, 0x00, 0x00, 0x05, 0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0x00, 0x00}, toByteArray(buf));
     }
 
     // ================================================================================================================
@@ -158,7 +150,8 @@ class XdrRfcComplianceTest {
         // length prefix = 9
         assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x09}, java.util.Arrays.copyOfRange(result, 0, 4));
         // data bytes
-        assertArrayEquals("sillyprog".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+        assertArrayEquals(
+                "sillyprog".getBytes(java.nio.charset.StandardCharsets.UTF_8),
                 java.util.Arrays.copyOfRange(result, 4, 13));
         // 3 padding bytes, all zero
         assertArrayEquals(new byte[] {0x00, 0x00, 0x00}, java.util.Arrays.copyOfRange(result, 13, 16));
@@ -203,8 +196,7 @@ class XdrRfcComplianceTest {
         final BufferedData buf = write(8);
         XdrWriterTools.writeInt(buf, 1); // field a
         XdrWriterTools.writeInt(buf, 2); // field b
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02}, toByteArray(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02}, toByteArray(buf));
     }
 
     // ================================================================================================================
@@ -214,10 +206,9 @@ class XdrRfcComplianceTest {
     void rfc_union_arm0() {
         // union switch(0) { case 0: int=42 } → 00 00 00 00 00 00 00 2A
         final BufferedData buf = write(8);
-        XdrWriterTools.writeInt(buf, 0);  // discriminant
+        XdrWriterTools.writeInt(buf, 0); // discriminant
         XdrWriterTools.writeInt(buf, 42); // arm value
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A}, toByteArray(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A}, toByteArray(buf));
     }
 
     @Test
@@ -225,16 +216,10 @@ class XdrRfcComplianceTest {
         // union switch(1) { case 1: string="hi" }
         // → 00 00 00 01 | 00 00 00 02 | 68 69 | 00 00
         final BufferedData buf = write(12);
-        XdrWriterTools.writeInt(buf, 1);     // discriminant
+        XdrWriterTools.writeInt(buf, 1); // discriminant
         XdrWriterTools.writeString(buf, "hi"); // arm value: len=2, "hi", pad 2
         assertArrayEquals(
-                new byte[] {
-                    0x00, 0x00, 0x00, 0x01,
-                    0x00, 0x00, 0x00, 0x02,
-                    0x68, 0x69,
-                    0x00, 0x00
-                },
-                toByteArray(buf));
+                new byte[] {0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x68, 0x69, 0x00, 0x00}, toByteArray(buf));
     }
 
     // ================================================================================================================
@@ -246,8 +231,7 @@ class XdrRfcComplianceTest {
         final BufferedData buf = write(8);
         XdrWriterTools.writePresence(buf, true);
         XdrWriterTools.writeInt(buf, 42);
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x2A}, toByteArray(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x2A}, toByteArray(buf));
     }
 
     @Test

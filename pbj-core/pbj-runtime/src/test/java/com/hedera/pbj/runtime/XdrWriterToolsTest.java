@@ -92,8 +92,7 @@ class XdrWriterToolsTest {
     void writeHyper_minValue() {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeHyper(buf, Long.MIN_VALUE);
-        assertArrayEquals(
-                new byte[] {(byte) 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, toBytes(buf));
+        assertArrayEquals(new byte[] {(byte) 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, toBytes(buf));
     }
 
     @Test
@@ -101,7 +100,9 @@ class XdrWriterToolsTest {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeHyper(buf, Long.MAX_VALUE);
         assertArrayEquals(
-                new byte[] {0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF},
+                new byte[] {
+                    0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF
+                },
                 toBytes(buf));
     }
 
@@ -143,16 +144,14 @@ class XdrWriterToolsTest {
     void writeDouble_one() {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeDouble(buf, 1.0);
-        assertArrayEquals(
-                new byte[] {0x3F, (byte) 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, toBytes(buf));
+        assertArrayEquals(new byte[] {0x3F, (byte) 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, toBytes(buf));
     }
 
     @Test
     void writeDouble_negativeZero() {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeDouble(buf, -0.0);
-        assertArrayEquals(
-                new byte[] {(byte) 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, toBytes(buf));
+        assertArrayEquals(new byte[] {(byte) 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, toBytes(buf));
     }
 
     // ================================================================================================================
@@ -220,32 +219,28 @@ class XdrWriterToolsTest {
     void writeString_len1() {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeString(buf, "A");
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x01, 0x41, 0x00, 0x00, 0x00}, toBytes(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x01, 0x41, 0x00, 0x00, 0x00}, toBytes(buf));
     }
 
     @Test
     void writeString_len2() {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeString(buf, "AB");
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x02, 0x41, 0x42, 0x00, 0x00}, toBytes(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x02, 0x41, 0x42, 0x00, 0x00}, toBytes(buf));
     }
 
     @Test
     void writeString_len3() {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeString(buf, "ABC");
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x03, 0x41, 0x42, 0x43, 0x00}, toBytes(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x03, 0x41, 0x42, 0x43, 0x00}, toBytes(buf));
     }
 
     @Test
     void writeString_len4() {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeString(buf, "ABCD");
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x04, 0x41, 0x42, 0x43, 0x44}, toBytes(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x04, 0x41, 0x42, 0x43, 0x44}, toBytes(buf));
     }
 
     @Test
@@ -253,8 +248,7 @@ class XdrWriterToolsTest {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeString(buf, "ABCDE");
         assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x05, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00, 0x00, 0x00},
-                toBytes(buf));
+                new byte[] {0x00, 0x00, 0x00, 0x05, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00, 0x00, 0x00}, toBytes(buf));
     }
 
     @Test
@@ -262,8 +256,7 @@ class XdrWriterToolsTest {
         // "\u00E9" is é — 2 UTF-8 bytes (0xC3 0xA9), so length = 2, padding = 2
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeString(buf, "\u00E9");
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x02, (byte) 0xC3, (byte) 0xA9, 0x00, 0x00}, toBytes(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x02, (byte) 0xC3, (byte) 0xA9, 0x00, 0x00}, toBytes(buf));
     }
 
     @Test
@@ -300,16 +293,14 @@ class XdrWriterToolsTest {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeOpaque(buf, Bytes.wrap(new byte[] {0x42}));
         // 4-byte len + 1 data byte + 3 zero pad bytes
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x01, 0x42, 0x00, 0x00, 0x00}, toBytes(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x01, 0x42, 0x00, 0x00, 0x00}, toBytes(buf));
     }
 
     @Test
     void writeOpaque_len4() {
         final BufferedData buf = BufferedData.allocate(64);
         XdrWriterTools.writeOpaque(buf, Bytes.wrap(new byte[] {0x01, 0x02, 0x03, 0x04}));
-        assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04}, toBytes(buf));
+        assertArrayEquals(new byte[] {0x00, 0x00, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04}, toBytes(buf));
     }
 
     @Test

@@ -341,7 +341,8 @@ public final class LookupHelper {
                     //noinspection ConstantConditions
                     case MODEL, PROTOC -> basePackage;
                     case SCHEMA -> basePackage + '.' + FileAndPackageNamesConfig.SCHEMAS_SUBPACKAGE;
-                    case CODEC, JSON_CODEC, XDR_CODEC -> basePackage + '.' + FileAndPackageNamesConfig.CODECS_SUBPACKAGE;
+                    case CODEC, JSON_CODEC, XDR_CODEC ->
+                        basePackage + '.' + FileAndPackageNamesConfig.CODECS_SUBPACKAGE;
                     case TEST -> basePackage + '.' + FileAndPackageNamesConfig.TESTS_SUBPACKAGE;
                 };
             }

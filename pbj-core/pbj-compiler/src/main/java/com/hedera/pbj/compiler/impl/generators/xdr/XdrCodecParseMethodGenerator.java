@@ -51,10 +51,9 @@ final class XdrCodecParseMethodGenerator {
                 .collect(Collectors.joining("\n"));
 
         // Constructor argument list — all temps + null for unknownFields
-        final String fieldsList = fields.stream()
-                        .map(field -> "temp_" + field.name())
-                        .collect(Collectors.joining(", "))
-                + (fields.isEmpty() ? "" : ", ") + "null";
+        final String fieldsList =
+                fields.stream().map(field -> "temp_" + field.name()).collect(Collectors.joining(", "))
+                        + (fields.isEmpty() ? "" : ", ") + "null";
 
         // spotless:off
         return """
@@ -102,12 +101,13 @@ final class XdrCodecParseMethodGenerator {
     private static String generateFieldDef(final Field field, final String modelClassName) {
         if (field.type() == Field.FieldType.ONE_OF) {
             final OneOfField oneOfField = (OneOfField) field;
-            return "%s<%s> temp_%s = new %s<>(%s.UNSET, null);".formatted(
-                    oneOfField.className(),
-                    oneOfField.getEnumClassRef(),
-                    field.name(),
-                    oneOfField.className(),
-                    oneOfField.getEnumClassRef());
+            return "%s<%s> temp_%s = new %s<>(%s.UNSET, null);"
+                    .formatted(
+                            oneOfField.className(),
+                            oneOfField.getEnumClassRef(),
+                            field.name(),
+                            oneOfField.className(),
+                            oneOfField.getEnumClassRef());
         } else if (field.type() == Field.FieldType.MAP) {
             return "Map temp_%s = PbjMap.EMPTY;".formatted(field.name());
         } else if (field.repeated()) {
@@ -122,8 +122,7 @@ final class XdrCodecParseMethodGenerator {
             return "%s temp_%s = null;".formatted(field.javaFieldType(), field.name());
         } else {
             // Scalar types: use the FieldType's default value
-            return "%s temp_%s = %s;".formatted(
-                    field.type().javaType, field.name(), field.type().javaDefault);
+            return "%s temp_%s = %s;".formatted(field.type().javaType, field.name(), field.type().javaDefault);
         }
     }
 
@@ -163,7 +162,8 @@ final class XdrCodecParseMethodGenerator {
                     if (temp_$name == 0) throw new ParseException(
                             "Canonical encoding violation: presence=1 with default value for $name");
                 }
-                """.replace("$name", name);
+                """
+                        .replace("$name", name);
             case INT64, UINT64, SINT64, FIXED64, SFIXED64 ->
                 """
                 if (XdrParserTools.readPresence(input)) {
@@ -171,7 +171,8 @@ final class XdrCodecParseMethodGenerator {
                     if (temp_$name == 0) throw new ParseException(
                             "Canonical encoding violation: presence=1 with default value for $name");
                 }
-                """.replace("$name", name);
+                """
+                        .replace("$name", name);
             case FLOAT ->
                 """
                 if (XdrParserTools.readPresence(input)) {
@@ -179,7 +180,8 @@ final class XdrCodecParseMethodGenerator {
                     if (temp_$name == 0) throw new ParseException(
                             "Canonical encoding violation: presence=1 with default value for $name");
                 }
-                """.replace("$name", name);
+                """
+                        .replace("$name", name);
             case DOUBLE ->
                 """
                 if (XdrParserTools.readPresence(input)) {
@@ -187,7 +189,8 @@ final class XdrCodecParseMethodGenerator {
                     if (temp_$name == 0) throw new ParseException(
                             "Canonical encoding violation: presence=1 with default value for $name");
                 }
-                """.replace("$name", name);
+                """
+                        .replace("$name", name);
             case BOOL ->
                 """
                 if (XdrParserTools.readPresence(input)) {
@@ -195,7 +198,8 @@ final class XdrCodecParseMethodGenerator {
                     if (!temp_$name) throw new ParseException(
                             "Canonical encoding violation: presence=1 with default value for $name");
                 }
-                """.replace("$name", name);
+                """
+                        .replace("$name", name);
             case STRING ->
                 """
                 if (XdrParserTools.readPresence(input)) {
@@ -203,7 +207,8 @@ final class XdrCodecParseMethodGenerator {
                     if (temp_$name.isEmpty()) throw new ParseException(
                             "Canonical encoding violation: presence=1 with default value for $name");
                 }
-                """.replace("$name", name);
+                """
+                        .replace("$name", name);
             case BYTES ->
                 """
                 if (XdrParserTools.readPresence(input)) {
@@ -211,11 +216,13 @@ final class XdrCodecParseMethodGenerator {
                     if (temp_$name.length() == 0) throw new ParseException(
                             "Canonical encoding violation: presence=1 with default value for $name");
                 }
-                """.replace("$name", name);
+                """
+                        .replace("$name", name);
             case ENUM -> generateSingularEnumReadLines(field);
             case MESSAGE -> generateSingularMessageReadLines(field);
-            default -> throw new UnsupportedOperationException(
-                    "Unsupported field type for singular XDR parse: " + field.type());
+            default ->
+                throw new UnsupportedOperationException(
+                        "Unsupported field type for singular XDR parse: " + field.type());
         };
     }
 
@@ -260,17 +267,18 @@ final class XdrCodecParseMethodGenerator {
         if (!(field instanceof SingleField sf)) {
             throw new UnsupportedOperationException("Optional value type is not a SingleField: " + field);
         }
-        final String readExpr = switch (sf.messageType()) {
-            case "StringValue" -> "XdrParserTools.readString(input, maxSize)";
-            case "BoolValue" -> "XdrParserTools.readBool(input)";
-            case "Int32Value", "UInt32Value" -> "XdrParserTools.readInt(input)";
-            case "Int64Value", "UInt64Value" -> "XdrParserTools.readHyper(input)";
-            case "FloatValue" -> "XdrParserTools.readFloat(input)";
-            case "DoubleValue" -> "XdrParserTools.readDouble(input)";
-            case "BytesValue" -> "XdrParserTools.readOpaque(input, maxSize)";
-            default -> throw new UnsupportedOperationException(
-                    "Unhandled optional message type: " + sf.messageType());
-        };
+        final String readExpr =
+                switch (sf.messageType()) {
+                    case "StringValue" -> "XdrParserTools.readString(input, maxSize)";
+                    case "BoolValue" -> "XdrParserTools.readBool(input)";
+                    case "Int32Value", "UInt32Value" -> "XdrParserTools.readInt(input)";
+                    case "Int64Value", "UInt64Value" -> "XdrParserTools.readHyper(input)";
+                    case "FloatValue" -> "XdrParserTools.readFloat(input)";
+                    case "DoubleValue" -> "XdrParserTools.readDouble(input)";
+                    case "BytesValue" -> "XdrParserTools.readOpaque(input, maxSize)";
+                    default ->
+                        throw new UnsupportedOperationException("Unhandled optional message type: " + sf.messageType());
+                };
         // spotless:off
         return """
                 if (XdrParserTools.readPresence(input)) {
@@ -339,14 +347,14 @@ final class XdrCodecParseMethodGenerator {
             case BYTES -> "XdrParserTools.readOpaque(input, maxSize)";
             case MESSAGE -> {
                 if (field instanceof SingleField sf) {
-                    final String codecRef =
-                            sf.messageTypeModelPackage() + "." + sf.completeClassName() + ".XDR";
+                    final String codecRef = sf.messageTypeModelPackage() + "." + sf.completeClassName() + ".XDR";
                     yield "%s.parse(input, false, false, maxDepth - 1, maxSize)".formatted(codecRef);
                 }
                 throw new UnsupportedOperationException("MESSAGE field is not a SingleField: " + field);
             }
-            default -> throw new UnsupportedOperationException(
-                    "Unsupported element type for repeated XDR parse: " + field.type());
+            default ->
+                throw new UnsupportedOperationException(
+                        "Unsupported element type for repeated XDR parse: " + field.type());
         };
     }
 
@@ -415,8 +423,9 @@ final class XdrCodecParseMethodGenerator {
             case BOOL -> "XdrParserTools.readBool(input)";
             case STRING -> "XdrParserTools.readString(input, maxSize)";
             case BYTES -> "XdrParserTools.readOpaque(input, maxSize)";
-            default -> throw new UnsupportedOperationException(
-                    "Unsupported map key/value type for XDR parse: " + field.type());
+            default ->
+                throw new UnsupportedOperationException(
+                        "Unsupported map key/value type for XDR parse: " + field.type());
         };
     }
 
@@ -464,10 +473,7 @@ final class XdrCodecParseMethodGenerator {
     }
 
     private static String generateOneOfCaseBody(
-            final Field arm,
-            final String oneOfName,
-            final String enumClassRef,
-            final String className) {
+            final Field arm, final String oneOfName, final String enumClassRef, final String className) {
         final int armFieldNumber = arm.fieldNumber();
         final String enumCase = Common.camelToUpperSnake(arm.name());
 
@@ -522,8 +528,9 @@ final class XdrCodecParseMethodGenerator {
                 case "FloatValue" -> "XdrParserTools.readFloat(input)";
                 case "DoubleValue" -> "XdrParserTools.readDouble(input)";
                 case "BytesValue" -> "XdrParserTools.readOpaque(input, maxSize)";
-                default -> throw new UnsupportedOperationException(
-                        "Unhandled optional value type in oneOf arm: " + sf.messageType());
+                default ->
+                    throw new UnsupportedOperationException(
+                            "Unhandled optional value type in oneOf arm: " + sf.messageType());
             };
         }
         return switch (arm.type()) {
@@ -536,14 +543,13 @@ final class XdrCodecParseMethodGenerator {
             case BYTES -> "XdrParserTools.readOpaque(input, maxSize)";
             case MESSAGE -> {
                 if (arm instanceof SingleField sf) {
-                    final String codecRef =
-                            sf.messageTypeModelPackage() + "." + sf.completeClassName() + ".XDR";
+                    final String codecRef = sf.messageTypeModelPackage() + "." + sf.completeClassName() + ".XDR";
                     yield "%s.parse(input, false, false, maxDepth - 1, maxSize)".formatted(codecRef);
                 }
                 throw new UnsupportedOperationException("MESSAGE oneOf arm is not a SingleField: " + arm);
             }
-            default -> throw new UnsupportedOperationException(
-                    "Unsupported oneOf arm type for XDR parse: " + arm.type());
+            default ->
+                throw new UnsupportedOperationException("Unsupported oneOf arm type for XDR parse: " + arm.type());
         };
     }
 }

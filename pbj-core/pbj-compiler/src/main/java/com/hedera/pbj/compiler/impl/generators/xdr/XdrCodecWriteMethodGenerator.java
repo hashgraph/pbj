@@ -77,8 +77,8 @@ final class XdrCodecWriteMethodGenerator {
         final String switchCases = oneOfField.fields().stream()
                 .map(arm -> {
                     final String enumCase = Common.camelToUpperSnake(arm.name());
-                    final String writeCode = generateValueWriteCode(
-                            arm, "item.%s().as()".formatted(fieldName), modelClassName, true);
+                    final String writeCode =
+                            generateValueWriteCode(arm, "item.%s().as()".formatted(fieldName), modelClassName, true);
                     // spotless:off
                     return """
                             case %s -> {
@@ -115,9 +115,7 @@ final class XdrCodecWriteMethodGenerator {
 
         final String keyType = keyField.type() == Field.FieldType.MESSAGE
                 ? ((SingleField) keyField).messageType()
-                : keyField.type() == Field.FieldType.ENUM
-                        ? keyField.javaFieldTypeBase()
-                        : keyField.type().boxedType;
+                : keyField.type() == Field.FieldType.ENUM ? keyField.javaFieldTypeBase() : keyField.type().boxedType;
         final String valueType = valueField.type() == Field.FieldType.MESSAGE
                 ? ((SingleField) valueField).messageType()
                 : valueField.type() == Field.FieldType.ENUM
@@ -197,16 +195,15 @@ final class XdrCodecWriteMethodGenerator {
             return "item.%s() != null".formatted(fieldName);
         }
         return switch (field.type()) {
-            case INT32, UINT32, SINT32, FIXED32, SFIXED32,
-                 INT64, UINT64, SINT64, FIXED64, SFIXED64,
-                 FLOAT, DOUBLE -> "item.%s() != 0".formatted(fieldName);
+            case INT32, UINT32, SINT32, FIXED32, SFIXED32, INT64, UINT64, SINT64, FIXED64, SFIXED64, FLOAT, DOUBLE ->
+                "item.%s() != 0".formatted(fieldName);
             case BOOL -> "item.%s()".formatted(fieldName);
             case STRING -> "!item.%s().isEmpty()".formatted(fieldName);
             case BYTES -> "item.%s() != null && item.%s().length() > 0".formatted(fieldName, fieldName);
             case ENUM -> "item.%s() != null".formatted(fieldName);
             case MESSAGE -> "item.%s() != null".formatted(fieldName);
-            default -> throw new UnsupportedOperationException(
-                    "Unsupported field type for presence check: " + field.type());
+            default ->
+                throw new UnsupportedOperationException("Unsupported field type for presence check: " + field.type());
         };
     }
 
@@ -225,25 +222,17 @@ final class XdrCodecWriteMethodGenerator {
             return generateOptionalValueWriteCode(field, valueExpr);
         }
 
-        final String castExpr = isOneOfArm
-                ? "(%s) %s".formatted(field.javaFieldType(), valueExpr)
-                : valueExpr;
+        final String castExpr = isOneOfArm ? "(%s) %s".formatted(field.javaFieldType(), valueExpr) : valueExpr;
 
         return switch (field.type()) {
-            case INT32, UINT32, SINT32, FIXED32, SFIXED32 ->
-                    "XdrWriterTools.writeInt(output, %s);".formatted(castExpr);
+            case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> "XdrWriterTools.writeInt(output, %s);".formatted(castExpr);
             case INT64, UINT64, SINT64, FIXED64, SFIXED64 ->
-                    "XdrWriterTools.writeHyper(output, %s);".formatted(castExpr);
-            case FLOAT ->
-                    "XdrWriterTools.writeFloat(output, %s);".formatted(castExpr);
-            case DOUBLE ->
-                    "XdrWriterTools.writeDouble(output, %s);".formatted(castExpr);
-            case BOOL ->
-                    "XdrWriterTools.writeBool(output, %s);".formatted(castExpr);
-            case STRING ->
-                    "XdrWriterTools.writeString(output, %s);".formatted(castExpr);
-            case BYTES ->
-                    "XdrWriterTools.writeOpaque(output, %s);".formatted(castExpr);
+                "XdrWriterTools.writeHyper(output, %s);".formatted(castExpr);
+            case FLOAT -> "XdrWriterTools.writeFloat(output, %s);".formatted(castExpr);
+            case DOUBLE -> "XdrWriterTools.writeDouble(output, %s);".formatted(castExpr);
+            case BOOL -> "XdrWriterTools.writeBool(output, %s);".formatted(castExpr);
+            case STRING -> "XdrWriterTools.writeString(output, %s);".formatted(castExpr);
+            case BYTES -> "XdrWriterTools.writeOpaque(output, %s);".formatted(castExpr);
             case ENUM -> {
                 if (isOneOfArm) {
                     yield "XdrWriterTools.writeEnum(output, ((%s) %s).protoOrdinal());"
@@ -262,8 +251,7 @@ final class XdrCodecWriteMethodGenerator {
                     throw new UnsupportedOperationException("MESSAGE field is not a SingleField: " + field);
                 }
             }
-            default -> throw new UnsupportedOperationException(
-                    "Unsupported field type for write: " + field.type());
+            default -> throw new UnsupportedOperationException("Unsupported field type for write: " + field.type());
         };
     }
 
@@ -283,8 +271,7 @@ final class XdrCodecWriteMethodGenerator {
             case "FloatValue" -> "XdrWriterTools.writeFloat(output, %s);".formatted(valueExpr);
             case "DoubleValue" -> "XdrWriterTools.writeDouble(output, %s);".formatted(valueExpr);
             case "BytesValue" -> "XdrWriterTools.writeOpaque(output, %s);".formatted(valueExpr);
-            default -> throw new UnsupportedOperationException(
-                    "Unhandled optional message type: " + sf.messageType());
+            default -> throw new UnsupportedOperationException("Unhandled optional message type: " + sf.messageType());
         };
     }
 }
