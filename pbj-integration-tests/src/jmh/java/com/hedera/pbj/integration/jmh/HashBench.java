@@ -7,6 +7,7 @@ import com.hedera.pbj.test.proto.pbj.Hasheval;
 import com.hedera.pbj.test.proto.pbj.Suit;
 import com.hedera.pbj.test.proto.pbj.TimestampTest;
 import java.io.IOException;
+import java.security.MessageDigest;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -65,6 +66,27 @@ public class HashBench {
     public void hashBenchFieldWise(Blackhole blackhole) throws IOException {
         for (int i = 0; i < 1050; i++) {
             TestHashFunctions.hash2(hasheval);
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(1050)
+    public void hashBenchXdrSHA256(Blackhole blackhole) throws Exception {
+        for (int i = 0; i < 1050; i++) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            Bytes xdr = Hasheval.XDR.toBytes(hasheval);
+            xdr.writeTo(digest);
+            blackhole.consume(digest.digest());
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(1050)
+    public void hashBenchXdrFieldWiseSHA256(Blackhole blackhole) throws Exception {
+        for (int i = 0; i < 1050; i++) {
+            // serialize field-by-field using XDR (via toBytes, which goes through write)
+            Bytes xdr = Hasheval.XDR.toBytes(hasheval);
+            blackhole.consume(xdr.hashCode());
         }
     }
 }
