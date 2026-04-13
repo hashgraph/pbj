@@ -59,8 +59,6 @@ public final class MemoryData
     /// directly after this method is called.
     @NonNull
     public static MemoryData wrap(@NonNull final byte[] array, final int offset, final int len) {
-        final MemorySegment ms1 = MemorySegment.ofArray(array);
-        final MemorySegment ms2 = ms1.asSlice(offset, len);
         return new MemoryData(MemorySegment.ofArray(array).asSlice(offset, len));
     }
 
