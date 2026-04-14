@@ -256,6 +256,7 @@ public final class MemoryData
         // MemorySegment.ofBuffer() captures the current position/limit of the buffer, so dstOffset is 0:
         MemorySegment.copy(segment, position, MemorySegment.ofBuffer(dst), 0, length);
         position += length;
+        dst.position(Math.toIntExact(dst.position() + length));
         return length;
     }
 
@@ -268,6 +269,7 @@ public final class MemoryData
         // MemorySegment.ofBuffer() captures the current position/limit of the buffer, so dstOffset is 0:
         MemorySegment.copy(segment, position, MemorySegment.ofBuffer(dst.buffer), 0, length);
         position += length;
+        dst.position(Math.toIntExact(dst.position() + length));
         return length;
     }
 
@@ -404,6 +406,7 @@ public final class MemoryData
 
         MemorySegment.copy(MemorySegment.ofBuffer(src), 0, segment, position, srcRemaining);
         position += srcRemaining;
+        src.position(src.position() + srcRemaining);
     }
 
     @Override
@@ -415,6 +418,7 @@ public final class MemoryData
 
         MemorySegment.copy(MemorySegment.ofBuffer(src.buffer), 0, segment, position, srcRemaining);
         position += srcRemaining;
+        src.position(src.position() + srcRemaining);
     }
 
     @Override
@@ -426,10 +430,10 @@ public final class MemoryData
             buf.writeTo(segment, position);
             position += buf.length();
         } else if (src instanceof MemoryData md) {
-            if ((limit() - position()) < md.segment.byteSize()) {
+            if ((limit() - position()) < md.length()) {
                 throw new BufferOverflowException();
             }
-            MemorySegment.copy(md.segment, 0, segment, position, md.segment.byteSize());
+            MemorySegment.copy(md.segment, 0, segment, position, md.length());
             position += md.segment.byteSize();
         } else {
             WritableSequentialData.super.writeBytes(src);

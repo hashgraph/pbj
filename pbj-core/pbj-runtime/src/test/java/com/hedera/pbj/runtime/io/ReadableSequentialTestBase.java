@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -117,7 +118,23 @@ public abstract class ReadableSequentialTestBase extends ReadableTestBase {
         final var read = stream.readBytes(buf);
         assertEquals(10, read);
         assertThat(stream.position()).isEqualTo(10);
+        assertThat(buf.position()).isEqualTo(10);
         assertThat(buf.asUtf8String()).isEqualTo("0123456789\u0000\u0000");
+        assertThat(stream.hasRemaining()).isFalse();
+        assertThat(stream.remaining()).isZero();
+    }
+
+    @Test
+    @DisplayName("Read past the ByteBuffer - EOF")
+    void readPastEndByteBuffer() {
+        final var stream = sequence("0123456789".getBytes(StandardCharsets.UTF_8));
+        stream.limit(12);
+        final var buf = ByteBuffer.allocate(12);
+        final var read = stream.readBytes(buf);
+        assertEquals(10, read);
+        assertThat(stream.position()).isEqualTo(10);
+        assertThat(buf.position()).isEqualTo(10);
+        assertThat(buf.array()).isEqualTo(new byte[] {48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 0, 0});
         assertThat(stream.hasRemaining()).isFalse();
         assertThat(stream.remaining()).isZero();
     }

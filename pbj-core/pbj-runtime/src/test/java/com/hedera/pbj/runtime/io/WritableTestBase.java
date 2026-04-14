@@ -396,6 +396,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // Then the sequence received those bytes and the position is updated
             assertThat(extractWrittenBytes(seq)).isEqualTo(src.array());
             assertThat(seq.position()).isEqualTo(pos + 5);
+            assertThat(src.position()).isEqualTo(5);
         }
 
         @Test
@@ -430,6 +431,7 @@ public abstract class WritableTestBase extends SequentialTestBase {
             assertThat(src.getBytes(0, writtenBytes)).isEqualTo(5);
             assertThat(extractWrittenBytes(seq)).isEqualTo(Arrays.copyOfRange(writtenBytes, 0, 5));
             assertThat(seq.position()).isEqualTo(pos + 5);
+            assertThat(src.position()).isEqualTo(5);
         }
 
         @Test

@@ -238,6 +238,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
         final int len = Math.toIntExact(src.remaining());
         src.writeTo(out, pos, len);
         position += len;
+        src.position(src.position() + len);
     }
 
     /**
