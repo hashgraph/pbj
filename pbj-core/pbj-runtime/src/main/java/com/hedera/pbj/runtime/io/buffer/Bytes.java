@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -381,6 +383,16 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
+     * A helper method for efficient copy of our data into a MemorySegment starting at a given `position`
+     * without creating a defensive copy of the data or writing each byte one at a time.
+     * @param segment a destination MemorySegment
+     * @param position a position at the destination `segment` to write data at
+     */
+    public void writeTo(@NonNull MemorySegment segment, final long position) {
+        MemorySegment.copy(buffer, start, segment, ValueLayout.JAVA_BYTE, position, length);
+    }
+
+    /**
      * A helper method for efficient copy of our data into an MessageDigest without creating a defensive copy
      * of the data. The implementation relies on a well-behaved MessageDigest that doesn't modify the buffer data.
      * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
@@ -493,6 +505,15 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
                 }
             }
         };
+    }
+
+    /**
+     * Exposes this {@link Bytes} as a read-only {@link MemorySegment}. This is a zero-copy operation.
+     *
+     * @return a read-only on-heap MemorySegment mapping this Bytes' content
+     */
+    public MemorySegment toMemorySegment() {
+        return MemorySegment.ofArray(buffer).asSlice(start, length).asReadOnly();
     }
 
     /**
