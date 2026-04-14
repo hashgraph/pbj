@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.ReadableSequentialTestBase;
@@ -19,19 +20,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-abstract class BufferedDataTestBase {
+/// A base test class for BufferedData-like objects of type T.
+abstract class BufferedDataTestBase<
+        T extends BufferedSequentialData & ReadableSequentialData & WritableSequentialData & RandomAccessData> {
 
     // FUTURE Test that "view" shows the updated data when it is changed on the fly
     // FUTURE Verify capacity is never negative (it can't be, maybe nothing to test here)
 
     @NonNull
-    protected abstract BufferedData allocate(final int size);
+    protected abstract T allocate(final int size);
 
     @NonNull
-    protected abstract BufferedData wrap(final byte[] arr);
+    protected abstract T wrap(final byte[] arr);
 
     @NonNull
-    protected abstract BufferedData wrap(final byte[] arr, final int offset, final int len);
+    protected abstract T wrap(final byte[] arr, final int offset, final int len);
 
     @Test
     @DisplayName("allocated data length test")
@@ -52,7 +55,16 @@ abstract class BufferedDataTestBase {
     @DisplayName("wrapped data with offset length test")
     void wrapOffsetLength() {
         final var buf = wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7}, 1, 3);
-        assertThat(buf.length()).isEqualTo(4);
+        if (buf instanceof BufferedData) {
+            // FUTURE WORK: There seems to be a bug in BufferedData.length().
+            assertThat(buf.length()).isEqualTo(4);
+        } else if (buf instanceof MemoryData) {
+            // MemorySegment in JDK is strict with sliced views.
+            // And in fact the BufferedData should be too, but currently it isn't.
+            assertThat(buf.length()).isEqualTo(3);
+        } else {
+            fail("Unsupported buffer class: " + buf.getClass().getName());
+        }
     }
 
     @Test
@@ -69,7 +81,7 @@ abstract class BufferedDataTestBase {
         buf.skip(5);
         buf.limit(10);
 
-        assertThat(buf.toString()).endsWith("BufferedData[1,2,3,4,5,6,7,8,9,10]");
+        assertThat(buf.toString()).endsWith("[1,2,3,4,5,6,7,8,9,10]");
 
         assertEquals(5, buf.position());
         assertEquals(10, buf.limit());
@@ -78,16 +90,25 @@ abstract class BufferedDataTestBase {
     @Test
     void toStringWithOffsetAndLen() {
         final var buf = wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 2, 4);
-        // toString() doesn't depend on position, but respects limit
-        assertThat(buf.toString()).endsWith("BufferedData[0,1,2,3,4,5]");
-        buf.limit(10);
-        assertThat(buf.toString()).endsWith("BufferedData[0,1,2,3,4,5,6,7,8,9]");
+        if (buf instanceof BufferedData) {
+            // toString() doesn't depend on position, but respects limit
+            assertThat(buf.toString()).endsWith("[0,1,2,3,4,5]");
+            buf.limit(10);
+            assertThat(buf.toString()).endsWith("[0,1,2,3,4,5,6,7,8,9]");
+        } else if (buf instanceof MemoryData) {
+            // MemorySegment in JDK is strict for sliced views
+            assertThat(buf.toString()).endsWith("[2,3,4,5]");
+            buf.limit(10);
+            assertThat(buf.toString()).endsWith("[2,3,4,5]");
+        } else {
+            fail("Unsupported buffer class: " + buf.getClass().getName());
+        }
     }
 
     @Test
     void toStringWithSlice() {
         final var buf = wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}).slice(2, 4);
-        assertThat(buf.toString()).endsWith("BufferedData[2,3,4,5]");
+        assertThat(buf.toString()).endsWith("[2,3,4,5]");
     }
 
     @ParameterizedTest
@@ -140,7 +161,8 @@ abstract class BufferedDataTestBase {
         buf.writeVarInt(num + 1, false);
         final long afterSecondIntPos = buf.position();
 
-        final var slicedBuf = buf.slice(afterFirstIntPos, afterSecondIntPos - afterFirstIntPos);
+        // ASSUME: every T @Overrides RandomAccessData.slice() to return T instead of Bytes.
+        final var slicedBuf = (T) buf.slice(afterFirstIntPos, afterSecondIntPos - afterFirstIntPos);
         final int readback = slicedBuf.readVarInt(false);
         assertEquals(num + 1, readback);
         assertEquals(afterSecondIntPos - afterFirstIntPos, slicedBuf.position());
@@ -245,7 +267,8 @@ abstract class BufferedDataTestBase {
         buf.writeVarLong(num + 1, false);
         final long afterSecondIntPos = buf.position();
 
-        final var slicedBuf = buf.slice(afterFirstIntPos, afterSecondIntPos - afterFirstIntPos);
+        // ASSUME: every T @Overrides RandomAccessData.slice() to return T instead of Bytes.
+        final var slicedBuf = (T) buf.slice(afterFirstIntPos, afterSecondIntPos - afterFirstIntPos);
         final long readback = slicedBuf.readVarLong(false);
         assertEquals(num + 1, readback);
         assertEquals(afterSecondIntPos - afterFirstIntPos, slicedBuf.position());
@@ -270,7 +293,8 @@ abstract class BufferedDataTestBase {
             assertEquals((byte) i, bytes.getByte(i - START));
         }
 
-        final var slicedBuf = buf.slice(START, LEN);
+        // ASSUME: every T @Overrides RandomAccessData.slice() to return T instead of Bytes.
+        final var slicedBuf = (T) buf.slice(START, LEN);
         final var slicedBytes = slicedBuf.readBytes(LEN);
         assertEquals(LEN, slicedBuf.position());
         for (int i = 0; i < LEN; i++) {
@@ -392,7 +416,7 @@ abstract class BufferedDataTestBase {
         @NonNull
         @Override
         protected byte[] extractWrittenBytes(@NonNull WritableSequentialData seq) {
-            final var buf = (BufferedData) seq;
+            final var buf = (T) seq;
             final var bytes = new byte[Math.toIntExact(buf.position())];
             buf.getBytes(0, bytes);
             return bytes;
@@ -423,7 +447,7 @@ abstract class BufferedDataTestBase {
         @NonNull
         @Override
         protected ReadableSequentialData sequence(@NonNull byte[] arr) {
-            BufferedData buf = allocate(arr.length + 20);
+            T buf = allocate(arr.length + 20);
             for (int i = 0; i < 10; i++) {
                 buf.writeByte((byte) i);
             }
@@ -446,7 +470,8 @@ abstract class BufferedDataTestBase {
         protected ReadableSequentialData emptySequence() {
             final var buf = wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             buf.position(7);
-            return new RandomAccessSequenceAdapter(buf.view(0));
+            // ASSUME: every T @Overrides ReadableSequentialData.view() to return T instead of ReadableSequentialData.
+            return new RandomAccessSequenceAdapter((T) buf.view(0));
         }
 
         @NonNull
@@ -454,7 +479,8 @@ abstract class BufferedDataTestBase {
         protected ReadableSequentialData fullyUsedSequence() {
             final var buf = wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             buf.position(2);
-            final var view = buf.view(5);
+            // ASSUME: every T @Overrides ReadableSequentialData.view() to return T instead of ReadableSequentialData.
+            final var view = (T) buf.view(5);
             view.skip(5);
             return new RandomAccessSequenceAdapter(view, 5);
         }
@@ -462,7 +488,7 @@ abstract class BufferedDataTestBase {
         @NonNull
         @Override
         protected ReadableSequentialData sequence(@NonNull byte[] arr) {
-            BufferedData buf = allocate(arr.length + 20);
+            T buf = allocate(arr.length + 20);
             for (int i = 0; i < 10; i++) {
                 buf.writeByte((byte) i);
             }
@@ -473,7 +499,8 @@ abstract class BufferedDataTestBase {
             buf.position(10);
             buf.writeBytes(arr);
             buf.position(10);
-            return new RandomAccessSequenceAdapter(buf.view(arr.length));
+            // ASSUME: every T @Overrides ReadableSequentialData.view() to return T instead of ReadableSequentialData.
+            return new RandomAccessSequenceAdapter((T) buf.view(arr.length));
         }
     }
 
@@ -485,7 +512,8 @@ abstract class BufferedDataTestBase {
             final var mb = 1024 * 1024;
             final var buf = allocate(mb * 4); // the largest expected test value is 1 mb
             buf.position(mb);
-            return buf.view(mb * 2);
+            // ASSUME: every T @Overrides ReadableSequentialData.view() to return T instead of ReadableSequentialData.
+            return (T) buf.view(mb * 2);
         }
 
         @NonNull
@@ -493,13 +521,14 @@ abstract class BufferedDataTestBase {
         protected WritableSequentialData eofSequence() {
             final var buf = wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
             buf.position(7);
-            return buf.view(0);
+            // ASSUME: every T @Overrides ReadableSequentialData.view() to return T instead of ReadableSequentialData.
+            return (T) buf.view(0);
         }
 
         @NonNull
         @Override
         protected byte[] extractWrittenBytes(@NonNull WritableSequentialData seq) {
-            final var buf = (BufferedData) seq;
+            final var buf = (T) seq;
             final var bytes = new byte[Math.toIntExact(buf.position())];
             buf.getBytes(0, bytes);
             return bytes;

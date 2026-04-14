@@ -4,7 +4,7 @@ package com.hedera.pbj.runtime.io.buffer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
 
-final class ByteArrayBufferedDataTest extends BufferedDataTestBase {
+final class ByteArrayBufferedDataTest extends BufferedDataTestBase<BufferedData> {
 
     @NonNull
     @Override
