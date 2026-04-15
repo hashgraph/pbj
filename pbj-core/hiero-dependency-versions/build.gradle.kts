@@ -59,7 +59,7 @@ dependencies.constraints {
     }
 
     // Testing only
-    api("com.google.guava:guava:33.5.0-jre") { because("com.google.common") }
+    api("com.google.guava:guava:33.6.0-jre") { because("com.google.common") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
     api("org.assertj:assertj-core:3.27.7") { because("org.assertj.core") }
