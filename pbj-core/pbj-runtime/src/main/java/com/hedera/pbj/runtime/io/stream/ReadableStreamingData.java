@@ -222,6 +222,7 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
             if (bytesRead < len) {
                 eof = true;
             }
+            dst.position(dstPos + bytesRead);
             return bytesRead;
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
