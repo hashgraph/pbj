@@ -434,7 +434,7 @@ public final class MemoryData
                 throw new BufferOverflowException();
             }
             MemorySegment.copy(md.segment, 0, segment, position, md.length());
-            position += md.segment.byteSize();
+            position += md.length();
         } else {
             WritableSequentialData.super.writeBytes(src);
         }
