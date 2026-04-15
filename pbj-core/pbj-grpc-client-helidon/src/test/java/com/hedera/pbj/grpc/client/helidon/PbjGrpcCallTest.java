@@ -237,8 +237,7 @@ public class PbjGrpcCallTest {
 
         runnable.run();
 
-        // A ping:
-        verify(dataWriter, times(1)).writeNow(any(BufferData.class));
+        verify(grpcClientStream, times(1)).sendPing();
         verify(pipeline, times(1)).onComplete();
         verifyNoMoreInteractions(pipeline);
     }
@@ -292,7 +291,7 @@ public class PbjGrpcCallTest {
         verify(pipeline, times(1)).onNext(reply);
         verify(pipeline, times(1)).onComplete();
         // A ping:
-        if (isTimeout) verify(dataWriter, times(1)).writeNow(any(BufferData.class));
+        if (isTimeout) verify(grpcClientStream, times(1)).sendPing();
         verifyNoMoreInteractions(pipeline);
     }
 
