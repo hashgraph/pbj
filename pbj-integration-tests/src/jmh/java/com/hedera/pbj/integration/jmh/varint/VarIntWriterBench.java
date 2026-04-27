@@ -47,7 +47,7 @@ public class VarIntWriterBench {
      * and 8 byte size.
      */
     @Param({"1", "2", "3", "4", "8"})
-//    @Param({"4"})
+    //    @Param({"4"})
     public int numOfBytes;
 
     private long[] numbers;

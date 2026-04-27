@@ -30,29 +30,29 @@ public class SteinbornBlendedByteArray {
         if (value < (1L << 7)) {
             buffer[position++] = (byte) value;
         } else if (value < (1L << 14)) {
-            buffer[position]     = (byte) ((value & 0x7F) | 0x80);
+            buffer[position] = (byte) ((value & 0x7F) | 0x80);
             buffer[position + 1] = (byte) (value >>> 7);
             position += 2;
         } else if (value < (1L << 21)) {
-            buffer[position]     = (byte) ((value & 0x7F) | 0x80);
+            buffer[position] = (byte) ((value & 0x7F) | 0x80);
             buffer[position + 1] = (byte) (((value >>> 7) & 0x7F) | 0x80);
             buffer[position + 2] = (byte) (value >>> 14);
             position += 3;
         } else if (value < (1L << 28)) {
-            buffer[position]     = (byte) ((value & 0x7F) | 0x80);
+            buffer[position] = (byte) ((value & 0x7F) | 0x80);
             buffer[position + 1] = (byte) (((value >>> 7) & 0x7F) | 0x80);
             buffer[position + 2] = (byte) (((value >>> 14) & 0x7F) | 0x80);
             buffer[position + 3] = (byte) (value >>> 21);
             position += 4;
         } else if (value < (1L << 35)) {
-            buffer[position]     = (byte) ((value & 0x7F) | 0x80);
+            buffer[position] = (byte) ((value & 0x7F) | 0x80);
             buffer[position + 1] = (byte) (((value >>> 7) & 0x7F) | 0x80);
             buffer[position + 2] = (byte) (((value >>> 14) & 0x7F) | 0x80);
             buffer[position + 3] = (byte) (((value >>> 21) & 0x7F) | 0x80);
             buffer[position + 4] = (byte) (value >>> 28);
             position += 5;
         } else if (value < (1L << 42)) {
-            buffer[position]     = (byte) ((value & 0x7F) | 0x80);
+            buffer[position] = (byte) ((value & 0x7F) | 0x80);
             buffer[position + 1] = (byte) (((value >>> 7) & 0x7F) | 0x80);
             buffer[position + 2] = (byte) (((value >>> 14) & 0x7F) | 0x80);
             buffer[position + 3] = (byte) (((value >>> 21) & 0x7F) | 0x80);
@@ -60,7 +60,7 @@ public class SteinbornBlendedByteArray {
             buffer[position + 5] = (byte) (value >>> 35);
             position += 6;
         } else if (value < (1L << 49)) {
-            buffer[position]     = (byte) ((value & 0x7F) | 0x80);
+            buffer[position] = (byte) ((value & 0x7F) | 0x80);
             buffer[position + 1] = (byte) (((value >>> 7) & 0x7F) | 0x80);
             buffer[position + 2] = (byte) (((value >>> 14) & 0x7F) | 0x80);
             buffer[position + 3] = (byte) (((value >>> 21) & 0x7F) | 0x80);
@@ -69,7 +69,7 @@ public class SteinbornBlendedByteArray {
             buffer[position + 6] = (byte) (value >>> 42);
             position += 7;
         } else if (value < (1L << 56)) {
-            buffer[position]     = (byte) ((value & 0x7F) | 0x80);
+            buffer[position] = (byte) ((value & 0x7F) | 0x80);
             buffer[position + 1] = (byte) (((value >>> 7) & 0x7F) | 0x80);
             buffer[position + 2] = (byte) (((value >>> 14) & 0x7F) | 0x80);
             buffer[position + 3] = (byte) (((value >>> 21) & 0x7F) | 0x80);
@@ -79,9 +79,9 @@ public class SteinbornBlendedByteArray {
             buffer[position + 7] = (byte) (value >>> 49);
             position += 8;
         } else //noinspection ConstantValue
-            if (value >= 0) {
+        if (value >= 0) {
             // 9 bytes: value in [2^56, Long.MAX_VALUE]
-            buffer[position]     = (byte) ((value & 0x7F) | 0x80);
+            buffer[position] = (byte) ((value & 0x7F) | 0x80);
             buffer[position + 1] = (byte) (((value >>> 7) & 0x7F) | 0x80);
             buffer[position + 2] = (byte) (((value >>> 14) & 0x7F) | 0x80);
             buffer[position + 3] = (byte) (((value >>> 21) & 0x7F) | 0x80);
@@ -93,7 +93,7 @@ public class SteinbornBlendedByteArray {
             position += 9;
         } else {
             // 10 bytes: negative values (signed int64 treated as uint64 by protobuf)
-            buffer[position]     = (byte) ((value & 0x7F) | 0x80);
+            buffer[position] = (byte) ((value & 0x7F) | 0x80);
             buffer[position + 1] = (byte) (((value >>> 7) & 0x7F) | 0x80);
             buffer[position + 2] = (byte) (((value >>> 14) & 0x7F) | 0x80);
             buffer[position + 3] = (byte) (((value >>> 21) & 0x7F) | 0x80);
