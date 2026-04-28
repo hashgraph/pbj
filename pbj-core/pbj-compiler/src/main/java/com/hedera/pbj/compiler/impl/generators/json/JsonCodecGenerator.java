@@ -78,7 +78,7 @@ public final class JsonCodecGenerator implements Generator {
                 /**
                  * JSON Codec for $modelClass model object. Generated based on protobuf schema.
                  */
-                public final$staticModifier class $codecClass implements JsonCodec<$modelClass> {
+                public final$staticModifier class $codecClass extends JsonCodec<$modelClass> {
 
                     /**
                      * Empty constructor
