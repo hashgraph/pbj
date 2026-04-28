@@ -61,6 +61,11 @@ public class GetArrayByteBench {
     public static class BenchState {
         byte[] array;
 
+        // Maintain the sum in state to avoid JVM putting it into a CPU register.
+        // Make it a byte, and not a long. We don't care about overflows here.
+        // But we don't want to touch more significant bytes either.
+        byte sum;
+
         @Setup(Level.Trial)
         public void setup() {
             array = new byte[SIZE];
@@ -79,41 +84,51 @@ public class GetArrayByteBench {
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void getArrayByteNoChecks_OldUnsafeUtils(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
         for (int i = 0; i < INVOCATIONS; i++) {
-            blackhole.consume(OldUnsafeUtils.getArrayByteNoChecks(state.array, i));
+            state.sum += OldUnsafeUtils.getArrayByteNoChecks(state.array, i);
         }
+        blackhole.consume(state.sum);
     }
 
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void getArrayByteNoChecks_DirectUnsafeCall(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
         for (int i = 0; i < INVOCATIONS; i++) {
-            blackhole.consume(UNSAFE.getByte(state.array, BYTE_ARRAY_BASE_OFFSET + i));
+            state.sum += UNSAFE.getByte(state.array, BYTE_ARRAY_BASE_OFFSET + i);
         }
+        blackhole.consume(state.sum);
     }
 
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void getArrayByteNoChecks_NewUnsafeUtils(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
         for (int i = 0; i < INVOCATIONS; i++) {
-            blackhole.consume(UnsafeUtils.getArrayByteNoChecks(state.array, i));
+            state.sum += UnsafeUtils.getArrayByteNoChecks(state.array, i);
         }
+        blackhole.consume(state.sum);
     }
 
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void getArrayByteNoChecks_DirectVarHandleCall(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
         for (int i = 0; i < INVOCATIONS; i++) {
-            blackhole.consume((byte) BYTE_ARRAY_HANDLE.get(state.array, i));
+            state.sum += (byte) BYTE_ARRAY_HANDLE.get(state.array, i);
         }
+        blackhole.consume(state.sum);
     }
 
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void getArrayByte_SimpleJava(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
         for (int i = 0; i < INVOCATIONS; i++) {
-            blackhole.consume(state.array[i]);
+            state.sum += state.array[i];
         }
+        blackhole.consume(state.sum);
     }
 
     public static void main(String[] args) throws Exception {
