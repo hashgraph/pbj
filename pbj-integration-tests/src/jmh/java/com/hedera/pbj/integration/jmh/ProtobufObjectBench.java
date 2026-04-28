@@ -3,6 +3,8 @@ package com.hedera.pbj.integration.jmh;
 
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.GeneratedMessage;
+import com.hedera.hapi.block.stream.Block;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails;
 import com.hedera.pbj.integration.AccountDetailsPbj;
@@ -18,10 +20,13 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPInputStream;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.CompilerControl;
@@ -496,6 +501,27 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
     }
 
     @State(Scope.Benchmark)
+    public static class BlockBench extends ProtobufObjectBench<Block, com.hedera.hapi.block.stream.protoc.Block> {
+        @Setup
+        public void setup(BenchmarkState<Block, com.hedera.hapi.block.stream.protoc.Block> benchmarkState) {
+
+            // load the protobuf bytes
+            try (var in = new ReadableStreamingData(new BufferedInputStream(new GZIPInputStream(Objects.requireNonNull(
+                    SampleBlockBench.class.getResourceAsStream("/000000000000000000000000000000497558.blk.gz")))))) {
+                final Block TEST_BLOCK = Block.PROTOBUF.parse(in);
+                benchmarkState.configure(
+                        TEST_BLOCK,
+                        Block.PROTOBUF,
+                        com.hedera.hapi.block.stream.protoc.Block::parseFrom,
+                        com.hedera.hapi.block.stream.protoc.Block::parseFrom,
+                        com.hedera.hapi.block.stream.protoc.Block::parseFrom);
+            } catch (IOException | ParseException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    @State(Scope.Benchmark)
     public static class TimeStampBench
             extends ProtobufObjectBench<Timestamp, com.hederahashgraph.api.proto.java.Timestamp> {
         @Setup
@@ -511,21 +537,29 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
 
     @State(Scope.Benchmark)
     public static class AccountDetailsBench
-            extends ProtobufObjectBench<
-                    com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails,
-                    GetAccountDetailsResponse.AccountDetails> {
+            extends ProtobufObjectBench<AccountDetails, GetAccountDetailsResponse.AccountDetails> {
         @Setup
-        public void setup(
-                BenchmarkState<
-                                com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails,
-                                GetAccountDetailsResponse.AccountDetails>
-                        benchmarkState) {
+        public void setup(BenchmarkState<AccountDetails, GetAccountDetailsResponse.AccountDetails> benchmarkState) {
             benchmarkState.configure(
                     AccountDetailsPbj.ACCOUNT_DETAILS,
                     AccountDetails.PROTOBUF,
                     GetAccountDetailsResponse.AccountDetails::parseFrom,
                     GetAccountDetailsResponse.AccountDetails::parseFrom,
                     GetAccountDetailsResponse.AccountDetails::parseFrom);
+        }
+    }
+
+    @State(Scope.Benchmark)
+    public static class AccountIDBench
+            extends ProtobufObjectBench<AccountID, com.hederahashgraph.api.proto.java.AccountID> {
+        @Setup
+        public void setup(BenchmarkState<AccountID, com.hederahashgraph.api.proto.java.AccountID> benchmarkState) {
+            benchmarkState.configure(
+                    AccountDetailsPbj.ACCOUNT_ID,
+                    AccountID.PROTOBUF,
+                    com.hederahashgraph.api.proto.java.AccountID::parseFrom,
+                    com.hederahashgraph.api.proto.java.AccountID::parseFrom,
+                    com.hederahashgraph.api.proto.java.AccountID::parseFrom);
         }
     }
 }
