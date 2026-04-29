@@ -70,7 +70,7 @@ public class VarIntByteArrayReadBench {
 
         /// A sum of varints to be consumed by the blackhole. We keep it in the state to avoid JVM optimizing the sum
         /// into a CPU register for some algorithms (but not others), which could potentially distort the
-        // results.
+        /// results.
         /// So we make every algorithm maintain the sum in this variable instead, so that they all spend the
         /// exact same time updating it.
         int sum;
