@@ -5,23 +5,33 @@ updates:
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
+    assignees:
+      - "swirlds-automation"
   - package-ecosystem: "gradle"
     directory: "/pbj-integration-tests"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
+    assignees:
+      - "swirlds-automation"
   - package-ecosystem: "gradle"
     directory: "/pbj-core/hiero-dependency-versions"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
+    assignees:
+      - "swirlds-automation"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    assignees:
+      - "swirlds-automation"
   - package-ecosystem: "docker"
     directory: "/docker"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    assignees:
+      - "swirlds-automation"
