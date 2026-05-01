@@ -2,7 +2,7 @@
 import org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension
 import org.gradlex.jvm.dependency.conflict.resolution.JvmDependencyConflictsExtension
 
-plugins { id("org.hiero.gradle.build") version "0.6.3" }
+plugins { id("org.hiero.gradle.build") version "0.7.6" }
 
 javaModules {
     directory(".") {
