@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.jmh.varint.read;
 
+import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -118,7 +119,7 @@ public class VarIntByteArrayReadBench {
     }
 
     /// A variation of LEB128 with the zigZag conditional removed.
-    @Benchmark
+    // @Benchmark // disabled because it didn't show a significant improvement
     @OperationsPerInvocation(INVOCATIONS)
     public void pbj_zigZagFalse(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
@@ -138,7 +139,7 @@ public class VarIntByteArrayReadBench {
     }
 
     /// A variation of LEB128 that uses `(b & 0x80) == 0` instead of `b >= 0`.
-    @Benchmark
+    // @Benchmark // disabled because it didn't show a significant improvement
     @OperationsPerInvocation(INVOCATIONS)
     public void pbj_BitwiseAndCondition(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
@@ -158,7 +159,7 @@ public class VarIntByteArrayReadBench {
     }
 
     /// A variation of LEB128 that uses do/while loop instead of a for loop to skip one branch for 1-byte varint.
-    @Benchmark
+    // @Benchmark // disabled because it didn't show a significant improvement
     @OperationsPerInvocation(INVOCATIONS)
     public void pbj_doWhileLoop(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
@@ -182,7 +183,7 @@ public class VarIntByteArrayReadBench {
     /// PBJ used to use a very similar algorithm, just before https://github.com/hashgraph/pbj/pull/144
     /// where we switched to LEB128.
     @SuppressWarnings("lossy-conversions") // the impl is able to support longs, but we ignore that here and use ints.
-    @Benchmark
+    // @Benchmark // disabled because it performs worse than the standard pbj implementation
     @OperationsPerInvocation(INVOCATIONS)
     public void google(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
@@ -263,7 +264,7 @@ public class VarIntByteArrayReadBench {
     }
 
     /// A LEB128 with fully unrolled loop.
-    @Benchmark
+    // @Benchmark // disabled because the algorithm is missing limit checks
     @OperationsPerInvocation(INVOCATIONS)
     public void loopLess(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
@@ -301,6 +302,158 @@ public class VarIntByteArrayReadBench {
             // Stop here because this benchmark doesn't support longs, only ints.
             state.sum += v | b << 28;
             // }
+        }
+        blackhole.consume(state.sum);
+    }
+
+    /// A LEB128 with fully unrolled loop and limit checks after each read.
+    @Benchmark
+    @OperationsPerInvocation(INVOCATIONS)
+    public void loopLess_withLimitChecks(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
+        for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
+            final int lim = Math.min(state.array.length, pos + 5);
+
+            byte b = state.array[pos++];
+            if ((b & 0x80) == 0) {
+                state.sum += b;
+                continue;
+            }
+            if (pos == lim) throw new DataEncodingException("Malformed var int");
+
+            int v = b & 0x7F;
+            b = state.array[pos++];
+            if ((b & 0x80) == 0) {
+                state.sum += v | b << 7;
+                continue;
+            }
+            if (pos == lim) throw new DataEncodingException("Malformed var int");
+
+            v |= (b & 0x7F) << 7;
+            b = state.array[pos++];
+            if ((b & 0x80) == 0) {
+                state.sum += v | b << 14;
+                continue;
+            }
+            if (pos == lim) throw new DataEncodingException("Malformed var int");
+
+            v |= (b & 0x7F) << 14;
+            b = state.array[pos++];
+            if ((b & 0x80) == 0) {
+                state.sum += v | b << 21;
+                continue;
+            }
+            if (pos == lim) throw new DataEncodingException("Malformed var int");
+
+            v |= (b & 0x7F) << 21;
+            b = state.array[pos++];
+            // if (b > 0) {
+            // Stop here because this benchmark doesn't support longs, only ints.
+            state.sum += v | b << 28;
+            // }
+        }
+        blackhole.consume(state.sum);
+    }
+
+    /// A vectorized LEB128 that avoids explicit limit checks and supports zigZag conditional
+    @SuppressWarnings("lossy-conversions") // because state.sum is an int, and here we compute a long (by design)
+    @Benchmark
+    @OperationsPerInvocation(INVOCATIONS)
+    public void vector_zigZag(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
+        for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
+
+            byte b = state.array[pos];
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (b >>> 1) ^ -(b & 1) : b;
+                continue;
+            }
+
+            byte lim = (byte) -Math.min(state.array.length - pos - 1, 9);
+            long v = b & 0x7f;
+
+            byte s = (byte) (((lim & 0x80) >>> 7) & 0xFF);
+
+            b = state.array[pos += s];
+            if ((b & 0x80) == 0) {
+                v |= b << 7;
+                state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                continue;
+            }
+
+            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
+            v |= (b & 0x7f) << 7;
+            b = state.array[pos += s];
+            if ((b & 0x80) == 0) {
+                v |= b << 14;
+                state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                continue;
+            }
+
+            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
+            v |= (b & 0x7f) << 14;
+            b = state.array[pos += s];
+            if ((b & 0x80) == 0) {
+                v |= b << 21;
+                state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                continue;
+            }
+
+            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
+            v |= (b & 0x7f) << 21;
+            b = state.array[pos += s];
+            if ((b & 0x80) == 0) {
+                v |= (long) b << 28;
+                state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                continue;
+            }
+
+            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
+            v |= ((long) b & 0x7f) << 28;
+            b = state.array[pos += s];
+            if ((b & 0x80) == 0) {
+                v |= (long) b << 35;
+                state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                continue;
+            }
+
+            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
+            v |= ((long) b & 0x7f) << 35;
+            b = state.array[pos += s];
+            if ((b & 0x80) == 0) {
+                v |= (long) b << 42;
+                state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                continue;
+            }
+
+            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
+            v |= ((long) b & 0x7f) << 42;
+            b = state.array[pos += s];
+            if ((b & 0x80) == 0) {
+                v |= (long) b << 49;
+                state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                continue;
+            }
+
+            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
+            v |= ((long) b & 0x7f) << 49;
+            b = state.array[pos += s];
+            if ((b & 0x80) == 0) {
+                v |= (long) b << 56;
+                state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                continue;
+            }
+
+            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
+            v |= ((long) b & 0x7f) << 56;
+            b = state.array[pos += s];
+            if ((b & 0x80) == 0) {
+                v |= (long) b << 63;
+                state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                continue;
+            }
+
+            throw new DataEncodingException("Malformed var int");
         }
         blackhole.consume(state.sum);
     }
