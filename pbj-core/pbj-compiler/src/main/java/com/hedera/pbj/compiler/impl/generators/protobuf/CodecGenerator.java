@@ -33,7 +33,6 @@ public final class CodecGenerator implements Generator {
         final String modelClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.MODEL, msgDef);
         final String schemaClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.SCHEMA, msgDef);
         final String codecClassName = lookupHelper.getUnqualifiedClassForMessage(FileType.CODEC, msgDef);
-        final String codecPackage = lookupHelper.getPackage(FileType.CODEC, msgDef);
 
         final List<Field> fields = new ArrayList<>();
         writer.addImport(lookupHelper.getPackage(FileType.MODEL, msgDef) + ".*");
@@ -91,7 +90,7 @@ public final class CodecGenerator implements Generator {
                 /**
                  * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
                  */
-                public final$staticModifier class $codecClass implements Codec<$modelClass> {
+                public final$staticModifier class $codecClass extends Codec<$modelClass> {
                     /**
                      * An initial capacity for the ArrayList where unknown fields are collected.
                      * To optimize parsing unknown fields, we store the max value we've seen so far.

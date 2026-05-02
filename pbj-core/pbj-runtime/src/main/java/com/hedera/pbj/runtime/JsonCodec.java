@@ -16,10 +16,10 @@ import java.util.Objects;
  *
  * @param <T> The type of object to serialize and deserialize
  */
-public interface JsonCodec<T> extends Codec<T> {
+public abstract class JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
-    default @NonNull T parse(
+    public @NonNull T parse(
             @NonNull ReadableSequentialData input,
             final boolean strictMode,
             final boolean parseUnknownFields,
@@ -51,7 +51,7 @@ public interface JsonCodec<T> extends Codec<T> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    T parse(@Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
+    public abstract T parse(@Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
             throws ParseException;
 
     /**
@@ -61,7 +61,7 @@ public interface JsonCodec<T> extends Codec<T> {
      * @param output The {@link WritableSequentialData} to write to.
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
-    default void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+    public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
         output.writeUTF8(toJSON(item));
     }
 
@@ -70,7 +70,7 @@ public interface JsonCodec<T> extends Codec<T> {
      *
      * @param item      The item to convert. Must not be null.
      */
-    default String toJSON(@NonNull T item) {
+    public String toJSON(@NonNull T item) {
         return toJSON(item, "", false);
     }
 
@@ -82,7 +82,7 @@ public interface JsonCodec<T> extends Codec<T> {
      * @param inline    When true the output will start with indent end with a new line otherwise
      *                        it will just be the object "{...}"
      */
-    String toJSON(@NonNull T item, String indent, boolean inline);
+    public abstract String toJSON(@NonNull T item, String indent, boolean inline);
 
     /**
      * Reads from this data input the length of the data within the input. The implementation may
@@ -95,7 +95,7 @@ public interface JsonCodec<T> extends Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    default int measure(@NonNull ReadableSequentialData input) throws ParseException {
+    public int measure(@NonNull ReadableSequentialData input) throws ParseException {
         final long startPosition = input.position();
         parse(input);
         return (int) (input.position() - startPosition);
@@ -109,7 +109,7 @@ public interface JsonCodec<T> extends Codec<T> {
      * @param item The input model data to measure write bytes for
      * @return The length in bytes that would be written
      */
-    default int measureRecord(T item) {
+    public int measureRecord(T item) {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         WritableStreamingData out = new WritableStreamingData(bout);
         try {
@@ -134,12 +134,17 @@ public interface JsonCodec<T> extends Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+    public boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
         return Objects.equals(item, parse(input));
     }
 
+    /**
+     * Get the default value for the model class.
+     *
+     * @return The default value for the model class
+     */
     @Override
-    default T getDefaultInstance() {
+    public T getDefaultInstance() {
         return null;
     }
 }

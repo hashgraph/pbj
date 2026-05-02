@@ -27,5 +27,6 @@ public class GoogleCodedOutputStream {
 
     public void endLoop() {
         byteArrayOutputStream.reset();
+        output = CodedOutputStream.newInstance(byteArrayOutputStream);
     }
 }
