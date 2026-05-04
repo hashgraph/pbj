@@ -366,6 +366,7 @@ public class VarIntByteArrayReadBench {
             byte b = state.array[pos];
             if ((b & 0x80) == 0) {
                 state.sum += state.zigZag ? (b >>> 1) ^ -(b & 1) : b;
+                pos++;
                 continue;
             }
 
@@ -378,6 +379,7 @@ public class VarIntByteArrayReadBench {
             if ((b & 0x80) == 0) {
                 v |= b << 7;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                pos++;
                 continue;
             }
 
@@ -387,6 +389,7 @@ public class VarIntByteArrayReadBench {
             if ((b & 0x80) == 0) {
                 v |= b << 14;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                pos++;
                 continue;
             }
 
@@ -396,6 +399,7 @@ public class VarIntByteArrayReadBench {
             if ((b & 0x80) == 0) {
                 v |= b << 21;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                pos++;
                 continue;
             }
 
@@ -405,6 +409,7 @@ public class VarIntByteArrayReadBench {
             if ((b & 0x80) == 0) {
                 v |= (long) b << 28;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                pos++;
                 continue;
             }
 
@@ -414,6 +419,7 @@ public class VarIntByteArrayReadBench {
             if ((b & 0x80) == 0) {
                 v |= (long) b << 35;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                pos++;
                 continue;
             }
 
@@ -423,6 +429,7 @@ public class VarIntByteArrayReadBench {
             if ((b & 0x80) == 0) {
                 v |= (long) b << 42;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                pos++;
                 continue;
             }
 
@@ -432,6 +439,7 @@ public class VarIntByteArrayReadBench {
             if ((b & 0x80) == 0) {
                 v |= (long) b << 49;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                pos++;
                 continue;
             }
 
@@ -441,6 +449,7 @@ public class VarIntByteArrayReadBench {
             if ((b & 0x80) == 0) {
                 v |= (long) b << 56;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                pos++;
                 continue;
             }
 
@@ -450,6 +459,7 @@ public class VarIntByteArrayReadBench {
             if ((b & 0x80) == 0) {
                 v |= (long) b << 63;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                pos++;
                 continue;
             }
 
