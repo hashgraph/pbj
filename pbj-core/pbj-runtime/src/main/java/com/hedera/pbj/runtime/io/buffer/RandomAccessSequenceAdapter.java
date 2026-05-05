@@ -180,8 +180,15 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
         // Always create a copy because Bytes.getBytes() returns a view
         // and the RandomAccessSequenceAdapter.readBytes(int) method is unaware of
         // the underlying buffer ownership, but users of Bytes assume it's immutable.
-        // We could make this conditional on `delegate instanceof Bytes` if we have to.
-        bytes = bytes.replicate();
+        // But if the `delegate` is Bytes, then we assume that the bytes are immutable, and we skip copying.
+        // Note that this assumption is rather fragile. There's no guarantees that the `delegate`
+        // isn't a Bytes.slice() of another Bytes object that itself is "mutable", or that
+        // the application otherwise doesn't have any other live references to the underlying bytes.
+        // But if the application is well-behaved, then skipping the copy allows us to save RAM
+        // and boost the performance.
+        if (!(delegate instanceof Bytes)) {
+            bytes = bytes.replicate();
+        }
 
         position += bytes.length();
         return bytes;
