@@ -74,7 +74,7 @@ public class VarIntByteArrayReadBench {
         /// results.
         /// So we make every algorithm maintain the sum in this variable instead, so that they all spend the
         /// exact same time updating it.
-        int sum;
+        long sum;
 
         @Setup(Level.Trial)
         public void setup() {
@@ -103,17 +103,21 @@ public class VarIntByteArrayReadBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void pbj(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
+        outer:
         for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
-            int value = 0;
+            final int limit = Math.max(0, Math.min(state.array.length, pos + 10) - pos);
+            long value = 0;
 
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < limit; i++) {
                 final byte b = state.array[pos++];
-                value |= (b & 0x7F) << (i * 7);
+                value |= (b & 0x7FL) << (i * 7);
                 if (b >= 0) {
                     state.sum += state.zigZag ? (value >>> 1) ^ -(value & 1) : value;
-                    break;
+                    continue outer;
                 }
             }
+
+            throw new DataEncodingException("Malformed var int");
         }
         blackhole.consume(state.sum);
     }
@@ -307,7 +311,7 @@ public class VarIntByteArrayReadBench {
     }
 
     /// A LEB128 with fully unrolled loop and limit checks after each read.
-    @Benchmark
+    // @Benchmark // disabled because it's replaced with the vector thing below.
     @OperationsPerInvocation(INVOCATIONS)
     public void loopLess_withLimitChecks(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
@@ -355,111 +359,83 @@ public class VarIntByteArrayReadBench {
         blackhole.consume(state.sum);
     }
 
-    /// A vectorized LEB128 that avoids explicit limit checks and supports zigZag conditional
-    @SuppressWarnings("lossy-conversions") // because state.sum is an int, and here we compute a long (by design)
+    /// A vectorized LEB128, similar to the loopLess above, with some minor tweaks and supporting long varints.
     @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void vector_zigZag(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
         for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
+            final int limit = Math.min(state.array.length, pos + 10);
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-            byte b = state.array[pos];
+            byte b;
+            long v = (b = state.array[pos++]) & 0x7F;
             if ((b & 0x80) == 0) {
-                state.sum += state.zigZag ? (b >>> 1) ^ -(b & 1) : b;
-                pos++;
-                continue;
-            }
-
-            byte lim = (byte) -Math.min(state.array.length - pos - 1, 9);
-            long v = b & 0x7f;
-
-            byte s = (byte) (((lim & 0x80) >>> 7) & 0xFF);
-
-            b = state.array[pos += s];
-            if ((b & 0x80) == 0) {
-                v |= b << 7;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
-                pos++;
                 continue;
             }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-            v |= (b & 0x7f) << 7;
-            b = state.array[pos += s];
+            v |= ((b = state.array[pos++]) & 0x7F) << 7;
             if ((b & 0x80) == 0) {
-                v |= b << 14;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
-                pos++;
                 continue;
             }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-            v |= (b & 0x7f) << 14;
-            b = state.array[pos += s];
+            v |= ((b = state.array[pos++]) & 0x7F) << 14;
             if ((b & 0x80) == 0) {
-                v |= b << 21;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
-                pos++;
                 continue;
             }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-            v |= (b & 0x7f) << 21;
-            b = state.array[pos += s];
+            v |= ((b = state.array[pos++]) & 0x7F) << 21;
             if ((b & 0x80) == 0) {
-                v |= (long) b << 28;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
-                pos++;
                 continue;
             }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-            v |= ((long) b & 0x7f) << 28;
-            b = state.array[pos += s];
+            v |= ((b = state.array[pos++]) & 0x7FL) << 28;
             if ((b & 0x80) == 0) {
-                v |= (long) b << 35;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
-                pos++;
                 continue;
             }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-            v |= ((long) b & 0x7f) << 35;
-            b = state.array[pos += s];
+            v |= ((b = state.array[pos++]) & 0x7FL) << 35;
             if ((b & 0x80) == 0) {
-                v |= (long) b << 42;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
-                pos++;
                 continue;
             }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-            v |= ((long) b & 0x7f) << 42;
-            b = state.array[pos += s];
+            v |= ((b = state.array[pos++]) & 0x7FL) << 42;
             if ((b & 0x80) == 0) {
-                v |= (long) b << 49;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
-                pos++;
                 continue;
             }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-            v |= ((long) b & 0x7f) << 49;
-            b = state.array[pos += s];
+            v |= ((b = state.array[pos++]) & 0x7FL) << 49;
             if ((b & 0x80) == 0) {
-                v |= (long) b << 56;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
-                pos++;
                 continue;
             }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-            s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-            v |= ((long) b & 0x7f) << 56;
-            b = state.array[pos += s];
+            v |= ((b = state.array[pos++]) & 0x7FL) << 56;
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
+                continue;
+            }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            b = state.array[pos++];
             if ((b & 0x80) == 0) {
                 v |= (long) b << 63;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
-                pos++;
                 continue;
             }
 

@@ -15,81 +15,65 @@ public class VectorVarIntTest {
 
     /// A refactored copy from VarIntByteArrayReadBench.vector_zigZag.
     private long readVarInt(byte[] bytes, int pos, boolean zigZag) {
-        byte b = bytes[pos];
+        final int limit = Math.min(bytes.length, pos + 10);
+        if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+        byte b;
+        long v = (b = bytes[pos++]) & 0x7F;
         if ((b & 0x80) == 0) {
-            return zigZag ? (b >>> 1) ^ -(b & 1) : b;
-        }
-
-        byte lim = (byte) -Math.min(bytes.length - pos - 1, 9);
-        long v = b & 0x7f;
-
-        byte s = (byte) (((lim & 0x80) >>> 7) & 0xFF);
-
-        b = bytes[pos += s];
-        if ((b & 0x80) == 0) {
-            v |= b << 7;
             return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
+        if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-        s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-        v |= (b & 0x7f) << 7;
-        b = bytes[pos += s];
+        v |= ((b = bytes[pos++]) & 0x7F) << 7;
         if ((b & 0x80) == 0) {
-            v |= b << 14;
             return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
+        if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-        s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-        v |= (b & 0x7f) << 14;
-        b = bytes[pos += s];
+        v |= ((b = bytes[pos++]) & 0x7F) << 14;
         if ((b & 0x80) == 0) {
-            v |= b << 21;
             return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
+        if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-        s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-        v |= (b & 0x7f) << 21;
-        b = bytes[pos += s];
+        v |= ((b = bytes[pos++]) & 0x7F) << 21;
         if ((b & 0x80) == 0) {
-            v |= (long) b << 28;
             return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
+        if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-        s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-        v |= ((long) b & 0x7f) << 28;
-        b = bytes[pos += s];
+        v |= ((b = bytes[pos++]) & 0x7FL) << 28;
         if ((b & 0x80) == 0) {
-            v |= (long) b << 35;
             return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
+        if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-        s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-        v |= ((long) b & 0x7f) << 35;
-        b = bytes[pos += s];
+        v |= ((b = bytes[pos++]) & 0x7FL) << 35;
         if ((b & 0x80) == 0) {
-            v |= (long) b << 42;
             return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
+        if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-        s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-        v |= ((long) b & 0x7f) << 42;
-        b = bytes[pos += s];
+        v |= ((b = bytes[pos++]) & 0x7FL) << 42;
         if ((b & 0x80) == 0) {
-            v |= (long) b << 49;
             return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
+        if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-        s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-        v |= ((long) b & 0x7f) << 49;
-        b = bytes[pos += s];
+        v |= ((b = bytes[pos++]) & 0x7FL) << 49;
         if ((b & 0x80) == 0) {
-            v |= (long) b << 56;
             return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
+        if (pos >= limit) throw new DataEncodingException("Malformed var int");
 
-        s = (byte) (((++lim & 0x80) >>> 7) & 0xFF);
-        v |= ((long) b & 0x7f) << 56;
-        b = bytes[pos += s];
+        v |= ((b = bytes[pos++]) & 0x7FL) << 56;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+        b = bytes[pos++];
         if ((b & 0x80) == 0) {
             v |= (long) b << 63;
             return zigZag ? (v >>> 1) ^ -(v & 1) : v;
