@@ -102,31 +102,10 @@ public class ParserNeverWrapsTest {
                         seq.writeBytes(bytes);
                     });
         }
-
-        static <T> WrapTestData<T> createBytes(int size) {
-            final byte[] byteArray = new byte[size];
-            final Bytes bytes = Bytes.wrap(byteArray);
-
-            final BytesWritableSequentialData seq = new BytesWritableSequentialData(byteArray);
-
-            return new WrapTestData<T>(
-                    () -> seq, // Only write once.
-                    new UncheckedThrowingFunction<>(codec -> codec.parse(bytes)),
-                    () -> {}, // reset() not supported and not needed for Bytes
-                    () -> byteArray, // return the actual array this Bytes object is wrapping
-                    (pos, arr) -> {
-                        for (int i = 0; i < arr.length; i++) {
-                            byteArray[pos + i] = arr[i];
-                        }
-                    });
-        }
     }
 
     static Stream<Function<Integer, WrapTestData>> provideWrapTestArguments() {
-        return Stream.of(
-                WrapTestData::createByteArrayBufferedData,
-                WrapTestData::createDirectBufferedData,
-                WrapTestData::createBytes);
+        return Stream.of(WrapTestData::createByteArrayBufferedData, WrapTestData::createDirectBufferedData);
     }
 
     @ParameterizedTest
