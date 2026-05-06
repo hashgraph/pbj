@@ -11,22 +11,23 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * Create a complex account details we can use as benchmark
+ * Create a complex account object we can use in benchmarks
  */
 public class AccountDetailsPbj {
 
     /** Random for generating sample data */
     private static final Random RANDOM = new Random(351343135153L);
 
-    /**
-     * Sample test object for JMH benchmarks
-     */
+    /** Sample test object for JMH benchmarks **/
+    public static final AccountID ACCOUNT_ID = new AccountID.Builder()
+            .shardNum(0)
+            .realmNum(0)
+            .accountNum(8808822) // latest account number in April 2026 as example of typical length
+            .build();
+
+    /** Sample test object for JMH benchmarks */
     public static final AccountDetails ACCOUNT_DETAILS = new AccountDetails.Builder()
-            .accountId(new AccountID.Builder()
-                    .shardNum(0)
-                    .realmNum(0)
-                    .accountNum(posLong())
-                    .build())
+            .accountId(ACCOUNT_ID)
             .contractAccountId(randomHex(64))
             .deleted(false)
             .proxyAccountId(new AccountID.Builder()

@@ -12,6 +12,7 @@ import org.openjdk.jmh.annotations.State;
  * A varint writer based on the code from Richard Startin's post
  * <a href="https://github.com/astei/varint-writing-showdown/issues/1">Precompute varint lengths, 64 bit values</a>
  */
+@SuppressWarnings("MismatchedReadAndWriteOfArray")
 @State(Scope.Benchmark)
 public class RichardStartinByteArray {
     private static final int[] VAR_INT_LENGTHS = new int[65];
@@ -62,6 +63,7 @@ public class RichardStartinByteArray {
             case 0:
                 buffer[position] = (byte) (value | 0x80);
         }
+        position += length + 1;
     }
 
     public void endLoop() {

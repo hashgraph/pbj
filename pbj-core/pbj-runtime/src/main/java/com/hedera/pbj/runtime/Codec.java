@@ -15,7 +15,8 @@ import java.io.UncheckedIOException;
  *
  * @param <T> The type of object to serialize and deserialize
  */
-public interface Codec<T> {
+@SuppressWarnings("unused")
+public abstract class Codec<T> {
 
     /**
      * The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.).
@@ -23,7 +24,7 @@ public interface Codec<T> {
      * An application can override this limit when calling the `Codec.parse()` method for a specific
      * protobuf model type if that model is allowed to contain larger fields.
      */
-    int DEFAULT_MAX_SIZE = 2 * 1024 * 1024;
+    public static final int DEFAULT_MAX_SIZE = 2 * 1024 * 1024;
 
     /**
      * The default maximum depth of nested messages before the `parse()` method would error out.
@@ -33,7 +34,7 @@ public interface Codec<T> {
      * Applications can always override the maxDepth by supplying an argument to the main `Codec.parse()` method.
      * The default depth should not be increased beyond the current limit because of the safety concerns.
      */
-    int DEFAULT_MAX_DEPTH = 512;
+    public static final int DEFAULT_MAX_DEPTH = 512;
 
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
@@ -66,7 +67,7 @@ public interface Codec<T> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    T parse(
+    public abstract T parse(
             @NonNull ReadableSequentialData input,
             boolean strictMode,
             boolean parseUnknownFields,
@@ -97,7 +98,7 @@ public interface Codec<T> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    default T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+    public final T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
         return parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
     }
@@ -120,7 +121,7 @@ public interface Codec<T> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    default T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth)
+    public final T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth)
             throws ParseException {
         return parse(input, strictMode, false, maxDepth);
     }
@@ -144,7 +145,7 @@ public interface Codec<T> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    default T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
+    public final T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
         return parse(bytes.toReadableSequentialData(), strictMode, maxDepth);
     }
 
@@ -156,7 +157,7 @@ public interface Codec<T> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    default T parse(@NonNull ReadableSequentialData input) throws ParseException {
+    public final T parse(@NonNull ReadableSequentialData input) throws ParseException {
         return parse(input, false, DEFAULT_MAX_DEPTH);
     }
 
@@ -168,7 +169,7 @@ public interface Codec<T> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    default T parse(@NonNull Bytes bytes) throws ParseException {
+    public final T parse(@NonNull Bytes bytes) throws ParseException {
         return parse(bytes.toReadableSequentialData());
     }
 
@@ -184,7 +185,7 @@ public interface Codec<T> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
+    public final T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
         return parse(input, true, DEFAULT_MAX_DEPTH);
     }
 
@@ -200,7 +201,7 @@ public interface Codec<T> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    default T parseStrict(@NonNull Bytes bytes) throws ParseException {
+    public final T parseStrict(@NonNull Bytes bytes) throws ParseException {
         return parseStrict(bytes.toReadableSequentialData());
     }
 
@@ -211,7 +212,7 @@ public interface Codec<T> {
      * @param output The {@link WritableSequentialData} to write to.
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
-    void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException;
+    public abstract void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException;
 
     /**
      * Writes an item to the given byte array, this is a performance focused method. In non-performance centric use
@@ -224,7 +225,7 @@ public interface Codec<T> {
      * @throws UncheckedIOException If the there is a problem writing to the output array.
      * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
      */
-    default int write(@NonNull T item, @NonNull byte[] output, final int startOffset) {
+    public int write(@NonNull T item, @NonNull byte[] output, final int startOffset) {
         final BufferedData bufferedData = BufferedData.wrap(output, startOffset, output.length - startOffset);
         try {
             write(item, bufferedData);
@@ -243,7 +244,7 @@ public interface Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    int measure(@NonNull ReadableSequentialData input) throws ParseException;
+    public abstract int measure(@NonNull ReadableSequentialData input) throws ParseException;
 
     /**
      * Compute number of bytes that would be written when calling {@code write()} method.
@@ -251,7 +252,7 @@ public interface Codec<T> {
      * @param item The input model data to measure write bytes for
      * @return The length in bytes that would be written
      */
-    int measureRecord(T item);
+    public abstract int measureRecord(T item);
 
     /**
      * Compares the given item with the bytes in the input, and returns false if it determines that
@@ -265,7 +266,7 @@ public interface Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException;
+    public abstract boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException;
 
     /**
      * Converts a Record into a Bytes object
@@ -275,7 +276,7 @@ public interface Codec<T> {
      * @throws RuntimeException wrapping an IOException If it is impossible
      * to write to the {@link WritableStreamingData}
      */
-    default Bytes toBytes(@NonNull T item) {
+    public final Bytes toBytes(@NonNull T item) {
         // it is cheaper performance wise to measure the size of the object first than grow a buffer as needed
         final byte[] bytes = new byte[measureRecord(item)];
         final BufferedData bufferedData = BufferedData.wrap(bytes);
@@ -292,5 +293,5 @@ public interface Codec<T> {
      *
      * @return The default value for the model class
      */
-    T getDefaultInstance();
+    public abstract T getDefaultInstance();
 }
