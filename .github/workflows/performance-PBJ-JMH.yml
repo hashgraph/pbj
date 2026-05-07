@@ -1,6 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0
-
-errrrorrr to wake GHA
 ---
 name: "Performance of PBJ JMH"
 on:
