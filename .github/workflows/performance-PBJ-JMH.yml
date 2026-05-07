@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   performance-tests-start:
-    runs-on: swirldslabs-perf-analysis-linux-large
+    runs-on: network-node-linux-large
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
