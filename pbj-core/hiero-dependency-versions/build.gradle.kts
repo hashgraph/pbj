@@ -2,14 +2,14 @@
 group = "com.hedera.hashgraph"
 
 val antlr = "4.13.2"
-val grpc = "1.80.0"
+val grpc = "1.81.0"
 val helidon = "4.4.1"
 val protobuf = "4.34.1"
 
 val junit5 = "6.0.3"
 val mockito = "5.23.0"
 
-dependencies { api(platform("io.netty:netty-bom:4.2.12.Final")) }
+dependencies { api(platform("io.netty:netty-bom:4.2.13.Final")) }
 
 dependencies.constraints {
     api("org.antlr:antlr4-runtime:$antlr") { because("org.antlr.antlr4.runtime") }
@@ -79,5 +79,5 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-http2:$helidon") {
         because("io.helidon.webclient.http2")
     }
-    api("com.github.luben:zstd-jni:1.5.7-7") { because("com.github.luben.zstd_jni") }
+    api("com.github.luben:zstd-jni:1.5.7-8") { because("com.github.luben.zstd_jni") }
 }
