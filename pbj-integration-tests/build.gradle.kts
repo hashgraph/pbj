@@ -26,6 +26,7 @@ jvmDependencyConflicts.consistentResolution {
 
 javaModuleDependencies {
     moduleNameToGA.put("com.hedera.pbj.integration.tests", "com.hedera.pbj:pbj-integration-tests")
+    moduleNameToGA.put("com.hedera.pbj.grpc.common", "com.hedera.pbj:pbj-grpc-common")
 }
 
 mainModuleInfo {
@@ -71,10 +72,7 @@ configurations.testRuntimeClasspath {
 }
 
 // IMPROVE: Test code should not have a direct dependency to 'com.hedera.pbj.compiler'
-dependencies {
-    jmhImplementation("com.hedera.pbj:pbj-grpc-common")
-    testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive = false }
-}
+dependencies { testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive = false } }
 
 dependencyAnalysis { issues { all { onAny { exclude("com.hedera.pbj:pbj-compiler") } } } }
 
