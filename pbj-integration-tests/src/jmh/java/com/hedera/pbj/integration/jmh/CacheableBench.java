@@ -94,7 +94,7 @@ public class CacheableBench {
 
         // Cache size is 16, so 37 exceeds that
         @Param({"2", "5", "11", "37"})
-        int frequency;
+        int period;
 
         Model model;
         byte[] array;
@@ -117,7 +117,7 @@ public class CacheableBench {
             bd = BufferedData.wrap(array);
             for (int i = 0, j = 0; i < INVOCATIONS; i++) {
                 // Sprinkle our "frequent" object every now and then.
-                if (i % frequency == 0) {
+                if (i % period == 0) {
                     model.codec.write(frequentModels[j++ % numOfFrequentModels], bd);
                 } else {
                     model.codec.write(model.factory.apply(random), bd);

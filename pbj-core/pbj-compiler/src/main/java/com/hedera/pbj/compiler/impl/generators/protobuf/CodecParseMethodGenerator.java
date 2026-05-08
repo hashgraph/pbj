@@ -129,16 +129,12 @@ class CodecParseMethodGenerator {
 
     static String generateCacheableSupport(String modelClassName, final List<Field> fields) {
         return """
-                if (!CACHE.isEnabled()) {
-                    return new $modelClassName($fieldsList);
-                }
                 final int objectHashCode;
                 {
                 $hashCodeBody
                 objectHashCode = (int) hashCode;
                 }
-                // Avoid synchronizing on get():
-                $modelClassName _theObject = CACHE.get(objectHashCode);
+                $modelClassName _theObject = CACHE[objectHashCode & CACHE_KEY_MASK];
                 if (_theObject != null) {
                     // Use switch() to reuse the generated equals() body by replacing `return` with `yield`:
                     if (switch (_theObject) {
@@ -151,9 +147,7 @@ class CodecParseMethodGenerator {
                 }
                 // Since we've computed the hashCode already, let's initialize it:
                 _theObject = new $modelClassName($fieldsList, objectHashCode);
-                synchronized (CACHE) {
-                    CACHE.put(objectHashCode, _theObject);
-                }
+                CACHE[objectHashCode & CACHE_KEY_MASK] = _theObject;
                 return _theObject;
                 """
                 .replace("$hashCodeBody", ModelGenerator.generateHashCodeBody(modelClassName, fields, "temp_"))

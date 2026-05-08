@@ -73,12 +73,26 @@ public final class CodecGenerator implements Generator {
                 .getCacheableMessageCacheSize(
                         lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef));
         if (cacheableMessageCacheSize != null) {
-            writer.addImport("com.hedera.pbj.runtime.ObjectCache");
-
+            // Ex:
+            //   capacity = 3 aka 0b11
+            //   mask = 0b11 aka 3
+            //   length = 4
+            //
+            //   capacity = 4 aka 0b100
+            //   mask = 0b111 aka 7
+            //   length = 8
             cacheableSupport =
                     """
-                    /** Cache for parsed objects to avoid creating new instances. */
-                    private static final ObjectCache<Integer, $modelClass> CACHE = new ObjectCache<>("$fqn", $size);
+                    /** Cache for parsed objects to avoid creating new instances. Access is not synchronized for performance reasons by design. */
+                    private static final $modelClass[] CACHE;
+                    private static final int CACHE_KEY_MASK;
+                    static {
+                        final String property = System.getProperty("pbj.cache.$fqn");
+                        final int capacity = (property != null && !property.isBlank()) ? Integer.parseInt(property) : $size;
+                        int mask = Integer.highestOneBit(capacity);
+                        CACHE_KEY_MASK = mask | (mask - 1);
+                        CACHE = new $modelClass[CACHE_KEY_MASK + 1];
+                    }
                     """
                             .replace("$modelClass", modelClassName)
                             .replace(
