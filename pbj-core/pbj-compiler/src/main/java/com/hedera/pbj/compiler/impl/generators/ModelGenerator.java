@@ -209,20 +209,43 @@ public final class ModelGenerator implements Generator {
 
         // constructors: w/o unknownFields, and with unknownFields; both w/ real enums and with Object
         bodyContent += generateConstructor(
-                javaRecordName, fields, false, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                javaRecordName, fields, false, false, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
         bodyContent += "\n";
         if (hasEnums(fieldsNoPrecomputed)) {
             bodyContent += generateConstructor(
-                    javaRecordName, fields, false, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                    javaRecordName, fields, false, false, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
             bodyContent += "\n";
         }
         bodyContent += generateConstructor(
-                javaRecordName, fields, true, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                javaRecordName, fields, true, false, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
         bodyContent += "\n";
         if (hasEnums(fieldsNoPrecomputed)) {
             bodyContent += generateConstructor(
-                    javaRecordName, fields, true, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                    javaRecordName, fields, true, false, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
             bodyContent += "\n";
+        }
+        // And if the model is cacheable, then also ctors w/ $hashCode
+        if (lookupHelper
+                        .getLookupHelper()
+                        .getCacheableMessageCacheSize(
+                                lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef))
+                != null) {
+            bodyContent += generateConstructor(
+                    javaRecordName, fields, false, true, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+            bodyContent += "\n";
+            if (hasEnums(fieldsNoPrecomputed)) {
+                bodyContent += generateConstructor(
+                        javaRecordName, fields, false, true, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                bodyContent += "\n";
+            }
+            bodyContent += generateConstructor(
+                    javaRecordName, fields, true, true, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+            bodyContent += "\n";
+            if (hasEnums(fieldsNoPrecomputed)) {
+                bodyContent += generateConstructor(
+                        javaRecordName, fields, true, true, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                bodyContent += "\n";
+            }
         }
 
         // record style getters
@@ -263,7 +286,7 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         // hashCode method
-        bodyContent += generateHashCode(fieldsNoPrecomputed);
+        bodyContent += generateHashCode(javaRecordName, fieldsNoPrecomputed);
         bodyContent += "\n";
 
         // equals method
@@ -575,10 +598,6 @@ public final class ModelGenerator implements Generator {
      */
     @NonNull
     private static String generateEquals(final List<Field> fields, final String javaRecordName) {
-        String equalsStatements = "";
-        // Generate a call to private method that iterates through fields
-        // and calculates the hashcode.
-        equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements);
         // spotless:off
         String bodyContent =
         """
@@ -596,26 +615,46 @@ public final class ModelGenerator implements Generator {
             }
         """.replace("$javaRecordName", javaRecordName).indent(DEFAULT_INDENT);
 
-        bodyContent += equalsStatements.indent(DEFAULT_INDENT);
         bodyContent +=
         """
-            // Treat null and empty lists as equal
-            if ($unknownFields != null && !$unknownFields.isEmpty()) {
-                if (thatObj.$unknownFields == null || $unknownFields.size() != thatObj.$unknownFields.size()) {
-                    return false;
-                }
-                // Both are non-null and non-empty lists of the same size, and both are sorted in the same order
-                // (the sorting is the parser responsibility.)
-                // So the List.equals() is the most optimal way to compare them here.
-                // It will simply call UnknownField.equals() for each element at the same index in both the lists:
-                if (!$unknownFields.equals(thatObj.$unknownFields)) {
-                    return false;
-                }
-            } else if (thatObj.$unknownFields != null && !thatObj.$unknownFields.isEmpty()) {
-                return false;
-            }
-            return true;
-        }""".indent(DEFAULT_INDENT);
+            $equalsBody
+        }"""
+                .replace("$equalsBody", generateEqualsBody(fields, javaRecordName, ""))
+                .indent(DEFAULT_INDENT);
+        // spotless:on
+        return bodyContent;
+    }
+
+    public static String generateEqualsBody(
+            final List<Field> fields, final String javaRecordName, String prefixFieldName) {
+        String thatUnknownFields = prefixFieldName.isBlank() ? "$unknownFields" : "getUnknownFields()";
+        String equalsStatements = "";
+        // Generate a call to private method that iterates through fields
+        // and calculates the hashcode.
+        equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements, prefixFieldName);
+        // spotless:off
+        String bodyContent = equalsStatements.indent(DEFAULT_INDENT);
+        bodyContent +=
+                """
+                    // Treat null and empty lists as equal
+                    if ($unknownFields != null && !$unknownFields.isEmpty()) {
+                        if (thatObj.$thatUnknownFields == null || $unknownFields.size() != thatObj.$thatUnknownFields.size()) {
+                            return false;
+                        }
+                        // Both are non-null and non-empty lists of the same size, and both are sorted in the same order
+                        // (the sorting is the parser responsibility.)
+                        // So the List.equals() is the most optimal way to compare them here.
+                        // It will simply call UnknownField.equals() for each element at the same index in both the lists:
+                        if (!$unknownFields.equals(thatObj.$thatUnknownFields)) {
+                            return false;
+                        }
+                    } else if (thatObj.$thatUnknownFields != null && !thatObj.$thatUnknownFields.isEmpty()) {
+                        return false;
+                    }
+                    return true;
+                """
+                        .replace("$thatUnknownFields", thatUnknownFields)
+                        .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }
@@ -628,9 +667,7 @@ public final class ModelGenerator implements Generator {
      * @return the generated code
      */
     @NonNull
-    private static String generateHashCode(final List<Field> fields) {
-        // Generate a call to private method that iterates through fields and calculates the hashcode
-        final String statements = getFieldsHashCode(fields, "");
+    private static String generateHashCode(String modelClassName, final List<Field> fields) {
         // spotless:off
         String bodyContent =
             """
@@ -648,31 +685,45 @@ public final class ModelGenerator implements Generator {
                 // instance, and that the computation is idempotent and derived from immutable state.
                 // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
             
-                if($hashCode == -1) {
-                    int result = 1;
-            """.indent(DEFAULT_INDENT);
-
-        bodyContent += statements;
-
-        bodyContent +=
-            """
-                    if ($unknownFields != null) {
-                        for (int i = 0; i < $unknownFields.size(); i++) {
-                            result = 31 * result + $unknownFields.get(i).hashCode();
-                        }
-                    }
-            """.indent(DEFAULT_INDENT);
-
-        bodyContent +=
-            """
-                    long hashCode = result;
-            $hashCodeManipulation
+                if ($hashCode == -1) {
+            $hashCodeBody
                     $hashCode = (int)hashCode;
                 }
                 return $hashCode;
             }
             """.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
+               .replace("$hashCodeBody", generateHashCodeBody(modelClassName, fields, ""))
                 .indent(DEFAULT_INDENT);
+        // spotless:on
+        return bodyContent;
+    }
+
+    public static String generateHashCodeBody(String modelClassName, final List<Field> fields, String fieldNamePrefix) {
+        // Generate a call to private method that iterates through fields and calculates the hashcode
+        final String statements = getFieldsHashCode(modelClassName, fields, fieldNamePrefix, "");
+        // spotless:off
+        String bodyContent =
+                """
+                        int result = 1;
+                """.indent(DEFAULT_INDENT);
+
+        bodyContent += statements;
+
+        bodyContent +=
+                """
+                        if ($unknownFields != null) {
+                            for (int i = 0; i < $unknownFields.size(); i++) {
+                                result = 31 * result + $unknownFields.get(i).hashCode();
+                            }
+                        }
+                """.indent(DEFAULT_INDENT);
+
+        bodyContent +=
+                """
+                        long hashCode = result;
+                $hashCodeManipulation
+                """.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
+                        .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }
@@ -743,6 +794,7 @@ public final class ModelGenerator implements Generator {
             final String constructorName,
             final List<Field> fields,
             final boolean initUnknownFields,
+            final boolean initHashCode,
             final boolean objectForEnum,
             final List<Field> fieldsNoPrecomputed,
             final boolean shouldThrowOnOneOfNull,
@@ -757,8 +809,9 @@ public final class ModelGenerator implements Generator {
                  * Create a pre-populated $constructorName.
                  * $constructorParamDocs
                  */
-                public $constructorName($constructorParams$unknownFieldsParam) {
+                public $constructorName($constructorParams$unknownFieldsParam$hashCodeParam) {
                     $unknownFieldsCode
+                    $hashCodeCode
             $constructorCode    }
             """
                 .replace("$constructorParamDocs",fieldsNoPrecomputed.stream().map(field ->
@@ -782,6 +835,12 @@ public final class ModelGenerator implements Generator {
                 .replace("$unknownFieldsCode", "this.$unknownFields = " + (initUnknownFields
                         ? "$unknownFields == null ? null : Collections.unmodifiableList($unknownFields)"
                         : "null") + ";")
+                .replace("$hashCodeParam", initHashCode
+                        ? (((fieldsNoPrecomputed.isEmpty() && !initUnknownFields) ? "" : ", ") + "final int $hashCode")
+                        : "")
+                .replace("$hashCodeCode", initHashCode
+                        ? "this.$hashCode = $hashCode;"
+                        : "")
                 .replace("$constructorCode",fieldsNoPrecomputed.stream().map(field -> {
                     StringBuilder sb = new StringBuilder();
                     if (shouldThrowOnOneOfNull && field instanceof OneOfField) {
@@ -1289,10 +1348,10 @@ public final class ModelGenerator implements Generator {
                             + " " + field.nameCamelFirstLower()
                             + " = " + getDefaultValue(field, msgDef, lookupHelper);
                 }).collect(Collectors.joining(";\n    ")))
-                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, false, fields, false, msgDef, lookupHelper))
-                .replace("$prePopulatedObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, false, true, fields, false, msgDef, lookupHelper) : "")
-                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, false, fields, false, msgDef, lookupHelper))
-                .replace("$prePopulatedWithUnknownFieldsObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, true, true, fields, false, msgDef, lookupHelper) : "")
+                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, false, false, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, false, false, true, fields, false, msgDef, lookupHelper) : "")
+                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, false, false, fields, false, msgDef, lookupHelper))
+                .replace("$prePopulatedWithUnknownFieldsObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, true, false, true, fields, false, msgDef, lookupHelper) : "")
                 .replace("$javaRecordName",javaRecordName)
                 .replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
                 .replace("$builderMethods", String.join("\n", builderMethods))

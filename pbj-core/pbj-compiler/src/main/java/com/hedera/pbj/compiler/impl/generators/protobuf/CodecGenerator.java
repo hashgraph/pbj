@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 import static com.hedera.pbj.compiler.impl.generators.protobuf.CodecDefaultInstanceMethodGenerator.generateGetDefaultInstanceMethod;
 
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
@@ -66,6 +67,28 @@ public final class CodecGenerator implements Generator {
 
         final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
 
+        final String cacheableSupport;
+        final Integer cacheableMessageCacheSize = lookupHelper
+                .getLookupHelper()
+                .getCacheableMessageCacheSize(
+                        lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef));
+        if (cacheableMessageCacheSize != null) {
+            writer.addImport("com.hedera.pbj.runtime.ObjectCache");
+
+            cacheableSupport =
+                    """
+                    /** Cache for parsed objects to avoid creating new instances. */
+                    private static final ObjectCache<Integer, $modelClass> CACHE = new ObjectCache<>("$fqn", $size);
+                    """
+                            .replace("$modelClass", modelClassName)
+                            .replace(
+                                    "$fqn", lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef))
+                            .replace("$size", cacheableMessageCacheSize.toString())
+                            .indent(DEFAULT_INDENT);
+        } else {
+            cacheableSupport = "";
+        }
+
         writer.addImport("com.hedera.pbj.runtime.*");
         writer.addImport("com.hedera.pbj.runtime.io.*");
         writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
@@ -92,6 +115,7 @@ public final class CodecGenerator implements Generator {
                  * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
                  */
                 public final$staticModifier class $codecClass implements Codec<$modelClass> {
+                $cacheableSupport
                     /**
                      * An initial capacity for the ArrayList where unknown fields are collected.
                      * To optimize parsing unknown fields, we store the max value we've seen so far.
@@ -121,8 +145,9 @@ public final class CodecGenerator implements Generator {
                 .replace("$modelClass", modelClassName)
                 .replace("$staticModifier", staticModifier)
                 .replace("$codecClass", codecClassName)
+                .replace("$cacheableSupport", cacheableSupport)
                 .replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
-                .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, schemaClassName, fields))
+                .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, schemaClassName, fields, !cacheableSupport.isBlank()))
                 .replace("$writeMethod", writeMethod)
                 .replace("$writeByteArrayMethod", writeByteArrayMethod)
                 .replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))

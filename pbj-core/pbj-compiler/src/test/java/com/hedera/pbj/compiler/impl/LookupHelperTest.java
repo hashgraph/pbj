@@ -65,21 +65,21 @@ class LookupHelperTest {
 
     @Test
     void testExtractComparableFields_emptyComment() {
-        when(defContext.optionComment()).thenReturn(optionComment);
+        when(defContext.optionComment()).thenReturn(List.of(optionComment));
         assertTrue(extractComparableFields(defContext).isEmpty(), "Should return empty list");
     }
 
     @Test
     void testExtractComparableFields_malformedComment() {
         when(optionComment.getText()).thenReturn("B1sr9i4TZp");
-        when(defContext.optionComment()).thenReturn(optionComment);
+        when(defContext.optionComment()).thenReturn(List.of(optionComment));
         assertTrue(extractComparableFields(defContext).isEmpty(), "Should return empty list");
     }
 
     @Test
     void testExtractComparableFields_notApplicableComment() {
         when(optionComment.getText()).thenReturn("// <<<pbj.java_package = \"com.hedera.pbj.test.proto.pbj\">>>");
-        when(defContext.optionComment()).thenReturn(optionComment);
+        when(defContext.optionComment()).thenReturn(List.of(optionComment));
         assertTrue(extractComparableFields(defContext).isEmpty(), "Should return empty list");
     }
 
@@ -87,7 +87,7 @@ class LookupHelperTest {
     void testExtractComparableFields_commentWithUnkownField() {
         when(optionComment.getText())
                 .thenReturn("// <<<pbj.comparable = \"int32Number, int64Number, unknown, text\" >>>");
-        when(defContext.optionComment()).thenReturn(optionComment);
+        when(defContext.optionComment()).thenReturn(List.of(optionComment));
         final var messageBody = mock(MessageBodyContext.class);
         final var int32Number = createMessageElement("int32Number");
         final var int64Number = createMessageElement("int64Number");
@@ -103,7 +103,7 @@ class LookupHelperTest {
     @Test
     void testExtractComparableFields_validComment() {
         when(optionComment.getText()).thenReturn("// <<<pbj.comparable = \"int32Number, int64Number, text\" >>>");
-        when(defContext.optionComment()).thenReturn(optionComment);
+        when(defContext.optionComment()).thenReturn(List.of(optionComment));
         final var messageBody = mock(MessageBodyContext.class);
         final var int32Number = createMessageElement("int32Number");
         final var int64Number = createMessageElement("int64Number");

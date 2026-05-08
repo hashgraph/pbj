@@ -8,6 +8,7 @@ import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.PbjCompilerException;
+import com.hedera.pbj.compiler.impl.generators.ModelGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -46,7 +47,10 @@ class CodecParseMethodGenerator {
     }
 
     static String generateParseMethod(
-            final String modelClassName, final String schemaClassName, final List<Field> fields) {
+            final String modelClassName,
+            final String schemaClassName,
+            final List<Field> fields,
+            final boolean isCacheable) {
         // spotless:off
         return """
                 /**
@@ -93,7 +97,7 @@ class CodecParseMethodGenerator {
                             Collections.sort($unknownFields);
                             $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
                         }
-                        return new $modelClassName($fieldsList);
+                $cacheableSupport
                     } catch (final Exception anyException) {
                         if (anyException instanceof ParseException parseException) {
                             throw parseException;
@@ -102,6 +106,7 @@ class CodecParseMethodGenerator {
                     }
                 }
                 """
+        .replace("$cacheableSupport", isCacheable ? generateCacheableSupport(modelClassName, fields) : "return new $modelClassName($fieldsList);")
         .replace("$modelClassName",modelClassName)
         .replace("$fieldDefs",fields.stream().map(field -> {
             final String javaFieldType = field.type() == Field.FieldType.ENUM ? field.repeated() ? "List" :  "Object" : field.javaFieldType();
@@ -120,6 +125,44 @@ class CodecParseMethodGenerator {
                 .indent(DEFAULT_INDENT * 2))
         .indent(DEFAULT_INDENT);
         // spotless:on
+    }
+
+    static String generateCacheableSupport(String modelClassName, final List<Field> fields) {
+        return """
+                if (!CACHE.isEnabled()) {
+                    return new $modelClassName($fieldsList);
+                }
+                final int objectHashCode;
+                {
+                $hashCodeBody
+                objectHashCode = (int) hashCode;
+                }
+                // Avoid synchronizing on get():
+                $modelClassName _theObject = CACHE.get(objectHashCode);
+                if (_theObject != null) {
+                    // Use switch() to reuse the generated equals() body by replacing `return` with `yield`:
+                    if (switch (_theObject) {
+                        case $modelClassName thatObj -> {
+                            $equalsBody
+                        }
+                    }) {
+                        return _theObject;
+                    }
+                }
+                // Since we've computed the hashCode already, let's initialize it:
+                _theObject = new $modelClassName($fieldsList, objectHashCode);
+                synchronized (CACHE) {
+                    CACHE.put(objectHashCode, _theObject);
+                }
+                return _theObject;
+                """
+                .replace("$hashCodeBody", ModelGenerator.generateHashCodeBody(modelClassName, fields, "temp_"))
+                .replace(
+                        "$equalsBody",
+                        ModelGenerator.generateEqualsBody(fields, modelClassName, "temp_")
+                                .replace("return false", "yield false")
+                                .replace("return true", "yield true"))
+                .indent(DEFAULT_INDENT * 2);
     }
 
     // prefix is pre-pended to variable names to support a nested parsing loop.
