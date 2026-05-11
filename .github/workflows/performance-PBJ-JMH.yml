@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: Apache-2.0
+---
+name: "Performance of PBJ JMH"
+on:
+  workflow_dispatch:
+    inputs:
+      version: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "main"
+        type: string
+        description: 'tag/branch/sha'
+
+      testname: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "com.hedera.pbj.integration.jmh.varint.read.VarIntByteArrayReadBench"
+        type: string
+        description: 'JMH test name'
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+  statuses: write
+
+jobs:
+  performance-tests-start:
+    runs-on: network-node-linux-large
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout target CN Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: pbj
+          ref: ${{ inputs.version }}
+
+      - name: Print parameters
+        run: |
+          echo "version=${{ inputs.version }}"
+          echo "testname=${{ inputs.testname }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+
+      - name: Infrastructure info
+        run: |
+          uname -a
+          cat /etc/*elease
+          echo "CPU:"
+          cat /proc/cpuinfo
+          echo "Memory:"
+          cat /proc/meminfo
+
+      - name: OS check procedure
+        id: setup
+        run: |
+          set +x
+          set +e
+          export TERM=vt100
+          echo Setup procedure ...
+          cat /etc/*elease
+          sudo apt-get update
+          sudo apt-get install -y net-tools iputils-ping node-typescript python3-pip
+
+          #install java
+          wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | sudo apt-key add -
+          echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | sudo tee /etc/apt/sources.list.d/adoptium.list
+          sudo apt-get update
+          sudo apt install -y temurin-25-jdk
+          java -version
+
+      - name: Build PBJ
+        run: |
+          echo "Checkout PBJ"
+
+          cd "${{ github.workspace }}"/pbj
+
+          pbjhash=`git rev-parse HEAD`
+          echo "pbjhash=${pbjhash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+
+          cd pbj-core
+          ./gradlew --no-daemon clean assemble
+          cd ../pbj-integration-tests/
+          ./gradlew -no-daemon jmhJar
+
+      - name: Run JMH
+        run: |
+          cd "${{ github.workspace }}"/pbj
+          cd pbj-integration-tests/
+          java -cp ./build/libs/pbj-integration-tests-0.0.0.1-test-jmh.jar ${{ inputs.testname }} 2>&1 | tee log.txt
