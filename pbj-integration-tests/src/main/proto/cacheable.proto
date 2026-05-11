@@ -7,8 +7,6 @@ option java_package = "com.hedera.pbj.test.proto.java";
 option java_multiple_files = true;
 // <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>> This comment is special code for setting PBJ Compiler java package
 
-import "everything.proto";
-
 message NotCacheableAccountID {
   int64 shardNum = 1;
   int64 realmNum = 2;

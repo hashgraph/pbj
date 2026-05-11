@@ -95,7 +95,8 @@ public final class CodecGenerator implements Generator {
                         // Next (or equal) power of 2:
                         final int length = capacity <= 0 ? 1 : ((capacity & (capacity - 1)) == 0 ? capacity :  Integer.highestOneBit(capacity) << 1);
                         CACHE = new $modelClass[length];
-                        CACHE_KEY_MASK = length <= 1 ? 1 : (length - 1);
+                        // length is >= 1 , so mask is >= 0. 0 is okay (unusual but okay.)
+                        CACHE_KEY_MASK = length - 1;
                     }
                     """.replace("$modelClass", modelClassName)
                     .replace("$fqn", lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef))
