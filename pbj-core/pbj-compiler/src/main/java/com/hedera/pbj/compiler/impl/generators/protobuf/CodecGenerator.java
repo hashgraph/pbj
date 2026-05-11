@@ -81,8 +81,7 @@ public final class CodecGenerator implements Generator {
             //   capacity = 4 aka 0b100
             //   mask = 0b111 aka 7
             //   length = 8
-            cacheableSupport =
-                    """
+            cacheableSupport = """
                     /** Cache for parsed objects to avoid creating new instances. Access is not synchronized for performance reasons by design. */
                     private static final $modelClass[] CACHE;
                     private static final int CACHE_KEY_MASK;
@@ -93,12 +92,10 @@ public final class CodecGenerator implements Generator {
                         CACHE_KEY_MASK = mask | (mask - 1);
                         CACHE = new $modelClass[CACHE_KEY_MASK + 1];
                     }
-                    """
-                            .replace("$modelClass", modelClassName)
-                            .replace(
-                                    "$fqn", lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef))
-                            .replace("$size", cacheableMessageCacheSize.toString())
-                            .indent(DEFAULT_INDENT);
+                    """.replace("$modelClass", modelClassName)
+                    .replace("$fqn", lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef))
+                    .replace("$size", cacheableMessageCacheSize.toString())
+                    .indent(DEFAULT_INDENT);
         } else {
             cacheableSupport = "";
         }

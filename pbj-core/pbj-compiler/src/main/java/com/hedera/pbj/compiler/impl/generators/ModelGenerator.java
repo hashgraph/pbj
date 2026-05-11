@@ -42,8 +42,7 @@ public final class ModelGenerator implements Generator {
 
     private static final String NON_NULL_ANNOTATION = "@NonNull";
 
-    private static final String HASH_CODE_MANIPULATION =
-            """
+    private static final String HASH_CODE_MANIPULATION = """
             // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
             hashCode += hashCode << 30;
             hashCode ^= hashCode >>> 27;
@@ -54,8 +53,7 @@ public final class ModelGenerator implements Generator {
             hashCode += hashCode << 10;
             hashCode ^= hashCode >>> 24;
             hashCode += hashCode << 30;
-        """
-                    .indent(DEFAULT_INDENT * 2);
+        """.indent(DEFAULT_INDENT * 2);
 
     /**
      * {@inheritDoc}
@@ -252,8 +250,7 @@ public final class ModelGenerator implements Generator {
         bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed, false);
         bodyContent += "\n";
 
-        bodyContent +=
-                """
+        bodyContent += """
                 /**
                  * Get an unmodifiable list of all unknown fields parsed from the original data, i.e. the fields
                  * that are unknown to the .proto model which generated this Java model class. The fields are sorted
@@ -276,8 +273,7 @@ public final class ModelGenerator implements Generator {
                 public @NonNull List<UnknownField> getUnknownFields() {
                     return $unknownFields == null ? Collections.EMPTY_LIST : $unknownFields;
                 }
-                """
-                        .indent(DEFAULT_INDENT);
+                """.indent(DEFAULT_INDENT);
         bodyContent += "\n";
 
         // protobuf size method
@@ -434,8 +430,7 @@ public final class ModelGenerator implements Generator {
                     final String extraGetter;
                     if (field.type() == FieldType.ENUM) {
                         if (field.repeated()) {
-                            extraGetter =
-                                    """
+                            extraGetter = """
 
                             /**
                              * Get the protoOrdinals for field $fieldCommentLowerFirst,
@@ -446,15 +441,13 @@ public final class ModelGenerator implements Generator {
                             public List<Integer> $methodNameProtoOrdinals() {
                                 return $enumName.toProtoOrdinals($fieldValue);
                             }
-                            """
-                                            .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
-                                            .replace("$methodName", methodName)
-                                            .replace("$fieldValue", field.nameCamelFirstLower())
-                                            .replace("$enumName", field.javaFieldTypeBase())
-                                            .indent(DEFAULT_INDENT);
+                            """.replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
+                                    .replace("$methodName", methodName)
+                                    .replace("$fieldValue", field.nameCamelFirstLower())
+                                    .replace("$enumName", field.javaFieldTypeBase())
+                                    .indent(DEFAULT_INDENT);
                         } else {
-                            extraGetter =
-                                    """
+                            extraGetter = """
 
                             /**
                              * Get the protoOrdinal for field $fieldCommentLowerFirst,
@@ -465,12 +458,11 @@ public final class ModelGenerator implements Generator {
                             public int $methodNameProtoOrdinal() {
                                 return $enumName.toProtoOrdinal($fieldValue);
                             }
-                            """
-                                            .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
-                                            .replace("$methodName", methodName)
-                                            .replace("$fieldValue", field.nameCamelFirstLower())
-                                            .replace("$enumName", field.javaFieldType())
-                                            .indent(DEFAULT_INDENT);
+                            """.replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
+                                    .replace("$methodName", methodName)
+                                    .replace("$fieldValue", field.nameCamelFirstLower())
+                                    .replace("$enumName", field.javaFieldType())
+                                    .indent(DEFAULT_INDENT);
                         }
                     } else {
                         extraGetter = "";
@@ -485,8 +477,7 @@ public final class ModelGenerator implements Generator {
                         return $fieldValue;
                     }
                     $extraGetter
-                    """
-                            .replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
+                    """.replace("$fieldCommentLowerFirst", fieldCommentLowerFirst)
                             .replace("$methodName", methodName)
                             .replace("$fieldValue", fieldValue)
                             .replace("$fieldType", field.javaFieldType())

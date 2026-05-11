@@ -149,8 +149,7 @@ class CodecParseMethodGenerator {
                 _theObject = new $modelClassName($fieldsList, objectHashCode);
                 CACHE[objectHashCode & CACHE_KEY_MASK] = _theObject;
                 return _theObject;
-                """
-                .replace("$hashCodeBody", ModelGenerator.generateHashCodeBody(modelClassName, fields, "temp_"))
+                """.replace("$hashCodeBody", ModelGenerator.generateHashCodeBody(modelClassName, fields, "temp_"))
                 .replace(
                         "$equalsBody",
                         ModelGenerator.generateEqualsBody(fields, modelClassName, "temp_")
@@ -299,8 +298,7 @@ class CodecParseMethodGenerator {
         } else {
             preRead = "";
         }
-        sb.append(
-                """
+        sb.append("""
                 // Read the length of packed repeated field data
                 final long length = input.readVarInt(false);
                 if (length > $maxSize) {
@@ -318,13 +316,12 @@ class CodecParseMethodGenerator {
                 input.limit(beforeLimit);
                 if (input.position() != beforePosition + length) {
                     throw new BufferUnderflowException();
-                }"""
-                        .replace("$tempFieldName", "temp_" + field.name())
-                        .replace("$preRead", preRead)
-                        .replace("$readMethod", field.type() == Field.FieldType.ENUM ? "value" : readMethod(field))
-                        .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
-                        .replace("$fieldName", field.name())
-                        .indent(DEFAULT_INDENT));
+                }""".replace("$tempFieldName", "temp_" + field.name())
+                .replace("$preRead", preRead)
+                .replace("$readMethod", field.type() == Field.FieldType.ENUM ? "value" : readMethod(field))
+                .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
+                .replace("$fieldName", field.name())
+                .indent(DEFAULT_INDENT));
         sb.append("\n}\n");
         // spotless:on
     }
