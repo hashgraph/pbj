@@ -132,14 +132,14 @@ class CodecParseMethodGenerator {
                 final int objectHashCode;
                 {
                 $hashCodeBody
-                objectHashCode = (int) hashCode;
+                    objectHashCode = (int) hashCode;
                 }
                 $modelClassName _theObject = CACHE[objectHashCode & CACHE_KEY_MASK];
                 if (_theObject != null) {
                     // Use switch() to reuse the generated equals() body by replacing `return` with `yield`:
                     if (switch (_theObject) {
                         case $modelClassName thatObj -> {
-                            $equalsBody
+                $equalsBody
                         }
                     }) {
                         return _theObject;
@@ -154,7 +154,8 @@ class CodecParseMethodGenerator {
                         "$equalsBody",
                         ModelGenerator.generateEqualsBody(fields, modelClassName, "temp_")
                                 .replace("return false", "yield false")
-                                .replace("return true", "yield true"))
+                                .replace("return true", "yield true")
+                                .indent(DEFAULT_INDENT))
                 .indent(DEFAULT_INDENT * 2);
     }
 

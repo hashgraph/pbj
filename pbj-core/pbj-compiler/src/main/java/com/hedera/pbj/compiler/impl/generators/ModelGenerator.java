@@ -683,7 +683,7 @@ public final class ModelGenerator implements Generator {
                 return $hashCode;
             }
             """.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-               .replace("$hashCodeBody", generateHashCodeBody(modelClassName, fields, ""))
+               .replace("$hashCodeBody", generateHashCodeBody(modelClassName, fields, "").indent(DEFAULT_INDENT))
                 .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
@@ -695,26 +695,25 @@ public final class ModelGenerator implements Generator {
         // spotless:off
         String bodyContent =
                 """
-                        int result = 1;
-                """.indent(DEFAULT_INDENT);
+                    int result = 1;
+                """;
 
-        bodyContent += statements;
+        bodyContent += statements.indent(DEFAULT_INDENT);
 
         bodyContent +=
                 """
-                        if ($unknownFields != null) {
-                            for (int i = 0; i < $unknownFields.size(); i++) {
-                                result = 31 * result + $unknownFields.get(i).hashCode();
-                            }
+                    if ($unknownFields != null) {
+                        for (int i = 0; i < $unknownFields.size(); i++) {
+                            result = 31 * result + $unknownFields.get(i).hashCode();
                         }
-                """.indent(DEFAULT_INDENT);
+                    }
+                """;
 
         bodyContent +=
                 """
-                        long hashCode = result;
+                    long hashCode = result;
                 $hashCodeManipulation
-                """.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-                        .indent(DEFAULT_INDENT);
+                """.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION);
         // spotless:on
         return bodyContent;
     }

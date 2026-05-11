@@ -327,7 +327,7 @@ public final class Common {
                 }
             }
         }
-        return generatedCodeSoFar.indent(DEFAULT_INDENT * 3);
+        return generatedCodeSoFar;
     }
 
     /**

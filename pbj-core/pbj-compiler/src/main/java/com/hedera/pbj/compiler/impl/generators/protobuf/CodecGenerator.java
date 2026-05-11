@@ -75,12 +75,16 @@ public final class CodecGenerator implements Generator {
         if (cacheableMessageCacheSize != null) {
             // Ex:
             //   capacity = 3 aka 0b11
-            //   mask = 0b11 aka 3
             //   length = 4
+            //   mask = 0b11 aka 3
             //
             //   capacity = 4 aka 0b100
-            //   mask = 0b111 aka 7
+            //   length = 4
+            //   mask = 0b11 aka 3
+            //
+            //   capacity = 5 aka 0b101
             //   length = 8
+            //   mask = 0b111 aka 7
             cacheableSupport = """
                     /** Cache for parsed objects to avoid creating new instances. Access is not synchronized for performance reasons by design. */
                     private static final $modelClass[] CACHE;
@@ -88,9 +92,10 @@ public final class CodecGenerator implements Generator {
                     static {
                         final String property = System.getProperty("pbj.cache.$fqn");
                         final int capacity = (property != null && !property.isBlank()) ? Integer.parseInt(property) : $size;
-                        int mask = Integer.highestOneBit(capacity);
-                        CACHE_KEY_MASK = mask | (mask - 1);
-                        CACHE = new $modelClass[CACHE_KEY_MASK + 1];
+                        // Next (or equal) power of 2:
+                        final int length = capacity <= 0 ? 1 : ((capacity & (capacity - 1)) == 0 ? capacity :  Integer.highestOneBit(capacity) << 1);
+                        CACHE = new $modelClass[length];
+                        CACHE_KEY_MASK = length <= 1 ? 1 : (length - 1);
                     }
                     """.replace("$modelClass", modelClassName)
                     .replace("$fqn", lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef))
