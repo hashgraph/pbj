@@ -452,7 +452,8 @@ public final class Common {
      * @return Updated codegen string.
      */
     @NonNull
-    private static String getMapHashCodeGeneration(String generatedCodeSoFar, final Field f, final String fieldNamePrefix) {
+    private static String getMapHashCodeGeneration(
+            String generatedCodeSoFar, final Field f, final String fieldNamePrefix) {
         generatedCodeSoFar += ("""
                 for (Object k : $mapSortedKeys) {
                     if (k != null) {
@@ -467,9 +468,12 @@ public final class Common {
                         result = 31 * result;
                     }
                 }
-                """).replace("$mapSortedKeys", fieldNamePrefix.isBlank()
-                        ? "((PbjMap) $fieldName).getSortedKeys()"
-                        : "(Iterable) $prefix$fieldName.keySet().stream().sorted()::iterator")
+                """)
+                .replace(
+                        "$mapSortedKeys",
+                        fieldNamePrefix.isBlank()
+                                ? "((PbjMap) $fieldName).getSortedKeys()"
+                                : "(Iterable) $prefix$fieldName.keySet().stream().sorted()::iterator")
                 .replace("$prefix", fieldNamePrefix)
                 .replace("$fieldName", f.nameCamelFirstLower());
         return generatedCodeSoFar;
