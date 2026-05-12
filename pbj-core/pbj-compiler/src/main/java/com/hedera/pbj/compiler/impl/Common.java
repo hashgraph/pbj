@@ -310,7 +310,7 @@ public final class Common {
                             .replace("$suffix", suffix)
                             .replace("$fieldName", f.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.MAP) {
-                    generatedCodeSoFar += getMapHashCodeGeneration(generatedCodeSoFar, f);
+                    generatedCodeSoFar += getMapHashCodeGeneration(generatedCodeSoFar, f, fieldNamePrefix);
                 } else if (f.type() == Field.FieldType.STRING || f.parent() == null) { // process sub message
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$fieldName$suffix)) {
@@ -452,22 +452,26 @@ public final class Common {
      * @return Updated codegen string.
      */
     @NonNull
-    private static String getMapHashCodeGeneration(String generatedCodeSoFar, final Field f) {
+    private static String getMapHashCodeGeneration(String generatedCodeSoFar, final Field f, final String fieldNamePrefix) {
         generatedCodeSoFar += ("""
-                for (Object k : ((PbjMap) $fieldName).getSortedKeys()) {
+                for (Object k : $mapSortedKeys) {
                     if (k != null) {
                         result = 31 * result + k.hashCode();
                     } else {
                         result = 31 * result;
                     }
-                    Object v = $fieldName.get(k);
+                    Object v = $prefix$fieldName.get(k);
                     if (v != null) {
                         result = 31 * result + v.hashCode();
                     } else {
                         result = 31 * result;
                     }
                 }
-                """).replace("$fieldName", f.nameCamelFirstLower());
+                """).replace("$mapSortedKeys", fieldNamePrefix.isBlank()
+                        ? "((PbjMap) $fieldName).getSortedKeys()"
+                        : "(Iterable) $prefix$fieldName.keySet().stream().sorted()::iterator")
+                .replace("$prefix", fieldNamePrefix)
+                .replace("$fieldName", f.nameCamelFirstLower());
         return generatedCodeSoFar;
     }
 

@@ -27,3 +27,8 @@ message CacheableAccountID {
     bytes alias = 4;
   }
 }
+
+// <<<pbj.cacheable = 16>>>
+message CacheableModelWithMap {
+  map<int32, string> mapInt32ToString = 1;
+}
