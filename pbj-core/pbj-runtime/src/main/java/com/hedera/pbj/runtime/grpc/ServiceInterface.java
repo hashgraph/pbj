@@ -3,6 +3,8 @@ package com.hedera.pbj.runtime.grpc;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.net.SocketAddress;
+import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -137,6 +139,16 @@ public interface ServiceInterface extends AutoCloseable {
          */
         default Map<String, String> metadata() {
             return Map.of();
+        }
+
+        /// The `SocketAddress` of the remote peer, or null if unknown or undefined.
+        default SocketAddress remoteAddress() {
+            return null;
+        }
+
+        /// The TLS certificate chain of the remote peer, or empty if unknown, undefined, or the connection isn't TLS.
+        default Optional<Certificate[]> remoteCertificateChain() {
+            return Optional.empty();
         }
     }
 
