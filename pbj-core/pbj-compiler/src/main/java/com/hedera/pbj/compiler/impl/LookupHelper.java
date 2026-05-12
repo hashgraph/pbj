@@ -37,7 +37,8 @@ import org.antlr.v4.runtime.ParserRuleContext;
 @SuppressWarnings({"unused", "DuplicatedCode"})
 public final class LookupHelper {
     /** REGEX pattern to match options in special option comments */
-    private static final Pattern OPTION_COMMENT = Pattern.compile("//\\s+<<<\\s*([\\w.]+)\\s*=\\s*\"([^\"]+)\"\\s*>>>");
+    private static final Pattern OPTION_COMMENT =
+            Pattern.compile("//\\s+<<<\\s*([\\w.]+)\\s*=\\s*\"?([^\"]+)\"?\\s*>>>");
     /** The option name for PBJ package at file level */
     private static final String PBJ_PACKAGE_OPTION_NAME = "pbj.java_package";
     /** The option name for PBJ package at msgDef level */
@@ -48,6 +49,7 @@ public final class LookupHelper {
     private static final String PBJ_SERVICE_PACKAGE_OPTION_NAME = "pbj.service_java_package";
 
     private static final String PBJ_COMPARABLE_OPTION_NAME = "pbj.comparable";
+    private static final String PBJ_CACHEABLE_OPTION_NAME = "pbj.cacheable";
 
     /** The option name for protoc java package at file level */
     private static final String PROTOC_JAVA_PACKAGE_OPTION_NAME = "java_package";
@@ -115,6 +117,11 @@ public final class LookupHelper {
      * qualified message name.
      */
     private final Map<String, Map<String, String>> msgEnumServiceByFile = new HashMap<>();
+
+    /**
+     * Map from fully qualified message names that are cacheable in the Codec's parser to their default cache size.
+     */
+    private final Map<String, Integer> cacheableMessagesCacheSize = new HashMap<>();
 
     /**
      * Set of all fully qualified message names that are enums, so we can check if a message is an
@@ -463,6 +470,16 @@ public final class LookupHelper {
         return isComparable(getFullyQualifiedProtoName(protoSrcFile, messageType));
     }
 
+    /**
+     * Check if the given fullyQualifiedMessageOrEnumName is cacheable.
+     *
+     * @param fullyQualifiedMessageOrEnumName to check if cacheable
+     * @return the cache size if the message is cacheable, or null
+     */
+    public Integer getCacheableMessageCacheSize(final String fullyQualifiedMessageOrEnumName) {
+        return cacheableMessagesCacheSize.get(fullyQualifiedMessageOrEnumName);
+    }
+
     // =================================================================================================================
     // BUILD METHODS to construct lookup tables
 
@@ -639,6 +656,10 @@ public final class LookupHelper {
 
         final String fullyQualifiedMessage = getFullyQualifiedProtoNameForContext(msgDef);
         comparableFieldsByMsg.computeIfAbsent(fullyQualifiedMessage, v -> extractComparableFields(msgDef));
+        final Integer cacheSize = extractCacheSize(msgDef);
+        if (cacheSize != null) {
+            cacheableMessagesCacheSize.put(fullyQualifiedMessage, cacheSize);
+        }
         // insert into maps
         pbjPackageMap.put(fullyQualifiedMessage, messagePbjPackage);
         pbjCompleteClassMap.put(
@@ -665,51 +686,82 @@ public final class LookupHelper {
      * @return a list of field names that are comparable
      */
     static List<String> extractComparableFields(final MessageDefContext msgDef) {
-        if (msgDef.optionComment() == null || msgDef.optionComment().getText() == null) {
+        if (msgDef.optionComment() == null || msgDef.optionComment().isEmpty()) {
             return emptyList();
         }
-        final var matcher = OPTION_COMMENT.matcher(msgDef.optionComment().getText());
-        if (matcher.find()) {
-            final String optionName = matcher.group(1);
-            final String optionValue = matcher.group(2);
-            if (optionName.equals(PBJ_COMPARABLE_OPTION_NAME)) {
-                final Set<String> repeatedFields = new HashSet<>();
-                final Set<String> regularFieldNames = msgDef.messageBody().messageElement().stream()
-                        .filter(v -> v.field() != null)
-                        .filter(v -> {
-                            if (v.field().REPEATED() != null) {
-                                repeatedFields.add(v.field().fieldName().getText());
-                                return false;
-                            } else {
-                                return true;
-                            }
-                        })
-                        .map(v -> v.field().fieldName().getText())
-                        .collect(Collectors.toSet());
-                final Set<String> oneOfFieldNames = msgDef.messageBody().messageElement().stream()
-                        .filter(v -> v.oneof() != null)
-                        .map(v -> v.oneof().oneofName().getText())
-                        .collect(Collectors.toSet());
-                final Set<String> allFieldNames = new HashSet<>();
-                allFieldNames.addAll(regularFieldNames);
-                allFieldNames.addAll(oneOfFieldNames);
-                return Arrays.stream(optionValue.split(","))
-                        .map(String::trim)
-                        .peek(v -> {
-                            if (repeatedFields.contains(v)) {
-                                throw new IllegalArgumentException(
-                                        "Field `%s` specified in `%s` option is repeated. Repeated fields are not supported by this option."
-                                                .formatted(v, PBJ_COMPARABLE_OPTION_NAME));
-                            }
-                            if (!allFieldNames.contains(v)) {
-                                throw new IllegalArgumentException("Field '%s' specified in %s option is not found."
-                                        .formatted(v, PBJ_COMPARABLE_OPTION_NAME));
-                            }
-                        })
-                        .collect(Collectors.toList());
+        for (Protobuf3Parser.OptionCommentContext optionComment : msgDef.optionComment()) {
+            if (optionComment.getText() == null) {
+                continue;
+            }
+            final var matcher = OPTION_COMMENT.matcher(optionComment.getText());
+            if (matcher.find()) {
+                final String optionName = matcher.group(1);
+                final String optionValue = matcher.group(2);
+                if (optionName.equals(PBJ_COMPARABLE_OPTION_NAME)) {
+                    final Set<String> repeatedFields = new HashSet<>();
+                    final Set<String> regularFieldNames = msgDef.messageBody().messageElement().stream()
+                            .filter(v -> v.field() != null)
+                            .filter(v -> {
+                                if (v.field().REPEATED() != null) {
+                                    repeatedFields.add(v.field().fieldName().getText());
+                                    return false;
+                                } else {
+                                    return true;
+                                }
+                            })
+                            .map(v -> v.field().fieldName().getText())
+                            .collect(Collectors.toSet());
+                    final Set<String> oneOfFieldNames = msgDef.messageBody().messageElement().stream()
+                            .filter(v -> v.oneof() != null)
+                            .map(v -> v.oneof().oneofName().getText())
+                            .collect(Collectors.toSet());
+                    final Set<String> allFieldNames = new HashSet<>();
+                    allFieldNames.addAll(regularFieldNames);
+                    allFieldNames.addAll(oneOfFieldNames);
+                    return Arrays.stream(optionValue.split(","))
+                            .map(String::trim)
+                            .peek(v -> {
+                                if (repeatedFields.contains(v)) {
+                                    throw new IllegalArgumentException(
+                                            "Field `%s` specified in `%s` option is repeated. Repeated fields are not supported by this option."
+                                                    .formatted(v, PBJ_COMPARABLE_OPTION_NAME));
+                                }
+                                if (!allFieldNames.contains(v)) {
+                                    throw new IllegalArgumentException("Field '%s' specified in %s option is not found."
+                                            .formatted(v, PBJ_COMPARABLE_OPTION_NAME));
+                                }
+                            })
+                            .collect(Collectors.toList());
+                }
             }
         }
         return emptyList();
+    }
+
+    /**
+     * Checks if a msgDef is cacheable.
+     * @param msgDef a message definition
+     * @return the cache size if the message is cacheable, or null
+     */
+    static Integer extractCacheSize(final MessageDefContext msgDef) {
+        if (msgDef.optionComment() == null || msgDef.optionComment().isEmpty()) {
+            return null;
+        }
+        for (Protobuf3Parser.OptionCommentContext optionComment : msgDef.optionComment()) {
+            if (optionComment.getText() == null) {
+                continue;
+            }
+            final var matcher = OPTION_COMMENT.matcher(optionComment.getText());
+            if (matcher.find()) {
+                final String optionName = matcher.group(1);
+                final String optionValue = matcher.group(2);
+                if (optionName.equals(PBJ_CACHEABLE_OPTION_NAME)) {
+                    return Integer.valueOf(
+                            optionValue.replace("\"", "").replace("_", "").trim());
+                }
+            }
+        }
+        return null;
     }
 
     /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl.generators.protobuf;
 
+import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 import static com.hedera.pbj.compiler.impl.generators.protobuf.CodecDefaultInstanceMethodGenerator.generateGetDefaultInstanceMethod;
 
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
@@ -66,6 +67,45 @@ public final class CodecGenerator implements Generator {
 
         final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
 
+        final String cacheableSupport;
+        final Integer cacheableMessageCacheSize = lookupHelper
+                .getLookupHelper()
+                .getCacheableMessageCacheSize(
+                        lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef));
+        if (cacheableMessageCacheSize != null) {
+            // Ex:
+            //   capacity = 3 aka 0b11
+            //   length = 4
+            //   mask = 0b11 aka 3
+            //
+            //   capacity = 4 aka 0b100
+            //   length = 4
+            //   mask = 0b11 aka 3
+            //
+            //   capacity = 5 aka 0b101
+            //   length = 8
+            //   mask = 0b111 aka 7
+            cacheableSupport = """
+                    /** Cache for parsed objects to avoid creating new instances. Access is not synchronized for performance reasons by design. */
+                    private static final $modelClass[] CACHE;
+                    private static final int CACHE_KEY_MASK;
+                    static {
+                        final String property = System.getProperty("pbj.cache.$fqn");
+                        final int capacity = (property != null && !property.isBlank()) ? Integer.parseInt(property) : $size;
+                        // Next (or equal) power of 2:
+                        final int length = capacity <= 0 ? 1 : ((capacity & (capacity - 1)) == 0 ? capacity :  Integer.highestOneBit(capacity) << 1);
+                        CACHE = new $modelClass[length];
+                        // length is >= 1 , so mask is >= 0. 0 is okay (unusual but okay.)
+                        CACHE_KEY_MASK = length - 1;
+                    }
+                    """.replace("$modelClass", modelClassName)
+                    .replace("$fqn", lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef))
+                    .replace("$size", cacheableMessageCacheSize.toString())
+                    .indent(DEFAULT_INDENT);
+        } else {
+            cacheableSupport = "";
+        }
+
         writer.addImport("com.hedera.pbj.runtime.*");
         writer.addImport("com.hedera.pbj.runtime.io.*");
         writer.addImport("com.hedera.pbj.runtime.io.buffer.*");
@@ -92,6 +132,7 @@ public final class CodecGenerator implements Generator {
                  * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
                  */
                 public final$staticModifier class $codecClass implements Codec<$modelClass> {
+                $cacheableSupport
                     /**
                      * An initial capacity for the ArrayList where unknown fields are collected.
                      * To optimize parsing unknown fields, we store the max value we've seen so far.
@@ -121,8 +162,9 @@ public final class CodecGenerator implements Generator {
                 .replace("$modelClass", modelClassName)
                 .replace("$staticModifier", staticModifier)
                 .replace("$codecClass", codecClassName)
+                .replace("$cacheableSupport", cacheableSupport)
                 .replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
-                .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, schemaClassName, fields))
+                .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, schemaClassName, fields, !cacheableSupport.isBlank()))
                 .replace("$writeMethod", writeMethod)
                 .replace("$writeByteArrayMethod", writeByteArrayMethod)
                 .replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))

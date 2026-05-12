@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>> This comment is special code for setting PBJ Compiler java package
+
+import "everything.proto";
+
+message NotCacheableAccountID {
+  int64 shardNum = 1;
+  int64 realmNum = 2;
+  oneof account {
+    int64 accountNum = 3;
+    bytes alias = 4;
+  }
+}
+
+// <<<pbj.cacheable = 16>>>
+message CacheableAccountID {
+  int64 shardNum = 1;
+  int64 realmNum = 2;
+  oneof account {
+    int64 accountNum = 3;
+    bytes alias = 4;
+  }
+}
+
+// <<<pbj.cacheable = 16>>>
+message CacheableModelWithMap {
+  map<int32, string> mapInt32ToString = 1;
+}
