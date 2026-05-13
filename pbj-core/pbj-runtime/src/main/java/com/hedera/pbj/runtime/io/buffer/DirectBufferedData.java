@@ -87,27 +87,74 @@ final class DirectBufferedData extends BufferedData {
         return getVar(Math.toIntExact(offset), zigZag);
     }
 
-    private long getVar(final int offset, final boolean zigZag) {
+    private long getVar(int offset, final boolean zigZag) {
         checkOffset(offset, length());
 
-        int rem = Math.toIntExact(buffer.limit() - offset);
-        if (rem > 10) {
-            rem = 10;
+        final int limit = Math.min(buffer.limit(), offset + 10);
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        byte b;
+        long v = (b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7F;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7F) << 7;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7F) << 14;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7F) << 21;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7FL) << 28;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7FL) << 35;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7FL) << 42;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7FL) << 49;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7FL) << 56;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++);
+        if ((b & 0x80) == 0) {
+            v |= (long) b << 63;
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
 
-        long value = 0;
-
-        int i = 0;
-        while (i != rem) {
-            final byte b = UnsafeUtils.getDirectBufferByte(buffer, offset + i);
-            value |= (long) (b & 0x7F) << (i * 7);
-            i++;
-            if (b >= 0) {
-                buffer.position(offset + i);
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
-            }
-        }
-        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+        throw new DataEncodingException("Malformed var int");
     }
 
     /**
@@ -185,25 +232,83 @@ final class DirectBufferedData extends BufferedData {
     }
 
     private long readVar(final boolean zigZag) {
-        final int pos = buffer.position();
-        int rem = buffer.remaining();
-        if (rem > 10) {
-            rem = 10;
+        int offset = buffer.position();
+
+        final int limit = Math.min(offset + buffer.remaining(), offset + 10);
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        byte b;
+        long v = (b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7F;
+        if ((b & 0x80) == 0) {
+            buffer.position(offset);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7F) << 7;
+        if ((b & 0x80) == 0) {
+            buffer.position(offset);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7F) << 14;
+        if ((b & 0x80) == 0) {
+            buffer.position(offset);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7F) << 21;
+        if ((b & 0x80) == 0) {
+            buffer.position(offset);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7FL) << 28;
+        if ((b & 0x80) == 0) {
+            buffer.position(offset);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7FL) << 35;
+        if ((b & 0x80) == 0) {
+            buffer.position(offset);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7FL) << 42;
+        if ((b & 0x80) == 0) {
+            buffer.position(offset);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7FL) << 49;
+        if ((b & 0x80) == 0) {
+            buffer.position(offset);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++)) & 0x7FL) << 56;
+        if ((b & 0x80) == 0) {
+            buffer.position(offset);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, offset++);
+        if ((b & 0x80) == 0) {
+            buffer.position(offset);
+            v |= (long) b << 63;
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
 
-        long value = 0;
-
-        int i = 0;
-        while (i != rem) {
-            final byte b = UnsafeUtils.getDirectBufferByteNoChecks(buffer, pos + i);
-            value |= (long) (b & 0x7F) << (i * 7);
-            i++;
-            if (b >= 0) {
-                buffer.position(pos + i);
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
-            }
-        }
-        throw (i == 10) ? new DataEncodingException("") : new BufferUnderflowException();
+        throw new DataEncodingException("Malformed var int");
     }
 
     /**

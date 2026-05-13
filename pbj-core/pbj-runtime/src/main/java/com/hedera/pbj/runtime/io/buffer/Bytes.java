@@ -865,20 +865,70 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         }
         offset += start;
 
-        int rem = (start + length) - offset;
-        if (rem > 10) {
-            rem = 10;
+        final int limit = Math.min(start + length, offset + 10);
+        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+
+        byte b;
+        long v = (b = buffer[offset++]) & 0x7F;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+
+        v |= ((b = buffer[offset++]) & 0x7F) << 7;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+
+        v |= ((b = buffer[offset++]) & 0x7F) << 14;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+
+        v |= ((b = buffer[offset++]) & 0x7F) << 21;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+
+        v |= ((b = buffer[offset++]) & 0x7FL) << 28;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+
+        v |= ((b = buffer[offset++]) & 0x7FL) << 35;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+
+        v |= ((b = buffer[offset++]) & 0x7FL) << 42;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+
+        v |= ((b = buffer[offset++]) & 0x7FL) << 49;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+
+        v |= ((b = buffer[offset++]) & 0x7FL) << 56;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+
+        b = buffer[offset++];
+        if ((b & 0x80) == 0) {
+            v |= (long) b << 63;
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
 
-        long value = 0;
-
-        for (int i = 0; i != rem; i++) {
-            final byte b = UnsafeUtils.getArrayByteNoChecks(buffer, offset + i);
-            value |= (long) (b & 0x7F) << (i * 7);
-            if (b >= 0) {
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
-            }
-        }
         throw new DataEncodingException("Malformed var int");
     }
 }

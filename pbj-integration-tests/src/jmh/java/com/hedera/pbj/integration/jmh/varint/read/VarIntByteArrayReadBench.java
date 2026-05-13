@@ -186,8 +186,7 @@ public class VarIntByteArrayReadBench {
     /// A slightly modified copy of Google implementation in CodecInputStream.
     /// PBJ used to use a very similar algorithm, just before https://github.com/hashgraph/pbj/pull/144
     /// where we switched to LEB128.
-    @SuppressWarnings("lossy-conversions") // the impl is able to support longs, but we ignore that here and use ints.
-    // @Benchmark // disabled because it performs worse than the standard pbj implementation
+    @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void google(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
@@ -202,7 +201,7 @@ public class VarIntByteArrayReadBench {
                     break fastpath;
                 }
 
-                int x;
+                long x;
                 int y;
                 if ((y = state.array[tempPos++]) >= 0) {
                     pos = tempPos;

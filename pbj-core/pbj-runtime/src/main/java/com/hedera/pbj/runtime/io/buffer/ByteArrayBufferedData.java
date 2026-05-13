@@ -2,7 +2,6 @@
 package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.DataEncodingException;
-import com.hedera.pbj.runtime.io.UnsafeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
@@ -142,27 +141,75 @@ final class ByteArrayBufferedData extends BufferedData {
         return getVar(Math.toIntExact(offset), zigZag);
     }
 
-    private long getVar(final int offset, final boolean zigZag) {
+    private long getVar(int offset, final boolean zigZag) {
         checkOffset(offset, buffer.limit());
+        offset += arrayOffset;
 
-        final int readOffset = arrayOffset + offset;
-        int rem = buffer.limit() - offset;
-        if (rem > 10) {
-            rem = 10;
+        final int limit = Math.min(arrayOffset + (int) length(), offset + 10);
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        byte b;
+        long v = (b = array[offset++]) & 0x7F;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7F) << 7;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7F) << 14;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7F) << 21;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7FL) << 28;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7FL) << 35;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7FL) << 42;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7FL) << 49;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7FL) << 56;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        b = array[offset++];
+        if ((b & 0x80) == 0) {
+            v |= (long) b << 63;
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
 
-        long value = 0;
-
-        int i = 0;
-        while (i != rem) {
-            final byte b = UnsafeUtils.getArrayByteNoChecks(array, readOffset + i);
-            value |= (long) (b & 0x7F) << (i * 7);
-            i++;
-            if (b >= 0) {
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
-            }
-        }
-        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+        throw new DataEncodingException("Malformed var int");
     }
 
     /**
@@ -250,25 +297,83 @@ final class ByteArrayBufferedData extends BufferedData {
 
     private long readVar(final boolean zigZag) {
         final int pos = buffer.position();
-        final int offset = arrayOffset + pos;
-        int rem = buffer.remaining();
-        if (rem > 10) {
-            rem = 10;
+        int offset = arrayOffset + pos;
+
+        final int limit = Math.min(offset + buffer.remaining(), offset + 10);
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        byte b;
+        long v = (b = array[offset++]) & 0x7F;
+        if ((b & 0x80) == 0) {
+            buffer.position(pos + 1);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7F) << 7;
+        if ((b & 0x80) == 0) {
+            buffer.position(pos + 2);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7F) << 14;
+        if ((b & 0x80) == 0) {
+            buffer.position(pos + 3);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7F) << 21;
+        if ((b & 0x80) == 0) {
+            buffer.position(pos + 4);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7FL) << 28;
+        if ((b & 0x80) == 0) {
+            buffer.position(pos + 5);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7FL) << 35;
+        if ((b & 0x80) == 0) {
+            buffer.position(pos + 6);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7FL) << 42;
+        if ((b & 0x80) == 0) {
+            buffer.position(pos + 7);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7FL) << 49;
+        if ((b & 0x80) == 0) {
+            buffer.position(pos + 8);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        v |= ((b = array[offset++]) & 0x7FL) << 56;
+        if ((b & 0x80) == 0) {
+            buffer.position(pos + 9);
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+        if (offset >= limit) throw new BufferUnderflowException();
+
+        b = array[offset++];
+        if ((b & 0x80) == 0) {
+            buffer.position(pos + 10);
+            v |= (long) b << 63;
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
 
-        long value = 0;
-
-        int i = 0;
-        while (i != rem) {
-            final byte b = UnsafeUtils.getArrayByteNoChecks(array, offset + i);
-            value |= (long) (b & 0x7F) << (i * 7);
-            i++;
-            if (b >= 0) {
-                buffer.position(pos + i);
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
-            }
-        }
-        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+        throw new DataEncodingException("Malformed var int");
     }
 
     /**

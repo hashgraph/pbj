@@ -473,15 +473,58 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws DataEncodingException if the variable long cannot be decoded
      */
     default long readVarLong(final boolean zigZag) throws BufferUnderflowException, UncheckedIOException {
-        long value = 0;
-
-        for (int i = 0; i < 10; i++) {
-            final byte b = readByte();
-            value |= (long) (b & 0x7F) << (i * 7);
-            if (b >= 0) {
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
-            }
+        byte b;
+        long v = (b = readByte()) & 0x7F;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
         }
+
+        v |= ((b = readByte()) & 0x7F) << 7;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+
+        v |= ((b = readByte()) & 0x7F) << 14;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+
+        v |= ((b = readByte()) & 0x7F) << 21;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+
+        v |= ((b = readByte()) & 0x7FL) << 28;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+
+        v |= ((b = readByte()) & 0x7FL) << 35;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+
+        v |= ((b = readByte()) & 0x7FL) << 42;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+
+        v |= ((b = readByte()) & 0x7FL) << 49;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+
+        v |= ((b = readByte()) & 0x7FL) << 56;
+        if ((b & 0x80) == 0) {
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+
+        b = readByte();
+        if ((b & 0x80) == 0) {
+            v |= (long) b << 63;
+            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        }
+
         throw new DataEncodingException("Malformed var int");
     }
 
