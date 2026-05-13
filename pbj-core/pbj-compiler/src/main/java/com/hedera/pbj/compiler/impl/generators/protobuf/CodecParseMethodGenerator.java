@@ -10,6 +10,7 @@ import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.PbjCompilerException;
 import com.hedera.pbj.compiler.impl.generators.ModelGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -51,8 +52,10 @@ class CodecParseMethodGenerator {
             final String schemaClassName,
             final List<Field> fields,
             final boolean isCacheable) {
+
+        var parseLoopLs = generateParseLoop(generateCaseStatements(fields, schemaClassName), "", schemaClassName);
         // spotless:off
-        return """
+        var retString = """
                 /**
                  * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
                  * <p>
@@ -105,6 +108,10 @@ class CodecParseMethodGenerator {
                         throw new ParseException(anyException);
                     }
                 }
+                List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, ReadableSequentialData input, int maxSize) throws ParseException, IOException {
+                    $defaultCaseBody
+                    return $unknownFields;
+                }
                 """
         .replace("$cacheableSupport", isCacheable ? generateCacheableSupport(modelClassName, fields) : "return new $modelClassName($fieldsList);")
         .replace("$modelClassName",modelClassName)
@@ -117,7 +124,8 @@ class CodecParseMethodGenerator {
                 fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", "))
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
         )
-        .replace("$parseLoop", generateParseLoop(generateCaseStatements(fields, schemaClassName), "", schemaClassName))
+        .replace("$parseLoop", parseLoopLs.get(0))
+        .replace("$defaultCaseBody", parseLoopLs.get(1))
         .replace("$listFieldsWriteProtection", fields.stream()
                 .filter(Field::repeated)
                 .map(field -> "if (temp_" + field.name() + " instanceof UnmodifiableArrayList ual) ual.makeReadOnly();")
@@ -125,6 +133,7 @@ class CodecParseMethodGenerator {
                 .indent(DEFAULT_INDENT * 2))
         .indent(DEFAULT_INDENT);
         // spotless:on
+        return retString;
     }
 
     static String generateCacheableSupport(String modelClassName, final List<Field> fields) {
@@ -160,10 +169,12 @@ class CodecParseMethodGenerator {
     }
 
     // prefix is pre-pended to variable names to support a nested parsing loop.
-    static String generateParseLoop(
+    // The list returned is [$parseLoop, $defaultCaseBody]
+    static List<String> generateParseLoop(
             final String caseStatements, @NonNull final String prefix, @NonNull final String schemaClassName) {
         // spotless:off
-        return """
+        List<String> list = new ArrayList<>();
+        list.add("""
                         // -- PARSE LOOP ---------------------------------------------
                         // Continue to parse bytes out of the input stream until we get to the end.
                         while (input.hasRemaining()) {
@@ -191,54 +202,58 @@ class CodecParseMethodGenerator {
                             // Given the wire type and the field type, parse the field
                             switch ($prefixtag) {
                 $caseStatements
-                                default -> {
-                                    // The wire type is the bottom 3 bits of the byte. Read that off
-                                    final int wireType = $prefixtag & TAG_WIRE_TYPE_MASK;
-                                    // handle error cases here, so we do not do if statements in normal loop
-                                    // Validate the field number is valid (must be > 0)
-                                    if ($prefixfield == 0) {
-                                        throw new IOException("Bad protobuf encoding. We read a field value of "
-                                            + $prefixfield);
-                                    }
-                                    // Validate the wire type is valid (must be >=0 && <= 5).
-                                    // Otherwise we cannot parse this.
-                                    // Note: it is always >= 0 at this point (see code above where it is defined).
-                                    if (wireType > 5) {
-                                        throw new IOException("Cannot understand wire_type of " + wireType);
-                                    }
-                                    // It may be that the parser subclass doesn't know about this field
-                                    if ($prefixf == null) {
-                                        if (strictMode) {
-                                            // Since we are parsing is strict mode, this is an exceptional condition.
-                                            throw new UnknownFieldException($prefixfield);
-                                        } else if (parseUnknownFields) {
-                                            if ($unknownFields == null) {
-                                                $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
-                                            }
-                                            $unknownFields.add(new UnknownField(
-                                                    field,
-                                                    ProtoConstants.get(wireType),
-                                                    extractField(input, ProtoConstants.get(wireType), $skipMaxSize)
-                                            ));
-                                        } else {
-                                            // We just need to read off the bytes for this field to skip it
-                                            // and move on to the next one.
-                                            skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
-                                        }
-                                    } else {
-                                        throw new IOException("Bad tag [" + $prefixtag + "], field [" + $prefixfield
-                                                + "] wireType [" + wireType + "]");
-                                    }
-                                }
+                                default -> $unknownFields = defaultCase(tag, field, f, strictMode, parseUnknownFields, $unknownFields, input, maxSize);
                             }
                         }
-                """
-                .replace("$caseStatements",caseStatements)
-                .replace("$prefix",prefix)
-                .replace("$schemaClassName",schemaClassName)
+""");
+        list.add("""
+// The wire type is the bottom 3 bits of the byte. Read that off
+final int wireType = $prefixtag & TAG_WIRE_TYPE_MASK;
+// handle error cases here, so we do not do if statements in normal loop
+// Validate the field number is valid (must be > 0)
+if ($prefixfield == 0) {
+    throw new IOException("Bad protobuf encoding. We read a field value of "
+        + $prefixfield);
+}
+// Validate the wire type is valid (must be >=0 && <= 5).
+// Otherwise we cannot parse this.
+// Note: it is always >= 0 at this point (see code above where it is defined).
+if (wireType > 5) {
+    throw new IOException("Cannot understand wire_type of " + wireType);
+}
+// It may be that the parser subclass doesn't know about this field
+if ($prefixf == null) {
+    if (strictMode) {
+        // Since we are parsing is strict mode, this is an exceptional condition.
+        throw new UnknownFieldException($prefixfield);
+    } else if (parseUnknownFields) {
+        if ($unknownFields == null) {
+            $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
+        }
+        $unknownFields.add(new UnknownField(
+                field,
+                ProtoConstants.get(wireType),
+                extractField(input, ProtoConstants.get(wireType), $skipMaxSize)
+        ));
+    } else {
+        // We just need to read off the bytes for this field to skip it
+        // and move on to the next one.
+        skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
+    }
+} else {
+    throw new IOException("Bad tag [" + $prefixtag + "], field [" + $prefixfield
+            + "] wireType [" + wireType + "]");
+}""");
+        for (int i = 0; i < list.size(); i++) {
+            list.set(i, list.get(i)
+                .replace("$caseStatements", caseStatements)
+                .replace("$prefix", prefix)
+                .replace("$schemaClassName", schemaClassName)
                 .replace("$skipMaxSize", "maxSize")
-                .indent(DEFAULT_INDENT);
+                .indent(DEFAULT_INDENT));
+        }
         // spotless:on
+        return list;
     }
 
     /**
@@ -432,6 +447,8 @@ class CodecParseMethodGenerator {
             // However(!), we read the key and value fields explicitly to avoid creating temporary entry objects.
             final MapField mapField = (MapField) field;
             final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
+            var parseLoopLs = generateParseLoop(
+                    generateCaseStatements(mapEntryFields, schemaClassName), "map_entry_", schemaClassName);
             // spotless:off
             sb.append("""
                         final var __map_messageLength = input.readVarInt(false);
@@ -466,7 +483,7 @@ class CodecParseMethodGenerator {
                     .replace("$fieldDefs",mapEntryFields.stream().map(mapEntryField ->
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
                             mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
-                    .replace("$mapParseLoop", generateParseLoop(generateCaseStatements(mapEntryFields, schemaClassName), "map_entry_", schemaClassName)
+                    .replace("$mapParseLoop", parseLoopLs.get(0)
                             .indent(-DEFAULT_INDENT))
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
             );
