@@ -186,12 +186,12 @@ public class VarIntByteArrayReadBench {
     /// A slightly modified copy of Google implementation in CodecInputStream.
     /// PBJ used to use a very similar algorithm, just before https://github.com/hashgraph/pbj/pull/144
     /// where we switched to LEB128.
-    @Benchmark
+    // @Benchmark // disabled because PBJ requires zigZag handling and stricter limit checks
     @OperationsPerInvocation(INVOCATIONS)
     public void google(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
         for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
-            final int limit = pos + 5;
+            final int limit = Math.min(state.array.length, pos + 10);
 
             fastpath:
             {
@@ -261,6 +261,92 @@ public class VarIntByteArrayReadBench {
                         break;
                     }
                 }
+            }
+        }
+        blackhole.consume(state.sum);
+    }
+
+    /// A modified version of the Google implementation adapted to PBJ.
+    /// Specifically:
+    /// * zigZag is handled. Google's original readRawVarint64() doesn't handle zigZag directly.
+    /// * limit checks are added. Google's original version relies on IOOBE. But PBJ can wrap array slices and still
+    ///     must respect the length of the slice. So in PBJ we cannot rely on the IOOBE.
+    @Benchmark
+    @OperationsPerInvocation(INVOCATIONS)
+    public void google_zigZagAndLimit(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
+        for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
+            final int limit = Math.min(state.array.length, pos + 10);
+
+            fastpath:
+            {
+                int tempPos = pos;
+
+                if (limit == tempPos) {
+                    break fastpath;
+                }
+
+                long x;
+                int y;
+                if ((y = state.array[tempPos++]) >= 0) {
+                    pos = tempPos;
+                    state.sum += state.zigZag ? (y >>> 1) ^ -(y & 1) : y;
+                    continue;
+                } else if (limit - tempPos < 9) {
+                    break fastpath;
+                } else if ((y ^= (state.array[tempPos++] << 7)) < 0) {
+                    x = y ^ (~0 << 7);
+                } else if ((y ^= (state.array[tempPos++] << 14)) >= 0) {
+                    x = y ^ ((~0 << 7) ^ (~0 << 14));
+                } else if ((y ^= (state.array[tempPos++] << 21)) < 0) {
+                    x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                } else if ((x = y ^ (state.array[tempPos++] << 28)) >= 0L) {
+                    x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+                } else if ((x ^= (state.array[tempPos++] << 35)) < 0L) {
+                    x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+                } else if ((x ^= (state.array[tempPos++] << 42)) >= 0L) {
+                    x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+                } else if ((x ^= (state.array[tempPos++] << 49)) < 0L) {
+                    x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
+                } else if ((x ^= (state.array[tempPos++] << 56)) >= 0L) {
+                    x ^= (~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56);
+                } else if ((x ^= (state.array[tempPos++] << 63)) >= 0L) {
+                    x ^= (~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56)
+                            ^ (~0L << 63);
+                } else {
+                    break fastpath; // Will throw malformedVarint()
+                }
+                pos = tempPos;
+                state.sum += state.zigZag ? (x >>> 1) ^ -(x & 1) : x;
+                continue;
+            }
+
+            slowpath:
+            {
+                int result = 0;
+                for (int shift = 0; pos < limit && shift < 64; shift += 7) {
+                    final byte b = state.array[pos++];
+                    result |= (b & 0x7F) << shift;
+                    if ((b & 0x80) == 0) {
+                        state.sum += state.zigZag ? (result >>> 1) ^ -(result & 1) : result;
+                        break slowpath;
+                    }
+                }
+                throw new DataEncodingException("Malformed var int");
             }
         }
         blackhole.consume(state.sum);
