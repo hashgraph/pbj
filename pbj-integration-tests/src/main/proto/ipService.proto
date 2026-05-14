@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package pbj.integration.tests;
+option java_multiple_files = true;
+
+service TCPIPInfoProvider {
+  rpc provideTCPIP (TCPIPRequest) returns (TCPIPReply) {}
+}
+
+message TCPIPRequest {
+  string name = 1;
+}
+
+message TCPIPReply {
+  string name = 1;
+
+  string host = 2;
+  int32 port = 3;
+
+  // We don't have TLS tests, so we don't bother modeling the certs.
+  int32 numOfCertificates = 4;
+}

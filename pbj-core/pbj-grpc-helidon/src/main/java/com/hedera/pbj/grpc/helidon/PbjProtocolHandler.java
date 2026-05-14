@@ -45,6 +45,8 @@ import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
 import io.helidon.webserver.ConnectionContext;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
+import java.net.SocketAddress;
+import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -308,7 +310,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     Optional.ofNullable(headers.authority()), // the client (see http2 spec)
                     contentType,
                     config.maxMessageSizeBytes(),
-                    metadata);
+                    metadata,
+                    connectionContext.remotePeer().address(),
+                    connectionContext.remotePeer().tlsCertificates());
 
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
@@ -770,7 +774,12 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
     /** Simple implementation of the {@link ServiceInterface.RequestOptions} interface. */
     private record Options(
-            Optional<String> authority, String contentType, int maxMessageSizeBytes, Map<String, String> metadata)
+            Optional<String> authority,
+            String contentType,
+            int maxMessageSizeBytes,
+            Map<String, String> metadata,
+            SocketAddress remoteAddress,
+            Optional<Certificate[]> remoteCertificateChain)
             implements ServiceInterface.RequestOptions {}
 
     /**

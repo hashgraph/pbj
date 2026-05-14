@@ -39,8 +39,12 @@ import io.helidon.webserver.Router;
 import io.netty.handler.codec.http2.Http2Flags;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
+import java.net.SocketAddress;
+import java.security.Principal;
+import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutorService;
@@ -67,6 +71,8 @@ class PbjProtocolHandlerTest {
     private ServiceInterfaceStub service;
     private ConnectionContext connectionContext;
 
+    private PeerInfo remotePeer;
+
     @BeforeEach
     void setUp() {
         headers = Http2Headers.create(WritableHeaders.create().add(HeaderNames.CONTENT_TYPE, "application/grpc+proto"));
@@ -78,6 +84,16 @@ class PbjProtocolHandlerTest {
         service = new ServiceInterfaceStub();
         route = new PbjMethodRoute(service, PbjGrpcServiceConfig.DEFAULT, ServiceInterfaceStub.METHOD);
         deadlineDetector = new DeadlineDetectorStub();
+
+        record PeerInfoRecord(
+                SocketAddress address,
+                String host,
+                int port,
+                Optional<Principal> tlsPrincipal,
+                Optional<Certificate[]> tlsCertificates)
+                implements PeerInfo {}
+        remotePeer = new PeerInfoRecord(null, null, 0, Optional.empty(), Optional.empty());
+
         connectionContext = new ConnectionContext() {
             @Override
             public ListenerContext listenerContext() {
@@ -106,7 +122,7 @@ class PbjProtocolHandlerTest {
 
             @Override
             public PeerInfo remotePeer() {
-                throw new UnsupportedOperationException();
+                return remotePeer;
             }
 
             @Override

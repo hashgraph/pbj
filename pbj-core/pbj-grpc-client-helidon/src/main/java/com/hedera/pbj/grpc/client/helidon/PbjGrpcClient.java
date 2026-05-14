@@ -21,6 +21,7 @@ import io.helidon.webclient.http2.Http2ClientConnection;
 import io.helidon.webclient.http2.Http2ClientImpl;
 import io.helidon.webclient.http2.Http2StreamConfig;
 import java.io.UncheckedIOException;
+import java.net.SocketAddress;
 import java.net.SocketException;
 import java.time.Duration;
 import java.util.Collections;
@@ -118,6 +119,11 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
 
     ClientConnection getClientConnection() {
         return clientConnection;
+    }
+
+    /// Return the local `SocketAddress` of this client instance.
+    public SocketAddress getLocalAddress() {
+        return clientConnection.helidonSocket().localPeer().address();
     }
 
     Http2ClientConnection createHttp2ClientConnection(final ClientConnection clientConnection) {
