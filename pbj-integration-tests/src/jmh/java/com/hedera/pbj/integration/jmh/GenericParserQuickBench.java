@@ -5,7 +5,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.test.proto.pbj.CacheableAccountID;
 import com.hedera.pbj.test.proto.pbj.NotCacheableAccountID;
 import java.io.IOException;
 import java.util.Random;
@@ -85,7 +84,7 @@ public class GenericParserQuickBench {
             final Random random = new Random(723049435);
             bd = BufferedData.wrap(array);
             for (int i = 0, j = 0; i < INVOCATIONS; i++) {
-                    model.codec.write(model.factory.apply(random), bd);
+                model.codec.write(model.factory.apply(random), bd);
             }
             bd.flip();
         }
