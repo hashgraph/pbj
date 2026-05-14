@@ -48,12 +48,14 @@ class CodecParseMethodGenerator {
     }
 
     static String generateParseMethod(
+            StringBuilder sbFuncMain,
             final String modelClassName,
             final String schemaClassName,
             final List<Field> fields,
             final boolean isCacheable) {
 
-        var parseLoopLs = generateParseLoop(generateCaseStatements(fields, schemaClassName), "", schemaClassName);
+        var parseLoopLs =
+                generateParseLoop(generateCaseStatements(sbFuncMain, fields, schemaClassName), "", schemaClassName);
         // spotless:off
         var retString = """
                 /**
@@ -263,20 +265,20 @@ if ($prefixf == null) {
      * @param fields list of all fields in record
      * @return string of case statement code
      */
-    private static String generateCaseStatements(final List<Field> fields, final String schemaClassName) {
+    private static String generateCaseStatements(StringBuilder sbFunc, List<Field> fields, String schemaClassName) {
         StringBuilder sb = new StringBuilder();
         for (Field field : fields) {
             if (field instanceof final OneOfField oneOfField) {
                 for (final Field subField : oneOfField.fields()) {
-                    generateFieldCaseStatement(sb, subField, schemaClassName);
+                    generateFieldCaseStatement(sb, sbFunc, subField, schemaClassName);
                 }
             } else if (field.repeated() && field.type().wireType() != Common.TYPE_LENGTH_DELIMITED) {
                 // for repeated fields that are not length encoded there are 2 forms they can be stored in file.
                 // "packed" and repeated primitive fields
-                generateFieldCaseStatement(sb, field, schemaClassName);
-                generateFieldCaseStatementPacked(sb, field);
+                generateFieldCaseStatement(sb, sbFunc, field, schemaClassName);
+                generateFieldCaseStatementPacked(sb, sbFunc, field);
             } else {
-                generateFieldCaseStatement(sb, field, schemaClassName);
+                generateFieldCaseStatement(sb, sbFunc, field, schemaClassName);
             }
         }
         return sb.toString().indent(DEFAULT_INDENT * 4);
@@ -286,16 +288,24 @@ if ($prefixf == null) {
      * Generate switch case statement for a repeated numeric value type in packed encoding.
      *
      * @param field field to generate case statement for
-     * @param sb StringBuilder to append code to
+     * @param sbCase code written in case statement
+     * @param sbFunc code written in class scope, used to create functions
      */
     @SuppressWarnings("StringConcatenationInsideStringBufferAppend")
-    private static void generateFieldCaseStatementPacked(final StringBuilder sb, final Field field) {
+    private static void generateFieldCaseStatementPacked(
+            StringBuilder sbCase, StringBuilder sbFunc, final Field field) {
         final int wireType = Common.TYPE_LENGTH_DELIMITED;
         final int fieldNum = field.fieldNumber();
         final int tag = Common.getTag(wireType, fieldNum);
+        var fieldType =
+                field.type() == Field.FieldType.ENUM ? field.repeated() ? "List" : "Object" : field.javaFieldType();
+        var tempFieldName = "temp_" + field.name();
         // spotless:off
-        sb.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] */ -> {%n"
+        sbCase.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
+        sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
+        sbFunc.append("""
+%s case%d(ReadableSequentialData input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
         if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
@@ -314,7 +324,7 @@ if ($prefixf == null) {
         } else {
             preRead = "";
         }
-        sb.append("""
+        sbFunc.append("""
                 // Read the length of packed repeated field data
                 final long length = input.readVarInt(false);
                 if (length > $maxSize) {
@@ -332,13 +342,14 @@ if ($prefixf == null) {
                 input.limit(beforeLimit);
                 if (input.position() != beforePosition + length) {
                     throw new BufferUnderflowException();
-                }""".replace("$tempFieldName", "temp_" + field.name())
+                }""".replace("$tempFieldName", tempFieldName)
                 .replace("$preRead", preRead)
                 .replace("$readMethod", field.type() == Field.FieldType.ENUM ? "value" : readMethod(field))
                 .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                 .replace("$fieldName", field.name())
                 .indent(DEFAULT_INDENT));
-        sb.append("\n}\n");
+        sbCase.append("\n}\n");
+        sbFunc.append("    return %s;\n    }\n".formatted(tempFieldName));
         // spotless:on
     }
 
@@ -346,20 +357,21 @@ if ($prefixf == null) {
      * Generate switch case statement for a field.
      *
      * @param field field to generate case statement for
-     * @param sb StringBuilder to append code to
+     * @param sbCase code written in case statement
+     * @param sbFunc code written in class scope, used to create functions
      */
     private static void generateFieldCaseStatement(
-            final StringBuilder sb, final Field field, final String schemaClassName) {
+            StringBuilder sbCase, StringBuilder sbFunc, final Field field, final String schemaClassName) {
         final int wireType = field.optionalValueType()
                 ? Common.TYPE_LENGTH_DELIMITED
                 : field.type().wireType();
         final int fieldNum = field.fieldNumber();
         final int tag = Common.getTag(wireType, fieldNum);
         // spotless:off
-        sb.append("case %d /* type=%d [%s] field=%d [%s] */ -> {%n"
+        sbCase.append("case %d /* type=%d [%s] field=%d [%s] */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         if (field.optionalValueType()) {
-            sb.append("""
+            sbCase.append("""
                             // Read the message size, it is not needed
                             final var valueTypeMessageSize = input.readVarInt(false);
                             final $fieldType value;
@@ -401,11 +413,11 @@ if ($prefixf == null) {
                             }))
                     .indent(DEFAULT_INDENT)
             );
-            sb.append('\n');
+            sbCase.append('\n');
             // spotless:on
         } else if (field.type() == Field.FieldType.MESSAGE) {
             // spotless:off
-            sb.append("""
+            sbCase.append("""
                         final var messageLength = input.readVarInt(false);
                         final $fieldType value;
                         if (messageLength == 0) {
@@ -448,9 +460,9 @@ if ($prefixf == null) {
             final MapField mapField = (MapField) field;
             final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
             var parseLoopLs = generateParseLoop(
-                    generateCaseStatements(mapEntryFields, schemaClassName), "map_entry_", schemaClassName);
+                    generateCaseStatements(sbFunc, mapEntryFields, schemaClassName), "map_entry_", schemaClassName);
             // spotless:off
-            sb.append("""
+            sbCase.append("""
                         final var __map_messageLength = input.readVarInt(false);
                         
                         $fieldDefs
@@ -490,7 +502,7 @@ if ($prefixf == null) {
             // spotless:on
         } else if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
-            sb.append("""
+            sbCase.append("""
                         final int enumOrdinal = readEnum(input);
                         final var value = $enumName.fromProtobufOrdinal(enumOrdinal);
                         """
@@ -500,20 +512,20 @@ if ($prefixf == null) {
             );
             // spotless:on
         } else {
-            sb.append(("final var value = " + readMethod(field) + ";\n").indent(DEFAULT_INDENT));
+            sbCase.append(("final var value = " + readMethod(field) + ";\n").indent(DEFAULT_INDENT));
         }
         // set value to temp var
         // spotless:off
-        sb.append(Common.FIELD_INDENT);
+        sbCase.append(Common.FIELD_INDENT);
         if (field.parent() != null && field.repeated()) {
             throw new PbjCompilerException("Fields can not be oneof and repeated ["+field+"]");
         } else if (field.parent() != null) {
             final var oneOfField = field.parent();
-            sb.append("temp_%s =  new %s<>(%s.%s, value);%n"
+            sbCase.append("temp_%s =  new %s<>(%s.%s, value);%n"
                     .formatted(oneOfField.name(), oneOfField.className(), oneOfField.getEnumClassRef(),
                             Common.camelToUpperSnake(field.name())));
         } else if (field.repeated()) {
-            sb.append(
+            sbCase.append(
                 """
                 if (temp_%s.size() >= %s) {
                     throw new ParseException("%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
@@ -522,7 +534,7 @@ if ($prefixf == null) {
                 """.formatted(field.name(), field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize"));
         } else if (field.type() == Field.FieldType.MAP) {
             final MapField mapField = (MapField) field;
-            sb.append(
+            sbCase.append(
                 """
                 if (__map_messageLength != 0) {
                     if (temp_%s.size() >= %s) {
@@ -534,7 +546,7 @@ if ($prefixf == null) {
                         mapField.keyField().name(), mapField.valueField().name()));
         } else if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
-            sb.append("""
+            sbCase.append("""
                         temp_$fieldName = value != $enumName.UNRECOGNIZED ? value : Integer.valueOf(enumOrdinal);
                         """
                     .replace("$enumName", Common.snakeToCamel(field.messageType(), true))
@@ -543,9 +555,9 @@ if ($prefixf == null) {
             );
             // spotless:on
         } else {
-            sb.append("temp_%s = value;\n".formatted(field.name()));
+            sbCase.append("temp_%s = value;\n".formatted(field.name()));
         }
-        sb.append("}\n");
+        sbCase.append("}\n");
         // spotless:on
     }
 
