@@ -99,7 +99,7 @@ public class VarIntByteArrayReadBench {
     /// We use this algorithm everywhere in PBJ - in ReadableSequentialData , DirectBufferedData, RandomAccessData,
     /// ByteArrayBufferedData, and Bytes. It's known as "getVarLongRichard". The proper academic name is LEB128.
     /// It's also the Google slow-path algorithm as well.
-    // temp @Benchmark
+    @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void pbj(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
@@ -271,7 +271,7 @@ public class VarIntByteArrayReadBench {
     /// * zigZag is handled. Google's original readRawVarint64() doesn't handle zigZag directly.
     /// * limit checks are added. Google's original version relies on IOOBE. But PBJ can wrap array slices and still
     ///     must respect the length of the slice. So in PBJ we cannot rely on the IOOBE.
-    // temp @Benchmark
+    @Benchmark
     @OperationsPerInvocation(INVOCATIONS)
     public void google_zigZagAndLimit(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
