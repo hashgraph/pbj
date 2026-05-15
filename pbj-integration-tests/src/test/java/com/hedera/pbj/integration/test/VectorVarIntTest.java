@@ -168,7 +168,8 @@ public class VectorVarIntTest {
                     return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
                 }
 
-                if ((vl ^= (long) bytes[pos++] << 63) >= 0L) {
+                if (bytes[pos++] < 0) break fastpath;
+                if ((vl ^= (long) bytes[pos - 1] << 63) >= 0L) {
                     vl ^= ((~0L << 7)
                             ^ (~0L << 14)
                             ^ (~0L << 21)
@@ -221,7 +222,7 @@ public class VectorVarIntTest {
                 vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
                 return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
             }
-            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+            if (pos >= limit) break slowpath;
 
             if ((vl ^= (long) bytes[pos++] << 42) >= 0L) {
                 vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
@@ -248,7 +249,8 @@ public class VectorVarIntTest {
             }
             if (pos >= limit) break slowpath;
 
-            if ((vl ^= (long) bytes[pos++] << 63) >= 0L) {
+            if (bytes[pos++] < 0) break slowpath;
+            if ((vl ^= (long) bytes[pos - 1] << 63) >= 0L) {
                 vl ^= ((~0L << 7)
                         ^ (~0L << 14)
                         ^ (~0L << 21)

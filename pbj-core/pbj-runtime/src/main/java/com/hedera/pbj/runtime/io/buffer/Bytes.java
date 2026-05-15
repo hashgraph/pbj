@@ -865,68 +865,165 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         }
         offset += start;
 
+        int vi;
+        long vl;
         final int limit = Math.min(start + length, offset + 10);
-        if (offset >= limit) throw new DataEncodingException("Malformed var int");
 
-        byte b;
-        long v = (b = buffer[offset++]) & 0x7F;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        fastpath:
+        {
+            if (offset == limit) break fastpath;
+
+            if ((vi = buffer[offset++]) >= 0) {
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            } else if (offset + 9 == limit) {
+                // Fast path w/o any limit checks if we have 9 more buffer
+                if ((vi ^= buffer[offset++] << 7) < 0) {
+                    vi ^= (~0 << 7);
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                if ((vi ^= buffer[offset++] << 14) >= 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14));
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                if ((vi ^= buffer[offset++] << 21) < 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                vl = vi;
+                if ((vl ^= (long) buffer[offset++] << 28) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) buffer[offset++] << 35) < 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) buffer[offset++] << 42) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) buffer[offset++] << 49) < 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) buffer[offset++] << 56) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if (buffer[offset++] < 0) break fastpath;
+                if ((vl ^= (long) buffer[offset - 1] << 63) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56)
+                            ^ (~0L << 63));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+            }
         }
-        if (offset >= limit) throw new DataEncodingException("Malformed var int");
 
-        v |= ((b = buffer[offset++]) & 0x7F) << 7;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+        slowpath:
+        {
+            // Slower path because this is an array/buffer, and we have less than 9 (or even 10) buffer ahead
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = buffer[offset++]) & 0x7F) << 14;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+            // Since the above check is false, the offset was incremented in the fastpath above, and vi is actually
+            // assigned there. However, javac is unable to see this and throw an error. So we re-initialize it.
+            // This byte is in CPU L1 cache, so this should be fast. Also, this is a slowpath anyway.
+            vi = buffer[offset - 1];
+            if ((vi ^= buffer[offset++] << 7) < 0) {
+                vi ^= (~0 << 7);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = buffer[offset++]) & 0x7F) << 21;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+            if ((vi ^= buffer[offset++] << 14) >= 0) {
+                vi ^= ((~0 << 7) ^ (~0 << 14));
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = buffer[offset++]) & 0x7FL) << 28;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+            if ((vi ^= buffer[offset++] << 21) < 0) {
+                vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = buffer[offset++]) & 0x7FL) << 35;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+            vl = vi;
+            if ((vl ^= (long) buffer[offset++] << 28) >= 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = buffer[offset++]) & 0x7FL) << 42;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+            if ((vl ^= (long) buffer[offset++] << 35) < 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = buffer[offset++]) & 0x7FL) << 49;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+            if ((vl ^= (long) buffer[offset++] << 42) >= 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = buffer[offset++]) & 0x7FL) << 56;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new DataEncodingException("Malformed var int");
+            if ((vl ^= (long) buffer[offset++] << 49) < 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        b = buffer[offset++];
-        if ((b & 0x80) == 0) {
-            v |= (long) b << 63;
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+            if ((vl ^= (long) buffer[offset++] << 56) >= 0L) {
+                vl ^= ((~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit || buffer[offset++] < 0) break slowpath;
+
+            if ((vl ^= (long) buffer[offset - 1] << 63) >= 0L) {
+                vl ^= ((~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56)
+                        ^ (~0L << 63));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
         }
 
         throw new DataEncodingException("Malformed var int");

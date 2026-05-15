@@ -145,68 +145,165 @@ final class ByteArrayBufferedData extends BufferedData {
         checkOffset(offset, buffer.limit());
         offset += arrayOffset;
 
+        int vi;
+        long vl;
         final int limit = Math.min(arrayOffset + (int) length(), offset + 10);
-        if (offset >= limit) throw new BufferUnderflowException();
 
-        byte b;
-        long v = (b = array[offset++]) & 0x7F;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        fastpath:
+        {
+            if (offset == limit) break fastpath;
+
+            if ((vi = array[offset++]) >= 0) {
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            } else if (offset + 9 == limit) {
+                // Fast path w/o any limit checks if we have 9 more array
+                if ((vi ^= array[offset++] << 7) < 0) {
+                    vi ^= (~0 << 7);
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                if ((vi ^= array[offset++] << 14) >= 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14));
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                if ((vi ^= array[offset++] << 21) < 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                vl = vi;
+                if ((vl ^= (long) array[offset++] << 28) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 35) < 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 42) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 49) < 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 56) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if (array[offset++] < 0) break fastpath;
+                if ((vl ^= (long) array[offset - 1] << 63) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56)
+                            ^ (~0L << 63));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+            }
         }
-        if (offset >= limit) throw new BufferUnderflowException();
 
-        v |= ((b = array[offset++]) & 0x7F) << 7;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+        slowpath:
+        {
+            // Slower path because this is an array/array, and we have less than 9 (or even 10) array ahead
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7F) << 14;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            // Since the above check is false, the offset was incremented in the fastpath above, and vi is actually
+            // assigned there. However, javac is unable to see this and throw an error. So we re-initialize it.
+            // This byte is in CPU L1 cache, so this should be fast. Also, this is a slowpath anyway.
+            vi = array[offset - 1];
+            if ((vi ^= array[offset++] << 7) < 0) {
+                vi ^= (~0 << 7);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7F) << 21;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            if ((vi ^= array[offset++] << 14) >= 0) {
+                vi ^= ((~0 << 7) ^ (~0 << 14));
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7FL) << 28;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            if ((vi ^= array[offset++] << 21) < 0) {
+                vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7FL) << 35;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            vl = vi;
+            if ((vl ^= (long) array[offset++] << 28) >= 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7FL) << 42;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            if ((vl ^= (long) array[offset++] << 35) < 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7FL) << 49;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            if ((vl ^= (long) array[offset++] << 42) >= 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7FL) << 56;
-        if ((b & 0x80) == 0) {
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            if ((vl ^= (long) array[offset++] << 49) < 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        b = array[offset++];
-        if ((b & 0x80) == 0) {
-            v |= (long) b << 63;
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+            if ((vl ^= (long) array[offset++] << 56) >= 0L) {
+                vl ^= ((~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit || array[offset++] < 0) break slowpath;
+
+            if ((vl ^= (long) array[offset - 1] << 63) >= 0L) {
+                vl ^= ((~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56)
+                        ^ (~0L << 63));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
         }
 
         throw new DataEncodingException("Malformed var int");
@@ -299,81 +396,188 @@ final class ByteArrayBufferedData extends BufferedData {
         final int pos = buffer.position();
         int offset = arrayOffset + pos;
 
+        int vi;
+        long vl;
         final int limit = Math.min(offset + buffer.remaining(), offset + 10);
-        if (offset >= limit) throw new BufferUnderflowException();
 
-        byte b;
-        long v = (b = array[offset++]) & 0x7F;
-        if ((b & 0x80) == 0) {
-            buffer.position(pos + 1);
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+        fastpath:
+        {
+            if (offset == limit) break fastpath;
+
+            if ((vi = array[offset++]) >= 0) {
+                buffer.position(pos + 1);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            } else if (offset + 9 == limit) {
+                // Fast path w/o any limit checks if we have 9 more array
+                if ((vi ^= array[offset++] << 7) < 0) {
+                    vi ^= (~0 << 7);
+                    buffer.position(pos + 2);
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                if ((vi ^= array[offset++] << 14) >= 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14));
+                    buffer.position(pos + 3);
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                if ((vi ^= array[offset++] << 21) < 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                    buffer.position(pos + 4);
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                vl = vi;
+                if ((vl ^= (long) array[offset++] << 28) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                    buffer.position(pos + 5);
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 35) < 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                    buffer.position(pos + 6);
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 42) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                    buffer.position(pos + 7);
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 49) < 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49));
+                    buffer.position(pos + 8);
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 56) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56));
+                    buffer.position(pos + 9);
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                buffer.position(pos + 10);
+                if (array[offset++] < 0) throw new DataEncodingException("Malformed var int");
+                if ((vl ^= (long) array[offset - 1] << 63) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56)
+                            ^ (~0L << 63));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+            }
         }
-        if (offset >= limit) throw new BufferUnderflowException();
 
-        v |= ((b = array[offset++]) & 0x7F) << 7;
-        if ((b & 0x80) == 0) {
-            buffer.position(pos + 2);
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+        slowpath:
+        {
+            // Slower path because this is an array/array, and we have less than 9 (or even 10) array ahead
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7F) << 14;
-        if ((b & 0x80) == 0) {
-            buffer.position(pos + 3);
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            // Since the above check is false, the offset was incremented in the fastpath above, and vi is actually
+            // assigned there. However, javac is unable to see this and throw an error. So we re-initialize it.
+            // This byte is in CPU L1 cache, so this should be fast. Also, this is a slowpath anyway.
+            vi = array[offset - 1];
+            if ((vi ^= array[offset++] << 7) < 0) {
+                vi ^= (~0 << 7);
+                buffer.position(pos + 2);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7F) << 21;
-        if ((b & 0x80) == 0) {
-            buffer.position(pos + 4);
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            if ((vi ^= array[offset++] << 14) >= 0) {
+                vi ^= ((~0 << 7) ^ (~0 << 14));
+                buffer.position(pos + 3);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7FL) << 28;
-        if ((b & 0x80) == 0) {
-            buffer.position(pos + 5);
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            if ((vi ^= array[offset++] << 21) < 0) {
+                vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                buffer.position(pos + 4);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7FL) << 35;
-        if ((b & 0x80) == 0) {
-            buffer.position(pos + 6);
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            vl = vi;
+            if ((vl ^= (long) array[offset++] << 28) >= 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                buffer.position(pos + 5);
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7FL) << 42;
-        if ((b & 0x80) == 0) {
-            buffer.position(pos + 7);
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            if ((vl ^= (long) array[offset++] << 35) < 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                buffer.position(pos + 6);
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7FL) << 49;
-        if ((b & 0x80) == 0) {
-            buffer.position(pos + 8);
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            if ((vl ^= (long) array[offset++] << 42) >= 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                buffer.position(pos + 7);
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        v |= ((b = array[offset++]) & 0x7FL) << 56;
-        if ((b & 0x80) == 0) {
-            buffer.position(pos + 9);
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
-        }
-        if (offset >= limit) throw new BufferUnderflowException();
+            if ((vl ^= (long) array[offset++] << 49) < 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49));
+                buffer.position(pos + 8);
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
 
-        b = array[offset++];
-        if ((b & 0x80) == 0) {
+            if ((vl ^= (long) array[offset++] << 56) >= 0L) {
+                vl ^= ((~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56));
+                buffer.position(pos + 9);
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
             buffer.position(pos + 10);
-            v |= (long) b << 63;
-            return zigZag ? (v >>> 1) ^ -(v & 1) : v;
+            if (array[offset++] < 0) throw new DataEncodingException("Malformed var int");
+
+            if ((vl ^= (long) array[offset - 1] << 63) >= 0L) {
+                vl ^= ((~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56)
+                        ^ (~0L << 63));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
         }
 
-        throw new DataEncodingException("Malformed var int");
+        throw new BufferUnderflowException();
     }
 
     /**
