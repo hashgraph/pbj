@@ -102,11 +102,13 @@ public class VectorVarIntTest {
 
     /// A refactored copy from VarIntByteArrayReadBench.vector_fastXOR.
     private long readVarInt_fastXOR(byte[] bytes, int pos, boolean zigZag) {
-        final int limit = Math.min(bytes.length, pos + 10);
-        if (pos >= limit) throw new DataEncodingException("Malformed var int");
+        final int limit;
+        if (pos >= (limit = Math.min(bytes.length, pos + 10))) {
+            throw new DataEncodingException("Malformed var int");
+        }
 
-        int vi = bytes[pos++];
-        if (vi >= 0) {
+        int vi;
+        if ((vi = bytes[pos++]) >= 0) {
             return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
         }
 

@@ -532,7 +532,7 @@ public class VarIntByteArrayReadBench {
     /// A vectorized LEB128 version that:
     /// * avoids limit checks if we have enough bytes ahead (or if we relied on an EOFException in case of streams)
     /// * uses byte for 1 byte varint, int for a few bytes, and finally long for many bytes varint
-    @Benchmark
+    // @Benchmark // disabled because there's a faster version below
     @OperationsPerInvocation(INVOCATIONS)
     public void vector_smartLimitByteIntLong(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
@@ -685,11 +685,13 @@ public class VarIntByteArrayReadBench {
     public void vector_fastXOR(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
         for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
-            final int limit = Math.min(state.array.length, pos + 10);
-            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+            final int limit;
+            if (pos >= (limit = Math.min(state.array.length, pos + 10))) {
+                throw new DataEncodingException("Malformed var int");
+            }
 
-            int vi = state.array[pos++];
-            if (vi >= 0) {
+            int vi;
+            if ((vi = state.array[pos++]) >= 0) {
                 state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
                 continue;
             }
