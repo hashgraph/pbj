@@ -2,7 +2,6 @@
 package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.DataEncodingException;
-import com.hedera.pbj.runtime.io.UnsafeUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
@@ -142,27 +141,172 @@ final class ByteArrayBufferedData extends BufferedData {
         return getVar(Math.toIntExact(offset), zigZag);
     }
 
-    private long getVar(final int offset, final boolean zigZag) {
+    private long getVar(int offset, final boolean zigZag) {
         checkOffset(offset, buffer.limit());
+        offset += arrayOffset;
 
-        final int readOffset = arrayOffset + offset;
-        int rem = buffer.limit() - offset;
-        if (rem > 10) {
-            rem = 10;
-        }
+        int vi;
+        long vl;
+        final int limit = Math.min(arrayOffset + (int) length(), offset + 10);
 
-        long value = 0;
+        fastpath:
+        {
+            if (offset == limit) break fastpath;
 
-        int i = 0;
-        while (i != rem) {
-            final byte b = UnsafeUtils.getArrayByteNoChecks(array, readOffset + i);
-            value |= (long) (b & 0x7F) << (i * 7);
-            i++;
-            if (b >= 0) {
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
+            if ((vi = array[offset++]) >= 0) {
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            } else if (offset + 9 == limit) {
+                // Fast path w/o any limit checks if we have 9 more array
+                if ((vi ^= array[offset++] << 7) < 0) {
+                    vi ^= (~0 << 7);
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                if ((vi ^= array[offset++] << 14) >= 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14));
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                if ((vi ^= array[offset++] << 21) < 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                vl = vi;
+                if ((vl ^= (long) array[offset++] << 28) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 35) < 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 42) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 49) < 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 56) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if (array[offset++] < 0) break fastpath;
+                if ((vl ^= (long) array[offset - 1] << 63) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56)
+                            ^ (~0L << 63));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
             }
         }
-        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+
+        slowpath:
+        {
+            // Slower path because this is an array/array, and we have less than 9 (or even 10) array ahead
+            if (offset >= limit) break slowpath;
+
+            // Since the above check is false, the offset was incremented in the fastpath above, and vi is actually
+            // assigned there. However, javac is unable to see this and throw an error. So we re-initialize it.
+            // This byte is in CPU L1 cache, so this should be fast. Also, this is a slowpath anyway.
+            vi = array[offset - 1];
+            if ((vi ^= array[offset++] << 7) < 0) {
+                vi ^= (~0 << 7);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vi ^= array[offset++] << 14) >= 0) {
+                vi ^= ((~0 << 7) ^ (~0 << 14));
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vi ^= array[offset++] << 21) < 0) {
+                vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
+
+            vl = vi;
+            if ((vl ^= (long) array[offset++] << 28) >= 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vl ^= (long) array[offset++] << 35) < 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vl ^= (long) array[offset++] << 42) >= 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vl ^= (long) array[offset++] << 49) < 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vl ^= (long) array[offset++] << 56) >= 0L) {
+                vl ^= ((~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit || array[offset++] < 0) break slowpath;
+
+            if ((vl ^= (long) array[offset - 1] << 63) >= 0L) {
+                vl ^= ((~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56)
+                        ^ (~0L << 63));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+        }
+
+        throw new DataEncodingException("Malformed var int");
     }
 
     /**
@@ -250,25 +394,190 @@ final class ByteArrayBufferedData extends BufferedData {
 
     private long readVar(final boolean zigZag) {
         final int pos = buffer.position();
-        final int offset = arrayOffset + pos;
-        int rem = buffer.remaining();
-        if (rem > 10) {
-            rem = 10;
-        }
+        int offset = arrayOffset + pos;
 
-        long value = 0;
+        int vi;
+        long vl;
+        final int limit = Math.min(offset + buffer.remaining(), offset + 10);
 
-        int i = 0;
-        while (i != rem) {
-            final byte b = UnsafeUtils.getArrayByteNoChecks(array, offset + i);
-            value |= (long) (b & 0x7F) << (i * 7);
-            i++;
-            if (b >= 0) {
-                buffer.position(pos + i);
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
+        fastpath:
+        {
+            if (offset == limit) break fastpath;
+
+            if ((vi = array[offset++]) >= 0) {
+                buffer.position(pos + 1);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            } else if (offset + 9 == limit) {
+                // Fast path w/o any limit checks if we have 9 more array
+                if ((vi ^= array[offset++] << 7) < 0) {
+                    vi ^= (~0 << 7);
+                    buffer.position(pos + 2);
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                if ((vi ^= array[offset++] << 14) >= 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14));
+                    buffer.position(pos + 3);
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                if ((vi ^= array[offset++] << 21) < 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                    buffer.position(pos + 4);
+                    return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                }
+
+                vl = vi;
+                if ((vl ^= (long) array[offset++] << 28) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                    buffer.position(pos + 5);
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 35) < 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                    buffer.position(pos + 6);
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 42) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                    buffer.position(pos + 7);
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 49) < 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49));
+                    buffer.position(pos + 8);
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                if ((vl ^= (long) array[offset++] << 56) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56));
+                    buffer.position(pos + 9);
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
+
+                buffer.position(pos + 10);
+                if (array[offset++] < 0) throw new DataEncodingException("Malformed var int");
+                if ((vl ^= (long) array[offset - 1] << 63) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56)
+                            ^ (~0L << 63));
+                    return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                }
             }
         }
-        throw (i == 10) ? new DataEncodingException("Malformed var int") : new BufferUnderflowException();
+
+        slowpath:
+        {
+            // Slower path because this is an array/array, and we have less than 9 (or even 10) array ahead
+            if (offset >= limit) break slowpath;
+
+            // Since the above check is false, the offset was incremented in the fastpath above, and vi is actually
+            // assigned there. However, javac is unable to see this and throw an error. So we re-initialize it.
+            // This byte is in CPU L1 cache, so this should be fast. Also, this is a slowpath anyway.
+            vi = array[offset - 1];
+            if ((vi ^= array[offset++] << 7) < 0) {
+                vi ^= (~0 << 7);
+                buffer.position(pos + 2);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vi ^= array[offset++] << 14) >= 0) {
+                vi ^= ((~0 << 7) ^ (~0 << 14));
+                buffer.position(pos + 3);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vi ^= array[offset++] << 21) < 0) {
+                vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                buffer.position(pos + 4);
+                return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+            }
+            if (offset >= limit) break slowpath;
+
+            vl = vi;
+            if ((vl ^= (long) array[offset++] << 28) >= 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                buffer.position(pos + 5);
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vl ^= (long) array[offset++] << 35) < 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                buffer.position(pos + 6);
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vl ^= (long) array[offset++] << 42) >= 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                buffer.position(pos + 7);
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vl ^= (long) array[offset++] << 49) < 0L) {
+                vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49));
+                buffer.position(pos + 8);
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
+
+            if ((vl ^= (long) array[offset++] << 56) >= 0L) {
+                vl ^= ((~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56));
+                buffer.position(pos + 9);
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+            if (offset >= limit) break slowpath;
+            buffer.position(pos + 10);
+            if (array[offset++] < 0) throw new DataEncodingException("Malformed var int");
+
+            if ((vl ^= (long) array[offset - 1] << 63) >= 0L) {
+                vl ^= ((~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56)
+                        ^ (~0L << 63));
+                return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+            }
+        }
+
+        throw new BufferUnderflowException();
     }
 
     /**

@@ -186,13 +186,12 @@ public class VarIntByteArrayReadBench {
     /// A slightly modified copy of Google implementation in CodecInputStream.
     /// PBJ used to use a very similar algorithm, just before https://github.com/hashgraph/pbj/pull/144
     /// where we switched to LEB128.
-    @SuppressWarnings("lossy-conversions") // the impl is able to support longs, but we ignore that here and use ints.
-    // @Benchmark // disabled because it performs worse than the standard pbj implementation
+    // @Benchmark // disabled because PBJ requires zigZag handling and stricter limit checks
     @OperationsPerInvocation(INVOCATIONS)
     public void google(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
         for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
-            final int limit = pos + 5;
+            final int limit = Math.min(state.array.length, pos + 10);
 
             fastpath:
             {
@@ -202,7 +201,7 @@ public class VarIntByteArrayReadBench {
                     break fastpath;
                 }
 
-                int x;
+                long x;
                 int y;
                 if ((y = state.array[tempPos++]) >= 0) {
                     pos = tempPos;
@@ -262,6 +261,92 @@ public class VarIntByteArrayReadBench {
                         break;
                     }
                 }
+            }
+        }
+        blackhole.consume(state.sum);
+    }
+
+    /// A modified version of the Google implementation adapted to PBJ.
+    /// Specifically:
+    /// * zigZag is handled. Google's original readRawVarint64() doesn't handle zigZag directly.
+    /// * limit checks are added. Google's original version relies on IOOBE. But PBJ can wrap array slices and still
+    ///     must respect the length of the slice. So in PBJ we cannot rely on the IOOBE.
+    @Benchmark
+    @OperationsPerInvocation(INVOCATIONS)
+    public void google_zigZagAndLimit(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
+        for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
+            final int limit = Math.min(state.array.length, pos + 10);
+
+            fastpath:
+            {
+                int tempPos = pos;
+
+                if (limit == tempPos) {
+                    break fastpath;
+                }
+
+                long x;
+                int y;
+                if ((y = state.array[tempPos++]) >= 0) {
+                    pos = tempPos;
+                    state.sum += state.zigZag ? (y >>> 1) ^ -(y & 1) : y;
+                    continue;
+                } else if (limit - tempPos < 9) {
+                    break fastpath;
+                } else if ((y ^= (state.array[tempPos++] << 7)) < 0) {
+                    x = y ^ (~0 << 7);
+                } else if ((y ^= (state.array[tempPos++] << 14)) >= 0) {
+                    x = y ^ ((~0 << 7) ^ (~0 << 14));
+                } else if ((y ^= (state.array[tempPos++] << 21)) < 0) {
+                    x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                } else if ((x = y ^ (state.array[tempPos++] << 28)) >= 0L) {
+                    x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+                } else if ((x ^= (state.array[tempPos++] << 35)) < 0L) {
+                    x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+                } else if ((x ^= (state.array[tempPos++] << 42)) >= 0L) {
+                    x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+                } else if ((x ^= (state.array[tempPos++] << 49)) < 0L) {
+                    x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
+                } else if ((x ^= (state.array[tempPos++] << 56)) >= 0L) {
+                    x ^= (~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56);
+                } else if ((x ^= (state.array[tempPos++] << 63)) >= 0L) {
+                    x ^= (~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56)
+                            ^ (~0L << 63);
+                } else {
+                    break fastpath; // Will throw malformedVarint()
+                }
+                pos = tempPos;
+                state.sum += state.zigZag ? (x >>> 1) ^ -(x & 1) : x;
+                continue;
+            }
+
+            slowpath:
+            {
+                int result = 0;
+                for (int shift = 0; pos < limit && shift < 64; shift += 7) {
+                    final byte b = state.array[pos++];
+                    result |= (b & 0x7F) << shift;
+                    if ((b & 0x80) == 0) {
+                        state.sum += state.zigZag ? (result >>> 1) ^ -(result & 1) : result;
+                        break slowpath;
+                    }
+                }
+                throw new DataEncodingException("Malformed var int");
             }
         }
         blackhole.consume(state.sum);
@@ -360,7 +445,7 @@ public class VarIntByteArrayReadBench {
     }
 
     /// A vectorized LEB128, similar to the loopLess above, with some minor tweaks and supporting long varints.
-    @Benchmark
+    // @Benchmark // disabled because of improvements in versions below
     @OperationsPerInvocation(INVOCATIONS)
     public void vector_zigZag(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
@@ -437,6 +522,353 @@ public class VarIntByteArrayReadBench {
                 v |= (long) b << 63;
                 state.sum += state.zigZag ? (v >>> 1) ^ -(v & 1) : v;
                 continue;
+            }
+
+            throw new DataEncodingException("Malformed var int");
+        }
+        blackhole.consume(state.sum);
+    }
+
+    /// A vectorized LEB128 version that:
+    /// * avoids limit checks if we have enough bytes ahead (or if we relied on an EOFException in case of streams)
+    /// * uses byte for 1 byte varint, int for a few bytes, and finally long for many bytes varint
+    // @Benchmark // disabled because there's a faster version below
+    @OperationsPerInvocation(INVOCATIONS)
+    public void vector_smartLimitByteIntLong(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
+        for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
+            final int limit = Math.min(state.array.length, pos + 10);
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            byte b = state.array[pos++];
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (b >>> 1) ^ -(b & 1) : b;
+                continue;
+            }
+
+            int vi = b & 0x7F;
+
+            // Fast path w/o any limit checks if we have all 10 bytes, or if it was a stream b/c we'd get an EOF
+            if (pos + 9 == limit) {
+                vi |= ((b = state.array[pos++]) & 0x7F) << 7;
+                if ((b & 0x80) == 0) {
+                    state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                    continue;
+                }
+
+                vi |= ((b = state.array[pos++]) & 0x7F) << 14;
+                if ((b & 0x80) == 0) {
+                    state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                    continue;
+                }
+
+                vi |= ((b = state.array[pos++]) & 0x7F) << 21;
+                if ((b & 0x80) == 0) {
+                    state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                    continue;
+                }
+
+                long vl = vi | ((b = state.array[pos++]) & 0x7FL) << 28;
+                if ((b & 0x80) == 0) {
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+
+                vl |= ((b = state.array[pos++]) & 0x7FL) << 35;
+                if ((b & 0x80) == 0) {
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+
+                vl |= ((b = state.array[pos++]) & 0x7FL) << 42;
+                if ((b & 0x80) == 0) {
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+
+                vl |= ((b = state.array[pos++]) & 0x7FL) << 49;
+                if ((b & 0x80) == 0) {
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+
+                vl |= ((b = state.array[pos++]) & 0x7FL) << 56;
+                if ((b & 0x80) == 0) {
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+
+                b = state.array[pos++];
+                if ((b & 0x80) == 0) {
+                    vl |= (long) b << 63;
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+
+                throw new DataEncodingException("Malformed var int");
+            }
+
+            // Slower path because this is an array/buffer, and we have less than 9 bytes ahead
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            vi |= ((b = state.array[pos++]) & 0x7F) << 7;
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                continue;
+            }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            vi |= ((b = state.array[pos++]) & 0x7F) << 14;
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                continue;
+            }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            vi |= ((b = state.array[pos++]) & 0x7F) << 21;
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                continue;
+            }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            long vl = vi | ((b = state.array[pos++]) & 0x7FL) << 28;
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                continue;
+            }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            vl |= ((b = state.array[pos++]) & 0x7FL) << 35;
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                continue;
+            }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            vl |= ((b = state.array[pos++]) & 0x7FL) << 42;
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                continue;
+            }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            vl |= ((b = state.array[pos++]) & 0x7FL) << 49;
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                continue;
+            }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            vl |= ((b = state.array[pos++]) & 0x7FL) << 56;
+            if ((b & 0x80) == 0) {
+                state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                continue;
+            }
+            if (pos >= limit) throw new DataEncodingException("Malformed var int");
+
+            b = state.array[pos++];
+            if ((b & 0x80) == 0) {
+                vl |= (long) b << 63;
+                state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                continue;
+            }
+
+            throw new DataEncodingException("Malformed var int");
+        }
+        blackhole.consume(state.sum);
+    }
+
+    /// A vectorized LEB128 similar to vector_smartLimitByteIntLong that also uses an XOR trick from Google impl.
+    @Benchmark
+    @OperationsPerInvocation(INVOCATIONS)
+    public void vector_fastXOR(final BenchState state, final Blackhole blackhole) {
+        state.sum = 0;
+        for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
+            int vi;
+            long vl;
+            final int limit = Math.min(state.array.length, pos + 10);
+
+            fastpath:
+            {
+                if (pos == limit) break fastpath;
+
+                if ((vi = state.array[pos++]) >= 0) {
+                    state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                    continue;
+                } else if (pos + 9 == limit) {
+                    // Fast path w/o any limit checks if we have 9 more bytes
+                    if ((vi ^= state.array[pos++] << 7) < 0) {
+                        vi ^= (~0 << 7);
+                        state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                        continue;
+                    }
+
+                    if ((vi ^= state.array[pos++] << 14) >= 0) {
+                        vi ^= ((~0 << 7) ^ (~0 << 14));
+                        state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                        continue;
+                    }
+
+                    if ((vi ^= state.array[pos++] << 21) < 0) {
+                        vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                        state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                        continue;
+                    }
+
+                    vl = vi;
+                    if ((vl ^= (long) state.array[pos++] << 28) >= 0L) {
+                        vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
+
+                    if ((vl ^= (long) state.array[pos++] << 35) < 0L) {
+                        vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
+
+                    if ((vl ^= (long) state.array[pos++] << 42) >= 0L) {
+                        vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
+
+                    if ((vl ^= (long) state.array[pos++] << 49) < 0L) {
+                        vl ^= ((~0L << 7)
+                                ^ (~0L << 14)
+                                ^ (~0L << 21)
+                                ^ (~0L << 28)
+                                ^ (~0L << 35)
+                                ^ (~0L << 42)
+                                ^ (~0L << 49));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
+
+                    if ((vl ^= (long) state.array[pos++] << 56) >= 0L) {
+                        vl ^= ((~0L << 7)
+                                ^ (~0L << 14)
+                                ^ (~0L << 21)
+                                ^ (~0L << 28)
+                                ^ (~0L << 35)
+                                ^ (~0L << 42)
+                                ^ (~0L << 49)
+                                ^ (~0L << 56));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
+
+                    if (state.array[pos++] < 0) break fastpath;
+                    if ((vl ^= (long) state.array[pos - 1] << 63) >= 0L) {
+                        vl ^= ((~0L << 7)
+                                ^ (~0L << 14)
+                                ^ (~0L << 21)
+                                ^ (~0L << 28)
+                                ^ (~0L << 35)
+                                ^ (~0L << 42)
+                                ^ (~0L << 49)
+                                ^ (~0L << 56)
+                                ^ (~0L << 63));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
+                }
+            }
+
+            slowpath:
+            {
+                // Slower path because this is an array/buffer, and we have less than 9 (or even 10) bytes ahead
+                if (pos >= limit) break slowpath;
+
+                // Since the above check is false, the pos was incremented in the fastpath above, and vi is actually
+                // assigned there. However, javac is unable to see this and throw an error. So we re-initialize it.
+                // This byte is in CPU L1 cache, so this should be fast. Also, this is a slowpath anyway.
+                vi = state.array[pos - 1];
+                if ((vi ^= state.array[pos++] << 7) < 0) {
+                    vi ^= (~0 << 7);
+                    state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                    continue;
+                }
+                if (pos >= limit) break slowpath;
+
+                if ((vi ^= state.array[pos++] << 14) >= 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14));
+                    state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                    continue;
+                }
+                if (pos >= limit) break slowpath;
+
+                if ((vi ^= state.array[pos++] << 21) < 0) {
+                    vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                    state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                    continue;
+                }
+                if (pos >= limit) break slowpath;
+
+                vl = vi;
+                if ((vl ^= (long) state.array[pos++] << 28) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+                if (pos >= limit) break slowpath;
+
+                if ((vl ^= (long) state.array[pos++] << 35) < 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+                if (pos >= limit) break slowpath;
+
+                if ((vl ^= (long) state.array[pos++] << 42) >= 0L) {
+                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+                if (pos >= limit) break slowpath;
+
+                if ((vl ^= (long) state.array[pos++] << 49) < 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49));
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+                if (pos >= limit) break slowpath;
+
+                if ((vl ^= (long) state.array[pos++] << 56) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56));
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
+                if (pos >= limit || state.array[pos++] < 0) break slowpath;
+
+                if ((vl ^= (long) state.array[pos - 1] << 63) >= 0L) {
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49)
+                            ^ (~0L << 56)
+                            ^ (~0L << 63));
+                    state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                    continue;
+                }
             }
 
             throw new DataEncodingException("Malformed var int");
