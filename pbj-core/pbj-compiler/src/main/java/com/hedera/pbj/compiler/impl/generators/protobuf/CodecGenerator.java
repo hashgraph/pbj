@@ -126,6 +126,8 @@ public final class CodecGenerator implements Generator {
         writer.addImport("static com.hedera.pbj.runtime.ProtoConstants.*");
         writer.addImport("static com.hedera.pbj.runtime.Utf8Tools.*");
 
+        var sbFunc = new StringBuilder();
+
         // spotless:off
         writer.append("""
                 /**
@@ -164,7 +166,7 @@ public final class CodecGenerator implements Generator {
                 .replace("$codecClass", codecClassName)
                 .replace("$cacheableSupport", cacheableSupport)
                 .replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
-                .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(modelClassName, schemaClassName, fields, !cacheableSupport.isBlank()))
+                .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(sbFunc, modelClassName, schemaClassName, fields, !cacheableSupport.isBlank()))
                 .replace("$writeMethod", writeMethod)
                 .replace("$writeByteArrayMethod", writeByteArrayMethod)
                 .replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))
@@ -172,6 +174,7 @@ public final class CodecGenerator implements Generator {
                 .replace("$fastEqualsMethod", CodecFastEqualsMethodGenerator.generateFastEqualsMethod(modelClassName, fields))
                 .replace("$getDefaultInstanceMethod", generateGetDefaultInstanceMethod(modelClassName))
         );
+        writer.append(sbFunc.toString());
         // spotless:on
 
         for (final var item : msgDef.messageBody().messageElement()) {
