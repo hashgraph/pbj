@@ -685,92 +685,93 @@ public class VarIntByteArrayReadBench {
     public void vector_fastXOR(final BenchState state, final Blackhole blackhole) {
         state.sum = 0;
         for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
+            int vi;
+            long vl;
             final int limit = Math.min(state.array.length, pos + 10);
 
             fastpath:
             {
-                if (pos < limit) {
-                    int vi;
-                    if ((vi = state.array[pos++]) >= 0) {
+                if (pos == limit) break fastpath;
+
+                if ((vi = state.array[pos++]) >= 0) {
+                    state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                    continue;
+                } else if (pos + 9 == limit) {
+                    // Fast path w/o any limit checks if we have 9 more bytes
+                    if ((vi ^= state.array[pos++] << 7) < 0) {
+                        vi ^= (~0 << 7);
                         state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
                         continue;
-                    } else if (pos + 9 == limit) {
-                        // Fast path w/o any limit checks if we have 9 more bytes
-                        if ((vi ^= state.array[pos++] << 7) < 0) {
-                            vi ^= (~0 << 7);
-                            state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
-                            continue;
-                        }
+                    }
 
-                        if ((vi ^= state.array[pos++] << 14) >= 0) {
-                            vi ^= ((~0 << 7) ^ (~0 << 14));
-                            state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
-                            continue;
-                        }
+                    if ((vi ^= state.array[pos++] << 14) >= 0) {
+                        vi ^= ((~0 << 7) ^ (~0 << 14));
+                        state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                        continue;
+                    }
 
-                        if ((vi ^= state.array[pos++] << 21) < 0) {
-                            vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
-                            state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
-                            continue;
-                        }
+                    if ((vi ^= state.array[pos++] << 21) < 0) {
+                        vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+                        state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+                        continue;
+                    }
 
-                        long vl = vi;
-                        if ((vl ^= (long) state.array[pos++] << 28) >= 0L) {
-                            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
-                            state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
-                            continue;
-                        }
+                    vl = vi;
+                    if ((vl ^= (long) state.array[pos++] << 28) >= 0L) {
+                        vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
 
-                        if ((vl ^= (long) state.array[pos++] << 35) < 0L) {
-                            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
-                            state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
-                            continue;
-                        }
+                    if ((vl ^= (long) state.array[pos++] << 35) < 0L) {
+                        vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
 
-                        if ((vl ^= (long) state.array[pos++] << 42) >= 0L) {
-                            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
-                            state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
-                            continue;
-                        }
+                    if ((vl ^= (long) state.array[pos++] << 42) >= 0L) {
+                        vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
 
-                        if ((vl ^= (long) state.array[pos++] << 49) < 0L) {
-                            vl ^= ((~0L << 7)
-                                    ^ (~0L << 14)
-                                    ^ (~0L << 21)
-                                    ^ (~0L << 28)
-                                    ^ (~0L << 35)
-                                    ^ (~0L << 42)
-                                    ^ (~0L << 49));
-                            state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
-                            continue;
-                        }
+                    if ((vl ^= (long) state.array[pos++] << 49) < 0L) {
+                        vl ^= ((~0L << 7)
+                                ^ (~0L << 14)
+                                ^ (~0L << 21)
+                                ^ (~0L << 28)
+                                ^ (~0L << 35)
+                                ^ (~0L << 42)
+                                ^ (~0L << 49));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
 
-                        if ((vl ^= (long) state.array[pos++] << 56) >= 0L) {
-                            vl ^= ((~0L << 7)
-                                    ^ (~0L << 14)
-                                    ^ (~0L << 21)
-                                    ^ (~0L << 28)
-                                    ^ (~0L << 35)
-                                    ^ (~0L << 42)
-                                    ^ (~0L << 49)
-                                    ^ (~0L << 56));
-                            state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
-                            continue;
-                        }
+                    if ((vl ^= (long) state.array[pos++] << 56) >= 0L) {
+                        vl ^= ((~0L << 7)
+                                ^ (~0L << 14)
+                                ^ (~0L << 21)
+                                ^ (~0L << 28)
+                                ^ (~0L << 35)
+                                ^ (~0L << 42)
+                                ^ (~0L << 49)
+                                ^ (~0L << 56));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
+                    }
 
-                        if ((vl ^= (long) state.array[pos++] << 63) >= 0L) {
-                            vl ^= ((~0L << 7)
-                                    ^ (~0L << 14)
-                                    ^ (~0L << 21)
-                                    ^ (~0L << 28)
-                                    ^ (~0L << 35)
-                                    ^ (~0L << 42)
-                                    ^ (~0L << 49)
-                                    ^ (~0L << 56)
-                                    ^ (~0L << 63));
-                            state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
-                            continue;
-                        }
+                    if ((vl ^= (long) state.array[pos++] << 63) >= 0L) {
+                        vl ^= ((~0L << 7)
+                                ^ (~0L << 14)
+                                ^ (~0L << 21)
+                                ^ (~0L << 28)
+                                ^ (~0L << 35)
+                                ^ (~0L << 42)
+                                ^ (~0L << 49)
+                                ^ (~0L << 56)
+                                ^ (~0L << 63));
+                        state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+                        continue;
                     }
                 }
             }
@@ -780,9 +781,10 @@ public class VarIntByteArrayReadBench {
                 // Slower path because this is an array/buffer, and we have less than 9 (or even 10) bytes ahead
                 if (pos >= limit) break slowpath;
 
-                // Since the above check is false, the pos was incremented in the fastpath above.
+                // Since the above check is false, the pos was incremented in the fastpath above, and vi is actually
+                // assigned there. However, javac is unable to see this and throw an error. So we re-initialize it.
                 // This byte is in CPU L1 cache, so this should be fast. Also, this is a slowpath anyway.
-                int vi = state.array[pos - 1];
+                vi = state.array[pos - 1];
                 if ((vi ^= state.array[pos++] << 7) < 0) {
                     vi ^= (~0 << 7);
                     state.sum += state.zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
@@ -804,7 +806,7 @@ public class VarIntByteArrayReadBench {
                 }
                 if (pos >= limit) break slowpath;
 
-                long vl = vi;
+                vl = vi;
                 if ((vl ^= (long) state.array[pos++] << 28) >= 0L) {
                     vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
                     state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
@@ -827,7 +829,13 @@ public class VarIntByteArrayReadBench {
                 if (pos >= limit) break slowpath;
 
                 if ((vl ^= (long) state.array[pos++] << 49) < 0L) {
-                    vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49));
+                    vl ^= ((~0L << 7)
+                            ^ (~0L << 14)
+                            ^ (~0L << 21)
+                            ^ (~0L << 28)
+                            ^ (~0L << 35)
+                            ^ (~0L << 42)
+                            ^ (~0L << 49));
                     state.sum += state.zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
                     continue;
                 }
