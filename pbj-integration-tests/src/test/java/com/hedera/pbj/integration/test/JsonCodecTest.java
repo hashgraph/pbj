@@ -2,6 +2,8 @@
 package com.hedera.pbj.integration.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.util.JsonFormat;
@@ -11,8 +13,10 @@ import com.hedera.hapi.node.token.GetAccountDetailsResponse.AccountDetails;
 import com.hedera.pbj.integration.AccountDetailsPbj;
 import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.test.proto.pbj.Everything;
+import com.hedera.pbj.test.proto.pbj.MessageWithBytesAndString;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -118,5 +122,18 @@ public class JsonCodecTest {
         Everything.JSON.write(everythingPbj2, out);
         String pbjJson = bout.toString();
         assertEquals(protoCJson, pbjJson);
+    }
+
+    @Test
+    public void NullStringTest() throws Exception {
+        final String json = """
+                {
+                  "bytesField": "308201a2300d06092a86",
+                  "stringField": null
+                }
+                """;
+        MessageWithBytesAndString bytesAndString = MessageWithBytesAndString.JSON.parse(Bytes.wrap(json));
+        assertNotEquals(0, bytesAndString.bytesField().length());
+        assertTrue(bytesAndString.stringField().isEmpty());
     }
 }
