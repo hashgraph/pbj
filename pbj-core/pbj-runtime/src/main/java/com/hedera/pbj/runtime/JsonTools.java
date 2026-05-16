@@ -144,9 +144,9 @@ public final class JsonTools {
      * @return the string itself
      * @throws UncheckedParseException if the string size exceeds `maxSize`
      */
-    public static String checkSize(@NonNull final String fieldName, @NonNull final String string, final int maxSize)
+    public static String checkSize(@NonNull final String fieldName, final String string, final int maxSize)
             throws UncheckedParseException {
-        if (string.length() > maxSize) {
+        if (string != null && string.length() > maxSize) {
             throw new UncheckedParseException(
                     new ParseException(fieldName + " size " + string.length() + " is greater than max " + maxSize));
         }

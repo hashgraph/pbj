@@ -33,8 +33,7 @@ class JsonCodecParseMethodGenerator {
                             return """
                            /** Constant for an unset oneof for $fieldName */
                            public static final $className<$enum> $unsetFieldName = new $className<>($enum.UNSET,null);
-                       """
-                                    .replace("$className", field.className())
+                       """.replace("$className", field.className())
                                     .replace("$enum", field.getEnumClassRef())
                                     .replace("$fieldName", field.name())
                                     .replace("$unsetFieldName", Common.camelToUpperSnake(field.name()) + "_UNSET")
@@ -94,8 +93,7 @@ class JsonCodecParseMethodGenerator {
                         throw new ParseException(ex);
                     }
                 }
-                """
-                .replace("$modelClassName", modelClassName)
+                """.replace("$modelClassName", modelClassName)
                 .replace(
                         "$fieldDefs",
                         fields.stream()
@@ -166,9 +164,12 @@ class JsonCodecParseMethodGenerator {
                     case FLOAT -> sb.append("parseFloat(v)");
                     case DOUBLE -> sb.append("parseDouble(v)");
                     case STRING ->
-                        sb.append("unescape(checkSize(\"$fieldName\", v.STRING().getText(), $maxSize))"
-                                .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
-                                .replace("$fieldName", field.name()));
+                        sb.append(
+                                "unescape(checkSize(\"$fieldName\", v.STRING()==null?null:v.STRING().getText(), $maxSize))"
+                                        .replace(
+                                                "$maxSize",
+                                                field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
+                                        .replace("$fieldName", field.name()));
                     case BOOL -> sb.append("parseBoolean(v)");
 
                     // maxSize * 2 - because Base64. The *2 math isn't precise, but it's good enough for our purposes.
@@ -190,9 +191,12 @@ class JsonCodecParseMethodGenerator {
                 case "FloatValue" -> sb.append("parseFloat($valueGetter)");
                 case "DoubleValue" -> sb.append("parseDouble($valueGetter)");
                 case "StringValue" ->
-                    sb.append("unescape(checkSize(\"$fieldName\", $valueGetter.STRING().getText(), $maxSize))"
-                            .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
-                            .replace("$fieldName", field.name()));
+                    sb.append(
+                            "unescape(checkSize(\"$fieldName\", $valueGetter.STRING()==null?null:$valueGetter.STRING().getText(), $maxSize))"
+                                    .replace(
+                                            "$maxSize",
+                                            field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
+                                    .replace("$fieldName", field.name()));
                 case "BoolValue" -> sb.append("parseBoolean($valueGetter)");
 
                 // maxSize * 2 - because Base64. The *2 math isn't precise, but it's good enough for our purposes:
@@ -214,15 +218,12 @@ class JsonCodecParseMethodGenerator {
             generateFieldCaseStatement(keySB, mapField.keyField(), "mapKV");
             generateFieldCaseStatement(valueSB, mapField.valueField(), "mapKV.value()");
 
-            sb.append(
-                    """
+            sb.append("""
                     $valueGetter.getChild(JSONParser.ObjContext.class, 0).pair().stream()
                                         .collect(Collectors.toMap(
                                             mapKV -> $mapEntryKey,
                                             new UncheckedThrowingFunction<>(mapKV -> $mapEntryValue)
-                                        ))"""
-                            .replace("$mapEntryKey", keySB.toString())
-                            .replace("$mapEntryValue", valueSB.toString()));
+                                        ))""".replace("$mapEntryKey", keySB.toString()).replace("$mapEntryValue", valueSB.toString()));
         } else {
             switch (field.type()) {
                 case MESSAGE ->
@@ -237,9 +238,12 @@ class JsonCodecParseMethodGenerator {
                 case FLOAT -> sb.append("parseFloat($valueGetter)");
                 case DOUBLE -> sb.append("parseDouble($valueGetter)");
                 case STRING ->
-                    sb.append("unescape(checkSize(\"$fieldName\", $valueGetter.STRING().getText(), $maxSize))"
-                            .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
-                            .replace("$fieldName", field.name()));
+                    sb.append(
+                            "unescape(checkSize(\"$fieldName\", $valueGetter.STRING()==null?null:$valueGetter.STRING().getText(), $maxSize))"
+                                    .replace(
+                                            "$maxSize",
+                                            field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
+                                    .replace("$fieldName", field.name()));
                 case BOOL -> sb.append("parseBoolean($valueGetter)");
 
                 // maxSize * 2 - because Base64. The *2 math isn't precise, but it's good enough for our purposes:
