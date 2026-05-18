@@ -429,15 +429,79 @@ public interface RandomAccessData {
      *         or the end of the buffer is encountered before the last segment of the varlong
      * @throws DataEncodingException if the var long is malformed
      */
-    default long getVarLong(final long offset, final boolean zigZag) {
-        long value = 0;
-        for (int i = 0; i < 10; i++) {
-            final byte b = getByte(offset + i);
-            value |= (long) (b & 0x7F) << (i * 7);
-            if (b >= 0) {
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
-            }
+    default long getVarLong(long offset, final boolean zigZag) {
+        final byte b;
+        int vi;
+        long vl;
+
+        if ((vi = getByte(offset++)) >= 0) {
+            return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
         }
+
+        if ((vi ^= getByte(offset++) << 7) < 0) {
+            vi ^= (~0 << 7);
+            return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+        }
+
+        if ((vi ^= getByte(offset++) << 14) >= 0) {
+            vi ^= ((~0 << 7) ^ (~0 << 14));
+            return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+        }
+
+        if ((vi ^= getByte(offset++) << 21) < 0) {
+            vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+            return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+        }
+
+        vl = vi;
+        if ((vl ^= (long) getByte(offset++) << 28) >= 0L) {
+            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
+        if ((vl ^= (long) getByte(offset++) << 35) < 0L) {
+            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
+        if ((vl ^= (long) getByte(offset++) << 42) >= 0L) {
+            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
+        if ((vl ^= (long) getByte(offset++) << 49) < 0L) {
+            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
+        if ((vl ^= (long) getByte(offset++) << 56) >= 0L) {
+            vl ^= ((~0L << 7)
+                    ^ (~0L << 14)
+                    ^ (~0L << 21)
+                    ^ (~0L << 28)
+                    ^ (~0L << 35)
+                    ^ (~0L << 42)
+                    ^ (~0L << 49)
+                    ^ (~0L << 56));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
+        if ((b = getByte(offset++)) < 0) {
+            throw new DataEncodingException("Malformed var int");
+        }
+        if ((vl ^= (long) b << 63) >= 0L) {
+            vl ^= ((~0L << 7)
+                    ^ (~0L << 14)
+                    ^ (~0L << 21)
+                    ^ (~0L << 28)
+                    ^ (~0L << 35)
+                    ^ (~0L << 42)
+                    ^ (~0L << 49)
+                    ^ (~0L << 56)
+                    ^ (~0L << 63));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
         throw new DataEncodingException("Malformed var int");
     }
 

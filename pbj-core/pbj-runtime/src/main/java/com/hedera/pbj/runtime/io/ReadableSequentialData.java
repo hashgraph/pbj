@@ -473,15 +473,78 @@ public interface ReadableSequentialData extends SequentialData {
      * @throws DataEncodingException if the variable long cannot be decoded
      */
     default long readVarLong(final boolean zigZag) throws BufferUnderflowException, UncheckedIOException {
-        long value = 0;
+        final byte b;
+        int vi;
+        long vl;
 
-        for (int i = 0; i < 10; i++) {
-            final byte b = readByte();
-            value |= (long) (b & 0x7F) << (i * 7);
-            if (b >= 0) {
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
-            }
+        if ((vi = readByte()) >= 0) {
+            return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
         }
+
+        if ((vi ^= readByte() << 7) < 0) {
+            vi ^= (~0 << 7);
+            return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+        }
+
+        if ((vi ^= readByte() << 14) >= 0) {
+            vi ^= ((~0 << 7) ^ (~0 << 14));
+            return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+        }
+
+        if ((vi ^= readByte() << 21) < 0) {
+            vi ^= ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+            return zigZag ? (vi >>> 1) ^ -(vi & 1) : vi;
+        }
+
+        vl = vi;
+        if ((vl ^= (long) readByte() << 28) >= 0L) {
+            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
+        if ((vl ^= (long) readByte() << 35) < 0L) {
+            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
+        if ((vl ^= (long) readByte() << 42) >= 0L) {
+            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
+        if ((vl ^= (long) readByte() << 49) < 0L) {
+            vl ^= ((~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
+        if ((vl ^= (long) readByte() << 56) >= 0L) {
+            vl ^= ((~0L << 7)
+                    ^ (~0L << 14)
+                    ^ (~0L << 21)
+                    ^ (~0L << 28)
+                    ^ (~0L << 35)
+                    ^ (~0L << 42)
+                    ^ (~0L << 49)
+                    ^ (~0L << 56));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
+        if ((b = readByte()) < 0) {
+            throw new DataEncodingException("Malformed var int");
+        }
+        if ((vl ^= (long) b << 63) >= 0L) {
+            vl ^= ((~0L << 7)
+                    ^ (~0L << 14)
+                    ^ (~0L << 21)
+                    ^ (~0L << 28)
+                    ^ (~0L << 35)
+                    ^ (~0L << 42)
+                    ^ (~0L << 49)
+                    ^ (~0L << 56)
+                    ^ (~0L << 63));
+            return zigZag ? (vl >>> 1) ^ -(vl & 1) : vl;
+        }
+
         throw new DataEncodingException("Malformed var int");
     }
 
