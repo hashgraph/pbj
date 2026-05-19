@@ -77,7 +77,7 @@ class JsonCodecParseMethodGenerator {
                         // -- EXTRACT VALUES FROM PARSE TREE ---------------------------------------------
 
                         for (JSONParser.PairContext kvPair : root.pair()) {
-                            switch (kvPair.STRING().getText()) {
+                            switch (toJsonFieldName(kvPair.STRING().getText())) {
                                 $caseStatements
                                 default: {
                                     if (strictMode) {

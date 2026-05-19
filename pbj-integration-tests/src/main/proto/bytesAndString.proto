@@ -13,5 +13,5 @@ option java_multiple_files = true;
  */
 message MessageWithBytesAndString {
   bytes bytesField = 1;
-  string stringField = 2;
+  string string_field = 2;
 }
