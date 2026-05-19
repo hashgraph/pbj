@@ -125,7 +125,7 @@ public class JsonCodecTest {
     }
 
     @Test
-    public void NullStringTest() throws Exception {
+    public void nullStringTest() throws Exception {
         final String json = """
                 {
                   "bytesField": "308201a2300d06092a86",
@@ -138,7 +138,7 @@ public class JsonCodecTest {
     }
 
     @Test
-    public void SnakeCaseStringTest() throws Exception {
+    public void snakeCaseStringTest() throws Exception {
         final String json = """
                 {
                   "bytesField": "308201a2300d06092a86",
