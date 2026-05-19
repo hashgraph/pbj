@@ -125,7 +125,7 @@ public class JsonCodecTest {
     }
 
     @Test
-    public void NullStringTest() throws Exception {
+    public void nullStringTest() throws Exception {
         final String json = """
                 {
                   "bytesField": "308201a2300d06092a86",
@@ -135,5 +135,18 @@ public class JsonCodecTest {
         MessageWithBytesAndString bytesAndString = MessageWithBytesAndString.JSON.parse(Bytes.wrap(json));
         assertNotEquals(0, bytesAndString.bytesField().length());
         assertTrue(bytesAndString.stringField().isEmpty());
+    }
+
+    @Test
+    public void snakeCaseStringTest() throws Exception {
+        final String json = """
+                {
+                  "bytesField": "308201a2300d06092a86",
+                  "string_field": "snake_case"
+                }
+                """;
+        MessageWithBytesAndString bytesAndString = MessageWithBytesAndString.JSON.parse(Bytes.wrap(json));
+        assertNotEquals(0, bytesAndString.bytesField().length());
+        assertEquals("snake_case", bytesAndString.stringField());
     }
 }
