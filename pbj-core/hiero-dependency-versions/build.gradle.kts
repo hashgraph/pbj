@@ -6,7 +6,7 @@ val grpc = "1.81.0"
 val helidon = "4.4.1"
 val protobuf = "4.34.1"
 
-val junit5 = "6.0.3"
+val junit5 = "6.1.0"
 val mockito = "5.23.0"
 
 dependencies { api(platform("io.netty:netty-bom:4.2.13.Final")) }
