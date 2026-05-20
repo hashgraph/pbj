@@ -268,7 +268,11 @@ public interface Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    int measure(@NonNull SlimBuffer input) throws ParseException;
+    default int measure(@NonNull SlimBuffer input) throws ParseException {
+        final long startPosition = input.position();
+        parse(input);
+        return (int) (input.position() - startPosition);
+    }
 
     default int measure(@NonNull ReadableSequentialData input) throws ParseException {
         return measure(new SlimBuffer(input));

@@ -549,8 +549,17 @@ class ProtoParserToolsTest {
                 final int maxDepth,
                 final int maxSize)
                 throws ParseException {
+            return parse(new SlimBuffer(in), strictMode, parseUnknownFields, maxDepth, maxSize);
+        }
+        public TestMessage parse(
+                @NonNull final SlimBuffer in,
+                final boolean strictMode,
+                final boolean parseUnknownFields,
+                final int maxDepth,
+                final int maxSize)
+                throws ParseException {
             String value = null;
-            while (in.hasRemaining()) {
+            while (in.hasMore()) {
                 final int tag = in.readVarInt(false);
                 final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;
                 final int wireType = tag & TAG_WIRE_TYPE_MASK;
