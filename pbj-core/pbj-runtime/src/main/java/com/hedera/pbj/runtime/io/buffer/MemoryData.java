@@ -578,6 +578,13 @@ public final class MemoryData
     }
 
     @Override
+    public int putByte(final long offset, final byte b) {
+        checkOffsetToWrite(offset, length(), 1);
+        segment.set(ValueLayout.JAVA_BYTE, offset, b);
+        return 1;
+    }
+
+    @Override
     public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
         if (maxLength < 0) {
             throw new IllegalArgumentException("Negative maxLength not allowed");
@@ -590,6 +597,27 @@ public final class MemoryData
             System.arraycopy(array, Math.toIntExact(segment.address() + offset), dst, dstOffset, Math.toIntExact(len));
         } else {
             MemorySegment.copy(segment, offset, MemorySegment.ofArray(dst).asSlice(dstOffset, len), 0, len);
+        }
+        return len;
+    }
+
+    @Override
+    public int putBytes(final long offset, @NonNull final byte[] src, final int srcOffset, final int len) {
+        if (len < 0 || offset < 0 || srcOffset < 0) {
+            throw new IllegalArgumentException("Negative length or offsets not allowed");
+        }
+        if (len > src.length - srcOffset) {
+            throw new BufferUnderflowException();
+        }
+        if (len > length() - offset) {
+            throw new BufferOverflowException();
+        }
+
+        final Optional<Object> heapBaseOptional = segment.heapBase();
+        if (heapBaseOptional.isPresent() && heapBaseOptional.get() instanceof byte[] array) {
+            System.arraycopy(src, srcOffset, array, Math.toIntExact(segment.address() + offset), len);
+        } else {
+            MemorySegment.copy(MemorySegment.ofArray(src), srcOffset, segment, offset, len);
         }
         return len;
     }
@@ -670,6 +698,13 @@ public final class MemoryData
             throw new BufferUnderflowException();
         }
         return segment.get(determineLongLayout(ByteOrder.BIG_ENDIAN, offset), offset);
+    }
+
+    @Override
+    public int putLong(final long offset, final long value) {
+        checkOffsetToWrite(offset, length(), 8);
+        segment.set(determineLongLayout(ByteOrder.BIG_ENDIAN, offset), offset, value);
+        return 8;
     }
 
     @Override

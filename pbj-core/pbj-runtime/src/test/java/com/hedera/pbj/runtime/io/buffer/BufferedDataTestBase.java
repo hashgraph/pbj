@@ -5,19 +5,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.ReadableSequentialTestBase;
 import com.hedera.pbj.runtime.io.ReadableTestBase;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.WritableTestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /// A base test class for BufferedData-like objects of type T.
@@ -222,43 +228,46 @@ abstract class BufferedDataTestBase<
         assertEquals(afterPos, buf.position());
     }
 
+    private static Stream<Arguments> provideLongs() {
+        return Stream.of(
+                        0,
+                        1,
+                        7,
+                        8,
+                        9,
+                        127,
+                        128,
+                        129,
+                        1023,
+                        1024,
+                        1025,
+                        65534,
+                        65535,
+                        65536,
+                        0xFFFFFFFFL,
+                        0x100000000L,
+                        0x100000001L,
+                        0xFFFFFFFFFFFFL,
+                        0x1000000000000L,
+                        0x1000000000001L,
+                        -1,
+                        -7,
+                        -8,
+                        -9,
+                        -127,
+                        -128,
+                        -129,
+                        -65534,
+                        -65535,
+                        -65536,
+                        -0xFFFFFFFFL,
+                        -0x100000000L,
+                        -0x100000001L)
+                .map(Arguments::of);
+    }
+
     @ParameterizedTest
-    @ValueSource(
-            longs = {
-                0,
-                1,
-                7,
-                8,
-                9,
-                127,
-                128,
-                129,
-                1023,
-                1024,
-                1025,
-                65534,
-                65535,
-                65536,
-                0xFFFFFFFFL,
-                0x100000000L,
-                0x100000001L,
-                0xFFFFFFFFFFFFL,
-                0x1000000000000L,
-                0x1000000000001L,
-                -1,
-                -7,
-                -8,
-                -9,
-                -127,
-                -128,
-                -129,
-                -65534,
-                -65535,
-                -65536,
-                -0xFFFFFFFFL,
-                -0x100000000L,
-                -0x100000001L
-            })
+    @MethodSource("provideLongs")
     @DisplayName("readVarLong() works with views")
     void sliceThenReadVarLong(final long num) {
         final var buf = allocate(256);
@@ -272,6 +281,101 @@ abstract class BufferedDataTestBase<
         final long readback = slicedBuf.readVarLong(false);
         assertEquals(num + 1, readback);
         assertEquals(afterSecondIntPos - afterFirstIntPos, slicedBuf.position());
+    }
+
+    @Test
+    @DisplayName("putByte() works")
+    void putByte() {
+        final int SIZE = 100;
+        final var buf = allocate(SIZE);
+        for (int i = 0; i < SIZE; i++) {
+            assertEquals(1, buf.putByte(i, (byte) (SIZE - i)));
+        }
+        for (int i = 0; i < SIZE; i++) {
+            assertEquals((byte) (SIZE - i), buf.getByte(i));
+        }
+    }
+
+    @Test
+    @DisplayName("putBytes(long, byte[], int, int) works")
+    void putBytes() {
+        final int LENGTH = 200;
+        final byte[] array = new byte[LENGTH];
+        for (int i = 0; i < LENGTH; i++) {
+            array[i] = (byte) i;
+        }
+        final int SIZE = 100;
+        // ASSUME: the buffer is initialized with all zeros
+        final var buf = allocate(SIZE);
+        final int OFFSET_SRC = 55;
+        final int OFFSET_DST = 5;
+        final int LEN = 15;
+        assertEquals(LEN, buf.putBytes(OFFSET_DST, array, OFFSET_SRC, LEN));
+        for (int i = 0; i < OFFSET_DST; i++) {
+            assertEquals(0, buf.getByte(i));
+        }
+        for (int i = 0; i < LEN; i++) {
+            assertEquals(array[OFFSET_SRC + i], buf.getByte(OFFSET_DST + i));
+        }
+        for (int i = 0; i < SIZE - LEN - OFFSET_DST; i++) {
+            assertEquals(0, buf.getByte(OFFSET_DST + LEN + i));
+        }
+    }
+
+    @Test
+    @DisplayName("putBytes(long, byte[]) works")
+    void putBytesSimple() {
+        final int LENGTH = 20;
+        final byte[] array = new byte[LENGTH];
+        for (int i = 0; i < LENGTH; i++) {
+            array[i] = (byte) i;
+        }
+        final int SIZE = 100;
+        // ASSUME: the buffer is initialized with all zeros
+        final var buf = allocate(SIZE);
+        final int OFFSET_DST = 5;
+        assertEquals(array.length, buf.putBytes(OFFSET_DST, array));
+        for (int i = 0; i < OFFSET_DST; i++) {
+            assertEquals(0, buf.getByte(i));
+        }
+        for (int i = 0; i < array.length; i++) {
+            assertEquals(array[i], buf.getByte(OFFSET_DST + i));
+        }
+        for (int i = 0; i < SIZE - array.length - OFFSET_DST; i++) {
+            assertEquals(0, buf.getByte(OFFSET_DST + array.length + i));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideLongs")
+    @DisplayName("putLong() works")
+    void putLong(final long num) {
+        final int SIZE = 8;
+        final var buf = allocate(SIZE);
+
+        assertThrows(IndexOutOfBoundsException.class, () -> buf.putLong(-1, 0));
+        assertThrows(IndexOutOfBoundsException.class, () -> buf.putLong(8, 0));
+        assertThrows(BufferOverflowException.class, () -> buf.putLong(1, 0));
+
+        assertEquals(8, buf.putLong(0, num));
+        assertEquals(num, buf.getLong(0));
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideLongs")
+    @DisplayName("putVarLong() works")
+    void putVarLong(final long num) {
+        final int SIZE = 10;
+        final var buf = allocate(SIZE);
+
+        final int numSize = ProtoWriterTools.sizeOfVarInt64(num);
+
+        assertThrows(IndexOutOfBoundsException.class, () -> buf.putVarLong(-1, num));
+        assertThrows(IndexOutOfBoundsException.class, () -> buf.putVarLong(SIZE, num));
+        assertThrows(IndexOutOfBoundsException.class, () -> buf.putVarLong(SIZE - numSize + 1, num));
+
+        assertEquals(numSize, buf.putVarLong(SIZE - numSize, num));
+        assertEquals(num, buf.getVarLong(SIZE - numSize, false));
     }
 
     @Test
