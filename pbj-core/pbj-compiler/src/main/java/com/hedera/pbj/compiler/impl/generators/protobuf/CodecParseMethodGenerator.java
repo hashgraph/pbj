@@ -59,7 +59,7 @@ class CodecParseMethodGenerator {
         // spotless:off
         return """
                 /**
-                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link SlimBuffer}. Throws if in strict mode ONLY.
                  * <p>
                  * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
                  * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
@@ -83,7 +83,7 @@ class CodecParseMethodGenerator {
                  * @throws ParseException If parsing fails
                  */
                 public @NonNull $modelClassName parse(
-                        @NonNull final ReadableSequentialData input,
+                        @NonNull final SlimBuffer input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
                         final int maxDepth,
@@ -111,7 +111,7 @@ class CodecParseMethodGenerator {
                     }
                 }
                 
-                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, ReadableSequentialData input, int maxSize) throws ParseException, IOException {
+                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, SlimBuffer input, int maxSize) throws ParseException, IOException {
                     $defaultCaseBody
                     return $unknownFields;
                 }
@@ -300,7 +300,7 @@ class CodecParseMethodGenerator {
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
         sbFunc.append("""
-%s case%d(ReadableSequentialData input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
+            %s case%d(SlimBuffer input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
         if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
