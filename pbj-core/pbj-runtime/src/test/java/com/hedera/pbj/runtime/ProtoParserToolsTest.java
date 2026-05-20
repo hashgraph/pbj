@@ -551,6 +551,7 @@ class ProtoParserToolsTest {
                 throws ParseException {
             return parse(new SlimBuffer(in), strictMode, parseUnknownFields, maxDepth, maxSize);
         }
+
         public TestMessage parse(
                 @NonNull final SlimBuffer in,
                 final boolean strictMode,

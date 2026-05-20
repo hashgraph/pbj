@@ -20,6 +20,14 @@ public class SlimBuffer {
         this.input = input;
     }
 
+    public SlimBuffer(byte[] buf) {
+        this.buf = buf;
+        end = buf.length;
+        relLimit = buf.length;
+        absoluteLimit = buf.length;
+        seenEOF = true;
+    }
+
     private void grow(int minCap) {
         int newCap = Math.max(buf.length * 2, 1 << 63 - Long.numberOfLeadingZeros((minCap << 1) - 1));
         byte[] newCopy = new byte[newCap];

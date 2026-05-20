@@ -3,6 +3,7 @@ package com.hedera.pbj.integration.jmh;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.SlimBuffer;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.NotCacheableAccountID;
@@ -74,6 +75,7 @@ public class GenericParserQuickBench {
         Model model;
         byte[] array;
         BufferedData bd;
+        SlimBuffer slimBuffer;
 
         @Setup(Level.Trial)
         public void setup() throws IOException {
@@ -87,6 +89,8 @@ public class GenericParserQuickBench {
                 model.codec.write(model.factory.apply(random), bd);
             }
             bd.flip();
+            slimBuffer = new SlimBuffer(array);
+            slimBuffer.limit(bd.limit());
         }
 
         @TearDown(Level.Trial)
@@ -97,7 +101,7 @@ public class GenericParserQuickBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void bench(final BenchState state, final Blackhole blackhole) throws ParseException {
         for (int invocation = 0; invocation < INVOCATIONS; invocation++) {
-            blackhole.consume(state.model.codec.parse(state.bd));
+            blackhole.consume(state.model.codec.parse(state.slimBuffer));
         }
     }
 
