@@ -181,8 +181,8 @@ class CodecParseMethodGenerator {
         list.add("""
                         // -- PARSE LOOP ---------------------------------------------
                         // Continue to parse bytes out of the input stream until we get to the end.
-                        while (input.hasRemaining()) {
-                            // Note: ReadableStreamingData.hasRemaining() won't flip to false
+                        while (input.hasMore()) {
+                            // Note: ReadableStreamingData.hasMore() won't flip to false
                             // until the end of stream is actually hit with a read operation.
                             // So we catch this exception here and **only** here, because an EOFException
                             // anywhere else suggests that we're processing malformed data and so
@@ -321,17 +321,15 @@ class CodecParseMethodGenerator {
         }
         sbFunc.append("""
                 // Read the length of packed repeated field data
-                final long length = input.readVarInt(false);
+                final int length = input.readVarInt(false);
                 if (length > $maxSize) {
                     throw new ParseException("$fieldName size " + length + " is greater than max " + $maxSize);
                 }
-                if (input.remaining() < length) {
-                    throw new BufferUnderflowException();
-                }
+                input.ensure(length);
                 final var beforeLimit = input.limit();
                 final long beforePosition = input.position();
                 input.limit(input.position() + length);
-                while (input.hasRemaining()) {
+                while (input.hasMore()) {
                     $preRead$tempFieldName = addToList($tempFieldName,$readMethod);
                 }
                 input.limit(beforeLimit);

@@ -202,7 +202,7 @@ public final class ProtoParserTools {
     }
 
     public static int readSignedFixed32(SlimBuffer input) {
-        return input.readInt(ByteOrder.LITTLE_ENDIAN);
+        return input.readInt();
     }
 
     /**
@@ -216,7 +216,7 @@ public final class ProtoParserTools {
     }
 
     public static int readFixed32(SlimBuffer input) {
-        return input.readInt(ByteOrder.LITTLE_ENDIAN);
+        return input.readInt();
     }
 
     /**
@@ -230,7 +230,7 @@ public final class ProtoParserTools {
     }
 
     public static float readFloat(SlimBuffer input) {
-        return input.readFloat(ByteOrder.LITTLE_ENDIAN);
+        return input.readFloat();
     }
 
     /**
@@ -244,7 +244,7 @@ public final class ProtoParserTools {
     }
 
     public static long readSignedFixed64(final SlimBuffer input) {
-        return input.readLong(ByteOrder.LITTLE_ENDIAN);
+        return input.readLong();
     }
 
     /**
@@ -258,7 +258,7 @@ public final class ProtoParserTools {
     }
 
     public static long readFixed64(SlimBuffer input) {
-        return input.readLong(ByteOrder.LITTLE_ENDIAN);
+        return input.readLong();
     }
 
     /**
@@ -272,7 +272,7 @@ public final class ProtoParserTools {
     }
 
     public static double readDouble(SlimBuffer input) {
-        return input.readDouble(ByteOrder.LITTLE_ENDIAN);
+        return input.readDouble();
     }
 
     /**
@@ -339,9 +339,7 @@ public final class ProtoParserTools {
         if (length > maxSize) {
             throw new ParseException("size " + length + " is greater than max " + maxSize);
         }
-        if (input.remaining() < length) {
-            throw new BufferUnderflowException();
-        }
+        input.ensure(length);
         final ByteBuffer bb = ByteBuffer.allocate(length);
         final long bytesRead = input.readBytes(bb);
         if (bytesRead != length) {
@@ -407,9 +405,7 @@ public final class ProtoParserTools {
         if (length > maxSize) {
             throw new ParseException("size " + length + " is greater than max " + maxSize);
         }
-        if (input.remaining() < length) {
-            throw new BufferUnderflowException();
-        }
+        input.ensure(length);
         Bytes bytes = input.readBytes(length);
         if (bytes.length() != length) {
             throw new BufferUnderflowException();
