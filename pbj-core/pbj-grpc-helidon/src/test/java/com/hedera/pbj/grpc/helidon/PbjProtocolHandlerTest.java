@@ -522,6 +522,35 @@ class PbjProtocolHandlerTest {
         assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
     }
 
+    /**
+     * Verifies that {@code scheduleDeadline} computation is correct
+     */
+    @Test
+    void scheduleDeadlinePassesPositiveFutureNanosToDetector() {
+        final long timeoutNanos = TimeUnit.SECONDS.toNanos(30);
+        headers = Http2Headers.create(WritableHeaders.create()
+                .add(HeaderNames.CONTENT_TYPE, "application/grpc+proto")
+                .add(HeaderNames.create("grpc-timeout"), "30S"));
+
+        final long beforeNanos = System.nanoTime();
+        final var handler = new PbjProtocolHandler(
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
+        handler.init();
+        final long afterNanos = System.nanoTime();
+
+        assertThat(deadlineDetector.capturedDeadlineNanos).isPositive();
+        assertThat(deadlineDetector.capturedDeadlineNanos).isGreaterThanOrEqualTo(beforeNanos + timeoutNanos);
+        assertThat(deadlineDetector.capturedDeadlineNanos).isLessThanOrEqualTo(afterNanos + timeoutNanos);
+    }
+
     @Test
     void errorThrownForOnNextWhenStreamIsClosed() {
         // Use a custom streamWriter that will throw an exception when "streamClosed" is set to true, and it is
@@ -690,9 +719,12 @@ class PbjProtocolHandlerTest {
     }
 
     private static final class DeadlineDetectorStub implements DeadlineDetector {
+        long capturedDeadlineNanos = Long.MIN_VALUE;
+
         @NonNull
         @Override
         public ScheduledFuture<?> scheduleDeadline(long deadlineNanos, @NonNull Runnable onDeadlineExceeded) {
+            capturedDeadlineNanos = deadlineNanos;
             return new ScheduledFuture<>() {
                 @Override
                 public long getDelay(@NonNull TimeUnit unit) {

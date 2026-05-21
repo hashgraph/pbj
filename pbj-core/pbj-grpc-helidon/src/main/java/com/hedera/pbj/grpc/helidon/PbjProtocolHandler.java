@@ -527,7 +527,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             final var num = Integer.parseInt(matcher.group(1));
             final var unit = matcher.group(2);
             final var deadline = System.nanoTime()
-                    * TimeUnit.NANOSECONDS.convert(
+                    + TimeUnit.NANOSECONDS.convert(
                             num,
                             switch (unit) {
                                 case "H" -> TimeUnit.HOURS;
