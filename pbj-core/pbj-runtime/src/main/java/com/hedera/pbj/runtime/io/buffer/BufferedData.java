@@ -367,6 +367,13 @@ public sealed class BufferedData
         return buffer.get(Math.toIntExact(offset));
     }
 
+    @Override
+    public int putByte(final long offset, final byte b) {
+        checkOffsetToWrite(offset, length(), 1);
+        buffer.put(Math.toIntExact(offset), b);
+        return 1;
+    }
+
     /** {@inheritDoc} */
     @Override
     public long getBytes(final long offset, @NonNull final byte[] dst, final int dstOffset, final int maxLength) {
@@ -377,6 +384,22 @@ public sealed class BufferedData
         // FUTURE: why offset + length is checked for this object, but not for dst?
         final var len = Math.min(maxLength, length() - offset);
         buffer.get(Math.toIntExact(offset), dst, dstOffset, Math.toIntExact(len));
+        return len;
+    }
+
+    @Override
+    public int putBytes(final long offset, @NonNull final byte[] src, final int srcOffset, final int len) {
+        if (len < 0 || offset < 0 || srcOffset < 0) {
+            throw new IllegalArgumentException("Negative length or offsets not allowed");
+        }
+        if (len > src.length - srcOffset) {
+            throw new BufferUnderflowException();
+        }
+        if (len > length() - offset) {
+            throw new BufferOverflowException();
+        }
+
+        buffer.put(Math.toIntExact(offset), src, srcOffset, len);
         return len;
     }
 
@@ -445,6 +468,13 @@ public sealed class BufferedData
     public long getLong(final long offset) {
         checkUnderflow(offset, 8);
         return buffer.getLong(Math.toIntExact(offset));
+    }
+
+    @Override
+    public int putLong(final long offset, final long value) {
+        checkOffsetToWrite(offset, length(), 8);
+        buffer.putLong(Math.toIntExact(offset), value);
+        return 8;
     }
 
     /** {@inheritDoc} */

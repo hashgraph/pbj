@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -75,6 +76,13 @@ final class ByteArrayBufferedData extends BufferedData {
         return array[Math.toIntExact(arrayOffset + offset)];
     }
 
+    @Override
+    public int putByte(final long offset, final byte b) {
+        checkOffsetToWrite(offset, length(), 1);
+        array[Math.toIntExact(arrayOffset + offset)] = b;
+        return 1;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -88,6 +96,22 @@ final class ByteArrayBufferedData extends BufferedData {
             return 0;
         }
         System.arraycopy(array, Math.toIntExact(arrayOffset + offset), dst, dstOffset, Math.toIntExact(len));
+        return len;
+    }
+
+    @Override
+    public int putBytes(final long offset, @NonNull final byte[] src, final int srcOffset, final int len) {
+        if (len < 0 || offset < 0 || srcOffset < 0) {
+            throw new IllegalArgumentException("Negative length or offsets not allowed");
+        }
+        if (len > src.length - srcOffset) {
+            throw new BufferUnderflowException();
+        }
+        if (len > length() - offset) {
+            throw new BufferOverflowException();
+        }
+
+        System.arraycopy(src, srcOffset, array, Math.toIntExact(arrayOffset + offset), len);
         return len;
     }
 

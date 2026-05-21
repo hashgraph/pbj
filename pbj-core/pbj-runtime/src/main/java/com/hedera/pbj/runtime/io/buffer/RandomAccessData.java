@@ -17,6 +17,11 @@ import java.security.MessageDigest;
  * this interface is only backed by a buffer of some kind: an array, a {@link ByteBuffer}, a memory-mapped file, etc.
  * Unlike {@link BufferedSequentialData}, it does not define any kind of "position" cursor, just a "length" representing
  * the valid range of indexes and methods for reading data at any of those indexes.
+ * <p>
+ * In addition to "get" methods for reading data, this interface also defines a few "put" methods for writing data.
+ * By default, the "put" methods throw the `UnsupportedOperationException` and must be overridden in concrete classes
+ * to implement the write operations. If a backing datastore such as a `MemorySegment` in the `MemoryData` class
+ * is readonly, then calling a "put" method would still throw an exception because the store is immutable.
  */
 @SuppressWarnings("unused")
 public interface RandomAccessData {
@@ -36,6 +41,12 @@ public interface RandomAccessData {
      * @throws IndexOutOfBoundsException If the given {@code offset} is negative or not less than {@link #length()}
      */
     byte getByte(final long offset);
+
+    /// Puts a given signed byte at a given `offset` if this object is mutable, or throws an exception otherwise.
+    /// @return the number of bytes written
+    default int putByte(final long offset, final byte b) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Gets the unsigned byte at given {@code offset}.
@@ -95,6 +106,34 @@ public interface RandomAccessData {
             dst[dstOffset + i] = getByte(offset + i);
         }
         return len;
+    }
+
+    /// Puts `len` bytes from `src` starting at `srcOffset` into this object at a given `offset`, or throw an exception
+    /// if the source or the destination don't have enough bytes, or the operation is unsupported.
+    /// @return the number of bytes written
+    default int putBytes(final long offset, @NonNull final byte[] src, final int srcOffset, final int len) {
+        if (len < 0 || offset < 0 || srcOffset < 0) {
+            throw new IllegalArgumentException("Negative length or offsets not allowed");
+        }
+        if (len > src.length - srcOffset) {
+            throw new BufferUnderflowException();
+        }
+        if (len > length() - offset) {
+            throw new BufferOverflowException();
+        }
+
+        for (int i = 0; i < len; i++) {
+            putByte(offset + i, src[srcOffset + i]);
+        }
+
+        return len;
+    }
+
+    /// A convenience version of the `putBytes(long, byte[], int, int)` to put an entire `src` array at a given
+    /// `offset`.
+    /// @return the number of bytes written
+    default int putBytes(final long offset, @NonNull final byte[] src) {
+        return putBytes(offset, src, 0, src.length);
     }
 
     /**
@@ -313,6 +352,21 @@ public interface RandomAccessData {
                 + (b8 & 255));
     }
 
+    /// Puts a given long `value` as a big-endian 8 bytes at a given `offset`.
+    /// @return the number of bytes written
+    default int putLong(final long offset, final long value) {
+        checkOffsetToWrite(offset, length(), Long.BYTES);
+        putByte(offset, (byte) ((value >>> 56) & 0xFF));
+        putByte(offset + 1, (byte) ((value >>> 48) & 0xFF));
+        putByte(offset + 2, (byte) ((value >>> 40) & 0xFF));
+        putByte(offset + 3, (byte) ((value >>> 32) & 0xFF));
+        putByte(offset + 4, (byte) ((value >>> 24) & 0xFF));
+        putByte(offset + 5, (byte) ((value >>> 16) & 0xFF));
+        putByte(offset + 6, (byte) ((value >>> 8) & 0xFF));
+        putByte(offset + 7, (byte) (value & 0xFF));
+        return 8;
+    }
+
     /**
      * Gets eight bytes at the given {@code offset}, composing them into a long value according to specified byte
      * order.
@@ -503,6 +557,21 @@ public interface RandomAccessData {
         }
 
         throw new DataEncodingException("Malformed var int");
+    }
+
+    /// Puts a given long `value` as a no-zigZag varint at a given `offset`.
+    /// @return the number of bytes written
+    default int putVarLong(final long offset, long value) {
+        long pos = offset;
+        while (true) {
+            if ((value & ~0x7FL) == 0) {
+                putByte(pos++, (byte) value);
+                return (int) (pos - offset);
+            } else {
+                putByte(pos++, (byte) (((int) value & 0x7F) | 0x80));
+                value >>>= 7;
+            }
+        }
     }
 
     /**

@@ -78,6 +78,24 @@ final class BytesTest {
     }
 
     @Test
+    @DisplayName("RandomAccessData.put*() methods must throw exceptions because Bytes is read-only")
+    void putDoesNotWork() {
+        final String str = "1234567890";
+        final Bytes bytes = Bytes.wrap(str);
+
+        assertThrows(UnsupportedOperationException.class, () -> bytes.putByte(0, (byte) 0));
+        assertEquals(str, bytes.asUtf8String());
+        assertThrows(UnsupportedOperationException.class, () -> bytes.putBytes(0, new byte[] {4, 5, 6}));
+        assertEquals(str, bytes.asUtf8String());
+        assertThrows(UnsupportedOperationException.class, () -> bytes.putBytes(0, new byte[] {4, 5, 6}, 1, 1));
+        assertEquals(str, bytes.asUtf8String());
+        assertThrows(UnsupportedOperationException.class, () -> bytes.putLong(0, 111L));
+        assertEquals(str, bytes.asUtf8String());
+        assertThrows(UnsupportedOperationException.class, () -> bytes.putVarLong(0, 111L));
+        assertEquals(str, bytes.asUtf8String());
+    }
+
+    @Test
     void testReplicate() {
         byte[] arr = new byte[] {0, 1, 2};
 
@@ -762,9 +780,7 @@ final class BytesTest {
     }
 
     @ParameterizedTest
-    @CsvSource(
-            textBlock =
-                    """
+    @CsvSource(textBlock = """
             "", "", 0
             "a", "", 1
             "", "a", -1
