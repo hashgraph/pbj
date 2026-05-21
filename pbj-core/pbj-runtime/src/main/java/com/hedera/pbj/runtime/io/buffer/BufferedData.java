@@ -348,7 +348,13 @@ public sealed class BufferedData
     // ================================================================================================================
     // RandomAccessData Methods
 
-    /** {@inheritDoc} */
+    /**
+     * Get the current limit of the underlying buffer.
+     * An application can modify this value by calling `BufferedData.limit(long)`.
+     * Note that the limit is an absolute position in the underlying buffer object. If this BufferedData object wraps
+     * a slice of a buffer, the application is responsible for properly translating absolute values, such as the limit,
+     * this length, and the position, into relative values that would respect the slice origin.
+     */
     @Override
     public long length() {
         return buffer.limit();
