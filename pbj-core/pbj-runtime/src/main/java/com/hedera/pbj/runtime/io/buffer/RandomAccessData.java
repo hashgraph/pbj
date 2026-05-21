@@ -355,10 +355,7 @@ public interface RandomAccessData {
     /// Puts a given long `value` as a big-endian 8 bytes at a given `offset`.
     /// @return the number of bytes written
     default int putLong(final long offset, final long value) {
-        checkOffset(offset, length());
-        if ((length() - offset) < Long.BYTES) {
-            throw new BufferOverflowException();
-        }
+        checkOffsetToWrite(offset, length(), Long.BYTES);
         putByte(offset, (byte) ((value >>> 56) & 0xFF));
         putByte(offset + 1, (byte) ((value >>> 48) & 0xFF));
         putByte(offset + 2, (byte) ((value >>> 40) & 0xFF));
