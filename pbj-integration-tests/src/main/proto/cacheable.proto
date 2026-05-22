@@ -32,3 +32,16 @@ message CacheableAccountID {
 message CacheableModelWithMap {
   map<int32, string> mapInt32ToString = 1;
 }
+
+// <<<pbj.cacheable = 16>>>
+message CacheableTokenID {
+  int64 shardNum = 1;
+  int64 realmNum = 2;
+  int64 tokenNum = 3;
+}
+
+// <<<pbj.cacheable = 16>>>
+message CacheableNftID {
+  CacheableTokenID token_ID = 1;
+  int64 serial_number = 2;
+}
