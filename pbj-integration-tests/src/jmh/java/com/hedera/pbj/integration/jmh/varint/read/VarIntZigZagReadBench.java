@@ -439,7 +439,7 @@ public class VarIntZigZagReadBench {
         for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
             final long v = getVarInt_current(state.array, pos, state.zigZag);
             state.sum += v;
-            pos += ProtoWriterTools.sizeOfVarInt64(v);
+            pos += state.range;
         }
         blackhole.consume(state.sum);
     }
@@ -451,7 +451,7 @@ public class VarIntZigZagReadBench {
         for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
             final long v = getVarInt_noZigZag(state.array, pos);
             state.sum += v;
-            pos += ProtoWriterTools.sizeOfVarInt64(v);
+            pos += state.range;
         }
         blackhole.consume(state.sum);
     }
@@ -463,7 +463,7 @@ public class VarIntZigZagReadBench {
         for (int invocation = 0, pos = 0; invocation < INVOCATIONS; invocation++) {
             final long v = getVarInt_zigZagArg(state.array, pos, state.zigZag);
             state.sum += v;
-            pos += ProtoWriterTools.sizeOfVarInt64(v);
+            pos += state.range;
         }
         blackhole.consume(state.sum);
     }
