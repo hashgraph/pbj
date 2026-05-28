@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.SlimBuffer;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -24,12 +24,7 @@ class CodecWrapper<T> implements Codec<T> {
 
     @NonNull
     @Override
-    public T parse(
-            @NonNull ReadableSequentialData input,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize)
+    public T parse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         throw new UnsupportedOperationException();
     }
@@ -40,7 +35,7 @@ class CodecWrapper<T> implements Codec<T> {
     }
 
     @Override
-    public int measure(@NonNull ReadableSequentialData input) throws ParseException {
+    public int measure(@NonNull SlimBuffer input) throws ParseException {
         throw new UnsupportedOperationException();
     }
 
@@ -50,7 +45,7 @@ class CodecWrapper<T> implements Codec<T> {
     }
 
     @Override
-    public boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+    public boolean fastEquals(@NonNull T item, @NonNull SlimBuffer input) throws ParseException {
         throw new UnsupportedOperationException();
     }
 

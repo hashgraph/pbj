@@ -24,13 +24,12 @@ class CodecMeasureDataMethodGenerator {
                  * @return The length of the data item in the input
                  * @throws ParseException If parsing fails
                  */
-                public int measure(@NonNull final ReadableSequentialData input) throws ParseException {
+                public int measure(@NonNull final SlimBuffer input) throws ParseException {
                     final var start = input.position();
                     parse(input);
                     final var end = input.position();
                     return (int)(end - start);
                 }
-                """
-                .indent(DEFAULT_INDENT);
+                """.indent(DEFAULT_INDENT);
     }
 }
