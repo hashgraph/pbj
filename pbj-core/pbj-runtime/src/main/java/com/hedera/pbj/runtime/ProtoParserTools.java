@@ -2,6 +2,7 @@
 package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.SlimBuffer;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -81,6 +82,10 @@ public final class ProtoParserTools {
         return input.readVarInt(false);
     }
 
+    public static int readInt32(SlimBuffer input) {
+        return input.readVarInt(false);
+    }
+
     /**
      * Read a protobuf int64(long) from input
      *
@@ -88,6 +93,10 @@ public final class ProtoParserTools {
      * @return the read long
      */
     public static long readInt64(final ReadableSequentialData input) {
+        return input.readVarLong(false);
+    }
+
+    public static long readInt64(SlimBuffer input) {
         return input.readVarLong(false);
     }
 
@@ -101,6 +110,10 @@ public final class ProtoParserTools {
         return input.readVarInt(false);
     }
 
+    public static int readUint32(SlimBuffer input) {
+        return input.readVarInt(false);
+    }
+
     /**
      * Read a protobuf uint64 from input
      *
@@ -111,6 +124,9 @@ public final class ProtoParserTools {
         return input.readVarLong(false);
     }
 
+    public static long readUint64(SlimBuffer input) {
+        return input.readVarLong(false);
+    }
     /**
      * Read a protobuf bool from input
      *
@@ -126,6 +142,14 @@ public final class ProtoParserTools {
         return i == 1;
     }
 
+    public static boolean readBool(SlimBuffer input) {
+        final var i = input.readVarInt(false);
+        if (i != 1 && i != 0) {
+            input.setError(SlimBuffer.DataEncoding);
+        }
+        return i == 1;
+    }
+
     /**
      * Read a protobuf enum from input
      *
@@ -136,6 +160,9 @@ public final class ProtoParserTools {
         return input.readVarInt(false);
     }
 
+    public static int readEnum(SlimBuffer input) {
+        return input.readVarInt(false);
+    }
     /**
      * Read a protobuf sint32 from input
      *
@@ -143,6 +170,10 @@ public final class ProtoParserTools {
      * @return the read int
      */
     public static int readSignedInt32(final ReadableSequentialData input) {
+        return input.readVarInt(true);
+    }
+
+    public static int readSignedInt32(SlimBuffer input) {
         return input.readVarInt(true);
     }
 
@@ -156,6 +187,10 @@ public final class ProtoParserTools {
         return input.readVarLong(true);
     }
 
+    public static long readSignedInt64(SlimBuffer input) {
+        return input.readVarLong(true);
+    }
+
     /**
      * Read a protobuf sfixed32 from input
      *
@@ -164,6 +199,10 @@ public final class ProtoParserTools {
      */
     public static int readSignedFixed32(final ReadableSequentialData input) {
         return input.readInt(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    public static int readSignedFixed32(SlimBuffer input) {
+        return input.readInt();
     }
 
     /**
@@ -176,6 +215,10 @@ public final class ProtoParserTools {
         return input.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
+    public static int readFixed32(SlimBuffer input) {
+        return input.readInt();
+    }
+
     /**
      * Read a protobuf float from input
      *
@@ -184,6 +227,10 @@ public final class ProtoParserTools {
      */
     public static float readFloat(final ReadableSequentialData input) {
         return input.readFloat(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    public static float readFloat(SlimBuffer input) {
+        return input.readFloat();
     }
 
     /**
@@ -196,6 +243,10 @@ public final class ProtoParserTools {
         return input.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
+    public static long readSignedFixed64(final SlimBuffer input) {
+        return input.readLong();
+    }
+
     /**
      * Read a fixed 64, which is a fixed size encoded long
      *
@@ -206,6 +257,10 @@ public final class ProtoParserTools {
         return input.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
+    public static long readFixed64(SlimBuffer input) {
+        return input.readLong();
+    }
+
     /**
      * Read a double from input data
      *
@@ -214,6 +269,10 @@ public final class ProtoParserTools {
      */
     public static double readDouble(final ReadableSequentialData input) {
         return input.readDouble(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    public static double readDouble(SlimBuffer input) {
+        return input.readDouble();
     }
 
     /**
@@ -228,6 +287,10 @@ public final class ProtoParserTools {
         } catch (ParseException ex) {
             throw new UncheckedParseException(ex);
         }
+    }
+
+    public static String readString(final SlimBuffer input) throws IOException {
+        return readString(input, Long.MAX_VALUE);
     }
 
     /**
@@ -265,6 +328,29 @@ public final class ProtoParserTools {
         } catch (CharacterCodingException e) {
             throw new MalformedProtobufException("Malformed UTF-8 string encountered", e);
         }
+    }
+
+    public static String readString(SlimBuffer input, final long maxSize) throws IOException {
+        final int length = input.readVarInt(false);
+        if (length > maxSize) {
+            input.setError(SlimBuffer.Parse);
+            return "";
+        }
+        final ByteBuffer bb = ByteBuffer.allocate(length);
+        final long bytesRead = input.readBytes(bb);
+        if (bytesRead != length) {
+            input.setError(SlimBuffer.BufferUnderflow);
+            return "";
+        }
+        bb.rewind();
+
+        // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
+        return StandardCharsets.UTF_8
+                .newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(bb)
+                .toString();
     }
 
     /**
@@ -305,6 +391,15 @@ public final class ProtoParserTools {
             throw new BufferUnderflowException();
         }
         return bytes;
+    }
+
+    public static Bytes readBytes(SlimBuffer input, final long maxSize) {
+        final int length = input.readVarInt(false);
+        if (length > maxSize) {
+            input.setError(SlimBuffer.Parse);
+            return Bytes.EMPTY;
+        }
+        return input.readBytes(length);
     }
 
     /**
@@ -402,6 +497,42 @@ public final class ProtoParserTools {
         };
     }
 
+    public static Bytes extractField(SlimBuffer input, final ProtoConstants wireType, final long maxSize) {
+        return switch (wireType) {
+            case WIRE_TYPE_FIXED_64_BIT -> input.readBytes(8);
+            case WIRE_TYPE_FIXED_32_BIT -> input.readBytes(4);
+            // The value for "zigZag" when calling varint doesn't matter because we are just reading past
+            // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
+            // the bytes, not how many of them there are)
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLongBytes();
+            case WIRE_TYPE_DELIMITED -> {
+                final Bytes lenBytes = input.readVarLongBytes();
+                final int length = lenBytes.getVarInt(0, false);
+                if (length < 0) {
+                    input.setError(SlimBuffer.IOError);
+                    yield Bytes.EMPTY;
+                }
+                if (length > maxSize) {
+                    input.setError(SlimBuffer.Parse);
+                    yield Bytes.EMPTY;
+                }
+                yield Bytes.merge(lenBytes, input.readBytes(length));
+            }
+            case WIRE_TYPE_GROUP_START -> {
+                input.setError(SlimBuffer.Unsupported);
+                yield Bytes.EMPTY;
+            }
+            case WIRE_TYPE_GROUP_END -> {
+                input.setError(SlimBuffer.Unsupported);
+                yield Bytes.EMPTY;
+            }
+            default -> {
+                input.setError(SlimBuffer.IOError);
+                yield Bytes.EMPTY;
+            }
+        };
+    }
+
     /**
      * Skip over the bytes in a stream for a given wire type. Assumes you have already read tag.
      *
@@ -448,6 +579,30 @@ public final class ProtoParserTools {
             case WIRE_TYPE_GROUP_START -> throw new IOException("Wire type 'Group Start' is unsupported");
             case WIRE_TYPE_GROUP_END -> throw new IOException("Wire type 'Group End' is unsupported");
             default -> throw new IOException("Unhandled wire type while trying to skip a field " + wireType);
+        }
+    }
+
+    public static void skipField(SlimBuffer input, final ProtoConstants wireType, final long maxSize) {
+        switch (wireType) {
+            case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
+            case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
+            // The value for "zigZag" when calling varint doesn't matter because we are just reading past
+            // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
+            // the bytes, not how many of them there are)
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
+            case WIRE_TYPE_DELIMITED -> {
+                final int length = input.readVarInt(false);
+                if (length < 0) {
+                    input.setError(SlimBuffer.IOError);
+                }
+                if (length > maxSize) {
+                    input.setError(SlimBuffer.Parse);
+                }
+                input.skip(length);
+            }
+            case WIRE_TYPE_GROUP_START -> input.setError(SlimBuffer.Unsupported);
+            case WIRE_TYPE_GROUP_END -> input.setError(SlimBuffer.Unsupported);
+            default -> input.setError(SlimBuffer.IOError);
         }
     }
 
