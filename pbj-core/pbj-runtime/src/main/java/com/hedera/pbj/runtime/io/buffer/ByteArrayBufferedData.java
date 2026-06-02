@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.buffer;
 
+import com.hedera.pbj.runtime.ProtoArrayWriterTools;
+import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -712,6 +714,24 @@ final class ByteArrayBufferedData extends BufferedData {
             return totalBytesRead;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public void writeVarLong(long value, boolean zigZag) {
+        if (zigZag) {
+            value = (value << 1) ^ (value >> 63);
+        }
+
+        final int position = buffer.position();
+        try {
+            final int length = ProtoWriterTools.sizeOfVarInt64(value);
+            // Tests expect the position to advance even if the operation overflows in the end:
+            buffer.position(Math.min(position + length, position + Math.toIntExact(remaining())));
+            checkOffsetToWrite(position, length(), length);
+            ProtoArrayWriterTools.writeUnsignedVarInt(array, arrayOffset + position, value);
+        } catch (IndexOutOfBoundsException e) {
+            throw new BufferOverflowException();
         }
     }
 }
