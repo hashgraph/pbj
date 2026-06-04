@@ -32,6 +32,9 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.Options;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @SuppressWarnings("unused")
 @Fork(1)
@@ -319,5 +322,12 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                     GetAccountDetailsResponse.AccountDetails::parseFrom,
                     GetAccountDetailsResponse.AccountDetails::parseFrom);
         }
+    }
+    static void main(String[] args) throws Exception {
+        Options opt = new OptionsBuilder()
+                .include(EverythingBench.class.getSimpleName())
+                .build();
+
+        new Runner(opt).run();
     }
 }
