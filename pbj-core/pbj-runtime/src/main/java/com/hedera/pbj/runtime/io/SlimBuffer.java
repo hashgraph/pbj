@@ -12,6 +12,7 @@ package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -35,9 +36,8 @@ public class SlimBuffer {
             BufferUnderflow = 2,
             Parse = 3,
             IllegalArgument = 4,
-            IOError = 5;
-
-    public static final int Unsupported = 6; // used with WIRE_TYPE_GROUP_START, WIRE_TYPE_GROUP_END
+            IOError = 5,
+            Unsupported = 6; // used with WIRE_TYPE_GROUP_START, WIRE_TYPE_GROUP_END
 
     public SlimBuffer(ReadableSequentialData input) {
         this(input, null);
@@ -108,7 +108,13 @@ public class SlimBuffer {
             grow(relAmount);
             remLen = buf.length - end;
         }
-        int rdlen = (int) input.readBytes(buf, end, remLen);
+
+        int rdlen = 0;
+        try {
+            rdlen = (int) input.readBytes(buf, end, remLen);
+        } catch (EOFException e) {
+            // EOF handled below
+        }
         end += rdlen;
         relLimit = end;
         if (rdlen == 0) {
@@ -230,8 +236,12 @@ public class SlimBuffer {
                 throw new BufferUnderflowException();
             case Parse:
                 throw new ParseException("");
+            case IllegalArgument:
+                throw new IllegalArgumentException("");
+            case Unsupported:
+                throw new RuntimeException("Hit an unsupported feature");
             default: {
-                throw new DataEncodingException(""); // TODO fix
+                throw new ParseException("");
             }
         }
     }
@@ -249,7 +259,7 @@ public class SlimBuffer {
         try {
             rdlen = input.readBytes(dst, dstOff + copiedLen, dstLen - copiedLen);
         } catch (UncheckedIOException e) {
-            // NO OP
+            // EOF handled below
         }
         if (rdlen == 0) {
             seenEOF = true;
@@ -282,6 +292,9 @@ public class SlimBuffer {
     }
 
     public @NonNull Bytes readBytes(int length) {
+        if (err > 0) {
+            return Bytes.EMPTY;
+        }
         if (length < 0) {
             setError(IllegalArgument);
             return Bytes.EMPTY;

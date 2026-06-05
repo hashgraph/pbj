@@ -80,13 +80,8 @@ public interface Codec<T> {
     }
 
     @NonNull
-    default T parse(
-            @NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
-            throws ParseException {
-        final T ret = parse(input, strictMode, parseUnknownFields, maxDepth, maxSize);
-        input.throwOnError();
-        return ret;
-    }
+    T parse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+            throws ParseException;
 
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
