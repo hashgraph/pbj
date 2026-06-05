@@ -11,6 +11,7 @@ import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.SlimBuffer;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
@@ -49,6 +50,7 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
         // input bytes
         private BufferedData jsonDataBuffer;
         private String jsonString;
+        private SlimBuffer slimJsonDataBuffer;
 
         // output buffers
         private BufferedData outDataBuffer;
@@ -82,6 +84,11 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
                 // input buffers
                 // output buffers
                 this.outDataBuffer = BufferedData.allocate(jsonString.length());
+
+                byte[] jsonBytes = new byte[(int) jsonDataBuffer.length()];
+                jsonDataBuffer.getBytes(0, jsonBytes);
+                slimJsonDataBuffer = new SlimBuffer(jsonBytes);
+
             } catch (IOException e) {
                 e.getStackTrace();
                 System.err.flush();
@@ -92,9 +99,9 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
 
     /** Same as parsePbjByteBuffer because DataBuffer.wrap(byte[]) uses ByteBuffer today, added this because makes result plotting easier */
     @Benchmark
-    public void parsePbj(JsonBenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
-        benchmarkState.jsonDataBuffer.position(0);
-        blackhole.consume(benchmarkState.pbjJsonCodec.parse(benchmarkState.jsonDataBuffer));
+    public void parsePbj_slim(JsonBenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
+        benchmarkState.slimJsonDataBuffer.resetPosition();
+        blackhole.consume(benchmarkState.pbjJsonCodec.parse(benchmarkState.slimJsonDataBuffer));
     }
 
     @Benchmark

@@ -18,6 +18,8 @@ import java.io.UncheckedIOException;
  */
 public interface Codec<T> {
 
+    static final boolean disableReadinputParse = true;
+
     /**
      * The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.).
      * The size should not be increased beyond the current limit because of the safety concerns.
@@ -73,6 +75,7 @@ public interface Codec<T> {
             int maxDepth,
             int maxSize)
             throws ParseException {
+        if (disableReadinputParse) throw new RuntimeException("Don't run");
         final SlimBuffer slim = new SlimBuffer(input);
         final T ret = parse(slim, strictMode, parseUnknownFields, maxDepth, maxSize);
         slim.throwOnError();
@@ -108,6 +111,7 @@ public interface Codec<T> {
     @NonNull
     default T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
+        if (disableReadinputParse) throw new RuntimeException("Don't run");
         final SlimBuffer slim = new SlimBuffer(input);
         final T ret = parse(slim, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
         slim.throwOnError();
@@ -181,6 +185,7 @@ public interface Codec<T> {
      */
     @NonNull
     default T parse(@NonNull ReadableSequentialData input) throws ParseException {
+        if (disableReadinputParse) throw new RuntimeException("Don't run");
         return parse(new SlimBuffer(input));
     }
 
@@ -198,7 +203,8 @@ public interface Codec<T> {
      */
     @NonNull
     default T parse(@NonNull Bytes bytes) throws ParseException {
-        return parse(bytes.toReadableSequentialData());
+        if (disableReadinputParse) throw new RuntimeException("Don't run");
+        return parse(new SlimBuffer(bytes.toByteArray()));
     }
 
     /**
@@ -214,6 +220,7 @@ public interface Codec<T> {
      */
     @NonNull
     default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
+        if (disableReadinputParse) throw new RuntimeException("Don't run");
         return parse(new SlimBuffer(input), true, DEFAULT_MAX_DEPTH);
     }
 
@@ -234,6 +241,7 @@ public interface Codec<T> {
      */
     @NonNull
     default T parseStrict(@NonNull Bytes bytes) throws ParseException {
+        if (disableReadinputParse) throw new RuntimeException("Don't run");
         return parseStrict(new SlimBuffer(bytes.toReadableSequentialData()));
     }
 
@@ -283,6 +291,7 @@ public interface Codec<T> {
     }
 
     default int measure(@NonNull ReadableSequentialData input) throws ParseException {
+        if (disableReadinputParse) throw new RuntimeException("Don't run");
         return measure(new SlimBuffer(input));
     }
     /**
@@ -308,6 +317,7 @@ public interface Codec<T> {
     boolean fastEquals(@NonNull T item, @NonNull SlimBuffer input) throws ParseException;
 
     default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+        if (disableReadinputParse) throw new RuntimeException("Don't run");
         return fastEquals(item, new SlimBuffer(input));
     }
     /**
