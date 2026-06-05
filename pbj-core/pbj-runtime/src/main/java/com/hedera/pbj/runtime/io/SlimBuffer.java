@@ -14,6 +14,8 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
@@ -31,13 +33,16 @@ public class SlimBuffer {
     private long absoluteLimit = -1, offset;
     private boolean seenEOF;
     private ReadableSequentialData input;
+    private InputStream input2;
+
     public static final int EOF = -1,
             DataEncoding = 1,
             BufferUnderflow = 2,
             Parse = 3,
             IllegalArgument = 4,
             IOError = 5,
-            Unsupported = 6; // used with WIRE_TYPE_GROUP_START, WIRE_TYPE_GROUP_END
+            Unsupported = 6, // used with WIRE_TYPE_GROUP_START, WIRE_TYPE_GROUP_END
+            UseError = 7;
 
     public SlimBuffer(ReadableSequentialData input) {
         this(input, null);
@@ -51,6 +56,19 @@ public class SlimBuffer {
      */
     public SlimBuffer(ReadableSequentialData input, byte[] scratchBuffer) {
         this.input = input;
+        if (scratchBuffer != null && scratchBuffer.length >= 4096) {
+            buf = scratchBuffer;
+        } else {
+            buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+        }
+    }
+
+    public SlimBuffer(InputStream input) {
+        this(input, null);
+    }
+
+    public SlimBuffer(InputStream input, byte[] scratchBuffer) {
+        this.input2 = input;
         if (scratchBuffer != null && scratchBuffer.length >= 4096) {
             buf = scratchBuffer;
         } else {
@@ -109,12 +127,7 @@ public class SlimBuffer {
             remLen = buf.length - end;
         }
 
-        int rdlen = 0;
-        try {
-            rdlen = (int) input.readBytes(buf, end, remLen);
-        } catch (EOFException e) {
-            // EOF handled below
-        }
+        int rdlen = readFromInput(buf, end, remLen);
         end += rdlen;
         relLimit = end;
         if (rdlen == 0) {
@@ -157,6 +170,17 @@ public class SlimBuffer {
         return pos + offset;
     }
 
+    public void resetPosition() {
+        if (absoluteLimit >= 0) {
+            pos = 0;
+            err = EOF;
+        } else if (end == 0 && pos == 0 && err == 0) {
+            bufferToEOF();
+        } else {
+            setError(UseError);
+        }
+    }
+
     public void skip(long count) {
         if (count <= 0) return; // should negative be an error?
         if (pos + count <= relLimit) {
@@ -171,7 +195,20 @@ public class SlimBuffer {
         count -= relLimit - pos;
         pos = relLimit;
         offset += count;
-        input.skip(count);
+        if (input2 != null) {
+            try {
+                long remaining = count;
+                while (remaining > 0) {
+                    long skipped = input2.skip(remaining);
+                    if (skipped <= 0) break;
+                    remaining -= skipped;
+                }
+            } catch (IOException e) {
+                setError(IOError);
+            }
+        } else {
+            input.skip(count);
+        }
     }
 
     public int readVarInt(boolean zigZag) {
@@ -246,6 +283,27 @@ public class SlimBuffer {
         }
     }
 
+    private int readFromInput(@NonNull byte[] dst, int off, int len) {
+        if (input2 != null) {
+            int total = 0;
+            try {
+                while (total < len) {
+                    int n = input2.read(dst, off + total, len - total);
+                    if (n < 0) break; // EOF
+                    total += n;
+                }
+            } catch (IOException e) {
+                setError(IOError);
+            }
+            return total;
+        }
+        try {
+            return (int) input.readBytes(dst, off, len);
+        } catch (EOFException | UncheckedIOException e) {
+            return 0;
+        }
+    }
+
     private int readBytesInternal(@NonNull byte[] dst, int dstOff, int dstLen) {
         if (err > 0) return -1;
         System.arraycopy(buf, pos, dst, dstOff, relLimit - pos);
@@ -255,12 +313,7 @@ public class SlimBuffer {
 
         offset += pos;
         relLimit = pos = end = 0;
-        long rdlen = 0;
-        try {
-            rdlen = input.readBytes(dst, dstOff + copiedLen, dstLen - copiedLen);
-        } catch (UncheckedIOException e) {
-            // EOF handled below
-        }
+        long rdlen = readFromInput(dst, dstOff + copiedLen, dstLen - copiedLen);
         if (rdlen == 0) {
             seenEOF = true;
             err = EOF;
@@ -292,14 +345,12 @@ public class SlimBuffer {
     }
 
     public @NonNull Bytes readBytes(int length) {
-        if (err > 0) {
+        if (length == 0 || err > 0) {
             return Bytes.EMPTY;
-        }
-        if (length < 0) {
+        } else if (length < 0) {
             setError(IllegalArgument);
             return Bytes.EMPTY;
         }
-        if (length == 0) return Bytes.EMPTY;
         var dst = new byte[length];
         if (length <= relLimit - pos) {
             System.arraycopy(buf, pos, dst, 0, length);
@@ -314,7 +365,7 @@ public class SlimBuffer {
         return Bytes.wrap(dst);
     }
 
-    public int readIntNew() {
+    public int readInt() {
         if (pos + 4 <= relLimit) {
             int v = 0;
             for (int i = 0; i < 4; i++) {
@@ -355,7 +406,7 @@ public class SlimBuffer {
         setError(BufferUnderflow);
     }
 
-    public int readInt() throws BufferUnderflowException, UncheckedIOException {
+    public int readIntOrig() throws BufferUnderflowException, UncheckedIOException {
         ensure(4);
         if (err > 0) return 0;
 
@@ -366,7 +417,7 @@ public class SlimBuffer {
         return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
     }
 
-    public long readLong() throws BufferUnderflowException, UncheckedIOException {
+    public long readLongOrig() throws BufferUnderflowException, UncheckedIOException {
         ensure(8);
         if (err > 0) return 0;
 
@@ -378,7 +429,7 @@ public class SlimBuffer {
         return v;
     }
 
-    public long readLongNew() {
+    public long readLong() {
         if (pos + 8 <= relLimit) {
             long v = 0;
             for (int i = 0; i < 8; i++) {
@@ -414,11 +465,14 @@ public class SlimBuffer {
 
     // TODO delete
     public InputStream asInputStream() {
-        if (end == 0) return input.asInputStream();
+        if (end == 0) return input2 != null ? input2 : input.asInputStream();
+        if (seenEOF && pos == 0) {
+            return new ByteArrayInputStream(buf, 0, end);
+        }
         throw new UnsupportedOperationException();
     }
 
-    private byte readByte() {
+    private byte readByteOrig() {
         if (pos == relLimit) {
             if (relLimit == end) {
                 bufferMore(1);
@@ -431,7 +485,7 @@ public class SlimBuffer {
     }
 
     // small version, the if statement is extremely likely and should be inlined
-    private byte readByteNew() {
+    private byte readByte() {
         if (pos + 1 <= relLimit) return buf[pos++];
         return readByteInternal();
     }

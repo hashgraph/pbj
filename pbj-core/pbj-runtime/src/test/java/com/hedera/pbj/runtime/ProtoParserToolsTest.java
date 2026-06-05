@@ -549,6 +549,7 @@ class ProtoParserToolsTest {
                 final int maxDepth,
                 final int maxSize)
                 throws ParseException {
+            if (Codec.disableReadinputParse) throw new RuntimeException("Don't run");
             return parse(new SlimBuffer(in), strictMode, parseUnknownFields, maxDepth, maxSize);
         }
 
