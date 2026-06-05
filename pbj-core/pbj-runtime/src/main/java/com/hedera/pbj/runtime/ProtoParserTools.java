@@ -10,7 +10,9 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -330,7 +332,7 @@ public final class ProtoParserTools {
         }
     }
 
-    public static String readString(SlimBuffer input, final long maxSize) throws IOException {
+    public static String readString(SlimBuffer input, final long maxSize) {
         final int length = input.readVarInt(false);
         if (length > maxSize) {
             input.setError(SlimBuffer.Parse);
@@ -345,12 +347,18 @@ public final class ProtoParserTools {
         bb.rewind();
 
         // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
-        return StandardCharsets.UTF_8
+        final CharsetDecoder decoder = StandardCharsets.UTF_8
                 .newDecoder()
                 .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-                .decode(bb)
-                .toString();
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+
+        final CharBuffer cb = CharBuffer.allocate((int) (length * decoder.maxCharsPerByte()) + 1);
+        if (decoder.decode(bb, cb, true).isError() || decoder.flush(cb).isError()) {
+            input.setError(SlimBuffer.Parse);
+            return "";
+        }
+        cb.flip();
+        return cb.toString();
     }
 
     /**
