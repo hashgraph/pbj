@@ -76,6 +76,10 @@ dependencies { testImplementation("com.hedera.pbj:pbj-compiler") { isTransitive 
 
 dependencyAnalysis { issues { all { onAny { exclude("com.hedera.pbj:pbj-compiler") } } } }
 
+tasks.named<Jar>("jmhJar") {
+    manifest { attributes["Main-Class"] = "com.hedera.pbj.integration.jmh.JmhMain" }
+}
+
 jmh {
     // IMPROVE: JMH code should not depend on test code
     includeTests = true
