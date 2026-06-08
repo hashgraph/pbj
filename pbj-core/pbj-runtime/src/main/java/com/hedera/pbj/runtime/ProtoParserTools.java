@@ -332,19 +332,111 @@ public final class ProtoParserTools {
         }
     }
 
+    static boolean UTF8Validate(byte[]data, int offset, int length)
+    {
+        int i = offset;
+        while (i + 4 < length) {
+            int a = data[i];
+            if ((a & 0x80) == 0) {
+                i++;
+                continue;
+            }
+            int b = data[i + 1];
+            if ((a & 0xE0) == 0xC0 && (b & 0xC0) == 0x80) {
+                i += 2;
+                continue;
+            }
+            int c = data[i + 2];
+            if ((a & 0xF0) == 0xE0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80) {
+                i += 3;
+                continue;
+            }
+            int d = data[i + 3];
+            if ((a & 0xF8) == 0xF0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80 && (d & 0xC0) == 0x80) {
+                i += 4;
+                continue;
+            }
+            return false;
+        }
+        while (i < length) {
+            int a = data[i];
+            if ((a & 0x80) == 0) {
+                i++;
+                continue;
+            }
+            if (i + 1 < length) {
+                int b = data[i + 1];
+                if ((a & 0xE0) == 0xC0 && (b & 0xC0) == 0x80) {
+                    i += 2;
+                    continue;
+                }
+                if (i + 2 < length) {
+                    int c = data[i + 2];
+                    if ((a & 0xF0) == 0xE0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80) {
+                        i += 3;
+                        continue;
+                    }
+                    if (i + 3 < length) {
+                        int d = data[i + 3];
+                        if ((a & 0xF8) == 0xF0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80 && (d & 0xC0) == 0x80) {
+                            i += 4;
+                            continue;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        return true;
+    }
     public static String readString(SlimBuffer input, final long maxSize) {
         final int length = input.readVarInt(false);
         if (length > maxSize) {
             input.setError(SlimBuffer.Parse);
             return "";
         }
-        final ByteBuffer bb = ByteBuffer.allocate(length);
-        final long bytesRead = input.readBytes(bb);
-        if (bytesRead != length) {
-            input.setError(SlimBuffer.BufferUnderflow);
-            return "";
+
+        ByteBuffer bb = null;
+        int startingPosition = (int)input.position();
+        byte[] data = input.buffered(length);
+        if (data == null) {
+            bb = ByteBuffer.allocate(length);
+            final long bytesRead = input.readBytes(bb);
+            if (bytesRead != length) {
+                input.setError(SlimBuffer.BufferUnderflow);
+                return "";
+            }
+            data = bb.array();
         }
-        bb.rewind();
+
+        if (false) {
+            int i = startingPosition;
+            for (; i < startingPosition + length; i++) {
+                if ((data[i] & 0x80) != 0) {
+                    break;
+                }
+            }
+            if (i == startingPosition + length) {
+                return new String(data, startingPosition, length, StandardCharsets.US_ASCII);
+            }
+        } else if (false) {
+            // local test shows this doesn't help
+            int i = startingPosition;
+            for (; i < startingPosition + length; i++) {
+                if ((data[i] & 0x80) != 0) {
+                    break;
+                }
+            }
+            if (i != length && !UTF8Validate(data, i, startingPosition + length)) {
+                input.setError(SlimBuffer.Parse);
+                return "";
+            }
+            return new String(data, startingPosition, length, StandardCharsets.UTF_8);
+        }
+
+        if (bb == null) {
+            bb = ByteBuffer.wrap(data, startingPosition, length);
+        }
 
         // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
         final CharsetDecoder decoder = StandardCharsets.UTF_8

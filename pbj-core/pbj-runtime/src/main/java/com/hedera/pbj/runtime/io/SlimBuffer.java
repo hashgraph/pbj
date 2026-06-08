@@ -283,6 +283,16 @@ public class SlimBuffer {
         }
     }
 
+
+    //public byte[] buffered(int count) { return null; }
+    public byte[] buffered(int count) {
+        if (pos + count <= relLimit) {
+            pos += count;
+            return buf;
+        }
+        return null;
+    }
+
     private int readFromInput(@NonNull byte[] dst, int off, int len) {
         if (input2 != null) {
             int total = 0;

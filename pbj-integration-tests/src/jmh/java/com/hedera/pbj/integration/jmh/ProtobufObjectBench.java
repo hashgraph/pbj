@@ -72,7 +72,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
         private ByteBuffer bboutDirect;
         private byte[] outArray;
 
-        private SlimBuffer slimProtobufDataBuffer;
+        private SlimBuffer slimProtobufDataBuffer, slimBin;
 
         public void configure(
                 P pbjModelObject,
@@ -103,6 +103,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                 this.protobufByteBufferDirect.put(this.protobuf);
                 this.protobufDataBufferDirect = BufferedData.wrap(this.protobufByteBufferDirect);
                 this.bin = new NonSynchronizedByteArrayInputStream(this.protobuf);
+                this.slimBin = new SlimBuffer(this.protobuf);
                 ReadableStreamingData din = new ReadableStreamingData(this.bin);
                 // output buffers
                 this.bout = new NonSynchronizedByteArrayOutputStream();
@@ -135,9 +136,8 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
     public void parsePbjInputStream_slim(BenchmarkState<P, G> benchmarkState, Blackhole blackhole)
             throws ParseException {
         for (int i = 0; i < OPERATION_COUNT; i++) {
-            benchmarkState.bin.resetPosition();
-            // not sure why original does new every time
-            blackhole.consume(benchmarkState.pbjCodec.parse(new SlimBuffer(benchmarkState.bin)));
+            benchmarkState.slimBin.resetPosition();
+            blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.slimBin));
         }
     }
 
