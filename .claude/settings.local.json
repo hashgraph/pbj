@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew tasks *)",
+      "Bash(xargs cat)",
+      "Bash(./gradlew jmhJar)",
+      "Bash(java *)",
+      "Bash(unzip *)",
+      "Bash(grep -E \"^Benchmark|^GetArray|^----|%StdDev|^\\\\s*$\")"
+    ]
+  }
+}

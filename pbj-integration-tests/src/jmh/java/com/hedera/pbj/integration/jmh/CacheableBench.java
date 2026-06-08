@@ -143,6 +143,6 @@ public class CacheableBench {
                 .include(CacheableBench.class.getSimpleName())
                 .build();
 
-        new Runner(opt).run();
+        BenchmarkReporter.printResults(new Runner(opt).run());
     }
 }

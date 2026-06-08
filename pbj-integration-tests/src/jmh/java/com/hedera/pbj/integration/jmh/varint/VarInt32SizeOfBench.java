@@ -20,6 +20,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.runner.Runner;
+import com.hedera.pbj.integration.jmh.BenchmarkReporter;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
@@ -90,6 +91,6 @@ public class VarInt32SizeOfBench {
                 .include(VarInt32SizeOfBench.class.getSimpleName())
                 .build();
 
-        new Runner(opt).run();
+        BenchmarkReporter.printResults(new Runner(opt).run());
     }
 }

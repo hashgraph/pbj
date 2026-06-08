@@ -101,6 +101,6 @@ public class MessageDigestSmallModelBench {
                 .include(MessageDigestSmallModelBench.class.getSimpleName())
                 .build();
 
-        new Runner(opt).run();
+        BenchmarkReporter.printResults(new Runner(opt).run());
     }
 }

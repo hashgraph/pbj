@@ -111,6 +111,6 @@ public class GenericParserQuickBench {
                 .include(GenericParserQuickBench.class.getSimpleName())
                 .build();
 
-        new Runner(opt).run();
+        BenchmarkReporter.printResults(new Runner(opt).run());
     }
 }

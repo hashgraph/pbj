@@ -265,6 +265,6 @@ public class UnsafeBench {
         Options opt =
                 new OptionsBuilder().include(UnsafeBench.class.getSimpleName()).build();
 
-        new Runner(opt).run();
+        BenchmarkReporter.printResults(new Runner(opt).run());
     }
 }

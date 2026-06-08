@@ -123,6 +123,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
 
     /** Same as parsePbjByteBuffer because DataBuffer.wrap(byte[]) uses ByteBuffer today, added this because makes result plotting easier */
     @Benchmark
+    @Warmup(iterations = 5, time = 2)
     @OperationsPerInvocation(OPERATION_COUNT)
     public void parsePbjByteArray_slim(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
         for (int i = 0; i < OPERATION_COUNT; i++) {
@@ -132,6 +133,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
     }
 
     @Benchmark
+    @Warmup(iterations = 4, time = 2)
     @OperationsPerInvocation(OPERATION_COUNT)
     public void parsePbjInputStream_slim(BenchmarkState<P, G> benchmarkState, Blackhole blackhole)
             throws ParseException {
@@ -199,6 +201,6 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                 .include(EverythingBench.class.getSimpleName())
                 .build();
 
-        new Runner(opt).run();
+        BenchmarkReporter.printResults(new Runner(opt).run());
     }
 }
