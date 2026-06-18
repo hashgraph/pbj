@@ -82,36 +82,31 @@ class CodecParseMethodGenerator {
                  * @return Parsed $modelClassName model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
                  */
-                public @NonNull $modelClassName parse(
+                public $modelClassName parse(
                         @NonNull final SlimBuffer input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
                         final int maxDepth,
                         final int maxSize) throws ParseException {
                     if (maxDepth < 0) {
-                        throw new ParseException("Reached maximum allowed depth of nested messages");
+                        input.setError(SlimBuffer.Parse);
+                        return null;
                     }
-                    try {
-                        // -- TEMP STATE FIELDS --------------------------------------
-                        $fieldDefs
-                        List<UnknownField> $unknownFields = null;
+                    // -- TEMP STATE FIELDS --------------------------------------
+                    $fieldDefs
+                    List<UnknownField> $unknownFields = null;
 
-                        $parseLoop
-                $listFieldsWriteProtection
-                        if ($unknownFields != null) {
-                            Collections.sort($unknownFields);
-                            $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
-                        }
-                $cacheableSupport
-                    } catch (final Exception anyException) {
-                        if (anyException instanceof ParseException parseException) {
-                            throw parseException;
-                        }
-                        throw new ParseException(anyException);
+                    $parseLoop
+            $listFieldsWriteProtection
+                    if ($unknownFields != null) {
+                        Collections.sort($unknownFields);
+                        $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
                     }
+                    input.upgradeErrorToParse();
+                    $cacheableSupport
                 }
                 
-                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, SlimBuffer input, int maxSize) throws ParseException, IOException {
+                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, SlimBuffer input, int maxSize) {
                     $defaultCaseBody
                     return $unknownFields;
                 }
@@ -182,16 +177,11 @@ class CodecParseMethodGenerator {
                         // -- PARSE LOOP ---------------------------------------------
                         // Continue to parse bytes out of the input stream until we get to the end.
                         while (input.hasMore()) {
-                            final int $prefixtag;
-                            try {
-                                // Read the "tag" byte which gives us the field number for the next field to read
-                                // and the wire type (way it is encoded on the wire).
-                                $prefixtag = input.readVarInt(false);
-                            } catch (EOFException e) {
-                                // There's no more fields. Stop the parsing loop.
-                                break;
-                            }
 
+                            // Read the "tag" byte which gives us the field number for the next field to read
+                            // and the wire type (way it is encoded on the wire).
+                            int $prefixtag = input.readVarInt(false);
+                            
                             // The field is the top 5 bits of the byte. Read this off
                             final int $prefixfield = $prefixtag >>> TAG_FIELD_OFFSET;
 
@@ -200,7 +190,7 @@ class CodecParseMethodGenerator {
 
                             // Given the wire type and the field type, parse the field
                             switch ($prefixtag) {
-                $caseStatements
+                                $caseStatements
                                 default -> $unknownFields = defaultCase(tag, field, f, strictMode, parseUnknownFields, $unknownFields, input, maxSize);
                             }
                         }
@@ -211,20 +201,21 @@ class CodecParseMethodGenerator {
                         // handle error cases here, so we do not do if statements in normal loop
                         // Validate the field number is valid (must be > 0)
                         if ($prefixfield == 0) {
-                            throw new IOException("Bad protobuf encoding. We read a field value of "
-                                + $prefixfield);
+                            input.setError(SlimBuffer.IOError);
+                            return $unknownFields;
                         }
                         // Validate the wire type is valid (must be >=0 && <= 5).
                         // Otherwise we cannot parse this.
                         // Note: it is always >= 0 at this point (see code above where it is defined).
                         if (wireType > 5) {
-                            throw new IOException("Cannot understand wire_type of " + wireType);
+                            input.setError(SlimBuffer.Unsupported);
+                            return $unknownFields;
                         }
                         // It may be that the parser subclass doesn't know about this field
                         if ($prefixf == null) {
                             if (strictMode) {
-                                // Since we are parsing is strict mode, this is an exceptional condition.
-                                throw new UnknownFieldException($prefixfield);
+                                input.setError(SlimBuffer.Unsupported);
+                                return $unknownFields;
                             } else if (parseUnknownFields) {
                                 if ($unknownFields == null) {
                                     $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
@@ -240,8 +231,8 @@ class CodecParseMethodGenerator {
                                 skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
                             }
                         } else {
-                            throw new IOException("Bad tag [" + $prefixtag + "], field [" + $prefixfield
-                                    + "] wireType [" + wireType + "]");
+                            input.setError(SlimBuffer.IOError);
+                            return $unknownFields;
                         }""");
         for (int i = 0; i < list.size(); i++) {
             list.set(i, list.get(i)
@@ -294,8 +285,7 @@ class CodecParseMethodGenerator {
         sbCase.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
-        sbFunc.append("""
-            %s case%d(SlimBuffer input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
+        sbFunc.append("%s case%d(SlimBuffer input, int maxSize, %s %s) {%n".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
         if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
@@ -318,9 +308,9 @@ class CodecParseMethodGenerator {
                 // Read the length of packed repeated field data
                 final int length = input.readVarInt(false);
                 if (length > $maxSize) {
-                    throw new ParseException("$fieldName size " + length + " is greater than max " + $maxSize);
+                    input.setError(SlimBuffer.Parse);
+                    return $tempFieldName;
                 }
-                input.ensure(length);
                 final var beforeLimit = input.limit();
                 final long beforePosition = input.position();
                 input.limit(input.position() + length);
@@ -329,7 +319,7 @@ class CodecParseMethodGenerator {
                 }
                 input.limit(beforeLimit);
                 if (input.position() != beforePosition + length) {
-                    throw new BufferUnderflowException();
+                    input.setError(SlimBuffer.BufferUnderflow);
                 }""".replace("$tempFieldName", tempFieldName)
                 .replace("$preRead", preRead)
                 .replace("$readMethod", field.type() == Field.FieldType.ENUM ? "value" : readMethod(field))
@@ -368,6 +358,7 @@ class CodecParseMethodGenerator {
                                 input.limit(input.position() + valueTypeMessageSize);
                                 // read inner tag
                                 final int valueFieldTag = input.readVarInt(false);
+                                assert input.throwOnError2();
                                 // assert tag is as expected
                                 assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
                                 assert (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
@@ -412,7 +403,8 @@ class CodecParseMethodGenerator {
                             value = $fieldType.DEFAULT;
                         } else {
                             if (messageLength > $maxSize) {
-                                throw new ParseException("$fieldName size " + messageLength + " is greater than max " + $maxSize);
+                                input.setError(SlimBuffer.Parse);
+                                return null;
                             }
                             final var limitBefore = input.limit();
                             // Make sure that we have enough bytes in the message
@@ -420,18 +412,17 @@ class CodecParseMethodGenerator {
                             // If the buffer is truncated on the boundary of a subObject,
                             // we will not throw.
                             final var startPos = input.position();
-                            try {
-                                if ((startPos + messageLength) > limitBefore) {
-                                    throw new BufferUnderflowException();
-                                }
-                                input.limit(startPos + messageLength);
-                                value = $readMethod;
-                                // Make sure we read the full number of bytes. for the types
-                                if ((startPos + messageLength) != input.position()) {
-                                    throw new BufferOverflowException();
-                                }
-                            } finally {
-                                input.limit(limitBefore);
+                            if ((startPos + messageLength) > limitBefore) {
+                                input.setError(SlimBuffer.Parse);
+                                return null;
+                            }
+                            input.limit(startPos + messageLength);
+                            value = $readMethod;
+                            input.limit(limitBefore);
+                            // Make sure we read the full number of bytes. for the types
+                            if ((startPos + messageLength) != input.position()) {
+                                input.setError(SlimBuffer.Parse);
+                                return null;
                             }
                         }
                         """
@@ -456,7 +447,8 @@ class CodecParseMethodGenerator {
                         $fieldDefs
                         if (__map_messageLength != 0) {
                             if (__map_messageLength > $maxSize) {
-                                throw new ParseException("$fieldName size " + __map_messageLength + " is greater than max " + $maxSize);
+                                input.setError(SlimBuffer.Parse);
+                                return null;
                             }
                             final var __map_limitBefore = input.limit();
                             // Make sure that we have enough bytes in the message
@@ -466,13 +458,15 @@ class CodecParseMethodGenerator {
                             final var __map_startPos = input.position();
                             try {
                                 if ((__map_startPos + __map_messageLength) > __map_limitBefore) {
-                                    throw new BufferUnderflowException();
+                                    input.setError(SlimBuffer.BufferUnderflow);
+                                    return null;
                                 }
                                 input.limit(__map_startPos + __map_messageLength);
                                 $mapParseLoop
                                 // Make sure we read the full number of bytes. for the types
                                 if ((__map_startPos + __map_messageLength) != input.position()) {
-                                    throw new BufferOverflowException();
+                                    input.setError(SlimBuffer.BufferUnderflow);
+                                    return null;
                                 }
                             } finally {
                                 input.limit(__map_limitBefore);
@@ -516,7 +510,8 @@ class CodecParseMethodGenerator {
             sbCase.append(
                 """
                 if (temp_%s.size() >= %s) {
-                    throw new ParseException("%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
+                    input.setError(SlimBuffer.Parse);
+                    return null;
                 }
                 temp_%1$s = addToList(temp_%1$s,value);
                 """.formatted(field.name(), field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize"));
@@ -526,7 +521,8 @@ class CodecParseMethodGenerator {
                 """
                 if (__map_messageLength != 0) {
                     if (temp_%s.size() >= %s) {
-                        throw new ParseException("%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
+                        input.setError(SlimBuffer.Parse);
+                        return null;
                     }
                     temp_%1$s = addToMap(temp_%1$s, temp_%s, temp_%s);
                 }
