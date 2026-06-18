@@ -27,13 +27,10 @@ public interface Codec<T> {
 
     /**
      * The default maximum depth of nested messages before the `parse()` method would error out.
-     * The current default value may be slightly high, and it would be ideal to lower it in the future.
-     * However, it's known that serialized data exists that may require a somewhat high value for maxDepth.
-     * Also, the current value is much safer than the previously used Integer.MAX_VALUE.
      * Applications can always override the maxDepth by supplying an argument to the main `Codec.parse()` method.
      * The default depth should not be increased beyond the current limit because of the safety concerns.
      */
-    int DEFAULT_MAX_DEPTH = 512;
+    int DEFAULT_MAX_DEPTH = 128;
 
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
