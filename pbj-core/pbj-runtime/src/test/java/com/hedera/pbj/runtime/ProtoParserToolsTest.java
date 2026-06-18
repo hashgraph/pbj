@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.SlimBuffer;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -548,8 +549,18 @@ class ProtoParserToolsTest {
                 final int maxDepth,
                 final int maxSize)
                 throws ParseException {
+            return parse(new SlimBuffer(in), strictMode, parseUnknownFields, maxDepth, maxSize);
+        }
+
+        public TestMessage parse(
+                @NonNull final SlimBuffer in,
+                final boolean strictMode,
+                final boolean parseUnknownFields,
+                final int maxDepth,
+                final int maxSize)
+                throws ParseException {
             String value = null;
-            while (in.hasRemaining()) {
+            while (in.hasMore()) {
                 final int tag = in.readVarInt(false);
                 final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;
                 final int wireType = tag & TAG_WIRE_TYPE_MASK;
@@ -592,8 +603,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public boolean fastEquals(@NonNull TestMessage item, @NonNull ReadableSequentialData input)
-                throws ParseException {
+        public boolean fastEquals(@NonNull TestMessage item, @NonNull SlimBuffer input) throws ParseException {
             throw new UnsupportedOperationException();
         }
 
