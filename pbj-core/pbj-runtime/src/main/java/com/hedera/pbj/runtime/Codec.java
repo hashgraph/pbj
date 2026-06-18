@@ -18,6 +18,8 @@ import java.io.UncheckedIOException;
  */
 public interface Codec<T> {
 
+    static final boolean disallowNonSlimBuffer = false;
+
     /**
      * The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.).
      * The size should not be increased beyond the current limit because of the safety concerns.
@@ -70,7 +72,11 @@ public interface Codec<T> {
             int maxDepth,
             int maxSize)
             throws ParseException {
-        return parse(new SlimBuffer(input), strictMode, parseUnknownFields, maxDepth, maxSize);
+        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        SlimBuffer slim = new SlimBuffer(input);
+        T res = parse(slim, strictMode, parseUnknownFields, maxDepth, maxSize);
+        slim.throwOnError();
+        return res;
     }
 
     @NonNull
@@ -102,12 +108,18 @@ public interface Codec<T> {
     @NonNull
     default T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
-        return parse(new SlimBuffer(input), strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        SlimBuffer slim = new SlimBuffer(input);
+        T res = parse(slim, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+        slim.throwOnError();
+        return res;
     }
 
     default T parse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
-        return parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+        T res = parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+        input.throwOnError();
+        return res;
     }
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
@@ -170,7 +182,11 @@ public interface Codec<T> {
      */
     @NonNull
     default T parse(@NonNull ReadableSequentialData input) throws ParseException {
-        return parse(new SlimBuffer(input));
+        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        SlimBuffer slim = new SlimBuffer(input);
+        T res = parse(slim);
+        slim.throwOnError();
+        return res;
     }
 
     @NonNull
@@ -187,7 +203,11 @@ public interface Codec<T> {
      */
     @NonNull
     default T parse(@NonNull Bytes bytes) throws ParseException {
-        return parse(bytes.toReadableSequentialData());
+        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        SlimBuffer slim = new SlimBuffer(bytes.toByteArray());
+        T res = parse(slim);
+        slim.throwOnError();
+        return res;
     }
 
     /**
@@ -203,7 +223,11 @@ public interface Codec<T> {
      */
     @NonNull
     default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
-        return parse(new SlimBuffer(input), true, DEFAULT_MAX_DEPTH);
+        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        SlimBuffer slim = new SlimBuffer(input);
+        T res = parse(slim, true, DEFAULT_MAX_DEPTH);
+        slim.throwOnError();
+        return res;
     }
 
     @NonNull
@@ -223,7 +247,11 @@ public interface Codec<T> {
      */
     @NonNull
     default T parseStrict(@NonNull Bytes bytes) throws ParseException {
-        return parseStrict(new SlimBuffer(bytes.toReadableSequentialData()));
+        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        SlimBuffer slim = new SlimBuffer(bytes.toReadableSequentialData());
+        T res = parseStrict(slim);
+        slim.throwOnError();
+        return res;
     }
 
     /**
@@ -272,7 +300,11 @@ public interface Codec<T> {
     }
 
     default int measure(@NonNull ReadableSequentialData input) throws ParseException {
-        return measure(new SlimBuffer(input));
+        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        SlimBuffer slim = new SlimBuffer(input);
+        final int res = measure(slim);
+        slim.throwOnError();
+        return res;
     }
     /**
      * Compute number of bytes that would be written when calling {@code write()} method.
@@ -297,7 +329,11 @@ public interface Codec<T> {
     boolean fastEquals(@NonNull T item, @NonNull SlimBuffer input) throws ParseException;
 
     default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
-        return fastEquals(item, new SlimBuffer(input));
+        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        SlimBuffer slim = new SlimBuffer(input);
+        boolean res = fastEquals(item, new SlimBuffer(input));
+        slim.throwOnError();
+        return res;
     }
     /**
      * Converts a Record into a Bytes object
