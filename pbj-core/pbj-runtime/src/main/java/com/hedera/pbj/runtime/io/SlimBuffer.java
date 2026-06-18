@@ -27,6 +27,8 @@ public class SlimBuffer {
     private InputStream input2;
     private Exception cause;
 
+    public char[] charArray = new char[4096]; // will grow
+
     public static final int EOF = -1,
             DataEncoding = 1,
             BufferUnderflow = 2,
@@ -128,11 +130,11 @@ public class SlimBuffer {
     // small and likely to inline
     public boolean hasMore() {
         if (pos < relLimit) return true;
+        if (offset + pos == absoluteLimit) return false;
         return hasMoreInternal();
     }
     // still small, but less likely to hit this case in steaming, and only once when not streaming
     private boolean hasMoreInternal() {
-        if (offset + pos == absoluteLimit) return false;
         if (seenEOF) return false;
         bufferMore(1);
         return pos < relLimit;
@@ -262,6 +264,35 @@ public class SlimBuffer {
         }
     }
 
+    public int error() {
+        return err;
+    }
+
+    public byte[] array() {
+        return buf;
+    }
+
+    private int bufferedInternal(int count) {
+        if (count <= buf.length) {
+            bufferMore(count);
+            if (pos + count <= relLimit) {
+                int origPos = pos;
+                pos += count;
+                return origPos;
+            }
+        }
+        return -1;
+    }
+
+    public int buffered(int count) {
+        if (pos + count <= relLimit) {
+            int origPos = pos;
+            pos += count;
+            return origPos;
+        }
+        return bufferedInternal(count);
+    }
+
     private int readFromInput(@NonNull byte[] dst, int off, int len) {
         if (input2 != null) {
             int total = 0;
@@ -306,6 +337,7 @@ public class SlimBuffer {
         pos += len;
         return len;
     }
+
     public long readBytes(@NonNull ByteBuffer dst) {
         int len = readBytesInternalCopy(dst.array(), dst.arrayOffset() + dst.position(), dst.remaining());
         dst.position(dst.position() + len);
