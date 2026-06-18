@@ -549,7 +549,11 @@ class ProtoParserToolsTest {
                 final int maxDepth,
                 final int maxSize)
                 throws ParseException {
-            return parse(new SlimBuffer(in), strictMode, parseUnknownFields, maxDepth, maxSize);
+            if (Codec.disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+            SlimBuffer slim = new SlimBuffer(in);
+            TestMessage res = parse(new SlimBuffer(in), strictMode, parseUnknownFields, maxDepth, maxSize);
+            slim.throwOnError();
+            return res;
         }
 
         public TestMessage parse(
@@ -566,12 +570,7 @@ class ProtoParserToolsTest {
                 final int wireType = tag & TAG_WIRE_TYPE_MASK;
                 if ((fieldNum == VALUE_FIELD.number())
                         && (wireType == ProtoWriterTools.wireType(VALUE_FIELD).ordinal())) {
-                    final int length = in.readVarInt(false);
-                    final byte[] valueBytes = new byte[length];
-                    if (in.readBytes(valueBytes) != length) {
-                        throw new ParseException("Failed to read value bytes");
-                    }
-                    value = new String(valueBytes, StandardCharsets.UTF_8);
+                    value = readString(in);
                 } else {
                     throw new ParseException("Unknown field: " + tag);
                 }
