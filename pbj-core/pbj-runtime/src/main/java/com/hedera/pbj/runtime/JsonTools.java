@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.SlimBuffer;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.jsonparser.JSONLexer;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
@@ -94,7 +94,7 @@ public final class JsonTools {
      * @return the Antlr JSON context object
      * @throws IOException if there was a problem parsing the JSON
      */
-    public static JSONParser.ObjContext parseJson(@NonNull final ReadableSequentialData input) throws IOException {
+    public static JSONParser.ObjContext parseJson(@NonNull final SlimBuffer input) throws IOException {
         final JSONLexer lexer = new JSONLexer(CharStreams.fromStream(input.asInputStream()));
         final JSONParser parser = new JSONParser(new CommonTokenStream(lexer));
         final JSONParser.JsonContext jsonContext = parser.json();
