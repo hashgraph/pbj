@@ -10,9 +10,7 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -332,33 +330,153 @@ public final class ProtoParserTools {
         }
     }
 
+    static int FromUTF8Tail(char[] dst, int di, byte[] src, int i, int endPos) {
+        while (i < endPos) {
+            int a = src[i];
+            if ((a & 0x80) == 0) {
+                dst[di++] = (char) a;
+                i++;
+                continue;
+            }
+            if (i + 1 >= endPos) return -1;
+
+            int b = src[i + 1];
+            if ((a & 0xE0) == 0xC0) {
+                if ((b & 0xC0) == 0x80) {
+                    dst[di++] = (char) (((a & 0x1F) << 6) | (b & 0x3F));
+                    i += 2;
+                    continue;
+                } else {
+                    return -1; // Bad encoding
+                }
+            }
+
+            if (i + 2 >= endPos) return -1;
+
+            int c = src[i + 2];
+            int codepoint = -1;
+            if ((a & 0xF0) == 0xE0) {
+                if ((b & 0xC0) == 0x80 && (c & 0xC0) == 0x80) {
+                    codepoint = ((a & 0xF) << 12) | ((b & 0x3F) << 6) | (c & 0x3F);
+                    i += 3;
+                } else {
+                    return -1; // Bad encoding
+                }
+            } else {
+                if (i + 3 >= endPos) return -1;
+                int d = src[i + 3];
+                if ((a & 0xF8) == 0xF0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80 && (d & 0xC0) == 0x80) {
+                    codepoint = ((a & 7) << 18) | ((b & 0x3F) << 12) | ((c & 0x3F) << 6) | (d & 0x3F);
+                    i += 4;
+                } else {
+                    return -1; // Bad encoding
+                }
+            }
+
+            if (codepoint <= 0xFFFF) {
+                if (codepoint < 0 || (codepoint >= 0xD800 && codepoint < 0xE000)) return -1; // [D800, E000) is illegal
+                dst[di++] = (char) codepoint;
+                continue;
+            }
+
+            int v = codepoint - 0x10000;
+            dst[di + 0] = (char) (0xD800 + ((v >> 10) & 0x3FF));
+            dst[di + 1] = (char) (0xDC00 + (v & 0x3FF));
+            di += 2;
+        }
+        return di;
+    }
+
+    static int FromUTF8(char[] dst, byte[] src, int offset, int pos, int length) {
+        int i = offset + pos;
+        int di = pos;
+        while (i + 4 < offset + length) {
+            int a = src[i];
+            if ((a & 0x80) == 0) {
+                dst[di++] = (char) a;
+                i++;
+                continue;
+            }
+            int b = src[i + 1];
+            if ((a & 0xE0) == 0xC0 && (b & 0xC0) == 0x80) {
+                dst[di++] = (char) (((a & 0x1F) << 6) | (b & 0x3F));
+                i += 2;
+                continue;
+            }
+            int c = src[i + 2];
+            int codepoint = -1;
+            if ((a & 0xF0) == 0xE0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80) {
+                codepoint = ((a & 0xF) << 12) | ((b & 0x3F) << 6) | (c & 0x3F);
+                i += 3;
+            } else {
+                int d = src[i + 3];
+                if ((a & 0xF8) == 0xF0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80 && (d & 0xC0) == 0x80) {
+                    codepoint = ((a & 7) << 18) | ((b & 0x3F) << 12) | ((c & 0x3F) << 6) | (d & 0x3F);
+                    i += 4;
+                }
+            }
+
+            if (codepoint <= 0xFFFF) {
+                if (codepoint < 0 || (codepoint >= 0xD800 && codepoint < 0xE000)) return -1; // [D800, E000) is illegal
+                dst[di++] = (char) codepoint;
+                continue;
+            }
+
+            int v = codepoint - 0x10000;
+            dst[di + 0] = (char) (0xD800 + ((v >> 10) & 0x3FF));
+            dst[di + 1] = (char) (0xDC00 + (v & 0x3FF));
+            di += 2;
+        }
+        return i == offset + length ? di : FromUTF8Tail(dst, di, src, i, offset + length);
+    }
+
     public static String readString(SlimBuffer input, final long maxSize) {
         final int length = input.readVarInt(false);
         if (length > maxSize) {
             input.setError(SlimBuffer.Parse);
             return "";
         }
-        final ByteBuffer bb = ByteBuffer.allocate(length);
-        final long bytesRead = input.readBytes(bb);
-        if (bytesRead != length) {
-            input.setError(SlimBuffer.BufferUnderflow);
-            return "";
-        }
-        bb.rewind();
 
-        // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
-        final CharsetDecoder decoder = StandardCharsets.UTF_8
-                .newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT);
-
-        final CharBuffer cb = CharBuffer.allocate((int) (length * decoder.maxCharsPerByte()) + 1);
-        if (decoder.decode(bb, cb, true).isError() || decoder.flush(cb).isError()) {
-            input.setError(SlimBuffer.Parse);
-            return "";
+        ByteBuffer bb = null;
+        int bufPos = input.buffered(length);
+        byte[] data = null;
+        if (bufPos >= 0) data = input.array();
+        else {
+            // TODO remove this path
+            bb = ByteBuffer.allocate(length);
+            final long bytesRead = input.readBytes(bb);
+            if (bytesRead != length) {
+                input.setError(SlimBuffer.BufferUnderflow);
+                return "";
+            }
+            data = bb.array();
+            bufPos = 0;
         }
-        cb.flip();
-        return cb.toString();
+
+        if (length > input.charArray.length) {
+            int power2Capacity = 1 << (63 - Long.numberOfLeadingZeros(length));
+            input.charArray = new char[power2Capacity];
+        }
+
+        var charArray = input.charArray;
+        int i = 0;
+        // Ascii fast path
+        {
+            for (; i < length; i++) {
+                byte b = data[bufPos + i];
+                if ((b & 0x80) != 0) break;
+                charArray[i] = (char) b;
+            }
+            if (i == length) {
+                return new String(charArray, 0, length);
+            }
+        }
+        int utf16Len = FromUTF8(charArray, data, bufPos, i, length);
+        if (utf16Len >= 0) {
+            return new String(charArray, 0, utf16Len);
+        }
+        input.setError(SlimBuffer.Parse);
+        return "";
     }
 
     /**
