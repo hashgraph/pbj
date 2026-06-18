@@ -216,6 +216,76 @@ class ProtoParserToolsTest {
                 length + 1);
     }
 
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "Test Ascii",
+                "UTF16 ☃",
+                "Hangul Syllable Hwen 휀",
+                "Private Use E000 \uE000",
+                "Linear B Syllable \uD800\uDC00",
+                "4 byte char \uDB40\uDDEF",
+                "☃ UTF16",
+                "휀Hangul Syllable Hwen",
+                "\uE000Private Use E000",
+                "\uD800\uDC00Linear B Syllable",
+                "\uDB40\uDDEF4 byte char",
+                "\u007F",
+                "\u013F"
+            })
+    void testReadString_readString_unicode(final String expected) {
+        byte[] utf8 = expected.getBytes(StandardCharsets.UTF_8);
+        BufferedData data = BufferedData.allocate(utf8.length + 5);
+        data.writeVarInt(utf8.length, false);
+        data.writeBytes(utf8);
+        data.flip();
+        SlimBuffer slim = new SlimBuffer(data.toInputStream());
+        assertEquals(expected, readString(slim));
+    }
+
+    @Test
+    void testReadString_readString_malformed_utf8() {
+        BufferedData data = BufferedData.allocate(128);
+        byte[][] manyBadEncoding = {
+            {(byte) 0xED, (byte) 0xA0, (byte) 0x80},
+            {(byte) 0xED, (byte) 0x9F, (byte) 0xC0},
+            {(byte) 0xE2, (byte) 0x98, (byte) 0x03},
+            {(byte) 0xE2, (byte) 0x18, (byte) 0x83},
+            {(byte) 0x82, (byte) 0x98, (byte) 0x83},
+            {(byte) 0xC4, (byte) 0x3F},
+            {(byte) 0x84, (byte) 0x3F},
+            {(byte) 0x3F, (byte) 0x84, 32},
+            {(byte) 0xF0, (byte) 0x90, (byte) 0x84, (byte) 0x3F},
+            {(byte) 0xF0, (byte) 0x90, (byte) 0x04, (byte) 0xBF},
+            {(byte) 0xF0, (byte) 0x10, (byte) 0x84, (byte) 0xBF},
+            {(byte) 0x70, (byte) 0x90, (byte) 0x84, (byte) 0xBF},
+        };
+
+        // First check the code is encoding correctly
+        {
+            byte[] ok = {(byte) 0xED, (byte) 0x9F, (byte) 0xBF};
+            data.reset();
+            data.writeVarInt(ok.length, false);
+            data.writeBytes(ok);
+            data.flip();
+            SlimBuffer slim = new SlimBuffer(data.toInputStream());
+            String oksz = readString(slim);
+            assertEquals("\uD7FF", oksz);
+            assert (slim.error() <= 0);
+        }
+
+        for (var bad : manyBadEncoding) {
+            data.reset();
+            data.writeVarInt(bad.length, false);
+            data.writeBytes(bad);
+            data.flip();
+            SlimBuffer slim = new SlimBuffer(data.toInputStream());
+            String badsz = readString(slim);
+            assertEquals("", badsz);
+            assertEquals(slim.error(), SlimBuffer.Parse);
+        }
+    }
+
     @Test
     void testReadString_maxSize() throws IOException {
         final int length = 1;
