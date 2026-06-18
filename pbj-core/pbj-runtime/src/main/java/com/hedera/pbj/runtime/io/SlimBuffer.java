@@ -156,6 +156,10 @@ public class SlimBuffer {
         return pos + offset;
     }
 
+    public void resetPosition() {
+        pos = 0;
+    }
+
     public void skip(long count) throws UncheckedIOException {
         ensure((int) count);
         pos += (int) count;
