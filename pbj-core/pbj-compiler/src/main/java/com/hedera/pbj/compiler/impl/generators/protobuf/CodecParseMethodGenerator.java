@@ -287,8 +287,16 @@ class CodecParseMethodGenerator {
         sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
         sbFunc.append("%s case%d(SlimBuffer input, int maxSize, %s %s) {%n".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
+        int divideAmount = fieldType == "List<Integer>" ? 4
+                : fieldType == "List<Long>" ? 8
+                : fieldType == "List<Float>" ? 4
+                : fieldType == "List<Double>" ? 8
+                : fieldType == "List<Boolean>" ? 1
+                : 0;
+
         if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
+            divideAmount = 4;
             preRead = """
                     final int enumOrdinal = readEnum(input);
                     Object value = $enumName.fromProtobufOrdinal(enumOrdinal);
@@ -304,6 +312,15 @@ class CodecParseMethodGenerator {
         } else {
             preRead = "";
         }
+
+        if (divideAmount == 0) {
+            throw new RuntimeException("Need to implement");
+        }
+        // next line prevents list.add from growing, but github actions shows
+        // that it's faster to not allocate so much memory
+        // $readMethod is readVarInt most of the time. Many 1byte int32
+        // would cause the list to grow
+        // divideAmount = 1;
         sbFunc.append("""
                 // Read the length of packed repeated field data
                 final int length = input.readVarInt(false);
@@ -314,17 +331,22 @@ class CodecParseMethodGenerator {
                 final var beforeLimit = input.limit();
                 final long beforePosition = input.position();
                 input.limit(input.position() + length);
+                var list = new UnmodifiableArray$fieldType();
+                list.ensureCapacity(length$divideString);
                 while (input.hasMore()) {
-                    $preRead$tempFieldName = addToList($tempFieldName,$readMethod);
+                    $preReadlist.add($readMethod);
                 }
+                $tempFieldName = list;
                 input.limit(beforeLimit);
                 if (input.position() != beforePosition + length) {
                     input.setError(SlimBuffer.BufferUnderflow);
                 }""".replace("$tempFieldName", tempFieldName)
                 .replace("$preRead", preRead)
+                .replace("$fieldType", fieldType)
                 .replace("$readMethod", field.type() == Field.FieldType.ENUM ? "value" : readMethod(field))
                 .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                 .replace("$fieldName", field.name())
+                .replace("$divideString", divideAmount == 1 ? "" : "/%s".formatted(divideAmount))
                 .indent(DEFAULT_INDENT));
         sbCase.append("\n}\n");
         sbFunc.append("    return %s;\n    }\n".formatted(tempFieldName));
@@ -476,7 +498,7 @@ class CodecParseMethodGenerator {
                     .replace("$fieldName", field.name())
                     .replace("$fieldDefs",mapEntryFields.stream().map(mapEntryField ->
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
-                            mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
+                                    mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
                     .replace("$mapParseLoop", parseAndDefaultBodyPair.parseBody()
                             .indent(-DEFAULT_INDENT))
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
