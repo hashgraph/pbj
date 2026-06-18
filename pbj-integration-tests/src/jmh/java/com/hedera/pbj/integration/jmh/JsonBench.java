@@ -11,10 +11,12 @@ import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.SlimBuffer;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -49,6 +51,7 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
         // input bytes
         private BufferedData jsonDataBuffer;
         private String jsonString;
+        private SlimBuffer jsonSlimDataBuffer;
 
         // output buffers
         private BufferedData outDataBuffer;
@@ -69,6 +72,7 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
                 jsonDataBuffer.flip();
                 // get as string for parse tests
                 jsonString = jsonDataBuffer.asUtf8String();
+                jsonSlimDataBuffer = new SlimBuffer(jsonString.getBytes(StandardCharsets.UTF_8));
 
                 // write to temp data buffer and then read into byte array
                 BufferedData tempDataBuffer = BufferedData.allocate(5 * 1024 * 1024);
@@ -91,10 +95,17 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
     }
 
     /** Same as parsePbjByteBuffer because DataBuffer.wrap(byte[]) uses ByteBuffer today, added this because makes result plotting easier */
+    /*
     @Benchmark
     public void parsePbj(JsonBenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
         benchmarkState.jsonDataBuffer.position(0);
         blackhole.consume(benchmarkState.pbjJsonCodec.parse(benchmarkState.jsonDataBuffer));
+    } //*/
+
+    @Benchmark
+    public void parsePbjSlim(JsonBenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
+        benchmarkState.jsonSlimDataBuffer.resetPosition();
+        blackhole.consume(benchmarkState.pbjJsonCodec.parse(benchmarkState.jsonSlimDataBuffer));
     }
 
     @Benchmark
