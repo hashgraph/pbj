@@ -27,7 +27,9 @@ public interface JsonCodec<T> extends Codec<T> {
             final int maxSize)
             throws ParseException {
         try {
-            return parse(JsonTools.parseJson(input), strictMode, maxDepth, maxSize);
+            T res = parse(JsonTools.parseJson(input), strictMode, maxDepth, maxSize);
+            input.throwOnError();
+            return res;
         } catch (IOException ex) {
             throw new ParseException(ex);
         }
