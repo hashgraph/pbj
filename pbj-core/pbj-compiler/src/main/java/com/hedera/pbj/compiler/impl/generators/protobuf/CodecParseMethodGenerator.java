@@ -59,7 +59,7 @@ class CodecParseMethodGenerator {
         // spotless:off
         return """
                 /**
-                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link SlimBuffer}. Throws if in strict mode ONLY.
                  * <p>
                  * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
                  * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
@@ -83,7 +83,7 @@ class CodecParseMethodGenerator {
                  * @throws ParseException If parsing fails
                  */
                 public @NonNull $modelClassName parse(
-                        @NonNull final ReadableSequentialData input,
+                        @NonNull final SlimBuffer input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
                         final int maxDepth,
@@ -111,7 +111,7 @@ class CodecParseMethodGenerator {
                     }
                 }
                 
-                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, ReadableSequentialData input, int maxSize) throws ParseException, IOException {
+                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, SlimBuffer input, int maxSize) throws ParseException, IOException {
                     $defaultCaseBody
                     return $unknownFields;
                 }
@@ -181,12 +181,7 @@ class CodecParseMethodGenerator {
         list.add("""
                         // -- PARSE LOOP ---------------------------------------------
                         // Continue to parse bytes out of the input stream until we get to the end.
-                        while (input.hasRemaining()) {
-                            // Note: ReadableStreamingData.hasRemaining() won't flip to false
-                            // until the end of stream is actually hit with a read operation.
-                            // So we catch this exception here and **only** here, because an EOFException
-                            // anywhere else suggests that we're processing malformed data and so
-                            // we must re-throw the exception then.
+                        while (input.hasMore()) {
                             final int $prefixtag;
                             try {
                                 // Read the "tag" byte which gives us the field number for the next field to read
@@ -300,7 +295,7 @@ class CodecParseMethodGenerator {
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
         sbFunc.append("""
-%s case%d(ReadableSequentialData input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
+            %s case%d(SlimBuffer input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
         if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
@@ -321,17 +316,15 @@ class CodecParseMethodGenerator {
         }
         sbFunc.append("""
                 // Read the length of packed repeated field data
-                final long length = input.readVarInt(false);
+                final int length = input.readVarInt(false);
                 if (length > $maxSize) {
                     throw new ParseException("$fieldName size " + length + " is greater than max " + $maxSize);
                 }
-                if (input.remaining() < length) {
-                    throw new BufferUnderflowException();
-                }
+                input.ensure(length);
                 final var beforeLimit = input.limit();
                 final long beforePosition = input.position();
                 input.limit(input.position() + length);
-                while (input.hasRemaining()) {
+                while (input.hasMore()) {
                     $preRead$tempFieldName = addToList($tempFieldName,$readMethod);
                 }
                 input.limit(beforeLimit);

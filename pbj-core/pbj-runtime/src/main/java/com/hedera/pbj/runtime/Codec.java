@@ -2,6 +2,7 @@
 package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.SlimBuffer;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -62,13 +63,18 @@ public interface Codec<T> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull
-    T parse(
+    default @NonNull T parse(
             @NonNull ReadableSequentialData input,
             boolean strictMode,
             boolean parseUnknownFields,
             int maxDepth,
             int maxSize)
+            throws ParseException {
+        return parse(new SlimBuffer(input), strictMode, parseUnknownFields, maxDepth, maxSize);
+    }
+
+    @NonNull
+    T parse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException;
 
     /**
@@ -96,6 +102,11 @@ public interface Codec<T> {
     @NonNull
     default T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
+        return parse(new SlimBuffer(input), strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+    }
+
+    default T parse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
         return parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
     }
     /**
@@ -119,6 +130,11 @@ public interface Codec<T> {
     @NonNull
     default T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth)
             throws ParseException {
+        return parse(input, strictMode, false, maxDepth);
+    }
+
+    @NonNull
+    default T parse(@NonNull SlimBuffer input, final boolean strictMode, final int maxDepth) throws ParseException {
         return parse(input, strictMode, false, maxDepth);
     }
 
@@ -146,14 +162,19 @@ public interface Codec<T> {
     }
 
     /**
-     * Parses an object from the {@link ReadableSequentialData} and returns it.
+     * Parses an object from the {@link SlimBuffer} and returns it.
      *
-     * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
+     * @param input The {@link SlimBuffer} from which to read the data to construct an object
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
     @NonNull
     default T parse(@NonNull ReadableSequentialData input) throws ParseException {
+        return parse(new SlimBuffer(input));
+    }
+
+    @NonNull
+    default T parse(@NonNull SlimBuffer input) throws ParseException {
         return parse(input, false, DEFAULT_MAX_DEPTH);
     }
 
@@ -182,9 +203,13 @@ public interface Codec<T> {
      */
     @NonNull
     default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
-        return parse(input, true, DEFAULT_MAX_DEPTH);
+        return parse(new SlimBuffer(input), true, DEFAULT_MAX_DEPTH);
     }
 
+    @NonNull
+    default T parseStrict(@NonNull SlimBuffer input) throws ParseException {
+        return parse(input, true, DEFAULT_MAX_DEPTH);
+    }
     /**
      * Parses an object from the {@link Bytes} and returns it. Throws an exception if fields
      * have been defined on the encoded object that are not supported by the parser. This
@@ -198,7 +223,7 @@ public interface Codec<T> {
      */
     @NonNull
     default T parseStrict(@NonNull Bytes bytes) throws ParseException {
-        return parseStrict(bytes.toReadableSequentialData());
+        return parseStrict(new SlimBuffer(bytes.toReadableSequentialData()));
     }
 
     /**
@@ -240,8 +265,15 @@ public interface Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    int measure(@NonNull ReadableSequentialData input) throws ParseException;
+    default int measure(@NonNull SlimBuffer input) throws ParseException {
+        final long startPosition = input.position();
+        parse(input);
+        return (int) (input.position() - startPosition);
+    }
 
+    default int measure(@NonNull ReadableSequentialData input) throws ParseException {
+        return measure(new SlimBuffer(input));
+    }
     /**
      * Compute number of bytes that would be written when calling {@code write()} method.
      *
@@ -262,8 +294,11 @@ public interface Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException;
+    boolean fastEquals(@NonNull T item, @NonNull SlimBuffer input) throws ParseException;
 
+    default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+        return fastEquals(item, new SlimBuffer(input));
+    }
     /**
      * Converts a Record into a Bytes object
      *
