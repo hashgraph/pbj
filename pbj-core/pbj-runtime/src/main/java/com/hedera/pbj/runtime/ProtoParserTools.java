@@ -10,7 +10,9 @@ import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -142,10 +144,10 @@ public final class ProtoParserTools {
         return i == 1;
     }
 
-    public static boolean readBool(SlimBuffer input) throws IOException {
+    public static boolean readBool(SlimBuffer input) {
         final var i = input.readVarInt(false);
         if (i != 1 && i != 0) {
-            throw new IOException("Bad protobuf encoding. Boolean was not 0 or 1");
+            input.setError(SlimBuffer.DataEncoding);
         }
         return i == 1;
     }
@@ -289,12 +291,8 @@ public final class ProtoParserTools {
         }
     }
 
-    public static String readString(final SlimBuffer input) throws IOException {
-        try {
-            return readString(input, Long.MAX_VALUE);
-        } catch (ParseException ex) {
-            throw new UncheckedParseException(ex);
-        }
+    public static String readString(final SlimBuffer input) {
+        return readString(input, Long.MAX_VALUE);
     }
 
     /**
@@ -334,30 +332,33 @@ public final class ProtoParserTools {
         }
     }
 
-    public static String readString(SlimBuffer input, final long maxSize) throws IOException, ParseException {
+    public static String readString(SlimBuffer input, final long maxSize) {
         final int length = input.readVarInt(false);
         if (length > maxSize) {
-            throw new ParseException("size " + length + " is greater than max " + maxSize);
+            input.setError(SlimBuffer.Parse);
+            return "";
         }
-        input.ensure(length);
         final ByteBuffer bb = ByteBuffer.allocate(length);
         final long bytesRead = input.readBytes(bb);
         if (bytesRead != length) {
-            throw new BufferUnderflowException();
+            input.setError(SlimBuffer.BufferUnderflow);
+            return "";
         }
         bb.rewind();
 
-        try {
-            // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
-            return StandardCharsets.UTF_8
-                    .newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(bb)
-                    .toString();
-        } catch (CharacterCodingException e) {
-            throw new MalformedProtobufException("Malformed UTF-8 string encountered", e);
+        // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
+        final CharsetDecoder decoder = StandardCharsets.UTF_8
+                .newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+
+        final CharBuffer cb = CharBuffer.allocate((int) (length * decoder.maxCharsPerByte()) + 1);
+        if (decoder.decode(bb, cb, true).isError() || decoder.flush(cb).isError()) {
+            input.setError(SlimBuffer.Parse);
+            return "";
         }
+        cb.flip();
+        return cb.toString();
     }
 
     /**
@@ -400,17 +401,13 @@ public final class ProtoParserTools {
         return bytes;
     }
 
-    public static Bytes readBytes(SlimBuffer input, final long maxSize) throws ParseException {
+    public static Bytes readBytes(SlimBuffer input, final long maxSize) {
         final int length = input.readVarInt(false);
         if (length > maxSize) {
-            throw new ParseException("size " + length + " is greater than max " + maxSize);
+            input.setError(SlimBuffer.Parse);
+            return Bytes.EMPTY;
         }
-        input.ensure(length);
-        Bytes bytes = input.readBytes(length);
-        if (bytes.length() != length) {
-            throw new BufferUnderflowException();
-        }
-        return bytes;
+        return input.readBytes(length);
     }
 
     /**
@@ -508,8 +505,7 @@ public final class ProtoParserTools {
         };
     }
 
-    public static Bytes extractField(SlimBuffer input, final ProtoConstants wireType, final long maxSize)
-            throws IOException, ParseException {
+    public static Bytes extractField(SlimBuffer input, final ProtoConstants wireType, final long maxSize) {
         return switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.readBytes(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.readBytes(4);
@@ -521,16 +517,27 @@ public final class ProtoParserTools {
                 final Bytes lenBytes = input.readVarLongBytes();
                 final int length = lenBytes.getVarInt(0, false);
                 if (length < 0) {
-                    throw new IOException("Encountered a field with negative length " + length);
+                    input.setError(SlimBuffer.IOError);
+                    yield Bytes.EMPTY;
                 }
                 if (length > maxSize) {
-                    throw new ParseException("size " + length + " is greater than max " + maxSize);
+                    input.setError(SlimBuffer.Parse);
+                    yield Bytes.EMPTY;
                 }
                 yield Bytes.merge(lenBytes, input.readBytes(length));
             }
-            case WIRE_TYPE_GROUP_START -> throw new IOException("Wire type 'Group Start' is unsupported");
-            case WIRE_TYPE_GROUP_END -> throw new IOException("Wire type 'Group End' is unsupported");
-            default -> throw new IOException("Unhandled wire type while trying to skip a field " + wireType);
+            case WIRE_TYPE_GROUP_START -> {
+                input.setError(SlimBuffer.Unsupported);
+                yield Bytes.EMPTY;
+            }
+            case WIRE_TYPE_GROUP_END -> {
+                input.setError(SlimBuffer.Unsupported);
+                yield Bytes.EMPTY;
+            }
+            default -> {
+                input.setError(SlimBuffer.IOError);
+                yield Bytes.EMPTY;
+            }
         };
     }
 
@@ -583,8 +590,7 @@ public final class ProtoParserTools {
         }
     }
 
-    public static void skipField(SlimBuffer input, final ProtoConstants wireType, final long maxSize)
-            throws IOException, ParseException {
+    public static void skipField(SlimBuffer input, final ProtoConstants wireType, final long maxSize) {
         switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
@@ -595,16 +601,16 @@ public final class ProtoParserTools {
             case WIRE_TYPE_DELIMITED -> {
                 final int length = input.readVarInt(false);
                 if (length < 0) {
-                    throw new IOException("Encountered a field with negative length " + length);
+                    input.setError(SlimBuffer.IOError);
                 }
                 if (length > maxSize) {
-                    throw new ParseException("size " + length + " is greater than max " + maxSize);
+                    input.setError(SlimBuffer.Parse);
                 }
                 input.skip(length);
             }
-            case WIRE_TYPE_GROUP_START -> throw new IOException("Wire type 'Group Start' is unsupported");
-            case WIRE_TYPE_GROUP_END -> throw new IOException("Wire type 'Group End' is unsupported");
-            default -> throw new IOException("Unhandled wire type while trying to skip a field " + wireType);
+            case WIRE_TYPE_GROUP_START -> input.setError(SlimBuffer.Unsupported);
+            case WIRE_TYPE_GROUP_END -> input.setError(SlimBuffer.Unsupported);
+            default -> input.setError(SlimBuffer.IOError);
         }
     }
 
