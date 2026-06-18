@@ -1,18 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-/* WIP, not optimized, is passing tests. Some TODOs are
- * When using readBytes on a stream, skip buffering to internel buffer
- * Fix logic so the internal buffer never needs to be resized
- *      right now readBytes and limit are blocking this
- * Update ReadVarInt/readVarLong to latest implementation
- * Remove catches and throws
- * Simplify/remove methods if breaking compatibility
- * Remove asInputStream
- */
-
 package com.hedera.pbj.runtime.io;
 
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
@@ -25,29 +19,38 @@ import java.nio.ByteBuffer;
  */
 public class SlimBuffer {
     private byte[] buf;
-    private int pos, end; // TODO remove 'end' if keeping limit
-    private int relLimit;
-    private long absoluteLimit, offset;
+    private int pos, end;
+    private int relLimit, err;
+    private long absoluteLimit = Long.MAX_VALUE, offset;
     private boolean seenEOF;
     private ReadableSequentialData input;
+    private InputStream input2;
+    private Exception cause;
 
-    public SlimBuffer(ReadableSequentialData input) {
-        this(input, null);
-    }
+    public static final int EOF = -1,
+            DataEncoding = 1,
+            BufferUnderflow = 2,
+            Parse = 3,
+            IllegalArgument = 4,
+            IOError = 5,
+            Unsupported = 6, // used with WIRE_TYPE_GROUP_START, WIRE_TYPE_GROUP_END
+            TooLarge = 7,
+            TODOCase = 8,
+            UsageError = 9;
 
     /**
      * Streams data of unknown length into its private buffer.
      * It will read more data then necessary when there's space in the internal buffer
      * @param input the input stream
-     * @param scratchBuffer a bufer to be used internally, allowed to be null. ATM it may be thrown way, there's a todo to fix it
      */
-    public SlimBuffer(ReadableSequentialData input, byte[] scratchBuffer) {
+    public SlimBuffer(ReadableSequentialData input) {
         this.input = input;
-        if (scratchBuffer != null && scratchBuffer.length >= 4096) {
-            buf = scratchBuffer;
-        } else {
-            buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
-        }
+        buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+    }
+
+    public SlimBuffer(InputStream input) {
+        this.input2 = input;
+        buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
     }
 
     /**
@@ -60,27 +63,51 @@ public class SlimBuffer {
         relLimit = buf.length;
         absoluteLimit = buf.length;
         seenEOF = true;
+        err = EOF;
     }
 
-    // TODO remove, atm exists for readBytes
-    private void grow(int minCap) {
-        int power2Capacity = 2 << (63 - Long.numberOfLeadingZeros(Math.max(buf.length, minCap)));
-        byte[] newCopy = new byte[power2Capacity];
-        System.arraycopy(buf, 0, newCopy, 0, end);
-        buf = newCopy;
+    public SlimBuffer(ByteBuffer completeBuffer) {
+        buf = completeBuffer.array();
+        pos = completeBuffer.arrayOffset() + completeBuffer.position();
+        end = completeBuffer.arrayOffset() + completeBuffer.limit();
+        relLimit = end;
+        absoluteLimit = end;
+        seenEOF = true;
+        err = EOF;
     }
 
-    private void bufferMore() {
-        bufferMore(1);
+    public void bufferToEOF() {
+        while (err == 0) {
+            offset += pos;
+            int power2Capacity = 2 << (63 - Long.numberOfLeadingZeros(buf.length));
+            var newBuf = new byte[power2Capacity];
+            if (pos < end) {
+                int moveLen = end - pos;
+                System.arraycopy(buf, pos, newBuf, 0, moveLen);
+                end = moveLen;
+            } else {
+                end = 0;
+            }
+            buf = newBuf;
+            pos = 0;
+            int remLen = buf.length - end;
+            int rdlen = readFromInput(buf, end, remLen);
+            end += rdlen;
+            relLimit = (int) Math.min(absoluteLimit - offset, end);
+            if (rdlen == 0) {
+                seenEOF = true;
+                err = EOF;
+            }
+        }
     }
 
-    // used for streaming, todo remove relAmount
     private void bufferMore(int relAmount) {
-        if (relAmount <= 0) {
-            relAmount = 1;
+        if (err != 0) return;
+        if (absoluteLimit != -1 && offset + pos + relAmount > absoluteLimit) {
+            setError(BufferUnderflow);
+            return;
         }
         offset += pos;
-        relLimit = (int) (absoluteLimit - offset);
         if (pos < end && pos != 0) {
             int moveLen = end - pos;
             System.arraycopy(buf, pos, buf, 0, end - pos);
@@ -89,22 +116,12 @@ public class SlimBuffer {
             end = 0;
         }
         pos = 0;
-        int remLen = buf.length - end;
-        if (remLen < relAmount) {
-            grow(relAmount);
-            remLen = buf.length - end;
-        }
-        try {
-            int rdlen = (int) input.readBytes(buf, end, remLen);
-            end += rdlen;
-            absoluteLimit = offset + end;
-            relLimit = (int) (absoluteLimit - offset);
-            if (rdlen == 0) {
-                seenEOF = true;
-                return;
-            }
-        } catch (UncheckedIOException e) {
-            throw e;
+        int rdlen = readFromInput(buf, end, buf.length - end);
+        end += rdlen;
+        relLimit = (int) Math.min(absoluteLimit - offset, end);
+        if (rdlen == 0) {
+            seenEOF = true;
+            err = EOF;
         }
     }
 
@@ -115,41 +132,20 @@ public class SlimBuffer {
     }
     // still small, but less likely to hit this case in steaming, and only once when not streaming
     private boolean hasMoreInternal() {
+        if (offset + pos == absoluteLimit) return false;
         if (seenEOF) return false;
-        bufferMore();
+        bufferMore(1);
         return pos < relLimit;
     }
 
-    // todo remove
-    public void ensure(int amount) throws BufferUnderflowException {
-        if (amount < 0) {
-            throw new IllegalArgumentException();
-        }
-        if (pos + amount <= relLimit) return;
-        if (seenEOF) throw new BufferUnderflowException();
-        bufferMore(amount);
-        if (pos + amount <= relLimit) return;
-        throw new BufferUnderflowException();
-    }
-
-    // returns the current limit, when streaming it'll buffer until it reaches EOF
-    // TODO find out if tests work when streaming without buffering the entire input
     public long limit() {
-        if (!seenEOF) {
-            for (int i = 0; !seenEOF && i < 32; i++) {
-                bufferMore();
-            }
-            if (seenEOF == false) {
-                throw new RuntimeException(); // logic error
-            }
-        }
         return absoluteLimit;
     }
 
-    // Set the limit so a stream is considered to not have more past the limit
     public void limit(long limit) {
-        absoluteLimit = Math.max(offset + pos, Math.min(limit, offset + end));
-        relLimit = (int) (absoluteLimit - offset);
+        absoluteLimit = limit;
+        if (err > 0) return; // keep relLimit -1 in error state
+        relLimit = (int) Math.min(absoluteLimit - offset, end);
     }
 
     public long position() {
@@ -158,127 +154,269 @@ public class SlimBuffer {
 
     public void resetPosition() {
         pos = 0;
+        err = seenEOF ? EOF : UsageError;
     }
 
-    public void skip(long count) throws UncheckedIOException {
-        ensure((int) count);
-        pos += (int) count;
+    public void skip(long count) {
+        if (count >= 0 && pos + count <= relLimit) {
+            pos += (int) count;
+            return;
+        }
+        skipInternal(count);
     }
 
-    public int readVarInt(final boolean zigZag) {
+    private void skipInternal(long count) {
+        if (seenEOF) {
+            setError(BufferUnderflow);
+            return;
+        }
+
+        int skippedInBuffer = relLimit - pos;
+        count -= skippedInBuffer;
+        pos = relLimit;
+        offset += count;
+        if (input2 != null) {
+            try {
+                long remaining = count;
+                while (remaining > 0) {
+                    long skipped = input2.skip(remaining);
+                    if (skipped <= 0) break;
+                    remaining -= skipped;
+                }
+                if (remaining != 0) {
+                    setError(BufferUnderflow);
+                }
+            } catch (IOException e) {
+                setError(IOError);
+            }
+        } else {
+            input.skip(count); // may throw
+        }
+    }
+
+    public int readVarInt(boolean zigZag) {
         return (int) readVarLong(zigZag);
     }
 
-    public long readVarLong(final boolean zigZag) throws BufferUnderflowException, UncheckedIOException {
-        // TODO update the implementation, but measure if latest is still best for this code
+    public long readVarLong(boolean zigZag) {
         long value = 0;
         for (int i = 0; i < 10; i++) {
-            final byte b = readByte();
+            byte b = readByte();
             value |= (long) (b & 0x7F) << (i * 7);
             if (b >= 0) {
                 return zigZag ? (value >>> 1) ^ -(value & 1) : value;
             }
         }
-        throw new DataEncodingException("Malformed var int");
+        setError(DataEncoding);
+        return -1;
     }
 
-    public Bytes readVarLongBytes() throws BufferUnderflowException, UncheckedIOException {
-        // TODO update the implementation, but measure if latest is still best for this code
-        final byte[] bytes = new byte[10];
+    public Bytes readVarLongBytes() {
+        byte[] bytes = new byte[10];
         for (int i = 0; i < 10; i++) {
             bytes[i] = readByte();
             if (bytes[i] >= 0) {
                 return Bytes.wrap(bytes, 0, i + 1);
             }
         }
-        throw new DataEncodingException("Malformed var int");
+        setError(DataEncoding);
+        return Bytes.EMPTY;
     }
 
-    public long readBytes(@NonNull final byte[] dst) throws UncheckedIOException {
-        // TODO see if we can skip the ensure and stream data directly into this
-        ensure(dst.length);
-        System.arraycopy(buf, pos, dst, 0, dst.length);
-        pos += dst.length;
-        return dst.length;
+    public void setError(int errorKind) {
+        if (err > 0) return; // if an error exists, don't overwrite
+        err = errorKind;
+        relLimit = -1;
+        seenEOF = true;
+        // cause = new RuntimeException(); // comment this out if you're not debugging
     }
 
-    public @NonNull Bytes readBytes(final int length) throws BufferUnderflowException, UncheckedIOException {
-        if (length < 0) {
-            throw new IllegalArgumentException();
+    public void upgradeErrorToParse() {
+        if (err > 0) {
+            err = Parse;
         }
-        // TODO see if we can skip the ensure and stream data directly into this
-        ensure(length);
-        final var bytes = new byte[length];
-        readBytes(bytes);
-        return Bytes.wrap(bytes);
     }
 
-    public long readBytes(@NonNull final ByteBuffer dst) throws UncheckedIOException {
-        // This code isn't correct (for streaming), yet it pass tests
-        // TODO fix logic when fixing other readBytes impl
-        int len = dst.remaining();
-        if (len == 0) return 0;
-        if (relLimit - pos < len) {
-            throw new BufferUnderflowException();
+    public boolean throwOnError2() throws ParseException {
+        throwOnError();
+        return true;
+    }
+
+    public void throwOnError() throws ParseException {
+        if (err <= 0) return;
+        switch (err) {
+            case DataEncoding:
+                throw new DataEncodingException("throwOnError", cause);
+            case BufferUnderflow:
+                var ex = new BufferUnderflowException();
+                ex.initCause(cause);
+                throw ex;
+            case Parse:
+                throw new ParseException(cause);
+            case IllegalArgument:
+                throw new IllegalArgumentException("throwOnError", cause);
+            case Unsupported:
+                throw new RuntimeException("Hit an unsupported feature", cause);
+            default:
+                throw new ParseException(cause);
         }
-        System.arraycopy(buf, pos, dst.array(), dst.arrayOffset() + dst.position(), len);
-        dst.position(dst.position() + len);
+    }
+
+    private int readFromInput(@NonNull byte[] dst, int off, int len) {
+        if (input2 != null) {
+            int total = 0;
+            try {
+                while (total < len) {
+                    int n = input2.read(dst, off + total, len - total);
+                    if (n < 0) break;
+                    total += n;
+                }
+            } catch (IOException e) {
+                setError(IOError);
+            }
+            return total;
+        }
+        try {
+            return (int) input.readBytes(dst, off, len);
+        } catch (EOFException | UncheckedIOException e) {
+            return 0;
+        }
+    }
+
+    private int readBytesInternalCopy(@NonNull byte[] dst, int dstOffset, int count) {
+        if (err > 0) return -1;
+        int copiedLen = Math.min(count, relLimit - pos);
+        System.arraycopy(buf, pos, dst, dstOffset, copiedLen);
+        pos += copiedLen;
+        if (copiedLen == count || err != 0) return copiedLen;
+
+        offset += pos;
+        relLimit = pos = end = 0;
+        long rdlen = readFromInput(dst, dstOffset + copiedLen, count - copiedLen);
+        if (rdlen == 0) {
+            seenEOF = true;
+            err = EOF;
+        }
+        offset += rdlen;
+        return (int) (copiedLen + rdlen);
+    }
+
+    public long readBytes(@NonNull final byte[] dst) {
+        int len = readBytesInternalCopy(dst, 0, dst.length);
         pos += len;
         return len;
     }
-
-    public int readInt() throws BufferUnderflowException, UncheckedIOException {
-        // TODO optimize
-        ensure(4);
-        final int b0 = readByte() & 255;
-        final int b1 = readByte() & 255;
-        final int b2 = readByte() & 255;
-        final int b3 = readByte() & 255;
-        return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
+    public long readBytes(@NonNull ByteBuffer dst) {
+        int len = readBytesInternalCopy(dst.array(), dst.arrayOffset() + dst.position(), dst.remaining());
+        dst.position(dst.position() + len);
+        return len;
     }
 
-    public long readLong() throws BufferUnderflowException, UncheckedIOException {
-        // TODO optimize
-        ensure(8);
-        final byte b8 = readByte();
-        final byte b7 = readByte();
-        final byte b6 = readByte();
-        final byte b5 = readByte();
-        final byte b4 = readByte();
-        final byte b3 = readByte();
-        final byte b2 = readByte();
-        final byte b1 = readByte();
-        return (((long) b1 << 56)
-                + ((long) (b2 & 255) << 48)
-                + ((long) (b3 & 255) << 40)
-                + ((long) (b4 & 255) << 32)
-                + ((long) (b5 & 255) << 24)
-                + ((b6 & 255) << 16)
-                + ((b7 & 255) << 8)
-                + (b8 & 255));
+    public @NonNull Bytes readBytes(int length) {
+        if (length <= relLimit - pos && err <= 0) {
+            var dst = new byte[length];
+            System.arraycopy(buf, pos, dst, 0, length);
+            pos += length;
+            return Bytes.wrap(dst);
+        }
+        return readBytes2(length);
     }
 
-    public float readFloat() throws BufferUnderflowException, UncheckedIOException {
+    public @NonNull Bytes readBytes2(int length) {
+        if (length == 0 || err > 0) {
+            return Bytes.EMPTY;
+        } else if (length < 0) {
+            setError(IllegalArgument);
+            return Bytes.EMPTY;
+        }
+        var dst = new byte[length];
+        int copiedLen = readBytesInternalCopy(dst, 0, length);
+        if (copiedLen < length) {
+            setError(BufferUnderflow);
+            return Bytes.EMPTY;
+        }
+        return Bytes.wrap(dst);
+    }
+
+    public int readInt() {
+        if (pos + 4 <= relLimit) {
+            int v = 0;
+            for (int i = 0; i < 4; i++) {
+                v |= (buf[pos + i] & 255) << (i * 8);
+            }
+            pos += 4;
+            return v;
+        }
+        return readIntInternal();
+    }
+
+    private int readIntInternal() {
+        bufferMore(4);
+        if (pos + 4 > relLimit) {
+            setError(BufferUnderflow);
+            return 0;
+        }
+        int v = 0;
+        for (int i = 0; i < 4; i++) {
+            v |= (buf[pos + i] & 255) << (i * 8);
+        }
+        pos += 4;
+        return v;
+    }
+
+    public long readLong() {
+        if (pos + 8 <= relLimit) {
+            long v = 0;
+            for (int i = 0; i < 8; i++) {
+                v |= (long) (buf[pos + i] & 255) << (i * 8);
+            }
+            pos += 8;
+            return v;
+        }
+        return readLongInternal();
+    }
+
+    private long readLongInternal() {
+        bufferMore(8);
+        if (pos + 8 > relLimit) {
+            setError(BufferUnderflow);
+            return 0;
+        }
+        long v = 0;
+        for (int i = 0; i < 8; i++) {
+            v |= (long) (buf[pos + i] & 255) << (i * 8);
+        }
+        pos += 8;
+        return v;
+    }
+
+    public float readFloat() {
         return Float.intBitsToFloat(readInt());
     }
 
-    public double readDouble() throws BufferUnderflowException, UncheckedIOException {
+    public double readDouble() {
         return Double.longBitsToDouble(readLong());
     }
 
-    // TODO delete
     public InputStream asInputStream() {
-        if (end == 0) return input.asInputStream();
+        if (end == 0) return input2 != null ? input2 : input.asInputStream();
+        if (seenEOF && pos == 0) {
+            return new ByteArrayInputStream(buf, 0, end);
+        }
         throw new UnsupportedOperationException();
     }
 
     private byte readByte() {
-        if (pos == relLimit) {
-            if (relLimit == end) {
-                bufferMore();
-            }
-            if (pos == relLimit) {
-                throw new BufferUnderflowException();
+        if (pos + 1 <= relLimit) return buf[pos++];
+        return readByteInternal();
+    }
+
+    private byte readByteInternal() {
+        if (pos + 1 > relLimit) {
+            bufferMore(1);
+            if (pos + 1 > relLimit) {
+                setError(BufferUnderflow);
+                return 0;
             }
         }
         return buf[pos++];
