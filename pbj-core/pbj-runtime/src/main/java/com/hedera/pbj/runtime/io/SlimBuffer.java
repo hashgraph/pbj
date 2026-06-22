@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
  * Once read, data cannot be re-read. The {@link #position()}, once incremented, cannot be reset or decremented.
  * The public methods are meant to be compatible with ReadableSequentialData
  */
-public class SlimBuffer {
+public final class SlimBuffer implements ReadableSequentialData {
     private byte[] buf;
     private int pos, end;
     private int relLimit, err;
@@ -27,7 +27,15 @@ public class SlimBuffer {
     private InputStream input2;
     private Exception cause;
 
-    public char[] charArray = new char[4096]; // will grow
+    public char[] charArray_ = new char[4096]; // will grow
+
+    public char[] charArray() {
+        return charArray_;
+    }
+
+    public void charArray(char[] charArray) {
+        charArray_ = charArray;
+    }
 
     public static final int EOF = -1,
             DataEncoding = 1,
@@ -129,6 +137,12 @@ public class SlimBuffer {
 
     // small and likely to inline
     public boolean hasMore() {
+        if (pos < relLimit) return true;
+        if (offset + pos == absoluteLimit) return false;
+        return hasMoreInternal();
+    }
+    // small and likely to inline
+    public boolean hasRemaining() {
         if (pos < relLimit) return true;
         if (offset + pos == absoluteLimit) return false;
         return hasMoreInternal();
@@ -428,7 +442,7 @@ public class SlimBuffer {
         throw new UnsupportedOperationException();
     }
 
-    private byte readByte() {
+    public byte readByte() {
         if (pos + 1 <= relLimit) return buf[pos++];
         return readByteInternal();
     }
@@ -442,5 +456,9 @@ public class SlimBuffer {
             }
         }
         return buf[pos++];
+    }
+
+    public long capacity() {
+        return buf.length;
     }
 }

@@ -65,22 +65,13 @@ public interface Codec<T> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    default @NonNull T parse(
+    @NonNull
+    T parse(
             @NonNull ReadableSequentialData input,
             boolean strictMode,
             boolean parseUnknownFields,
             int maxDepth,
             int maxSize)
-            throws ParseException {
-        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
-        SlimBuffer slim = new SlimBuffer(input);
-        T res = parse(slim, strictMode, parseUnknownFields, maxDepth, maxSize);
-        slim.throwOnError();
-        return res;
-    }
-
-    @NonNull
-    T parse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException;
 
     /**
@@ -293,12 +284,6 @@ public interface Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    default int measure(@NonNull SlimBuffer input) throws ParseException {
-        final long startPosition = input.position();
-        parse(input);
-        return (int) (input.position() - startPosition);
-    }
-
     default int measure(@NonNull ReadableSequentialData input) throws ParseException {
         if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
         SlimBuffer slim = new SlimBuffer(input);
@@ -326,15 +311,8 @@ public interface Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    boolean fastEquals(@NonNull T item, @NonNull SlimBuffer input) throws ParseException;
+    boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException;
 
-    default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
-        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
-        SlimBuffer slim = new SlimBuffer(input);
-        boolean res = fastEquals(item, new SlimBuffer(input));
-        slim.throwOnError();
-        return res;
-    }
     /**
      * Converts a Record into a Bytes object
      *

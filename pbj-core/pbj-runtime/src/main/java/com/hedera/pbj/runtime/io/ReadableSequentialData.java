@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
@@ -23,6 +24,30 @@ import java.nio.ByteOrder;
  * Implementations of this interface may choose to reimplement those methods to be more efficient as needed.
  */
 public interface ReadableSequentialData extends SequentialData {
+
+    default void setError(int errorKind) {}
+
+    default void upgradeErrorToParse() {}
+
+    default boolean throwOnError2() throws ParseException {
+        return true;
+    }
+
+    default void throwOnError() throws ParseException {}
+
+    default byte[] array() {
+        return null;
+    }
+
+    default int buffered(int count) {
+        return 0;
+    }
+
+    default char[] charArray() {
+        return null;
+    }
+
+    default void charArray(char[] c) {}
 
     /**
      * Reads the signed byte at current {@link #position()}, and then increments the {@link #position()} by 1.

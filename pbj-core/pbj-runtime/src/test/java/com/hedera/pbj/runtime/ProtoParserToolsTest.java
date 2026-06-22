@@ -109,11 +109,7 @@ class ProtoParserToolsTest {
                 () -> value != 0,
                 (d, v) -> d.writeVarInt(value, false),
                 input -> {
-                    try {
-                        return ProtoParserTools.readBool(input);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                    return ProtoParserTools.readBool(input);
                 },
                 1);
     }
@@ -564,7 +560,7 @@ class ProtoParserToolsTest {
                 final int maxSize)
                 throws ParseException {
             String value = null;
-            while (in.hasMore()) {
+            while (in.hasRemaining()) {
                 final int tag = in.readVarInt(false);
                 final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;
                 final int wireType = tag & TAG_WIRE_TYPE_MASK;
@@ -602,7 +598,8 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public boolean fastEquals(@NonNull TestMessage item, @NonNull SlimBuffer input) throws ParseException {
+        public boolean fastEquals(@NonNull TestMessage item, @NonNull ReadableSequentialData input)
+                throws ParseException {
             throw new UnsupportedOperationException();
         }
 

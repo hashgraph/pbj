@@ -28,7 +28,7 @@ class CodecFastEqualsMethodGenerator {
                  * @return true if the bytes represent the item, false otherwise.
                  * @throws ParseException If parsing fails
                  */
-                public boolean fastEquals(@NonNull $modelClass item, @NonNull final SlimBuffer input) throws ParseException {
+                public boolean fastEquals(@NonNull $modelClass item, @NonNull final ReadableSequentialData input) throws ParseException {
                     return item.equals(parse(input));
                 }
                 """.replace("$modelClass", modelClassName).indent(DEFAULT_INDENT);

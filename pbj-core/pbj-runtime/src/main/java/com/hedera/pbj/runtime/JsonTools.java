@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.SlimBuffer;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.jsonparser.JSONLexer;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
@@ -94,7 +94,7 @@ public final class JsonTools {
      * @return the Antlr JSON context object
      * @throws IOException if there was a problem parsing the JSON
      */
-    public static JSONParser.ObjContext parseJson(@NonNull final SlimBuffer input) throws IOException {
+    public static JSONParser.ObjContext parseJson(@NonNull final ReadableSequentialData input) throws IOException {
         final JSONLexer lexer = new JSONLexer(CharStreams.fromStream(input.asInputStream()));
         final JSONParser parser = new JSONParser(new CommonTokenStream(lexer));
         final JSONParser.JsonContext jsonContext = parser.json();
@@ -542,14 +542,14 @@ public final class JsonTools {
                                     case BYTES -> '"' + ((Bytes) item).toBase64() + '"';
                                     case INT32, SINT32, UINT32, FIXED32, SFIXED32 -> Integer.toString((Integer) item);
                                     case INT64, SINT64, UINT64, FIXED64, SFIXED64 ->
-                                        '"' + Long.toString((Long) item) + '"';
+                                            '"' + Long.toString((Long) item) + '"';
                                     case FLOAT -> Float.toString((Float) item);
                                     case DOUBLE -> Double.toString((Double) item);
                                     case BOOL -> Boolean.toString((Boolean) item);
                                     case ENUM -> '"' + ((EnumWithProtoMetadata) item).protoName() + '"';
                                     case MESSAGE ->
-                                        throw new UnsupportedOperationException(
-                                                "No expected here should have called other arrayField() method");
+                                            throw new UnsupportedOperationException(
+                                                    "No expected here should have called other arrayField() method");
                                     case MAP -> throw new UnsupportedOperationException("Arrays of maps not supported");
                                 };
                             }

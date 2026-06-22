@@ -134,15 +134,7 @@ public final class ProtoParserTools {
      * @return the read boolean
      * @throws IOException If a I/O error occurs
      */
-    public static boolean readBool(final ReadableSequentialData input) throws IOException {
-        final var i = input.readVarInt(false);
-        if (i != 1 && i != 0) {
-            throw new IOException("Bad protobuf encoding. Boolean was not 0 or 1");
-        }
-        return i == 1;
-    }
-
-    public static boolean readBool(SlimBuffer input) {
+    public static boolean readBool(ReadableSequentialData input) {
         final var i = input.readVarInt(false);
         if (i != 1 && i != 0) {
             input.setError(SlimBuffer.DataEncoding);
@@ -281,53 +273,8 @@ public final class ProtoParserTools {
      * @param input the input to read from
      * @return Read string
      */
-    public static String readString(final ReadableSequentialData input) throws IOException {
-        try {
-            return readString(input, Long.MAX_VALUE);
-        } catch (ParseException ex) {
-            throw new UncheckedParseException(ex);
-        }
-    }
-
-    public static String readString(final SlimBuffer input) {
+    public static String readString(final ReadableSequentialData input) {
         return readString(input, Long.MAX_VALUE);
-    }
-
-    /**
-     * Read a String field from data input
-     *
-     * @param input the input to read from
-     * @param maxSize the maximum allowed size
-     * @return Read string
-     * @throws ParseException if the length is greater than maxSize
-     */
-    public static String readString(final ReadableSequentialData input, final long maxSize)
-            throws IOException, ParseException {
-        final int length = input.readVarInt(false);
-        if (length > maxSize) {
-            throw new ParseException("size " + length + " is greater than max " + maxSize);
-        }
-        if (input.remaining() < length) {
-            throw new BufferUnderflowException();
-        }
-        final ByteBuffer bb = ByteBuffer.allocate(length);
-        final long bytesRead = input.readBytes(bb);
-        if (bytesRead != length) {
-            throw new BufferUnderflowException();
-        }
-        bb.rewind();
-
-        try {
-            // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
-            return StandardCharsets.UTF_8
-                    .newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(bb)
-                    .toString();
-        } catch (CharacterCodingException e) {
-            throw new MalformedProtobufException("Malformed UTF-8 string encountered", e);
-        }
     }
 
     static int FromUTF8Tail(char[] dst, int di, byte[] src, int i, int endPos) {
@@ -420,7 +367,15 @@ public final class ProtoParserTools {
         return i == offset + length ? di : FromUTF8Tail(dst, di, src, i, offset + length);
     }
 
-    public static String readString(SlimBuffer input, final long maxSize) {
+    /**
+     * Read a String field from data input
+     *
+     * @param input the input to read from
+     * @param maxSize the maximum allowed size
+     * @return Read string
+     * @throws ParseException if the length is greater than maxSize
+     */
+    public static String readString(ReadableSequentialData input, final long maxSize) {
         final int length = input.readVarInt(false);
         if (length > maxSize) {
             input.setError(SlimBuffer.Parse);
@@ -443,12 +398,12 @@ public final class ProtoParserTools {
             bufPos = 0;
         }
 
-        if (length > input.charArray.length) {
+        if (length > input.charArray().length) {
             int power2Capacity = 1 << (63 - Long.numberOfLeadingZeros(length));
-            input.charArray = new char[power2Capacity];
+            input.charArray(new char[power2Capacity]);
         }
 
-        var charArray = input.charArray;
+        var charArray = input.charArray();
         int i = 0;
         // Ascii fast path
         {
@@ -586,34 +541,7 @@ public final class ProtoParserTools {
      * @throws IOException For unsupported wire types
      * @throws ParseException if the length of a repeated/length-encoded field is greater than maxSize
      */
-    public static Bytes extractField(
-            final ReadableSequentialData input, final ProtoConstants wireType, final long maxSize)
-            throws IOException, ParseException {
-        return switch (wireType) {
-            case WIRE_TYPE_FIXED_64_BIT -> input.readBytes(8);
-            case WIRE_TYPE_FIXED_32_BIT -> input.readBytes(4);
-            // The value for "zigZag" when calling varint doesn't matter because we are just reading past
-            // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
-            // the bytes, not how many of them there are)
-            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLongBytes();
-            case WIRE_TYPE_DELIMITED -> {
-                final Bytes lenBytes = input.readVarLongBytes();
-                final int length = lenBytes.getVarInt(0, false);
-                if (length < 0) {
-                    throw new IOException("Encountered a field with negative length " + length);
-                }
-                if (length > maxSize) {
-                    throw new ParseException("size " + length + " is greater than max " + maxSize);
-                }
-                yield Bytes.merge(lenBytes, input.readBytes(length));
-            }
-            case WIRE_TYPE_GROUP_START -> throw new IOException("Wire type 'Group Start' is unsupported");
-            case WIRE_TYPE_GROUP_END -> throw new IOException("Wire type 'Group End' is unsupported");
-            default -> throw new IOException("Unhandled wire type while trying to skip a field " + wireType);
-        };
-    }
-
-    public static Bytes extractField(SlimBuffer input, final ProtoConstants wireType, final long maxSize) {
+    public static Bytes extractField(ReadableSequentialData input, final ProtoConstants wireType, final long maxSize) {
         return switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.readBytes(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.readBytes(4);
@@ -657,11 +585,7 @@ public final class ProtoParserTools {
      * @throws IOException For unsupported wire types
      */
     public static void skipField(final ReadableSequentialData input, final ProtoConstants wireType) throws IOException {
-        try {
-            skipField(input, wireType, Long.MAX_VALUE);
-        } catch (ParseException ex) {
-            throw new UncheckedParseException(ex);
-        }
+        skipField(input, wireType, Long.MAX_VALUE);
     }
 
     /**
@@ -673,32 +597,7 @@ public final class ProtoParserTools {
      * @throws IOException For unsupported wire types
      * @throws ParseException if the length of a repeated/length-encoded field is greater than maxSize
      */
-    public static void skipField(final ReadableSequentialData input, final ProtoConstants wireType, final long maxSize)
-            throws IOException, ParseException {
-        switch (wireType) {
-            case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
-            case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
-            // The value for "zigZag" when calling varint doesn't matter because we are just reading past
-            // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
-            // the bytes, not how many of them there are)
-            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
-            case WIRE_TYPE_DELIMITED -> {
-                final int length = input.readVarInt(false);
-                if (length < 0) {
-                    throw new IOException("Encountered a field with negative length " + length);
-                }
-                if (length > maxSize) {
-                    throw new ParseException("size " + length + " is greater than max " + maxSize);
-                }
-                input.skip(length);
-            }
-            case WIRE_TYPE_GROUP_START -> throw new IOException("Wire type 'Group Start' is unsupported");
-            case WIRE_TYPE_GROUP_END -> throw new IOException("Wire type 'Group End' is unsupported");
-            default -> throw new IOException("Unhandled wire type while trying to skip a field " + wireType);
-        }
-    }
-
-    public static void skipField(SlimBuffer input, final ProtoConstants wireType, final long maxSize) {
+    public static void skipField(ReadableSequentialData input, final ProtoConstants wireType, final long maxSize) {
         switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
