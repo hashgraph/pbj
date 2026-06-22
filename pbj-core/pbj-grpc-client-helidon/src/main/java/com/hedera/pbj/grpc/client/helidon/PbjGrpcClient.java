@@ -157,7 +157,8 @@ public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
                     }
                 },
                 null,
-                connection.streamIdSequence());
+                connection.streamIdSequence(),
+                (Http2ClientImpl) http2Client);
     }
 
     /**

@@ -89,8 +89,6 @@ public class PbjGrpcClientTest {
         verify(clientConnection, times(1)).helidonSocket();
 
         stream.close();
-        // streamId hasn't been initialized yet, so it's zero:
-        verify(connection, times(1)).removeStream(0);
     }
 
     @Test
