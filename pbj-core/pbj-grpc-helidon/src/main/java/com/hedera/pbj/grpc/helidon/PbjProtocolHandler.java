@@ -57,6 +57,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -703,6 +704,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * receives bytes from the handlers to send to the client.
      */
     private final class SendToClientSubscriber implements Pipeline<Bytes> {
+        private final AtomicBoolean completedOnce = new AtomicBoolean(false);
+
         @Override
         public void onSubscribe(@NonNull final Flow.Subscription subscription) {
             // FUTURE: Add support for flow control
@@ -754,6 +757,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
         @Override
         public void onComplete() {
+            if (!completedOnce.compareAndSet(false, true)) {
+                return;
+            }
             new TrailerBuilder().send();
 
             deadlineFuture.cancel(false);
