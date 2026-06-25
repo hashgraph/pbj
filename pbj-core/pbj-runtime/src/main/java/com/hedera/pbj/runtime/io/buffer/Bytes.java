@@ -78,6 +78,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      */
     private int hashCode = 0;
 
+    /// Cached read-only MemorySegment backed by this Bytes instance.
+    private MemorySegment memorySegment = null;
+
     /**
      * Create a new ByteOverByteBuffer over given byte array. This does not copy data it just wraps so
      * any changes to arrays contents will be effected here.
@@ -513,7 +516,12 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @return a read-only on-heap MemorySegment mapping this Bytes' content
      */
     public MemorySegment toMemorySegment() {
-        return MemorySegment.ofArray(buffer).asSlice(start, length).asReadOnly();
+        // No synchronization for performance reasons. Rely on eventual consistency.
+        if (memorySegment != null) {
+            return memorySegment;
+        }
+        return memorySegment =
+                MemorySegment.ofArray(buffer).asSlice(start, length).asReadOnly();
     }
 
     /**
