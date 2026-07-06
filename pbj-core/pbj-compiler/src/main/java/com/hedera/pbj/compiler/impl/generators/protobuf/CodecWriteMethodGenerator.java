@@ -46,13 +46,13 @@ final class CodecWriteMethodGenerator {
              * @param out The output stream to write to
              * @throws IOException If there is a problem writing
              */
-            public void write(@NonNull $modelClass data, @NonNull final WritableSequentialData out) throws IOException {
+            public void realWrite(@NonNull $modelClass data, @NonNull final SlimWriter out) throws IOException {
                 $fieldWriteLines
                 // Check if not-empty to avoid creating a lambda if there's nothing to write.
                 if (!data.getUnknownFields().isEmpty()) {
                     data.getUnknownFields().forEach(uf -> {
                         final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
-                        out.writeVarInt(tag, false);
+                        out.writeVarIntNoZZ(tag);
                         uf.bytes().writeTo(out);
                     });
                 }
@@ -178,7 +178,7 @@ final class CodecWriteMethodGenerator {
                                     $V v = pbjMap.get(k);
                                     int size = 0;
                                     $fieldSizeOfLines
-                                    out.writeVarInt(size, false);
+                                    out.writeVarIntNoZZ(size);
                                     $fieldWriteLines
                                 }
                             }

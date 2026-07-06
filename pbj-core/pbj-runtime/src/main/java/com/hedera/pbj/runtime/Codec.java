@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.SlimBuffer;
+import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -18,7 +19,7 @@ import java.io.UncheckedIOException;
  */
 public interface Codec<T> {
 
-    static final boolean disallowNonSlimBuffer = false;
+    static final boolean disallowNonSlimBuffer = false, disallowNonSlimWriter = false;
 
     /**
      * The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.).
@@ -80,7 +81,16 @@ public interface Codec<T> {
     }
 
     @NonNull
-    T parse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+    default T parse(
+            @NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+            throws ParseException {
+        T res = realParse(input, strictMode, parseUnknownFields, maxDepth, maxSize);
+        input.throwOnError();
+        return res;
+    }
+
+    @NonNull
+    T realParse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException;
 
     /**
@@ -261,7 +271,18 @@ public interface Codec<T> {
      * @param output The {@link WritableSequentialData} to write to.
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
-    void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException;
+    void realWrite(@NonNull T item, @NonNull SlimWriter output) throws IOException;
+
+    default void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+        if (disallowNonSlimWriter) throw new RuntimeException("SlimWriter Only");
+        SlimWriter slim = new SlimWriter(output);
+        realWrite(item, slim);
+        slim.flush();
+    }
+
+    default void write(@NonNull T item, @NonNull SlimWriter output) throws IOException {
+        realWrite(item, output);
+    }
 
     /**
      * Writes an item to the given byte array, this is a performance focused method. In non-performance centric use
@@ -331,7 +352,7 @@ public interface Codec<T> {
     default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
         if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
         SlimBuffer slim = new SlimBuffer(input);
-        boolean res = fastEquals(item, new SlimBuffer(input));
+        boolean res = fastEquals(item, slim);
         slim.throwOnError();
         return res;
     }

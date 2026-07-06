@@ -2,6 +2,7 @@
 package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.SlimBuffer;
+import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
@@ -19,7 +20,7 @@ import java.util.Objects;
 public interface JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
-    default @NonNull T parse(
+    default @NonNull T realParse(
             @NonNull SlimBuffer input,
             final boolean strictMode,
             final boolean parseUnknownFields,
@@ -63,8 +64,13 @@ public interface JsonCodec<T> extends Codec<T> {
      * @param output The {@link WritableSequentialData} to write to.
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
+    @Override
     default void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
         output.writeUTF8(toJSON(item));
+    }
+
+    default void realWrite(@NonNull T item, @NonNull SlimWriter output) throws IOException {
+        Utf8Tools.encodeUtf8(toJSON(item), output);
     }
 
     /**
