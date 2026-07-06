@@ -512,7 +512,7 @@ class ProtoWriterToolsTest {
         final String appleStr2 = RANDOM_STRING.nextString();
         final Apple apple2 = Apple.newBuilder().setVariety(appleStr2).build();
         final BufferedData buf1 = BufferedData.allocate(256);
-        final ProtoWriter<Apple> writer = (data, out) -> out.writeBytes(data.toByteArray());
+        final SlimProtoWriter<Apple> writer = (data, out) -> out.writeBytes(data.toByteArray());
         ProtoWriterTools.writeMessageList(
                 buf1, definition, List.of(apple1, apple2), new CodecWrapper<>(writer, Apple::getSerializedSize));
         final Bytes writtenBytes1 = buf1.getBytes(0, buf1.position());

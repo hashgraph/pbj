@@ -2,7 +2,7 @@
 package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.SlimBuffer;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.SlimWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.function.ToIntFunction;
@@ -14,23 +14,24 @@ import java.util.function.ToIntFunction;
  * @param <T> The type of the object to be encoded/decoded
  */
 class CodecWrapper<T> implements Codec<T> {
-    private final ProtoWriter<T> writer;
+    private final SlimProtoWriter<T> writer;
     private final ToIntFunction<T> sizeOf;
 
-    CodecWrapper(ProtoWriter<T> writer, ToIntFunction<T> sizeOf) {
+    CodecWrapper(SlimProtoWriter<T> writer, ToIntFunction<T> sizeOf) {
         this.writer = writer;
         this.sizeOf = sizeOf;
     }
 
     @NonNull
     @Override
-    public T parse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+    public T realParse(
+            @NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+    public void realWrite(@NonNull T item, @NonNull SlimWriter output) throws IOException {
         writer.write(item, output);
     }
 
