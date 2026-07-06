@@ -101,6 +101,7 @@ public class GenericParserQuickBench {
     @OperationsPerInvocation(INVOCATIONS)
     public void bench(final BenchState state, final Blackhole blackhole) throws ParseException {
         for (int invocation = 0; invocation < INVOCATIONS; invocation++) {
+            state.slimBuffer.resetPosition();
             // blackhole.consume(state.model.codec.parse(state.bd));
             blackhole.consume(state.model.codec.parse(state.slimBuffer));
         }

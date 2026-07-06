@@ -31,15 +31,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.SlimBuffer;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteOrder;
@@ -345,6 +343,18 @@ class ProtoParserToolsTest {
     }
 
     @Test
+    void testReadBytes_slimBuffer_maxSize_throwsParseExceptionWithNoCause() {
+        final int maxSize = 1024;
+        final BufferedData data = BufferedData.allocate(16);
+        data.writeVarInt(maxSize + 1, false);
+        data.flip();
+        final SlimBuffer slim = new SlimBuffer(data.toInputStream());
+        ProtoParserTools.readBytes(slim, maxSize);
+        final ParseException ex = assertThrows(ParseException.class, slim::throwOnError);
+        assertNull(ex.getCause(), "CN Expects no cause");
+    }
+
+    @Test
     void testReadBytes_incomplete() throws IOException {
         final int length = rng.nextInt(0, 100);
         final byte[] byteArray = new byte[length];
@@ -429,7 +439,7 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesNullInput() {
         final FieldDefinition field = createFieldDefinition(BYTES);
-        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes(null, field));
+        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes((SlimBuffer) null, field));
     }
 
     @Test
@@ -475,22 +485,20 @@ class ProtoParserToolsTest {
     private static final FieldDefinition BOOL_F = new FieldDefinition("boolfield", BOOL, false, true, false, 11);
     private static final boolean BOOL_V = true;
 
-    private static Bytes prepareExtractBytesTestInput() throws IOException {
-        try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
-                final WritableStreamingData out = new WritableStreamingData(bout)) {
-            ProtoWriterTools.writeInteger(out, INT32_F, INT32_V);
-            ProtoWriterTools.writeInteger(out, FIXED_F, FIXED32_V);
-            ProtoWriterTools.writeString(out, STRING_F, STRING_V);
-            ProtoWriterTools.writeBytes(out, BYTES_F, BYTES_V);
-            ProtoWriterTools.writeMessage(out, MESSAGE_F, MESSAGE_V, TestMessageCodec.INSTANCE);
-            ProtoWriterTools.writeDouble(out, DOUBLE_F, DOUBLE32_V);
-            return Bytes.wrap(bout.toByteArray());
-        }
+    private static SlimBuffer prepareExtractBytesTestInput() throws IOException {
+        SlimWriter out = new SlimWriter();
+        ProtoWriterTools.writeInteger(out, INT32_F, INT32_V);
+        ProtoWriterTools.writeInteger(out, FIXED_F, FIXED32_V);
+        ProtoWriterTools.writeString(out, STRING_F, STRING_V);
+        ProtoWriterTools.writeBytes(out, BYTES_F, BYTES_V);
+        ProtoWriterTools.writeMessage(out, MESSAGE_F, MESSAGE_V, TestMessageCodec.INSTANCE);
+        ProtoWriterTools.writeDouble(out, DOUBLE_F, DOUBLE32_V);
+        return out.toSlimBuffer();
     }
 
     @Test
     void testExtractBytesStringField() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        SlimBuffer input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, STRING_F);
         assertNotNull(bytes);
         assertEquals(STRING_V, new String(bytes.toByteArray(), StandardCharsets.UTF_8));
@@ -498,14 +506,14 @@ class ProtoParserToolsTest {
 
     @Test
     void testExtractFieldBytesInvalidType() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        SlimBuffer input = prepareExtractBytesTestInput();
         // should throw because INT32 is not a delimited type
         assertThrows(IllegalArgumentException.class, () -> ProtoParserTools.extractFieldBytes(input, INT32_F));
     }
 
     @Test
     void testExtractBytesBytesField() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        SlimBuffer input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, BYTES_F);
         assertNotNull(bytes);
         assertEquals(BYTES_V, bytes);
@@ -513,52 +521,58 @@ class ProtoParserToolsTest {
 
     @Test
     void testExtractBytesMessageField() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        SlimBuffer input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, MESSAGE_F);
         assertNotNull(bytes);
-        final TestMessage value = TestMessageCodec.INSTANCE.parse(bytes.toReadableSequentialData());
+        final TestMessage value = TestMessageCodec.INSTANCE.parse(bytes.toSlimBuffer());
         assertNotNull(value);
         assertEquals(MESSAGE_V, value);
     }
 
     @Test
     void testExtractBytesUnknownField() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        SlimBuffer input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, UNKNOWN_F);
         assertNull(bytes);
     }
 
     @Test
     void testExtractField32Bit() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        SlimBuffer input = prepareExtractBytesTestInput();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_32_BIT, 32);
         assertNotNull(res);
     }
 
     @Test
     void testExtractField64Bit() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        SlimBuffer input = prepareExtractBytesTestInput();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_64_BIT, 32);
         assertNotNull(res);
     }
 
     @Test
     void testExtractFieldVarInt() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        SlimBuffer input = prepareExtractBytesTestInput();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_VARINT_OR_ZIGZAG, 32);
         assertNotNull(res);
     }
 
     @Test
     void testExtractFieldGroupStartUnsupported() throws IOException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
-        assertThrows(IOException.class, () -> ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_START, 32));
+        SlimBuffer input = prepareExtractBytesTestInput();
+        assertThrows(IOException.class, () -> {
+            ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_START, 32);
+            input.throwOnError2();
+        });
     }
 
     @Test
     void testExtractFieldGroupEndUnsupported() throws IOException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
-        assertThrows(IOException.class, () -> ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_END, 32));
+        SlimBuffer input = prepareExtractBytesTestInput();
+        assertThrows(IOException.class, () -> {
+            ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_END, 32);
+            input.throwOnError2();
+        });
     }
 
     private static void skipTag(BufferedData data) {
@@ -626,7 +640,7 @@ class ProtoParserToolsTest {
             return res;
         }
 
-        public TestMessage parse(
+        public TestMessage realParse(
                 @NonNull final SlimBuffer in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
@@ -649,8 +663,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public void write(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
-                throws IOException {
+        public void realWrite(@NonNull final TestMessage item, @NonNull final SlimWriter out) throws IOException {
             final String value = item.getValue();
             if (value != null) {
                 ProtoWriterTools.writeString(out, VALUE_FIELD, value);

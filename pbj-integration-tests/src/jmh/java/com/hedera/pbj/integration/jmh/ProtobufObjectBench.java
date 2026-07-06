@@ -12,6 +12,7 @@ import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.SlimBuffer;
+import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -73,6 +74,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
         private ByteBuffer bbout;
         private ByteBuffer bboutDirect;
         private byte[] outArray;
+        private SlimWriter outSlimWriter;
 
         public void configure(
                 P pbjModelObject,
@@ -87,11 +89,9 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                 this.googleByteBufferParseMethod = googleByteBufferParseMethod;
                 this.googleInputStreamParseMethod = googleInputStreamParseMethod;
                 // write to temp data buffer and then read into byte array
-                BufferedData tempDataBuffer = BufferedData.allocate(5 * 1024 * 1024);
+                SlimWriter tempDataBuffer = new SlimWriter(5<<20);
                 pbjCodec.write(pbjModelObject, tempDataBuffer);
-                tempDataBuffer.flip();
-                this.protobuf = new byte[(int) tempDataBuffer.remaining()];
-                tempDataBuffer.readBytes(this.protobuf);
+                this.protobuf = tempDataBuffer.toByteArray();
                 // start by parsing using protoc
                 this.googleModelObject = googleByteArrayParseMethod.parse(this.protobuf);
 
@@ -111,6 +111,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                 this.outArray = new byte[this.protobuf.length * 2]; // make sure big enough
                 this.outDataBuffer = BufferedData.allocate(this.protobuf.length);
                 this.outDataBufferDirect = BufferedData.allocateOffHeap(this.protobuf.length);
+                this.outSlimWriter = new SlimWriter(this.protobuf.length);
                 this.bbout = ByteBuffer.allocate(this.protobuf.length);
                 this.bboutDirect = ByteBuffer.allocateDirect(this.protobuf.length);
             } catch (IOException e) {
@@ -222,6 +223,16 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
             benchmarkState.outDataBufferDirect.reset();
             benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, benchmarkState.outDataBufferDirect);
             blackhole.consume(benchmarkState.outDataBufferDirect);
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(OPERATION_COUNT)
+    public void writePbjSlimWriter(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws IOException {
+        for (int i = 0; i < OPERATION_COUNT; i++) {
+            benchmarkState.outSlimWriter.reset();
+            benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, benchmarkState.outSlimWriter);
+            blackhole.consume(benchmarkState.outSlimWriter);
         }
     }
 
