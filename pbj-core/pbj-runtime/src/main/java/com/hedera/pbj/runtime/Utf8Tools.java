@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime;
 
 import static java.lang.Character.*;
 
+import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -11,6 +12,32 @@ import java.io.IOException;
  * UTF8 tools based on protobuf standard library, so we are byte for byte identical
  */
 public final class Utf8Tools {
+
+    static int encodedLength(String sz) {
+        if (sz == null) return 0;
+        int count = 0;
+        for (int i = 0; i < sz.length(); i++) {
+            char c = sz.charAt(i);
+            if (c < 0x80) {
+                count += 1;
+            } else if (c < 0x800) {
+                count += 2;
+            } else if (c < 0xD800 || c >= 0xE000) {
+                count += 3;
+            } else if (c <= 0xDBFF) { // high surrogate: D800–DBFF
+                if (i + 1 >= sz.length()) return 0; // throw new IOException("Lone high surrogate at index " + i);
+                char low = sz.charAt(i + 1);
+                if (low < 0xDC00 || low > 0xDFFF)
+                    return 0; // throw new IOException("Invalid low surrogate at index " + (i + 1));
+                i++; // consume the low surrogate
+                count += 4;
+            } else {
+                return 0; // throw new IOException("Lone low surrogate at index " + i);  // DC00–DFFF with no preceding
+                // high
+            }
+        }
+        return count;
+    }
 
     /**
      * Returns the number of bytes in the UTF-8-encoded form of {@code sequence}. For a string, this
@@ -113,6 +140,73 @@ public final class Utf8Tools {
                         (byte) (0x80 | (0x3F & codePoint)));
             }
         }
+    }
+
+    // doesn't write out the length
+    static void encodeUtf8(String in, SlimWriter out) throws IOException {
+        int inLength = in.length();
+        for (int i = 0; i < inLength; ++i) {
+            char c = in.charAt(i);
+            if (c < 0x80) {
+                out.writeByte((byte) c);
+            } else if (c < 0x800) {
+                out.writeByte2((byte) (0xC0 | (c >>> 6)), (byte) (0x80 | (0x3F & c)));
+            } else if (c < MIN_SURROGATE || MAX_SURROGATE < c) {
+                out.writeByte3(
+                        (byte) (0xE0 | (c >>> 12)), (byte) (0x80 | (0x3F & (c >>> 6))), (byte) (0x80 | (0x3F & c)));
+            } else {
+                char low;
+                if (i + 1 == inLength || !isSurrogatePair(c, (low = in.charAt(++i)))) {
+                    throw new MalformedProtobufException("Unpaired surrogate at index " + i + " of " + inLength);
+                }
+                int codePoint = toCodePoint(c, low);
+                out.writeByte4(
+                        (byte) ((0xF << 4) | (codePoint >>> 18)),
+                        (byte) (0x80 | (0x3F & (codePoint >>> 12))),
+                        (byte) (0x80 | (0x3F & (codePoint >>> 6))),
+                        (byte) (0x80 | (0x3F & codePoint)));
+            }
+        }
+    }
+
+    static void WriteUTF8(String in, SlimWriter out) throws IOException {
+        int inLength = in.length();
+        if (inLength > 0x7F) {
+            WriteUTF8_2byte(in, out);
+            return;
+        }
+        // fast path 1 byte tag case
+        out.reserveRel(0x7F * 4 + 2); // worse case size
+        int pos = out.position();
+        out.placehold(1);
+        encodeUtf8(in, out);
+        int endPos = out.position();
+        int utf8Len = endPos - pos - 1;
+        if (utf8Len <= 0x7F) {
+            out.writeAt(pos, (byte) utf8Len);
+        } else {
+            out.reinsertVarInt(pos);
+        }
+    }
+
+    private static void WriteUTF8_2byte(String in, SlimWriter out) throws IOException {
+        // buffer is 16k, string is UTF16, so worst case is len*3.
+        // 5460 was picked bc its (16k - 2byte tag) / 3 byte worse case
+        if (in.length() > 5460) {
+            // Can't fit in buffer, todo check if we'll grow anyways
+            // I don't think anything hits this case?
+            // These two lines counts the length then write the length, making this 2 pass
+            out.writeVarIntNoZZ(ProtoWriterTools.sizeOfStringNoTag(in));
+            Utf8Tools.encodeUtf8(in, out);
+            return;
+        }
+        out.reserveRel(in.length() * 3 + 2);
+        int pos = out.position();
+        out.placehold(2);
+        Utf8Tools.encodeUtf8(in, out);
+        int utf8Len = out.position() - pos - 2;
+        out.writeAt(pos, (byte) ((utf8Len & 0x7F) | 0x80));
+        out.writeAt(pos + 1, (byte) (utf8Len >>> 7));
     }
 
     /**
