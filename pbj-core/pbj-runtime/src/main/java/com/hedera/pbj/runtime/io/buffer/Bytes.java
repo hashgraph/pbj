@@ -6,6 +6,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.pbj.runtime.hashing.XXH3_64;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.SlimBuffer;
+import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -372,6 +374,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         wsd.writeBytes(buffer, start, length);
     }
 
+    public void writeTo(@NonNull final SlimWriter wsd) {
+        wsd.writeBytes(buffer, start, length);
+    }
     /**
      * A helper method for efficient copy of our data into an WritableSequentialData without creating a defensive copy
      * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
@@ -483,6 +488,11 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     @NonNull
     public ReadableSequentialData toReadableSequentialData() {
         return new RandomAccessSequenceAdapter(this);
+    }
+
+    @NonNull
+    public SlimBuffer toSlimBuffer() {
+        return new SlimBuffer(this);
     }
 
     /**

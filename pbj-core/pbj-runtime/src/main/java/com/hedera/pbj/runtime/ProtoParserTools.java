@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.SlimBuffer;
+import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -202,7 +203,7 @@ public final class ProtoParserTools {
     }
 
     public static int readSignedFixed32(SlimBuffer input) {
-        return input.readInt();
+        return input.readIntLE();
     }
 
     /**
@@ -216,7 +217,7 @@ public final class ProtoParserTools {
     }
 
     public static int readFixed32(SlimBuffer input) {
-        return input.readInt();
+        return input.readIntLE();
     }
 
     /**
@@ -230,7 +231,7 @@ public final class ProtoParserTools {
     }
 
     public static float readFloat(SlimBuffer input) {
-        return input.readFloat();
+        return input.readFloatLE();
     }
 
     /**
@@ -244,7 +245,7 @@ public final class ProtoParserTools {
     }
 
     public static long readSignedFixed64(final SlimBuffer input) {
-        return input.readLong();
+        return input.readLongLE();
     }
 
     /**
@@ -258,7 +259,7 @@ public final class ProtoParserTools {
     }
 
     public static long readFixed64(SlimBuffer input) {
-        return input.readLong();
+        return input.readLongLE();
     }
 
     /**
@@ -272,7 +273,7 @@ public final class ProtoParserTools {
     }
 
     public static double readDouble(SlimBuffer input) {
-        return input.readDouble();
+        return input.readDoubleLE();
     }
 
     /**
@@ -432,7 +433,7 @@ public final class ProtoParserTools {
 
     public static String readString(SlimBuffer input, final long maxSize) {
         final int length = input.readVarInt(false);
-        if (length > maxSize) {
+        if (length > maxSize || length < 0) {
             input.setError(SlimBuffer.Parse);
             return "";
         }
@@ -440,11 +441,12 @@ public final class ProtoParserTools {
         ByteBuffer bb = null;
         int bufPos = input.buffered(length);
         byte[] data = null;
-        if (bufPos >= 0) data = input.array();
-        else {
+        if (bufPos >= 0) {
+            data = input.array();
+        } else {
             // TODO remove this path
             bb = ByteBuffer.allocate(length);
-            final long bytesRead = input.readBytes(bb);
+            long bytesRead = input.readBytes(bb);
             if (bytesRead != length) {
                 input.setError(SlimBuffer.BufferUnderflow);
                 return "";
@@ -454,7 +456,7 @@ public final class ProtoParserTools {
         }
 
         if (length > input.charArray.length) {
-            int power2Capacity = 1 << (63 - Long.numberOfLeadingZeros(length));
+            int power2Capacity = 2 << (63 - Long.numberOfLeadingZeros(length));
             input.charArray = new char[power2Capacity];
         }
 
@@ -521,7 +523,7 @@ public final class ProtoParserTools {
 
     public static Bytes readBytes(SlimBuffer input, final long maxSize) {
         final int length = input.readVarInt(false);
-        if (length > maxSize) {
+        if (length > maxSize || length < 0) {
             input.setError(SlimBuffer.Parse);
             return Bytes.EMPTY;
         }
@@ -576,6 +578,34 @@ public final class ProtoParserTools {
             if (fieldNum == field.number()) {
                 if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
                     throw new ParseException("Unexpected wire type: " + tag);
+                }
+                final int length = input.readVarInt(false);
+                return input.readBytes(length);
+            } else {
+                skipField(input, wireType);
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    public static Bytes extractFieldBytes(@NonNull final SlimBuffer input, @NonNull final FieldDefinition field)
+            throws IOException, ParseException {
+        Objects.requireNonNull(input);
+        Objects.requireNonNull(field);
+        if (field.repeated()) {
+            throw new IllegalArgumentException("Cannot extract field bytes for a repeated field: " + field);
+        }
+        if (ProtoWriterTools.wireType(field) != ProtoConstants.WIRE_TYPE_DELIMITED) {
+            throw new IllegalArgumentException("Cannot extract field bytes for a non-length-delimited field: " + field);
+        }
+        while (input.hasMore()) {
+            final int tag = input.readVarInt(false);
+            final int fieldNum = tag >> TAG_FIELD_OFFSET;
+            final ProtoConstants wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+            if (fieldNum == field.number()) {
+                if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
+                    input.setError(SlimBuffer.Parse);
                 }
                 final int length = input.readVarInt(false);
                 return input.readBytes(length);
@@ -672,6 +702,10 @@ public final class ProtoParserTools {
         } catch (ParseException ex) {
             throw new UncheckedParseException(ex);
         }
+    }
+
+    public static void skipField(SlimBuffer input, final ProtoConstants wireType) {
+        skipField(input, wireType, Long.MAX_VALUE);
     }
 
     /**

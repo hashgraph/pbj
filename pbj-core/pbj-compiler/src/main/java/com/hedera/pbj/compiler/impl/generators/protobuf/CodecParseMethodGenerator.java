@@ -82,14 +82,14 @@ class CodecParseMethodGenerator {
                  * @return Parsed $modelClassName model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
                  */
-                public $modelClassName parse(
+                public $modelClassName realParse(
                         @NonNull final SlimBuffer input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
                         final int maxDepth,
                         final int maxSize) throws ParseException {
                     if (maxDepth < 0) {
-                        input.setError(SlimBuffer.Parse);
+                        input.setError(SlimBuffer.MaxDepthReached);
                         return null;
                     }
                     // -- TEMP STATE FIELDS --------------------------------------
@@ -214,7 +214,7 @@ class CodecParseMethodGenerator {
                         // It may be that the parser subclass doesn't know about this field
                         if ($prefixf == null) {
                             if (strictMode) {
-                                input.setError(SlimBuffer.Unsupported);
+                                input.setError(SlimBuffer.UnknownField);
                                 return $unknownFields;
                             } else if (parseUnknownFields) {
                                 if ($unknownFields == null) {
@@ -287,11 +287,11 @@ class CodecParseMethodGenerator {
         sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
         sbFunc.append("%s case%d(SlimBuffer input, int maxSize, %s %s) {%n".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
-        int divideAmount = fieldType == "List<Integer>" ? 4
-                : fieldType == "List<Long>" ? 8
-                : fieldType == "List<Float>" ? 4
-                : fieldType == "List<Double>" ? 8
-                : fieldType == "List<Boolean>" ? 1
+        int divideAmount = fieldType.equals("List<Integer>") ? 4
+                : fieldType.equals("List<Long>") ? 8
+                : fieldType.equals("List<Float>") ? 4
+                : fieldType.equals("List<Double>") ? 8
+                : fieldType.equals("List<Boolean>") ? 1
                 : 0;
 
         if (field.type() == Field.FieldType.ENUM) {
@@ -380,7 +380,7 @@ class CodecParseMethodGenerator {
                                 input.limit(input.position() + valueTypeMessageSize);
                                 // read inner tag
                                 final int valueFieldTag = input.readVarInt(false);
-                                assert input.throwOnError2();
+                                assert input.throwOnErrorOrTrue();
                                 // assert tag is as expected
                                 assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
                                 assert (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
@@ -435,7 +435,7 @@ class CodecParseMethodGenerator {
                             // we will not throw.
                             final var startPos = input.position();
                             if ((startPos + messageLength) > limitBefore) {
-                                input.setError(SlimBuffer.Parse);
+                                input.setError(SlimBuffer.BufferUnderflow);
                                 return null;
                             }
                             input.limit(startPos + messageLength);
@@ -443,7 +443,7 @@ class CodecParseMethodGenerator {
                             input.limit(limitBefore);
                             // Make sure we read the full number of bytes. for the types
                             if ((startPos + messageLength) != input.position()) {
-                                input.setError(SlimBuffer.Parse);
+                                input.setError(SlimBuffer.BufferOverflow);
                                 return null;
                             }
                         }
@@ -487,7 +487,7 @@ class CodecParseMethodGenerator {
                                 $mapParseLoop
                                 // Make sure we read the full number of bytes. for the types
                                 if ((__map_startPos + __map_messageLength) != input.position()) {
-                                    input.setError(SlimBuffer.BufferUnderflow);
+                                    input.setError(SlimBuffer.BufferOverflow);
                                     return null;
                                 }
                             } finally {
