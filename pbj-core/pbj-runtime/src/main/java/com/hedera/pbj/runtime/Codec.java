@@ -9,8 +9,13 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Encapsulates Serialization, Deserialization and other IO operations.
@@ -19,7 +24,43 @@ import java.io.UncheckedIOException;
  */
 public interface Codec<T> {
 
-    static final boolean disallowNonSlimBuffer = false, disallowNonSlimWriter = false;
+    static final boolean logNonSlimReads = false,
+            logNonSlimWrites = false,
+            disallowNonSlimBuffer = false,
+            disallowNonSlimWriter = false;
+
+    Set<String> seenStacks = ConcurrentHashMap.newKeySet();
+    PrintStream strackTraceLogger = openTraceFile();
+
+    private static PrintStream openTraceFile() {
+        try {
+            var stream = new PrintStream(new FileOutputStream("/tmp/ldintr.txt", false), true);
+            stream.println("Runing------ %b %b".formatted(logNonSlimReads, logNonSlimWrites));
+            return stream;
+        } catch (IOException e) {
+            return System.err;
+        }
+    }
+
+    default void logRead() {
+        if (!logNonSlimReads) return;
+        StackTraceElement[] stack = Thread.currentThread().getStackTrace();
+        if (seenStacks.add(Arrays.toString(stack))) {
+            StringBuilder sb = new StringBuilder("parse(ReadableSequentialData) called via non-SlimBuffer path:\n");
+            for (StackTraceElement e : stack) sb.append("\tat ").append(e).append('\n');
+            strackTraceLogger.println(sb);
+        }
+    }
+
+    default void logWrite() {
+        if (!logNonSlimWrites) return;
+        StackTraceElement[] stack = Thread.currentThread().getStackTrace();
+        if (seenStacks.add(Arrays.toString(stack))) {
+            StringBuilder sb = new StringBuilder("parse(ReadableSequentialData) called via non-SlimBuffer path:\n");
+            for (StackTraceElement e : stack) sb.append("\tat ").append(e).append('\n');
+            strackTraceLogger.println(sb);
+        }
+    }
 
     /**
      * The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.).
@@ -74,6 +115,7 @@ public interface Codec<T> {
             int maxSize)
             throws ParseException {
         if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        logRead();
         SlimBuffer slim = new SlimBuffer(input);
         T res = parse(slim, strictMode, parseUnknownFields, maxDepth, maxSize);
         slim.throwOnError();
@@ -119,6 +161,7 @@ public interface Codec<T> {
     default T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
         if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        logRead();
         SlimBuffer slim = new SlimBuffer(input);
         T res = parse(slim, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
         slim.throwOnError();
@@ -160,6 +203,13 @@ public interface Codec<T> {
         return parse(input, strictMode, false, maxDepth);
     }
 
+    @NonNull
+    default T parseAndThrow(@NonNull SlimBuffer input, final boolean strictMode, final int maxDepth)
+            throws ParseException {
+        T res = parse(input, strictMode, false, maxDepth);
+        input.throwOnError();
+        return res;
+    }
     /**
      * Parses an object from the {@link Bytes} and returns it.
      * <p>
@@ -193,6 +243,7 @@ public interface Codec<T> {
     @NonNull
     default T parse(@NonNull ReadableSequentialData input) throws ParseException {
         if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        logRead();
         SlimBuffer slim = new SlimBuffer(input);
         T res = parse(slim);
         slim.throwOnError();
@@ -214,6 +265,7 @@ public interface Codec<T> {
     @NonNull
     default T parse(@NonNull Bytes bytes) throws ParseException {
         if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        // logRead();
         SlimBuffer slim = new SlimBuffer(bytes.toByteArray());
         T res = parse(slim);
         slim.throwOnError();
@@ -234,6 +286,7 @@ public interface Codec<T> {
     @NonNull
     default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
         if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        logRead();
         SlimBuffer slim = new SlimBuffer(input);
         T res = parse(slim, true, DEFAULT_MAX_DEPTH);
         slim.throwOnError();
@@ -275,6 +328,7 @@ public interface Codec<T> {
 
     default void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
         if (disallowNonSlimWriter) throw new RuntimeException("SlimWriter Only");
+        logWrite();
         SlimWriter slim = new SlimWriter(output);
         realWrite(item, slim);
         slim.flush();
@@ -297,8 +351,11 @@ public interface Codec<T> {
      */
     default int write(@NonNull T item, @NonNull byte[] output, final int startOffset) {
         final BufferedData bufferedData = BufferedData.wrap(output, startOffset, output.length - startOffset);
+        // logWrite();
+        final SlimWriter slim = new SlimWriter(bufferedData);
         try {
-            write(item, bufferedData);
+            write(item, slim);
+            slim.flush();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -368,8 +425,11 @@ public interface Codec<T> {
         // it is cheaper performance wise to measure the size of the object first than grow a buffer as needed
         final byte[] bytes = new byte[measureRecord(item)];
         final BufferedData bufferedData = BufferedData.wrap(bytes);
+        // logWrite();
+        final SlimWriter slim = new SlimWriter(bufferedData);
         try {
-            write(item, bufferedData);
+            write(item, slim);
+            slim.flush();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

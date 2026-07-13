@@ -4,7 +4,8 @@ package com.hedera.pbj.integration.test;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.SlimBuffer;
+import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.test.proto.pbj.MessageWithMessage;
 import org.junit.jupiter.api.Test;
 
@@ -14,13 +15,13 @@ public class MaxDepthTest {
         MessageWithMessage msg;
 
         msg = MessageWithMessage.newBuilder().build();
-        BufferedData bd = BufferedData.allocate(MessageWithMessage.PROTOBUF.measureRecord(msg));
+        SlimWriter bd = new SlimWriter(MessageWithMessage.PROTOBUF.measureRecord(msg));
         MessageWithMessage.PROTOBUF.write(msg, bd);
 
         // None should throw
-        MessageWithMessage.PROTOBUF.parse(bd, false, 0);
-        MessageWithMessage.PROTOBUF.parse(bd, false, 1);
-        MessageWithMessage.PROTOBUF.parse(bd, false, 2);
+        MessageWithMessage.PROTOBUF.parse(bd.toSlimBuffer(), false, 0);
+        MessageWithMessage.PROTOBUF.parse(bd.toSlimBuffer(), false, 1);
+        MessageWithMessage.PROTOBUF.parse(bd.toSlimBuffer(), false, 2);
     }
 
     @Test
@@ -32,16 +33,13 @@ public class MaxDepthTest {
                 // so parse() wouldn't be called to read it, and hence the actual depth is still 0
                 .message(MessageWithMessage.newBuilder().build())
                 .build();
-        BufferedData bd = BufferedData.allocate(MessageWithMessage.PROTOBUF.measureRecord(msg));
+        SlimWriter bd = new SlimWriter(MessageWithMessage.PROTOBUF.measureRecord(msg));
         MessageWithMessage.PROTOBUF.write(msg, bd);
-
+        SlimBuffer wt = bd.toSlimBuffer();
         // None should throw
-        bd.reset();
-        MessageWithMessage.PROTOBUF.parse(bd, false, 0);
-        bd.reset();
-        MessageWithMessage.PROTOBUF.parse(bd, false, 1);
-        bd.reset();
-        MessageWithMessage.PROTOBUF.parse(bd, false, 2);
+        MessageWithMessage.PROTOBUF.parse(wt.reset(), false, 0);
+        MessageWithMessage.PROTOBUF.parse(wt.reset(), false, 1);
+        MessageWithMessage.PROTOBUF.parse(wt.reset(), false, 2);
     }
 
     @Test
@@ -55,16 +53,14 @@ public class MaxDepthTest {
                         .message(MessageWithMessage.newBuilder().build())
                         .build())
                 .build();
-        BufferedData bd = BufferedData.allocate(MessageWithMessage.PROTOBUF.measureRecord(msg));
+        SlimWriter bd = new SlimWriter(MessageWithMessage.PROTOBUF.measureRecord(msg));
         MessageWithMessage.PROTOBUF.write(msg, bd);
+        SlimBuffer wt = bd.toSlimBuffer();
 
         // 0 should throw
-        bd.reset();
-        assertThrows(ParseException.class, () -> MessageWithMessage.PROTOBUF.parse(bd, false, 0));
-        bd.reset();
-        MessageWithMessage.PROTOBUF.parse(bd, false, 1);
-        bd.reset();
-        MessageWithMessage.PROTOBUF.parse(bd, false, 2);
+        assertThrows(ParseException.class, () -> MessageWithMessage.PROTOBUF.parse(wt.reset(), false, 0));
+        MessageWithMessage.PROTOBUF.parse(wt.reset(), false, 1);
+        MessageWithMessage.PROTOBUF.parse(wt.reset(), false, 2);
     }
 
     @Test
@@ -80,15 +76,12 @@ public class MaxDepthTest {
                                 .build())
                         .build())
                 .build();
-        BufferedData bd = BufferedData.allocate(MessageWithMessage.PROTOBUF.measureRecord(msg));
+        SlimWriter bd = new SlimWriter(MessageWithMessage.PROTOBUF.measureRecord(msg));
         MessageWithMessage.PROTOBUF.write(msg, bd);
+        SlimBuffer wt = bd.toSlimBuffer();
 
-        // 0 and 1 should throw
-        bd.reset();
-        assertThrows(ParseException.class, () -> MessageWithMessage.PROTOBUF.parse(bd, false, 0));
-        bd.reset();
-        assertThrows(ParseException.class, () -> MessageWithMessage.PROTOBUF.parse(bd, false, 1));
-        bd.reset();
-        MessageWithMessage.PROTOBUF.parse(bd, false, 2);
+        assertThrows(ParseException.class, () -> MessageWithMessage.PROTOBUF.parse(wt.reset(), false, 0));
+        assertThrows(ParseException.class, () -> MessageWithMessage.PROTOBUF.parse(wt.reset(), false, 1));
+        MessageWithMessage.PROTOBUF.parse(wt.reset(), false, 2);
     }
 }
