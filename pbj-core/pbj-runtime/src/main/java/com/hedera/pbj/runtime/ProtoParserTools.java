@@ -3,7 +3,6 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.SlimBuffer;
-import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -773,6 +772,11 @@ public final class ProtoParserTools {
      * @return the read tag
      */
     public static int readNextFieldNumber(final ReadableSequentialData input) {
+        final int tag = input.readVarInt(false);
+        return tag >> TAG_FIELD_OFFSET;
+    }
+
+    public static int readNextFieldNumber(SlimBuffer input) {
         final int tag = input.readVarInt(false);
         return tag >> TAG_FIELD_OFFSET;
     }

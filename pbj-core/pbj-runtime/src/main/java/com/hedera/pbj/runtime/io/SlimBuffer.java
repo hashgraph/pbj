@@ -82,9 +82,7 @@ public class SlimBuffer {
     }
 
     public SlimBuffer(Bytes completeBuffer) {
-        // TODO optimize or delete
-        this.input = completeBuffer.toReadableSequentialData();
-        buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+        this(completeBuffer.toByteArray(), 0, (int) completeBuffer.length());
     }
 
     public void bufferToEOF() {
@@ -136,6 +134,10 @@ public class SlimBuffer {
         }
     }
 
+    public boolean hasRemaining() {
+        return hasMore();
+    }
+
     // small and likely to inline
     public boolean hasMore() {
         if (pos < relLimit) return true;
@@ -169,6 +171,14 @@ public class SlimBuffer {
     public void resetPosition() {
         pos = 0;
         err = seenEOF ? EOF : UsageError;
+        absoluteLimit = end;
+        relLimit = end;
+    }
+
+    // To write test easier
+    public SlimBuffer reset() {
+        resetPosition();
+        return this;
     }
 
     public void skip(long count) {
@@ -549,8 +559,8 @@ public class SlimBuffer {
 
     public InputStream asInputStream() {
         if (end == 0) return input2 != null ? input2 : input.asInputStream();
-        if (seenEOF && pos == 0) {
-            return new ByteArrayInputStream(buf, 0, end);
+        if (seenEOF && offset == 0) {
+            return new ByteArrayInputStream(buf, pos, end);
         }
         throw new UnsupportedOperationException();
     }

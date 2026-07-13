@@ -89,7 +89,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                 this.googleByteBufferParseMethod = googleByteBufferParseMethod;
                 this.googleInputStreamParseMethod = googleInputStreamParseMethod;
                 // write to temp data buffer and then read into byte array
-                SlimWriter tempDataBuffer = new SlimWriter(5<<20);
+                SlimWriter tempDataBuffer = new SlimWriter(5 << 20);
                 pbjCodec.write(pbjModelObject, tempDataBuffer);
                 this.protobuf = tempDataBuffer.toByteArray();
                 // start by parsing using protoc

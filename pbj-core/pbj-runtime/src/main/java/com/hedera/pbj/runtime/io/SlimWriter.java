@@ -1,18 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.BufferOverflowException;
+import java.nio.ByteBuffer;
 
 /**
  * A {@link WritableSequentialData} backed by an internal byte buffer, meant to be easy for the JIT to optimize.
  * Bytes are accumulated in a private buffer and flushed to an underlying {@link WritableSequentialData} when the buffer fills.
  */
-public class SlimWriter {
+public class SlimWriter implements AutoCloseable {
     private byte[] buf;
     private int pos, cap;
     private int offset; // absolute position of buf[0] (total bytes already flushed)
-    private WritableSequentialData output;
+    private OutputStream output;
     private boolean expandable;
 
     public static final int BufferOverflow = 11, IOError = 5;
@@ -22,11 +29,49 @@ public class SlimWriter {
      *
      * @param output the destination to flush into
      */
-    public SlimWriter(@NonNull WritableSequentialData output) {
+    public SlimWriter(@NonNull OutputStream output) {
         this.output = output;
         this.expandable = false;
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
         cap = buf.length;
+    }
+
+    public SlimWriter(ByteBuffer buffer) {
+        if (buffer.hasArray()) {
+            buf = buffer.array();
+            pos = buffer.arrayOffset() + buffer.position();
+            cap = buffer.arrayOffset() + buffer.limit();
+        } else {
+            // Direct buffer: no backing array, flush through an OutputStream adapter
+            this.output = new OutputStream() {
+                @Override
+                public void write(int b) {
+                    buffer.put((byte) b);
+                }
+
+                @Override
+                public void write(@NonNull byte[] b, int off, int len) {
+                    buffer.put(b, off, len);
+                }
+            };
+            this.expandable = false;
+            buf = new byte[16 << 10];
+            cap = buf.length;
+        }
+    }
+
+    public SlimWriter(@NonNull WritableSequentialData output) {
+        this(new OutputStream() {
+            @Override
+            public void write(int b) {
+                output.writeByte((byte) b);
+            }
+
+            @Override
+            public void write(@NonNull byte[] b, int off, int len) {
+                output.writeBytes(b, off, len);
+            }
+        });
     }
 
     public SlimWriter() {
@@ -140,6 +185,47 @@ public class SlimWriter {
         pos += 4;
     }
 
+    public void writeBytes(@NonNull final BufferedData src) throws BufferOverflowException, UncheckedIOException {
+        int len = (int) src.remaining();
+        if (len <= 0) return;
+        long srcPos = src.position();
+        if (pos + len <= cap) {
+            src.getBytes(srcPos, buf, pos, len);
+            src.skip(len);
+            pos += len;
+            return;
+        }
+        writeBytesBDInternal(src, len, srcPos);
+    }
+
+    private void writeBytesBDInternal(BufferedData src, int len, long srcPos) {
+        if (expandable) {
+            flushOrGrow(len);
+            src.getBytes(srcPos, buf, pos, len);
+            src.skip(len);
+            pos += len;
+        } else {
+            int remaining = len;
+            while (remaining > 0) {
+                if (pos == cap) {
+                    try {
+                        output.write(buf, 0, pos);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    offset += pos;
+                    pos = 0;
+                }
+                int chunk = Math.min(remaining, cap - pos);
+                src.getBytes(srcPos, buf, pos, chunk);
+                pos += chunk;
+                srcPos += chunk;
+                remaining -= chunk;
+            }
+            src.skip(len);
+        }
+    }
+
     public void writeBytes(@NonNull byte[] src) {
         writeBytes(src, 0, src.length);
     }
@@ -157,7 +243,11 @@ public class SlimWriter {
     private void writeBytesInternal(byte[] src, int srcOffset, int length) {
         flushOrGrow(length);
         if (!expandable && length >= 2048) {
-            output.writeBytes(src, srcOffset, length);
+            try {
+                output.write(src, srcOffset, length);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             offset += length;
             return;
         }
@@ -187,7 +277,11 @@ public class SlimWriter {
             int remaining = len;
             while (remaining > 0) {
                 if (pos == cap) {
-                    output.writeBytes(buf, 0, pos);
+                    try {
+                        output.write(buf, 0, pos);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                     offset += pos;
                     pos = 0;
                 }
@@ -370,11 +464,27 @@ public class SlimWriter {
         writeVarLongInternal(v);
     }
 
+    // This does not flush the internal stream
     public void flush() {
-        if (output == null || pos == 0) return;
-        output.writeBytes(buf, 0, pos);
+        if (output == null) return;
+        try {
+            output.write(buf, 0, pos);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         offset += pos;
         pos = 0;
+    }
+
+    @Override
+    public void close() {
+        flush();
+        if (output != null) {
+            try {
+                output.close();
+            } catch (IOException ignored) {
+            }
+        }
     }
 
     private void flushOrGrow(int minLength) {
@@ -386,11 +496,15 @@ public class SlimWriter {
             buf = newBuf;
             cap = buf.length;
         } else {
-            output.writeBytes(buf, 0, pos);
+            try {
+                output.write(buf, 0, pos);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             offset += pos;
             pos = 0;
             if (minLength > cap) {
-                throw new IllegalArgumentException("minLength is greater than capacity");
+                throw new UncheckedIOException(new IOException("minLength is greater than capacity"));
             }
         }
     }
@@ -401,8 +515,18 @@ public class SlimWriter {
         offset = 0;
     }
 
+    public byte[] array() {
+        return buf;
+    }
+
+    public Bytes takeBytes() {
+        if (offset != 0) throw new RuntimeException("takeBytes used on a streaming object");
+        Bytes bytes = Bytes.wrap(buf, 0, pos);
+        buf = null;
+        return bytes;
+    }
     public byte[] toByteArray() {
-        if (output != null) throw new RuntimeException("toByteArray used on a streaming object");
+        if (offset != 0) throw new RuntimeException("toByteArray used on a streaming object");
         var bytes = new byte[pos];
         System.arraycopy(buf, 0, bytes, 0, pos);
         return bytes;
