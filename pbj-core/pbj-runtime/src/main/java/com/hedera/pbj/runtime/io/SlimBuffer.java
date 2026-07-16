@@ -43,6 +43,14 @@ public class SlimBuffer {
             BufferOverflow = 11,
             MaxDepthReached = 12;
 
+    // Pre-allocated singleton thrown by throwOnError() for Parse errors — avoids fillInStackTrace()
+    // on every rejected parse. Same object is thrown every time; callers must not hold references.
+    private static final ParseException REUSABLE_PARSE_EXCEPTION;
+    static {
+        REUSABLE_PARSE_EXCEPTION = new ParseException("parse error");
+        REUSABLE_PARSE_EXCEPTION.setStackTrace(new StackTraceElement[0]);
+    }
+
     /**
      * Streams data of unknown length into its private buffer.
      * It will read more data then necessary when there's space in the internal buffer
@@ -253,7 +261,7 @@ public class SlimBuffer {
         relLimit = -1;
         seenEOF = true;
         // TODO remove when CN doesn't need these. Only the else should exist (while debugging)
-        includeCause = true;
+        //includeCause = true;
         if (errorKind == UnknownField) {
             cause = new UnknownFieldException("");
         } else if (errorKind == BufferUnderflow) {
@@ -264,7 +272,7 @@ public class SlimBuffer {
             cause = new RuntimeException();
             includeCause = false;
         } else {
-            cause = new RuntimeException(); // comment this out if you're not debugging
+            // cause = new RuntimeException(); // uncomment to debug unexpected setError() callers
         }
     }
 
@@ -275,12 +283,18 @@ public class SlimBuffer {
     }
 
     public boolean throwOnErrorOrTrue() throws ParseException {
-        throwOnError();
-        return true;
+        if (err <= 0) return true;
+        if (err == Parse) throw REUSABLE_PARSE_EXCEPTION;
+        throw throwOnErrorImpl();
     }
 
     public void throwOnError() throws ParseException {
         if (err <= 0) return;
+        if (err == Parse) throw REUSABLE_PARSE_EXCEPTION;
+        throw throwOnErrorImpl();
+    }
+
+    private ParseException throwOnErrorImpl() throws ParseException {
         switch (err) {
             case DataEncoding:
                 throw new DataEncodingException("throwOnError", cause);
