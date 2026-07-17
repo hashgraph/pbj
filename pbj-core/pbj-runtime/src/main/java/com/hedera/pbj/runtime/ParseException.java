@@ -20,4 +20,9 @@ public class ParseException extends Exception {
     public ParseException(String message, Throwable cause) {
         super(message, cause);
     }
+
+    // This is temporary
+    public ParseException(Throwable cause, boolean skipStackTag) {
+        super(null, cause, true, false);
+    }
 }

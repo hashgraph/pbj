@@ -519,12 +519,17 @@ public class SlimWriter implements AutoCloseable {
         return buf;
     }
 
+    public Bytes wrappedBytes() {
+        return Bytes.wrap(buf, 0, pos);
+    }
+
     public Bytes takeBytes() {
         if (offset != 0) throw new RuntimeException("takeBytes used on a streaming object");
         Bytes bytes = Bytes.wrap(buf, 0, pos);
         buf = null;
         return bytes;
     }
+
     public byte[] toByteArray() {
         if (offset != 0) throw new RuntimeException("toByteArray used on a streaming object");
         var bytes = new byte[pos];
