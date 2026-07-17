@@ -15,6 +15,7 @@ class CodecFastEqualsMethodGenerator {
 
     static String generateFastEqualsMethod(final String modelClassName, final List<Field> fields) {
         // Placeholder implementation, replace faster implementation than full parse if there is one
+        // spotless:off
         return """
                 /**
                  * Compares the given item with the bytes in the input, and returns false if it determines that
@@ -31,6 +32,8 @@ class CodecFastEqualsMethodGenerator {
                 public boolean fastEquals(@NonNull $modelClass item, @NonNull final SlimBuffer input) throws ParseException {
                     return item.equals(parse(input));
                 }
-                """.replace("$modelClass", modelClassName).indent(DEFAULT_INDENT);
+                """.replace("$modelClass", modelClassName)
+                .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 }

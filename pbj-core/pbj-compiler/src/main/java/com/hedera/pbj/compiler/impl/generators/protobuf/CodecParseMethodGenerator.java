@@ -103,6 +103,7 @@ class CodecParseMethodGenerator {
                         $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
                     }
                     input.upgradeErrorToParse();
+                    if (input.error() > 0) return null;
                     $cacheableSupport
                 }
                 

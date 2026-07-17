@@ -29,7 +29,8 @@ public class SlimBuffer {
     private Exception cause;
     private boolean seenEOF, includeCause;
 
-    public char[] charArray = new char[4096]; // will grow
+    private char[] charArray_;
+    private final boolean useStacktrace = !"false".equalsIgnoreCase(System.getProperty("pbj.slimBuffer.useStackTrace"));
 
     public static final int EOF = -1,
             DataEncoding = 1,
@@ -42,6 +43,28 @@ public class SlimBuffer {
             UnknownField = 10,
             BufferOverflow = 11,
             MaxDepthReached = 12;
+
+    private static final UnknownFieldException premadeUnknown;
+    private static final BufferUnderflowException premadeUnderflow;
+    private static final BufferOverflowException premadeOverflow;
+    private static final RuntimeException premadeRuntime, premadeUnsupported;
+    private static final DataEncodingException premadeDataEncoding;
+    private static final IllegalArgumentException premadeIllegal;
+    private static final ParseException premadeParseEmpty, premadeParseUnknown, premadeMaxDepth;
+
+    static {
+        premadeUnknown = new UnknownFieldException("");
+        premadeUnderflow = new BufferUnderflowException();
+        premadeOverflow = new BufferOverflowException();
+        premadeRuntime = new RuntimeException();
+        premadeUnsupported = new RuntimeException("Hit an unsupported feature");
+        premadeDataEncoding = new DataEncodingException("");
+        premadeIllegal = new IllegalArgumentException("");
+
+        premadeParseEmpty = new ParseException("parse error");
+        premadeParseUnknown = new ParseException("parse error", premadeUnknown);
+        premadeMaxDepth = new ParseException("Reached maximum allowed depth");
+    }
 
     /**
      * Streams data of unknown length into its private buffer.
@@ -83,6 +106,17 @@ public class SlimBuffer {
 
     public SlimBuffer(Bytes completeBuffer) {
         this(completeBuffer.toByteArray(), 0, (int) completeBuffer.length());
+    }
+
+    public void resetWith(Bytes completeBuffer) {
+        buf = completeBuffer.toByteArray();
+        pos = 0;
+        int end = (int) completeBuffer.length();
+        this.end = end;
+        relLimit = end;
+        absoluteLimit = end;
+        seenEOF = true;
+        err = EOF;
     }
 
     public void bufferToEOF() {
@@ -252,19 +286,34 @@ public class SlimBuffer {
         err = errorKind;
         relLimit = -1;
         seenEOF = true;
-        // TODO remove when CN doesn't need these. Only the else should exist (while debugging)
+        // TODO simplify these when CN doesn't need it
         includeCause = true;
-        if (errorKind == UnknownField) {
-            cause = new UnknownFieldException("");
-        } else if (errorKind == BufferUnderflow) {
-            cause = new BufferUnderflowException();
-        } else if (errorKind == BufferOverflow) {
-            cause = new BufferOverflowException();
-        } else if (errorKind == Parse) {
-            cause = new RuntimeException();
-            includeCause = false;
+        if (useStacktrace) {
+            if (errorKind == UnknownField) {
+                cause = new UnknownFieldException("");
+            } else if (errorKind == BufferUnderflow) {
+                cause = new BufferUnderflowException();
+            } else if (errorKind == BufferOverflow) {
+                cause = new BufferOverflowException();
+            } else if (errorKind == Parse) {
+                cause = new RuntimeException();
+                includeCause = false;
+            } else {
+                cause = new RuntimeException();
+            }
         } else {
-            cause = new RuntimeException(); // comment this out if you're not debugging
+            if (errorKind == UnknownField) {
+                cause = premadeUnknown;
+            } else if (errorKind == BufferUnderflow) {
+                cause = premadeUnderflow;
+            } else if (errorKind == BufferOverflow) {
+                cause = premadeOverflow;
+            } else if (errorKind == Parse) {
+                cause = premadeParseEmpty;
+                includeCause = false;
+            } else {
+                cause = premadeRuntime;
+            }
         }
     }
 
@@ -275,49 +324,59 @@ public class SlimBuffer {
     }
 
     public boolean throwOnErrorOrTrue() throws ParseException {
-        throwOnError();
-        return true;
+        if (err <= 0) return true;
+        throw throwOnErrorImpl();
     }
 
     public void throwOnError() throws ParseException {
         if (err <= 0) return;
-        switch (err) {
-            case DataEncoding:
-                throw new DataEncodingException("throwOnError", cause);
-            case IllegalArgument:
-                throw new IllegalArgumentException("throwOnError", cause);
-            case Unsupported:
-                throw new RuntimeException("Hit an unsupported feature", cause);
-            case MaxDepthReached:
-                throw new ParseException("Reached maximum allowed depth");
-            case Parse:
-            default:
-                if (includeCause) throw new ParseException(cause);
-                var ex = new ParseException("");
-                ex.setStackTrace(cause.getStackTrace());
-                throw ex;
+        throw throwOnErrorImpl();
+    }
+
+    private ParseException throwOnErrorImpl() throws ParseException {
+        if (useStacktrace) {
+            switch (err) {
+                case DataEncoding:
+                    throw new DataEncodingException("throwOnError", cause);
+                case IllegalArgument:
+                    throw new IllegalArgumentException("throwOnError", cause);
+                case Unsupported:
+                    throw new RuntimeException("Hit an unsupported feature", cause);
+                case MaxDepthReached:
+                    throw new ParseException("Reached maximum allowed depth");
+                case Parse:
+                default:
+                    if (includeCause) throw new ParseException(cause);
+                    var ex = new ParseException("");
+                    ex.setStackTrace(cause.getStackTrace());
+                    throw ex;
+            }
+        } else {
+            switch (err) {
+                case DataEncoding:
+                    throw premadeDataEncoding;
+                case IllegalArgument:
+                    throw premadeIllegal;
+                case Unsupported:
+                    throw premadeUnsupported;
+                case MaxDepthReached:
+                    throw premadeMaxDepth;
+                case Parse:
+                default:
+                    if (includeCause) {
+                        throw new ParseException(cause, true);
+                    }
+                    throw premadeParseEmpty;
+            }
         }
     }
 
     // Only used in test that expect IO Exceptions
     public void throwOnError2() throws ParseException, IOException {
-        if (err <= 0) return;
-        switch (err) {
-            case DataEncoding:
-                throw new DataEncodingException("throwOnError", cause);
-            case IllegalArgument:
-                throw new IllegalArgumentException("throwOnError", cause);
-            case Unsupported:
-                throw new IOException("Hit an unsupported feature", cause);
-            case MaxDepthReached:
-                throw new ParseException("Reached maximum allowed depth", cause);
-            case Parse:
-            default:
-                if (includeCause) throw new ParseException(cause);
-                var ex = new ParseException("");
-                ex.setStackTrace(cause.getStackTrace());
-                throw ex;
+        if (err == Unsupported) {
+            throw new IOException("Hit an unsupported feature", cause);
         }
+        throwOnError();
     }
 
     public int error() {
@@ -579,5 +638,13 @@ public class SlimBuffer {
             }
         }
         return buf[pos++];
+    }
+
+    public char[] tempCharArray(int minLength) {
+        if (charArray_ == null || minLength > charArray_.length) {
+            int power2Capacity = 2 << (63 - Long.numberOfLeadingZeros(Math.max(2048, minLength)));
+            charArray_ = new char[power2Capacity];
+        }
+        return charArray_;
     }
 }
