@@ -330,7 +330,7 @@ public final class ProtoParserTools {
         }
     }
 
-    static int FromUTF8Tail(char[] dst, int di, byte[] src, int i, int endPos) {
+    static int fromUTF8Tail(char[] dst, int di, byte[] src, int i, int endPos) {
         while (i < endPos) {
             int a = src[i];
             if ((a & 0x80) == 0) {
@@ -387,7 +387,7 @@ public final class ProtoParserTools {
         return di;
     }
 
-    static int FromUTF8(char[] dst, byte[] src, int offset, int pos, int length) {
+    static int fromUTF8(char[] dst, byte[] src, int offset, int pos, int length) {
         int i = offset + pos;
         int di = pos;
         while (i + 4 < offset + length) {
@@ -427,7 +427,7 @@ public final class ProtoParserTools {
             dst[di + 1] = (char) (0xDC00 + (v & 0x3FF));
             di += 2;
         }
-        return i == offset + length ? di : FromUTF8Tail(dst, di, src, i, offset + length);
+        return i == offset + length ? di : fromUTF8Tail(dst, di, src, i, offset + length);
     }
 
     public static String readString(SlimBuffer input, final long maxSize) {
@@ -454,12 +454,8 @@ public final class ProtoParserTools {
             bufPos = 0;
         }
 
-        if (length > input.charArray.length) {
-            int power2Capacity = 2 << (63 - Long.numberOfLeadingZeros(length));
-            input.charArray = new char[power2Capacity];
-        }
+        char[] charArray = input.tempCharArray(length);
 
-        var charArray = input.charArray;
         int i = 0;
         // Ascii fast path
         {
@@ -472,7 +468,7 @@ public final class ProtoParserTools {
                 return new String(charArray, 0, length);
             }
         }
-        int utf16Len = FromUTF8(charArray, data, bufPos, i, length);
+        int utf16Len = fromUTF8(charArray, data, bufPos, i, length);
         if (utf16Len >= 0) {
             return new String(charArray, 0, utf16Len);
         }

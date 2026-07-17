@@ -26,8 +26,22 @@ public interface Codec<T> {
 
     static final boolean logNonSlimReads = false,
             logNonSlimWrites = false,
+            logGoodPath = false,
             disallowNonSlimBuffer = false,
             disallowNonSlimWriter = false;
+
+    class WriteCache {
+        final SlimWriter writer = new SlimWriter();
+        boolean inUse = false;
+    }
+
+    class ReadCache {
+        final SlimBuffer reader = new SlimBuffer(Bytes.EMPTY);
+        boolean inUse = false;
+    }
+
+    ThreadLocal<WriteCache> tlsWriter = ThreadLocal.withInitial(WriteCache::new);
+    ThreadLocal<ReadCache> tlsReader = ThreadLocal.withInitial(ReadCache::new);
 
     Set<String> seenStacks = ConcurrentHashMap.newKeySet();
     PrintStream strackTraceLogger = openTraceFile();
@@ -42,24 +56,30 @@ public interface Codec<T> {
         }
     }
 
-    default void logRead() {
-        if (!logNonSlimReads) return;
+    private static void logStack(boolean enabled, String header) {
+        if (!enabled) return;
         StackTraceElement[] stack = Thread.currentThread().getStackTrace();
         if (seenStacks.add(Arrays.toString(stack))) {
-            StringBuilder sb = new StringBuilder("parse(ReadableSequentialData) called via non-SlimBuffer path:\n");
+            StringBuilder sb = new StringBuilder(header).append('\n');
             for (StackTraceElement e : stack) sb.append("\tat ").append(e).append('\n');
             strackTraceLogger.println(sb);
         }
     }
 
+    default void logGood() {
+        logStack(logGoodPath, "Slim path:");
+    }
+
+    default void logRead() {
+        logStack(logNonSlimReads, "parse(ReadableSequentialData) called via non-SlimBuffer path:");
+    }
+
     default void logWrite() {
-        if (!logNonSlimWrites) return;
-        StackTraceElement[] stack = Thread.currentThread().getStackTrace();
-        if (seenStacks.add(Arrays.toString(stack))) {
-            StringBuilder sb = new StringBuilder("parse(ReadableSequentialData) called via non-SlimBuffer path:\n");
-            for (StackTraceElement e : stack) sb.append("\tat ").append(e).append('\n');
-            strackTraceLogger.println(sb);
-        }
+        logStack(logNonSlimWrites, "parse(ReadableSequentialData) called via non-SlimBuffer path:");
+    }
+
+    default void dbgLog() {
+        logStack(true, "Unexcepected Condition:");
     }
 
     /**
@@ -126,6 +146,7 @@ public interface Codec<T> {
     default T parse(
             @NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
+        logGood();
         T res = realParse(input, strictMode, parseUnknownFields, maxDepth, maxSize);
         input.throwOnError();
         return res;
@@ -266,10 +287,24 @@ public interface Codec<T> {
     default T parse(@NonNull Bytes bytes) throws ParseException {
         if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
         // logRead();
-        SlimBuffer slim = new SlimBuffer(bytes.toByteArray());
-        T res = parse(slim);
-        slim.throwOnError();
-        return res;
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            dbgLog();
+            SlimBuffer slim = new SlimBuffer(bytes);
+            T res = parse(slim);
+            slim.throwOnError();
+            return res;
+        }
+        cache.inUse = true;
+        try {
+            SlimBuffer slim = cache.reader;
+            slim.resetWith(bytes);
+            T res = parse(slim);
+            slim.throwOnError();
+            return res;
+        } finally {
+            cache.inUse = false;
+        }
     }
 
     /**
@@ -330,11 +365,12 @@ public interface Codec<T> {
         if (disallowNonSlimWriter) throw new RuntimeException("SlimWriter Only");
         logWrite();
         SlimWriter slim = new SlimWriter(output);
-        realWrite(item, slim);
+        write(item, slim);
         slim.flush();
     }
 
     default void write(@NonNull T item, @NonNull SlimWriter output) throws IOException {
+        logGood();
         realWrite(item, output);
     }
 
@@ -413,27 +449,32 @@ public interface Codec<T> {
         slim.throwOnError();
         return res;
     }
-    /**
-     * Converts a Record into a Bytes object
-     *
-     * @param item The input model data to convert into a Bytes object.
-     * @return The new Bytes object.
-     * @throws RuntimeException wrapping an IOException If it is impossible
-     * to write to the {@link WritableStreamingData}
-     */
+
     default Bytes toBytes(@NonNull T item) {
-        // it is cheaper performance wise to measure the size of the object first than grow a buffer as needed
-        final byte[] bytes = new byte[measureRecord(item)];
-        final BufferedData bufferedData = BufferedData.wrap(bytes);
-        // logWrite();
-        final SlimWriter slim = new SlimWriter(bufferedData);
+        WriteCache cache = tlsWriter.get();
+        if (cache.inUse) {
+            dbgLog();
+            int len = measureRecord(item);
+            SlimWriter writer = new SlimWriter(len);
+            return toBytes(item, writer);
+        }
+        cache.inUse = true;
         try {
-            write(item, slim);
-            slim.flush();
+            cache.writer.reset();
+            return toBytes(item, cache.writer);
+        } finally {
+            cache.inUse = false;
+        }
+    }
+
+    default Bytes toBytes(@NonNull T item, SlimWriter writer) {
+        try {
+            write(item, writer);
+            writer.flush();
+            return writer.wrappedBytes();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return Bytes.wrap(bytes);
     }
 
     /**
