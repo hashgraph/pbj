@@ -2,6 +2,7 @@
 package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.EOFException;
@@ -27,11 +28,11 @@ public class PbjReader {
     private ReadableSequentialData input;
     private InputStream input2;
     private Exception cause;
-    private boolean seenEOF, includeCause;
+    private boolean seenEOF, includeCause, owningTheBuffer;
 
-    private char[] charArray_;
+    private char[] charArray;
     private final boolean useStacktrace =
-            !"false".equalsIgnoreCase(System.getProperty("pbj.readerBuffer.useStackTrace"));
+            !"false".equalsIgnoreCase(System.getProperty("pbj.ReaderWriter.useStackTrace"));
 
     public static final int EOF = -1,
             DataEncoding = 1,
@@ -78,6 +79,7 @@ public class PbjReader {
     public PbjReader(ReadableSequentialData input) {
         this.input = input;
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+        owningTheBuffer = true;
         absoluteLimit = input.limit();
         offset = input.position();
     }
@@ -85,6 +87,7 @@ public class PbjReader {
     public PbjReader(InputStream input) {
         this.input2 = input;
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+        owningTheBuffer = true;
     }
 
     public PbjReader(byte[] completeBuffer) {
@@ -109,18 +112,61 @@ public class PbjReader {
     }
 
     public PbjReader(Bytes completeBuffer) {
-        this(completeBuffer.toByteArray(), 0, (int) completeBuffer.length());
+        int arrayOffset = completeBuffer.arrayOffset();
+        this(completeBuffer.array(), arrayOffset, arrayOffset + (int) completeBuffer.length());
     }
 
     public void resetWith(Bytes completeBuffer) {
-        buf = completeBuffer.toByteArray();
-        pos = 0;
-        int end = (int) completeBuffer.length();
+        if (owningTheBuffer) {
+            setError(UsageError); // Should not mix owning and non owning
+            owningTheBuffer = false;
+        }
+        buf = completeBuffer.array();
+        pos = completeBuffer.arrayOffset();
+        offset = 0;
+        int end = completeBuffer.arrayOffset() + (int) completeBuffer.length();
         this.end = end;
         relLimit = end;
         absoluteLimit = end;
         seenEOF = true;
         err = EOF;
+        includeCause = false;
+    }
+
+    public void resetWith(byte[] completeBuffer) {
+        if (owningTheBuffer) {
+            setError(UsageError); // Should not mix owning and non owning
+            owningTheBuffer = false;
+        }
+        buf = completeBuffer;
+        pos = 0;
+        offset = 0;
+        int end = completeBuffer.length;
+        this.end = end;
+        relLimit = end;
+        absoluteLimit = end;
+        seenEOF = true;
+        err = EOF;
+        includeCause = false;
+    }
+
+    public void resetWith(InputStream in) {
+        err = 0;
+        if (!owningTheBuffer) {
+            setError(UsageError); // Should not mix owning and non owning
+            buf = null;
+        }
+        input2 = in;
+        input = null;
+        pos = 0;
+        end = 0;
+        offset = 0;
+        relLimit = 0;
+        absoluteLimit = Long.MAX_VALUE;
+        offset = 0;
+        seenEOF = false;
+        cause = null;
+        includeCause = false;
     }
 
     public void bufferToEOF() {
@@ -403,7 +449,7 @@ public class PbjReader {
         return -1;
     }
 
-    public int buffered(int count) {
+    private int buffered(int count) {
         if (pos + count <= relLimit) {
             int origPos = pos;
             pos += count;
@@ -476,7 +522,8 @@ public class PbjReader {
         return readBytes2(length);
     }
 
-    public @NonNull Bytes readBytes2(int length) {
+    @NonNull
+    Bytes readBytes2(int length) {
         if (length == 0 || err > 0) {
             return Bytes.EMPTY;
         } else if (length < 0) {
@@ -643,7 +690,7 @@ public class PbjReader {
         throw new UnsupportedOperationException();
     }
 
-    private byte readByte() {
+    public byte readByte() {
         if (pos + 1 <= relLimit) return buf[pos++];
         return readByteInternal();
     }
@@ -659,11 +706,47 @@ public class PbjReader {
         return buf[pos++];
     }
 
-    public char[] tempCharArray(int minLength) {
-        if (charArray_ == null || minLength > charArray_.length) {
-            int power2Capacity = 2 << (63 - Long.numberOfLeadingZeros(Math.max(2048, minLength)));
-            charArray_ = new char[power2Capacity];
+    public String readString(final long maxSize) {
+        final int length = readVarInt(false);
+        if (length > maxSize || length < 0) {
+            setError(PbjReader.Parse);
+            return "";
         }
-        return charArray_;
+
+        int bufPos = buffered(length);
+        byte[] data = null;
+        if (bufPos >= 0) {
+            data = buf;
+        } else {
+            data = readBytes3(length);
+            if (err > 0) {
+                return "";
+            }
+            bufPos = 0;
+        }
+
+        if (charArray == null || length > charArray.length) {
+            int power2Capacity = 2 << (63 - Long.numberOfLeadingZeros(Math.max(2048, length)));
+            charArray = new char[power2Capacity];
+        }
+
+        int i = 0;
+        // Ascii fast path
+        {
+            for (; i < length; i++) {
+                byte b = data[bufPos + i];
+                if ((b & 0x80) != 0) break;
+                charArray[i] = (char) b;
+            }
+            if (i == length) {
+                return new String(charArray, 0, length);
+            }
+        }
+        int utf16Len = ProtoParserTools.fromUTF8(charArray, data, bufPos, i, length);
+        if (utf16Len >= 0) {
+            return new String(charArray, 0, utf16Len);
+        }
+        setError(PbjReader.Parse);
+        return "";
     }
 }

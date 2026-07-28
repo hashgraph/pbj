@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
+import static java.lang.Character.MAX_SURROGATE;
+import static java.lang.Character.MIN_SURROGATE;
+import static java.lang.Character.isSurrogatePair;
+import static java.lang.Character.toCodePoint;
+
+import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
@@ -14,9 +20,11 @@ import java.nio.ByteBuffer;
 public class PbjWriter implements AutoCloseable {
     private byte[] buf;
     private int pos, cap;
-    private int offset; // absolute position of buf[0] (total bytes already flushed)
+    private int offset, err;
+    private String errMessage;
+    RuntimeException cause;
     private OutputStream output;
-    private boolean expandable;
+    private boolean reuseable;
 
     public static final int EOF = PbjReader.EOF,
             DataEncoding = PbjReader.DataEncoding,
@@ -35,9 +43,9 @@ public class PbjWriter implements AutoCloseable {
 
     public PbjWriter(@NonNull OutputStream output) {
         this.output = output;
-        this.expandable = false;
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
         cap = buf.length;
+        reuseable = true;
     }
 
     public PbjWriter(ByteBuffer buffer) {
@@ -46,7 +54,6 @@ public class PbjWriter implements AutoCloseable {
             pos = buffer.arrayOffset() + buffer.position();
             cap = buffer.arrayOffset() + buffer.limit();
         } else {
-            // Direct buffer: no backing array, flush through an OutputStream adapter
             this.output = new OutputStream() {
                 @Override
                 public void write(int b) {
@@ -58,9 +65,9 @@ public class PbjWriter implements AutoCloseable {
                     buffer.put(b, off, len);
                 }
             };
-            this.expandable = false;
             buf = new byte[16 << 10];
             cap = buf.length;
+            reuseable = true;
         }
     }
 
@@ -87,14 +94,14 @@ public class PbjWriter implements AutoCloseable {
     public PbjWriter() {
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
         cap = buf.length;
-        expandable = true;
+        reuseable = true;
     }
 
     // reserveSize is minimum size, this may grow
     public PbjWriter(int reserveSize) {
         buf = new byte[Math.max(reserveSize, 16 << 10)]; // 16k is friendly to x86-64 L1 cache
         cap = buf.length;
-        expandable = true;
+        reuseable = true;
     }
 
     public void reserveRel(int len) {
@@ -208,8 +215,8 @@ public class PbjWriter implements AutoCloseable {
     }
 
     private void writeBytesBDInternal(BufferedData src, int len, long srcPos) {
-        if (expandable) {
-            flushOrGrow(len);
+        if (output == null) {
+            flushOrGrow(len); // to grow at least to pos + len
             src.getBytes(srcPos, buf, pos, len);
             src.skip(len);
             pos += len;
@@ -241,7 +248,7 @@ public class PbjWriter implements AutoCloseable {
 
     public void writeBytes(@NonNull byte[] src, int srcOffset, int length) {
         if (length <= 0) return;
-        if (pos + length <= cap && (!expandable || length < 2048)) {
+        if (pos + length <= cap && (output == null || length < 2048)) {
             System.arraycopy(src, srcOffset, buf, pos, length);
             pos += length;
             return;
@@ -251,7 +258,7 @@ public class PbjWriter implements AutoCloseable {
 
     private void writeBytesInternal(byte[] src, int srcOffset, int length) {
         flushOrGrow(length);
-        if (!expandable && length >= 2048) {
+        if (output != null && length >= 2048) {
             try {
                 output.write(src, srcOffset, length);
             } catch (IOException e) {
@@ -276,7 +283,7 @@ public class PbjWriter implements AutoCloseable {
     }
 
     private void writeBytesRAInternal(RandomAccessData src, int len) {
-        if (expandable) {
+        if (output == null) {
             flushOrGrow(len);
             src.getBytes(0, buf, pos, len);
             pos += len;
@@ -378,8 +385,24 @@ public class PbjWriter implements AutoCloseable {
         pos += 8;
     }
 
+    public void writeFloat(float value) {
+        writeFloatBE(value);
+    }
+
+    public void writeFloatBE(float value) {
+        writeIntBE(Float.floatToRawIntBits(value));
+    }
+
     public void writeFloatLE(float value) {
         writeIntLE(Float.floatToRawIntBits(value));
+    }
+
+    public void writeDouble(double value) {
+        writeDoubleBE(value);
+    }
+
+    public void writeDoubleBE(double value) {
+        writeLongBE(Double.doubleToRawLongBits(value));
     }
 
     public void writeDoubleLE(double value) {
@@ -430,22 +453,13 @@ public class PbjWriter implements AutoCloseable {
     }
 
     public void writeVarInt(int value, boolean zigZag) {
-        // Delegate to writeVarLong so negative INT32 values are sign-extended to 64 bits,
-        // producing the required 10-byte varint encoding per the protobuf spec.
-        writeVarLong(value, zigZag);
+        long v = zigZag ? ((long) value << 1) ^ ((long) value >> 63) : value;
+        writeVarLongNoZZ(v);
     }
 
     public void writeVarLong(long value, boolean zigZag) {
         long v = zigZag ? (value << 1) ^ (value >> 63) : value;
-        if (pos + 10 <= cap) {
-            while ((v & ~0x7FL) != 0) {
-                buf[pos++] = (byte) (((int) v & 0x7F) | 0x80);
-                v >>>= 7;
-            }
-            buf[pos++] = (byte) v;
-            return;
-        }
-        writeVarLongInternal(v);
+        writeVarLongNoZZ(v);
     }
 
     private void writeVarLongInternal(long v) {
@@ -473,11 +487,11 @@ public class PbjWriter implements AutoCloseable {
         writeVarLongInternal(v);
     }
 
-    // This does not flush the internal stream
     public void flush() {
         if (output == null) return;
         try {
             output.write(buf, 0, pos);
+            output.flush();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -487,24 +501,20 @@ public class PbjWriter implements AutoCloseable {
 
     @Override
     public void close() {
+        if (output == null) return;
         flush();
-        if (output != null) {
-            try {
-                output.close();
-            } catch (IOException ignored) {
-            }
+        try {
+            output.close();
+        } catch (IOException ignored) {
         }
+        err = Closed;
     }
 
     private void flushOrGrow(int minLength) {
-        if (expandable) {
-            int power2Capacity =
-                    (int) Math.min(Integer.MAX_VALUE, 2L << (63 - Long.numberOfLeadingZeros(pos + minLength)));
-            var newBuf = new byte[power2Capacity];
-            System.arraycopy(buf, 0, newBuf, 0, pos);
-            buf = newBuf;
-            cap = buf.length;
-        } else {
+        if (output != null) {
+            if (minLength > cap) {
+                throw new UncheckedIOException(new IOException("minLength is greater than capacity"));
+            }
             try {
                 output.write(buf, 0, pos);
             } catch (IOException e) {
@@ -512,35 +522,71 @@ public class PbjWriter implements AutoCloseable {
             }
             offset += pos;
             pos = 0;
-            if (minLength > cap) {
-                throw new UncheckedIOException(new IOException("minLength is greater than capacity"));
-            }
+        } else if (reuseable) {
+            int power2Capacity = (int) 2L << (63 - Long.numberOfLeadingZeros(Math.max(buf.length, pos + minLength)));
+            var newBuf = new byte[power2Capacity];
+            System.arraycopy(buf, 0, newBuf, 0, pos);
+            buf = newBuf;
+            cap = buf.length;
         }
+        // A possible else case is using a byte array and trying to reserve (or grow) past the length of it
+        // reserving shouldn't cause a throw so this else is ignored
     }
 
     public void reset() {
         flush();
         pos = 0;
         offset = 0;
+        err = 0;
+        errMessage = null;
+        cause = null;
     }
 
-    public byte[] array() {
+    public void resetWith(@NonNull OutputStream out) {
+        reset();
+        if (!reuseable) {
+            setError(UsageError, "resetWith on non-reuseable PbjWriter");
+            return;
+        }
+        output = out;
+    }
+
+    public byte[] internalArray() {
         return buf;
     }
 
-    public Bytes wrappedBytes() {
+    public Bytes internalArrayWrapped() {
         return Bytes.wrap(buf, 0, pos);
     }
 
+    public Bytes toByteArrayWrapped() {
+        if (output != null) {
+            setError(UsageError, "toByteArrayWrapped used on a streaming object");
+            return Bytes.EMPTY;
+        }
+        return Bytes.wrap(toByteArray());
+    }
+
     public Bytes takeBytes() {
-        if (offset != 0) throw new RuntimeException("takeBytes used on a streaming object");
+        if (output != null) {
+            setError(UsageError, "takeBytes used on a streaming object");
+            return Bytes.EMPTY;
+        }
+        if (!reuseable) {
+            setError(UsageError, "takeBytes used when object didn't create the array");
+            return Bytes.EMPTY;
+        }
         Bytes bytes = Bytes.wrap(buf, 0, pos);
         buf = null;
+        err = Closed;
         return bytes;
     }
 
     public byte[] toByteArray() {
-        if (offset != 0) throw new RuntimeException("toByteArray used on a streaming object");
+        if (output != null) {
+            setError(UsageError, "toByteArray used on a streaming object");
+            return null;
+        }
         var bytes = new byte[pos];
         System.arraycopy(buf, 0, bytes, 0, pos);
         return bytes;
@@ -548,5 +594,92 @@ public class PbjWriter implements AutoCloseable {
 
     public PbjReader toPbjReader() {
         return new PbjReader(buf, 0, pos);
+    }
+
+    public void setError(int errorKind, String message) {
+        if (err > 0) return;
+        err = errorKind;
+        errMessage = message;
+        cause = new RuntimeException(message);
+    }
+
+    public int error() {
+        return err;
+    }
+
+    public void throwOnError() {
+        if (err > 0) {
+            throw cause;
+        }
+    }
+
+    public void writeStringNoTag(String str) {
+        int inLength = str.length();
+        for (int i = 0; i < inLength; ++i) {
+            char c = str.charAt(i);
+            if (c < 0x80) {
+                writeByte((byte) c);
+            } else if (c < 0x800) {
+                writeByte2((byte) (0xC0 | (c >>> 6)), (byte) (0x80 | (0x3F & c)));
+            } else if (c < MIN_SURROGATE || MAX_SURROGATE < c) {
+                writeByte3((byte) (0xE0 | (c >>> 12)), (byte) (0x80 | (0x3F & (c >>> 6))), (byte) (0x80 | (0x3F & c)));
+            } else {
+                char low;
+                if (i + 1 == inLength || !isSurrogatePair(c, (low = str.charAt(++i)))) {
+                    setError(MalformString, "Unpaired surrogate at index " + i + " of " + inLength);
+                    return;
+                }
+                int codePoint = toCodePoint(c, low);
+                writeByte4(
+                        (byte) ((0xF << 4) | (codePoint >>> 18)),
+                        (byte) (0x80 | (0x3F & (codePoint >>> 12))),
+                        (byte) (0x80 | (0x3F & (codePoint >>> 6))),
+                        (byte) (0x80 | (0x3F & codePoint)));
+            }
+        }
+    }
+
+    public void writeStringWithTag(String str) {
+        int inLength = str.length();
+        if (inLength > 0x7F) {
+            writeUTF8_2byte(str);
+            return;
+        }
+        // fast path 1 byte tag case
+        reserveRel(0x7F * 4 + 2); // worse case size
+        int pos = position();
+        placehold(1);
+        writeStringNoTag(str);
+        int endPos = position();
+        int utf8Len = endPos - pos - 1;
+        if (utf8Len <= 0x7F) {
+            writeAt(pos, (byte) utf8Len);
+        } else {
+            reinsertVarInt(pos);
+        }
+    }
+
+    private void writeUTF8_2byte(String str) {
+        // buffer is 16k, string is UTF16, so worst case is len*3.
+        // 5460 was picked bc its (16k - 2byte tag) / 3 byte worse case
+        if (str.length() > 5460) {
+            // Can't fit in buffer, todo check if we'll grow anyways
+            // I don't think anything hits this case?
+            // These two lines counts the length then write the length, making this 2 pass
+            writeVarIntNoZZ(ProtoWriterTools.sizeOfStringNoTag(str));
+            writeStringNoTag(str);
+            return;
+        }
+        reserveRel(str.length() * 3 + 2);
+        int pos = position();
+        placehold(2);
+        writeStringNoTag(str);
+        int utf8Len = position() - pos - 2;
+        writeAt(pos, (byte) ((utf8Len & 0x7F) | 0x80));
+        writeAt(pos + 1, (byte) (utf8Len >>> 7));
+    }
+
+    public void skip(int count) {
+        pos += count;
     }
 }

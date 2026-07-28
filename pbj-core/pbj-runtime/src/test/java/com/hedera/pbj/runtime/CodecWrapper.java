@@ -4,7 +4,6 @@ package com.hedera.pbj.runtime;
 import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.PbjWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.function.ToIntFunction;
 
 /**
@@ -31,7 +30,7 @@ class CodecWrapper<T> implements Codec<T> {
     }
 
     @Override
-    public void realWrite(@NonNull T item, @NonNull PbjWriter output) throws IOException {
+    public void realWrite(@NonNull T item, @NonNull PbjWriter output) {
         writer.write(item, output);
     }
 

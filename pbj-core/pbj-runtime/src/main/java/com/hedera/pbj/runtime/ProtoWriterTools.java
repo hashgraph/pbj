@@ -431,7 +431,7 @@ public final class ProtoWriterTools {
         writeString(out, field, value, true);
     }
 
-    public static void writeString(PbjWriter out, final FieldDefinition field, final String value) throws IOException {
+    public static void writeString(PbjWriter out, final FieldDefinition field, final String value) {
         writeString(out, field, value, true);
     }
 
@@ -452,8 +452,8 @@ public final class ProtoWriterTools {
         writeStringNoChecks(out, field, value, skipDefault);
     }
 
-    public static void writeString(PbjWriter out, final FieldDefinition field, final String value, boolean skipDefault)
-            throws IOException {
+    public static void writeString(
+            PbjWriter out, final FieldDefinition field, final String value, boolean skipDefault) {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert !field.repeated() : "Use writeStringList with repeated types";
         writeStringNoChecks(out, field, value, skipDefault);
@@ -523,14 +523,14 @@ public final class ProtoWriterTools {
     }
 
     private static void writeStringNoChecks(
-            PbjWriter out, final FieldDefinition field, final String value, boolean skipDefault) throws IOException {
+            PbjWriter out, final FieldDefinition field, final String value, boolean skipDefault) {
         // When not a oneOf don't write default value
         if (skipDefault && !field.oneOf() && (value == null || value.isEmpty())) {
             return;
         }
         writeTag(out, field, WIRE_TYPE_DELIMITED);
         out.writeVarIntNoZZ(sizeOfStringNoTag(value));
-        Utf8Tools.encodeUtf8(value, out);
+        out.writeStringNoTag(value);
     }
 
     /**
@@ -548,8 +548,7 @@ public final class ProtoWriterTools {
         writeBytes(out, field, value, true);
     }
 
-    public static void writeBytes(PbjWriter out, final FieldDefinition field, final RandomAccessData value)
-            throws IOException {
+    public static void writeBytes(PbjWriter out, final FieldDefinition field, final RandomAccessData value) {
         writeBytes(out, field, value, true);
     }
 
@@ -575,8 +574,7 @@ public final class ProtoWriterTools {
     }
 
     public static void writeBytes(
-            PbjWriter out, final FieldDefinition field, final RandomAccessData value, boolean skipDefault)
-            throws IOException {
+            PbjWriter out, final FieldDefinition field, final RandomAccessData value, boolean skipDefault) {
         assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert !field.repeated() : "Use writeBytesList with repeated types";
         writeBytesNoChecks(out, field, value, skipDefault);
@@ -638,8 +636,10 @@ public final class ProtoWriterTools {
     }
 
     private static void writeBytesNoChecks(
-            PbjWriter out, final FieldDefinition field, final RandomAccessData value, final boolean skipZeroLength)
-            throws IOException {
+            final PbjWriter out,
+            final FieldDefinition field,
+            final RandomAccessData value,
+            final boolean skipZeroLength) {
         // When not a oneOf don't write default value
         if (!field.oneOf() && (skipZeroLength && (value.length() == 0))) {
             return;
@@ -650,7 +650,9 @@ public final class ProtoWriterTools {
         out.writeBytes(value);
         final long bytesWritten = out.position() - posBefore;
         if (bytesWritten != value.length()) {
-            throw new IOException("Wrote less bytes [" + bytesWritten + "] than expected [" + value.length() + "]");
+            out.setError(
+                    PbjWriter.IOError,
+                    "Wrote less bytes [" + bytesWritten + "] than expected [" + value.length() + "]");
         }
     }
 
@@ -673,7 +675,7 @@ public final class ProtoWriterTools {
     }
 
     public static <T> void writeMessage(
-            PbjWriter out, final FieldDefinition field, final T message, final Codec<T> codec) throws IOException {
+            PbjWriter out, final FieldDefinition field, final T message, final Codec<T> codec) {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert !field.repeated() : "Use writeMessageList with repeated types";
         writeMessageNoChecks(out, field, message, codec);
@@ -735,7 +737,7 @@ public final class ProtoWriterTools {
     }
 
     private static <T> void writeMessageNoChecks(
-            PbjWriter out, final FieldDefinition field, final T message, final Codec<T> codec) throws IOException {
+            PbjWriter out, final FieldDefinition field, final T message, final Codec<T> codec) {
         // When not a oneOf don't write default value
         if (field.oneOf() && message == null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
@@ -962,8 +964,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeOptionalString(PbjWriter out, FieldDefinition field, @Nullable String value)
-            throws IOException {
+    public static void writeOptionalString(PbjWriter out, FieldDefinition field, @Nullable String value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -993,8 +994,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeOptionalBytes(PbjWriter out, FieldDefinition field, @Nullable Bytes value)
-            throws IOException {
+    public static void writeOptionalBytes(PbjWriter out, FieldDefinition field, @Nullable Bytes value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -1574,7 +1574,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeStringList(PbjWriter out, FieldDefinition field, List<String> list) throws IOException {
+    public static void writeStringList(PbjWriter out, FieldDefinition field, List<String> list) {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "Use writeString with non-repeated types";
         // When not a oneOf don't write default value
@@ -1585,7 +1585,7 @@ public final class ProtoWriterTools {
         for (int i = 0; i < listSize; i++) {
             final String value = list.get(i);
             writeTag(out, field, WIRE_TYPE_DELIMITED);
-            Utf8Tools.WriteUTF8(value, out);
+            out.writeStringWithTag(value);
         }
     }
 
@@ -1613,8 +1613,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static <T> void writeMessageList(PbjWriter out, FieldDefinition field, List<T> list, Codec<T> codec)
-            throws IOException {
+    public static <T> void writeMessageList(PbjWriter out, FieldDefinition field, List<T> list, Codec<T> codec) {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert field.repeated() : "Use writeMessage with non-repeated types";
         // When not a oneOf don't write default value
@@ -1650,8 +1649,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeBytesList(PbjWriter out, FieldDefinition field, List<? extends RandomAccessData> list)
-            throws IOException {
+    public static void writeBytesList(PbjWriter out, FieldDefinition field, List<? extends RandomAccessData> list) {
         assert field.type() == FieldType.BYTES : "Not a message type " + field;
         assert field.repeated() : "Use writeBytes with non-repeated types";
         // When not a oneOf don't write default value
@@ -2032,7 +2030,7 @@ public final class ProtoWriterTools {
      * @param value string value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    static int sizeOfStringNoTag(String value) {
+    public static int sizeOfStringNoTag(String value) {
         // When not a oneOf don't write default value
         if ((value == null || value.isEmpty())) {
             return 0;
