@@ -142,71 +142,8 @@ public final class Utf8Tools {
         }
     }
 
-    // doesn't write out the length
-    static void encodeUtf8(String in, PbjWriter out) throws IOException {
-        int inLength = in.length();
-        for (int i = 0; i < inLength; ++i) {
-            char c = in.charAt(i);
-            if (c < 0x80) {
-                out.writeByte((byte) c);
-            } else if (c < 0x800) {
-                out.writeByte2((byte) (0xC0 | (c >>> 6)), (byte) (0x80 | (0x3F & c)));
-            } else if (c < MIN_SURROGATE || MAX_SURROGATE < c) {
-                out.writeByte3(
-                        (byte) (0xE0 | (c >>> 12)), (byte) (0x80 | (0x3F & (c >>> 6))), (byte) (0x80 | (0x3F & c)));
-            } else {
-                char low;
-                if (i + 1 == inLength || !isSurrogatePair(c, (low = in.charAt(++i)))) {
-                    throw new MalformedProtobufException("Unpaired surrogate at index " + i + " of " + inLength);
-                }
-                int codePoint = toCodePoint(c, low);
-                out.writeByte4(
-                        (byte) ((0xF << 4) | (codePoint >>> 18)),
-                        (byte) (0x80 | (0x3F & (codePoint >>> 12))),
-                        (byte) (0x80 | (0x3F & (codePoint >>> 6))),
-                        (byte) (0x80 | (0x3F & codePoint)));
-            }
-        }
-    }
-
-    static void WriteUTF8(String in, PbjWriter out) throws IOException {
-        int inLength = in.length();
-        if (inLength > 0x7F) {
-            WriteUTF8_2byte(in, out);
-            return;
-        }
-        // fast path 1 byte tag case
-        out.reserveRel(0x7F * 4 + 2); // worse case size
-        int pos = out.position();
-        out.placehold(1);
-        encodeUtf8(in, out);
-        int endPos = out.position();
-        int utf8Len = endPos - pos - 1;
-        if (utf8Len <= 0x7F) {
-            out.writeAt(pos, (byte) utf8Len);
-        } else {
-            out.reinsertVarInt(pos);
-        }
-    }
-
-    private static void WriteUTF8_2byte(String in, PbjWriter out) throws IOException {
-        // buffer is 16k, string is UTF16, so worst case is len*3.
-        // 5460 was picked bc its (16k - 2byte tag) / 3 byte worse case
-        if (in.length() > 5460) {
-            // Can't fit in buffer, todo check if we'll grow anyways
-            // I don't think anything hits this case?
-            // These two lines counts the length then write the length, making this 2 pass
-            out.writeVarIntNoZZ(ProtoWriterTools.sizeOfStringNoTag(in));
-            Utf8Tools.encodeUtf8(in, out);
-            return;
-        }
-        out.reserveRel(in.length() * 3 + 2);
-        int pos = out.position();
-        out.placehold(2);
-        Utf8Tools.encodeUtf8(in, out);
-        int utf8Len = out.position() - pos - 2;
-        out.writeAt(pos, (byte) ((utf8Len & 0x7F) | 0x80));
-        out.writeAt(pos + 1, (byte) (utf8Len >>> 7));
+    static void WriteUTF8(String str, PbjWriter out) {
+        out.writeStringWithTag(str);
     }
 
     /**

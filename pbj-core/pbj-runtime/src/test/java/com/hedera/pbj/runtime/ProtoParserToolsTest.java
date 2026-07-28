@@ -257,6 +257,24 @@ class ProtoParserToolsTest {
             {(byte) 0xF0, (byte) 0x90, (byte) 0x04, (byte) 0xBF},
             {(byte) 0xF0, (byte) 0x10, (byte) 0x84, (byte) 0xBF},
             {(byte) 0x70, (byte) 0x90, (byte) 0x84, (byte) 0xBF},
+
+            // Largest Legal Value is 10FFFF (F4 8F BF BF)
+            {(byte) 0xF4, (byte) 0x90, (byte) 0x80, (byte) 0x80},
+            {(byte) 0xF4, (byte) 0x8F, (byte) 0xBF, (byte) 0xC0},
+            {(byte) 0xF5, (byte) 0x80, (byte) 0x80, (byte) 0x80},
+            {(byte) 0xF5, (byte) 0xBF, (byte) 0x80, (byte) 0x80},
+            {(byte) 0xF6, (byte) 0xBF, (byte) 0x80, (byte) 0x80},
+            {(byte) 0xF7, (byte) 0xBF, (byte) 0x80, (byte) 0x80},
+            {(byte) 0xF8, (byte) 0xBF, (byte) 0x80, (byte) 0x80},
+
+            // Check if the non tail codepath checks for these
+            {(byte) 0xF4, (byte) 0x90, (byte) 0x80, (byte) 0x80, 65},
+            {(byte) 0xF4, (byte) 0x8F, (byte) 0xBF, (byte) 0xC0, 65},
+            {(byte) 0xF5, (byte) 0x80, (byte) 0x80, (byte) 0x80, 65},
+            {(byte) 0xF5, (byte) 0xBF, (byte) 0x80, (byte) 0x80, 65},
+            {(byte) 0xF6, (byte) 0xBF, (byte) 0x80, (byte) 0x80, 65},
+            {(byte) 0xF7, (byte) 0xBF, (byte) 0x80, (byte) 0x80, 65},
+            {(byte) 0xF8, (byte) 0xBF, (byte) 0x80, (byte) 0x80, 65},
         };
 
         // First check the code is encoding correctly
@@ -343,14 +361,14 @@ class ProtoParserToolsTest {
     }
 
     @Test
-    void testReadBytes_readerBuffer_maxSize_throwsParseExceptionWithNoCause() {
-        final int maxSize = 1024;
-        final BufferedData data = BufferedData.allocate(16);
+    void testReadBytes_pbjreader_maxSize_throwsParseExceptionWithNoCause() {
+        int maxSize = 1024;
+        BufferedData data = BufferedData.allocate(16);
         data.writeVarInt(maxSize + 1, false);
         data.flip();
-        final PbjReader reader = new PbjReader(data.toInputStream());
+        PbjReader reader = new PbjReader(data.toInputStream());
         ProtoParserTools.readBytes(reader, maxSize);
-        final ParseException ex = assertThrows(ParseException.class, reader::throwOnError);
+        ParseException ex = assertThrows(ParseException.class, reader::throwOnError);
         assertNull(ex.getCause(), "CN Expects no cause");
     }
 
@@ -524,7 +542,7 @@ class ProtoParserToolsTest {
         PbjReader input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, MESSAGE_F);
         assertNotNull(bytes);
-        final TestMessage value = TestMessageCodec.INSTANCE.parse(bytes.toPbjReader());
+        final TestMessage value = TestMessageCodec.INSTANCE.parse(bytes);
         assertNotNull(value);
         assertEquals(MESSAGE_V, value);
     }
@@ -663,7 +681,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public void realWrite(@NonNull final TestMessage item, @NonNull PbjWriter out) throws IOException {
+        public void realWrite(@NonNull final TestMessage item, @NonNull PbjWriter out) {
             final String value = item.getValue();
             if (value != null) {
                 ProtoWriterTools.writeString(out, VALUE_FIELD, value);
