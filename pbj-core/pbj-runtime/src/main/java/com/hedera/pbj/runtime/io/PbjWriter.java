@@ -11,32 +11,36 @@ import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 
-/**
- * A {@link WritableSequentialData} backed by an internal byte buffer, meant to be easy for the JIT to optimize.
- * Bytes are accumulated in a private buffer and flushed to an underlying {@link WritableSequentialData} when the buffer fills.
- */
-public class SlimWriter implements AutoCloseable {
+public class PbjWriter implements AutoCloseable {
     private byte[] buf;
     private int pos, cap;
     private int offset; // absolute position of buf[0] (total bytes already flushed)
     private OutputStream output;
     private boolean expandable;
 
-    public static final int BufferOverflow = 11, IOError = 5;
+    public static final int EOF = PbjReader.EOF,
+            DataEncoding = PbjReader.DataEncoding,
+            BufferUnderflow = PbjReader.BufferUnderflow,
+            Parse = PbjReader.Parse,
+            IllegalArgument = PbjReader.IllegalArgument,
+            IOError = PbjReader.IOError,
+            Unsupported = PbjReader.Unsupported,
+            UsageError = PbjReader.UsageError,
+            UnknownField = PbjReader.UnknownField,
+            BufferOverflow = PbjReader.BufferOverflow,
+            MaxDepthReached = PbjReader.MaxDepthReached,
+            // For PbjWriter
+            Closed = PbjReader.Closed,
+            MalformString = PbjReader.MalformString;
 
-    /**
-     * Creates a SlimWriter that accumulates writes into an internal buffer and flushes to {@code output}.
-     *
-     * @param output the destination to flush into
-     */
-    public SlimWriter(@NonNull OutputStream output) {
+    public PbjWriter(@NonNull OutputStream output) {
         this.output = output;
         this.expandable = false;
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
         cap = buf.length;
     }
 
-    public SlimWriter(ByteBuffer buffer) {
+    public PbjWriter(ByteBuffer buffer) {
         if (buffer.hasArray()) {
             buf = buffer.array();
             pos = buffer.arrayOffset() + buffer.position();
@@ -60,7 +64,13 @@ public class SlimWriter implements AutoCloseable {
         }
     }
 
-    public SlimWriter(@NonNull WritableSequentialData output) {
+    public PbjWriter(byte[] buffer, int pos, int cap) {
+        this.buf = buffer;
+        this.pos = pos;
+        this.cap = cap;
+    }
+
+    public PbjWriter(@NonNull WritableSequentialData output) {
         this(new OutputStream() {
             @Override
             public void write(int b) {
@@ -74,18 +84,17 @@ public class SlimWriter implements AutoCloseable {
         });
     }
 
-    public SlimWriter() {
-        this.output = null;
-        this.expandable = true;
+    public PbjWriter() {
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
         cap = buf.length;
+        expandable = true;
     }
 
-    public SlimWriter(int reserveSize) {
-        this.output = null;
-        this.expandable = true; // should the reserveSize be the max?
+    // reserveSize is minimum size, this may grow
+    public PbjWriter(int reserveSize) {
         buf = new byte[Math.max(reserveSize, 16 << 10)]; // 16k is friendly to x86-64 L1 cache
         cap = buf.length;
+        expandable = true;
     }
 
     public void reserveRel(int len) {
@@ -537,7 +546,7 @@ public class SlimWriter implements AutoCloseable {
         return bytes;
     }
 
-    public SlimBuffer toSlimBuffer() {
-        return new SlimBuffer(buf, 0, pos);
+    public PbjReader toPbjReader() {
+        return new PbjReader(buf, 0, pos);
     }
 }

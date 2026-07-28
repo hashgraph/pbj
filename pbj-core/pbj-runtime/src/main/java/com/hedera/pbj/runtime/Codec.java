@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.SlimBuffer;
-import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -24,19 +24,19 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public interface Codec<T> {
 
-    static final boolean logNonSlimReads = false,
-            logNonSlimWrites = false,
+    static final boolean logNonPbjReads = false,
+            logNonPbjWrites = false,
             logGoodPath = false,
-            disallowNonSlimBuffer = false,
-            disallowNonSlimWriter = false;
+            disallowNonPbjReader = false,
+            disallowNonPbjWriter = false;
 
     class WriteCache {
-        final SlimWriter writer = new SlimWriter();
+        PbjWriter writer = new PbjWriter();
         boolean inUse = false;
     }
 
     class ReadCache {
-        final SlimBuffer reader = new SlimBuffer(Bytes.EMPTY);
+        PbjReader reader = new PbjReader(Bytes.EMPTY);
         boolean inUse = false;
     }
 
@@ -49,7 +49,7 @@ public interface Codec<T> {
     private static PrintStream openTraceFile() {
         try {
             var stream = new PrintStream(new FileOutputStream("/tmp/ldintr.txt", false), true);
-            stream.println("Runing------ %b %b".formatted(logNonSlimReads, logNonSlimWrites));
+            stream.println("Runing------ %b %b".formatted(logNonPbjReads, logNonPbjWrites));
             return stream;
         } catch (IOException e) {
             return System.err;
@@ -67,15 +67,15 @@ public interface Codec<T> {
     }
 
     default void logGood() {
-        logStack(logGoodPath, "Slim path:");
+        logStack(logGoodPath, "Pbj path:");
     }
 
     default void logRead() {
-        logStack(logNonSlimReads, "parse(ReadableSequentialData) called via non-SlimBuffer path:");
+        logStack(logNonPbjReads, "parse(ReadableSequentialData) called via non-PbjReader path:");
     }
 
     default void logWrite() {
-        logStack(logNonSlimWrites, "parse(ReadableSequentialData) called via non-SlimBuffer path:");
+        logStack(logNonPbjWrites, "parse(ReadableSequentialData) called via non-PbjReader path:");
     }
 
     default void dbgLog() {
@@ -134,17 +134,16 @@ public interface Codec<T> {
             int maxDepth,
             int maxSize)
             throws ParseException {
-        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
         logRead();
-        SlimBuffer slim = new SlimBuffer(input);
-        T res = parse(slim, strictMode, parseUnknownFields, maxDepth, maxSize);
-        slim.throwOnError();
+        PbjReader reader = new PbjReader(input);
+        T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+        reader.throwOnError();
         return res;
     }
 
     @NonNull
-    default T parse(
-            @NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+    default T parse(@NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         logGood();
         T res = realParse(input, strictMode, parseUnknownFields, maxDepth, maxSize);
@@ -153,7 +152,7 @@ public interface Codec<T> {
     }
 
     @NonNull
-    T realParse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+    T realParse(@NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException;
 
     /**
@@ -181,15 +180,15 @@ public interface Codec<T> {
     @NonNull
     default T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
-        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
         logRead();
-        SlimBuffer slim = new SlimBuffer(input);
-        T res = parse(slim, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
-        slim.throwOnError();
+        PbjReader reader = new PbjReader(input);
+        T res = parse(reader, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+        reader.throwOnError();
         return res;
     }
 
-    default T parse(@NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+    default T parse(@NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
         T res = parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
         input.throwOnError();
@@ -220,12 +219,12 @@ public interface Codec<T> {
     }
 
     @NonNull
-    default T parse(@NonNull SlimBuffer input, final boolean strictMode, final int maxDepth) throws ParseException {
+    default T parse(@NonNull PbjReader input, final boolean strictMode, final int maxDepth) throws ParseException {
         return parse(input, strictMode, false, maxDepth);
     }
 
     @NonNull
-    default T parseAndThrow(@NonNull SlimBuffer input, final boolean strictMode, final int maxDepth)
+    default T parseAndThrow(@NonNull PbjReader input, final boolean strictMode, final int maxDepth)
             throws ParseException {
         T res = parse(input, strictMode, false, maxDepth);
         input.throwOnError();
@@ -255,24 +254,24 @@ public interface Codec<T> {
     }
 
     /**
-     * Parses an object from the {@link SlimBuffer} and returns it.
+     * Parses an object from the {@link PbjReader} and returns it.
      *
-     * @param input The {@link SlimBuffer} from which to read the data to construct an object
+     * @param input The {@link PbjReader} from which to read the data to construct an object
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
     @NonNull
     default T parse(@NonNull ReadableSequentialData input) throws ParseException {
-        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
         logRead();
-        SlimBuffer slim = new SlimBuffer(input);
-        T res = parse(slim);
-        slim.throwOnError();
+        PbjReader reader = new PbjReader(input);
+        T res = parse(reader);
+        reader.throwOnError();
         return res;
     }
 
     @NonNull
-    default T parse(@NonNull SlimBuffer input) throws ParseException {
+    default T parse(@NonNull PbjReader input) throws ParseException {
         return parse(input, false, DEFAULT_MAX_DEPTH);
     }
 
@@ -285,22 +284,22 @@ public interface Codec<T> {
      */
     @NonNull
     default T parse(@NonNull Bytes bytes) throws ParseException {
-        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
         // logRead();
         ReadCache cache = tlsReader.get();
         if (cache.inUse) {
             dbgLog();
-            SlimBuffer slim = new SlimBuffer(bytes);
-            T res = parse(slim);
-            slim.throwOnError();
+            PbjReader reader = new PbjReader(bytes);
+            T res = parse(reader);
+            reader.throwOnError();
             return res;
         }
         cache.inUse = true;
         try {
-            SlimBuffer slim = cache.reader;
-            slim.resetWith(bytes);
-            T res = parse(slim);
-            slim.throwOnError();
+            PbjReader reader = cache.reader;
+            reader.resetWith(bytes);
+            T res = parse(reader);
+            reader.throwOnError();
             return res;
         } finally {
             cache.inUse = false;
@@ -320,16 +319,16 @@ public interface Codec<T> {
      */
     @NonNull
     default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
-        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
+        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
         logRead();
-        SlimBuffer slim = new SlimBuffer(input);
-        T res = parse(slim, true, DEFAULT_MAX_DEPTH);
-        slim.throwOnError();
+        PbjReader reader = new PbjReader(input);
+        T res = parse(reader, true, DEFAULT_MAX_DEPTH);
+        reader.throwOnError();
         return res;
     }
 
     @NonNull
-    default T parseStrict(@NonNull SlimBuffer input) throws ParseException {
+    default T parseStrict(@NonNull PbjReader input) throws ParseException {
         return parse(input, true, DEFAULT_MAX_DEPTH);
     }
     /**
@@ -345,10 +344,10 @@ public interface Codec<T> {
      */
     @NonNull
     default T parseStrict(@NonNull Bytes bytes) throws ParseException {
-        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
-        SlimBuffer slim = new SlimBuffer(bytes.toReadableSequentialData());
-        T res = parseStrict(slim);
-        slim.throwOnError();
+        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
+        PbjReader reader = new PbjReader(bytes.toReadableSequentialData());
+        T res = parseStrict(reader);
+        reader.throwOnError();
         return res;
     }
 
@@ -359,17 +358,17 @@ public interface Codec<T> {
      * @param output The {@link WritableSequentialData} to write to.
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
-    void realWrite(@NonNull T item, @NonNull SlimWriter output) throws IOException;
+    void realWrite(@NonNull T item, @NonNull PbjWriter output) throws IOException;
 
     default void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
-        if (disallowNonSlimWriter) throw new RuntimeException("SlimWriter Only");
+        if (disallowNonPbjWriter) throw new RuntimeException("PbjWriter Only");
         logWrite();
-        SlimWriter slim = new SlimWriter(output);
-        write(item, slim);
-        slim.flush();
+        PbjWriter writer = new PbjWriter(output);
+        write(item, writer);
+        writer.flush();
     }
 
-    default void write(@NonNull T item, @NonNull SlimWriter output) throws IOException {
+    default void write(@NonNull T item, @NonNull PbjWriter output) throws IOException {
         logGood();
         realWrite(item, output);
     }
@@ -388,10 +387,10 @@ public interface Codec<T> {
     default int write(@NonNull T item, @NonNull byte[] output, final int startOffset) {
         final BufferedData bufferedData = BufferedData.wrap(output, startOffset, output.length - startOffset);
         // logWrite();
-        final SlimWriter slim = new SlimWriter(bufferedData);
+        PbjWriter writer = new PbjWriter(bufferedData);
         try {
-            write(item, slim);
-            slim.flush();
+            write(item, writer);
+            writer.flush();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -407,17 +406,17 @@ public interface Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    default int measure(@NonNull SlimBuffer input) throws ParseException {
+    default int measure(@NonNull PbjReader input) throws ParseException {
         final long startPosition = input.position();
         parse(input);
         return (int) (input.position() - startPosition);
     }
 
     default int measure(@NonNull ReadableSequentialData input) throws ParseException {
-        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
-        SlimBuffer slim = new SlimBuffer(input);
-        final int res = measure(slim);
-        slim.throwOnError();
+        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
+        PbjReader reader = new PbjReader(input);
+        int res = measure(reader);
+        reader.throwOnError();
         return res;
     }
     /**
@@ -440,13 +439,13 @@ public interface Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    boolean fastEquals(@NonNull T item, @NonNull SlimBuffer input) throws ParseException;
+    boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException;
 
     default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
-        if (disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
-        SlimBuffer slim = new SlimBuffer(input);
-        boolean res = fastEquals(item, slim);
-        slim.throwOnError();
+        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
+        PbjReader reader = new PbjReader(input);
+        boolean res = fastEquals(item, reader);
+        reader.throwOnError();
         return res;
     }
 
@@ -455,7 +454,7 @@ public interface Codec<T> {
         if (cache.inUse) {
             dbgLog();
             int len = measureRecord(item);
-            SlimWriter writer = new SlimWriter(len);
+            PbjWriter writer = new PbjWriter(len);
             return toBytes(item, writer);
         }
         cache.inUse = true;
@@ -467,7 +466,7 @@ public interface Codec<T> {
         }
     }
 
-    default Bytes toBytes(@NonNull T item, SlimWriter writer) {
+    default Bytes toBytes(@NonNull T item, PbjWriter writer) {
         try {
             write(item, writer);
             writer.flush();

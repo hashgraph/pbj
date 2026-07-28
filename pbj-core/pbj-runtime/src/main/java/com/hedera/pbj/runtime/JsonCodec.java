@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.SlimBuffer;
-import com.hedera.pbj.runtime.io.SlimWriter;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
@@ -21,7 +21,7 @@ public interface JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
     default @NonNull T realParse(
-            @NonNull SlimBuffer input,
+            @NonNull PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
@@ -69,7 +69,7 @@ public interface JsonCodec<T> extends Codec<T> {
         output.writeUTF8(toJSON(item));
     }
 
-    default void realWrite(@NonNull T item, @NonNull SlimWriter output) throws IOException {
+    default void realWrite(@NonNull T item, @NonNull PbjWriter output) throws IOException {
         Utf8Tools.encodeUtf8(toJSON(item), output);
     }
 
@@ -103,7 +103,7 @@ public interface JsonCodec<T> extends Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    default int measure(@NonNull SlimBuffer input) throws ParseException {
+    default int measure(@NonNull PbjReader input) throws ParseException {
         final long startPosition = input.position();
         parse(input);
         return (int) (input.position() - startPosition);
@@ -142,7 +142,7 @@ public interface JsonCodec<T> extends Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    default boolean fastEquals(@NonNull T item, @NonNull SlimBuffer input) throws ParseException {
+    default boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException {
         return Objects.equals(item, parse(input));
     }
 

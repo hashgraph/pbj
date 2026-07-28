@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.SlimBuffer;
-import com.hedera.pbj.runtime.io.SlimWriter;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.function.ToIntFunction;
@@ -14,10 +14,10 @@ import java.util.function.ToIntFunction;
  * @param <T> The type of the object to be encoded/decoded
  */
 class CodecWrapper<T> implements Codec<T> {
-    private final SlimProtoWriter<T> writer;
+    private final PbjProtoWriter<T> writer;
     private final ToIntFunction<T> sizeOf;
 
-    CodecWrapper(SlimProtoWriter<T> writer, ToIntFunction<T> sizeOf) {
+    CodecWrapper(PbjProtoWriter<T> writer, ToIntFunction<T> sizeOf) {
         this.writer = writer;
         this.sizeOf = sizeOf;
     }
@@ -25,18 +25,18 @@ class CodecWrapper<T> implements Codec<T> {
     @NonNull
     @Override
     public T realParse(
-            @NonNull SlimBuffer input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void realWrite(@NonNull T item, @NonNull SlimWriter output) throws IOException {
+    public void realWrite(@NonNull T item, @NonNull PbjWriter output) throws IOException {
         writer.write(item, output);
     }
 
     @Override
-    public int measure(@NonNull SlimBuffer input) throws ParseException {
+    public int measure(@NonNull PbjReader input) throws ParseException {
         throw new UnsupportedOperationException();
     }
 
@@ -46,7 +46,7 @@ class CodecWrapper<T> implements Codec<T> {
     }
 
     @Override
-    public boolean fastEquals(@NonNull T item, @NonNull SlimBuffer input) throws ParseException {
+    public boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException {
         throw new UnsupportedOperationException();
     }
 
