@@ -29,9 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.SlimBuffer;
-import com.hedera.pbj.runtime.io.SlimWriter;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
@@ -237,8 +237,8 @@ class ProtoParserToolsTest {
         data.writeVarInt(utf8.length, false);
         data.writeBytes(utf8);
         data.flip();
-        SlimBuffer slim = new SlimBuffer(data.toInputStream());
-        assertEquals(expected, readString(slim));
+        PbjReader reader = new PbjReader(data.toInputStream());
+        assertEquals(expected, readString(reader));
     }
 
     @Test
@@ -266,10 +266,10 @@ class ProtoParserToolsTest {
             data.writeVarInt(ok.length, false);
             data.writeBytes(ok);
             data.flip();
-            SlimBuffer slim = new SlimBuffer(data.toInputStream());
-            String oksz = readString(slim);
+            PbjReader reader = new PbjReader(data.toInputStream());
+            String oksz = readString(reader);
             assertEquals("\uD7FF", oksz);
-            assert (slim.error() <= 0);
+            assert (reader.error() <= 0);
         }
 
         for (var bad : manyBadEncoding) {
@@ -277,10 +277,10 @@ class ProtoParserToolsTest {
             data.writeVarInt(bad.length, false);
             data.writeBytes(bad);
             data.flip();
-            SlimBuffer slim = new SlimBuffer(data.toInputStream());
-            String badsz = readString(slim);
+            PbjReader reader = new PbjReader(data.toInputStream());
+            String badsz = readString(reader);
             assertEquals("", badsz);
-            assertEquals(slim.error(), SlimBuffer.Parse);
+            assertEquals(reader.error(), PbjReader.Parse);
         }
     }
 
@@ -343,14 +343,14 @@ class ProtoParserToolsTest {
     }
 
     @Test
-    void testReadBytes_slimBuffer_maxSize_throwsParseExceptionWithNoCause() {
+    void testReadBytes_readerBuffer_maxSize_throwsParseExceptionWithNoCause() {
         final int maxSize = 1024;
         final BufferedData data = BufferedData.allocate(16);
         data.writeVarInt(maxSize + 1, false);
         data.flip();
-        final SlimBuffer slim = new SlimBuffer(data.toInputStream());
-        ProtoParserTools.readBytes(slim, maxSize);
-        final ParseException ex = assertThrows(ParseException.class, slim::throwOnError);
+        final PbjReader reader = new PbjReader(data.toInputStream());
+        ProtoParserTools.readBytes(reader, maxSize);
+        final ParseException ex = assertThrows(ParseException.class, reader::throwOnError);
         assertNull(ex.getCause(), "CN Expects no cause");
     }
 
@@ -439,7 +439,7 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesNullInput() {
         final FieldDefinition field = createFieldDefinition(BYTES);
-        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes((SlimBuffer) null, field));
+        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes((PbjReader) null, field));
     }
 
     @Test
@@ -485,20 +485,20 @@ class ProtoParserToolsTest {
     private static final FieldDefinition BOOL_F = new FieldDefinition("boolfield", BOOL, false, true, false, 11);
     private static final boolean BOOL_V = true;
 
-    private static SlimBuffer prepareExtractBytesTestInput() throws IOException {
-        SlimWriter out = new SlimWriter();
+    private static PbjReader prepareExtractBytesTestInput() throws IOException {
+        PbjWriter out = new PbjWriter();
         ProtoWriterTools.writeInteger(out, INT32_F, INT32_V);
         ProtoWriterTools.writeInteger(out, FIXED_F, FIXED32_V);
         ProtoWriterTools.writeString(out, STRING_F, STRING_V);
         ProtoWriterTools.writeBytes(out, BYTES_F, BYTES_V);
         ProtoWriterTools.writeMessage(out, MESSAGE_F, MESSAGE_V, TestMessageCodec.INSTANCE);
         ProtoWriterTools.writeDouble(out, DOUBLE_F, DOUBLE32_V);
-        return out.toSlimBuffer();
+        return out.toPbjReader();
     }
 
     @Test
     void testExtractBytesStringField() throws IOException, ParseException {
-        SlimBuffer input = prepareExtractBytesTestInput();
+        PbjReader input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, STRING_F);
         assertNotNull(bytes);
         assertEquals(STRING_V, new String(bytes.toByteArray(), StandardCharsets.UTF_8));
@@ -506,14 +506,14 @@ class ProtoParserToolsTest {
 
     @Test
     void testExtractFieldBytesInvalidType() throws IOException, ParseException {
-        SlimBuffer input = prepareExtractBytesTestInput();
+        PbjReader input = prepareExtractBytesTestInput();
         // should throw because INT32 is not a delimited type
         assertThrows(IllegalArgumentException.class, () -> ProtoParserTools.extractFieldBytes(input, INT32_F));
     }
 
     @Test
     void testExtractBytesBytesField() throws IOException, ParseException {
-        SlimBuffer input = prepareExtractBytesTestInput();
+        PbjReader input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, BYTES_F);
         assertNotNull(bytes);
         assertEquals(BYTES_V, bytes);
@@ -521,45 +521,45 @@ class ProtoParserToolsTest {
 
     @Test
     void testExtractBytesMessageField() throws IOException, ParseException {
-        SlimBuffer input = prepareExtractBytesTestInput();
+        PbjReader input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, MESSAGE_F);
         assertNotNull(bytes);
-        final TestMessage value = TestMessageCodec.INSTANCE.parse(bytes.toSlimBuffer());
+        final TestMessage value = TestMessageCodec.INSTANCE.parse(bytes.toPbjReader());
         assertNotNull(value);
         assertEquals(MESSAGE_V, value);
     }
 
     @Test
     void testExtractBytesUnknownField() throws IOException, ParseException {
-        SlimBuffer input = prepareExtractBytesTestInput();
+        PbjReader input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, UNKNOWN_F);
         assertNull(bytes);
     }
 
     @Test
     void testExtractField32Bit() throws IOException, ParseException {
-        SlimBuffer input = prepareExtractBytesTestInput();
+        PbjReader input = prepareExtractBytesTestInput();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_32_BIT, 32);
         assertNotNull(res);
     }
 
     @Test
     void testExtractField64Bit() throws IOException, ParseException {
-        SlimBuffer input = prepareExtractBytesTestInput();
+        PbjReader input = prepareExtractBytesTestInput();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_64_BIT, 32);
         assertNotNull(res);
     }
 
     @Test
     void testExtractFieldVarInt() throws IOException, ParseException {
-        SlimBuffer input = prepareExtractBytesTestInput();
+        PbjReader input = prepareExtractBytesTestInput();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_VARINT_OR_ZIGZAG, 32);
         assertNotNull(res);
     }
 
     @Test
     void testExtractFieldGroupStartUnsupported() throws IOException {
-        SlimBuffer input = prepareExtractBytesTestInput();
+        PbjReader input = prepareExtractBytesTestInput();
         assertThrows(IOException.class, () -> {
             ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_START, 32);
             input.throwOnError2();
@@ -568,7 +568,7 @@ class ProtoParserToolsTest {
 
     @Test
     void testExtractFieldGroupEndUnsupported() throws IOException {
-        SlimBuffer input = prepareExtractBytesTestInput();
+        PbjReader input = prepareExtractBytesTestInput();
         assertThrows(IOException.class, () -> {
             ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_END, 32);
             input.throwOnError2();
@@ -633,15 +633,15 @@ class ProtoParserToolsTest {
                 final int maxDepth,
                 final int maxSize)
                 throws ParseException {
-            if (Codec.disallowNonSlimBuffer) throw new RuntimeException("SlimBuffer Only");
-            SlimBuffer slim = new SlimBuffer(in);
-            TestMessage res = parse(new SlimBuffer(in), strictMode, parseUnknownFields, maxDepth, maxSize);
-            slim.throwOnError();
+            if (Codec.disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
+            PbjReader reader = new PbjReader(in);
+            TestMessage res = parse(new PbjReader(in), strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
             return res;
         }
 
         public TestMessage realParse(
-                @NonNull final SlimBuffer in,
+                @NonNull final PbjReader in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
                 final int maxDepth,
@@ -663,7 +663,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public void realWrite(@NonNull final TestMessage item, @NonNull final SlimWriter out) throws IOException {
+        public void realWrite(@NonNull final TestMessage item, @NonNull PbjWriter out) throws IOException {
             final String value = item.getValue();
             if (value != null) {
                 ProtoWriterTools.writeString(out, VALUE_FIELD, value);
@@ -685,7 +685,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public boolean fastEquals(@NonNull TestMessage item, @NonNull SlimBuffer input) throws ParseException {
+        public boolean fastEquals(@NonNull TestMessage item, @NonNull PbjReader input) throws ParseException {
             throw new UnsupportedOperationException();
         }
 

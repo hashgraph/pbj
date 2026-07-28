@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.SlimBuffer;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -82,7 +82,7 @@ public final class ProtoParserTools {
         return input.readVarInt(false);
     }
 
-    public static int readInt32(SlimBuffer input) {
+    public static int readInt32(PbjReader input) {
         return input.readVarInt(false);
     }
 
@@ -96,7 +96,7 @@ public final class ProtoParserTools {
         return input.readVarLong(false);
     }
 
-    public static long readInt64(SlimBuffer input) {
+    public static long readInt64(PbjReader input) {
         return input.readVarLong(false);
     }
 
@@ -110,7 +110,7 @@ public final class ProtoParserTools {
         return input.readVarInt(false);
     }
 
-    public static int readUint32(SlimBuffer input) {
+    public static int readUint32(PbjReader input) {
         return input.readVarInt(false);
     }
 
@@ -124,7 +124,7 @@ public final class ProtoParserTools {
         return input.readVarLong(false);
     }
 
-    public static long readUint64(SlimBuffer input) {
+    public static long readUint64(PbjReader input) {
         return input.readVarLong(false);
     }
     /**
@@ -142,10 +142,10 @@ public final class ProtoParserTools {
         return i == 1;
     }
 
-    public static boolean readBool(SlimBuffer input) {
+    public static boolean readBool(PbjReader input) {
         final var i = input.readVarInt(false);
         if (i != 1 && i != 0) {
-            input.setError(SlimBuffer.DataEncoding);
+            input.setError(PbjReader.DataEncoding);
         }
         return i == 1;
     }
@@ -160,7 +160,7 @@ public final class ProtoParserTools {
         return input.readVarInt(false);
     }
 
-    public static int readEnum(SlimBuffer input) {
+    public static int readEnum(PbjReader input) {
         return input.readVarInt(false);
     }
     /**
@@ -173,7 +173,7 @@ public final class ProtoParserTools {
         return input.readVarInt(true);
     }
 
-    public static int readSignedInt32(SlimBuffer input) {
+    public static int readSignedInt32(PbjReader input) {
         return input.readVarInt(true);
     }
 
@@ -187,7 +187,7 @@ public final class ProtoParserTools {
         return input.readVarLong(true);
     }
 
-    public static long readSignedInt64(SlimBuffer input) {
+    public static long readSignedInt64(PbjReader input) {
         return input.readVarLong(true);
     }
 
@@ -201,7 +201,7 @@ public final class ProtoParserTools {
         return input.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static int readSignedFixed32(SlimBuffer input) {
+    public static int readSignedFixed32(PbjReader input) {
         return input.readIntLE();
     }
 
@@ -215,7 +215,7 @@ public final class ProtoParserTools {
         return input.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static int readFixed32(SlimBuffer input) {
+    public static int readFixed32(PbjReader input) {
         return input.readIntLE();
     }
 
@@ -229,7 +229,7 @@ public final class ProtoParserTools {
         return input.readFloat(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static float readFloat(SlimBuffer input) {
+    public static float readFloat(PbjReader input) {
         return input.readFloatLE();
     }
 
@@ -243,7 +243,7 @@ public final class ProtoParserTools {
         return input.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static long readSignedFixed64(final SlimBuffer input) {
+    public static long readSignedFixed64(final PbjReader input) {
         return input.readLongLE();
     }
 
@@ -257,7 +257,7 @@ public final class ProtoParserTools {
         return input.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static long readFixed64(SlimBuffer input) {
+    public static long readFixed64(PbjReader input) {
         return input.readLongLE();
     }
 
@@ -271,7 +271,7 @@ public final class ProtoParserTools {
         return input.readDouble(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static double readDouble(SlimBuffer input) {
+    public static double readDouble(PbjReader input) {
         return input.readDoubleLE();
     }
 
@@ -289,7 +289,7 @@ public final class ProtoParserTools {
         }
     }
 
-    public static String readString(final SlimBuffer input) {
+    public static String readString(final PbjReader input) {
         return readString(input, Long.MAX_VALUE);
     }
 
@@ -430,10 +430,10 @@ public final class ProtoParserTools {
         return i == offset + length ? di : fromUTF8Tail(dst, di, src, i, offset + length);
     }
 
-    public static String readString(SlimBuffer input, final long maxSize) {
+    public static String readString(PbjReader input, final long maxSize) {
         final int length = input.readVarInt(false);
         if (length > maxSize || length < 0) {
-            input.setError(SlimBuffer.Parse);
+            input.setError(PbjReader.Parse);
             return "";
         }
 
@@ -447,7 +447,7 @@ public final class ProtoParserTools {
             bb = ByteBuffer.allocate(length);
             long bytesRead = input.readBytes(bb);
             if (bytesRead != length) {
-                input.setError(SlimBuffer.BufferUnderflow);
+                input.setError(PbjReader.BufferUnderflow);
                 return "";
             }
             data = bb.array();
@@ -472,7 +472,7 @@ public final class ProtoParserTools {
         if (utf16Len >= 0) {
             return new String(charArray, 0, utf16Len);
         }
-        input.setError(SlimBuffer.Parse);
+        input.setError(PbjReader.Parse);
         return "";
     }
 
@@ -516,10 +516,10 @@ public final class ProtoParserTools {
         return bytes;
     }
 
-    public static Bytes readBytes(SlimBuffer input, final long maxSize) {
+    public static Bytes readBytes(PbjReader input, final long maxSize) {
         final int length = input.readVarInt(false);
         if (length > maxSize || length < 0) {
-            input.setError(SlimBuffer.Parse);
+            input.setError(PbjReader.Parse);
             return Bytes.EMPTY;
         }
         return input.readBytes(length);
@@ -584,7 +584,7 @@ public final class ProtoParserTools {
     }
 
     @Nullable
-    public static Bytes extractFieldBytes(@NonNull final SlimBuffer input, @NonNull final FieldDefinition field)
+    public static Bytes extractFieldBytes(@NonNull PbjReader input, @NonNull final FieldDefinition field)
             throws IOException, ParseException {
         Objects.requireNonNull(input);
         Objects.requireNonNull(field);
@@ -600,7 +600,7 @@ public final class ProtoParserTools {
             final ProtoConstants wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
             if (fieldNum == field.number()) {
                 if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
-                    input.setError(SlimBuffer.Parse);
+                    input.setError(PbjReader.Parse);
                 }
                 final int length = input.readVarInt(false);
                 return input.readBytes(length);
@@ -648,7 +648,7 @@ public final class ProtoParserTools {
         };
     }
 
-    public static Bytes extractField(SlimBuffer input, final ProtoConstants wireType, final long maxSize) {
+    public static Bytes extractField(PbjReader input, final ProtoConstants wireType, final long maxSize) {
         return switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.readBytes(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.readBytes(4);
@@ -660,25 +660,25 @@ public final class ProtoParserTools {
                 final Bytes lenBytes = input.readVarLongBytes();
                 final int length = lenBytes.getVarInt(0, false);
                 if (length < 0) {
-                    input.setError(SlimBuffer.IOError);
+                    input.setError(PbjReader.IOError);
                     yield Bytes.EMPTY;
                 }
                 if (length > maxSize) {
-                    input.setError(SlimBuffer.Parse);
+                    input.setError(PbjReader.Parse);
                     yield Bytes.EMPTY;
                 }
                 yield Bytes.merge(lenBytes, input.readBytes(length));
             }
             case WIRE_TYPE_GROUP_START -> {
-                input.setError(SlimBuffer.Unsupported);
+                input.setError(PbjReader.Unsupported);
                 yield Bytes.EMPTY;
             }
             case WIRE_TYPE_GROUP_END -> {
-                input.setError(SlimBuffer.Unsupported);
+                input.setError(PbjReader.Unsupported);
                 yield Bytes.EMPTY;
             }
             default -> {
-                input.setError(SlimBuffer.IOError);
+                input.setError(PbjReader.IOError);
                 yield Bytes.EMPTY;
             }
         };
@@ -699,7 +699,7 @@ public final class ProtoParserTools {
         }
     }
 
-    public static void skipField(SlimBuffer input, final ProtoConstants wireType) {
+    public static void skipField(PbjReader input, final ProtoConstants wireType) {
         skipField(input, wireType, Long.MAX_VALUE);
     }
 
@@ -737,7 +737,7 @@ public final class ProtoParserTools {
         }
     }
 
-    public static void skipField(SlimBuffer input, final ProtoConstants wireType, final long maxSize) {
+    public static void skipField(PbjReader input, final ProtoConstants wireType, final long maxSize) {
         switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
@@ -748,16 +748,16 @@ public final class ProtoParserTools {
             case WIRE_TYPE_DELIMITED -> {
                 final int length = input.readVarInt(false);
                 if (length < 0) {
-                    input.setError(SlimBuffer.IOError);
+                    input.setError(PbjReader.IOError);
                 }
                 if (length > maxSize) {
-                    input.setError(SlimBuffer.Parse);
+                    input.setError(PbjReader.Parse);
                 }
                 input.skip(length);
             }
-            case WIRE_TYPE_GROUP_START -> input.setError(SlimBuffer.Unsupported);
-            case WIRE_TYPE_GROUP_END -> input.setError(SlimBuffer.Unsupported);
-            default -> input.setError(SlimBuffer.IOError);
+            case WIRE_TYPE_GROUP_START -> input.setError(PbjReader.Unsupported);
+            case WIRE_TYPE_GROUP_END -> input.setError(PbjReader.Unsupported);
+            default -> input.setError(PbjReader.IOError);
         }
     }
 
@@ -772,7 +772,7 @@ public final class ProtoParserTools {
         return tag >> TAG_FIELD_OFFSET;
     }
 
-    public static int readNextFieldNumber(SlimBuffer input) {
+    public static int readNextFieldNumber(PbjReader input) {
         final int tag = input.readVarInt(false);
         return tag >> TAG_FIELD_OFFSET;
     }

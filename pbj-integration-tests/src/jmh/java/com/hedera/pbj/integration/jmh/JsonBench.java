@@ -11,7 +11,7 @@ import com.hedera.pbj.integration.EverythingTestData;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.SlimBuffer;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hederahashgraph.api.proto.java.GetAccountDetailsResponse;
@@ -51,7 +51,7 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
         // input bytes
         private BufferedData jsonDataBuffer;
         private String jsonString;
-        private SlimBuffer jsonSlimDataBuffer;
+        private PbjReader jsonPbjDataReader;
 
         // output buffers
         private BufferedData outDataBuffer;
@@ -72,7 +72,7 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
                 jsonDataBuffer.flip();
                 // get as string for parse tests
                 jsonString = jsonDataBuffer.asUtf8String();
-                jsonSlimDataBuffer = new SlimBuffer(jsonString.getBytes(StandardCharsets.UTF_8));
+                jsonPbjDataReader = new PbjReader(jsonString.getBytes(StandardCharsets.UTF_8));
 
                 // write to temp data buffer and then read into byte array
                 BufferedData tempDataBuffer = BufferedData.allocate(5 * 1024 * 1024);
@@ -103,9 +103,9 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
     } //*/
 
     @Benchmark
-    public void parsePbjSlim(JsonBenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
-        benchmarkState.jsonSlimDataBuffer.resetPosition();
-        blackhole.consume(benchmarkState.pbjJsonCodec.parse(benchmarkState.jsonSlimDataBuffer));
+    public void parsePbjReader(JsonBenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
+        benchmarkState.jsonPbjDataReader.resetPosition();
+        blackhole.consume(benchmarkState.pbjJsonCodec.parse(benchmarkState.jsonPbjDataReader));
     }
 
     @Benchmark

@@ -3,7 +3,7 @@ package com.hedera.pbj.runtime;
 
 import static com.hedera.pbj.runtime.ProtoConstants.*;
 
-import com.hedera.pbj.runtime.io.SlimWriter;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
@@ -59,7 +59,7 @@ public final class ProtoWriterTools {
         writeTag(out, field, wireType(field));
     }
 
-    public static void writeTag(final SlimWriter out, final FieldDefinition field) {
+    public static void writeTag(PbjWriter out, final FieldDefinition field) {
         writeTag(out, field, wireType(field));
     }
 
@@ -75,7 +75,7 @@ public final class ProtoWriterTools {
         out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType.ordinal(), false);
     }
 
-    public static void writeTag(final SlimWriter out, final FieldDefinition field, final ProtoConstants wireType) {
+    public static void writeTag(PbjWriter out, final FieldDefinition field, final ProtoConstants wireType) {
         out.writeVarIntNoZZ((field.number() << TAG_TYPE_BITS) | wireType.ordinal());
     }
 
@@ -98,7 +98,7 @@ public final class ProtoWriterTools {
         writeInteger(out, field, value, true);
     }
 
-    public static void writeInteger(SlimWriter out, FieldDefinition field, int value) {
+    public static void writeInteger(PbjWriter out, FieldDefinition field, int value) {
         writeInteger(out, field, value, true);
     }
 
@@ -144,7 +144,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeInteger(SlimWriter out, FieldDefinition field, int value, boolean skipDefault) {
+    public static void writeInteger(PbjWriter out, FieldDefinition field, int value, boolean skipDefault) {
         assert switch (field.type()) {
                     case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
                     default -> false;
@@ -188,7 +188,7 @@ public final class ProtoWriterTools {
         writeLong(out, field, value, true);
     }
 
-    public static void writeLong(SlimWriter out, FieldDefinition field, long value) {
+    public static void writeLong(PbjWriter out, FieldDefinition field, long value) {
         writeLong(out, field, value, true);
     }
 
@@ -229,7 +229,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeLong(SlimWriter out, FieldDefinition field, long value, boolean skipDefault) {
+    public static void writeLong(PbjWriter out, FieldDefinition field, long value, boolean skipDefault) {
         assert switch (field.type()) {
                     case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
                     default -> false;
@@ -276,7 +276,7 @@ public final class ProtoWriterTools {
         out.writeFloat(value, ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static void writeFloat(SlimWriter out, FieldDefinition field, float value) {
+    public static void writeFloat(PbjWriter out, FieldDefinition field, float value) {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
         assert !field.repeated() : "Use writeFloatList with repeated types";
         // When not a oneOf don't write default value
@@ -305,7 +305,7 @@ public final class ProtoWriterTools {
         out.writeDouble(value, ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static void writeDouble(SlimWriter out, FieldDefinition field, double value) {
+    public static void writeDouble(PbjWriter out, FieldDefinition field, double value) {
         assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
         assert !field.repeated() : "Use writeDoubleList with repeated types";
         // When not a oneOf don't write default value
@@ -327,7 +327,7 @@ public final class ProtoWriterTools {
         writeBoolean(out, field, value, true);
     }
 
-    public static void writeBoolean(SlimWriter out, FieldDefinition field, boolean value) {
+    public static void writeBoolean(PbjWriter out, FieldDefinition field, boolean value) {
         writeBoolean(out, field, value, true);
     }
 
@@ -350,7 +350,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeBoolean(SlimWriter out, FieldDefinition field, boolean value, boolean skipDefault) {
+    public static void writeBoolean(PbjWriter out, FieldDefinition field, boolean value, boolean skipDefault) {
         assert field.type() == FieldType.BOOL : "Not a boolean type " + field;
         assert !field.repeated() : "Use writeBooleanList with repeated types";
         // In the case of oneOf we write the value even if it is default value of false
@@ -378,7 +378,7 @@ public final class ProtoWriterTools {
         out.writeVarInt(enumValue.protoOrdinal(), false);
     }
 
-    public static void writeEnum(SlimWriter out, FieldDefinition field, EnumWithProtoMetadata enumValue) {
+    public static void writeEnum(PbjWriter out, FieldDefinition field, EnumWithProtoMetadata enumValue) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert !field.repeated() : "Use writeEnumList with repeated types";
         // When not a oneOf don't write default value
@@ -407,7 +407,7 @@ public final class ProtoWriterTools {
         out.writeVarInt(protoOrdinal, false);
     }
 
-    public static void writeEnumProtoOrdinal(SlimWriter out, FieldDefinition field, int protoOrdinal) {
+    public static void writeEnumProtoOrdinal(PbjWriter out, FieldDefinition field, int protoOrdinal) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert !field.repeated() : "Use writeEnumList with repeated types";
         // When not a oneOf don't write default value
@@ -431,8 +431,7 @@ public final class ProtoWriterTools {
         writeString(out, field, value, true);
     }
 
-    public static void writeString(final SlimWriter out, final FieldDefinition field, final String value)
-            throws IOException {
+    public static void writeString(PbjWriter out, final FieldDefinition field, final String value) throws IOException {
         writeString(out, field, value, true);
     }
 
@@ -453,8 +452,7 @@ public final class ProtoWriterTools {
         writeStringNoChecks(out, field, value, skipDefault);
     }
 
-    public static void writeString(
-            final SlimWriter out, final FieldDefinition field, final String value, boolean skipDefault)
+    public static void writeString(PbjWriter out, final FieldDefinition field, final String value, boolean skipDefault)
             throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert !field.repeated() : "Use writeStringList with repeated types";
@@ -478,7 +476,7 @@ public final class ProtoWriterTools {
         writeStringNoChecks(out, field, value);
     }
 
-    public static void writeOneRepeatedString(final SlimWriter out, final FieldDefinition field, final String value)
+    public static void writeOneRepeatedString(PbjWriter out, final FieldDefinition field, final String value)
             throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "writeOneRepeatedString can only be used with repeated fields";
@@ -498,7 +496,7 @@ public final class ProtoWriterTools {
         writeStringNoChecks(out, field, value, true);
     }
 
-    private static void writeStringNoChecks(final SlimWriter out, final FieldDefinition field, final String value)
+    private static void writeStringNoChecks(PbjWriter out, final FieldDefinition field, final String value)
             throws IOException {
         writeStringNoChecks(out, field, value, true);
     }
@@ -525,8 +523,7 @@ public final class ProtoWriterTools {
     }
 
     private static void writeStringNoChecks(
-            final SlimWriter out, final FieldDefinition field, final String value, boolean skipDefault)
-            throws IOException {
+            PbjWriter out, final FieldDefinition field, final String value, boolean skipDefault) throws IOException {
         // When not a oneOf don't write default value
         if (skipDefault && !field.oneOf() && (value == null || value.isEmpty())) {
             return;
@@ -551,7 +548,7 @@ public final class ProtoWriterTools {
         writeBytes(out, field, value, true);
     }
 
-    public static void writeBytes(final SlimWriter out, final FieldDefinition field, final RandomAccessData value)
+    public static void writeBytes(PbjWriter out, final FieldDefinition field, final RandomAccessData value)
             throws IOException {
         writeBytes(out, field, value, true);
     }
@@ -578,7 +575,7 @@ public final class ProtoWriterTools {
     }
 
     public static void writeBytes(
-            final SlimWriter out, final FieldDefinition field, final RandomAccessData value, boolean skipDefault)
+            PbjWriter out, final FieldDefinition field, final RandomAccessData value, boolean skipDefault)
             throws IOException {
         assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert !field.repeated() : "Use writeBytesList with repeated types";
@@ -604,8 +601,8 @@ public final class ProtoWriterTools {
         writeBytesNoChecks(out, field, value, true);
     }
 
-    public static void writeOneRepeatedBytes(
-            final SlimWriter out, final FieldDefinition field, final RandomAccessData value) throws IOException {
+    public static void writeOneRepeatedBytes(PbjWriter out, final FieldDefinition field, final RandomAccessData value)
+            throws IOException {
         assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert field.repeated() : "writeOneRepeatedBytes can only be used with repeated fields";
         writeBytesNoChecks(out, field, value, true);
@@ -641,10 +638,7 @@ public final class ProtoWriterTools {
     }
 
     private static void writeBytesNoChecks(
-            final SlimWriter out,
-            final FieldDefinition field,
-            final RandomAccessData value,
-            final boolean skipZeroLength)
+            PbjWriter out, final FieldDefinition field, final RandomAccessData value, final boolean skipZeroLength)
             throws IOException {
         // When not a oneOf don't write default value
         if (!field.oneOf() && (skipZeroLength && (value.length() == 0))) {
@@ -679,8 +673,7 @@ public final class ProtoWriterTools {
     }
 
     public static <T> void writeMessage(
-            final SlimWriter out, final FieldDefinition field, final T message, final Codec<T> codec)
-            throws IOException {
+            PbjWriter out, final FieldDefinition field, final T message, final Codec<T> codec) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert !field.repeated() : "Use writeMessageList with repeated types";
         writeMessageNoChecks(out, field, message, codec);
@@ -708,8 +701,7 @@ public final class ProtoWriterTools {
     }
 
     public static <T> void writeOneRepeatedMessage(
-            final SlimWriter out, final FieldDefinition field, final T message, final Codec<T> codec)
-            throws IOException {
+            PbjWriter out, final FieldDefinition field, final T message, final Codec<T> codec) throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert field.repeated() : "writeOneRepeatedMessage can only be used with repeated fields";
         writeMessageNoChecks(out, field, message, codec);
@@ -743,8 +735,7 @@ public final class ProtoWriterTools {
     }
 
     private static <T> void writeMessageNoChecks(
-            final SlimWriter out, final FieldDefinition field, final T message, final Codec<T> codec)
-            throws IOException {
+            PbjWriter out, final FieldDefinition field, final T message, final Codec<T> codec) throws IOException {
         // When not a oneOf don't write default value
         if (field.oneOf() && message == null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
@@ -792,11 +783,11 @@ public final class ProtoWriterTools {
     }
 
     public static <K, V> void writeMap(
-            final SlimWriter out,
+            final PbjWriter out,
             final FieldDefinition field,
             @NonNull final PbjMap<K, V> map,
-            final SlimProtoWriter<K> kWriter,
-            final SlimProtoWriter<V> vWriter,
+            final PbjProtoWriter<K> kWriter,
+            final PbjProtoWriter<V> vWriter,
             final ToIntFunction<K> sizeOfK,
             final ToIntFunction<V> sizeOfV)
             throws IOException {
@@ -843,7 +834,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeOptionalInteger(SlimWriter out, FieldDefinition field, @Nullable Integer value) {
+    public static void writeOptionalInteger(PbjWriter out, FieldDefinition field, @Nullable Integer value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -868,7 +859,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeOptionalLong(SlimWriter out, FieldDefinition field, @Nullable Long value) {
+    public static void writeOptionalLong(PbjWriter out, FieldDefinition field, @Nullable Long value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -893,7 +884,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeOptionalFloat(SlimWriter out, FieldDefinition field, @Nullable Float value) {
+    public static void writeOptionalFloat(PbjWriter out, FieldDefinition field, @Nullable Float value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -918,7 +909,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeOptionalDouble(SlimWriter out, FieldDefinition field, @Nullable Double value) {
+    public static void writeOptionalDouble(PbjWriter out, FieldDefinition field, @Nullable Double value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -944,7 +935,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeOptionalBoolean(SlimWriter out, FieldDefinition field, @Nullable Boolean value) {
+    public static void writeOptionalBoolean(PbjWriter out, FieldDefinition field, @Nullable Boolean value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -971,7 +962,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeOptionalString(SlimWriter out, FieldDefinition field, @Nullable String value)
+    public static void writeOptionalString(PbjWriter out, FieldDefinition field, @Nullable String value)
             throws IOException {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
@@ -1002,7 +993,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeOptionalBytes(SlimWriter out, FieldDefinition field, @Nullable Bytes value)
+    public static void writeOptionalBytes(PbjWriter out, FieldDefinition field, @Nullable Bytes value)
             throws IOException {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
@@ -1093,7 +1084,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeIntegerList(SlimWriter out, FieldDefinition field, List<Integer> list) {
+    public static void writeIntegerList(PbjWriter out, FieldDefinition field, List<Integer> list) {
         assert switch (field.type()) {
                     case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
                     default -> false;
@@ -1116,7 +1107,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    private static void writeInt32List(SlimWriter out, List<Integer> list) {
+    private static void writeInt32List(PbjWriter out, List<Integer> list) {
         int listSize = list.size();
         if (listSize > 0x7F) {
             writeInt32ListLarge(out, list);
@@ -1136,7 +1127,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    private static void writeInt32ListTwoPass(SlimWriter out, List<Integer> list) {
+    private static void writeInt32ListTwoPass(PbjWriter out, List<Integer> list) {
         int listSize = list.size();
         int size = 0;
         for (int i = 0; i < listSize; i++) {
@@ -1149,7 +1140,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    private static void writeInt32ListLarge(SlimWriter out, List<Integer> list) {
+    private static void writeInt32ListLarge(PbjWriter out, List<Integer> list) {
         int listSize = list.size();
         if (listSize > 1638) {
             // 1639+ elements * 10 bytes worst case exceeds 16k buffer; fall back to two-pass
@@ -1167,7 +1158,7 @@ public final class ProtoWriterTools {
         out.writeAt(pos + 1, (byte) (size >>> 7));
     }
 
-    private static void writeUInt32List(SlimWriter out, List<Integer> list) {
+    private static void writeUInt32List(PbjWriter out, List<Integer> list) {
         int listSize = list.size();
         if (listSize > 0x7F) {
             writeUInt32ListLarge(out, list);
@@ -1187,7 +1178,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    private static void writeUInt32ListTwoPass(SlimWriter out, List<Integer> list) {
+    private static void writeUInt32ListTwoPass(PbjWriter out, List<Integer> list) {
         int listSize = list.size();
         int size = 0;
         for (int i = 0; i < listSize; i++) {
@@ -1199,7 +1190,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    private static void writeUInt32ListLarge(SlimWriter out, List<Integer> list) {
+    private static void writeUInt32ListLarge(PbjWriter out, List<Integer> list) {
         int listSize = list.size();
         if (listSize > 3276) {
             // 3277+ elements * 5 bytes worst case exceeds 16k buffer
@@ -1217,7 +1208,7 @@ public final class ProtoWriterTools {
         out.writeAt(pos + 1, (byte) (size >>> 7));
     }
 
-    private static void writeSInt32List(SlimWriter out, List<Integer> list) {
+    private static void writeSInt32List(PbjWriter out, List<Integer> list) {
         int listSize = list.size();
         if (listSize > 0x7F) {
             writeSInt32ListLarge(out, list);
@@ -1237,7 +1228,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    private static void writeSInt32ListTwoPass(SlimWriter out, List<Integer> list) {
+    private static void writeSInt32ListTwoPass(PbjWriter out, List<Integer> list) {
         int listSize = list.size();
         int size = 0;
         for (int i = 0; i < listSize; i++) {
@@ -1250,7 +1241,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    private static void writeSInt32ListLarge(SlimWriter out, List<Integer> list) {
+    private static void writeSInt32ListLarge(PbjWriter out, List<Integer> list) {
         int listSize = list.size();
         if (listSize > 3276) {
             // 3277+ elements * 5 bytes worst case exceeds 16k buffer
@@ -1268,7 +1259,7 @@ public final class ProtoWriterTools {
         out.writeAt(pos + 1, (byte) (size >>> 7));
     }
 
-    private static void writeFixed32List(SlimWriter out, List<Integer> list) {
+    private static void writeFixed32List(PbjWriter out, List<Integer> list) {
         // The bytes in protobuf are in little-endian order -- backwards for Java.
         out.writeVarLongNoZZ((long) list.size() * FIXED32_SIZE);
         for (int i = 0; i < list.size(); i++) {
@@ -1338,7 +1329,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeLongList(SlimWriter out, FieldDefinition field, List<Long> list) {
+    public static void writeLongList(PbjWriter out, FieldDefinition field, List<Long> list) {
         assert switch (field.type()) {
                     case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
                     default -> false;
@@ -1416,7 +1407,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeFloatList(SlimWriter out, FieldDefinition field, List<Float> list) {
+    public static void writeFloatList(PbjWriter out, FieldDefinition field, List<Float> list) {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
         assert field.repeated() : "Use writeFloat with non-repeated types";
         // When not a oneOf don't write default value
@@ -1455,7 +1446,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeDoubleList(SlimWriter out, FieldDefinition field, List<Double> list) {
+    public static void writeDoubleList(PbjWriter out, FieldDefinition field, List<Double> list) {
         assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
         assert field.repeated() : "Use writeDouble with non-repeated types";
         // When not a oneOf don't write default value
@@ -1495,7 +1486,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeBooleanList(SlimWriter out, FieldDefinition field, List<Boolean> list) {
+    public static void writeBooleanList(PbjWriter out, FieldDefinition field, List<Boolean> list) {
         assert field.type() == FieldType.BOOL : "Not a boolean type " + field;
         assert field.repeated() : "Use writeBoolean with non-repeated types";
         // When not a oneOf don't write default value
@@ -1539,7 +1530,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeEnumListProtoOrdinals(SlimWriter out, FieldDefinition field, List<Integer> list) {
+    public static void writeEnumListProtoOrdinals(PbjWriter out, FieldDefinition field, List<Integer> list) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert field.repeated() : "Use writeEnum with non-repeated types";
         // When not a oneOf don't write default value
@@ -1583,7 +1574,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeStringList(SlimWriter out, FieldDefinition field, List<String> list) throws IOException {
+    public static void writeStringList(PbjWriter out, FieldDefinition field, List<String> list) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "Use writeString with non-repeated types";
         // When not a oneOf don't write default value
@@ -1622,7 +1613,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static <T> void writeMessageList(SlimWriter out, FieldDefinition field, List<T> list, Codec<T> codec)
+    public static <T> void writeMessageList(PbjWriter out, FieldDefinition field, List<T> list, Codec<T> codec)
             throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert field.repeated() : "Use writeMessage with non-repeated types";
@@ -1659,7 +1650,7 @@ public final class ProtoWriterTools {
         }
     }
 
-    public static void writeBytesList(SlimWriter out, FieldDefinition field, List<? extends RandomAccessData> list)
+    public static void writeBytesList(PbjWriter out, FieldDefinition field, List<? extends RandomAccessData> list)
             throws IOException {
         assert field.type() == FieldType.BYTES : "Not a message type " + field;
         assert field.repeated() : "Use writeBytes with non-repeated types";
@@ -1689,7 +1680,7 @@ public final class ProtoWriterTools {
     }
 
     public static void writeDelimited(
-            SlimWriter out, final FieldDefinition field, final int size, final Consumer<SlimWriter> writer) {
+            PbjWriter out, final FieldDefinition field, final int size, final Consumer<PbjWriter> writer) {
         writeTag(out, field);
         out.writeVarInt(size, false);
         writer.accept(out);
