@@ -15,11 +15,11 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
 /**
- * A {@link SlimBuffer} which is meant to be easy for the JIT to optimize. This is suitable for reading data from a stream or buffer.
+ * A {@link PbjReader} which is meant to be easy for the JIT to optimize. This is suitable for reading data from a stream or buffer.
  * Once read, data cannot be re-read. The {@link #position()}, once incremented, cannot be reset or decremented.
  * The public methods are meant to be compatible with ReadableSequentialData
  */
-public class SlimBuffer {
+public class PbjReader {
     private byte[] buf;
     private int pos, end;
     private int relLimit, err;
@@ -30,7 +30,8 @@ public class SlimBuffer {
     private boolean seenEOF, includeCause;
 
     private char[] charArray_;
-    private final boolean useStacktrace = !"false".equalsIgnoreCase(System.getProperty("pbj.slimBuffer.useStackTrace"));
+    private final boolean useStacktrace =
+            !"false".equalsIgnoreCase(System.getProperty("pbj.readerBuffer.useStackTrace"));
 
     public static final int EOF = -1,
             DataEncoding = 1,
@@ -42,7 +43,10 @@ public class SlimBuffer {
             UsageError = 9,
             UnknownField = 10,
             BufferOverflow = 11,
-            MaxDepthReached = 12;
+            MaxDepthReached = 12,
+            // For PbjWriter
+            Closed = -2,
+            MalformString = 13;
 
     private static final UnknownFieldException premadeUnknown;
     private static final BufferUnderflowException premadeUnderflow;
@@ -71,23 +75,23 @@ public class SlimBuffer {
      * It will read more data then necessary when there's space in the internal buffer
      * @param input the input stream
      */
-    public SlimBuffer(ReadableSequentialData input) {
+    public PbjReader(ReadableSequentialData input) {
         this.input = input;
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
         absoluteLimit = input.limit();
         offset = input.position();
     }
 
-    public SlimBuffer(InputStream input) {
+    public PbjReader(InputStream input) {
         this.input2 = input;
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
     }
 
-    public SlimBuffer(byte[] completeBuffer) {
+    public PbjReader(byte[] completeBuffer) {
         this(completeBuffer, 0, completeBuffer.length);
     }
 
-    public SlimBuffer(byte[] data, int offset, int end) {
+    public PbjReader(byte[] data, int offset, int end) {
         buf = data;
         pos = offset;
         this.end = end;
@@ -97,14 +101,14 @@ public class SlimBuffer {
         err = EOF;
     }
 
-    public SlimBuffer(ByteBuffer completeBuffer) {
+    public PbjReader(ByteBuffer completeBuffer) {
         byte[] data = completeBuffer.array();
         int pos = completeBuffer.arrayOffset() + completeBuffer.position();
         int end = pos + completeBuffer.remaining();
         this(data, pos, end);
     }
 
-    public SlimBuffer(Bytes completeBuffer) {
+    public PbjReader(Bytes completeBuffer) {
         this(completeBuffer.toByteArray(), 0, (int) completeBuffer.length());
     }
 
@@ -210,7 +214,7 @@ public class SlimBuffer {
     }
 
     // To write test easier
-    public SlimBuffer reset() {
+    public PbjReader reset() {
         resetPosition();
         return this;
     }
@@ -486,6 +490,21 @@ public class SlimBuffer {
             return Bytes.EMPTY;
         }
         return Bytes.wrap(dst);
+    }
+
+    @NonNull
+    byte[] readBytes3(int length) {
+        if (length < 0) {
+            setError(IllegalArgument);
+            return null;
+        }
+        var dst = new byte[length];
+        int copiedLen = readBytesInternalCopy(dst, 0, length);
+        if (copiedLen < length) {
+            setError(BufferUnderflow);
+            return null;
+        }
+        return dst;
     }
 
     public int readInt() {

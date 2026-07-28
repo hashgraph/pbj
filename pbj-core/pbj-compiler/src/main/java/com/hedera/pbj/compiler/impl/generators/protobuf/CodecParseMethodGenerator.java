@@ -59,7 +59,7 @@ class CodecParseMethodGenerator {
         // spotless:off
         return """
                 /**
-                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link SlimBuffer}. Throws if in strict mode ONLY.
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link PbjReader}. Throws if in strict mode ONLY.
                  * <p>
                  * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
                  * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
@@ -83,13 +83,13 @@ class CodecParseMethodGenerator {
                  * @throws ParseException If parsing fails
                  */
                 public $modelClassName realParse(
-                        @NonNull final SlimBuffer input,
+                        @NonNull final PbjReader input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
                         final int maxDepth,
                         final int maxSize) throws ParseException {
                     if (maxDepth < 0) {
-                        input.setError(SlimBuffer.MaxDepthReached);
+                        input.setError(PbjReader.MaxDepthReached);
                         return null;
                     }
                     // -- TEMP STATE FIELDS --------------------------------------
@@ -107,7 +107,7 @@ class CodecParseMethodGenerator {
                     $cacheableSupport
                 }
                 
-                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, SlimBuffer input, int maxSize) {
+                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, PbjReader input, int maxSize) {
                     $defaultCaseBody
                     return $unknownFields;
                 }
@@ -202,20 +202,20 @@ class CodecParseMethodGenerator {
                         // handle error cases here, so we do not do if statements in normal loop
                         // Validate the field number is valid (must be > 0)
                         if ($prefixfield == 0) {
-                            input.setError(SlimBuffer.IOError);
+                            input.setError(PbjReader.IOError);
                             return $unknownFields;
                         }
                         // Validate the wire type is valid (must be >=0 && <= 5).
                         // Otherwise we cannot parse this.
                         // Note: it is always >= 0 at this point (see code above where it is defined).
                         if (wireType > 5) {
-                            input.setError(SlimBuffer.Unsupported);
+                            input.setError(PbjReader.Unsupported);
                             return $unknownFields;
                         }
                         // It may be that the parser subclass doesn't know about this field
                         if ($prefixf == null) {
                             if (strictMode) {
-                                input.setError(SlimBuffer.UnknownField);
+                                input.setError(PbjReader.UnknownField);
                                 return $unknownFields;
                             } else if (parseUnknownFields) {
                                 if ($unknownFields == null) {
@@ -232,7 +232,7 @@ class CodecParseMethodGenerator {
                                 skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
                             }
                         } else {
-                            input.setError(SlimBuffer.IOError);
+                            input.setError(PbjReader.IOError);
                             return $unknownFields;
                         }""");
         for (int i = 0; i < list.size(); i++) {
@@ -286,7 +286,7 @@ class CodecParseMethodGenerator {
         sbCase.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
-        sbFunc.append("%s case%d(SlimBuffer input, int maxSize, %s %s) {%n".formatted(fieldType, tag, fieldType, tempFieldName));
+        sbFunc.append("%s case%d(PbjReader input, int maxSize, %s %s) {%n".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
         int divideAmount = fieldType.equals("List<Integer>") ? 2
                 : fieldType.equals("List<Long>") ? 4
@@ -326,7 +326,7 @@ class CodecParseMethodGenerator {
                 // Read the length of packed repeated field data
                 final int length = input.readVarInt(false);
                 if (length > $maxSize) {
-                    input.setError(SlimBuffer.Parse);
+                    input.setError(PbjReader.Parse);
                     return $tempFieldName;
                 }
                 final var beforeLimit = input.limit();
@@ -340,7 +340,7 @@ class CodecParseMethodGenerator {
                 $tempFieldName = list;
                 input.limit(beforeLimit);
                 if (input.position() != beforePosition + length) {
-                    input.setError(SlimBuffer.BufferUnderflow);
+                    input.setError(PbjReader.BufferUnderflow);
                 }""".replace("$tempFieldName", tempFieldName)
                 .replace("$preRead", preRead)
                 .replace("$fieldType", fieldType)
@@ -426,7 +426,7 @@ class CodecParseMethodGenerator {
                             value = $fieldType.DEFAULT;
                         } else {
                             if (messageLength > $maxSize) {
-                                input.setError(SlimBuffer.Parse);
+                                input.setError(PbjReader.Parse);
                                 return null;
                             }
                             final var limitBefore = input.limit();
@@ -436,7 +436,7 @@ class CodecParseMethodGenerator {
                             // we will not throw.
                             final var startPos = input.position();
                             if ((startPos + messageLength) > limitBefore) {
-                                input.setError(SlimBuffer.BufferUnderflow);
+                                input.setError(PbjReader.BufferUnderflow);
                                 return null;
                             }
                             input.limit(startPos + messageLength);
@@ -444,7 +444,7 @@ class CodecParseMethodGenerator {
                             input.limit(limitBefore);
                             // Make sure we read the full number of bytes. for the types
                             if ((startPos + messageLength) != input.position()) {
-                                input.setError(SlimBuffer.BufferOverflow);
+                                input.setError(PbjReader.BufferOverflow);
                                 return null;
                             }
                         }
@@ -470,7 +470,7 @@ class CodecParseMethodGenerator {
                         $fieldDefs
                         if (__map_messageLength != 0) {
                             if (__map_messageLength > $maxSize) {
-                                input.setError(SlimBuffer.Parse);
+                                input.setError(PbjReader.Parse);
                                 return null;
                             }
                             final var __map_limitBefore = input.limit();
@@ -481,14 +481,14 @@ class CodecParseMethodGenerator {
                             final var __map_startPos = input.position();
                             try {
                                 if ((__map_startPos + __map_messageLength) > __map_limitBefore) {
-                                    input.setError(SlimBuffer.BufferUnderflow);
+                                    input.setError(PbjReader.BufferUnderflow);
                                     return null;
                                 }
                                 input.limit(__map_startPos + __map_messageLength);
                                 $mapParseLoop
                                 // Make sure we read the full number of bytes. for the types
                                 if ((__map_startPos + __map_messageLength) != input.position()) {
-                                    input.setError(SlimBuffer.BufferOverflow);
+                                    input.setError(PbjReader.BufferOverflow);
                                     return null;
                                 }
                             } finally {
@@ -533,7 +533,7 @@ class CodecParseMethodGenerator {
             sbCase.append(
                 """
                 if (temp_%s.size() >= %s) {
-                    input.setError(SlimBuffer.Parse);
+                    input.setError(PbjReader.Parse);
                     return null;
                 }
                 temp_%1$s = addToList(temp_%1$s,value);
@@ -544,7 +544,7 @@ class CodecParseMethodGenerator {
                 """
                 if (__map_messageLength != 0) {
                     if (temp_%s.size() >= %s) {
-                        input.setError(SlimBuffer.Parse);
+                        input.setError(PbjReader.Parse);
                         return null;
                     }
                     temp_%1$s = addToMap(temp_%1$s, temp_%s, temp_%s);

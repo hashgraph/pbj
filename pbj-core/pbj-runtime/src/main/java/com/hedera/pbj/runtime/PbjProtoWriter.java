@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.SlimWriter;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import java.io.IOException;
 
 /**
- * Interface for referencing the static write method from generated writer classes, using {@link SlimWriter}.
+ * Interface for referencing the static write method from generated writer classes, using {@link PbjWriter}.
  *
  * @param <T> The model object that is being written
  */
-public interface SlimProtoWriter<T> {
+public interface PbjProtoWriter<T> {
 
     /**
      * Write out a {@code T} model to output stream in protobuf format.
@@ -18,5 +18,5 @@ public interface SlimProtoWriter<T> {
      * @param out The output stream to write to
      * @throws IOException If there is a problem writing
      */
-    void write(T data, SlimWriter out) throws IOException;
+    void write(T data, PbjWriter out) throws IOException;
 }

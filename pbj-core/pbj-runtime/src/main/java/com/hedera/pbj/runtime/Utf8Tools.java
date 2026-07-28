@@ -3,7 +3,7 @@ package com.hedera.pbj.runtime;
 
 import static java.lang.Character.*;
 
-import com.hedera.pbj.runtime.io.SlimWriter;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -143,7 +143,7 @@ public final class Utf8Tools {
     }
 
     // doesn't write out the length
-    static void encodeUtf8(String in, SlimWriter out) throws IOException {
+    static void encodeUtf8(String in, PbjWriter out) throws IOException {
         int inLength = in.length();
         for (int i = 0; i < inLength; ++i) {
             char c = in.charAt(i);
@@ -169,7 +169,7 @@ public final class Utf8Tools {
         }
     }
 
-    static void WriteUTF8(String in, SlimWriter out) throws IOException {
+    static void WriteUTF8(String in, PbjWriter out) throws IOException {
         int inLength = in.length();
         if (inLength > 0x7F) {
             WriteUTF8_2byte(in, out);
@@ -189,7 +189,7 @@ public final class Utf8Tools {
         }
     }
 
-    private static void WriteUTF8_2byte(String in, SlimWriter out) throws IOException {
+    private static void WriteUTF8_2byte(String in, PbjWriter out) throws IOException {
         // buffer is 16k, string is UTF16, so worst case is len*3.
         // 5460 was picked bc its (16k - 2byte tag) / 3 byte worse case
         if (in.length() > 5460) {
