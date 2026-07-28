@@ -18,5 +18,5 @@ public interface PbjProtoWriter<T> {
      * @param out The output stream to write to
      * @throws IOException If there is a problem writing
      */
-    void write(T data, PbjWriter out) throws IOException;
+    void write(T data, PbjWriter out);
 }

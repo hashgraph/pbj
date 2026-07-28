@@ -170,6 +170,9 @@ testing {
                 dependsOn(tasks.named("fuzzTest"))
             }
         }
+        targets.register("testNoFuzz") {
+            testTask { useJUnitPlatform { excludeTags("FUZZ_TEST") } }
+        }
         dependencies {
             this.implementation(project()) { capabilities { requireFeature("custom") } }
         }

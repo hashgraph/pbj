@@ -69,8 +69,8 @@ public interface JsonCodec<T> extends Codec<T> {
         output.writeUTF8(toJSON(item));
     }
 
-    default void realWrite(@NonNull T item, @NonNull PbjWriter output) throws IOException {
-        Utf8Tools.encodeUtf8(toJSON(item), output);
+    default void realWrite(@NonNull T item, @NonNull PbjWriter output) {
+        output.writeStringNoTag(toJSON(item));
     }
 
     /**

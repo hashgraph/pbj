@@ -228,7 +228,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
 
     @Benchmark
     @OperationsPerInvocation(OPERATION_COUNT)
-    public void writePbjPbjWriter(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws IOException {
+    public void writePbjWriter(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws IOException {
         for (int i = 0; i < OPERATION_COUNT; i++) {
             benchmarkState.outPbjWriter.reset();
             benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, benchmarkState.outPbjWriter);

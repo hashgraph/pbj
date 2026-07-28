@@ -379,6 +379,7 @@ public final class ProtoParserTools {
                 continue;
             }
 
+            if (codepoint > 0x10FFFF) return -1; // Illegal range
             int v = codepoint - 0x10000;
             dst[di + 0] = (char) (0xD800 + ((v >> 10) & 0x3FF));
             dst[di + 1] = (char) (0xDC00 + (v & 0x3FF));
@@ -387,7 +388,7 @@ public final class ProtoParserTools {
         return di;
     }
 
-    static int fromUTF8(char[] dst, byte[] src, int offset, int pos, int length) {
+    public static int fromUTF8(char[] dst, byte[] src, int offset, int pos, int length) {
         int i = offset + pos;
         int di = pos;
         while (i + 4 < offset + length) {
@@ -422,6 +423,7 @@ public final class ProtoParserTools {
                 continue;
             }
 
+            if (codepoint > 0x10FFFF) return -1; // illegal range
             int v = codepoint - 0x10000;
             dst[di + 0] = (char) (0xD800 + ((v >> 10) & 0x3FF));
             dst[di + 1] = (char) (0xDC00 + (v & 0x3FF));
@@ -431,49 +433,7 @@ public final class ProtoParserTools {
     }
 
     public static String readString(PbjReader input, final long maxSize) {
-        final int length = input.readVarInt(false);
-        if (length > maxSize || length < 0) {
-            input.setError(PbjReader.Parse);
-            return "";
-        }
-
-        ByteBuffer bb = null;
-        int bufPos = input.buffered(length);
-        byte[] data = null;
-        if (bufPos >= 0) {
-            data = input.array();
-        } else {
-            // TODO remove this path
-            bb = ByteBuffer.allocate(length);
-            long bytesRead = input.readBytes(bb);
-            if (bytesRead != length) {
-                input.setError(PbjReader.BufferUnderflow);
-                return "";
-            }
-            data = bb.array();
-            bufPos = 0;
-        }
-
-        char[] charArray = input.tempCharArray(length);
-
-        int i = 0;
-        // Ascii fast path
-        {
-            for (; i < length; i++) {
-                byte b = data[bufPos + i];
-                if ((b & 0x80) != 0) break;
-                charArray[i] = (char) b;
-            }
-            if (i == length) {
-                return new String(charArray, 0, length);
-            }
-        }
-        int utf16Len = fromUTF8(charArray, data, bufPos, i, length);
-        if (utf16Len >= 0) {
-            return new String(charArray, 0, utf16Len);
-        }
-        input.setError(PbjReader.Parse);
-        return "";
+        return input.readString(maxSize);
     }
 
     /**

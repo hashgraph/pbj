@@ -769,6 +769,26 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         return ret;
     }
 
+    /**
+     * Returns the raw backing byte array. The logical content starts at {@link #arrayOffset()} and spans
+     * {@link #length()} bytes. Mutating the returned array breaks the immutability contract of this class.
+     *
+     * @return the internal backing byte array
+     */
+    @NonNull
+    public byte[] array() {
+        return buffer;
+    }
+
+    /**
+     * Returns the offset within {@link #array()} where the logical content of this {@link Bytes} begins.
+     *
+     * @return start offset into the backing array
+     */
+    public int arrayOffset() {
+        return start;
+    }
+
     private void validateOffset(final long offset) {
         if ((offset < 0) || (offset >= this.length)) {
             throw new IndexOutOfBoundsException("offset=" + offset + ", length=" + this.length);
