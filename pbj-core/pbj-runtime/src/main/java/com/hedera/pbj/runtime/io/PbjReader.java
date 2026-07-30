@@ -150,20 +150,37 @@ public class PbjReader {
         includeCause = false;
     }
 
+    public void resetWith(ReadableSequentialData in) {
+        err = 0;
+        if (!owningTheBuffer) {
+            setError(UsageError); // Should not mix owning and non owning
+            buf = null;
+        }
+        input = in;
+        input2 = null;
+        pos = 0;
+        end = 0;
+        offset = in.position();
+        relLimit = 0;
+        absoluteLimit = in.limit();
+        seenEOF = false;
+        cause = null;
+        includeCause = false;
+    }
+
     public void resetWith(InputStream in) {
         err = 0;
         if (!owningTheBuffer) {
             setError(UsageError); // Should not mix owning and non owning
             buf = null;
         }
-        input2 = in;
         input = null;
+        input2 = in;
         pos = 0;
         end = 0;
         offset = 0;
         relLimit = 0;
         absoluteLimit = Long.MAX_VALUE;
-        offset = 0;
         seenEOF = false;
         cause = null;
         includeCause = false;
@@ -504,6 +521,10 @@ public class PbjReader {
         return readBytesInternalCopy(dst, 0, dst.length);
     }
 
+    public long readBytes(@NonNull final byte[] dst, int offset, int len) {
+        return readBytesInternalCopy(dst, offset, len);
+    }
+
     public long readBytes(@NonNull ByteBuffer dst) {
         int len = readBytesInternalCopy(dst.array(), dst.arrayOffset() + dst.position(), dst.remaining());
         if (len > 0) { // handles error case (which sets len == -1)
@@ -688,6 +709,10 @@ public class PbjReader {
             return new ByteArrayInputStream(buf, pos, end);
         }
         throw new UnsupportedOperationException();
+    }
+
+    public Boolean readBoolean() {
+        return readByte() != 0;
     }
 
     public byte readByte() {
