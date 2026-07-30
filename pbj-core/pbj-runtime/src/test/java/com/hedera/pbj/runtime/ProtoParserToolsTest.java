@@ -462,13 +462,13 @@ class ProtoParserToolsTest {
 
     @Test
     void testExtractBytesNullField() {
-        final ReadableSequentialData input = Bytes.EMPTY.toReadableSequentialData();
+        final PbjReader input = Bytes.EMPTY.toPbjReader();
         assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes(input, null));
     }
 
     @Test
     void testExtractBytesRepeatedField() {
-        final ReadableSequentialData input = Bytes.EMPTY.toReadableSequentialData();
+        final PbjReader input = Bytes.EMPTY.toPbjReader();
         final FieldDefinition field = new FieldDefinition("field", FieldType.BYTES, true, true, false, 1);
         assertThrows(IllegalArgumentException.class, () -> ProtoParserTools.extractFieldBytes(input, field));
     }
