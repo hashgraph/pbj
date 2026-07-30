@@ -771,7 +771,7 @@ public final class ServiceGenerator {
                     Objects.requireNonNull(options);
 
                     // not strict, no unknown fields, hard-code maxDepth for now, and use custom maxSize:
-                    return get$simpleRequestTypeCodec(options).parse(message.toReadableSequentialData(), false, false, 16, options.maxMessageSizeBytes());
+                    return get$simpleRequestTypeCodec(options).parse(message, false, false, 16, options.maxMessageSizeBytes());
                 }
                 """
                 .replace("$requestType", requestType)

@@ -52,11 +52,7 @@ public class KeyDepthLimitTest {
         final ParseException thrown = assertThrows(
                 ParseException.class,
                 () -> Key.PROTOBUF.parse(
-                        Bytes.wrap(serializedKey.bytes()).toReadableSequentialData(),
-                        false,
-                        false,
-                        DEFAULT_MAX_DEPTH,
-                        MAX_TRANSACTION_BYTES));
+                        serializedKey.bytes(), false, false, DEFAULT_MAX_DEPTH, MAX_TRANSACTION_BYTES));
         assertTrue(
                 thrown.getMessage() != null && thrown.getMessage().contains("Reached maximum allowed depth"),
                 "Expected ParseException message to contain 'Reached maximum allowed depth', but got: "
@@ -99,12 +95,7 @@ public class KeyDepthLimitTest {
                 null,
                 () -> {
                     try {
-                        Key.PROTOBUF.parse(
-                                Bytes.wrap(serializedKey).toReadableSequentialData(),
-                                false,
-                                false,
-                                maxDepth,
-                                MAX_TRANSACTION_BYTES);
+                        Key.PROTOBUF.parse(serializedKey, false, false, maxDepth, MAX_TRANSACTION_BYTES);
                     } catch (final Throwable t) {
                         thrown.set(t);
                     }

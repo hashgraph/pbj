@@ -131,6 +131,10 @@ public class PbjWriter implements AutoCloseable {
         this.pos++;
     }
 
+    public void writeBoolean(boolean b) {
+        writeByte((byte) (b ? 1 : 0));
+    }
+
     public void writeByte(byte b) {
         if (pos < cap) {
             buf[pos++] = b;
@@ -542,6 +546,10 @@ public class PbjWriter implements AutoCloseable {
         cause = null;
     }
 
+    public void resetWithNull() {
+        resetWith((OutputStream) null);
+    }
+
     public void resetWith(@NonNull OutputStream out) {
         reset();
         if (!reuseable) {
@@ -549,6 +557,20 @@ public class PbjWriter implements AutoCloseable {
             return;
         }
         output = out;
+    }
+
+    public void resetWith(@NonNull WritableSequentialData out) {
+        resetWith(new OutputStream() {
+            @Override
+            public void write(int b) {
+                out.writeByte((byte) b);
+            }
+
+            @Override
+            public void write(@NonNull byte[] b, int off, int len) {
+                out.writeBytes(b, off, len);
+            }
+        });
     }
 
     public byte[] internalArray() {
