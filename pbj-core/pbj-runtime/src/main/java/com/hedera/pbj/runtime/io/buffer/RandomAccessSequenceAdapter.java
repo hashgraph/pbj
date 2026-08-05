@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.buffer;
 
+import com.hedera.pbj.runtime.io.ByteArraySequentialData;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.BufferUnderflowException;
@@ -12,7 +13,7 @@ import java.nio.ByteOrder;
  * {@link RandomAccessData} instance. Since {@link RandomAccessData} has no position or limit, this class adds those,
  * and otherwise delegates to the underlying {@link RandomAccessData} instance.
  */
-final class RandomAccessSequenceAdapter implements ReadableSequentialData {
+final class RandomAccessSequenceAdapter implements ReadableSequentialData, ByteArraySequentialData {
     /** The delegate {@link RandomAccessData} instance */
     private final RandomAccessData delegate;
 
@@ -54,6 +55,24 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
             throw new IllegalArgumentException(
                     "Start " + start + " is greater than the delegate length " + delegate.length());
         }
+    }
+
+    // ================================================================================================================
+    // ByteArraySequentialData Methods
+
+    @Override
+    public byte[] byteArray() {
+        return delegate instanceof Bytes b ? b.array() : null;
+    }
+
+    @Override
+    public int byteArrayOffset() {
+        return delegate instanceof Bytes b ? b.arrayOffset() + (int) (start + position) : 0;
+    }
+
+    @Override
+    public int byteArrayEnd() {
+        return delegate instanceof Bytes b ? b.arrayOffset() + (int) (start + limit) : 0;
     }
 
     // ================================================================================================================

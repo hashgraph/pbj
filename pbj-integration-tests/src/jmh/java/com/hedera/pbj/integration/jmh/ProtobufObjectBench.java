@@ -89,7 +89,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                 this.googleByteBufferParseMethod = googleByteBufferParseMethod;
                 this.googleInputStreamParseMethod = googleInputStreamParseMethod;
                 // write to temp data buffer and then read into byte array
-                PbjWriter tempDataBuffer = new PbjWriter(5 << 20);
+                PbjWriter tempDataBuffer = new PbjWriter(5 << 20, false);
                 pbjCodec.write(pbjModelObject, tempDataBuffer);
                 this.protobuf = tempDataBuffer.toByteArray();
                 // start by parsing using protoc
@@ -111,7 +111,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                 this.outArray = new byte[this.protobuf.length * 2]; // make sure big enough
                 this.outDataBuffer = BufferedData.allocate(this.protobuf.length);
                 this.outDataBufferDirect = BufferedData.allocateOffHeap(this.protobuf.length);
-                this.outPbjWriter = new PbjWriter(this.protobuf.length);
+                this.outPbjWriter = new PbjWriter(this.protobuf.length, false);
                 this.bbout = ByteBuffer.allocate(this.protobuf.length);
                 this.bboutDirect = ByteBuffer.allocateDirect(this.protobuf.length);
             } catch (IOException e) {

@@ -5,30 +5,35 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.EOFException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
 /**
- * A {@link PbjReader} which is meant to be easy for the JIT to optimize. This is suitable for reading data from a stream or buffer.
- * Once read, data cannot be re-read. The {@link #position()}, once incremented, cannot be reset or decremented.
- * The public methods are meant to be compatible with ReadableSequentialData
+ * A buffer-backed reader for decoding data.
+ *
+ * <p>PbjReader maintains an internal byte buffer and reads from a {@link ReadableSequentialData},
+ * {@link InputStream}, or a byte array. When backed by a stream the internal buffer is refilled
+ * on demand as data is consumed. A stream will never be read past its limit.
+ *
+ * <p>Errors are tracked internally rather than thrown immediately. Call {@link #error()} to check
+ * for a pending error code, or {@link #throwOnError()} to surface it as a {@link ParseException}.
+ * Once an error is set it is sticky — subsequent reads return default values (zero or empty).
  */
 public class PbjReader {
     private byte[] buf;
     private int pos, end;
     private int relLimit, err;
     private long absoluteLimit = Long.MAX_VALUE, offset;
-    private ReadableSequentialData input;
-    private InputStream input2;
+    private ReadableSequentialData rsd;
+    private InputStream stream;
     private Exception cause;
-    private boolean seenEOF, includeCause, owningTheBuffer;
+    private boolean seenEOF, includeCause;
+    private byte[] ownedBuf;
 
     private char[] charArray;
     private final boolean useStacktrace =
@@ -71,121 +76,137 @@ public class PbjReader {
         premadeMaxDepth = new ParseException("Reached maximum allowed depth");
     }
 
+    private void construct(byte[] buffer, int position, int endPosition) {
+        buf = buffer;
+        pos = position;
+        end = endPosition;
+        relLimit = end;
+        absoluteLimit = end;
+        seenEOF = true;
+        err = EOF;
+    }
+
     /**
-     * Streams data of unknown length into its private buffer.
-     * It will read more data then necessary when there's space in the internal buffer
-     * @param input the input stream
+     * Resets this reader to read from the given byte array slice, discarding any previous state.
+     *
+     * @param buffer      the backing byte array
+     * @param position    the inclusive start index within {@code buffer}
+     * @param endPosition the exclusive end index within {@code buffer}
      */
-    public PbjReader(ReadableSequentialData input) {
-        this.input = input;
-        buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
-        owningTheBuffer = true;
-        absoluteLimit = input.limit();
-        offset = input.position();
+    public void resetWith(byte[] buffer, int position, int endPosition) {
+        err = 0;
+        cause = null;
+        includeCause = false;
+        construct(buffer, position, endPosition);
+        offset = 0;
+        relLimit = end;
+        absoluteLimit = end;
     }
 
-    public PbjReader(InputStream input) {
-        this.input2 = input;
-        buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
-        owningTheBuffer = true;
+    private void construct(ReadableSequentialData seq, InputStream inputStream) {
+        if (seq instanceof ByteArraySequentialData ba && ba.byteArray() != null) {
+            construct(ba.byteArray(), ba.byteArrayOffset(), ba.byteArrayEnd());
+            return;
+        } else if (seq != null) {
+            rsd = seq;
+            absoluteLimit = seq.limit();
+            offset = (int) seq.position();
+        } else if (inputStream != null) {
+            stream = inputStream;
+        }
+        ownedBuf = buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
     }
 
-    public PbjReader(byte[] completeBuffer) {
-        this(completeBuffer, 0, completeBuffer.length);
+    private void resetWith(ReadableSequentialData seq, InputStream inputStream) {
+        err = 0;
+        cause = null;
+        includeCause = false;
+        if ((seq == null && inputStream == null) || (seq != null && inputStream != null)) {
+            setError(UsageError);
+            return;
+        }
+
+        if (seq instanceof ByteArraySequentialData ba && ba.byteArray() != null) {
+            resetWith(ba.byteArray(), ba.byteArrayOffset(), ba.byteArrayEnd());
+            return;
+        }
+        if (seq != null) {
+            rsd = seq;
+            stream = null;
+            absoluteLimit = seq.limit();
+            offset = (int) seq.position();
+        } else if (inputStream != null) {
+            rsd = null;
+            stream = inputStream;
+            absoluteLimit = Long.MAX_VALUE;
+            offset = 0;
+        }
+        if (ownedBuf == null) {
+            ownedBuf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+        }
+        buf = ownedBuf;
+        pos = 0;
+        end = 0;
+        relLimit = 0;
+        seenEOF = false;
     }
 
+    /** Creates a reader backed by the given {@link ReadableSequentialData}. */
+    public PbjReader(ReadableSequentialData seq) {
+        construct(seq, null);
+    }
+    /** Creates a reader backed by the given {@link InputStream}. */
+    public PbjReader(InputStream inputStream) {
+        construct(null, inputStream);
+    }
+    /** Creates a reader backed by the given byte array. */
+    public PbjReader(byte[] data) {
+        construct(data, 0, data.length);
+    }
+    /**
+     * Creates a reader backed by the given byte array slice.
+     *
+     * @param data   the backing byte array
+     * @param offset the inclusive start index
+     * @param end    the exclusive end index
+     */
     public PbjReader(byte[] data, int offset, int end) {
-        buf = data;
-        pos = offset;
-        this.end = end;
-        relLimit = end;
-        absoluteLimit = end;
-        seenEOF = true;
-        err = EOF;
+        construct(data, offset, end);
+    }
+    /** Creates a reader backed by the given {@link ByteBuffer}. */
+    public PbjReader(ByteBuffer bb) {
+        construct(bb.array(), bb.arrayOffset() + bb.position(), pos + bb.remaining());
+    }
+    /** Creates a reader backed by the given {@link Bytes}. */
+    public PbjReader(Bytes bytes) {
+        construct(bytes.array(), bytes.arrayOffset(), bytes.arrayOffset() + (int) bytes.length());
     }
 
-    public PbjReader(ByteBuffer completeBuffer) {
-        byte[] data = completeBuffer.array();
-        int pos = completeBuffer.arrayOffset() + completeBuffer.position();
-        int end = pos + completeBuffer.remaining();
-        this(data, pos, end);
+    /** Resets this reader to read from the given {@link ReadableSequentialData}. */
+    public void resetWith(ReadableSequentialData seq) {
+        resetWith(seq, null);
+    }
+    /** Resets this reader to read from the given {@link InputStream}. */
+    public void resetWith(InputStream inputStream) {
+        resetWith(null, inputStream);
+    }
+    /** Resets this reader to read from the given byte array. */
+    public void resetWith(byte[] data) {
+        resetWith(data, 0, data.length);
+    }
+    /** Resets this reader to read from the given {@link ByteBuffer}. */
+    public void resetWith(ByteBuffer bb) {
+        int position = bb.arrayOffset() + bb.position();
+        resetWith(bb.array(), position, position + bb.remaining());
+    }
+    /** Resets this reader to read from the given {@link Bytes}. */
+    public void resetWith(Bytes bytes) {
+        resetWith(bytes.array(), bytes.arrayOffset(), bytes.arrayOffset() + (int) bytes.length());
     }
 
-    public PbjReader(Bytes completeBuffer) {
-        int arrayOffset = completeBuffer.arrayOffset();
-        this(completeBuffer.array(), arrayOffset, arrayOffset + (int) completeBuffer.length());
-    }
-
-    public void resetWith(Bytes completeBuffer) {
-        if (owningTheBuffer) {
-            setError(UsageError); // Should not mix owning and non owning
-            owningTheBuffer = false;
-        }
-        buf = completeBuffer.array();
-        pos = completeBuffer.arrayOffset();
-        offset = 0;
-        int end = completeBuffer.arrayOffset() + (int) completeBuffer.length();
-        this.end = end;
-        relLimit = end;
-        absoluteLimit = end;
-        seenEOF = true;
-        err = EOF;
-        includeCause = false;
-    }
-
-    public void resetWith(byte[] completeBuffer) {
-        if (owningTheBuffer) {
-            setError(UsageError); // Should not mix owning and non owning
-            owningTheBuffer = false;
-        }
-        buf = completeBuffer;
-        pos = 0;
-        offset = 0;
-        int end = completeBuffer.length;
-        this.end = end;
-        relLimit = end;
-        absoluteLimit = end;
-        seenEOF = true;
-        err = EOF;
-        includeCause = false;
-    }
-
-    public void resetWith(ReadableSequentialData in) {
-        err = 0;
-        if (!owningTheBuffer) {
-            setError(UsageError); // Should not mix owning and non owning
-            buf = null;
-        }
-        input = in;
-        input2 = null;
-        pos = 0;
-        end = 0;
-        offset = in.position();
-        relLimit = 0;
-        absoluteLimit = in.limit();
-        seenEOF = false;
-        cause = null;
-        includeCause = false;
-    }
-
-    public void resetWith(InputStream in) {
-        err = 0;
-        if (!owningTheBuffer) {
-            setError(UsageError); // Should not mix owning and non owning
-            buf = null;
-        }
-        input = null;
-        input2 = in;
-        pos = 0;
-        end = 0;
-        offset = 0;
-        relLimit = 0;
-        absoluteLimit = Long.MAX_VALUE;
-        seenEOF = false;
-        cause = null;
-        includeCause = false;
-    }
-
+    /**
+     * Reads all remaining input into the internal buffer, growing it as needed, until EOF is reached.
+     */
     public void bufferToEOF() {
         while (err == 0) {
             offset += pos;
@@ -235,12 +256,24 @@ public class PbjReader {
         }
     }
 
+    /**
+     * Returns {@code true} if there are bytes remaining to be read.
+     * For streaming readers, triggers a buffer refill if the local buffer is exhausted.
+     *
+     * @return {@code true} if at least one byte can be read
+     */
     public boolean hasRemaining() {
         return hasMore();
     }
 
-    // small and likely to inline
+    /**
+     * Returns {@code true} if there are bytes remaining to be read.
+     * For streaming readers, triggers a buffer refill if the local buffer is exhausted.
+     *
+     * @return {@code true} if at least one byte can be read
+     */
     public boolean hasMore() {
+        // small and likely to inline
         if (pos < relLimit) return true;
         if (offset + pos == absoluteLimit) return false;
         return hasMoreInternal();
@@ -252,45 +285,55 @@ public class PbjReader {
         return pos < relLimit;
     }
 
+    /**
+     * Returns the absolute byte limit beyond which reading is not permitted.
+     *
+     * @return the absolute limit position
+     */
     public long limit() {
         return absoluteLimit;
     }
 
+    /**
+     * Sets the absolute byte limit beyond which reading is not permitted.
+     * If using a stream, it will not read past that limit
+     *
+     * @param limit the new limit position
+     */
     public void limit(long limit) {
         absoluteLimit = limit;
-        if (input != null) {
-            input.limit(limit);
+        if (rsd != null) {
+            rsd.limit(limit);
         }
         if (err > 0) return; // keep relLimit -1 in error state
         relLimit = (int) Math.min(absoluteLimit - offset, end);
     }
 
+    /**
+     * Returns the current absolute read position, accounting for any bytes already consumed
+     * from the internal buffer plus any previously buffered data.
+     *
+     * @return the current read position
+     */
     public long position() {
         return pos + offset;
     }
 
-    public void resetPosition() {
-        pos = 0;
-        err = seenEOF ? EOF : UsageError;
-        absoluteLimit = end;
-        relLimit = end;
-    }
-
-    // To write test easier
-    public PbjReader reset() {
-        resetPosition();
-        return this;
-    }
-
-    public void skip(long count) {
+    /**
+     * Skips over {@code count} bytes, advancing the read position without returning the data.
+     * Sets {@link #BufferUnderflow} if there are fewer than {@code count} bytes remaining.
+     *
+     * @param count the number of bytes to skip
+     */
+    public void skip(int count) {
         if (count >= 0 && pos + count <= relLimit) {
-            pos += (int) count;
+            pos += count;
             return;
         }
         skipInternal(count);
     }
 
-    private void skipInternal(long count) {
+    private void skipInternal(int count) {
         if (seenEOF) {
             setError(BufferUnderflow);
             return;
@@ -300,11 +343,11 @@ public class PbjReader {
         count -= skippedInBuffer;
         pos = relLimit;
         offset += count;
-        if (input2 != null) {
+        if (stream != null) {
             try {
                 long remaining = count;
                 while (remaining > 0) {
-                    long skipped = input2.skip(remaining);
+                    long skipped = stream.skip(remaining);
                     if (skipped <= 0) break;
                     remaining -= skipped;
                 }
@@ -315,14 +358,32 @@ public class PbjReader {
                 setError(IOError);
             }
         } else {
-            input.skip(count); // may throw
+            rsd.skip(count); // may throw
         }
     }
 
+    /**
+     * Reads a base-128 varint and returns its value as an {@code int}.
+     * On a malformed varint, sets {@link #DataEncoding} and returns {@code -1}; however,
+     * {@code -1} is also a valid decoded value, so callers must check {@link #error()} to
+     * distinguish an error from a legitimate result.
+     *
+     * @param zigZag if {@code true}, decodes using zigzag: {@code (n >>> 1) ^ -(n & 1)}
+     * @return the decoded integer value
+     */
     public int readVarInt(boolean zigZag) {
         return (int) readVarLong(zigZag);
     }
 
+    /**
+     * Reads a base-128 varint and returns its value as a {@code long}.
+     * On a malformed varint (more than 10 bytes), sets {@link #DataEncoding} and returns
+     * {@code -1}; however, {@code -1} is also a valid decoded value, so callers must check
+     * {@link #error()} to distinguish an error from a legitimate result.
+     *
+     * @param zigZag if {@code true}, decodes using zigzag: {@code (n >>> 1) ^ -(n & 1)}
+     * @return the decoded long value
+     */
     public long readVarLong(boolean zigZag) {
         long value = 0;
         for (int i = 0; i < 10; i++) {
@@ -336,6 +397,12 @@ public class PbjReader {
         return -1;
     }
 
+    /**
+     * Reads a base-128 varint and returns the raw encoded bytes without decoding them.
+     * Sets {@link #DataEncoding} if the varint is malformed.
+     *
+     * @return the raw varint bytes, or {@link Bytes#EMPTY} on error
+     */
     public Bytes readVarLongBytes() {
         byte[] bytes = new byte[10];
         for (int i = 0; i < 10; i++) {
@@ -348,12 +415,18 @@ public class PbjReader {
         return Bytes.EMPTY;
     }
 
+    /**
+     * Records an error on this reader if no previous error is set. Once an error is set the
+     * relative limit is set to {@code -1}, preventing further reads.
+     *
+     * @param errorKind one of the error-code constants ({@link #BufferUnderflow}, {@link #Parse}, etc.)
+     */
     public void setError(int errorKind) {
         if (err > 0) return; // if an error exists, don't overwrite
         err = errorKind;
         relLimit = -1;
         seenEOF = true;
-        // TODO simplify these when CN doesn't need it
+        // TODO simplify when exceptions are not required
         includeCause = true;
         if (useStacktrace) {
             if (errorKind == UnknownField) {
@@ -384,17 +457,33 @@ public class PbjReader {
         }
     }
 
+    /**
+     * Promotes the current error code to {@link #Parse} if an error is set and it is not
+     * {@link #MaxDepthReached}. Used to normalize lower-level errors into a
+     * {@link ParseException} at higher layers of the parser.
+     */
     public void upgradeErrorToParse() {
         if (err > 0 && err != MaxDepthReached) { // MaxDepthReached already throws parse, and requires specific text
             err = Parse;
         }
     }
 
+    /**
+     * Returns {@code true} if no error is set; otherwise throws a {@link ParseException}.
+     *
+     * @return {@code true} if no error has occurred
+     * @throws ParseException if an error is set
+     */
     public boolean throwOnErrorOrTrue() throws ParseException {
         if (err <= 0) return true;
         throw throwOnErrorImpl();
     }
 
+    /**
+     * Throws a {@link ParseException} if an error is set; otherwise does nothing.
+     *
+     * @throws ParseException if {@link #error()} is non-zero
+     */
     public void throwOnError() throws ParseException {
         if (err <= 0) return;
         throw throwOnErrorImpl();
@@ -438,7 +527,14 @@ public class PbjReader {
         }
     }
 
-    // Only used in test that expect IO Exceptions
+    /**
+     * Like {@link #throwOnError()}, but throws an {@link IOException} for {@link #Unsupported}
+     * errors instead of a {@link ParseException}. Intended for tests that expect checked I/O
+     * exceptions.
+     *
+     * @throws ParseException if a parse error is set
+     * @throws IOException    if an unsupported-feature error is set
+     */
     public void throwOnError2() throws ParseException, IOException {
         if (err == Unsupported) {
             throw new IOException("Hit an unsupported feature", cause);
@@ -446,10 +542,22 @@ public class PbjReader {
         throwOnError();
     }
 
+    /**
+     * Returns the current error code, or {@code 0} if no error has occurred.
+     *
+     * @return a positive error-code constant, or {@code 0} for no error
+     */
     public int error() {
-        return err;
+        return err > 0 ? err : 0;
     }
 
+    /**
+     * Returns the raw internal buffer array. Intended for low-level introspection;
+     * the valid data occupies an internal window and should not be accessed without
+     * knowledge of the internals.
+     *
+     * @return the internal byte buffer
+     */
     public byte[] array() {
         return buf;
     }
@@ -476,11 +584,11 @@ public class PbjReader {
     }
 
     private int readFromInput(@NonNull byte[] dst, int off, int len) {
-        if (input2 != null) {
+        if (stream != null) {
             int total = 0;
             try {
                 while (total < len) {
-                    int n = input2.read(dst, off + total, len - total);
+                    int n = stream.read(dst, off + total, len - total);
                     if (n < 0) break;
                     total += n;
                 }
@@ -489,14 +597,10 @@ public class PbjReader {
             }
             return total;
         }
-        try {
-            long remaining = input.remaining();
-            if (remaining <= 0) return 0;
-            len = (int) Math.min(len, remaining); // a test requires not buffering past limit
-            return (int) input.readBytes(dst, off, len);
-        } catch (EOFException | UncheckedIOException e) {
-            return 0;
-        }
+        long remaining = rsd.remaining();
+        if (remaining <= 0) return 0;
+        len = (int) Math.min(len, remaining); // a test requires not buffering past limit
+        return (int) rsd.readBytes(dst, off, len);
     }
 
     private int readBytesInternalCopy(@NonNull byte[] dst, int dstOffset, int count) {
@@ -508,23 +612,50 @@ public class PbjReader {
 
         offset += pos;
         relLimit = pos = end = 0;
-        long rdlen = readFromInput(dst, dstOffset + copiedLen, count - copiedLen);
+        int rdlen = readFromInput(dst, dstOffset + copiedLen, count - copiedLen);
         if (rdlen == 0) {
             seenEOF = true;
             err = EOF;
         }
         offset += rdlen;
-        return (int) (copiedLen + rdlen);
+        return copiedLen + rdlen;
     }
 
+    /**
+     * Reads up to {@code dst.length} bytes into the given array. If fewer bytes are available
+     * the array is partially filled. The number of bytes copied is returned.
+     * Returns {@code -1} on an error
+     *
+     * @param dst the destination array
+     * @return the number of bytes read, or {@code -1} if a pre-existing error is set
+     */
     public long readBytes(@NonNull final byte[] dst) {
         return readBytesInternalCopy(dst, 0, dst.length);
     }
 
-    public long readBytes(@NonNull final byte[] dst, int offset, int len) {
-        return readBytesInternalCopy(dst, offset, len);
+    /**
+     * Reads up to {@code length} bytes into the given array starting at {@code offset}. If fewer
+     * bytes are available the array is partially filled. The number of bytes copied is returned.
+     * Returns {@code -1} on an error
+     *
+     * @param dst    the destination array
+     * @param offset the start index within {@code dst}
+     * @param length the number of bytes to read
+     * @return the number of bytes read, or {@code -1} if a pre-existing error is set
+     */
+    public long readBytes(@NonNull final byte[] dst, int offset, int length) {
+        return readBytesInternalCopy(dst, offset, length);
     }
 
+    /**
+     * Reads bytes into the given {@link ByteBuffer}, advancing its position by the number of
+     * bytes read. If fewer bytes are available than the buffer's remaining capacity, the buffer
+     * is partially filled, and the number of bytes copied is returned.
+     * Returns {@code -1} on an error
+     *
+     * @param dst the destination buffer; bytes are written starting at its current position
+     * @return the number of bytes actually read, or {@code -1} if a pre-existing error is set
+     */
     public long readBytes(@NonNull ByteBuffer dst) {
         int len = readBytesInternalCopy(dst.array(), dst.arrayOffset() + dst.position(), dst.remaining());
         if (len > 0) { // handles error case (which sets len == -1)
@@ -533,6 +664,13 @@ public class PbjReader {
         return len;
     }
 
+    /**
+     * Reads exactly {@code length} bytes and returns them as a {@link Bytes} instance.
+     * Sets {@link #BufferUnderflow} and returns {@link Bytes#EMPTY} if fewer bytes are available.
+     *
+     * @param length the number of bytes to read
+     * @return the read bytes, or {@link Bytes#EMPTY} on error
+     */
     public @NonNull Bytes readBytes(int length) {
         if (length <= relLimit - pos && err <= 0) {
             var dst = new byte[length];
@@ -540,11 +678,11 @@ public class PbjReader {
             pos += length;
             return Bytes.wrap(dst);
         }
-        return readBytes2(length);
+        return readBytesInternal(length);
     }
 
     @NonNull
-    Bytes readBytes2(int length) {
+    private Bytes readBytesInternal(int length) {
         if (length == 0 || err > 0) {
             return Bytes.EMPTY;
         } else if (length < 0) {
@@ -561,11 +699,7 @@ public class PbjReader {
     }
 
     @NonNull
-    byte[] readBytes3(int length) {
-        if (length < 0) {
-            setError(IllegalArgument);
-            return null;
-        }
+    private byte[] readByteArray(int length) {
         var dst = new byte[length];
         int copiedLen = readBytesInternalCopy(dst, 0, length);
         if (copiedLen < length) {
@@ -575,10 +709,21 @@ public class PbjReader {
         return dst;
     }
 
+    /**
+     * Reads a 32-bit integer in big-endian byte order. Alias for {@link #readIntBE()}.
+     *
+     * @return the integer value
+     */
     public int readInt() {
         return readIntBE();
     }
 
+    /**
+     * Reads a 32-bit integer in big-endian byte order.
+     * Sets {@link #BufferUnderflow} and returns {@code 0} if fewer than 4 bytes are available.
+     *
+     * @return the integer value
+     */
     public int readIntBE() {
         if (pos + 4 <= relLimit) {
             int v = 0;
@@ -591,6 +736,12 @@ public class PbjReader {
         return readIntBEInternal();
     }
 
+    /**
+     * Reads a 32-bit integer in little-endian byte order.
+     * Sets {@link #BufferUnderflow} and returns {@code 0} if fewer than 4 bytes are available.
+     *
+     * @return the integer value
+     */
     public int readIntLE() {
         if (pos + 4 <= relLimit) {
             int v = 0;
@@ -631,10 +782,21 @@ public class PbjReader {
         return v;
     }
 
+    /**
+     * Reads a 64-bit integer in big-endian byte order. Alias for {@link #readLongBE()}.
+     *
+     * @return the long value
+     */
     public long readLong() {
         return readLongBE();
     }
 
+    /**
+     * Reads a 64-bit integer in big-endian byte order.
+     * Sets {@link #BufferUnderflow} and returns {@code 0} if fewer than 8 bytes are available.
+     *
+     * @return the long value
+     */
     public long readLongBE() {
         if (pos + 8 <= relLimit) {
             long v = 0;
@@ -661,6 +823,12 @@ public class PbjReader {
         return v;
     }
 
+    /**
+     * Reads a 64-bit integer in little-endian byte order.
+     * Sets {@link #BufferUnderflow} and returns {@code 0} if fewer than 8 bytes are available.
+     *
+     * @return the long value
+     */
     public long readLongLE() {
         if (pos + 8 <= relLimit) {
             long v = 0;
@@ -687,34 +855,73 @@ public class PbjReader {
         return v;
     }
 
+    /**
+     * Reads a 32-bit float in big-endian byte order.
+     *
+     * @return the float value
+     */
     public float readFloat() {
         return Float.intBitsToFloat(readInt());
     }
 
+    /**
+     * Reads a 32-bit float in little-endian byte order.
+     *
+     * @return the float value
+     */
     public float readFloatLE() {
         return Float.intBitsToFloat(readIntLE());
     }
 
+    /**
+     * Reads a 64-bit double in big-endian byte order.
+     *
+     * @return the double value
+     */
     public double readDouble() {
         return Double.longBitsToDouble(readLong());
     }
 
+    /**
+     * Reads a 64-bit double in little-endian byte order.
+     *
+     * @return the double value
+     */
     public double readDoubleLE() {
         return Double.longBitsToDouble(readLongLE());
     }
 
+    /**
+     * Returns an {@link InputStream} view of the remaining data in this reader.
+     * For streaming readers, returns the underlying stream directly. For byte-array readers,
+     * returns a {@link ByteArrayInputStream} over the buffered data.
+     *
+     * @return an {@code InputStream} over the unread bytes
+     * @throws UnsupportedOperationException if the reader is in a partially-buffered streaming state
+     */
     public InputStream asInputStream() {
-        if (end == 0) return input2 != null ? input2 : input.asInputStream();
+        if (end == 0) return stream != null ? stream : rsd.asInputStream();
         if (seenEOF && offset == 0) {
             return new ByteArrayInputStream(buf, pos, end);
         }
         throw new UnsupportedOperationException();
     }
 
-    public Boolean readBoolean() {
+    /**
+     * Reads a single byte and returns {@code true} if it is non-zero, {@code false} otherwise.
+     *
+     * @return the boolean value
+     */
+    public boolean readBoolean() {
         return readByte() != 0;
     }
 
+    /**
+     * Reads and returns a single signed byte, advancing the position by 1.
+     * Sets {@link #BufferUnderflow} and returns {@code 0} if no bytes remain.
+     *
+     * @return the byte value
+     */
     public byte readByte() {
         if (pos + 1 <= relLimit) return buf[pos++];
         return readByteInternal();
@@ -731,6 +938,14 @@ public class PbjReader {
         return buf[pos++];
     }
 
+    /**
+     * Reads a length-prefixed UTF-8 string. The length is read as a base-128 varint followed
+     * by that many UTF-8 bytes. Sets {@link #Parse} and returns {@code ""} if the length exceeds
+     * {@code maxSize}, is negative, or if the UTF-8 bytes are malformed.
+     *
+     * @param maxSize the maximum allowed string byte length
+     * @return the decoded string, or {@code ""} on error
+     */
     public String readString(final long maxSize) {
         final int length = readVarInt(false);
         if (length > maxSize || length < 0) {
@@ -743,7 +958,7 @@ public class PbjReader {
         if (bufPos >= 0) {
             data = buf;
         } else {
-            data = readBytes3(length);
+            data = readByteArray(length);
             if (err > 0) {
                 return "";
             }

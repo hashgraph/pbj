@@ -209,7 +209,7 @@ public final class ServiceGenerator {
                 kind = "bidiStreaming";
                 methodLambda = "typedReplies -> " + name + "(typedReplies, options)";
             }
-
+            // spotless:off
             return """
                     case $methodName -> Pipelines.<$requestType, $replyType>$kind()
                             .mapRequest(bytes -> parse$simpleRequestType(bytes, options))
@@ -225,9 +225,11 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$kind", kind);
+            // spotless:on
         }
 
         private String formatUnaryMethodImplementation() {
+            // spotless:off
             return """
                         @Override
                         $methodSignatureWithoutOptions {
@@ -298,9 +300,11 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$methodName", name);
+            // spotless:on
         }
 
         private String formatClientStreamingMethodImplementation() {
+            // spotless:off
             return """
                         @Override
                         $methodSignatureWithoutOptions {
@@ -360,8 +364,7 @@ public final class ServiceGenerator {
                                 }
                             };
                         }
-                        """
-                    .replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
+                        """.replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
                     .replace("$delegateToMethodWithOptions", formatDelegateToMethodWithOptions())
                     .replace("$methodSignatureWithOptions", formatMethodSignature("public", true))
                     .replace("$requestType", requestType)
@@ -369,9 +372,11 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$methodName", name);
+            // spotless:on
         }
 
         private String formatServerStreamingMethodImplementation() {
+            // spotless:off
             return """
                         @Override
                         $methodSignatureWithoutOptions {
@@ -429,9 +434,11 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$methodName", name);
+            // spotless:on
         }
 
         private String formatBidiStreamingMethodImplementation() {
+            // spotless:off
             return """
                         @Override
                         $methodSignatureWithoutOptions {
@@ -496,6 +503,7 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$methodName", name);
+            // spotless:on
         }
 
         String formatMethodImplementation() {
