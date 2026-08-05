@@ -554,7 +554,7 @@ public final class ProtoParserTools {
         if (ProtoWriterTools.wireType(field) != ProtoConstants.WIRE_TYPE_DELIMITED) {
             throw new IllegalArgumentException("Cannot extract field bytes for a non-length-delimited field: " + field);
         }
-        while (input.hasMore()) {
+        while (input.hasRemaining()) {
             final int tag = input.readVarInt(false);
             final int fieldNum = tag >> TAG_FIELD_OFFSET;
             final ProtoConstants wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);

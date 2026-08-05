@@ -94,13 +94,11 @@ public abstract class JsonBench<P, G extends GeneratedMessage> {
         }
     }
 
-    /** Same as parsePbjByteBuffer because DataBuffer.wrap(byte[]) uses ByteBuffer today, added this because makes result plotting easier */
-    /*
     @Benchmark
-    public void parsePbj(JsonBenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
+    public void parsePbjBufferedData(JsonBenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
         benchmarkState.jsonDataBuffer.position(0);
         blackhole.consume(benchmarkState.pbjJsonCodec.parse(benchmarkState.jsonDataBuffer));
-    } //*/
+    }
 
     @Benchmark
     public void parsePbjReader(JsonBenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {

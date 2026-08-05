@@ -14,6 +14,7 @@ class CodecMeasureDataMethodGenerator {
 
     static String generateMeasureMethod(final String modelClassName, final List<Field> fields) {
         // Placeholder implementation, replace faster implementation than full parse if there is one
+        // spotless:off
         return """
                 /**
                  * Reads from this data input the length of the data within the input. The implementation may
@@ -30,6 +31,8 @@ class CodecMeasureDataMethodGenerator {
                     final var end = input.position();
                     return (int)(end - start);
                 }
-                """.indent(DEFAULT_INDENT);
+                """
+                .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 }

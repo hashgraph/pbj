@@ -263,23 +263,13 @@ public class PbjReader {
      * @return {@code true} if at least one byte can be read
      */
     public boolean hasRemaining() {
-        return hasMore();
-    }
-
-    /**
-     * Returns {@code true} if there are bytes remaining to be read.
-     * For streaming readers, triggers a buffer refill if the local buffer is exhausted.
-     *
-     * @return {@code true} if at least one byte can be read
-     */
-    public boolean hasMore() {
         // small and likely to inline
         if (pos < relLimit) return true;
         if (offset + pos == absoluteLimit) return false;
-        return hasMoreInternal();
+        return hasRemainingInternal();
     }
     // still small, but less likely to hit this case in steaming, and only once when not streaming
-    private boolean hasMoreInternal() {
+    private boolean hasRemainingInternal() {
         if (seenEOF) return false;
         bufferMore(1);
         return pos < relLimit;
@@ -415,13 +405,10 @@ public class PbjReader {
         return Bytes.EMPTY;
     }
 
-    /**
-     * Records an error on this reader if no previous error is set. Once an error is set the
-     * relative limit is set to {@code -1}, preventing further reads.
-     *
-     * @param errorKind one of the error-code constants ({@link #BufferUnderflow}, {@link #Parse}, etc.)
-     */
     public void setError(int errorKind) {
+        setError(errorKind, "");
+    }
+    public void setError(int errorKind, String message) {
         if (err > 0) return; // if an error exists, don't overwrite
         err = errorKind;
         relLimit = -1;
@@ -430,16 +417,16 @@ public class PbjReader {
         includeCause = true;
         if (useStacktrace) {
             if (errorKind == UnknownField) {
-                cause = new UnknownFieldException("");
+                cause = new UnknownFieldException(message);
             } else if (errorKind == BufferUnderflow) {
                 cause = new BufferUnderflowException();
             } else if (errorKind == BufferOverflow) {
                 cause = new BufferOverflowException();
             } else if (errorKind == Parse) {
-                cause = new RuntimeException();
+                cause = new RuntimeException(message);
                 includeCause = false;
             } else {
-                cause = new RuntimeException();
+                cause = new RuntimeException(message);
             }
         } else {
             if (errorKind == UnknownField) {
@@ -454,17 +441,6 @@ public class PbjReader {
             } else {
                 cause = premadeRuntime;
             }
-        }
-    }
-
-    /**
-     * Promotes the current error code to {@link #Parse} if an error is set and it is not
-     * {@link #MaxDepthReached}. Used to normalize lower-level errors into a
-     * {@link ParseException} at higher layers of the parser.
-     */
-    public void upgradeErrorToParse() {
-        if (err > 0 && err != MaxDepthReached) { // MaxDepthReached already throws parse, and requires specific text
-            err = Parse;
         }
     }
 
