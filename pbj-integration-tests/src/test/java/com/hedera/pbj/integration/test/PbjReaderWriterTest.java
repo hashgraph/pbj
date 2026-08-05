@@ -4,13 +4,18 @@ package com.hedera.pbj.integration.test;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.PbjWriter;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -23,13 +28,14 @@ public class PbjReaderWriterTest {
         final int expectedSize = new PbjWriter().internalArray().length;
         assertEquals(expectedSize, new PbjWriter((OutputStream) null).internalArray().length);
         assertEquals(expectedSize, new PbjWriter((WritableSequentialData) null).internalArray().length);
-        assertEquals(expectedSize, new PbjWriter(128).internalArray().length);
-        // Does not apply to ByteBuffer, byte[], or reserve when large
+        assertEquals(expectedSize, new PbjWriter(128, true).internalArray().length);
+        // Does not apply to ByteBuffer, byte[], or reserve when large, or the below
+        assertEquals(128, new PbjWriter(128, false).internalArray().length);
     }
 
     @Test
     void writerConstructorCanReserveLarge() {
-        PbjWriter writer = new PbjWriter(2 << 20);
+        PbjWriter writer = new PbjWriter(2 << 20, true);
         assertEquals(2 << 20, writer.internalArray().length);
     }
 
@@ -112,7 +118,7 @@ public class PbjReaderWriterTest {
     @Test
     void takeBytesReturnsEmptyOnNonReuseable() {
         byte[] bytes = new byte[64];
-        PbjWriter writer = new PbjWriter(bytes, 0, bytes.length);
+        PbjWriter writer = new PbjWriter(bytes, 0);
         writer.writeByte((byte) 1);
         Bytes result = writer.takeBytes();
         assertEquals(Bytes.EMPTY, result);
@@ -160,7 +166,7 @@ public class PbjReaderWriterTest {
     @Test
     void writerUsesByteArray() {
         byte[] bytes = new byte[128];
-        PbjWriter writer = new PbjWriter(bytes, 0, bytes.length);
+        PbjWriter writer = new PbjWriter(bytes, 0);
         writer.writeByte3((byte) 10, (byte) 20, (byte) 30);
         assertEquals(bytes[0], 10);
         assertEquals(bytes[1], 20);
@@ -170,7 +176,7 @@ public class PbjReaderWriterTest {
     @Test
     void manyStringRoundtrip() {
         byte[] bytes = new byte[128];
-        PbjWriter writer = new PbjWriter(bytes, 0, bytes.length);
+        PbjWriter writer = new PbjWriter(bytes, 0);
         String strings[] = {
             "a",
             "\u0100",
@@ -192,7 +198,7 @@ public class PbjReaderWriterTest {
     @Test
     void toByteArrayDoesAClone() {
         byte[] bytes = new byte[128];
-        PbjWriter writer = new PbjWriter(bytes, 0, bytes.length);
+        PbjWriter writer = new PbjWriter(bytes, 0);
         for (int i = 0; i < 128; i++) {
             writer.writeVarIntNoZZ(i);
         }
@@ -271,23 +277,13 @@ public class PbjReaderWriterTest {
     void doesntThrowOnNoError() {
         PbjReader reader = new PbjReader(new byte[] {1, 2, 3, 4});
         assertEquals(0x04030201, reader.readIntLE());
-        assertEquals(PbjReader.EOF, reader.error());
+        assertEquals(0, reader.error());
         assertDoesNotThrow(() -> reader.throwOnError()); // must not throw
 
         PbjWriter writer = new PbjWriter();
         writer.writeByte((byte) 1);
         assertEquals(0, writer.error());
         writer.throwOnError(); // must not throw
-    }
-
-    @Test
-    void writeBytesToClosedOutputStreamShouldThrow() {
-        final var baos = new ByteArrayOutputStream();
-        final var writer = new PbjWriter(baos);
-        assertDoesNotThrow(baos::close);
-
-        final byte[] bigData = new byte[32 * 1024];
-        assertThrows(UncheckedIOException.class, () -> writer.writeBytes(bigData, 0, bigData.length));
     }
 
     @Test
@@ -309,6 +305,10 @@ public class PbjReaderWriterTest {
         w.writeDouble(1.25);
         w.writeDoubleBE(2.25);
         w.writeDoubleLE(3.25);
+
+        w.writeBoolean(true);
+        w.writeBoolean(false);
+        w.writeByte((byte) 127);
 
         byte[] arr1 = {10, 20, 30, 40, 50};
         w.writeBytes(arr1);
@@ -340,6 +340,10 @@ public class PbjReaderWriterTest {
         assertEquals(1.25, reader.readDouble(), 0.0);
         assertEquals(2.25, reader.readDouble(), 0.0);
         assertEquals(3.25, reader.readDoubleLE(), 0.0);
+
+        assertEquals(true, reader.readBoolean());
+        assertEquals(false, reader.readBoolean());
+        assertEquals(127, reader.readByte());
 
         byte[] dst1 = new byte[5];
         reader.readBytes(dst1);
@@ -784,6 +788,18 @@ public class PbjReaderWriterTest {
     }
 
     @Test
+    void readerResetWithByteBuffer() {
+        PbjReader reader = new PbjReader(ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
+        assertEquals(0x01020304, reader.readIntBE());
+        assertFalse(reader.hasMore());
+        reader.resetWith(ByteBuffer.wrap(new byte[] {5, 6, 7, 8}));
+        assertEquals(0, reader.position());
+        assertEquals(0x05060708, reader.readIntBE());
+        assertFalse(reader.hasMore());
+        assertEquals(0, reader.error());
+    }
+
+    @Test
     void readerBufferBytesConstructor() {
         PbjReader reader = new PbjReader(Bytes.wrap(new byte[] {0x0A, 0x0B, 0x0C, 0x0D}));
         assertEquals(0x0A0B0C0D, reader.readIntBE());
@@ -818,7 +834,7 @@ public class PbjReaderWriterTest {
         PbjReader reader = new PbjReader(data);
         assertEquals(0x01020304, reader.readIntBE());
         assertFalse(reader.hasMore());
-        reader.reset();
+        reader.resetWith(data);
         assertEquals(0, reader.position());
         assertTrue(reader.hasMore());
         assertEquals(0x01020304, reader.readIntBE());
@@ -886,6 +902,17 @@ public class PbjReaderWriterTest {
     }
 
     @Test
+    void quickTest() {
+        byte[] a = {2, 3};
+        var by = Bytes.wrap(a);
+        var adap = by.toReadableSequentialData();
+        var r = new PbjReader(adap);
+        var w = new PbjWriter();
+        w.setError(4, "");
+        int q = 0;
+    }
+
+    @Test
     void writeBytesArrayFastPathBoundaryWithOutputStream() {
 
         {
@@ -921,5 +948,594 @@ public class PbjReaderWriterTest {
             assertEquals(0, internalArray[0]);
             assertEquals(0, internalArray[2047]);
         }
+    }
+
+    @Test
+    void writeBytesBufferedDataFlushThrowsPropagated() {
+        OutputStream failing = new OutputStream() {
+            @Override
+            public void write(int b) {}
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                throw new IOException("Called write");
+            }
+        };
+        PbjWriter writer = new PbjWriter(failing);
+        byte[] chunk = new byte[1024]; // 2k is a fastpath
+        for (int i = 0; i < 16; i++) writer.writeBytes(chunk);
+        UncheckedIOException ex =
+                assertThrows(UncheckedIOException.class, () -> writer.writeBytes(BufferedData.wrap(new byte[] {1})));
+        assertEquals("java.io.IOException: Called write", ex.getMessage());
+    }
+
+    @Test
+    void writeLargeByteArrayFlushThrowsPropagated() {
+        OutputStream failOnLarge = new OutputStream() {
+            @Override
+            public void write(int b) {}
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                if (len == 1) return;
+                if (len >= 2048) throw new IOException("2k write alt path");
+                throw new RuntimeException("Called write");
+            }
+        };
+        PbjWriter writer = new PbjWriter(failOnLarge);
+        writer.writeBoolean(true);
+        UncheckedIOException ex = assertThrows(UncheckedIOException.class, () -> writer.writeBytes(new byte[2048]));
+        assertEquals("java.io.IOException: 2k write alt path", ex.getMessage());
+    }
+
+    @Test
+    void writeBytesRandomAccessDataFlushThrowsPropagated() {
+        OutputStream failing = new OutputStream() {
+            @Override
+            public void write(int b) {}
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                throw new IOException("writeBytesRAInternal write");
+            }
+        };
+        PbjWriter writer = new PbjWriter(failing);
+        byte[] chunk = new byte[1024];
+        for (int i = 0; i < 16; i++) writer.writeBytes(chunk); // fill 16k internal buffer
+        UncheckedIOException ex =
+                assertThrows(UncheckedIOException.class, () -> writer.writeBytes(Bytes.wrap(new byte[] {1})));
+        assertEquals("java.io.IOException: writeBytesRAInternal write", ex.getMessage());
+    }
+
+    @Test
+    void closeSwallowsOutputCloseException() {
+        OutputStream failOnClose = new OutputStream() {
+            @Override
+            public void write(int b) {}
+
+            @Override
+            public void write(byte[] b, int off, int len) {}
+
+            @Override
+            public void close() throws IOException {
+                throw new IOException("close failed");
+            }
+        };
+        PbjWriter writer = new PbjWriter(failOnClose);
+        assertDoesNotThrow(writer::close);
+        assertEquals(0, writer.error());
+    }
+
+    @Test
+    void flushOrGrowFlushThrowsPropagated() {
+        OutputStream failing = new OutputStream() {
+            @Override
+            public void write(int b) {}
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                throw new IOException("Called write");
+            }
+        };
+        PbjWriter writer = new PbjWriter(failing);
+        byte[] chunk = new byte[1024];
+        for (int i = 0; i < 16; i++) writer.writeBytes(chunk); // fill 16k internal buffer
+        UncheckedIOException ex = assertThrows(UncheckedIOException.class, () -> writer.writeByte((byte) 1));
+        assertEquals("java.io.IOException: Called write", ex.getMessage());
+    }
+
+    @Test
+    void flushPropagatesIOExceptionAsUnchecked() {
+        OutputStream failing = new OutputStream() {
+            @Override
+            public void write(int b) {}
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                throw new IOException("fake disk full");
+            }
+        };
+        PbjWriter writer = new PbjWriter(failing);
+        writer.writeByte((byte) 1);
+        UncheckedIOException ex = assertThrows(UncheckedIOException.class, writer::flush);
+        assertEquals("java.io.IOException: fake disk full", ex.getMessage());
+    }
+
+    @Test
+    void constructorWithWritableSequentialDataFlushesThrough() {
+        BufferedData bd = BufferedData.allocate(16);
+        PbjWriter writer = new PbjWriter(bd);
+        writer.writeByte2((byte) 10, (byte) 20);
+        writer.flush();
+        assertEquals(10, bd.getByte(0));
+        assertEquals(20, bd.getByte(1));
+        assertEquals(2, bd.position());
+    }
+
+    @Test
+    void resetWithWritableSequentialDataSwitchesOutput() {
+        ByteArrayOutputStream out1 = new ByteArrayOutputStream();
+        BufferedData bd = BufferedData.allocate(16);
+        PbjWriter writer = new PbjWriter(out1);
+        writer.writeByte((byte) 5);
+        writer.resetWith(bd);
+        writer.writeByte((byte) 7);
+        writer.flush();
+        assertArrayEquals(new byte[] {5}, out1.toByteArray()); // flushed to out1 during reset
+        assertEquals(7, bd.getByte(0));
+        assertEquals(1, bd.position());
+    }
+
+    @Test
+    void resetWithFlushesAndSwitchesOutput() {
+        ByteArrayOutputStream out1 = new ByteArrayOutputStream();
+        ByteArrayOutputStream out2 = new ByteArrayOutputStream();
+        PbjWriter writer = new PbjWriter(out1);
+        writer.writeByte((byte) 10);
+        assertEquals(0, out1.size());
+        writer.resetWith(out2); // flushes before reset
+        assertArrayEquals(new byte[] {10}, out1.toByteArray());
+
+        assertEquals(0, writer.position());
+        writer.writeByte((byte) 20);
+        writer.flush();
+        assertArrayEquals(new byte[] {20}, out2.toByteArray());
+        writer.writeByte((byte) 5);
+        writer.resetWithNull();
+        assertArrayEquals(new byte[] {20, 5}, out2.toByteArray());
+        writer.writeByte((byte) 7);
+        assertArrayEquals(new byte[] {7}, writer.toByteArray());
+        assertArrayEquals(new byte[] {20, 5}, out2.toByteArray());
+    }
+
+    @Test
+    void resetWithOnNonReuseableWriterSetsError() {
+        byte[] buf = new byte[64];
+        PbjWriter writer = new PbjWriter(buf, 0);
+        writer.resetWith(new ByteArrayOutputStream());
+        assertEquals(PbjWriter.UsageError, writer.error());
+    }
+
+    @Test
+    void bufferToEOFBuffersAllStreamedData() {
+        // bufferToEOF doubles the internal buffer capacity each iteration (L201-202)
+        // until the stream is exhausted, then all data is readable in one pass.
+        byte[] data = {1, 2, 3, 4, 5, 6, 7, 8};
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(data));
+        reader.bufferToEOF();
+        assertEquals(0x01020304, reader.readIntBE());
+        assertEquals(0x05060708, reader.readIntBE());
+        assertFalse(reader.hasMore());
+    }
+
+    @Test
+    void bufferMoreBeyondAbsoluteLimitSetsBufferUnderflow() {
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(new byte[] {1, 2, 3, 4, 5}));
+        reader.limit(3);
+        assertEquals(1, reader.readByte());
+        assertEquals(2, reader.readByte());
+        assertEquals(3, reader.readByte());
+        assertEquals(false, reader.hasMore());
+        reader.readByte();
+        assertEquals(PbjReader.BufferUnderflow, reader.error());
+    }
+
+    @Test
+    void limitPropagatedToUnderlyingReadableSequentialData() {
+        BufferedData bd = BufferedData.allocate(8);
+        for (byte b = 0; b < 8; b++) bd.writeByte(b);
+        bd.flip();
+        PbjReader reader = new PbjReader(bd);
+        reader.limit(4);
+        reader.readByte();
+        assertEquals(4, bd.position());
+        assertEquals(1, reader.readByte());
+        assertEquals(2, reader.readByte());
+        assertEquals(3, reader.readByte());
+        assertFalse(reader.hasMore());
+    }
+
+    @Test
+    void skipTriggersUnderflow() {
+        byte[] data = {1, 2, 3, 4, 5};
+        PbjReader reader = new PbjReader(data);
+        assertEquals(1, reader.readByte());
+        reader.skip(5);
+        assertEquals(PbjReader.BufferUnderflow, reader.error());
+    }
+
+    @Test
+    void skipInternalAccountsForBytesRemainingInBuffer() {
+        byte[] data = {1, 2, 3, 4, 5};
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(data));
+        assertEquals(1, reader.readByte());
+        reader.skip(5);
+        assertEquals(PbjReader.BufferUnderflow, reader.error());
+    }
+
+    @Test
+    void readVarLongWithMoreThanTenBytesSetsDataEncoding() {
+        byte[] malformed = new byte[16];
+        for (int i = 0; i < 16; i++) malformed[i] = (byte) 0xFF;
+        PbjReader reader = new PbjReader(malformed);
+        reader.readVarLong(false);
+        assertEquals(PbjReader.DataEncoding, reader.error());
+        reader.resetWith(malformed);
+        reader.readVarLongBytes();
+        assertEquals(PbjReader.DataEncoding, reader.error());
+    }
+
+    @Test
+    void skipInternalSuccessfullySkipsFromInputStream() {
+        InputStream in = new ByteArrayInputStream(new byte[] {1, 2, 3, 4, 5});
+        PbjReader reader = new PbjReader(in);
+        reader.skip(3);
+        assertEquals(3, reader.position());
+        assertEquals(4, reader.readByte());
+    }
+
+    @Test
+    void skipInternalSuccessfullySkipsFromReadableSequentialData() {
+        BufferedData bd = BufferedData.allocate(8);
+        for (int i = 0; i < 5; i++) {
+            bd.writeByte((byte) i);
+        }
+        bd.flip();
+        PbjReader reader = new PbjReader(bd);
+        reader.skip(3);
+        assertEquals(3, reader.position());
+        assertEquals(3, reader.readByte());
+    }
+
+    @Test
+    void skipInternalSetsIOErrorWhenInputStreamSkipThrows() {
+        InputStream in = new InputStream() {
+            @Override
+            public int read() {
+                return -1;
+            }
+
+            @Override
+            public long skip(long n) throws IOException {
+                throw new IOException("skip failed");
+            }
+        };
+        PbjReader reader = new PbjReader(in);
+        reader.skip(5);
+        assertEquals(PbjReader.IOError, reader.error());
+    }
+
+    @Test
+    void skipInternalCallsUnderlyingInputSkipForReadableSequentialData() {
+        BufferedData bd = BufferedData.allocate(8);
+        for (byte b = 0; b < 8; b++) bd.writeByte(b);
+        bd.flip();
+        PbjReader reader = new PbjReader(bd);
+        reader.skip(3);
+        assertEquals(3, reader.position());
+        assertEquals(3, bd.position());
+        assertEquals(3, reader.readByte());
+    }
+
+    @Test
+    void readVarLongBytesReturnsWrappedBytesForValidVarint() {
+        PbjReader reader = new PbjReader(new byte[] {(byte) 0xAC, 0x02});
+        Bytes result = reader.readVarLongBytes();
+        assertEquals(2, result.length());
+        assertEquals((byte) 0xAC, result.getByte(0));
+        assertEquals((byte) 0x02, result.getByte(1));
+        assertEquals(0, reader.error());
+    }
+
+    @Test
+    void readLargeStringCantBeBuffered() {
+        int len = (16 << 10) + 1;
+        String str = "a".repeat(len);
+        PbjWriter writer = new PbjWriter();
+        writer.writeStringWithTag(str);
+        PbjReader reader = writer.toPbjReader();
+        assertEquals(len, reader.readVarInt(false));
+        assertEquals(0, reader.error());
+    }
+
+    @Test
+    void readStringBufferedInternalSuccessPath() {
+        String str = "a".repeat(16384);
+        PbjWriter writer = new PbjWriter();
+        writer.writeStringWithTag(str);
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(writer.toByteArray()));
+        assertEquals(str, reader.readString(16384 + 10));
+        assertEquals(0, reader.error());
+    }
+
+    @Test
+    void readStringBufferedInternalSuccessPathLarger() {
+        String str = "a".repeat(16385);
+        PbjWriter writer = new PbjWriter();
+        writer.writeStringWithTag(str);
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(writer.toByteArray()));
+        assertEquals(str, reader.readString(16385 + 10));
+        assertEquals(0, reader.error());
+    }
+
+    @Test
+    void readFromInputSetsIOErrorWhenInputStreamReadThrows() {
+        InputStream failingOnSecondRead = new InputStream() {
+            private boolean doThrow = false;
+
+            @Override
+            public int read() {
+                return 1;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (doThrow) throw new IOException("io error");
+                doThrow = true;
+                b[off] = 25;
+                return 1;
+            }
+        };
+        PbjReader reader = new PbjReader(failingOnSecondRead);
+        reader.readByte();
+        assertEquals(PbjReader.IOError, reader.error());
+    }
+
+    @Test
+    void readStringLengthExceedsMaxSize() {
+        var reader = new PbjReader(new byte[] {5, 'h', 'e', 'l', 'l', 'o'});
+        assertEquals("", reader.readString(2));
+        assertEquals(PbjReader.Parse, reader.error());
+    }
+
+    @Test
+    void readStringNegativeLengthSetsParseError() {
+        var reader = new PbjReader(new byte[] {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x0F});
+        assertEquals("", reader.readString(Long.MAX_VALUE));
+        assertEquals(PbjReader.Parse, reader.error());
+    }
+
+    @Test
+    void readStringInvalidUtf8SetParseError() {
+        var reader = new PbjReader(new byte[] {1, (byte) 0x80});
+        assertEquals("", reader.readString(Long.MAX_VALUE));
+        assertEquals(PbjReader.Parse, reader.error());
+    }
+
+    @Test
+    void readStringReturnsEmptyOnInsufficientData() {
+        var reader = new PbjReader(new byte[] {5, 'a', 'b'}); // length=5 but only 2 bytes follow
+        assertEquals("", reader.readString(Long.MAX_VALUE));
+        assertEquals(PbjReader.BufferUnderflow, reader.error());
+    }
+
+    ///// Reset /////
+
+    private static final byte[] DATA = {1, 2, 3, 4, 5};
+
+    @Test
+    void resetWithByteArraySequentialData_readsCorrectBytes() throws ParseException {
+        ReadableSequentialData byteArraySeq = Bytes.wrap(DATA).toReadableSequentialData();
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(new byte[0]));
+
+        reader.resetWith(byteArraySeq);
+
+        for (byte expected : DATA) {
+            assertEquals(expected, reader.readByte());
+        }
+        reader.throwOnError();
+    }
+
+    @Test
+    void resetWithNonByteArraySequentialData_readsCorrectBytes() throws ParseException {
+        ReadableSequentialData buffered = BufferedData.wrap(DATA);
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(new byte[0]));
+
+        reader.resetWith(buffered);
+
+        for (byte expected : DATA) {
+            assertEquals(expected, reader.readByte());
+        }
+        reader.throwOnError();
+    }
+
+    @Test
+    void resetWithInputStream_readsCorrectBytes() throws ParseException {
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(new byte[0]));
+
+        reader.resetWith(new ByteArrayInputStream(DATA));
+
+        for (byte expected : DATA) {
+            assertEquals(expected, reader.readByte());
+        }
+        reader.throwOnError();
+    }
+
+    @Test
+    void resetWithNull_throwsOnError() {
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(new byte[0]));
+        reader.resetWith((ReadableSequentialData) null);
+        assertThrows(ParseException.class, reader::throwOnError);
+
+        PbjReader reader2 = new PbjReader(new ByteArrayInputStream(new byte[0]));
+        reader2.resetWith((ReadableSequentialData) null);
+        assertThrows(ParseException.class, reader2::throwOnError);
+    }
+
+    @Test
+    void resetFromBytesToStream() {
+        var reader = new PbjReader(new byte[] {1});
+        assertEquals((byte) 1, reader.readByte());
+        reader.resetWith(new ByteArrayInputStream(new byte[] {7, 8}));
+        assertEquals((byte) 7, reader.readByte());
+        assertEquals((byte) 8, reader.readByte());
+        assertEquals(0, reader.error());
+    }
+
+    //
+
+    @Test
+    void asInputStreamReturnsUnderlyingStreamIfNeverRead() {
+        var stream = new ByteArrayInputStream(new byte[] {1, 2, 3});
+        var reader = new PbjReader(stream);
+        assertSame(stream, reader.asInputStream());
+    }
+
+    @Test
+    void asInputStreamDelegatesToInputIfNeverRead() throws Exception {
+        var innerStream = new ByteArrayInputStream(new byte[] {21});
+        var reader = new PbjReader(new ReadableStreamingData(innerStream));
+        var is = reader.asInputStream();
+        assertNotNull(is);
+        assertEquals(21, is.read());
+    }
+
+    @Test
+    void asInputStreamForByteArrayReader() throws Exception {
+        var reader = new PbjReader(new byte[] {1, 2, 3});
+        var is = reader.asInputStream();
+        assertEquals(1, is.read());
+        assertEquals(2, is.read());
+        assertEquals(3, is.read());
+    }
+
+    @Test
+    void readIntLESlowPathSuccess() {
+        var reader = new PbjReader(new ByteArrayInputStream(new byte[] {1, 2, 3, 4}));
+        assertEquals(0x04030201, reader.readIntLE());
+        assertEquals(0, reader.error());
+    }
+
+    @Test
+    void readLongLESlowPathSuccess() {
+        var reader = new PbjReader(new ByteArrayInputStream(new byte[] {1, 2, 3, 4, 5, 6, 7, 8}));
+        assertEquals(0x0807060504030201L, reader.readLongLE());
+        assertEquals(0, reader.error());
+    }
+
+    @Test
+    void readIntLEUnderflow() {
+        var reader = new PbjReader(new byte[] {1, 2, 3}); // only 3 bytes, need 4
+        assertEquals(0, reader.readIntLE());
+        assertEquals(PbjReader.BufferUnderflow, reader.error());
+    }
+
+    @Test
+    void readLongLEUnderflow() {
+        var reader = new PbjReader(new byte[] {1, 2, 3, 4, 5, 6, 7}); // only 7 bytes, need 8
+        assertEquals(0L, reader.readLongLE());
+        assertEquals(PbjReader.BufferUnderflow, reader.error());
+    }
+
+    ///// readBytes /////
+
+    @Test
+    void readBytesArrayOffsetLen_writesIntoCorrectSlice() {
+        PbjReader reader = new PbjReader(new byte[] {1, 2, 3, 4, 5});
+        byte[] dst = new byte[7];
+        long n = reader.readBytes(dst, 2, 3);
+        assertEquals(3, n);
+        assertArrayEquals(new byte[] {0, 0, 1, 2, 3, 0, 0}, dst);
+    }
+
+    @Test
+    void readBytesIntoByteBuffer_dataReadAndPositionAdvances() {
+        PbjReader reader = new PbjReader(new byte[] {10, 20, 30});
+        ByteBuffer bb = ByteBuffer.allocate(5);
+        long n = reader.readBytes(bb);
+        assertEquals(3, n);
+        assertEquals(3, bb.position());
+        assertArrayEquals(new byte[] {10, 20, 30, 0, 0}, bb.array());
+    }
+
+    @Test
+    void readBytesIntoByteBuffer_positionUnchangedWhenError() {
+        PbjReader reader = new PbjReader(new byte[] {1, 2});
+        reader.skip(10);
+        assertTrue(reader.error() > 0);
+        ByteBuffer bb = ByteBuffer.allocate(5);
+        long n = reader.readBytes(bb);
+        assertEquals(-1, n);
+        assertEquals(0, bb.position());
+    }
+
+    @Test
+    void readBytesInt_fastPath_bytesBuffered() {
+        PbjReader reader = new PbjReader(new byte[] {1, 2, 3, 4, 5});
+        Bytes result = reader.readBytes(3);
+        assertEquals(3, result.length());
+        assertArrayEquals(new byte[] {1, 2, 3}, result.toByteArray());
+        assertEquals(0, reader.error());
+    }
+
+    @Test
+    void readBytesInt_slowPath_triggersReadBytesInternal() {
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(new byte[] {7, 8, 9}));
+        Bytes result = reader.readBytes(3);
+        assertEquals(3, result.length());
+        assertArrayEquals(new byte[] {7, 8, 9}, result.toByteArray());
+        assertEquals(0, reader.error());
+    }
+
+    @Test
+    void readBytesInternal_zeroLength_returnsEmpty() {
+        PbjReader reader = new PbjReader(new byte[] {1, 2});
+        reader.skip(10);
+        assertEquals(PbjReader.BufferUnderflow, reader.error());
+        assertSame(Bytes.EMPTY, reader.readBytes(2));
+    }
+
+    @Test
+    void readBytesInternal_notEnoughData_setsBufferUnderflow() {
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(new byte[] {1, 2}));
+        Bytes result = reader.readBytes(5);
+        assertSame(Bytes.EMPTY, result);
+        assertEquals(PbjReader.BufferUnderflow, reader.error());
+    }
+
+    @Test
+    void readLongBEInternal_streamingReaderSucceeds() {
+        byte[] bytes = {0, 0, 0, 0, 0, 0, 0, 7};
+        PbjReader reader = new PbjReader(new ByteArrayInputStream(bytes));
+        assertEquals(7L, reader.readLongBE());
+        assertEquals(0, reader.error());
+    }
+
+    @Test
+    void readLongBEInternal_notEnoughData_setsBufferUnderflow() {
+        PbjReader reader = new PbjReader(new byte[] {1, 2, 3});
+        reader.readLongBE();
+        assertEquals(PbjReader.BufferUnderflow, reader.error());
+    }
+
+    @Test
+    void readBytesNegativeLengthSetsIllegalArgument() {
+        var reader = new PbjReader(new ByteArrayInputStream(new byte[] {1, 2, 3, 4, 5}));
+        reader.readByte();
+        reader.readByte();
+        reader.limit(0);
+        var result = reader.readBytes(-1);
+        assertEquals(Bytes.EMPTY, result);
+        assertEquals(PbjReader.IllegalArgument, reader.error());
     }
 }

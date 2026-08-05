@@ -14,18 +14,33 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 
+/**
+ * A buffer-backed writer for encoding protobuf data.
+ *
+ * <p>PbjWriter maintains an internal byte buffer and writes to an {@link OutputStream},
+ * {@link WritableSequentialData}, or a fixed byte array. When backed by an output stream the
+ * buffer is flushed automatically when full. When not backed by a stream the buffer grows as
+ * needed (unless constructed with {@code mayGrow = false}).
+ *
+ * <p>Errors are tracked internally rather than thrown immediately. Call {@link #error()} to check
+ * for a pending error code, or {@link #throwOnError()} to surface it as an exception. Once an
+ * error is set it is sticky — subsequent write calls become no-ops.
+ *
+ * <p>Implements {@link AutoCloseable}: closing flushes pending bytes to the underlying stream.
+ */
 public class PbjWriter implements AutoCloseable {
     private byte[] buf;
     private int pos, cap;
     private int offset, err;
-    private String errMessage;
-    RuntimeException cause;
+    private RuntimeException cause;
     private OutputStream output;
     private boolean reuseable;
+    private boolean mayGrow = true;
 
+    private final boolean useStacktrace =
+            !"false".equalsIgnoreCase(System.getProperty("pbj.ReaderWriter.useStackTrace"));
     public static final int EOF = PbjReader.EOF,
             DataEncoding = PbjReader.DataEncoding,
             BufferUnderflow = PbjReader.BufferUnderflow,
@@ -41,6 +56,18 @@ public class PbjWriter implements AutoCloseable {
             Closed = PbjReader.Closed,
             MalformString = PbjReader.MalformString;
 
+    private static final RuntimeException premadeRuntimeException;
+
+    static {
+        premadeRuntimeException = new RuntimeException("Stacktrace not enabled in PbjWriter");
+    }
+
+    /**
+     * Creates a writer that streams output to the given {@link OutputStream}.
+     * An internal 16 KB buffer is used; the buffer is flushed to the stream when full.
+     *
+     * @param output the output stream to write to
+     */
     public PbjWriter(@NonNull OutputStream output) {
         this.output = output;
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
@@ -48,6 +75,14 @@ public class PbjWriter implements AutoCloseable {
         reuseable = true;
     }
 
+    /**
+     * Creates a writer backed by a {@link ByteBuffer}.
+     *
+     * <p>If the buffer has a backing array it is used directly. Otherwise an internal 16 KB
+     * streaming buffer is used and bytes are forwarded to the {@link ByteBuffer} on flush.
+     *
+     * @param buffer the target byte buffer
+     */
     public PbjWriter(ByteBuffer buffer) {
         if (buffer.hasArray()) {
             buf = buffer.array();
@@ -71,12 +106,25 @@ public class PbjWriter implements AutoCloseable {
         }
     }
 
-    public PbjWriter(byte[] buffer, int pos, int cap) {
+    /**
+     * Creates a writer that writes directly into the given byte array starting at {@code pos},
+     * writing up to the end of the array. No flushing or growing occurs.
+     *
+     * @param buffer the backing byte array
+     * @param pos    the starting write position within the array
+     */
+    public PbjWriter(byte[] buffer, int pos) {
         this.buf = buffer;
         this.pos = pos;
-        this.cap = cap;
+        this.cap = buffer.length;
     }
 
+    /**
+     * Creates a writer that streams output to the given {@link WritableSequentialData}.
+     * An internal 16 KB buffer is used; the buffer is flushed to the target when full.
+     *
+     * @param output the writable sequential data target
+     */
     public PbjWriter(@NonNull WritableSequentialData output) {
         this(new OutputStream() {
             @Override
@@ -91,37 +139,83 @@ public class PbjWriter implements AutoCloseable {
         });
     }
 
+    /**
+     * Creates a standalone, growable writer with an initial 16 KB internal buffer.
+     * No backing output stream is attached; use {@link #toByteArray()} to retrieve the written bytes.
+     */
     public PbjWriter() {
         buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
         cap = buf.length;
         reuseable = true;
     }
 
-    // reserveSize is minimum size, this may grow
-    public PbjWriter(int reserveSize) {
-        buf = new byte[Math.max(reserveSize, 16 << 10)]; // 16k is friendly to x86-64 L1 cache
+    /**
+     * Creates a growable (or fixed-size) standalone writer with the specified initial capacity.
+     *
+     * @param reserveSize the initial buffer capacity in bytes; if {@code mayGrow} is {@code true}
+     *                    the capacity is at least 16 KB regardless of this value
+     * @param mayGrow     {@code true} to allow the internal buffer to grow automatically;
+     *                    {@code false} to keep the buffer fixed at {@code reserveSize} bytes
+     */
+    public PbjWriter(int reserveSize, boolean mayGrow) {
+        if (mayGrow) buf = new byte[Math.max(reserveSize, 16 << 10)]; // 16k is friendly to x86-64 L1 cache
+        else {
+            buf = new byte[reserveSize];
+        }
         cap = buf.length;
         reuseable = true;
+        this.mayGrow = mayGrow;
     }
 
+    /**
+     * Ensures that at least {@code len} bytes of space are available starting at the current
+     * position, flushing or growing the internal buffer if necessary.
+     *
+     * @param len the number of bytes to reserve
+     */
     public void reserveRel(int len) {
         if (pos + len <= cap) return;
         flushOrGrow(len);
     }
 
+    /**
+     * Advances the write position by {@code len} bytes without writing any data.
+     * Used to reserve placeholder space that will be filled in later via {@link #writeAt}.
+     *
+     * @param len the number of bytes to skip over
+     */
     public void placehold(int len) {
         pos += len;
     }
 
+    /**
+     * Returns the current absolute write position, accounting for any bytes already flushed
+     * to the underlying output stream.
+     *
+     * @return the current write position as a non-negative integer
+     */
     public int position() {
         return offset + pos;
     }
 
+    /**
+     * Overwrites a single byte at the given absolute position without advancing the write cursor.
+     * Used to patch in placeholder bytes reserved earlier via {@link #placehold}.
+     *
+     * @param pos   the absolute write position to patch
+     * @param value the byte value to write
+     */
     public void writeAt(int pos, byte value) {
         buf[pos - offset] = value;
     }
 
-    // converts a 1 byte varint placeholder to a 2 byte varint. pos is the absolute position of the placeholder.
+    /**
+     * Expands a 1-byte varint placeholder at the given absolute position into a 2-byte varint
+     * and shifts all subsequent bytes forward by one. The placeholder must have been reserved
+     * via {@link #placehold(int)}.
+     *
+     * @param position the absolute position of the 1-byte placeholder
+     */
     public void reinsertVarInt(int position) {
         int relPos = position - offset;
         int len = this.pos - relPos - 1;
@@ -131,10 +225,20 @@ public class PbjWriter implements AutoCloseable {
         this.pos++;
     }
 
+    /**
+     * Writes a boolean as a single byte ({@code 1} for {@code true}, {@code 0} for {@code false}).
+     *
+     * @param b the boolean value to write
+     */
     public void writeBoolean(boolean b) {
         writeByte((byte) (b ? 1 : 0));
     }
 
+    /**
+     * Writes a single signed byte.
+     *
+     * @param b the byte to write
+     */
     public void writeByte(byte b) {
         if (pos < cap) {
             buf[pos++] = b;
@@ -148,6 +252,12 @@ public class PbjWriter implements AutoCloseable {
         buf[pos++] = b;
     }
 
+    /**
+     * Writes two bytes in sequence.
+     *
+     * @param b1 the first byte
+     * @param b2 the second byte
+     */
     public void writeByte2(byte b1, byte b2) {
         if (pos + 2 <= cap) {
             buf[pos] = b1;
@@ -165,6 +275,13 @@ public class PbjWriter implements AutoCloseable {
         pos += 2;
     }
 
+    /**
+     * Writes three bytes in sequence.
+     *
+     * @param b1 the first byte
+     * @param b2 the second byte
+     * @param b3 the third byte
+     */
     public void writeByte3(byte b1, byte b2, byte b3) {
         if (pos + 3 <= cap) {
             buf[pos] = b1;
@@ -184,6 +301,14 @@ public class PbjWriter implements AutoCloseable {
         pos += 3;
     }
 
+    /**
+     * Writes four bytes in sequence.
+     *
+     * @param b1 the first byte
+     * @param b2 the second byte
+     * @param b3 the third byte
+     * @param b4 the fourth byte
+     */
     public void writeByte4(byte b1, byte b2, byte b3, byte b4) {
         if (pos + 4 <= cap) {
             buf[pos] = b1;
@@ -205,7 +330,12 @@ public class PbjWriter implements AutoCloseable {
         pos += 4;
     }
 
-    public void writeBytes(@NonNull final BufferedData src) throws BufferOverflowException, UncheckedIOException {
+    /**
+     * Writes all remaining bytes from the given {@link BufferedData}, advancing its position.
+     *
+     * @param src the source buffer; all {@link BufferedData#remaining()} bytes are written
+     */
+    public void writeBytes(@NonNull final BufferedData src) {
         int len = (int) src.remaining();
         if (len <= 0) return;
         long srcPos = src.position();
@@ -246,18 +376,30 @@ public class PbjWriter implements AutoCloseable {
         }
     }
 
+    /**
+     * Writes all bytes from the given array.
+     *
+     * @param src the source byte array
+     */
     public void writeBytes(@NonNull byte[] src) {
         writeBytes(src, 0, src.length);
     }
 
-    public void writeBytes(@NonNull byte[] src, int srcOffset, int length) {
+    /**
+     * Writes {@code length} bytes from the given array starting at {@code offset}.
+     *
+     * @param src    the source byte array
+     * @param offset the start index within {@code src}
+     * @param length the number of bytes to write
+     */
+    public void writeBytes(@NonNull byte[] src, int offset, int length) {
         if (length <= 0) return;
         if (pos + length <= cap && (output == null || length < 2048)) {
-            System.arraycopy(src, srcOffset, buf, pos, length);
+            System.arraycopy(src, offset, buf, pos, length);
             pos += length;
             return;
         }
-        writeBytesInternal(src, srcOffset, length);
+        writeBytesInternal(src, offset, length);
     }
 
     private void writeBytesInternal(byte[] src, int srcOffset, int length) {
@@ -275,6 +417,11 @@ public class PbjWriter implements AutoCloseable {
         pos += length;
     }
 
+    /**
+     * Writes all bytes from the given {@link RandomAccessData}.
+     *
+     * @param src the source data
+     */
     public void writeBytes(@NonNull RandomAccessData src) {
         int len = (int) src.length();
         if (len <= 0) return;
@@ -314,10 +461,20 @@ public class PbjWriter implements AutoCloseable {
         }
     }
 
+    /**
+     * Writes a 32-bit integer in big-endian byte order. Alias for {@link #writeIntBE(int)}.
+     *
+     * @param value the integer to write
+     */
     public void writeInt(int value) {
         writeIntBE(value);
     }
 
+    /**
+     * Writes a 32-bit integer in big-endian byte order (most significant byte first).
+     *
+     * @param value the integer to write
+     */
     public void writeIntBE(int value) {
         if (pos + 4 <= cap) {
             buf[pos] = (byte) (value >>> 24);
@@ -339,6 +496,11 @@ public class PbjWriter implements AutoCloseable {
         pos += 4;
     }
 
+    /**
+     * Writes a 32-bit integer in little-endian byte order (least significant byte first).
+     *
+     * @param value the integer to write
+     */
     public void writeIntLE(int value) {
         if (pos + 4 <= cap) {
             buf[pos] = (byte) value;
@@ -360,6 +522,11 @@ public class PbjWriter implements AutoCloseable {
         pos += 4;
     }
 
+    /**
+     * Writes a 64-bit integer in little-endian byte order (least significant byte first).
+     *
+     * @param value the long to write
+     */
     public void writeLongLE(long value) {
         if (pos + 8 <= cap) {
             buf[pos] = (byte) value;
@@ -389,34 +556,74 @@ public class PbjWriter implements AutoCloseable {
         pos += 8;
     }
 
+    /**
+     * Writes a 32-bit float in big-endian byte order. Alias for {@link #writeFloatBE(float)}.
+     *
+     * @param value the float to write
+     */
     public void writeFloat(float value) {
         writeFloatBE(value);
     }
 
+    /**
+     * Writes a 32-bit float in big-endian byte order using {@link Float#floatToRawIntBits}.
+     *
+     * @param value the float to write
+     */
     public void writeFloatBE(float value) {
         writeIntBE(Float.floatToRawIntBits(value));
     }
 
+    /**
+     * Writes a 32-bit float in little-endian byte order using {@link Float#floatToRawIntBits}.
+     *
+     * @param value the float to write
+     */
     public void writeFloatLE(float value) {
         writeIntLE(Float.floatToRawIntBits(value));
     }
 
+    /**
+     * Writes a 64-bit double in big-endian byte order. Alias for {@link #writeDoubleBE(double)}.
+     *
+     * @param value the double to write
+     */
     public void writeDouble(double value) {
         writeDoubleBE(value);
     }
 
+    /**
+     * Writes a 64-bit double in big-endian byte order using {@link Double#doubleToRawLongBits}.
+     *
+     * @param value the double to write
+     */
     public void writeDoubleBE(double value) {
         writeLongBE(Double.doubleToRawLongBits(value));
     }
 
+    /**
+     * Writes a 64-bit double in little-endian byte order using {@link Double#doubleToRawLongBits}.
+     *
+     * @param value the double to write
+     */
     public void writeDoubleLE(double value) {
         writeLongLE(Double.doubleToRawLongBits(value));
     }
 
+    /**
+     * Writes a 64-bit integer in big-endian byte order. Alias for {@link #writeLongBE(long)}.
+     *
+     * @param value the long to write
+     */
     public void writeLong(long value) {
         writeLongBE(value);
     }
 
+    /**
+     * Writes a 64-bit integer in big-endian byte order (most significant byte first).
+     *
+     * @param value the long to write
+     */
     public void writeLongBE(long value) {
         if (pos + 8 <= cap) {
             buf[pos] = (byte) (value >>> 56);
@@ -446,21 +653,44 @@ public class PbjWriter implements AutoCloseable {
         pos += 8;
     }
 
+    /**
+     * Writes an {@code int} as a zigzag-encoded varint. Negative values are sign-extended to
+     * 64 bits before encoding, producing the 10-byte wire format required by the protobuf spec.
+     *
+     * @param value the signed int to encode
+     */
     public void writeVarIntZZ(int value) {
-        // Delegate to writeVarLong so negative INT32 values are sign-extended to 64 bits,
-        // producing the required 10-byte varint encoding per the protobuf spec.
         writeVarLongZZ(value);
     }
 
+    /**
+     * Writes a {@code long} as a zigzag-encoded varint. The value is mapped via
+     * {@code (value << 1) ^ (value >> 63)} before varint encoding so that small negative
+     * numbers require few bytes.
+     *
+     * @param value the signed long to encode
+     */
     public void writeVarLongZZ(long value) {
         writeVarLongNoZZ((value << 1) ^ (value >> 63));
     }
 
+    /**
+     * Writes an {@code int} as a base-128 varint with optional zigzag encoding.
+     *
+     * @param value  the value to encode
+     * @param zigZag if {@code true}, applies zigzag encoding before varint encoding
+     */
     public void writeVarInt(int value, boolean zigZag) {
         long v = zigZag ? ((long) value << 1) ^ ((long) value >> 63) : value;
         writeVarLongNoZZ(v);
     }
 
+    /**
+     * Writes a {@code long} as a base-128 varint with optional zigzag encoding.
+     *
+     * @param value  the value to encode
+     * @param zigZag if {@code true}, applies zigzag encoding before varint encoding
+     */
     public void writeVarLong(long value, boolean zigZag) {
         long v = zigZag ? (value << 1) ^ (value >> 63) : value;
         writeVarLongNoZZ(v);
@@ -475,10 +705,22 @@ public class PbjWriter implements AutoCloseable {
         buf[pos++] = (byte) v;
     }
 
+    /**
+     * Writes an {@code int} as a base-128 varint without zigzag encoding.
+     * The value is zero-extended to 64 bits before encoding.
+     *
+     * @param value the value to encode
+     */
     public void writeVarIntNoZZ(int value) {
         writeVarLongNoZZ(value);
     }
 
+    /**
+     * Writes a {@code long} as a base-128 varint without zigzag encoding.
+     * Each 7-bit group is written as a byte with the high bit set if more bytes follow.
+     *
+     * @param v the value to encode
+     */
     public void writeVarLongNoZZ(long v) {
         if (pos + 10 <= cap) {
             while ((v & ~0x7FL) != 0) {
@@ -491,6 +733,12 @@ public class PbjWriter implements AutoCloseable {
         writeVarLongInternal(v);
     }
 
+    /**
+     * Flushes any buffered bytes to the underlying output stream and resets the internal buffer
+     * position. This is a no-op when no output stream is attached.
+     *
+     * @throws UncheckedIOException if an I/O error occurs during the flush
+     */
     public void flush() {
         if (output == null) return;
         try {
@@ -503,6 +751,10 @@ public class PbjWriter implements AutoCloseable {
         pos = 0;
     }
 
+    /**
+     * Flushes any remaining bytes to the underlying output stream and closes it.
+     * If no output stream is attached this method does nothing.
+     */
     @Override
     public void close() {
         if (output == null) return;
@@ -510,6 +762,7 @@ public class PbjWriter implements AutoCloseable {
         try {
             output.close();
         } catch (IOException ignored) {
+            int q = 1;
         }
         err = Closed;
     }
@@ -517,7 +770,8 @@ public class PbjWriter implements AutoCloseable {
     private void flushOrGrow(int minLength) {
         if (output != null) {
             if (minLength > cap) {
-                throw new UncheckedIOException(new IOException("minLength is greater than capacity"));
+                setError(IOError, "minLength is greater than capacity");
+                return;
             }
             try {
                 output.write(buf, 0, pos);
@@ -526,7 +780,7 @@ public class PbjWriter implements AutoCloseable {
             }
             offset += pos;
             pos = 0;
-        } else if (reuseable) {
+        } else if (reuseable && mayGrow) {
             int power2Capacity = (int) 2L << (63 - Long.numberOfLeadingZeros(Math.max(buf.length, pos + minLength)));
             var newBuf = new byte[power2Capacity];
             System.arraycopy(buf, 0, newBuf, 0, pos);
@@ -537,19 +791,33 @@ public class PbjWriter implements AutoCloseable {
         // reserving shouldn't cause a throw so this else is ignored
     }
 
+    /**
+     * Flushes any buffered output and resets this writer's position, offset, and error state,
+     * leaving it ready for reuse while keeping the same output destination.
+     */
     public void reset() {
         flush();
         pos = 0;
         offset = 0;
         err = 0;
-        errMessage = null;
         cause = null;
     }
 
+    /**
+     * Resets this writer and detaches it from any output stream, allowing subsequent use as
+     * a standalone in-memory writer.
+     */
     public void resetWithNull() {
         resetWith((OutputStream) null);
     }
 
+    /**
+     * Resets this writer and redirects output to a new {@link OutputStream}.
+     * Only valid on writers that were originally created with an output stream.
+     * Sets the error code to {@link #UsageError} if called on a non-reuseable writer.
+     *
+     * @param out the new output stream
+     */
     public void resetWith(@NonNull OutputStream out) {
         reset();
         if (!reuseable) {
@@ -559,6 +827,12 @@ public class PbjWriter implements AutoCloseable {
         output = out;
     }
 
+    /**
+     * Resets this writer and redirects output to a new {@link WritableSequentialData}.
+     * Only valid on writers that were originally created with an output stream.
+     *
+     * @param out the new writable sequential data target
+     */
     public void resetWith(@NonNull WritableSequentialData out) {
         resetWith(new OutputStream() {
             @Override
@@ -573,14 +847,34 @@ public class PbjWriter implements AutoCloseable {
         });
     }
 
+    /**
+     * Returns the raw internal byte array. The valid data occupies indices {@code [0, position())}.
+     * Intended for low-level inspection; prefer {@link #toByteArray()} for a correctly sized copy
+     *
+     * @return the internal buffer array
+     */
     public byte[] internalArray() {
         return buf;
     }
 
+    /**
+     * Returns a zero-copy {@link Bytes} view wrapping the internal buffer from index 0 up to
+     * the current position. The backing array is shared, so the returned {@code Bytes} must
+     * not be retained beyond the next write operation.
+     *
+     * @return a {@code Bytes} view of the current contents
+     */
     public Bytes internalArrayWrapped() {
         return Bytes.wrap(buf, 0, pos);
     }
 
+    /**
+     * Returns a {@link Bytes} wrapping a fresh copy of the written bytes.
+     * Only valid on standalone (non-streaming) writers; sets {@link #UsageError} and returns
+     * {@link Bytes#EMPTY} if called on a streaming writer.
+     *
+     * @return the written bytes wrapped in a {@code Bytes} instance
+     */
     public Bytes toByteArrayWrapped() {
         if (output != null) {
             setError(UsageError, "toByteArrayWrapped used on a streaming object");
@@ -589,6 +883,16 @@ public class PbjWriter implements AutoCloseable {
         return Bytes.wrap(toByteArray());
     }
 
+    /**
+     * Transfers ownership of the internal buffer to the caller as a zero-copy {@link Bytes}
+     * and closes this writer. The internal array is set to {@code null} and the error code is
+     * set to {@link #Closed} afterward.
+     *
+     * <p>Only valid on standalone (non-streaming) reuseable writers; sets {@link #UsageError}
+     * and returns {@link Bytes#EMPTY} on misuse.
+     *
+     * @return the written bytes wrapped in a {@code Bytes} instance backed by the internal array
+     */
     public Bytes takeBytes() {
         if (output != null) {
             setError(UsageError, "takeBytes used on a streaming object");
@@ -604,6 +908,13 @@ public class PbjWriter implements AutoCloseable {
         return bytes;
     }
 
+    /**
+     * Returns a newly allocated byte array containing exactly the bytes written so far.
+     * Only valid on standalone (non-streaming) writers; sets {@link #UsageError} and returns
+     * {@code null} if called on a streaming writer.
+     *
+     * @return a copy of the written bytes, or {@code null} on error
+     */
     public byte[] toByteArray() {
         if (output != null) {
             setError(UsageError, "toByteArray used on a streaming object");
@@ -614,27 +925,76 @@ public class PbjWriter implements AutoCloseable {
         return bytes;
     }
 
+    /**
+     * Creates a {@link PbjReader} backed by the current internal buffer contents.
+     * Useful for reading back data written to a standalone writer without copying.
+     * Only valid on standalone (non-streaming) writers; sets {@link #UsageError} and returns
+     * {@code null} if called on a streaming writer.
+     *
+     * @return a new {@code PbjReader} positioned at the start of the written bytes, or {@code null} on error
+     */
     public PbjReader toPbjReader() {
+        if (output != null) {
+            setError(UsageError, "toPbjReader on a streaming object");
+            return null;
+        }
         return new PbjReader(buf, 0, pos);
     }
 
+    /**
+     * Records an error on this writer if no previous error is set. Once an error is recorded
+     * subsequent writes become no-ops.
+     *
+     * @param errorKind one of the error-code constants ({@link #IOError}, {@link #UsageError}, etc.)
+     * @param message   a message returned with an exception
+     */
     public void setError(int errorKind, String message) {
         if (err > 0) return;
         err = errorKind;
-        errMessage = message;
-        cause = new RuntimeException(message);
+        if (useStacktrace) {
+            cause = new RuntimeException(message);
+        } else {
+            cause = premadeRuntimeException;
+        }
     }
 
+    /**
+     * Returns the current error code, or {@code 0} if no error has occurred.
+     *
+     * @return a positive error-code constant, or {@code 0} for no error
+     */
     public int error() {
-        return err;
+        return err > 0 ? err : 0;
     }
 
+    /**
+     * Throws the recorded error as a {@link RuntimeException} if an error is set.
+     *
+     * @throws RuntimeException if {@link #error()} is non-zero
+     */
     public void throwOnError() {
         if (err > 0) {
             throw cause;
         }
     }
 
+    /**
+     * Returns the exception that was recorded when the current error was set, or {@code null}
+     * if no error has occurred.
+     *
+     * @return the recorded exception, or {@code null}
+     */
+    public RuntimeException getCause() {
+        return cause;
+    }
+
+    /**
+     * Writes a UTF-8 encoded string without a preceding length varint.
+     * Surrogate pairs are encoded as a 4-byte UTF-8 sequence. An unpaired surrogate sets
+     * the error code to {@link #MalformString}.
+     *
+     * @param str the string to encode
+     */
     public void writeStringNoTag(String str) {
         int inLength = str.length();
         for (int i = 0; i < inLength; ++i) {
@@ -661,6 +1021,12 @@ public class PbjWriter implements AutoCloseable {
         }
     }
 
+    /**
+     * Writes a UTF-8 encoded string preceded by its length as a base-128 varint, as required
+     * by the protobuf wire format for {@code TYPE_STRING} fields.
+     *
+     * @param str the string to encode
+     */
     public void writeStringWithTag(String str) {
         int inLength = str.length();
         if (inLength > 0x7F) {
@@ -701,6 +1067,11 @@ public class PbjWriter implements AutoCloseable {
         writeAt(pos + 1, (byte) (utf8Len >>> 7));
     }
 
+    /**
+     * Advances the write position by {@code count} bytes without writing any data.
+     *
+     * @param count the number of bytes to skip
+     */
     public void skip(int count) {
         pos += count;
     }
