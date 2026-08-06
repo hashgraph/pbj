@@ -20,7 +20,7 @@ import java.util.Objects;
 public interface JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
-    default @NonNull T realParse(
+    default @NonNull T parse(
             @NonNull PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
@@ -28,9 +28,7 @@ public interface JsonCodec<T> extends Codec<T> {
             final int maxSize)
             throws ParseException {
         try {
-            T res = parse(JsonTools.parseJson(input), strictMode, maxDepth, maxSize);
-            input.throwOnError();
-            return res;
+            return parse(JsonTools.parseJson(input), strictMode, maxDepth, maxSize);
         } catch (IOException ex) {
             throw new ParseException(ex);
         }
@@ -64,12 +62,11 @@ public interface JsonCodec<T> extends Codec<T> {
      * @param output The {@link WritableSequentialData} to write to.
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
-    @Override
     default void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
         output.writeUTF8(toJSON(item));
     }
 
-    default void realWrite(@NonNull T item, @NonNull PbjWriter output) {
+    default void write(@NonNull T item, @NonNull PbjWriter output) {
         output.writeStringNoTag(toJSON(item));
     }
 

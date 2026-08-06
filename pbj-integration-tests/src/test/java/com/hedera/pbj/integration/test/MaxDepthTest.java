@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.test;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.test.proto.pbj.MessageWithMessage;
 import org.junit.jupiter.api.Test;
@@ -14,13 +14,13 @@ public class MaxDepthTest {
         MessageWithMessage msg;
 
         msg = MessageWithMessage.newBuilder().build();
-        PbjWriter bd = new PbjWriter(MessageWithMessage.PROTOBUF.measureRecord(msg), false);
-        MessageWithMessage.PROTOBUF.write(msg, bd);
+        PbjWriter writer = new PbjWriter(MessageWithMessage.PROTOBUF.measureRecord(msg), false);
+        MessageWithMessage.PROTOBUF.write(msg, writer);
 
         // None should throw
-        MessageWithMessage.PROTOBUF.parse(bd.toPbjReader(), false, 0);
-        MessageWithMessage.PROTOBUF.parse(bd.toPbjReader(), false, 1);
-        MessageWithMessage.PROTOBUF.parse(bd.toPbjReader(), false, 2);
+        MessageWithMessage.PROTOBUF.parse(writer.toPbjReader(), false, 0);
+        MessageWithMessage.PROTOBUF.parse(writer.toPbjReader(), false, 1);
+        MessageWithMessage.PROTOBUF.parse(writer.toPbjReader(), false, 2);
     }
 
     @Test
@@ -53,10 +53,18 @@ public class MaxDepthTest {
         PbjWriter writer = new PbjWriter(MessageWithMessage.PROTOBUF.measureRecord(msg), false);
         MessageWithMessage.PROTOBUF.write(msg, writer);
 
-        // 0 should throw
-        assertThrows(ParseException.class, () -> MessageWithMessage.PROTOBUF.parse(writer.toPbjReader(), false, 0));
-        MessageWithMessage.PROTOBUF.parse(writer.toPbjReader(), false, 1);
-        MessageWithMessage.PROTOBUF.parse(writer.toPbjReader(), false, 2);
+        // 0 should error
+        PbjReader reader = writer.toPbjReader();
+        MessageWithMessage.PROTOBUF.parse(reader, false, 0);
+        assertEquals(PbjReader.MaxDepthReached, reader.error());
+
+        reader = writer.toPbjReader();
+        MessageWithMessage.PROTOBUF.parse(reader, false, 1);
+        assertEquals(0, reader.error());
+
+        reader = writer.toPbjReader();
+        MessageWithMessage.PROTOBUF.parse(reader, false, 2);
+        assertEquals(0, reader.error());
     }
 
     @Test
@@ -75,8 +83,16 @@ public class MaxDepthTest {
         PbjWriter writer = new PbjWriter(MessageWithMessage.PROTOBUF.measureRecord(msg), false);
         MessageWithMessage.PROTOBUF.write(msg, writer);
 
-        assertThrows(ParseException.class, () -> MessageWithMessage.PROTOBUF.parse(writer.toPbjReader(), false, 0));
-        assertThrows(ParseException.class, () -> MessageWithMessage.PROTOBUF.parse(writer.toPbjReader(), false, 1));
-        MessageWithMessage.PROTOBUF.parse(writer.toPbjReader(), false, 2);
+        PbjReader reader = writer.toPbjReader();
+        MessageWithMessage.PROTOBUF.parse(reader, false, 0);
+        assertEquals(PbjReader.MaxDepthReached, reader.error());
+
+        reader = writer.toPbjReader();
+        MessageWithMessage.PROTOBUF.parse(reader, false, 1);
+        assertEquals(PbjReader.MaxDepthReached, reader.error());
+
+        reader = writer.toPbjReader();
+        MessageWithMessage.PROTOBUF.parse(reader, false, 2);
+        assertEquals(0, reader.error());
     }
 }

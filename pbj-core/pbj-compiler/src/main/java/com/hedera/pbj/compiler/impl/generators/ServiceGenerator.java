@@ -364,7 +364,8 @@ public final class ServiceGenerator {
                                 }
                             };
                         }
-                        """.replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
+                        """
+                    .replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
                     .replace("$delegateToMethodWithOptions", formatDelegateToMethodWithOptions())
                     .replace("$methodSignatureWithOptions", formatMethodSignature("public", true))
                     .replace("$requestType", requestType)

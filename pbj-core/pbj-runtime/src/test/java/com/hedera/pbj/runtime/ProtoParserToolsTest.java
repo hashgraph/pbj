@@ -642,23 +642,7 @@ class ProtoParserToolsTest {
         public static final FieldDefinition VALUE_FIELD =
                 new FieldDefinition("value", FieldType.STRING, false, true, false, 1);
 
-        @NonNull
-        @Override
         public TestMessage parse(
-                @NonNull final ReadableSequentialData in,
-                final boolean strictMode,
-                final boolean parseUnknownFields,
-                final int maxDepth,
-                final int maxSize)
-                throws ParseException {
-            if (Codec.disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
-            PbjReader reader = new PbjReader(in);
-            TestMessage res = parse(new PbjReader(in), strictMode, parseUnknownFields, maxDepth, maxSize);
-            reader.throwOnError();
-            return res;
-        }
-
-        public TestMessage realParse(
                 @NonNull final PbjReader in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
@@ -666,7 +650,7 @@ class ProtoParserToolsTest {
                 final int maxSize)
                 throws ParseException {
             String value = null;
-            while (in.hasMore()) {
+            while (in.hasRemaining()) {
                 final int tag = in.readVarInt(false);
                 final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;
                 final int wireType = tag & TAG_WIRE_TYPE_MASK;
@@ -681,7 +665,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public void realWrite(@NonNull final TestMessage item, @NonNull PbjWriter out) {
+        public void write(@NonNull final TestMessage item, @NonNull PbjWriter out) {
             final String value = item.getValue();
             if (value != null) {
                 ProtoWriterTools.writeString(out, VALUE_FIELD, value);
