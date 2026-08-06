@@ -23,14 +23,13 @@ class CodecWrapper<T> implements Codec<T> {
 
     @NonNull
     @Override
-    public T realParse(
-            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+    public T parse(@NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void realWrite(@NonNull T item, @NonNull PbjWriter output) {
+    public void write(@NonNull T item, @NonNull PbjWriter output) {
         writer.write(item, output);
     }
 

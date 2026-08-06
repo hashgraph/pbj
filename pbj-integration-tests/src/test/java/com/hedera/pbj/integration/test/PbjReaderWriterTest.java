@@ -116,27 +116,6 @@ public class PbjReaderWriterTest {
     }
 
     @Test
-    void takeBytesReturnsEmptyOnNonReuseable() {
-        byte[] bytes = new byte[64];
-        PbjWriter writer = new PbjWriter(bytes, 0);
-        writer.writeByte((byte) 1);
-        Bytes result = writer.takeBytes();
-        assertEquals(Bytes.EMPTY, result);
-        assertEquals(PbjWriter.UsageError, writer.error());
-        assertThrows(RuntimeException.class, () -> writer.throwOnError());
-    }
-
-    @Test
-    void takeBytesReturnsEmptyWhenStreaming() {
-        PbjWriter writer = new PbjWriter(new ByteArrayOutputStream());
-        writer.writeByte((byte) 1);
-        Bytes result = writer.takeBytes();
-        assertEquals(Bytes.EMPTY, result);
-        assertEquals(PbjWriter.UsageError, writer.error());
-        assertThrows(RuntimeException.class, () -> writer.throwOnError());
-    }
-
-    @Test
     void writerRelativeReserve() {
         PbjWriter writer = new PbjWriter();
         byte[] origArray = writer.internalArray();
@@ -217,20 +196,6 @@ public class PbjReaderWriterTest {
     }
 
     @Test
-    void takeBytesSetsInternalToNull() {
-        PbjWriter writer = new PbjWriter();
-        writer.writeByte((byte) 1);
-        byte[] internalArray = writer.internalArray();
-        Bytes internalArrayWrapped = writer.internalArrayWrapped();
-        assertEquals(internalArray, internalArrayWrapped.array());
-        Bytes arr = writer.takeBytes();
-        assertEquals(internalArray, arr.array());
-        assertEquals(internalArrayWrapped, arr);
-        assertEquals(null, writer.internalArray());
-        assertThrows(NullPointerException.class, () -> writer.internalArrayWrapped());
-    }
-
-    @Test
     void writeResetCheck() {
         PbjWriter writer = new PbjWriter();
         writer.writeByte((byte) 10);
@@ -257,12 +222,12 @@ public class PbjReaderWriterTest {
         assertEquals(PbjWriter.MalformString, writer2.error());
         assertThrows(RuntimeException.class, writer2::throwOnError);
         // Confirm error didn't change
-        assertEquals(Bytes.EMPTY, writer2.takeBytes()); // if no error, this would set usage error
+        assertEquals(Bytes.EMPTY, writer2.toByteArrayWrapped()); // if no error, this would set usage error
         assertEquals(PbjWriter.MalformString, writer2.error());
 
         baos = new ByteArrayOutputStream();
         PbjWriter writer3 = new PbjWriter(baos);
-        assertEquals(Bytes.EMPTY, writer3.takeBytes());
+        assertEquals(Bytes.EMPTY, writer3.toByteArrayWrapped());
         assertEquals(PbjWriter.UsageError, writer3.error());
     }
 
@@ -364,7 +329,7 @@ public class PbjReaderWriterTest {
         assertEquals("hello", reader.readString(100));
         assertEquals("Ā☃", reader.readString(100));
 
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
         assertEquals(0, w.error());
     }
 
@@ -423,28 +388,6 @@ public class PbjReaderWriterTest {
                 assertEquals(buf[i], buf[i + len]);
             }
         }
-    }
-
-    @Test
-    void throwOnErrorThrowsWhenErrorIsSet() {
-        PbjWriter writer = new PbjWriter();
-        writer.writeStringNoTag("\uD800");
-        assertEquals(PbjWriter.MalformString, writer.error());
-        assertThrows(RuntimeException.class, writer::throwOnError);
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        writer = new PbjWriter(baos);
-        writer.writeStringNoTag("\uD800");
-        assertEquals(PbjWriter.MalformString, writer.error());
-        assertThrows(RuntimeException.class, writer::throwOnError);
-        assertEquals(Bytes.EMPTY, writer.takeBytes());
-
-        assertEquals(PbjWriter.MalformString, writer.error());
-
-        baos = new ByteArrayOutputStream();
-        writer = new PbjWriter(baos);
-        assertEquals(Bytes.EMPTY, writer.takeBytes());
-        assertEquals(PbjWriter.UsageError, writer.error());
     }
 
     @Test
@@ -764,17 +707,17 @@ public class PbjReaderWriterTest {
         byte[] data = new byte[] {1, 2, 3, 4, 5, 6, 7, 8};
         PbjReader reader = new PbjReader(data);
 
-        assertTrue(reader.hasMore());
+        assertTrue(reader.hasRemaining());
         assertEquals(0, reader.position());
         assertEquals(data.length, reader.limit());
         reader.limit(0);
-        assertTrue(!reader.hasMore());
+        assertTrue(!reader.hasRemaining());
         assertEquals(0, reader.position());
 
         reader.limit(4);
-        assertTrue(reader.hasMore());
+        assertTrue(reader.hasRemaining());
         assertEquals(0x01020304, reader.readIntBE());
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
         assertEquals(4, reader.position());
         assertEquals(0, reader.readIntBE());
         assertEquals(PbjReader.BufferUnderflow, reader.error());
@@ -784,18 +727,18 @@ public class PbjReaderWriterTest {
     void readerByteBufferConstructor() {
         PbjReader reader = new PbjReader(ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
         assertEquals(0x01020304, reader.readIntBE());
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
     }
 
     @Test
     void readerResetWithByteBuffer() {
         PbjReader reader = new PbjReader(ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
         assertEquals(0x01020304, reader.readIntBE());
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
         reader.resetWith(ByteBuffer.wrap(new byte[] {5, 6, 7, 8}));
         assertEquals(0, reader.position());
         assertEquals(0x05060708, reader.readIntBE());
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
         assertEquals(0, reader.error());
     }
 
@@ -803,14 +746,14 @@ public class PbjReaderWriterTest {
     void readerBufferBytesConstructor() {
         PbjReader reader = new PbjReader(Bytes.wrap(new byte[] {0x0A, 0x0B, 0x0C, 0x0D}));
         assertEquals(0x0A0B0C0D, reader.readIntBE());
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
     }
 
     @Test
     void readerBufferInputStreamConstructor() {
         PbjReader reader = new PbjReader(new ByteArrayInputStream(new byte[] {1, 2, 3, 4}));
         assertEquals(0x01020304, reader.readIntBE());
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
     }
 
     @Test
@@ -818,7 +761,7 @@ public class PbjReaderWriterTest {
         PbjReader reader = new PbjReader(new byte[] {1, 2, 3, 4, 5});
         reader.skip(3);
         assertEquals(3, reader.position());
-        assertTrue(reader.hasMore());
+        assertTrue(reader.hasRemaining());
     }
 
     @Test
@@ -833,10 +776,10 @@ public class PbjReaderWriterTest {
         byte[] data = {1, 2, 3, 4};
         PbjReader reader = new PbjReader(data);
         assertEquals(0x01020304, reader.readIntBE());
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
         reader.resetWith(data);
         assertEquals(0, reader.position());
-        assertTrue(reader.hasMore());
+        assertTrue(reader.hasRemaining());
         assertEquals(0x01020304, reader.readIntBE());
     }
 
@@ -846,7 +789,7 @@ public class PbjReaderWriterTest {
         assertEquals(0x01020304, reader.readIntBE());
         reader.resetWith(Bytes.wrap(new byte[] {5, 6, 7, 8}));
         assertEquals(0x05060708, reader.readIntBE());
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
     }
 
     @Test
@@ -1125,7 +1068,7 @@ public class PbjReaderWriterTest {
         reader.bufferToEOF();
         assertEquals(0x01020304, reader.readIntBE());
         assertEquals(0x05060708, reader.readIntBE());
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
     }
 
     @Test
@@ -1135,7 +1078,7 @@ public class PbjReaderWriterTest {
         assertEquals(1, reader.readByte());
         assertEquals(2, reader.readByte());
         assertEquals(3, reader.readByte());
-        assertEquals(false, reader.hasMore());
+        assertEquals(false, reader.hasRemaining());
         reader.readByte();
         assertEquals(PbjReader.BufferUnderflow, reader.error());
     }
@@ -1152,7 +1095,7 @@ public class PbjReaderWriterTest {
         assertEquals(1, reader.readByte());
         assertEquals(2, reader.readByte());
         assertEquals(3, reader.readByte());
-        assertFalse(reader.hasMore());
+        assertFalse(reader.hasRemaining());
     }
 
     @Test

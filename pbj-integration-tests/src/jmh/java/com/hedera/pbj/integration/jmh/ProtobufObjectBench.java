@@ -127,39 +127,11 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
     @OperationsPerInvocation(OPERATION_COUNT)
     public void parsePbjReaderArray(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
         for (int i = 0; i < OPERATION_COUNT; i++) {
-            benchmarkState.pbjProtobufDataBuffer.resetPosition();
+            benchmarkState.pbjProtobufDataBuffer.resetWith(benchmarkState.protobuf);
             blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.pbjProtobufDataBuffer));
         }
     }
-    /*
-        @Benchmark
-        @OperationsPerInvocation(OPERATION_COUNT)
-        public void parsePbjByteBuffer(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
-            for (int i = 0; i < OPERATION_COUNT; i++) {
-                benchmarkState.protobufDataBuffer.resetPosition();
-                blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBuffer));
-            }
-        }
 
-        @Benchmark
-        @OperationsPerInvocation(OPERATION_COUNT)
-        public void parsePbjByteBufferDirect(BenchmarkState<P, G> benchmarkState, Blackhole blackhole)
-                throws ParseException {
-            for (int i = 0; i < OPERATION_COUNT; i++) {
-                benchmarkState.protobufDataBufferDirect.resetPosition();
-                blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBufferDirect));
-            }
-        }
-
-        @Benchmark
-        @OperationsPerInvocation(OPERATION_COUNT)
-        public void parsePbjInputStream(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
-            for (int i = 0; i < OPERATION_COUNT; i++) {
-                benchmarkState.bin.resetPosition();
-                blackhole.consume(benchmarkState.pbjCodec.parse(new ReadableStreamingData(benchmarkState.bin)));
-            }
-        }
-    //*/
     @Benchmark
     @OperationsPerInvocation(OPERATION_COUNT)
     public void parseProtoCByteArray(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws IOException {

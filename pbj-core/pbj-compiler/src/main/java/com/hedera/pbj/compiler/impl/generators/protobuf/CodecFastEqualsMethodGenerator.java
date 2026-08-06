@@ -32,7 +32,8 @@ class CodecFastEqualsMethodGenerator {
                 public boolean fastEquals(@NonNull $modelClass item, @NonNull final PbjReader input) throws ParseException {
                     return item.equals(parse(input));
                 }
-                """.replace("$modelClass", modelClassName)
+                """
+                .replace("$modelClass", modelClassName)
                 .indent(DEFAULT_INDENT);
         // spotless:on
     }

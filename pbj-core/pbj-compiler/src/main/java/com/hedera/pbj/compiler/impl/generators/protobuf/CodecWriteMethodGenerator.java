@@ -45,7 +45,7 @@ final class CodecWriteMethodGenerator {
              * @param data The input model data to write
              * @param out The output stream to write to
              */
-            public void realWrite(@NonNull $modelClass data, @NonNull final PbjWriter out) {
+            public void write(@NonNull $modelClass data, @NonNull final PbjWriter out) {
                 $fieldWriteLines
                 // Check if not-empty to avoid creating a lambda if there's nothing to write.
                 if (!data.getUnknownFields().isEmpty()) {

@@ -82,7 +82,7 @@ class CodecParseMethodGenerator {
                  * @return Parsed $modelClassName model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
                  */
-                public $modelClassName realParse(
+                public $modelClassName parse(
                         @NonNull final PbjReader input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
@@ -102,7 +102,6 @@ class CodecParseMethodGenerator {
                         Collections.sort($unknownFields);
                         $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
                     }
-                    input.upgradeErrorToParse();
                     if (input.error() > 0) return null;
                     $cacheableSupport
                 }
@@ -177,12 +176,12 @@ class CodecParseMethodGenerator {
         list.add("""
                         // -- PARSE LOOP ---------------------------------------------
                         // Continue to parse bytes out of the input stream until we get to the end.
-                        while (input.hasMore()) {
+                        while (input.hasRemaining()) {
 
                             // Read the "tag" byte which gives us the field number for the next field to read
                             // and the wire type (way it is encoded on the wire).
                             int $prefixtag = input.readVarInt(false);
-                            
+
                             // The field is the top 5 bits of the byte. Read this off
                             final int $prefixfield = $prefixtag >>> TAG_FIELD_OFFSET;
 
@@ -191,7 +190,7 @@ class CodecParseMethodGenerator {
 
                             // Given the wire type and the field type, parse the field
                             switch ($prefixtag) {
-                                $caseStatements
+                $caseStatements
                                 default -> $unknownFields = defaultCase(tag, field, f, strictMode, parseUnknownFields, $unknownFields, input, maxSize);
                             }
                         }
@@ -202,14 +201,15 @@ class CodecParseMethodGenerator {
                         // handle error cases here, so we do not do if statements in normal loop
                         // Validate the field number is valid (must be > 0)
                         if ($prefixfield == 0) {
-                            input.setError(PbjReader.IOError);
+                            input.setError(PbjReader.IOError, "Bad protobuf encoding. We read a field value of "
+                                + $prefixfield);
                             return $unknownFields;
                         }
                         // Validate the wire type is valid (must be >=0 && <= 5).
                         // Otherwise we cannot parse this.
                         // Note: it is always >= 0 at this point (see code above where it is defined).
                         if (wireType > 5) {
-                            input.setError(PbjReader.Unsupported);
+                            input.setError(PbjReader.Parse, "Cannot understand wire_type of " + wireType);
                             return $unknownFields;
                         }
                         // It may be that the parser subclass doesn't know about this field
@@ -232,7 +232,8 @@ class CodecParseMethodGenerator {
                                 skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
                             }
                         } else {
-                            input.setError(PbjReader.IOError);
+                            input.setError(PbjReader.IOError, "Bad tag [" + $prefixtag + "], field [" + $prefixfield
+                                    + "] wireType [" + wireType + "]");
                             return $unknownFields;
                         }""");
         for (int i = 0; i < list.size(); i++) {
@@ -317,16 +318,12 @@ class CodecParseMethodGenerator {
         if (divideAmount == 0) {
             throw new RuntimeException("Need to implement");
         }
-        // next line prevents list.add from growing, but github actions shows
-        // that it's faster to not allocate so much memory
-        // $readMethod is readVarInt most of the time. Many 1byte int32
-        // would cause the list to grow
-        // divideAmount = 1;
+
         sbFunc.append("""
                 // Read the length of packed repeated field data
                 final int length = input.readVarInt(false);
                 if (length > $maxSize) {
-                    input.setError(PbjReader.Parse);
+                    input.setError(PbjReader.Parse, "$fieldName size " + length + " is greater than max " + $maxSize);
                     return $tempFieldName;
                 }
                 final var beforeLimit = input.limit();
@@ -334,7 +331,7 @@ class CodecParseMethodGenerator {
                 input.limit(input.position() + length);
                 var list = new UnmodifiableArray$fieldType();
                 list.ensureCapacity(length$divideString);
-                while (input.hasMore()) {
+                while (input.hasRemaining()) {
                     $preReadlist.add($readMethod);
                 }
                 $tempFieldName = list;
@@ -426,7 +423,7 @@ class CodecParseMethodGenerator {
                             value = $fieldType.DEFAULT;
                         } else {
                             if (messageLength > $maxSize) {
-                                input.setError(PbjReader.Parse);
+                                input.setError(PbjReader.Parse, "$fieldName size " + messageLength + " is greater than max " + $maxSize);
                                 return null;
                             }
                             final var limitBefore = input.limit();
@@ -470,7 +467,7 @@ class CodecParseMethodGenerator {
                         $fieldDefs
                         if (__map_messageLength != 0) {
                             if (__map_messageLength > $maxSize) {
-                                input.setError(PbjReader.Parse);
+                                input.setError(PbjReader.Parse, "$fieldName size " + __map_messageLength + " is greater than max " + $maxSize);
                                 return null;
                             }
                             final var __map_limitBefore = input.limit();
@@ -499,7 +496,7 @@ class CodecParseMethodGenerator {
                     .replace("$fieldName", field.name())
                     .replace("$fieldDefs",mapEntryFields.stream().map(mapEntryField ->
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
-                                    mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
+                            mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
                     .replace("$mapParseLoop", parseAndDefaultBodyPair.parseBody()
                             .indent(-DEFAULT_INDENT))
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
@@ -533,7 +530,7 @@ class CodecParseMethodGenerator {
             sbCase.append(
                 """
                 if (temp_%s.size() >= %s) {
-                    input.setError(PbjReader.Parse);
+                    input.setError(PbjReader.Parse, "%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
                     return null;
                 }
                 temp_%1$s = addToList(temp_%1$s,value);
@@ -544,7 +541,7 @@ class CodecParseMethodGenerator {
                 """
                 if (__map_messageLength != 0) {
                     if (temp_%s.size() >= %s) {
-                        input.setError(PbjReader.Parse);
+                        input.setError(PbjReader.Parse, "%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
                         return null;
                     }
                     temp_%1$s = addToMap(temp_%1$s, temp_%s, temp_%s);

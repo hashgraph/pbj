@@ -13,6 +13,7 @@ import java.io.IOException;
  */
 public final class Utf8Tools {
 
+    // return length or 0 on error
     static int encodedLength(String sz) {
         if (sz == null) return 0;
         int count = 0;
@@ -25,15 +26,13 @@ public final class Utf8Tools {
             } else if (c < 0xD800 || c >= 0xE000) {
                 count += 3;
             } else if (c <= 0xDBFF) { // high surrogate: D800–DBFF
-                if (i + 1 >= sz.length()) return 0; // throw new IOException("Lone high surrogate at index " + i);
+                if (i + 1 >= sz.length()) return 0;
                 char low = sz.charAt(i + 1);
-                if (low < 0xDC00 || low > 0xDFFF)
-                    return 0; // throw new IOException("Invalid low surrogate at index " + (i + 1));
-                i++; // consume the low surrogate
+                if (low < 0xDC00 || low > 0xDFFF) return 0;
+                i++;
                 count += 4;
             } else {
-                return 0; // throw new IOException("Lone low surrogate at index " + i);  // DC00–DFFF with no preceding
-                // high
+                return 0;
             }
         }
         return count;

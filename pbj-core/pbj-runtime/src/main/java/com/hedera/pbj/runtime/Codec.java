@@ -8,14 +8,9 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Encapsulates Serialization, Deserialization and other IO operations.
@@ -23,84 +18,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * @param <T> The type of object to serialize and deserialize
  */
 public interface Codec<T> {
-
-    static final boolean logNonPbjReads = false,
-            logNonPbjWrites = false,
-            logGoodPath = false,
-            disallowNonPbjReader = false,
-            disallowNonPbjWriter = false;
-
     class WriteCache {
         PbjWriter writer = new PbjWriter();
         boolean inUse = false;
     }
 
-    class ReadCacheBytes {
+    class ReadCache {
         PbjReader reader = new PbjReader(Bytes.EMPTY);
         boolean inUse = false;
     }
 
     ThreadLocal<WriteCache> tlsWriter = ThreadLocal.withInitial(WriteCache::new);
-    ThreadLocal<ReadCacheBytes> tlsReader = ThreadLocal.withInitial(ReadCacheBytes::new);
-
-    Set<String> seenStacks = ConcurrentHashMap.newKeySet();
-    PrintStream strackTraceLogger = openTraceFile();
-
-    private static PrintStream openTraceFile() {
-        try {
-            var stream = new PrintStream(new FileOutputStream("/tmp/ldintr.txt", true), true);
-            stream.println("Runing------ %b %b %b".formatted(logNonPbjReads, logNonPbjWrites, logGoodPath));
-            return stream;
-        } catch (IOException e) {
-            return System.err;
-        }
-    }
-
-    default void logGood() {
-        logStack(logGoodPath, "Pbj path:");
-    }
-
-    default void logRead() {
-        logStack(logNonPbjReads, "logRead:");
-    }
-
-    default void logWrite() {
-        logStack(logNonPbjWrites, "logWrite:");
-    }
-
-    default void dbgLog() {
-        logStack(true, "dbgLog:");
-    }
-
-    private static void logStack2(boolean enabled, String header) {
-        if (!enabled) return;
-        StackTraceElement[] stack = Thread.currentThread().getStackTrace();
-        if (seenStacks.add(Arrays.toString(stack))) {
-            StringBuilder sb = new StringBuilder(header).append('\n');
-            for (StackTraceElement e : stack) sb.append("\tat ").append(e).append('\n');
-            strackTraceLogger.println(sb);
-        }
-    }
-
-    private static void logStackIgnoreTest(boolean enabled, String header) {
-        if (!enabled) return;
-        var st = Thread.currentThread().getStackTrace();
-        boolean prevHasTest = false;
-        for (int i = st.length - 1; i > 0; i--) {
-            var e = st[i];
-            var name = e.getClassName();
-            if (name.equals("com.hedera.pbj.runtime.Codec") || name.contains("PbjUtils")) {
-                if (prevHasTest) return;
-                logStack2(true, header);
-                return;
-            }
-            prevHasTest = name.contains("Test");
-        }
-    }
-
-    private static void logStack(boolean enabled, String header) {
-        logStackIgnoreTest(enabled, header);
-    }
+    ThreadLocal<ReadCache> tlsReader = ThreadLocal.withInitial(ReadCache::new);
 
     /**
      * The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.).
@@ -164,10 +93,8 @@ public interface Codec<T> {
             int maxDepth,
             int maxSize)
             throws ParseException {
-        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
-        ReadCacheBytes cache = tlsReader.get();
+        ReadCache cache = tlsReader.get();
         if (cache.inUse) {
-            logStack(true, "ReadableSequentialData recursive");
             PbjReader reader = new PbjReader(input);
             T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
             reader.throwOnError();
@@ -186,16 +113,7 @@ public interface Codec<T> {
     }
 
     @NonNull
-    default T parse(@NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
-            throws ParseException {
-        logGood();
-        T res = realParse(input, strictMode, parseUnknownFields, maxDepth, maxSize);
-        input.throwOnError();
-        return res;
-    }
-
-    @NonNull
-    T realParse(@NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+    T parse(@NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException;
 
     /**
@@ -309,11 +227,8 @@ public interface Codec<T> {
     @NonNull
     default T parse(@NonNull InputStream in, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
-        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
-        // logRead();
-        ReadCacheBytes cache = tlsReader.get();
+        ReadCache cache = tlsReader.get();
         if (cache.inUse) {
-            logStack(true, "reader recursive");
             PbjReader reader = new PbjReader(in);
             T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
             reader.throwOnError();
@@ -330,8 +245,6 @@ public interface Codec<T> {
             cache.inUse = false;
         }
     }
-
-    // */
 
     /**
      * Parses an object from the {@link Bytes} and returns it.
@@ -369,11 +282,8 @@ public interface Codec<T> {
      */
     default T parse(@NonNull Bytes bytes, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
-        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
-        // logRead();
-        ReadCacheBytes cache = tlsReader.get();
+        ReadCache cache = tlsReader.get();
         if (cache.inUse) {
-            logStack(true, "reader recursive");
             PbjReader reader = new PbjReader(bytes);
             T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
             reader.throwOnError();
@@ -393,11 +303,8 @@ public interface Codec<T> {
 
     default T parse(@NonNull byte[] bytes, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
-        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
-        // logRead();
-        ReadCacheBytes cache = tlsReader.get();
+        ReadCache cache = tlsReader.get();
         if (cache.inUse) {
-            logStack(true, "reader recursive");
             PbjReader reader = new PbjReader(bytes);
             T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
             reader.throwOnError();
@@ -463,14 +370,11 @@ public interface Codec<T> {
      * @param output The {@link WritableSequentialData} to write to.
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
-    void realWrite(@NonNull T item, @NonNull PbjWriter output);
+    void write(@NonNull T item, @NonNull PbjWriter output);
 
     default void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
-        if (disallowNonPbjWriter) throw new RuntimeException("PbjWriter Only");
-        logWrite();
         WriteCache cache = tlsWriter.get();
         if (cache.inUse) {
-            logStack(true, "writer recursive");
             PbjWriter writer = new PbjWriter(output);
             write(item, writer);
             writer.flush();
@@ -486,11 +390,6 @@ public interface Codec<T> {
         }
     }
 
-    default void write(@NonNull T item, @NonNull PbjWriter output) {
-        logGood();
-        realWrite(item, output);
-    }
-
     /**
      * Writes an item to the given byte array, this is a performance focused method. In non-performance centric use
      * cases there are simpler methods such as {@link #toBytes(T)} or writing to a {@link WritableStreamingData}.
@@ -503,7 +402,6 @@ public interface Codec<T> {
      * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
      */
     default int write(@NonNull T item, @NonNull byte[] output, final int startOffset) {
-        // might be fine w/o cache
         PbjWriter writer = new PbjWriter(output, startOffset);
         write(item, writer);
         return writer.position();
@@ -525,7 +423,6 @@ public interface Codec<T> {
     }
 
     default int measure(@NonNull ReadableSequentialData input) throws ParseException {
-        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
         final long startPosition = input.position();
         wrapParse(input, false, false, DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE);
         return (int) (input.position() - startPosition);
@@ -553,11 +450,8 @@ public interface Codec<T> {
     boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException;
 
     default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
-        if (disallowNonPbjReader) throw new RuntimeException("PbjReader Only");
-        // logRead();
-        ReadCacheBytes cache = tlsReader.get();
+        ReadCache cache = tlsReader.get();
         if (cache.inUse) {
-            logStack(true, "reader recursive in fastEquals");
             PbjReader reader = new PbjReader(input);
             boolean res = fastEquals(item, reader);
             reader.throwOnError();
@@ -576,14 +470,12 @@ public interface Codec<T> {
     }
 
     default byte[] toByteArray(@NonNull T item) {
-        // logIfNotTest();
         WriteCache cache = tlsWriter.get();
         if (cache.inUse) {
-            logStack(true, "writer recursive");
             int len = measureRecord(item);
             PbjWriter writer = new PbjWriter(len, false);
             write(item, writer);
-            return cache.writer.toByteArray();
+            return writer.toByteArray();
         }
         cache.inUse = true;
         try {
@@ -596,10 +488,8 @@ public interface Codec<T> {
     }
 
     default Bytes toBytes(@NonNull T item) {
-        // logIfNotTest();
         WriteCache cache = tlsWriter.get();
         if (cache.inUse) {
-            logStack(true, "writer recursive");
             int len = measureRecord(item);
             PbjWriter writer = new PbjWriter(len, false);
             return toBytes(item, writer);
@@ -618,10 +508,9 @@ public interface Codec<T> {
         return writer.toByteArrayWrapped();
     }
 
-    default Bytes toBytesTLSWrapped(@NonNull T item) {
+    default Bytes toBytesGetInternalWrapped(@NonNull T item) {
         WriteCache cache = tlsWriter.get();
         if (cache.inUse) {
-            logStack(true, "writer recursive");
             int len = measureRecord(item);
             PbjWriter writer = new PbjWriter(len, false);
             write(item, writer);

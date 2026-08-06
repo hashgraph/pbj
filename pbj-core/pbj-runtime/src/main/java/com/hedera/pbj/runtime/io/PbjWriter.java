@@ -761,8 +761,8 @@ public class PbjWriter implements AutoCloseable {
         flush();
         try {
             output.close();
-        } catch (IOException ignored) {
-            int q = 1;
+        } catch (IOException ex) {
+            setError(IOError, ex.getMessage());
         }
         err = Closed;
     }
@@ -818,7 +818,7 @@ public class PbjWriter implements AutoCloseable {
      *
      * @param out the new output stream
      */
-    public void resetWith(@NonNull OutputStream out) {
+    public void resetWith(OutputStream out) {
         reset();
         if (!reuseable) {
             setError(UsageError, "resetWith on non-reuseable PbjWriter");
@@ -881,31 +881,6 @@ public class PbjWriter implements AutoCloseable {
             return Bytes.EMPTY;
         }
         return Bytes.wrap(toByteArray());
-    }
-
-    /**
-     * Transfers ownership of the internal buffer to the caller as a zero-copy {@link Bytes}
-     * and closes this writer. The internal array is set to {@code null} and the error code is
-     * set to {@link #Closed} afterward.
-     *
-     * <p>Only valid on standalone (non-streaming) reuseable writers; sets {@link #UsageError}
-     * and returns {@link Bytes#EMPTY} on misuse.
-     *
-     * @return the written bytes wrapped in a {@code Bytes} instance backed by the internal array
-     */
-    public Bytes takeBytes() {
-        if (output != null) {
-            setError(UsageError, "takeBytes used on a streaming object");
-            return Bytes.EMPTY;
-        }
-        if (!reuseable) {
-            setError(UsageError, "takeBytes used when object didn't create the array");
-            return Bytes.EMPTY;
-        }
-        Bytes bytes = Bytes.wrap(buf, 0, pos);
-        buf = null;
-        err = Closed;
-        return bytes;
     }
 
     /**
