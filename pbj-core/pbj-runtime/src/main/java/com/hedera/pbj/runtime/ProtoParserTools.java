@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -81,6 +82,10 @@ public final class ProtoParserTools {
         return input.readVarInt(false);
     }
 
+    public static int readInt32(PbjReader input) {
+        return input.readVarInt(false);
+    }
+
     /**
      * Read a protobuf int64(long) from input
      *
@@ -88,6 +93,10 @@ public final class ProtoParserTools {
      * @return the read long
      */
     public static long readInt64(final ReadableSequentialData input) {
+        return input.readVarLong(false);
+    }
+
+    public static long readInt64(PbjReader input) {
         return input.readVarLong(false);
     }
 
@@ -101,6 +110,10 @@ public final class ProtoParserTools {
         return input.readVarInt(false);
     }
 
+    public static int readUint32(PbjReader input) {
+        return input.readVarInt(false);
+    }
+
     /**
      * Read a protobuf uint64 from input
      *
@@ -111,6 +124,9 @@ public final class ProtoParserTools {
         return input.readVarLong(false);
     }
 
+    public static long readUint64(PbjReader input) {
+        return input.readVarLong(false);
+    }
     /**
      * Read a protobuf bool from input
      *
@@ -126,6 +142,14 @@ public final class ProtoParserTools {
         return i == 1;
     }
 
+    public static boolean readBool(PbjReader input) {
+        final var i = input.readVarInt(false);
+        if (i != 1 && i != 0) {
+            input.setError(PbjReader.DataEncoding);
+        }
+        return i == 1;
+    }
+
     /**
      * Read a protobuf enum from input
      *
@@ -136,6 +160,9 @@ public final class ProtoParserTools {
         return input.readVarInt(false);
     }
 
+    public static int readEnum(PbjReader input) {
+        return input.readVarInt(false);
+    }
     /**
      * Read a protobuf sint32 from input
      *
@@ -143,6 +170,10 @@ public final class ProtoParserTools {
      * @return the read int
      */
     public static int readSignedInt32(final ReadableSequentialData input) {
+        return input.readVarInt(true);
+    }
+
+    public static int readSignedInt32(PbjReader input) {
         return input.readVarInt(true);
     }
 
@@ -156,6 +187,10 @@ public final class ProtoParserTools {
         return input.readVarLong(true);
     }
 
+    public static long readSignedInt64(PbjReader input) {
+        return input.readVarLong(true);
+    }
+
     /**
      * Read a protobuf sfixed32 from input
      *
@@ -164,6 +199,10 @@ public final class ProtoParserTools {
      */
     public static int readSignedFixed32(final ReadableSequentialData input) {
         return input.readInt(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    public static int readSignedFixed32(PbjReader input) {
+        return input.readIntLE();
     }
 
     /**
@@ -176,6 +215,10 @@ public final class ProtoParserTools {
         return input.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
+    public static int readFixed32(PbjReader input) {
+        return input.readIntLE();
+    }
+
     /**
      * Read a protobuf float from input
      *
@@ -184,6 +227,10 @@ public final class ProtoParserTools {
      */
     public static float readFloat(final ReadableSequentialData input) {
         return input.readFloat(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    public static float readFloat(PbjReader input) {
+        return input.readFloatLE();
     }
 
     /**
@@ -196,6 +243,10 @@ public final class ProtoParserTools {
         return input.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
+    public static long readSignedFixed64(final PbjReader input) {
+        return input.readLongLE();
+    }
+
     /**
      * Read a fixed 64, which is a fixed size encoded long
      *
@@ -206,6 +257,10 @@ public final class ProtoParserTools {
         return input.readLong(ByteOrder.LITTLE_ENDIAN);
     }
 
+    public static long readFixed64(PbjReader input) {
+        return input.readLongLE();
+    }
+
     /**
      * Read a double from input data
      *
@@ -214,6 +269,10 @@ public final class ProtoParserTools {
      */
     public static double readDouble(final ReadableSequentialData input) {
         return input.readDouble(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    public static double readDouble(PbjReader input) {
+        return input.readDoubleLE();
     }
 
     /**
@@ -228,6 +287,10 @@ public final class ProtoParserTools {
         } catch (ParseException ex) {
             throw new UncheckedParseException(ex);
         }
+    }
+
+    public static String readString(final PbjReader input) {
+        return readString(input, Long.MAX_VALUE);
     }
 
     /**
@@ -265,6 +328,112 @@ public final class ProtoParserTools {
         } catch (CharacterCodingException e) {
             throw new MalformedProtobufException("Malformed UTF-8 string encountered", e);
         }
+    }
+
+    static int fromUTF8Tail(char[] dst, int di, byte[] src, int i, int endPos) {
+        while (i < endPos) {
+            int a = src[i];
+            if ((a & 0x80) == 0) {
+                dst[di++] = (char) a;
+                i++;
+                continue;
+            }
+            if (i + 1 >= endPos) return -1;
+
+            int b = src[i + 1];
+            if ((a & 0xE0) == 0xC0) {
+                if ((b & 0xC0) == 0x80) {
+                    dst[di++] = (char) (((a & 0x1F) << 6) | (b & 0x3F));
+                    i += 2;
+                    continue;
+                } else {
+                    return -1; // Bad encoding
+                }
+            }
+
+            if (i + 2 >= endPos) return -1;
+
+            int c = src[i + 2];
+            int codepoint = -1;
+            if ((a & 0xF0) == 0xE0) {
+                if ((b & 0xC0) == 0x80 && (c & 0xC0) == 0x80) {
+                    codepoint = ((a & 0xF) << 12) | ((b & 0x3F) << 6) | (c & 0x3F);
+                    i += 3;
+                } else {
+                    return -1; // Bad encoding
+                }
+            } else {
+                if (i + 3 >= endPos) return -1;
+                int d = src[i + 3];
+                if ((a & 0xF8) == 0xF0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80 && (d & 0xC0) == 0x80) {
+                    codepoint = ((a & 7) << 18) | ((b & 0x3F) << 12) | ((c & 0x3F) << 6) | (d & 0x3F);
+                    i += 4;
+                } else {
+                    return -1; // Bad encoding
+                }
+            }
+
+            if (codepoint <= 0xFFFF) {
+                if (codepoint < 0 || (codepoint >= 0xD800 && codepoint < 0xE000)) return -1; // [D800, E000) is illegal
+                dst[di++] = (char) codepoint;
+                continue;
+            }
+
+            if (codepoint > 0x10FFFF) return -1; // Illegal range
+            int v = codepoint - 0x10000;
+            dst[di + 0] = (char) (0xD800 + ((v >> 10) & 0x3FF));
+            dst[di + 1] = (char) (0xDC00 + (v & 0x3FF));
+            di += 2;
+        }
+        return di;
+    }
+
+    public static int fromUTF8(char[] dst, byte[] src, int offset, int pos, int length) {
+        int i = offset + pos;
+        int di = pos;
+        while (i + 4 < offset + length) {
+            int a = src[i];
+            if ((a & 0x80) == 0) {
+                dst[di++] = (char) a;
+                i++;
+                continue;
+            }
+            int b = src[i + 1];
+            if ((a & 0xE0) == 0xC0 && (b & 0xC0) == 0x80) {
+                dst[di++] = (char) (((a & 0x1F) << 6) | (b & 0x3F));
+                i += 2;
+                continue;
+            }
+            int c = src[i + 2];
+            int codepoint = -1;
+            if ((a & 0xF0) == 0xE0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80) {
+                codepoint = ((a & 0xF) << 12) | ((b & 0x3F) << 6) | (c & 0x3F);
+                i += 3;
+            } else {
+                int d = src[i + 3];
+                if ((a & 0xF8) == 0xF0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80 && (d & 0xC0) == 0x80) {
+                    codepoint = ((a & 7) << 18) | ((b & 0x3F) << 12) | ((c & 0x3F) << 6) | (d & 0x3F);
+                    i += 4;
+                }
+            }
+
+            if (codepoint <= 0xFFFF) {
+                if (codepoint < 0 || (codepoint >= 0xD800 && codepoint < 0xE000)) return -1; // [D800, E000) is illegal
+                dst[di++] = (char) codepoint;
+                continue;
+            }
+
+            if (codepoint > 0x10FFFF) return -1; // illegal range
+            int v = codepoint - 0x10000;
+            dst[di + 0] = (char) (0xD800 + ((v >> 10) & 0x3FF));
+            dst[di + 1] = (char) (0xDC00 + (v & 0x3FF));
+            di += 2;
+        }
+        return i == offset + length ? di : fromUTF8Tail(dst, di, src, i, offset + length);
+    }
+
+    public static String readString(PbjReader input, final long maxSize) {
+        return input.readString(maxSize);
     }
 
     /**
@@ -305,6 +474,15 @@ public final class ProtoParserTools {
             throw new BufferUnderflowException();
         }
         return bytes;
+    }
+
+    public static Bytes readBytes(PbjReader input, final long maxSize) {
+        final int length = input.readVarInt(false);
+        if (length > maxSize || length < 0) {
+            input.setError(PbjReader.Parse);
+            return Bytes.EMPTY;
+        }
+        return input.readBytes(length);
     }
 
     /**
@@ -365,6 +543,34 @@ public final class ProtoParserTools {
         return null;
     }
 
+    @Nullable
+    public static Bytes extractFieldBytes(@NonNull PbjReader input, @NonNull final FieldDefinition field)
+            throws IOException, ParseException {
+        Objects.requireNonNull(input);
+        Objects.requireNonNull(field);
+        if (field.repeated()) {
+            throw new IllegalArgumentException("Cannot extract field bytes for a repeated field: " + field);
+        }
+        if (ProtoWriterTools.wireType(field) != ProtoConstants.WIRE_TYPE_DELIMITED) {
+            throw new IllegalArgumentException("Cannot extract field bytes for a non-length-delimited field: " + field);
+        }
+        while (input.hasRemaining()) {
+            final int tag = input.readVarInt(false);
+            final int fieldNum = tag >> TAG_FIELD_OFFSET;
+            final ProtoConstants wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+            if (fieldNum == field.number()) {
+                if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
+                    input.setError(PbjReader.Parse);
+                }
+                final int length = input.readVarInt(false);
+                return input.readBytes(length);
+            } else {
+                skipField(input, wireType);
+            }
+        }
+        return null;
+    }
+
     /**
      * Extract the bytes in a stream for a given wire type. Assumes you have already read tag.
      *
@@ -402,6 +608,42 @@ public final class ProtoParserTools {
         };
     }
 
+    public static Bytes extractField(PbjReader input, final ProtoConstants wireType, final long maxSize) {
+        return switch (wireType) {
+            case WIRE_TYPE_FIXED_64_BIT -> input.readBytes(8);
+            case WIRE_TYPE_FIXED_32_BIT -> input.readBytes(4);
+            // The value for "zigZag" when calling varint doesn't matter because we are just reading past
+            // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
+            // the bytes, not how many of them there are)
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLongBytes();
+            case WIRE_TYPE_DELIMITED -> {
+                final Bytes lenBytes = input.readVarLongBytes();
+                final int length = lenBytes.getVarInt(0, false);
+                if (length < 0) {
+                    input.setError(PbjReader.IOError);
+                    yield Bytes.EMPTY;
+                }
+                if (length > maxSize) {
+                    input.setError(PbjReader.Parse);
+                    yield Bytes.EMPTY;
+                }
+                yield Bytes.merge(lenBytes, input.readBytes(length));
+            }
+            case WIRE_TYPE_GROUP_START -> {
+                input.setError(PbjReader.Unsupported);
+                yield Bytes.EMPTY;
+            }
+            case WIRE_TYPE_GROUP_END -> {
+                input.setError(PbjReader.Unsupported);
+                yield Bytes.EMPTY;
+            }
+            default -> {
+                input.setError(PbjReader.IOError);
+                yield Bytes.EMPTY;
+            }
+        };
+    }
+
     /**
      * Skip over the bytes in a stream for a given wire type. Assumes you have already read tag.
      *
@@ -415,6 +657,10 @@ public final class ProtoParserTools {
         } catch (ParseException ex) {
             throw new UncheckedParseException(ex);
         }
+    }
+
+    public static void skipField(PbjReader input, final ProtoConstants wireType) {
+        skipField(input, wireType, Long.MAX_VALUE);
     }
 
     /**
@@ -451,6 +697,30 @@ public final class ProtoParserTools {
         }
     }
 
+    public static void skipField(PbjReader input, final ProtoConstants wireType, final long maxSize) {
+        switch (wireType) {
+            case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
+            case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
+            // The value for "zigZag" when calling varint doesn't matter because we are just reading past
+            // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
+            // the bytes, not how many of them there are)
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
+            case WIRE_TYPE_DELIMITED -> {
+                final int length = input.readVarInt(false);
+                if (length < 0) {
+                    input.setError(PbjReader.IOError);
+                }
+                if (length > maxSize) {
+                    input.setError(PbjReader.Parse);
+                }
+                input.skip(length);
+            }
+            case WIRE_TYPE_GROUP_START -> input.setError(PbjReader.Unsupported);
+            case WIRE_TYPE_GROUP_END -> input.setError(PbjReader.Unsupported);
+            default -> input.setError(PbjReader.IOError);
+        }
+    }
+
     /**
      * Read the next field number from the input
      *
@@ -458,6 +728,11 @@ public final class ProtoParserTools {
      * @return the read tag
      */
     public static int readNextFieldNumber(final ReadableSequentialData input) {
+        final int tag = input.readVarInt(false);
+        return tag >> TAG_FIELD_OFFSET;
+    }
+
+    public static int readNextFieldNumber(PbjReader input) {
         final int tag = input.readVarInt(false);
         return tag >> TAG_FIELD_OFFSET;
     }

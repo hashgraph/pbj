@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime;
 
 import static java.lang.Character.*;
 
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -11,6 +12,31 @@ import java.io.IOException;
  * UTF8 tools based on protobuf standard library, so we are byte for byte identical
  */
 public final class Utf8Tools {
+
+    // return length or 0 on error
+    static int encodedLength(String sz) {
+        if (sz == null) return 0;
+        int count = 0;
+        for (int i = 0; i < sz.length(); i++) {
+            char c = sz.charAt(i);
+            if (c < 0x80) {
+                count += 1;
+            } else if (c < 0x800) {
+                count += 2;
+            } else if (c < 0xD800 || c >= 0xE000) {
+                count += 3;
+            } else if (c <= 0xDBFF) { // high surrogate: D800–DBFF
+                if (i + 1 >= sz.length()) return 0;
+                char low = sz.charAt(i + 1);
+                if (low < 0xDC00 || low > 0xDFFF) return 0;
+                i++;
+                count += 4;
+            } else {
+                return 0;
+            }
+        }
+        return count;
+    }
 
     /**
      * Returns the number of bytes in the UTF-8-encoded form of {@code sequence}. For a string, this
@@ -113,6 +139,10 @@ public final class Utf8Tools {
                         (byte) (0x80 | (0x3F & codePoint)));
             }
         }
+    }
+
+    static void WriteUTF8(String str, PbjWriter out) {
+        out.writeStringWithTag(str);
     }
 
     /**

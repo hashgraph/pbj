@@ -11,6 +11,8 @@ import com.hedera.pbj.integration.NonSynchronizedByteArrayInputStream;
 import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -63,6 +65,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
         private ByteBuffer protobufByteBufferDirect;
         private BufferedData protobufDataBufferDirect;
         private NonSynchronizedByteArrayInputStream bin;
+        private PbjReader pbjProtobufDataBuffer;
 
         // output buffers
         private NonSynchronizedByteArrayOutputStream bout;
@@ -71,6 +74,7 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
         private ByteBuffer bbout;
         private ByteBuffer bboutDirect;
         private byte[] outArray;
+        private PbjWriter outPbjWriter;
 
         public void configure(
                 P pbjModelObject,
@@ -85,11 +89,9 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                 this.googleByteBufferParseMethod = googleByteBufferParseMethod;
                 this.googleInputStreamParseMethod = googleInputStreamParseMethod;
                 // write to temp data buffer and then read into byte array
-                BufferedData tempDataBuffer = BufferedData.allocate(5 * 1024 * 1024);
+                PbjWriter tempDataBuffer = new PbjWriter(5 << 20, false);
                 pbjCodec.write(pbjModelObject, tempDataBuffer);
-                tempDataBuffer.flip();
-                this.protobuf = new byte[(int) tempDataBuffer.remaining()];
-                tempDataBuffer.readBytes(this.protobuf);
+                this.protobuf = tempDataBuffer.toByteArray();
                 // start by parsing using protoc
                 this.googleModelObject = googleByteArrayParseMethod.parse(this.protobuf);
 
@@ -101,12 +103,15 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
                 this.protobufDataBufferDirect = BufferedData.wrap(this.protobufByteBufferDirect);
                 this.bin = new NonSynchronizedByteArrayInputStream(this.protobuf);
                 ReadableStreamingData din = new ReadableStreamingData(this.bin);
+                this.pbjProtobufDataBuffer = new PbjReader(this.protobuf);
+
                 // output buffers
                 this.bout = new NonSynchronizedByteArrayOutputStream();
                 WritableStreamingData dout = new WritableStreamingData(this.bout);
                 this.outArray = new byte[this.protobuf.length * 2]; // make sure big enough
                 this.outDataBuffer = BufferedData.allocate(this.protobuf.length);
                 this.outDataBufferDirect = BufferedData.allocateOffHeap(this.protobuf.length);
+                this.outPbjWriter = new PbjWriter(this.protobuf.length, false);
                 this.bbout = ByteBuffer.allocate(this.protobuf.length);
                 this.bboutDirect = ByteBuffer.allocateDirect(this.protobuf.length);
             } catch (IOException e) {
@@ -120,38 +125,10 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
     /** Same as parsePbjByteBuffer because DataBuffer.wrap(byte[]) uses ByteBuffer today, added this because makes result plotting easier */
     @Benchmark
     @OperationsPerInvocation(OPERATION_COUNT)
-    public void parsePbjByteArray(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
+    public void parsePbjReaderArray(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
         for (int i = 0; i < OPERATION_COUNT; i++) {
-            benchmarkState.protobufDataBuffer.resetPosition();
-            blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBuffer));
-        }
-    }
-
-    @Benchmark
-    @OperationsPerInvocation(OPERATION_COUNT)
-    public void parsePbjByteBuffer(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
-        for (int i = 0; i < OPERATION_COUNT; i++) {
-            benchmarkState.protobufDataBuffer.resetPosition();
-            blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBuffer));
-        }
-    }
-
-    @Benchmark
-    @OperationsPerInvocation(OPERATION_COUNT)
-    public void parsePbjByteBufferDirect(BenchmarkState<P, G> benchmarkState, Blackhole blackhole)
-            throws ParseException {
-        for (int i = 0; i < OPERATION_COUNT; i++) {
-            benchmarkState.protobufDataBufferDirect.resetPosition();
-            blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBufferDirect));
-        }
-    }
-
-    @Benchmark
-    @OperationsPerInvocation(OPERATION_COUNT)
-    public void parsePbjInputStream(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
-        for (int i = 0; i < OPERATION_COUNT; i++) {
-            benchmarkState.bin.resetPosition();
-            blackhole.consume(benchmarkState.pbjCodec.parse(new ReadableStreamingData(benchmarkState.bin)));
+            benchmarkState.pbjProtobufDataBuffer.resetWith(benchmarkState.protobuf);
+            blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.pbjProtobufDataBuffer));
         }
     }
 
@@ -218,6 +195,16 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
             benchmarkState.outDataBufferDirect.reset();
             benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, benchmarkState.outDataBufferDirect);
             blackhole.consume(benchmarkState.outDataBufferDirect);
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(OPERATION_COUNT)
+    public void writePbjWriter(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws IOException {
+        for (int i = 0; i < OPERATION_COUNT; i++) {
+            benchmarkState.outPbjWriter.reset();
+            benchmarkState.pbjCodec.write(benchmarkState.pbjModelObject, benchmarkState.outPbjWriter);
+            blackhole.consume(benchmarkState.outPbjWriter);
         }
     }
 

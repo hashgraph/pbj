@@ -154,8 +154,8 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
      */
     @Override
     public void sendRequest(final RequestT request, final boolean endOfStream) {
-        final Bytes requestBytes = requestCodec.toBytes(request);
-        final Bytes bytes = GrpcCompression.getCompressor(grpcOutgoingEncoding).compress(requestBytes);
+        final Bytes wrappedInternalBytes = requestCodec.toBytesGetInternalWrapped(request);
+        final Bytes bytes = GrpcCompression.getCompressor(grpcOutgoingEncoding).compress(wrappedInternalBytes);
         PbjGrpcCall.networkBytesInspector.sent(bytes);
         final BufferData bufferData =
                 BufferData.create(PbjGrpcDatagramReader.PREFIX_LENGTH + Math.toIntExact(bytes.length()));
@@ -242,7 +242,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
 
                         try {
                             final ReplyT reply = replyCodec.parse(
-                                    replyBytes.toReadableSequentialData(),
+                                    replyBytes,
                                     false,
                                     false,
                                     Codec.DEFAULT_MAX_DEPTH,

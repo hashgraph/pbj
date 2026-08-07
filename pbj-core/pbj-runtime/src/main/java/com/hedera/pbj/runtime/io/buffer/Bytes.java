@@ -5,6 +5,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.hashing.XXH3_64;
 import com.hedera.pbj.runtime.io.DataEncodingException;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.UnsafeUtils;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
@@ -372,6 +374,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         wsd.writeBytes(buffer, start, length);
     }
 
+    public void writeTo(@NonNull PbjWriter wsd) {
+        wsd.writeBytes(buffer, start, length);
+    }
     /**
      * A helper method for efficient copy of our data into an WritableSequentialData without creating a defensive copy
      * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
@@ -483,6 +488,11 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     @NonNull
     public ReadableSequentialData toReadableSequentialData() {
         return new RandomAccessSequenceAdapter(this);
+    }
+
+    @NonNull
+    public PbjReader toPbjReader() {
+        return new PbjReader(this);
     }
 
     /**
@@ -757,6 +767,26 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         byte[] ret = new byte[len];
         getBytes(offset, ret);
         return ret;
+    }
+
+    /**
+     * Returns the raw backing byte array. The logical content starts at {@link #arrayOffset()} and spans
+     * {@link #length()} bytes. Mutating the returned array breaks the immutability contract of this class.
+     *
+     * @return the internal backing byte array
+     */
+    @NonNull
+    public byte[] array() {
+        return buffer;
+    }
+
+    /**
+     * Returns the offset within {@link #array()} where the logical content of this {@link Bytes} begins.
+     *
+     * @return start offset into the backing array
+     */
+    public int arrayOffset() {
+        return start;
     }
 
     private void validateOffset(final long offset) {

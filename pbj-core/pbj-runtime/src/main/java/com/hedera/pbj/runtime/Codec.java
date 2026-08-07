@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 
 /**
@@ -16,6 +18,18 @@ import java.io.UncheckedIOException;
  * @param <T> The type of object to serialize and deserialize
  */
 public interface Codec<T> {
+    class WriteCache {
+        PbjWriter writer = new PbjWriter();
+        boolean inUse = false;
+    }
+
+    class ReadCache {
+        PbjReader reader = new PbjReader(Bytes.EMPTY);
+        boolean inUse = false;
+    }
+
+    ThreadLocal<WriteCache> tlsWriter = ThreadLocal.withInitial(WriteCache::new);
+    ThreadLocal<ReadCache> tlsReader = ThreadLocal.withInitial(ReadCache::new);
 
     /**
      * The default maximum size of a repeated or length-encoded field (Bytes, String, Message, etc.).
@@ -62,13 +76,44 @@ public interface Codec<T> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull
-    T parse(
+    default @NonNull T parse(
             @NonNull ReadableSequentialData input,
             boolean strictMode,
             boolean parseUnknownFields,
             int maxDepth,
             int maxSize)
+            throws ParseException {
+        return wrapParse(input, strictMode, parseUnknownFields, maxDepth, maxSize);
+    }
+
+    default @NonNull T wrapParse(
+            @NonNull ReadableSequentialData input,
+            boolean strictMode,
+            boolean parseUnknownFields,
+            int maxDepth,
+            int maxSize)
+            throws ParseException {
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            PbjReader reader = new PbjReader(input);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        }
+        cache.inUse = true;
+        try {
+            PbjReader reader = cache.reader;
+            reader.resetWith(input);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        } finally {
+            cache.inUse = false;
+        }
+    }
+
+    @NonNull
+    T parse(@NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException;
 
     /**
@@ -96,6 +141,17 @@ public interface Codec<T> {
     @NonNull
     default T parse(@NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
+        return wrapParse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+    }
+
+    default T parse(@NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
+        return parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+    }
+
+    @NonNull
+    default T parse(@NonNull Bytes input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
         return parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
     }
     /**
@@ -119,7 +175,91 @@ public interface Codec<T> {
     @NonNull
     default T parse(@NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth)
             throws ParseException {
+        return wrapParse(input, strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
+    }
+
+    @NonNull
+    default T parse(@NonNull PbjReader input, final boolean strictMode, final int maxDepth) throws ParseException {
         return parse(input, strictMode, false, maxDepth);
+    }
+
+    @NonNull
+    default T parseAndThrow(@NonNull PbjReader input, final boolean strictMode, final int maxDepth)
+            throws ParseException {
+        T res = parse(input, strictMode, false, maxDepth);
+        input.throwOnError();
+        return res;
+    }
+
+    /**
+     * Parses an object from the {@link PbjReader} and returns it.
+     *
+     * @param input The {@link PbjReader} from which to read the data to construct an object
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    @NonNull
+    default T parse(@NonNull ReadableSequentialData input) throws ParseException {
+        return wrapParse(input, false, false, DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE);
+    }
+
+    @NonNull
+    default T parse(@NonNull PbjReader input) throws ParseException {
+        return parse(input, false, DEFAULT_MAX_DEPTH);
+    }
+
+    @NonNull
+    default T parse(@NonNull InputStream in) throws ParseException {
+        return parse(in, false, DEFAULT_MAX_DEPTH);
+    }
+
+    @NonNull
+    default T parse(@NonNull InputStream in, boolean strictMode, int maxDepth) throws ParseException {
+        return parse(in, strictMode, false, maxDepth);
+    }
+
+    @NonNull
+    default T parse(@NonNull InputStream in, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
+        return parse(in, strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
+    }
+
+    @NonNull
+    default T parse(@NonNull InputStream in, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+            throws ParseException {
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            PbjReader reader = new PbjReader(in);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        }
+        cache.inUse = true;
+        try {
+            PbjReader reader = cache.reader;
+            reader.resetWith(in);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        } finally {
+            cache.inUse = false;
+        }
+    }
+
+    /**
+     * Parses an object from the {@link Bytes} and returns it.
+     *
+     * @param bytes The {@link Bytes} from which to read the data to construct an object
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    @NonNull
+    default T parse(@NonNull Bytes bytes) throws ParseException {
+        return parse(bytes, false, DEFAULT_MAX_DEPTH);
+    }
+
+    default T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
+        return parse(bytes, strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
     }
 
     /**
@@ -140,33 +280,46 @@ public interface Codec<T> {
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
-    @NonNull
-    default T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
-        return parse(bytes.toReadableSequentialData(), strictMode, maxDepth);
+    default T parse(@NonNull Bytes bytes, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+            throws ParseException {
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            PbjReader reader = new PbjReader(bytes);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        }
+        cache.inUse = true;
+        try {
+            PbjReader reader = cache.reader;
+            reader.resetWith(bytes);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        } finally {
+            cache.inUse = false;
+        }
     }
 
-    /**
-     * Parses an object from the {@link ReadableSequentialData} and returns it.
-     *
-     * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
-     * @return The parsed object. It must not return null.
-     * @throws ParseException If parsing fails
-     */
-    @NonNull
-    default T parse(@NonNull ReadableSequentialData input) throws ParseException {
-        return parse(input, false, DEFAULT_MAX_DEPTH);
-    }
-
-    /**
-     * Parses an object from the {@link Bytes} and returns it.
-     *
-     * @param bytes The {@link Bytes} from which to read the data to construct an object
-     * @return The parsed object. It must not return null.
-     * @throws ParseException If parsing fails
-     */
-    @NonNull
-    default T parse(@NonNull Bytes bytes) throws ParseException {
-        return parse(bytes.toReadableSequentialData());
+    default T parse(@NonNull byte[] bytes, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+            throws ParseException {
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            PbjReader reader = new PbjReader(bytes);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        }
+        cache.inUse = true;
+        try {
+            PbjReader reader = cache.reader;
+            reader.resetWith(bytes);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        } finally {
+            cache.inUse = false;
+        }
     }
 
     /**
@@ -182,9 +335,13 @@ public interface Codec<T> {
      */
     @NonNull
     default T parseStrict(@NonNull ReadableSequentialData input) throws ParseException {
-        return parse(input, true, DEFAULT_MAX_DEPTH);
+        return wrapParse(input, true, false, DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE);
     }
 
+    @NonNull
+    default T parseStrict(@NonNull PbjReader input) throws ParseException {
+        return parse(input, true, DEFAULT_MAX_DEPTH);
+    }
     /**
      * Parses an object from the {@link Bytes} and returns it. Throws an exception if fields
      * have been defined on the encoded object that are not supported by the parser. This
@@ -198,7 +355,12 @@ public interface Codec<T> {
      */
     @NonNull
     default T parseStrict(@NonNull Bytes bytes) throws ParseException {
-        return parseStrict(bytes.toReadableSequentialData());
+        return parse(bytes, true, DEFAULT_MAX_DEPTH);
+    }
+
+    @NonNull
+    default T parseStrict(@NonNull byte[] bytes) throws ParseException {
+        return parseStrict(Bytes.wrap(bytes));
     }
 
     /**
@@ -208,7 +370,25 @@ public interface Codec<T> {
      * @param output The {@link WritableSequentialData} to write to.
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
-    void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException;
+    void write(@NonNull T item, @NonNull PbjWriter output);
+
+    default void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+        WriteCache cache = tlsWriter.get();
+        if (cache.inUse) {
+            PbjWriter writer = new PbjWriter(output);
+            write(item, writer);
+            writer.flush();
+            return;
+        }
+        cache.inUse = true;
+        try {
+            cache.writer.resetWith(output);
+            write(item, cache.writer);
+            cache.writer.flush();
+        } finally {
+            cache.inUse = false;
+        }
+    }
 
     /**
      * Writes an item to the given byte array, this is a performance focused method. In non-performance centric use
@@ -222,13 +402,9 @@ public interface Codec<T> {
      * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
      */
     default int write(@NonNull T item, @NonNull byte[] output, final int startOffset) {
-        final BufferedData bufferedData = BufferedData.wrap(output, startOffset, output.length - startOffset);
-        try {
-            write(item, bufferedData);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return (int) bufferedData.position();
+        PbjWriter writer = new PbjWriter(output, startOffset);
+        write(item, writer);
+        return writer.position();
     }
 
     /**
@@ -240,8 +416,17 @@ public interface Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    int measure(@NonNull ReadableSequentialData input) throws ParseException;
+    default int measure(@NonNull PbjReader input) throws ParseException {
+        final long startPosition = input.position();
+        parse(input);
+        return (int) (input.position() - startPosition);
+    }
 
+    default int measure(@NonNull ReadableSequentialData input) throws ParseException {
+        final long startPosition = input.position();
+        wrapParse(input, false, false, DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE);
+        return (int) (input.position() - startPosition);
+    }
     /**
      * Compute number of bytes that would be written when calling {@code write()} method.
      *
@@ -262,26 +447,83 @@ public interface Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException;
+    boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException;
 
-    /**
-     * Converts a Record into a Bytes object
-     *
-     * @param item The input model data to convert into a Bytes object.
-     * @return The new Bytes object.
-     * @throws RuntimeException wrapping an IOException If it is impossible
-     * to write to the {@link WritableStreamingData}
-     */
-    default Bytes toBytes(@NonNull T item) {
-        // it is cheaper performance wise to measure the size of the object first than grow a buffer as needed
-        final byte[] bytes = new byte[measureRecord(item)];
-        final BufferedData bufferedData = BufferedData.wrap(bytes);
-        try {
-            write(item, bufferedData);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            PbjReader reader = new PbjReader(input);
+            boolean res = fastEquals(item, reader);
+            reader.throwOnError();
+            return res;
         }
-        return Bytes.wrap(bytes);
+        cache.inUse = true;
+        try {
+            PbjReader reader = cache.reader;
+            reader.resetWith(input);
+            boolean res = fastEquals(item, reader);
+            reader.throwOnError();
+            return res;
+        } finally {
+            cache.inUse = false;
+        }
+    }
+
+    default byte[] toByteArray(@NonNull T item) {
+        WriteCache cache = tlsWriter.get();
+        if (cache.inUse) {
+            int len = measureRecord(item);
+            PbjWriter writer = new PbjWriter(len, false);
+            write(item, writer);
+            return writer.toByteArray();
+        }
+        cache.inUse = true;
+        try {
+            cache.writer.resetWithNull();
+            write(item, cache.writer);
+            return cache.writer.toByteArray();
+        } finally {
+            cache.inUse = false;
+        }
+    }
+
+    default Bytes toBytes(@NonNull T item) {
+        WriteCache cache = tlsWriter.get();
+        if (cache.inUse) {
+            int len = measureRecord(item);
+            PbjWriter writer = new PbjWriter(len, false);
+            return toBytes(item, writer);
+        }
+        cache.inUse = true;
+        try {
+            cache.writer.resetWithNull();
+            return toBytes(item, cache.writer);
+        } finally {
+            cache.inUse = false;
+        }
+    }
+
+    default Bytes toBytes(@NonNull T item, PbjWriter writer) {
+        write(item, writer);
+        return writer.toByteArrayWrapped();
+    }
+
+    default Bytes toBytesGetInternalWrapped(@NonNull T item) {
+        WriteCache cache = tlsWriter.get();
+        if (cache.inUse) {
+            int len = measureRecord(item);
+            PbjWriter writer = new PbjWriter(len, false);
+            write(item, writer);
+            return writer.internalArrayWrapped();
+        }
+        cache.inUse = true;
+        try {
+            cache.writer.resetWithNull();
+            write(item, cache.writer);
+            return cache.writer.internalArrayWrapped();
+        } finally {
+            cache.inUse = false;
+        }
     }
 
     /**

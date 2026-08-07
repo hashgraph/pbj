@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
@@ -20,7 +21,7 @@ public interface JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
     default @NonNull T parse(
-            @NonNull ReadableSequentialData input,
+            @NonNull PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
@@ -65,6 +66,10 @@ public interface JsonCodec<T> extends Codec<T> {
         output.writeUTF8(toJSON(item));
     }
 
+    default void write(@NonNull T item, @NonNull PbjWriter output) {
+        output.writeStringNoTag(toJSON(item));
+    }
+
     /**
      * Returns JSON string representing an item.
      *
@@ -95,7 +100,7 @@ public interface JsonCodec<T> extends Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    default int measure(@NonNull ReadableSequentialData input) throws ParseException {
+    default int measure(@NonNull PbjReader input) throws ParseException {
         final long startPosition = input.position();
         parse(input);
         return (int) (input.position() - startPosition);
@@ -134,7 +139,7 @@ public interface JsonCodec<T> extends Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+    default boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException {
         return Objects.equals(item, parse(input));
     }
 
