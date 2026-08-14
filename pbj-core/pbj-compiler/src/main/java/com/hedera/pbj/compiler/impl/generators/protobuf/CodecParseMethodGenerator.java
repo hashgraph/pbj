@@ -180,7 +180,7 @@ class CodecParseMethodGenerator {
 
                             // Read the "tag" byte which gives us the field number for the next field to read
                             // and the wire type (way it is encoded on the wire).
-                            int $prefixtag = input.readVarInt(false);
+                            final int $prefixtag = input.readVarIntNoZZ();
 
                             // The field is the top 5 bits of the byte. Read this off
                             final int $prefixfield = $prefixtag >>> TAG_FIELD_OFFSET;
@@ -298,7 +298,7 @@ class CodecParseMethodGenerator {
 
         if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
-            divideAmount = 4;
+            divideAmount = 1;
             preRead = """
                     final int enumOrdinal = readEnum(input);
                     Object value = $enumName.fromProtobufOrdinal(enumOrdinal);
@@ -321,13 +321,13 @@ class CodecParseMethodGenerator {
 
         sbFunc.append("""
                 // Read the length of packed repeated field data
-                final int length = input.readVarInt(false);
+                final int length = input.readVarIntNoZZ();
                 if (length > $maxSize) {
                     input.setError(PbjReader.Parse, "$fieldName size " + length + " is greater than max " + $maxSize);
                     return $tempFieldName;
                 }
-                final var beforeLimit = input.limit();
-                final long beforePosition = input.position();
+                final var startLimit = input.limit();
+                final long startPosition = input.position();
                 input.limit(input.position() + length);
                 var list = new UnmodifiableArray$fieldType();
                 list.ensureCapacity(length$divideString);
@@ -335,8 +335,8 @@ class CodecParseMethodGenerator {
                     $preReadlist.add($readMethod);
                 }
                 $tempFieldName = list;
-                input.limit(beforeLimit);
-                if (input.position() != beforePosition + length) {
+                input.limit(startLimit);
+                if (input.position() != startPosition + length) {
                     input.setError(PbjReader.BufferUnderflow);
                 }""".replace("$tempFieldName", tempFieldName)
                 .replace("$preRead", preRead)
@@ -344,7 +344,7 @@ class CodecParseMethodGenerator {
                 .replace("$readMethod", field.type() == Field.FieldType.ENUM ? "value" : readMethod(field))
                 .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                 .replace("$fieldName", field.name())
-                .replace("$divideString", divideAmount == 1 ? "" : "/%s".formatted(divideAmount))
+                .replace("$divideString", divideAmount == 1 ? "" : "/%d".formatted(divideAmount))
                 .indent(DEFAULT_INDENT));
         sbCase.append("\n}\n");
         sbFunc.append("    return %s;\n    }\n".formatted(tempFieldName));
@@ -371,20 +371,20 @@ class CodecParseMethodGenerator {
         if (field.optionalValueType()) {
             sbCase.append("""
                             // Read the message size, it is not needed
-                            final var valueTypeMessageSize = input.readVarInt(false);
+                            final var valueTypeMessageSize = input.readVarIntNoZZ();
                             final $fieldType value;
                             if (valueTypeMessageSize > 0) {
-                                final var beforeLimit = input.limit();
+                                final var startLimit = input.limit();
                                 input.limit(input.position() + valueTypeMessageSize);
                                 // read inner tag
-                                final int valueFieldTag = input.readVarInt(false);
+                                final int valueFieldTag = input.readVarIntNoZZ();
                                 assert input.throwOnErrorOrTrue();
                                 // assert tag is as expected
                                 assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
                                 assert (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
                                 // read value
                                 value = $readMethod;
-                                input.limit(beforeLimit);
+                                input.limit(startLimit);
                             } else {
                                 // means optional is default value
                                 value = $defaultValue;
@@ -417,7 +417,7 @@ class CodecParseMethodGenerator {
         } else if (field.type() == Field.FieldType.MESSAGE) {
             // spotless:off
             sbCase.append("""
-                        final var messageLength = input.readVarInt(false);
+                        final var messageLength = input.readVarIntNoZZ();
                         final $fieldType value;
                         if (messageLength == 0) {
                             value = $fieldType.DEFAULT;
@@ -426,21 +426,21 @@ class CodecParseMethodGenerator {
                                 input.setError(PbjReader.Parse, "$fieldName size " + messageLength + " is greater than max " + $maxSize);
                                 return null;
                             }
-                            final var limitBefore = input.limit();
+                            final var startLimit = input.limit();
                             // Make sure that we have enough bytes in the message
                             // to read the subObject.
                             // If the buffer is truncated on the boundary of a subObject,
                             // we will not throw.
-                            final var startPos = input.position();
-                            if ((startPos + messageLength) > limitBefore) {
+                            final var startPosition = input.position();
+                            if ((startPosition + messageLength) > startLimit) {
                                 input.setError(PbjReader.BufferUnderflow);
                                 return null;
                             }
-                            input.limit(startPos + messageLength);
+                            input.limit(startPosition + messageLength);
                             value = $readMethod;
-                            input.limit(limitBefore);
+                            input.limit(startLimit);
                             // Make sure we read the full number of bytes. for the types
-                            if ((startPos + messageLength) != input.position()) {
+                            if ((startPosition + messageLength) != input.position()) {
                                 input.setError(PbjReader.BufferOverflow);
                                 return null;
                             }
@@ -462,7 +462,7 @@ class CodecParseMethodGenerator {
                     generateCaseStatements(sbFunc, mapEntryFields, schemaClassName), "map_entry_", schemaClassName);
             // spotless:off
             sbCase.append("""
-                        final var __map_messageLength = input.readVarInt(false);
+                        final var __map_messageLength = input.readVarIntNoZZ();
                         
                         $fieldDefs
                         if (__map_messageLength != 0) {

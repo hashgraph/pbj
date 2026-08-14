@@ -154,7 +154,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
      */
     @Override
     public void sendRequest(final RequestT request, final boolean endOfStream) {
-        final Bytes wrappedInternalBytes = requestCodec.toBytesGetInternalWrapped(request);
+        final Bytes wrappedInternalBytes = requestCodec.toBytesUnsafeWrapped(request);
         final Bytes bytes = GrpcCompression.getCompressor(grpcOutgoingEncoding).compress(wrappedInternalBytes);
         PbjGrpcCall.networkBytesInspector.sent(bytes);
         final BufferData bufferData =

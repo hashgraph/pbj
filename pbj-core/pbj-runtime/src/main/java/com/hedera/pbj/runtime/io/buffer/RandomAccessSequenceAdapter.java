@@ -61,18 +61,18 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData, ByteA
     // ByteArraySequentialData Methods
 
     @Override
-    public byte[] byteArray() {
-        return delegate instanceof Bytes b ? b.array() : null;
+    public byte[] byteArrayUnsafe() {
+        return delegate instanceof Bytes b ? b.arrayUnsafe() : null;
     }
 
     @Override
-    public int byteArrayOffset() {
-        return delegate instanceof Bytes b ? b.arrayOffset() + (int) (start + position) : 0;
+    public int byteArrayUnsafeOffset() {
+        return delegate instanceof Bytes b ? b.arrayUnsafeOffset() + (int) (start + position) : 0;
     }
 
     @Override
-    public int byteArrayEnd() {
-        return delegate instanceof Bytes b ? b.arrayOffset() + (int) (start + limit) : 0;
+    public int byteArrayUnsafeEnd() {
+        return delegate instanceof Bytes b ? b.arrayUnsafeOffset() + (int) (start + limit) : 0;
     }
 
     // ================================================================================================================

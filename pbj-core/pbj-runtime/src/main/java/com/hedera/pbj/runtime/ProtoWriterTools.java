@@ -1121,7 +1121,7 @@ public final class ProtoWriterTools {
         }
         int size = out.position() - pos - 1;
         if (size <= 0x7F) {
-            out.writeAt(pos, (byte) size);
+            out.writeAtUnsafe(pos, (byte) size);
         } else {
             out.reinsertVarInt(pos);
         }
@@ -1154,8 +1154,8 @@ public final class ProtoWriterTools {
             out.writeVarIntNoZZ(list.get(i));
         }
         int size = out.position() - pos - 2;
-        out.writeAt(pos, (byte) ((size & 0x7F) | 0x80));
-        out.writeAt(pos + 1, (byte) (size >>> 7));
+        out.writeAtUnsafe(pos, (byte) ((size & 0x7F) | 0x80));
+        out.writeAtUnsafe(pos + 1, (byte) (size >>> 7));
     }
 
     private static void writeUInt32List(PbjWriter out, List<Integer> list) {
@@ -1172,7 +1172,7 @@ public final class ProtoWriterTools {
         }
         int size = out.position() - pos - 1;
         if (size <= 0x7F) {
-            out.writeAt(pos, (byte) size);
+            out.writeAtUnsafe(pos, (byte) size);
         } else {
             out.reinsertVarInt(pos);
         }
@@ -1204,8 +1204,8 @@ public final class ProtoWriterTools {
             out.writeVarLongNoZZ(Integer.toUnsignedLong(list.get(i)));
         }
         int size = out.position() - pos - 2;
-        out.writeAt(pos, (byte) ((size & 0x7F) | 0x80));
-        out.writeAt(pos + 1, (byte) (size >>> 7));
+        out.writeAtUnsafe(pos, (byte) ((size & 0x7F) | 0x80));
+        out.writeAtUnsafe(pos + 1, (byte) (size >>> 7));
     }
 
     private static void writeSInt32List(PbjWriter out, List<Integer> list) {
@@ -1222,7 +1222,7 @@ public final class ProtoWriterTools {
         }
         int size = out.position() - pos - 1;
         if (size <= 0x7F) {
-            out.writeAt(pos, (byte) size);
+            out.writeAtUnsafe(pos, (byte) size);
         } else {
             out.reinsertVarInt(pos);
         }
@@ -1255,8 +1255,8 @@ public final class ProtoWriterTools {
             out.writeVarIntZZ(list.get(i));
         }
         int size = out.position() - pos - 2;
-        out.writeAt(pos, (byte) ((size & 0x7F) | 0x80));
-        out.writeAt(pos + 1, (byte) (size >>> 7));
+        out.writeAtUnsafe(pos, (byte) ((size & 0x7F) | 0x80));
+        out.writeAtUnsafe(pos + 1, (byte) (size >>> 7));
     }
 
     private static void writeFixed32List(PbjWriter out, List<Integer> list) {

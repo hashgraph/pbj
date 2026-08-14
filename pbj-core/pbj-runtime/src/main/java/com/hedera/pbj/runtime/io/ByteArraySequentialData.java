@@ -8,11 +8,11 @@ package com.hedera.pbj.runtime.io;
  */
 public interface ByteArraySequentialData {
     /** The raw backing byte array. */
-    byte[] byteArray();
+    byte[] byteArrayUnsafe();
 
-    /** Absolute index within {@link #byteArray()} where currently readable data begins. */
-    int byteArrayOffset();
+    /** Absolute index within {@link #byteArrayUnsafe()} where currently readable data begins. */
+    int byteArrayUnsafeOffset();
 
-    /** Absolute exclusive index within {@link #byteArray()} where currently readable data ends. */
-    int byteArrayEnd();
+    /** Absolute exclusive index within {@link #byteArrayUnsafe()} where currently readable data ends. */
+    int byteArrayUnsafeEnd();
 }

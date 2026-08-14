@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 public class PbjReaderWriterTest {
@@ -183,15 +184,15 @@ public class PbjReaderWriterTest {
         }
         assertEquals(128, writer.position());
         assertEquals(bytes, writer.internalArray());
-        assertEquals(bytes, writer.internalArrayWrapped().array());
+        assertEquals(bytes, writer.internalArrayWrapped().arrayUnsafe());
         byte[] arr1 = writer.toByteArray();
         assertNotEquals(bytes, arr1);
         Bytes arr2 = writer.toByteArrayWrapped();
         assertNotEquals(bytes, arr1);
-        assertNotEquals(bytes, arr2.array());
+        assertNotEquals(bytes, arr2.arrayUnsafe());
         for (int i = 0; i < 128; i++) {
             assertEquals(i, arr1[i]);
-            assertEquals(i, arr2.array()[i]);
+            assertEquals(i, arr2.arrayUnsafe()[i]);
         }
     }
 
@@ -340,19 +341,19 @@ public class PbjReaderWriterTest {
         for (int v : values) {
             writer.reset();
             writer.writeVarInt(v, true);
-            assertEquals(v, writer.toPbjReader().readVarInt(true), "Failed for value " + v);
+            assertEquals(v, writer.toPbjReader().readVarIntZZ(), "Failed for value " + v);
 
             writer.reset();
             writer.writeVarInt(v, false);
-            assertEquals(v, writer.toPbjReader().readVarInt(false), "Failed for value " + v);
+            assertEquals(v, writer.toPbjReader().readVarIntNoZZ(), "Failed for value " + v);
 
             writer.reset();
             writer.writeVarIntZZ(v);
-            assertEquals(v, writer.toPbjReader().readVarInt(true), "Failed for value " + v);
+            assertEquals(v, writer.toPbjReader().readVarIntZZ(), "Failed for value " + v);
 
             writer.reset();
             writer.writeVarIntNoZZ(v);
-            assertEquals(v, writer.toPbjReader().readVarInt(false), "Failed for value " + v);
+            assertEquals(v, writer.toPbjReader().readVarIntNoZZ(), "Failed for value " + v);
         }
     }
 
@@ -363,20 +364,20 @@ public class PbjReaderWriterTest {
         for (long v : values) {
             writer.reset();
             writer.writeVarLong(v, true);
-            assertEquals(v, writer.toPbjReader().readVarLong(true), "Failed for value " + v);
+            assertEquals(v, writer.toPbjReader().readVarLongZZ(), "Failed for value " + v);
 
             writer.reset();
             writer.writeVarLong(v, false);
-            assertEquals(v, writer.toPbjReader().readVarLong(false), "Failed for value " + v);
+            assertEquals(v, writer.toPbjReader().readVarLongNoZZ(), "Failed for value " + v);
 
             writer.reset();
             writer.writeVarLongZZ(v);
-            assertEquals(v, writer.toPbjReader().readVarLong(true), "Failed for value " + v);
+            assertEquals(v, writer.toPbjReader().readVarLongZZ(), "Failed for value " + v);
 
             writer.reset();
             writer.writeVarLongNoZZ(v);
             int noZZLen = writer.position();
-            assertEquals(v, writer.toPbjReader().readVarLong(false), "Failed for value " + v);
+            assertEquals(v, writer.toPbjReader().readVarLongNoZZ(), "Failed for value " + v);
 
             // edge test
             writer.reset();
@@ -856,6 +857,27 @@ public class PbjReaderWriterTest {
     }
 
     @Test
+    void largeWriteBypassCorrectness() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PbjWriter writer = new PbjWriter(out);
+
+        byte[] fewBytes = {1, 2, 3, 4, 5};
+        byte[] manyBytes = new byte[8_000];
+        Arrays.fill(manyBytes, (byte) 0x7F);
+
+        writer.writeBytes(fewBytes);
+        writer.writeBytes(manyBytes);
+        writer.flush();
+
+        byte[] expected = new byte[fewBytes.length + manyBytes.length];
+        System.arraycopy(fewBytes, 0, expected, 0, fewBytes.length);
+        System.arraycopy(manyBytes, 0, expected, fewBytes.length, manyBytes.length);
+
+        assertArrayEquals(expected, out.toByteArray(),
+                "Buffered prefix bytes must not be dropped when a large payload bypasses the buffer");
+    }
+
+    @Test
     void writeBytesArrayFastPathBoundaryWithOutputStream() {
 
         {
@@ -1060,18 +1082,6 @@ public class PbjReaderWriterTest {
     }
 
     @Test
-    void bufferToEOFBuffersAllStreamedData() {
-        // bufferToEOF doubles the internal buffer capacity each iteration (L201-202)
-        // until the stream is exhausted, then all data is readable in one pass.
-        byte[] data = {1, 2, 3, 4, 5, 6, 7, 8};
-        PbjReader reader = new PbjReader(new ByteArrayInputStream(data));
-        reader.bufferToEOF();
-        assertEquals(0x01020304, reader.readIntBE());
-        assertEquals(0x05060708, reader.readIntBE());
-        assertFalse(reader.hasRemaining());
-    }
-
-    @Test
     void bufferMoreBeyondAbsoluteLimitSetsBufferUnderflow() {
         PbjReader reader = new PbjReader(new ByteArrayInputStream(new byte[] {1, 2, 3, 4, 5}));
         reader.limit(3);
@@ -1121,7 +1131,7 @@ public class PbjReaderWriterTest {
         byte[] malformed = new byte[16];
         for (int i = 0; i < 16; i++) malformed[i] = (byte) 0xFF;
         PbjReader reader = new PbjReader(malformed);
-        reader.readVarLong(false);
+        reader.readVarLongNoZZ();
         assertEquals(PbjReader.DataEncoding, reader.error());
         reader.resetWith(malformed);
         reader.readVarLongBytes();
@@ -1197,7 +1207,7 @@ public class PbjReaderWriterTest {
         PbjWriter writer = new PbjWriter();
         writer.writeStringWithTag(str);
         PbjReader reader = writer.toPbjReader();
-        assertEquals(len, reader.readVarInt(false));
+        assertEquals(len, reader.readVarIntNoZZ());
         assertEquals(0, reader.error());
     }
 

@@ -83,7 +83,7 @@ public final class ProtoParserTools {
     }
 
     public static int readInt32(PbjReader input) {
-        return input.readVarInt(false);
+        return input.readVarIntNoZZ();
     }
 
     /**
@@ -97,7 +97,7 @@ public final class ProtoParserTools {
     }
 
     public static long readInt64(PbjReader input) {
-        return input.readVarLong(false);
+        return input.readVarLongNoZZ();
     }
 
     /**
@@ -111,7 +111,7 @@ public final class ProtoParserTools {
     }
 
     public static int readUint32(PbjReader input) {
-        return input.readVarInt(false);
+        return input.readVarIntNoZZ();
     }
 
     /**
@@ -125,7 +125,7 @@ public final class ProtoParserTools {
     }
 
     public static long readUint64(PbjReader input) {
-        return input.readVarLong(false);
+        return input.readVarLongNoZZ();
     }
     /**
      * Read a protobuf bool from input
@@ -143,7 +143,7 @@ public final class ProtoParserTools {
     }
 
     public static boolean readBool(PbjReader input) {
-        final var i = input.readVarInt(false);
+        final var i = input.readVarIntNoZZ();
         if (i != 1 && i != 0) {
             input.setError(PbjReader.DataEncoding);
         }
@@ -161,7 +161,7 @@ public final class ProtoParserTools {
     }
 
     public static int readEnum(PbjReader input) {
-        return input.readVarInt(false);
+        return input.readVarIntNoZZ();
     }
     /**
      * Read a protobuf sint32 from input
@@ -174,7 +174,7 @@ public final class ProtoParserTools {
     }
 
     public static int readSignedInt32(PbjReader input) {
-        return input.readVarInt(true);
+        return input.readVarIntZZ();
     }
 
     /**
@@ -188,7 +188,7 @@ public final class ProtoParserTools {
     }
 
     public static long readSignedInt64(PbjReader input) {
-        return input.readVarLong(true);
+        return input.readVarLongZZ();
     }
 
     /**
@@ -330,7 +330,7 @@ public final class ProtoParserTools {
         }
     }
 
-    static int fromUTF8Tail(char[] dst, int di, byte[] src, int i, int endPos) {
+    private static int fromUTF8Tail(char[] dst, int di, byte[] src, int i, int endPos) {
         while (i < endPos) {
             int a = src[i];
             if ((a & 0x80) == 0) {
@@ -388,6 +388,24 @@ public final class ProtoParserTools {
         return di;
     }
 
+    /**
+     * Decodes UTF-8 bytes from {@code src} into the {@code char[]} destination, supporting all
+     * four UTF-8 byte widths (1–4 bytes). Codepoints above U+FFFF are written as surrogate pairs.
+     * Prefer using the simpler {@link #readString} function.
+     *
+     * <p>Decoding starts at {@code src[offset + pos]} and continues until {@code src[offset + length]}.
+     * The main loop keeps a 4-byte lookahead (exits when fewer than 5 bytes remain), delegating
+     * the final bytes to {@link #fromUTF8Tail}. Any unrecognised byte sequence returns {@code -1}.
+     *
+     * @param dst    the destination char array, written starting at index {@code pos}
+     * @param src    the source byte array containing UTF-8 data
+     * @param offset the base index within {@code src} where the UTF-8 region begins
+     * @param pos    bytes already decoded by the ASCII fast path; doubles as the read offset
+     *               (relative to {@code offset}) and the initial write index in {@code dst}
+     * @param length the total byte length of the UTF-8 region in {@code src} starting at {@code offset}
+     * @return the total number of {@code char}s written to {@code dst}, or {@code -1} if the
+     *         input contains an illegal byte sequence (surrogate range or out-of-range codepoint)
+     */
     public static int fromUTF8(char[] dst, byte[] src, int offset, int pos, int length) {
         int i = offset + pos;
         int di = pos;
@@ -477,7 +495,7 @@ public final class ProtoParserTools {
     }
 
     public static Bytes readBytes(PbjReader input, final long maxSize) {
-        final int length = input.readVarInt(false);
+        final int length = input.readVarIntNoZZ();
         if (length > maxSize || length < 0) {
             input.setError(PbjReader.Parse);
             return Bytes.EMPTY;
@@ -555,14 +573,14 @@ public final class ProtoParserTools {
             throw new IllegalArgumentException("Cannot extract field bytes for a non-length-delimited field: " + field);
         }
         while (input.hasRemaining()) {
-            final int tag = input.readVarInt(false);
+            final int tag = input.readVarIntNoZZ();
             final int fieldNum = tag >> TAG_FIELD_OFFSET;
             final ProtoConstants wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
             if (fieldNum == field.number()) {
                 if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
                     input.setError(PbjReader.Parse);
                 }
-                final int length = input.readVarInt(false);
+                final int length = input.readVarIntNoZZ();
                 return input.readBytes(length);
             } else {
                 skipField(input, wireType);
@@ -704,9 +722,9 @@ public final class ProtoParserTools {
             // The value for "zigZag" when calling varint doesn't matter because we are just reading past
             // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
             // the bytes, not how many of them there are)
-            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLongNoZZ();
             case WIRE_TYPE_DELIMITED -> {
-                final int length = input.readVarInt(false);
+                final int length = input.readVarIntNoZZ();
                 if (length < 0) {
                     input.setError(PbjReader.IOError);
                 }
@@ -733,7 +751,7 @@ public final class ProtoParserTools {
     }
 
     public static int readNextFieldNumber(PbjReader input) {
-        final int tag = input.readVarInt(false);
+        final int tag = input.readVarIntNoZZ();
         return tag >> TAG_FIELD_OFFSET;
     }
 }

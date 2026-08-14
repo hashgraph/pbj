@@ -14,7 +14,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
 /**
- * A buffer-backed reader for decoding data.
+ * A buffer-backed reader for decoding data. Not thread safe.
  *
  * <p>PbjReader maintains an internal byte buffer and reads from a {@link ReadableSequentialData},
  * {@link InputStream}, or a byte array. When backed by a stream the internal buffer is refilled
@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
  * <p>Errors are tracked internally rather than thrown immediately. Call {@link #error()} to check
  * for a pending error code, or {@link #throwOnError()} to surface it as a {@link ParseException}.
  * Once an error is set it is sticky — subsequent reads return default values (zero or empty).
+ * EOF is not an error and will return 0 when error() is called.
+ * ByteBuffer using a direct buffer is not supported
  */
 public class PbjReader {
     private byte[] buf;
@@ -36,7 +38,7 @@ public class PbjReader {
     private byte[] ownedBuf;
 
     private char[] charArray;
-    private final boolean useStacktrace =
+    private static final boolean useStacktrace =
             !"false".equalsIgnoreCase(System.getProperty("pbj.ReaderWriter.useStackTrace"));
 
     public static final int EOF = -1,
@@ -95,19 +97,17 @@ public class PbjReader {
      */
     public void resetWith(byte[] buffer, int position, int endPosition) {
         err = 0;
+        offset = 0;
         cause = null;
         includeCause = false;
         rsd = null;
         stream = null;
         construct(buffer, position, endPosition);
-        offset = 0;
-        relLimit = end;
-        absoluteLimit = end;
     }
 
     private void construct(ReadableSequentialData seq, InputStream inputStream) {
-        if (seq instanceof ByteArraySequentialData ba && ba.byteArray() != null) {
-            construct(ba.byteArray(), ba.byteArrayOffset(), ba.byteArrayEnd());
+        if (seq instanceof ByteArraySequentialData ba && ba.byteArrayUnsafe() != null) {
+            construct(ba.byteArrayUnsafe(), ba.byteArrayUnsafeOffset(), ba.byteArrayUnsafeEnd());
             return;
         } else if (seq != null) {
             rsd = seq;
@@ -128,8 +128,8 @@ public class PbjReader {
             return;
         }
 
-        if (seq instanceof ByteArraySequentialData ba && ba.byteArray() != null) {
-            resetWith(ba.byteArray(), ba.byteArrayOffset(), ba.byteArrayEnd());
+        if (seq instanceof ByteArraySequentialData ba && ba.byteArrayUnsafe() != null) {
+            resetWith(ba.byteArrayUnsafe(), ba.byteArrayUnsafeOffset(), ba.byteArrayUnsafeEnd());
             return;
         }
         if (seq != null) {
@@ -183,7 +183,7 @@ public class PbjReader {
 
     /** Creates a reader backed by the given {@link Bytes}. */
     public PbjReader(Bytes bytes) {
-        construct(bytes.array(), bytes.arrayOffset(), bytes.arrayOffset() + (int) bytes.length());
+        construct(bytes.arrayUnsafe(), bytes.arrayUnsafeOffset(), bytes.arrayUnsafeOffset() + (int) bytes.length());
     }
 
     /** Resets this reader to read from the given {@link ReadableSequentialData}. */
@@ -205,35 +205,7 @@ public class PbjReader {
     }
     /** Resets this reader to read from the given {@link Bytes}. */
     public void resetWith(Bytes bytes) {
-        resetWith(bytes.array(), bytes.arrayOffset(), bytes.arrayOffset() + (int) bytes.length());
-    }
-
-    /**
-     * Reads all remaining input into the internal buffer, growing it as needed, until EOF is reached.
-     */
-    public void bufferToEOF() {
-        while (err == 0) {
-            offset += pos;
-            int power2Capacity = 2 << (63 - Long.numberOfLeadingZeros(buf.length));
-            var newBuf = new byte[power2Capacity];
-            if (pos < end) {
-                int moveLen = end - pos;
-                System.arraycopy(buf, pos, newBuf, 0, moveLen);
-                end = moveLen;
-            } else {
-                end = 0;
-            }
-            buf = newBuf;
-            pos = 0;
-            int remLen = buf.length - end;
-            int rdlen = readFromInput(buf, end, remLen);
-            end += rdlen;
-            relLimit = (int) Math.min(absoluteLimit - offset, end);
-            if (rdlen == 0) {
-                seenEOF = true;
-                err = EOF;
-            }
-        }
+        resetWith(bytes.arrayUnsafe(), bytes.arrayUnsafeOffset(), bytes.arrayUnsafeOffset() + (int) bytes.length());
     }
 
     private void bufferMore(int relAmount) {
@@ -338,8 +310,14 @@ public class PbjReader {
                 long remaining = count;
                 while (remaining > 0) {
                     long skipped = stream.skip(remaining);
-                    if (skipped <= 0) break;
-                    remaining -= skipped;
+                    if (skipped > 0) {
+                        remaining -= skipped;
+                    } else {
+                        // Docs suggest skup can return 0 w/o reaching EOF
+                        int b = stream.read();
+                        if (b == -1) break;
+                        remaining--;
+                    }
                 }
                 if (remaining != 0) {
                     setError(BufferUnderflow);
@@ -353,8 +331,20 @@ public class PbjReader {
     }
 
     /**
-     * Reads a base-128 varint and returns its value as an {@code int}.
-     * On a malformed varint, sets {@link #DataEncoding} and returns {@code -1}; however,
+     * Reads a base-128 varint and returns its value as an {@code int} (no zigzag decoding).
+     * On a malformed varint, sets the error flag and returns {@code -1}; however,
+     * {@code -1} is also a valid decoded value, so callers must check {@link #error()} to
+     * distinguish an error from a legitimate result.
+     *
+     * @return the decoded integer value
+     */
+    public int readVarIntNoZZ() {
+        return (int) readVarLongNoZZ();
+    }
+
+    /**
+     * Reads a base-128 varint and returns its value as an {@code int}, with optional zigzag decoding.
+     * On a malformed varint, sets the error flag and returns {@code -1}; however,
      * {@code -1} is also a valid decoded value, so callers must check {@link #error()} to
      * distinguish an error from a legitimate result.
      *
@@ -363,6 +353,19 @@ public class PbjReader {
      */
     public int readVarInt(boolean zigZag) {
         return (int) readVarLong(zigZag);
+    }
+
+    /**
+     * Reads a base-128 varint and returns its zigzag-decoded value as an {@code int}.
+     * Zigzag decoding maps the raw unsigned value {@code n} to {@code (n >>> 1) ^ -(n & 1)}.
+     * On a malformed varint, sets the error flag and returns {@code -1}; however,
+     * {@code -1} is also a valid decoded value, so callers must check {@link #error()} to
+     * distinguish an error from a legitimate result.
+     *
+     * @return the decoded integer value
+     */
+    public int readVarIntZZ() {
+        return (int) readVarLongZZ();
     }
 
     /**
@@ -375,12 +378,55 @@ public class PbjReader {
      * @return the decoded long value
      */
     public long readVarLong(boolean zigZag) {
+        long value = readVarLongNoZZ();
+        return zigZag ? (value >>> 1) ^ -(value & 1) : value;
+    }
+
+    /**
+     * Reads a base-128 varint and returns its zigzag-decoded value as a {@code long}.
+     * Zigzag decoding maps the raw unsigned value {@code n} to {@code (n >>> 1) ^ -(n & 1)}.
+     * On a malformed varint, sets the error flag and returns {@code -1}; however,
+     * {@code -1} is also a valid decoded value, so callers must check {@link #error()} to
+     * distinguish an error from a legitimate result.
+     *
+     * @return the decoded long value
+     */
+    public long readVarLongZZ() {
+        long value = readVarLongNoZZ();
+        return (value >>> 1) ^ -(value & 1);
+    }
+
+    /**
+     * Reads a base-128 varint and returns its value as a {@code long} (no zigzag decoding).
+     * On a malformed varint (more than 10 bytes), sets {@link #DataEncoding} and returns
+     * {@code -1}; however, {@code -1} is also a valid decoded value, so callers must check
+     * {@link #error()} to distinguish an error from a legitimate result.
+     *
+     * @return the decoded long value
+     */
+    public long readVarLongNoZZ() {
+        if (pos + 10 <= relLimit) {
+            long value = 0;
+            for (int i = 0; i < 10; i++) {
+                byte b = buf[pos++];
+                value |= (long) (b & 0x7F) << (i * 7);
+                if (b >= 0) {
+                    return value;
+                }
+            }
+            setError(DataEncoding);
+            return -1;
+        }
+        return readVarLongNoZZInternal();
+    }
+
+    private long readVarLongNoZZInternal() {
         long value = 0;
         for (int i = 0; i < 10; i++) {
             byte b = readByte();
             value |= (long) (b & 0x7F) << (i * 7);
             if (b >= 0) {
-                return zigZag ? (value >>> 1) ^ -(value & 1) : value;
+                return value;
             }
         }
         setError(DataEncoding);
@@ -395,6 +441,20 @@ public class PbjReader {
      */
     public Bytes readVarLongBytes() {
         byte[] bytes = new byte[10];
+        if (pos + 10 <= relLimit) {
+            for (int i = 0; i < 10; i++) {
+                bytes[i] = readByte();
+                if (bytes[i] >= 0) {
+                    return Bytes.wrap(bytes, 0, i + 1);
+                }
+            }
+            setError(DataEncoding);
+            return Bytes.EMPTY;
+        }
+        return readVarLongBytesInternal(bytes);
+    }
+
+    private Bytes readVarLongBytesInternal(byte[] bytes) {
         for (int i = 0; i < 10; i++) {
             bytes[i] = readByte();
             if (bytes[i] >= 0) {
@@ -405,10 +465,23 @@ public class PbjReader {
         return Bytes.EMPTY;
     }
 
+    /**
+     * Records an error on this reader with no message. Once an error is recorded
+     * subsequent reads return default values (zero or empty).
+     *
+     * @param errorKind one of the error-code constants ({@link #DataEncoding}, {@link #BufferUnderflow}, etc.)
+     */
     public void setError(int errorKind) {
         setError(errorKind, "");
     }
 
+    /**
+     * Records an error on this reader if no previous error is set. Once an error is recorded
+     * subsequent reads return default values (zero or empty).
+     *
+     * @param errorKind one of the error-code constants ({@link #DataEncoding}, {@link #BufferUnderflow}, etc.)
+     * @param message   a detail message associated with the error
+     */
     public void setError(int errorKind, String message) {
         if (err > 0) return; // if an error exists, don't overwrite
         err = errorKind;
@@ -480,7 +553,7 @@ public class PbjReader {
                 case Parse:
                 default:
                     if (includeCause) throw new ParseException(cause);
-                    var ex = new ParseException("");
+                    ParseException ex = new ParseException("");
                     ex.setStackTrace(cause.getStackTrace());
                     throw ex;
             }
@@ -526,17 +599,6 @@ public class PbjReader {
      */
     public int error() {
         return err > 0 ? err : 0;
-    }
-
-    /**
-     * Returns the raw internal buffer array. Intended for low-level introspection;
-     * the valid data occupies an internal window and should not be accessed without
-     * knowledge of the internals.
-     *
-     * @return the internal byte buffer
-     */
-    public byte[] array() {
-        return buf;
     }
 
     private int bufferedInternal(int count) {
@@ -650,7 +712,7 @@ public class PbjReader {
      */
     public @NonNull Bytes readBytes(int length) {
         if (length <= relLimit - pos && err <= 0) {
-            var dst = new byte[length];
+            byte[] dst = new byte[length];
             System.arraycopy(buf, pos, dst, 0, length);
             pos += length;
             return Bytes.wrap(dst);
@@ -666,7 +728,7 @@ public class PbjReader {
             setError(IllegalArgument);
             return Bytes.EMPTY;
         }
-        var dst = new byte[length];
+        byte[] dst = new byte[length];
         int copiedLen = readBytesInternalCopy(dst, 0, length);
         if (copiedLen < length) {
             setError(BufferUnderflow);
@@ -913,7 +975,7 @@ public class PbjReader {
      * @return the decoded string, or {@code ""} on error
      */
     public String readString(final long maxSize) {
-        final int length = readVarInt(false);
+        final int length = readVarIntNoZZ();
         if (length > maxSize || length < 0) {
             setError(PbjReader.Parse);
             return "";

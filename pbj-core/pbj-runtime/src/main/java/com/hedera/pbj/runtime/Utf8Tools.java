@@ -26,9 +26,13 @@ public final class Utf8Tools {
             } else if (c < 0xD800 || c >= 0xE000) {
                 count += 3;
             } else if (c <= 0xDBFF) { // high surrogate: D800–DBFF
-                if (i + 1 >= sz.length()) return 0;
+                if (i + 1 >= sz.length()) {
+                    throw new MalformedUtf8Exception("Illegal Encoding at %d".formatted(i));
+                }
                 char low = sz.charAt(i + 1);
-                if (low < 0xDC00 || low > 0xDFFF) return 0;
+                if (low < 0xDC00 || low > 0xDFFF) {
+                    throw new MalformedUtf8Exception("Illegal Encoding at %d".formatted(i));
+                }
                 i++;
                 count += 4;
             } else {
@@ -141,7 +145,7 @@ public final class Utf8Tools {
         }
     }
 
-    static void WriteUTF8(String str, PbjWriter out) {
+    static void writeUTF8(String str, PbjWriter out) {
         out.writeStringWithTag(str);
     }
 

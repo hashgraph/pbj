@@ -770,22 +770,22 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * Returns the raw backing byte array. The logical content starts at {@link #arrayOffset()} and spans
+     * Returns the raw backing byte array. The logical content starts at {@link #arrayUnsafeOffset()} and spans
      * {@link #length()} bytes. Mutating the returned array breaks the immutability contract of this class.
      *
      * @return the internal backing byte array
      */
     @NonNull
-    public byte[] array() {
+    public byte[] arrayUnsafe() {
         return buffer;
     }
 
     /**
-     * Returns the offset within {@link #array()} where the logical content of this {@link Bytes} begins.
+     * Returns the offset within {@link #arrayUnsafe()} where the logical content of this {@link Bytes} begins.
      *
      * @return start offset into the backing array
      */
-    public int arrayOffset() {
+    public int arrayUnsafeOffset() {
         return start;
     }
 

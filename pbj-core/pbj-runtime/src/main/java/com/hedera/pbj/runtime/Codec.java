@@ -20,11 +20,13 @@ import java.io.UncheckedIOException;
 public interface Codec<T> {
     class WriteCache {
         PbjWriter writer = new PbjWriter();
+        /**  For recursive situations if the caller ever requires it */
         boolean inUse = false;
     }
 
     class ReadCache {
         PbjReader reader = new PbjReader(Bytes.EMPTY);
+        /**  For recursive situations if the caller ever requires it */
         boolean inUse = false;
     }
 
@@ -52,7 +54,7 @@ public interface Codec<T> {
      * If {@code strictMode} is {@code true}, then throws an exception if fields
      * have been defined on the encoded object that are not supported by the parser. This
      * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * which is sometimes required to avoid parsing an object that is newer than the code
      * parsing it is prepared to handle.
      * <p>
      * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
@@ -122,7 +124,7 @@ public interface Codec<T> {
      * If {@code strictMode} is {@code true}, then throws an exception if fields
      * have been defined on the encoded object that are not supported by the parser. This
      * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * which is sometimes required to avoid parsing an object that is newer than the code
      * parsing it is prepared to handle.
      * <p>
      * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
@@ -154,13 +156,19 @@ public interface Codec<T> {
             throws ParseException {
         return parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
     }
+
+    @NonNull
+    default T parse(@NonNull byte[] input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
+        return parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+    }
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
      * <p>
      * If {@code strictMode} is {@code true}, then throws an exception if fields
      * have been defined on the encoded object that are not supported by the parser. This
      * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * which is sometimes required to avoid parsing an object that is newer than the code
      * parsing it is prepared to handle.
      * <p>
      * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
@@ -192,9 +200,9 @@ public interface Codec<T> {
     }
 
     /**
-     * Parses an object from the {@link PbjReader} and returns it.
+     * Parses an object from the {@link ReadableSequentialData} and returns it.
      *
-     * @param input The {@link PbjReader} from which to read the data to construct an object
+     * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
      */
@@ -262,43 +270,13 @@ public interface Codec<T> {
         return parse(bytes, strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
     }
 
-    /**
-     * Parses an object from the {@link Bytes} and returns it.
-     * <p>
-     * If {@code strictMode} is {@code true}, then throws an exception if fields
-     * have been defined on the encoded object that are not supported by the parser. This
-     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
-     * parsing it is prepared to handle.
-     * <p>
-     * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
-     * will fail with a ParseException if the maximum depth is reached.
-     *
-     * @param bytes The {@link Bytes} from which to read the data to construct an object
-     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
-     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
-     * @return The parsed object. It must not return null.
-     * @throws ParseException If parsing fails
-     */
-    default T parse(@NonNull Bytes bytes, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
-            throws ParseException {
-        ReadCache cache = tlsReader.get();
-        if (cache.inUse) {
-            PbjReader reader = new PbjReader(bytes);
-            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
-            reader.throwOnError();
-            return res;
-        }
-        cache.inUse = true;
-        try {
-            PbjReader reader = cache.reader;
-            reader.resetWith(bytes);
-            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
-            reader.throwOnError();
-            return res;
-        } finally {
-            cache.inUse = false;
-        }
+    @NonNull
+    default T parse(@NonNull byte[] bytes) throws ParseException {
+        return parse(bytes, false, DEFAULT_MAX_DEPTH);
+    }
+
+    default T parse(@NonNull byte[] bytes, final boolean strictMode, final int maxDepth) throws ParseException {
+        return parse(bytes, strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
     }
 
     default T parse(@NonNull byte[] bytes, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
@@ -323,10 +301,52 @@ public interface Codec<T> {
     }
 
     /**
+     * Parses an object from the {@link Bytes} and returns it.
+     * <p>
+     * If {@code strictMode} is {@code true}, then throws an exception if fields
+     * have been defined on the encoded object that are not supported by the parser. This
+     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
+     * which is sometimes required to avoid parsing an object that is newer than the code
+     * parsing it is prepared to handle.
+     * <p>
+     * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
+     * will fail with a ParseException if the maximum depth is reached.
+     *
+     * @param bytes The {@link Bytes} from which to read the data to construct an object
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+     * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
+     *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    default T parse(@NonNull Bytes bytes, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+            throws ParseException {
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            PbjReader reader = new PbjReader(bytes);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        }
+        cache.inUse = true;
+        try {
+            PbjReader reader = cache.reader;
+            reader.resetWith(bytes);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        } finally {
+            cache.inUse = false;
+        }
+    }
+
+    /**
      * Parses an object from the {@link ReadableSequentialData} and returns it. Throws an exception if fields
      * have been defined on the encoded object that are not supported by the parser. This
      * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * which is sometimes required to avoid parsing an object that is newer than the code
      * parsing it is prepared to handle.
      *
      * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
@@ -346,7 +366,7 @@ public interface Codec<T> {
      * Parses an object from the {@link Bytes} and returns it. Throws an exception if fields
      * have been defined on the encoded object that are not supported by the parser. This
      * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
-     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * which is sometimes required to avoid parsing an object that is newer than the code
      * parsing it is prepared to handle.
      *
      * @param bytes The {@link Bytes} from which to read the data to construct an object
@@ -364,11 +384,10 @@ public interface Codec<T> {
     }
 
     /**
-     * Writes an item to the given {@link WritableSequentialData}.
+     * Writes an item to the given {@link PbjWriter}.
      *
      * @param item The item to write. Must not be null.
-     * @param output The {@link WritableSequentialData} to write to.
-     * @throws IOException If the {@link WritableSequentialData} cannot be written to.
+     * @param output The {@link PbjWriter} to write to.
      */
     void write(@NonNull T item, @NonNull PbjWriter output);
 
@@ -398,7 +417,7 @@ public interface Codec<T> {
      * @param output The byte array to write to, this must be large enough to hold the entire item.
      * @param startOffset The offset in the output array to start writing at.
      * @return The number of bytes written to the output array.
-     * @throws UncheckedIOException If the there is a problem writing to the output array.
+     * @throws UncheckedIOException If there is a problem writing to the output array.
      * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
      */
     default int write(@NonNull T item, @NonNull byte[] output, final int startOffset) {
@@ -423,9 +442,7 @@ public interface Codec<T> {
     }
 
     default int measure(@NonNull ReadableSequentialData input) throws ParseException {
-        final long startPosition = input.position();
-        wrapParse(input, false, false, DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE);
-        return (int) (input.position() - startPosition);
+        return measure(new PbjReader(input));
     }
     /**
      * Compute number of bytes that would be written when calling {@code write()} method.
@@ -508,7 +525,18 @@ public interface Codec<T> {
         return writer.toByteArrayWrapped();
     }
 
-    default Bytes toBytesGetInternalWrapped(@NonNull T item) {
+    /**
+     * Serializes an item to {@link Bytes} that wrap the codec's internal byte array directly, without copying.
+     * This avoids an allocation compared to {@link #toBytes(Object)}, but the returned {@link Bytes} shares
+     * the backing buffer with the thread-local write cache, so it must not be retained beyond the current call
+     * frame. The intended use case is when the caller wants to immediately consume the bytes — for example,
+     * to compress them — and does not need to hold a reference afterward.
+     *
+     * @param item The item to serialize. Must not be null.
+     * @return A {@link Bytes} view backed by the internal write buffer. Must not be stored or used after
+     *         the current call completes.
+     */
+    default Bytes toBytesUnsafeWrapped(@NonNull T item) {
         WriteCache cache = tlsWriter.get();
         if (cache.inUse) {
             int len = measureRecord(item);

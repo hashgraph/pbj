@@ -651,7 +651,7 @@ class ProtoParserToolsTest {
                 throws ParseException {
             String value = null;
             while (in.hasRemaining()) {
-                final int tag = in.readVarInt(false);
+                final int tag = in.readVarIntNoZZ();
                 final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;
                 final int wireType = tag & TAG_WIRE_TYPE_MASK;
                 if ((fieldNum == VALUE_FIELD.number())

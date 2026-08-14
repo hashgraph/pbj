@@ -157,7 +157,7 @@ public class PbjGrpcCallTest {
         final Object request = mock(Object.class);
 
         final Bytes bytes = Bytes.wrap("test bytes string");
-        doReturn(bytes).when(requestCodec).toBytesGetInternalWrapped(request);
+        doReturn(bytes).when(requestCodec).toBytesUnsafeWrapped(request);
 
         call.sendRequest(request, endOfStream);
 

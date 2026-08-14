@@ -17,7 +17,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 
 /**
- * A buffer-backed writer for encoding protobuf data.
+ * A buffer-backed writer for encoding protobuf data. Not thread safe.
  *
  * <p>PbjWriter maintains an internal byte buffer and writes to an {@link OutputStream},
  * {@link WritableSequentialData}, or a fixed byte array. When backed by an output stream the
@@ -39,7 +39,7 @@ public class PbjWriter implements AutoCloseable {
     private boolean reuseable;
     private boolean mayGrow = true;
 
-    private final boolean useStacktrace =
+    private static final boolean useStacktrace =
             !"false".equalsIgnoreCase(System.getProperty("pbj.ReaderWriter.useStackTrace"));
     public static final int EOF = PbjReader.EOF,
             DataEncoding = PbjReader.DataEncoding,
@@ -180,7 +180,7 @@ public class PbjWriter implements AutoCloseable {
 
     /**
      * Advances the write position by {@code len} bytes without writing any data.
-     * Used to reserve placeholder space that will be filled in later via {@link #writeAt}.
+     * Used to reserve placeholder space that will be filled in later via {@link #writeAtUnsafe}.
      *
      * @param len the number of bytes to skip over
      */
@@ -205,7 +205,7 @@ public class PbjWriter implements AutoCloseable {
      * @param pos   the absolute write position to patch
      * @param value the byte value to write
      */
-    public void writeAt(int pos, byte value) {
+    public void writeAtUnsafe(int pos, byte value) {
         buf[pos - offset] = value;
     }
 
@@ -403,8 +403,16 @@ public class PbjWriter implements AutoCloseable {
     }
 
     private void writeBytesInternal(byte[] src, int srcOffset, int length) {
-        flushOrGrow(length);
         if (output != null && length >= 2048) {
+            if (pos > 0) {
+                try {
+                    output.write(buf, 0, pos);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                offset += pos;
+                pos = 0;
+            }
             try {
                 output.write(src, srcOffset, length);
             } catch (IOException e) {
@@ -413,6 +421,7 @@ public class PbjWriter implements AutoCloseable {
             offset += length;
             return;
         }
+        flushOrGrow(length);
         System.arraycopy(src, srcOffset, buf, pos, length);
         pos += length;
     }
@@ -734,12 +743,17 @@ public class PbjWriter implements AutoCloseable {
     }
 
     /**
-     * Flushes any buffered bytes to the underlying output stream and resets the internal buffer
-     * position. This is a no-op when no output stream is attached.
+     * Flushes all buffered bytes to the underlying output stream and resets the internal buffer.
      *
-     * @throws UncheckedIOException if an I/O error occurs during the flush
+     * <p>After the flush the internal write position is reset to zero, and the absolute byte
+     * offset is advanced by the number of bytes written. This is a no-op when no output stream
+     * is attached (standalone writers). Any pending error is surfaced before writing.
+     *
+     * @throws RuntimeException     if a prior error was recorded on this writer
+     * @throws UncheckedIOException if the underlying stream throws an {@link java.io.IOException}
      */
     public void flush() {
+        throwOnError();
         if (output == null) return;
         try {
             output.write(buf, 0, pos);
@@ -782,7 +796,7 @@ public class PbjWriter implements AutoCloseable {
             pos = 0;
         } else if (reuseable && mayGrow) {
             int power2Capacity = (int) 2L << (63 - Long.numberOfLeadingZeros(Math.max(buf.length, pos + minLength)));
-            var newBuf = new byte[power2Capacity];
+            byte[] newBuf = new byte[power2Capacity];
             System.arraycopy(buf, 0, newBuf, 0, pos);
             buf = newBuf;
             cap = buf.length;
@@ -895,7 +909,7 @@ public class PbjWriter implements AutoCloseable {
             setError(UsageError, "toByteArray used on a streaming object");
             return null;
         }
-        var bytes = new byte[pos];
+        byte[] bytes = new byte[pos];
         System.arraycopy(buf, 0, bytes, 0, pos);
         return bytes;
     }
@@ -1016,7 +1030,7 @@ public class PbjWriter implements AutoCloseable {
         int endPos = position();
         int utf8Len = endPos - pos - 1;
         if (utf8Len <= 0x7F) {
-            writeAt(pos, (byte) utf8Len);
+            writeAtUnsafe(pos, (byte) utf8Len);
         } else {
             reinsertVarInt(pos);
         }
@@ -1038,8 +1052,8 @@ public class PbjWriter implements AutoCloseable {
         placehold(2);
         writeStringNoTag(str);
         int utf8Len = position() - pos - 2;
-        writeAt(pos, (byte) ((utf8Len & 0x7F) | 0x80));
-        writeAt(pos + 1, (byte) (utf8Len >>> 7));
+        writeAtUnsafe(pos, (byte) ((utf8Len & 0x7F) | 0x80));
+        writeAtUnsafe(pos + 1, (byte) (utf8Len >>> 7));
     }
 
     /**
