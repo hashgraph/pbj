@@ -778,7 +778,9 @@ public class PbjWriter implements AutoCloseable {
         } catch (IOException ex) {
             setError(IOError, ex.getMessage());
         }
-        err = Closed;
+        if (err == 0) {
+            err = Closed;
+        }
     }
 
     private void flushOrGrow(int minLength) {

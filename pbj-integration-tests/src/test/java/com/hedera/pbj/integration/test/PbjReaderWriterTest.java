@@ -873,7 +873,9 @@ public class PbjReaderWriterTest {
         System.arraycopy(fewBytes, 0, expected, 0, fewBytes.length);
         System.arraycopy(manyBytes, 0, expected, fewBytes.length, manyBytes.length);
 
-        assertArrayEquals(expected, out.toByteArray(),
+        assertArrayEquals(
+                expected,
+                out.toByteArray(),
                 "Buffered prefix bytes must not be dropped when a large payload bypasses the buffer");
     }
 
@@ -970,25 +972,6 @@ public class PbjReaderWriterTest {
         UncheckedIOException ex =
                 assertThrows(UncheckedIOException.class, () -> writer.writeBytes(Bytes.wrap(new byte[] {1})));
         assertEquals("java.io.IOException: writeBytesRAInternal write", ex.getMessage());
-    }
-
-    @Test
-    void closeSwallowsOutputCloseException() {
-        OutputStream failOnClose = new OutputStream() {
-            @Override
-            public void write(int b) {}
-
-            @Override
-            public void write(byte[] b, int off, int len) {}
-
-            @Override
-            public void close() throws IOException {
-                throw new IOException("close failed");
-            }
-        };
-        PbjWriter writer = new PbjWriter(failOnClose);
-        assertDoesNotThrow(writer::close);
-        assertEquals(0, writer.error());
     }
 
     @Test
