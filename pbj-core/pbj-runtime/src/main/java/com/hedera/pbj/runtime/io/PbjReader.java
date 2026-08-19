@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
  * EOF is not an error and will return 0 when error() is called.
  * ByteBuffer using a direct buffer is not supported
  */
-public class PbjReader {
+public class PbjReader implements AutoCloseable {
     private byte[] buf;
     private int pos, end;
     private int relLimit, err;
@@ -42,6 +42,7 @@ public class PbjReader {
             !"false".equalsIgnoreCase(System.getProperty("pbj.ReaderWriter.useStackTrace"));
 
     public static final int EOF = -1,
+            Closed = -2,
             DataEncoding = 1,
             BufferUnderflow = 2,
             Parse = 3,
@@ -52,8 +53,6 @@ public class PbjReader {
             UnknownField = 10,
             BufferOverflow = 11,
             MaxDepthReached = 12,
-            // For PbjWriter
-            Closed = -2,
             MalformString = 13;
 
     private static final UnknownFieldException premadeUnknown;
@@ -1018,5 +1017,18 @@ public class PbjReader {
         }
         setError(PbjReader.Parse);
         return "";
+    }
+
+    @Override
+    public void close() {
+        if (stream == null) return;
+        try {
+            stream.close();
+        } catch (IOException ex) {
+            setError(IOError, ex.getMessage());
+        }
+        if (err == 0) {
+            err = Closed;
+        }
     }
 }
