@@ -164,6 +164,11 @@ testing {
             enableAssertions = false
             systemProperties["com.hedera.pbj.integration.test.fuzz.useRandomSeed"] = true
         }
+        tasks.register<Test>("testNoFuzz") {
+            testClassesDirs = sources.output.classesDirs
+            classpath = sources.runtimeClasspath
+            useJUnitPlatform { excludeTags("FUZZ_TEST") }
+        }
         targets.named("test") {
             testTask {
                 useJUnitPlatform { excludeTags("FUZZ_TEST") }
