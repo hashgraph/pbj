@@ -23,6 +23,7 @@ public class LazyGetProtobufSizeMethodGenerator {
     public static String generateLazyGetProtobufSize(final List<Field> fields, final String schemaClassName) {
         final String fieldSizeOfLines =
                 buildFieldSizeOfLines(null, schemaClassName, fields, Field::nameCamelFirstLower, true);
+        // spotless:off
         return """
                 /**
                  * Get number of bytes when serializing the object to protobuf binary.
@@ -51,6 +52,7 @@ public class LazyGetProtobufSizeMethodGenerator {
                         "$unknownFieldsSizeOfLines",
                         formatUnknownFieldsSizeOfLines().indent(DEFAULT_INDENT))
                 .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 
     static String buildFieldSizeOfLines(
@@ -101,6 +103,7 @@ public class LazyGetProtobufSizeMethodGenerator {
         String prefix = "// [" + field.fieldNumber() + "] - " + field.name();
         prefix += "\n";
 
+        String statementIndent = "";
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = modelClassName == null
@@ -110,11 +113,15 @@ public class LazyGetProtobufSizeMethodGenerator {
             prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
                     + Common.camelToUpperSnake(field.name()) + ")";
             prefix += "\n";
+            // The statement below is the (unbraced) body of the "if" above, so indent it one level
+            // deeper than the "if" itself to make that visually clear.
+            statementIndent = " ".repeat(DEFAULT_INDENT);
         }
 
         final String writeMethodName = field.methodNameType();
         if (field.optionalValueType()) {
             return prefix
+                    + statementIndent
                     + switch (field.messageType()) {
                         case "StringValue" ->
                             "_size += sizeOfOptionalString(%s, %s);".formatted(fieldDef, getValueCode);
@@ -152,6 +159,7 @@ public class LazyGetProtobufSizeMethodGenerator {
                     mapEntryField == mapField.keyField() ? "k" : (mapEntryField == mapField.valueField() ? "v" : null);
             final String fieldSizeOfLines = LazyGetProtobufSizeMethodGenerator.buildFieldSizeOfLines(
                     field.name(), schemaClassName, mapEntryFields, getValueBuilder, false);
+            // spotless:off
             return prefix
                     + """
                         if (!$map.isEmpty()) {
@@ -177,8 +185,10 @@ public class LazyGetProtobufSizeMethodGenerator {
                                             ? mapField.valueField().messageType()
                                             : mapField.valueField().type().boxedType)
                             .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT));
+            // spotless:on
         } else {
             return prefix
+                    + statementIndent
                     + switch (field.type()) {
                         case ENUM -> "_size += sizeOfEnum(%s, %s);".formatted(fieldDef, getValueCode);
                         case STRING ->
