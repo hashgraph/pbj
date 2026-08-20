@@ -93,7 +93,7 @@ class CodecParseMethodGenerator {
                     }
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
-                        $fieldDefs
+                $fieldDefs
                         List<UnknownField> $unknownFields = null;
 
                         $parseLoop
@@ -112,7 +112,7 @@ class CodecParseMethodGenerator {
                 }
                 
                 private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, ReadableSequentialData input, int maxSize) throws ParseException, IOException {
-                    $defaultCaseBody
+                $defaultCaseBody
                     return $unknownFields;
                 }
                 """
@@ -120,15 +120,15 @@ class CodecParseMethodGenerator {
         .replace("$modelClassName",modelClassName)
         .replace("$fieldDefs",fields.stream().map(field -> {
             final String javaFieldType = field.type() == Field.FieldType.ENUM ? field.repeated() ? "List" :  "Object" : field.javaFieldType();
-            return "    %s temp_%s = %s;".formatted(javaFieldType,
-                            field.name(), field.javaDefault());
-        }).collect(Collectors.joining("\n")))
+            return "%s temp_%s = %s;"
+                    .formatted(javaFieldType, field.name(), field.javaDefault());
+        }).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2).stripTrailing())
         .replace("$fieldsList",
                 fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", "))
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
         )
-        .replace("$parseLoop", parseAndDefaultBodyPair.parseBody())
-        .replace("$defaultCaseBody", parseAndDefaultBodyPair.defaultBody())
+        .replace("$parseLoop", parseAndDefaultBodyPair.parseBody().indent(DEFAULT_INDENT * 2).stripTrailing())
+        .replace("$defaultCaseBody", parseAndDefaultBodyPair.defaultBody().indent(DEFAULT_INDENT).stripTrailing())
         .replace("$listFieldsWriteProtection", fields.stream()
                 .filter(Field::repeated)
                 .map(field -> "if (temp_" + field.name() + " instanceof UnmodifiableArrayList ual) ual.makeReadOnly();")
@@ -205,11 +205,10 @@ class CodecParseMethodGenerator {
 
                             // Given the wire type and the field type, parse the field
                             switch ($prefixtag) {
-                $caseStatements
+                        $caseStatements
                                 default -> $unknownFields = defaultCase(tag, field, f, strictMode, parseUnknownFields, $unknownFields, input, maxSize);
                             }
-                        }
-""");
+                        }""");
         list.add("""
                         // The wire type is the bottom 3 bits of the byte. Read that off
                         final int wireType = $prefixtag & TAG_WIRE_TYPE_MASK;
@@ -250,11 +249,10 @@ class CodecParseMethodGenerator {
                         }""");
         for (int i = 0; i < list.size(); i++) {
             list.set(i, list.get(i)
-                .replace("$caseStatements", caseStatements)
+                .replace("$caseStatements", caseStatements.indent(DEFAULT_INDENT * 2).stripTrailing())
                 .replace("$prefix", prefix)
                 .replace("$schemaClassName", schemaClassName)
-                .replace("$skipMaxSize", "maxSize")
-                .indent(DEFAULT_INDENT));
+                .replace("$skipMaxSize", "maxSize"));
         }
         // spotless:on
         return new ParseAndDefaultBody(list.get(0), list.get(1));
@@ -276,7 +274,7 @@ class CodecParseMethodGenerator {
                 generateFieldCaseStatement(sb, sbFunc, field, schemaClassName);
             }
         }
-        return sb.toString().indent(DEFAULT_INDENT * 4);
+        return sb.toString();
     }
 
     /**
@@ -303,7 +301,6 @@ class CodecParseMethodGenerator {
 %s case%d(ReadableSequentialData input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
         if (field.type() == Field.FieldType.ENUM) {
-            // spotless:off
             preRead = """
                     final int enumOrdinal = readEnum(input);
                     Object value = $enumName.fromProtobufOrdinal(enumOrdinal);
@@ -313,12 +310,12 @@ class CodecParseMethodGenerator {
                     
                     """
                     .replace("$enumName", Common.snakeToCamel(field.messageType(), true))
-                    .indent(DEFAULT_INDENT)
             ;
-            // spotless:on
         } else {
             preRead = "";
         }
+        final String loopBody = preRead + "%s = addToList(%s,%s);"
+                .formatted(tempFieldName, tempFieldName, field.type() == Field.FieldType.ENUM ? "value" : readMethod(field));
         sbFunc.append("""
                 // Read the length of packed repeated field data
                 final long length = input.readVarInt(false);
@@ -332,14 +329,13 @@ class CodecParseMethodGenerator {
                 final long beforePosition = input.position();
                 input.limit(input.position() + length);
                 while (input.hasRemaining()) {
-                    $preRead$tempFieldName = addToList($tempFieldName,$readMethod);
+                $loopBody
                 }
                 input.limit(beforeLimit);
                 if (input.position() != beforePosition + length) {
                     throw new BufferUnderflowException();
-                }""".replace("$tempFieldName", tempFieldName)
-                .replace("$preRead", preRead)
-                .replace("$readMethod", field.type() == Field.FieldType.ENUM ? "value" : readMethod(field))
+                }"""
+                .replace("$loopBody", loopBody.indent(DEFAULT_INDENT).stripTrailing())
                 .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                 .replace("$fieldName", field.name())
                 .indent(DEFAULT_INDENT));
@@ -476,7 +472,7 @@ class CodecParseMethodGenerator {
                                     throw new BufferUnderflowException();
                                 }
                                 input.limit(__map_startPos + __map_messageLength);
-                                $mapParseLoop
+                        $mapParseLoop
                                 // Make sure we read the full number of bytes. for the types
                                 if ((__map_startPos + __map_messageLength) != input.position()) {
                                     throw new BufferOverflowException();
@@ -491,8 +487,9 @@ class CodecParseMethodGenerator {
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
                             mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
                     .replace("$mapParseLoop", parseAndDefaultBodyPair.parseBody()
-                            .indent(-DEFAULT_INDENT))
+                            .indent(DEFAULT_INDENT * 2).stripTrailing())
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
+                    .indent(DEFAULT_INDENT)
             );
             // spotless:on
         } else if (field.type() == Field.FieldType.ENUM) {
@@ -511,12 +508,11 @@ class CodecParseMethodGenerator {
         }
         // set value to temp var
         // spotless:off
-        sbCase.append(Common.FIELD_INDENT);
         if (field.parent() != null && field.repeated()) {
             throw new PbjCompilerException("Fields can not be oneof and repeated ["+field+"]");
         } else if (field.parent() != null) {
             final var oneOfField = field.parent();
-            sbCase.append("temp_%s =  new %s<>(%s.%s, value);%n"
+            sbCase.append(Common.FIELD_INDENT + "temp_%s =  new %s<>(%s.%s, value);%n"
                     .formatted(oneOfField.name(), oneOfField.className(), oneOfField.getEnumClassRef(),
                             Common.camelToUpperSnake(field.name())));
         } else if (field.repeated()) {
@@ -526,7 +522,8 @@ class CodecParseMethodGenerator {
                     throw new ParseException("%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
                 }
                 temp_%1$s = addToList(temp_%1$s,value);
-                """.formatted(field.name(), field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize"));
+                """.formatted(field.name(), field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
+                        .indent(DEFAULT_INDENT));
         } else if (field.type() == Field.FieldType.MAP) {
             final MapField mapField = (MapField) field;
             sbCase.append(
@@ -538,7 +535,8 @@ class CodecParseMethodGenerator {
                     temp_%1$s = addToMap(temp_%1$s, temp_%s, temp_%s);
                 }
                 """.formatted(field.name(), field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize",
-                        mapField.keyField().name(), mapField.valueField().name()));
+                        mapField.keyField().name(), mapField.valueField().name())
+                        .indent(DEFAULT_INDENT));
         } else if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
             sbCase.append("""
@@ -550,7 +548,7 @@ class CodecParseMethodGenerator {
             );
             // spotless:on
         } else {
-            sbCase.append("temp_%s = value;\n".formatted(field.name()));
+            sbCase.append(Common.FIELD_INDENT + "temp_%s = value;\n".formatted(field.name()));
         }
         sbCase.append("}\n");
         // spotless:on
