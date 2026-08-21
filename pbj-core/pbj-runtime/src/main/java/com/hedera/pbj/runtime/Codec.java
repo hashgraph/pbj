@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -41,12 +42,45 @@ public abstract class Codec<T> {
      */
     @NonNull
     protected abstract T parseImpl(
-            @NonNull ReadableSequentialData input,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize)
+            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException;
+
+    /**
+     * Parses an object from the {@link PbjReader} and returns it.
+     * <p>
+     * If {@code strictMode} is {@code true}, then throws an exception if fields
+     * have been defined on the encoded object that are not supported by the parser. This
+     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
+     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * parsing it is prepared to handle.
+     * <p>
+     * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
+     * will fail with a ParseException if the maximum depth is reached.
+     * <p>
+     * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
+     * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
+     * payload can cause the parser to allocate too much memory which can result in OutOfMemory and/or crashes.
+     * It's important to carefully estimate the maximum size limit that a particular protobuf model type should support,
+     * and then pass that value as a parameter. Note that the estimated limit should apply to the **type** as a whole,
+     * rather than to individual instances of the model. In other words, this value should be a constant, or a config
+     * value that is controlled by the application, rather than come from the input that the application reads.
+     * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
+     *
+     * @param input The {@link PbjReader} from which to read the data to construct an object
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+     * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
+     *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    @NonNull
+    public final T parse(
+            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+            throws ParseException {
+        return parseImpl(input, strictMode, parseUnknownFields, maxDepth, maxSize);
+    }
 
     /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
@@ -86,7 +120,7 @@ public abstract class Codec<T> {
             int maxDepth,
             int maxSize)
             throws ParseException {
-        return parseImpl(input, strictMode, parseUnknownFields, maxDepth, maxSize);
+        return parseImpl(new PbjReader(input), strictMode, parseUnknownFields, maxDepth, maxSize);
     }
 
     /**
@@ -161,7 +195,7 @@ public abstract class Codec<T> {
      */
     @NonNull
     public final T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
-        return parse(bytes.toReadableSequentialData(), strictMode, maxDepth);
+        return parse(new PbjReader(bytes), strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
     }
 
     /**
@@ -185,7 +219,7 @@ public abstract class Codec<T> {
      */
     @NonNull
     public final T parse(@NonNull Bytes bytes) throws ParseException {
-        return parse(bytes.toReadableSequentialData());
+        return parse(bytes, false, DEFAULT_MAX_DEPTH);
     }
 
     /**
@@ -217,7 +251,7 @@ public abstract class Codec<T> {
      */
     @NonNull
     public final T parseStrict(@NonNull Bytes bytes) throws ParseException {
-        return parseStrict(bytes.toReadableSequentialData());
+        return parse(bytes, true, DEFAULT_MAX_DEPTH);
     }
 
     /**
