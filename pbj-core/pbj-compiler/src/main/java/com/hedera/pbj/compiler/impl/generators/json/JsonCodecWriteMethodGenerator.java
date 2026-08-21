@@ -33,7 +33,7 @@ final class JsonCodecWriteMethodGenerator {
                         field, modelClassName, "data.%s()".formatted(field.nameCamelFirstLower())))
                 .collect(Collectors.joining("\n"))
                 .indent(DEFAULT_INDENT);
-
+        // spotless:off
         return """
                 /**
                  * Returns JSON string representing an item.
@@ -44,7 +44,7 @@ final class JsonCodecWriteMethodGenerator {
                  *                        it will just be the object "{...}"
                  */
                 @Override
-                public String toJSON(@NonNull $modelClass data, String indent, boolean inline) {
+                protected String toJSONImpl(@NonNull $modelClass data, String indent, boolean inline) {
                     StringBuilder sb = new StringBuilder();
                     // start
                     sb.append(inline ? "{\\n" : indent + "{\\n");
@@ -66,6 +66,7 @@ final class JsonCodecWriteMethodGenerator {
                 .replace("$modelClass", modelClassName)
                 .replace("$fieldWriteLines", fieldWriteLines)
                 .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 
     /**

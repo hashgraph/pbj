@@ -532,7 +532,7 @@ class ProtoParserToolsTest {
         }
     }
 
-    private static final class TestMessageCodec implements Codec<TestMessage> {
+    private static final class TestMessageCodec extends Codec<TestMessage> {
 
         public static final TestMessageCodec INSTANCE = new TestMessageCodec();
 
@@ -541,7 +541,7 @@ class ProtoParserToolsTest {
 
         @NonNull
         @Override
-        public TestMessage parse(
+        protected final TestMessage parseImpl(
                 @NonNull final ReadableSequentialData in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
@@ -569,7 +569,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public void write(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
+        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
                 throws IOException {
             final String value = item.getValue();
             if (value != null) {
