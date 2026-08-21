@@ -4,6 +4,7 @@ package com.hedera.pbj.runtime;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.BufferedSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.PbjReader;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -83,6 +84,32 @@ public abstract class Codec<T> {
     }
 
     /**
+     * Parses an object from the {@link PbjReader} and returns it, using the default `Codec.DEFAULT_MAX_SIZE` and
+     * `Codec.DEFAULT_MAX_DEPTH` limits, and without strict mode or unknown field collection.
+     *
+     * @param input The {@link PbjReader} from which to read the data to construct an object
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    @NonNull
+    public final T parse(@NonNull PbjReader input) throws ParseException {
+        return parse(input, false, false, DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE);
+    }
+
+    /**
+     * Writes the true, logical number of bytes consumed by {@code reader} (which may be less than the number of
+     * bytes {@code reader} has physically buffered ahead from {@code input}) back onto {@code input}'s position,
+     * so that further reads of a {@link BufferedSequentialData}-backed {@code input} continue exactly where the
+     * parsed message ended. A plain stream-backed {@code input} (not a {@link BufferedSequentialData}) cannot be
+     * rewound, so it is left as-is and must be treated as fully consumed by the caller.
+     */
+    private static void syncPosition(@NonNull ReadableSequentialData input, @NonNull PbjReader reader) {
+        if (input instanceof BufferedSequentialData bsd) {
+            bsd.position(reader.position());
+        }
+    }
+
+    /**
      * Parses an object from the {@link ReadableSequentialData} and returns it.
      * <p>
      * If {@code strictMode} is {@code true}, then throws an exception if fields
@@ -120,7 +147,12 @@ public abstract class Codec<T> {
             int maxDepth,
             int maxSize)
             throws ParseException {
-        return parseImpl(new PbjReader(input), strictMode, parseUnknownFields, maxDepth, maxSize);
+        final PbjReader reader = new PbjReader(input);
+        try {
+            return parseImpl(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+        } finally {
+            syncPosition(input, reader);
+        }
     }
 
     /**
@@ -319,7 +351,29 @@ public abstract class Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    public abstract int measure(@NonNull ReadableSequentialData input) throws ParseException;
+    public abstract int measure(@NonNull PbjReader input) throws ParseException;
+
+    /**
+     * Reads from this data input the length of the data within the input. The implementation may
+     * read all the data, or just some special serialized data, as needed to find out the length of
+     * the data.
+     * <p>
+     * If {@code input} is a {@link BufferedSequentialData} (e.g. {@link BufferedData}), its position is
+     * updated to reflect exactly the bytes consumed by this call. A plain stream-backed input should be
+     * treated as fully consumed afterward.
+     *
+     * @param input The input to use
+     * @return The length of the data item in the input
+     * @throws ParseException If parsing fails
+     */
+    public final int measure(@NonNull ReadableSequentialData input) throws ParseException {
+        final PbjReader reader = new PbjReader(input);
+        try {
+            return measure(reader);
+        } finally {
+            syncPosition(input, reader);
+        }
+    }
 
     /**
      * Compute number of bytes that would be written when calling {@code write()} method.
@@ -341,7 +395,32 @@ public abstract class Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    public abstract boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException;
+    public abstract boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException;
+
+    /**
+     * Compares the given item with the bytes in the input, and returns false if it determines that
+     * the bytes in the input could not be equal to the given item. Sometimes we need to compare an
+     * item in memory with serialized bytes and don't want to incur the cost of deserializing the
+     * entire object, when we could have determined the bytes do not represent the same object very
+     * cheaply and quickly.
+     * <p>
+     * If {@code input} is a {@link BufferedSequentialData} (e.g. {@link BufferedData}), its position is
+     * updated to reflect exactly the bytes consumed by this call. A plain stream-backed input should be
+     * treated as fully consumed afterward.
+     *
+     * @param item The item to compare. Cannot be null.
+     * @param input The input with the bytes to compare
+     * @return true if the bytes represent the item, false otherwise.
+     * @throws ParseException If parsing fails
+     */
+    public final boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+        final PbjReader reader = new PbjReader(input);
+        try {
+            return fastEquals(item, reader);
+        } finally {
+            syncPosition(input, reader);
+        }
+    }
 
     /**
      * Converts a Record into a Bytes object

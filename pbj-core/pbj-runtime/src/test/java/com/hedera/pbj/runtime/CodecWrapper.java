@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.PbjReader;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,7 +36,7 @@ class CodecWrapper<T> extends Codec<T> {
     }
 
     @Override
-    public int measure(@NonNull ReadableSequentialData input) throws ParseException {
+    public int measure(@NonNull PbjReader input) throws ParseException {
         throw new UnsupportedOperationException();
     }
 
@@ -47,7 +46,7 @@ class CodecWrapper<T> extends Codec<T> {
     }
 
     @Override
-    public boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+    public boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException {
         throw new UnsupportedOperationException();
     }
 

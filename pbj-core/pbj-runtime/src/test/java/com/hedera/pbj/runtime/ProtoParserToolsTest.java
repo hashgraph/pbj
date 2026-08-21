@@ -581,7 +581,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public int measure(@NonNull ReadableSequentialData input) throws ParseException {
+        public int measure(@NonNull PbjReader input) throws ParseException {
             throw new UnsupportedOperationException();
         }
 
@@ -595,8 +595,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public boolean fastEquals(@NonNull TestMessage item, @NonNull ReadableSequentialData input)
-                throws ParseException {
+        public boolean fastEquals(@NonNull TestMessage item, @NonNull PbjReader input) throws ParseException {
             throw new UnsupportedOperationException();
         }
 
