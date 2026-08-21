@@ -59,19 +59,19 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     public static final Comparator<Bytes> SORT_BY_UNSIGNED_VALUE = valueSorter(Byte::compareUnsigned);
 
     /** byte[] used as backing buffer */
-    private final byte[] buffer;
+    final byte[] buffer;
 
     /**
      * The offset within the backing buffer where this {@link Bytes} starts. To prevent array copies, we sometimes
      * want to have a "view" or "slice" of another buffer, where we begin at some offset and have a length.
      */
-    private final int start;
+    final int start;
 
     /**
      * The number of bytes in this {@link Bytes}. To prevent array copies, we sometimes want to have a "view" or
      * "slice" of another buffer, where we begin at some offset and have a length.
      */
-    private final int length;
+    final int length;
 
     /**
      * The hash code of this {@link Bytes}. This is cached to avoid recomputing it multiple times.
