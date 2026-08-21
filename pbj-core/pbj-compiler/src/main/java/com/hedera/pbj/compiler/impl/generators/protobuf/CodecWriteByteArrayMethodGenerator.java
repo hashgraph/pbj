@@ -49,7 +49,7 @@ final class CodecWriteByteArrayMethodGenerator {
              * @return The number of bytes written to the output array.
              * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
              */
-            public int write(@NonNull $modelClass data, @NonNull byte[] output, final int startOffset) {
+            protected final int writeImpl(@NonNull $modelClass data, @NonNull byte[] output, final int startOffset) {
                 int offset = startOffset;
             $fieldWriteLines
                 // Write unknown fields if there are any

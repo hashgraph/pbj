@@ -62,7 +62,7 @@ class JsonCodecParseMethodGenerator {
                  * @return Parsed HashObject model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
                  */
-                public @NonNull $modelClassName parse(
+                protected final @NonNull $modelClassName parseImpl(
                         @Nullable final JSONParser.ObjContext root,
                         final boolean strictMode,
                         final int maxDepth,
