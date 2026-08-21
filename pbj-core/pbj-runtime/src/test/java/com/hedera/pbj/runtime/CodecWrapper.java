@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.function.ToIntFunction;
 
 /**
@@ -14,10 +13,10 @@ import java.util.function.ToIntFunction;
  * @param <T> The type of the object to be encoded/decoded
  */
 class CodecWrapper<T> extends Codec<T> {
-    private final ProtoWriter<T> writer;
+    private final PbjProtoWriter<T> writer;
     private final ToIntFunction<T> sizeOf;
 
-    CodecWrapper(ProtoWriter<T> writer, ToIntFunction<T> sizeOf) {
+    CodecWrapper(PbjProtoWriter<T> writer, ToIntFunction<T> sizeOf) {
         this.writer = writer;
         this.sizeOf = sizeOf;
     }
@@ -31,7 +30,7 @@ class CodecWrapper<T> extends Codec<T> {
     }
 
     @Override
-    protected void writeImpl(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+    protected void writeImpl(@NonNull T item, @NonNull PbjWriter output) {
         writer.write(item, output);
     }
 

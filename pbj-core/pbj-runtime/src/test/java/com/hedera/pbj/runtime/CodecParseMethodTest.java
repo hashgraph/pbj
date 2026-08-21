@@ -5,11 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
@@ -126,8 +125,7 @@ class CodecParseMethodTest {
         }
 
         @Override
-        protected void writeImpl(@NonNull final LengthPrefixed item, @NonNull final WritableSequentialData output)
-                throws IOException {
+        protected void writeImpl(@NonNull final LengthPrefixed item, @NonNull final PbjWriter output) {
             output.writeInt(item.payload().length);
             output.writeBytes(item.payload());
         }

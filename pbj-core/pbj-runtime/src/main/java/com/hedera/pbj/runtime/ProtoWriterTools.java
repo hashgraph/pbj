@@ -5,6 +5,7 @@ import static com.hedera.pbj.runtime.ProtoConstants.*;
 
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -71,6 +72,27 @@ public final class ProtoWriterTools {
         out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType.ordinal(), false);
     }
 
+    /**
+     * Write a protobuf tag to the output. Field wire format is calculated based on field type.
+     *
+     * @param out The data output to write to
+     * @param field The field to write the tag for
+     */
+    public static void writeTag(final PbjWriter out, final FieldDefinition field) {
+        writeTag(out, field, wireType(field));
+    }
+
+    /**
+     * Write a protobuf tag to the output.
+     *
+     * @param out The data output to write to
+     * @param field The field to include in tag
+     * @param wireType The field wire type to include in tag
+     */
+    public static void writeTag(final PbjWriter out, final FieldDefinition field, final ProtoConstants wireType) {
+        out.writeVarIntNoZZ((field.number() << TAG_TYPE_BITS) | wireType.ordinal());
+    }
+
     /** Create an unsupported field type exception */
     private static RuntimeException unsupported() {
         return new RuntimeException("Unsupported field type. Bug in ProtoOutputStream, shouldn't happen.");
@@ -133,6 +155,59 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a integer to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the int value to write
+     */
+    public static void writeInteger(PbjWriter out, FieldDefinition field, int value) {
+        writeInteger(out, field, value, true);
+    }
+
+    /**
+     * Write a integer to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the int value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     */
+    public static void writeInteger(PbjWriter out, FieldDefinition field, int value, boolean skipDefault) {
+        assert switch (field.type()) {
+                    case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
+                    default -> false;
+                }
+                : "Not an integer type " + field;
+        assert !field.repeated() : "Use writeIntegerList with repeated types";
+
+        if (skipDefault && !field.oneOf() && value == 0) {
+            return;
+        }
+        switch (field.type()) {
+            case INT32 -> {
+                writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
+                out.writeVarIntNoZZ(value);
+            }
+            case UINT32 -> {
+                writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
+                out.writeVarLongNoZZ(Integer.toUnsignedLong(value));
+            }
+            case SINT32 -> {
+                writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
+                out.writeVarIntZZ(value);
+            }
+            case SFIXED32, FIXED32 -> {
+                // The bytes in protobuf are in little-endian order -- backwards for Java.
+                // Smallest byte first.
+                writeTag(out, field, WIRE_TYPE_FIXED_32_BIT);
+                out.writeIntLE(value);
+            }
+            default -> throw unsupported();
+        }
+    }
+
+    /**
      * Write a long to data output
      *
      * @param out The data output to write to
@@ -181,6 +256,54 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a long to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the long value to write
+     */
+    public static void writeLong(PbjWriter out, FieldDefinition field, long value) {
+        writeLong(out, field, value, true);
+    }
+
+    /**
+     * Write a long to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the long value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     */
+    public static void writeLong(PbjWriter out, FieldDefinition field, long value, boolean skipDefault) {
+        assert switch (field.type()) {
+                    case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
+                    default -> false;
+                }
+                : "Not a long type " + field;
+        assert !field.repeated() : "Use writeLongList with repeated types";
+        if (skipDefault && !field.oneOf() && value == 0) {
+            return;
+        }
+        switch (field.type()) {
+            case INT64, UINT64 -> {
+                writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
+                out.writeVarLongNoZZ(value);
+            }
+            case SINT64 -> {
+                writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
+                out.writeVarLongZZ(value);
+            }
+            case SFIXED64, FIXED64 -> {
+                // The bytes in protobuf are in little-endian order -- backwards for Java.
+                // Smallest byte first.
+                writeTag(out, field, WIRE_TYPE_FIXED_64_BIT);
+                out.writeLongLE(value);
+            }
+            default -> throw unsupported();
+        }
+    }
+
+    /**
      * Write a float to data output
      *
      * @param out The data output to write to
@@ -199,6 +322,24 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a float to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the float value to write
+     */
+    public static void writeFloat(PbjWriter out, FieldDefinition field, float value) {
+        assert field.type() == FieldType.FLOAT : "Not a float type " + field;
+        assert !field.repeated() : "Use writeFloatList with repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && value == 0) {
+            return;
+        }
+        writeTag(out, field, WIRE_TYPE_FIXED_32_BIT);
+        out.writeFloatLE(value);
+    }
+
+    /**
      * Write a double to data output
      *
      * @param out The data output to write to
@@ -214,6 +355,24 @@ public final class ProtoWriterTools {
         }
         writeTag(out, field, WIRE_TYPE_FIXED_64_BIT);
         out.writeDouble(value, ByteOrder.LITTLE_ENDIAN);
+    }
+
+    /**
+     * Write a double to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the double value to write
+     */
+    public static void writeDouble(PbjWriter out, FieldDefinition field, double value) {
+        assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
+        assert !field.repeated() : "Use writeDoubleList with repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && value == 0) {
+            return;
+        }
+        writeTag(out, field, WIRE_TYPE_FIXED_64_BIT);
+        out.writeDoubleLE(value);
     }
 
     /**
@@ -247,6 +406,35 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a boolean to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the boolean value to write
+     */
+    public static void writeBoolean(PbjWriter out, FieldDefinition field, boolean value) {
+        writeBoolean(out, field, value, true);
+    }
+
+    /**
+     * Write a boolean to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the boolean value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     */
+    public static void writeBoolean(PbjWriter out, FieldDefinition field, boolean value, boolean skipDefault) {
+        assert field.type() == FieldType.BOOL : "Not a boolean type " + field;
+        assert !field.repeated() : "Use writeBooleanList with repeated types";
+        // In the case of oneOf we write the value even if it is default value of false
+        if (value || field.oneOf() || !skipDefault) {
+            writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
+            out.writeByte(value ? (byte) 1 : 0);
+        }
+    }
+
+    /**
      * Write a enum to data output
      *
      * @param out The data output to write to
@@ -265,6 +453,24 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a enum to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param enumValue the enum value to write
+     */
+    public static void writeEnum(PbjWriter out, FieldDefinition field, EnumWithProtoMetadata enumValue) {
+        assert field.type() == FieldType.ENUM : "Not an enum type " + field;
+        assert !field.repeated() : "Use writeEnumList with repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && (enumValue == null || enumValue.protoOrdinal() == 0)) {
+            return;
+        }
+        writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
+        out.writeVarIntNoZZ(enumValue.protoOrdinal());
+    }
+
+    /**
      * Write a enum protoOrdinal to data output.
      *
      * @param out The data output to write to
@@ -280,6 +486,24 @@ public final class ProtoWriterTools {
         }
         writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
         out.writeVarInt(protoOrdinal, false);
+    }
+
+    /**
+     * Write a enum protoOrdinal to data output.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param protoOrdinal the enum value to write
+     */
+    public static void writeEnumProtoOrdinal(PbjWriter out, FieldDefinition field, int protoOrdinal) {
+        assert field.type() == FieldType.ENUM : "Not an enum type " + field;
+        assert !field.repeated() : "Use writeEnumList with repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && protoOrdinal == 0) {
+            return;
+        }
+        writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
+        out.writeVarIntNoZZ(protoOrdinal);
     }
 
     /**
@@ -313,6 +537,32 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a string to data output, assuming the field is non-repeated.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be non-repeated
+     * @param value the string value to write
+     */
+    public static void writeString(final PbjWriter out, final FieldDefinition field, final String value) {
+        writeString(out, field, value, true);
+    }
+
+    /**
+     * Write a string to data output, assuming the field is non-repeated.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be non-repeated
+     * @param value the string value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     */
+    public static void writeString(
+            final PbjWriter out, final FieldDefinition field, final String value, boolean skipDefault) {
+        assert field.type() == FieldType.STRING : "Not a string type " + field;
+        assert !field.repeated() : "Use writeStringList with repeated types";
+        writeStringNoChecks(out, field, value, skipDefault);
+    }
+
+    /**
      * Write a string to data output, assuming the field is repeated. Usually this method is called multiple
      * times, one for every repeated value. If all values are available immediately, {@link #writeStringList(
      * WritableSequentialData, FieldDefinition, List)} should be used instead.
@@ -324,6 +574,21 @@ public final class ProtoWriterTools {
      */
     public static void writeOneRepeatedString(
             final WritableSequentialData out, final FieldDefinition field, final String value) throws IOException {
+        assert field.type() == FieldType.STRING : "Not a string type " + field;
+        assert field.repeated() : "writeOneRepeatedString can only be used with repeated fields";
+        writeStringNoChecks(out, field, value);
+    }
+
+    /**
+     * Write a string to data output, assuming the field is repeated. Usually this method is called multiple
+     * times, one for every repeated value. If all values are available immediately, {@link #writeStringList(
+     * PbjWriter, FieldDefinition, List)} should be used instead.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be non-repeated
+     * @param value the string value to write
+     */
+    public static void writeOneRepeatedString(final PbjWriter out, final FieldDefinition field, final String value) {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "writeOneRepeatedString can only be used with repeated fields";
         writeStringNoChecks(out, field, value);
@@ -364,6 +629,36 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a integer to data output - no validation checks.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the string value to write
+     */
+    private static void writeStringNoChecks(final PbjWriter out, final FieldDefinition field, final String value) {
+        writeStringNoChecks(out, field, value, true);
+    }
+
+    /**
+     * Write a integer to data output - no validation checks.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the string value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     */
+    private static void writeStringNoChecks(
+            final PbjWriter out, final FieldDefinition field, final String value, boolean skipDefault) {
+        // When not a oneOf don't write default value
+        if (skipDefault && !field.oneOf() && (value == null || value.isEmpty())) {
+            return;
+        }
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
+        out.writeVarIntNoZZ(sizeOfStringNoTag(value));
+        out.writeStringNoTag(value);
+    }
+
+    /**
      * Write a bytes to data output, assuming the corresponding field is non-repeated, and field type
      * is any delimited: bytes, string, or message.
      *
@@ -400,6 +695,34 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a bytes to data output, assuming the corresponding field is non-repeated, and field type
+     * is any delimited: bytes, string, or message.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must not be repeated
+     * @param value the bytes value to write
+     */
+    public static void writeBytes(final PbjWriter out, final FieldDefinition field, final RandomAccessData value) {
+        writeBytes(out, field, value, true);
+    }
+
+    /**
+     * Write a bytes to data output, assuming the corresponding field is non-repeated, and field type
+     * is any delimited: bytes, string, or message.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must not be repeated
+     * @param value the bytes value to write
+     * @param skipDefault default value results in no-op for non-oneOf
+     */
+    public static void writeBytes(
+            final PbjWriter out, final FieldDefinition field, final RandomAccessData value, boolean skipDefault) {
+        assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
+        assert !field.repeated() : "Use writeBytesList with repeated types";
+        writeBytesNoChecks(out, field, value, skipDefault);
+    }
+
+    /**
      * Write a bytes to data output, assuming the corresponding field is repeated, and field type
      * is any delimited: bytes, string, or message. Usually this method is called multiple times, one
      * for every repeated value. If all values are available immediately, {@link #writeBytesList(
@@ -413,6 +736,23 @@ public final class ProtoWriterTools {
     public static void writeOneRepeatedBytes(
             final WritableSequentialData out, final FieldDefinition field, final RandomAccessData value)
             throws IOException {
+        assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
+        assert field.repeated() : "writeOneRepeatedBytes can only be used with repeated fields";
+        writeBytesNoChecks(out, field, value, true);
+    }
+
+    /**
+     * Write a bytes to data output, assuming the corresponding field is repeated, and field type
+     * is any delimited: bytes, string, or message. Usually this method is called multiple times, one
+     * for every repeated value. If all values are available immediately, {@link #writeBytesList(
+     * PbjWriter, FieldDefinition, List)} should be used instead.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be repeated
+     * @param value the bytes value to write
+     */
+    public static void writeOneRepeatedBytes(
+            final PbjWriter out, final FieldDefinition field, final RandomAccessData value) {
         assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert field.repeated() : "writeOneRepeatedBytes can only be used with repeated fields";
         writeBytesNoChecks(out, field, value, true);
@@ -448,6 +788,35 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a bytes to data output - no validation checks.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the bytes value to write
+     * @param skipZeroLength this is true for normal single bytes and false for repeated lists
+     */
+    private static void writeBytesNoChecks(
+            final PbjWriter out,
+            final FieldDefinition field,
+            final RandomAccessData value,
+            final boolean skipZeroLength) {
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && (skipZeroLength && (value.length() == 0))) {
+            return;
+        }
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
+        out.writeVarIntNoZZ(Math.toIntExact(value.length()));
+        final int posBefore = out.position();
+        out.writeBytes(value);
+        final int bytesWritten = out.position() - posBefore;
+        if (bytesWritten != value.length()) {
+            out.setError(
+                    PbjWriter.IOError,
+                    "Wrote less bytes [" + bytesWritten + "] than expected [" + value.length() + "]");
+        }
+    }
+
+    /**
      * Write a message to data output, assuming the corresponding field is non-repeated.
      *
      * @param out The data output to write to
@@ -460,6 +829,22 @@ public final class ProtoWriterTools {
     public static <T> void writeMessage(
             final WritableSequentialData out, final FieldDefinition field, final T message, final Codec<T> codec)
             throws IOException {
+        assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
+        assert !field.repeated() : "Use writeMessageList with repeated types";
+        writeMessageNoChecks(out, field, message, codec);
+    }
+
+    /**
+     * Write a message to data output, assuming the corresponding field is non-repeated.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must not be repeated
+     * @param message the message to write
+     * @param codec the codec for the given message type
+     * @param <T> type of message
+     */
+    public static <T> void writeMessage(
+            final PbjWriter out, final FieldDefinition field, final T message, final Codec<T> codec) {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert !field.repeated() : "Use writeMessageList with repeated types";
         writeMessageNoChecks(out, field, message, codec);
@@ -487,6 +872,24 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a message to data output, assuming the corresponding field is repeated. Usually this method is
+     * called multiple times, one for every repeated value. If all values are available immediately, {@link
+     * #writeMessageList(PbjWriter, FieldDefinition, List, Codec)} should be used instead.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must be repeated
+     * @param message the message to write
+     * @param codec the codec for the given message type
+     * @param <T> type of message
+     */
+    public static <T> void writeOneRepeatedMessage(
+            final PbjWriter out, final FieldDefinition field, final T message, final Codec<T> codec) {
+        assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
+        assert field.repeated() : "writeOneRepeatedMessage can only be used with repeated fields";
+        writeMessageNoChecks(out, field, message, codec);
+    }
+
+    /**
      * Write a message to data output - no validation checks.
      *
      * @param out The data output to write to
@@ -507,6 +910,31 @@ public final class ProtoWriterTools {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final int size = codec.measureRecord(message);
             out.writeVarInt(size, false);
+            if (size > 0) {
+                codec.write(message, out);
+            }
+        }
+    }
+
+    /**
+     * Write a message to data output - no validation checks.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param message the message to write
+     * @param codec the codec for the given message type
+     * @param <T> type of message
+     */
+    private static <T> void writeMessageNoChecks(
+            final PbjWriter out, final FieldDefinition field, final T message, final Codec<T> codec) {
+        // When not a oneOf don't write default value
+        if (field.oneOf() && message == null) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            out.writeVarIntNoZZ(0);
+        } else if (message != null) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final int size = codec.measureRecord(message);
+            out.writeVarIntNoZZ(size);
             if (size > 0) {
                 codec.write(message, out);
             }
@@ -545,6 +973,50 @@ public final class ProtoWriterTools {
         }
     }
 
+    /**
+     * Write a map field to data output.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param map the map to write
+     * @param kWriter writer for the map key type
+     * @param vWriter writer for the map value type
+     * @param sizeOfK function that computes the encoded size of a key
+     * @param sizeOfV function that computes the encoded size of a value
+     * @param <K> type of map key
+     * @param <V> type of map value
+     */
+    public static <K, V> void writeMap(
+            final PbjWriter out,
+            final FieldDefinition field,
+            @NonNull final PbjMap<K, V> map,
+            final PbjProtoWriter<K> kWriter,
+            final PbjProtoWriter<V> vWriter,
+            final ToIntFunction<K> sizeOfK,
+            final ToIntFunction<V> sizeOfV) {
+        // https://protobuf.dev/programming-guides/proto3/#maps
+        // On the wire, a map is equivalent to:
+        //    message MapFieldEntry {
+        //      key_type key = 1;
+        //      value_type value = 2;
+        //    }
+        //    repeated MapFieldEntry map_field = N;
+        if (map.isEmpty()) {
+            return;
+        }
+        final int size = map.size();
+        for (int i = 0; i < size; i++) {
+            K k = map.getSortedKeys().get(i);
+            V v = map.get(k);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final int sizeK = sizeOfK.applyAsInt(k);
+            final int sizeV = sizeOfV.applyAsInt(v);
+            out.writeVarIntNoZZ(sizeK + sizeV);
+            kWriter.write(k, out);
+            vWriter.write(v, out);
+        }
+    }
+
     // ================================================================================================================
     // OPTIONAL VERSIONS OF WRITE METHODS
 
@@ -566,6 +1038,22 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write an optional integer to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the optional integer value to write
+     */
+    public static void writeOptionalInteger(PbjWriter out, FieldDefinition field, @Nullable Integer value) {
+        if (value != null) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarIntNoZZ(sizeOfInteger(newField, value));
+            writeInteger(out, newField, value);
+        }
+    }
+
+    /**
      * Write an optional long to data output
      *
      * @param out The data output to write to
@@ -577,6 +1065,22 @@ public final class ProtoWriterTools {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfLong(newField, value), false);
+            writeLong(out, newField, value);
+        }
+    }
+
+    /**
+     * Write an optional long to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the optional long value to write
+     */
+    public static void writeOptionalLong(PbjWriter out, FieldDefinition field, @Nullable Long value) {
+        if (value != null) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarIntNoZZ(sizeOfLong(newField, value));
             writeLong(out, newField, value);
         }
     }
@@ -598,6 +1102,22 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write an optional float to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the optional float value to write
+     */
+    public static void writeOptionalFloat(PbjWriter out, FieldDefinition field, @Nullable Float value) {
+        if (value != null) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarIntNoZZ(sizeOfFloat(newField, value));
+            writeFloat(out, newField, value);
+        }
+    }
+
+    /**
      * Write an optional double to data output
      *
      * @param out The data output to write to
@@ -609,6 +1129,22 @@ public final class ProtoWriterTools {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfDouble(newField, value), false);
+            writeDouble(out, newField, value);
+        }
+    }
+
+    /**
+     * Write an optional double to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the optional double value to write
+     */
+    public static void writeOptionalDouble(PbjWriter out, FieldDefinition field, @Nullable Double value) {
+        if (value != null) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarIntNoZZ(sizeOfDouble(newField, value));
             writeDouble(out, newField, value);
         }
     }
@@ -626,6 +1162,22 @@ public final class ProtoWriterTools {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfBoolean(newField, value), false);
+            writeBoolean(out, newField, value);
+        }
+    }
+
+    /**
+     * Write an optional boolean to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the optional boolean value to write
+     */
+    public static void writeOptionalBoolean(PbjWriter out, FieldDefinition field, @Nullable Boolean value) {
+        if (value != null) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarIntNoZZ(sizeOfBoolean(newField, value));
             writeBoolean(out, newField, value);
         }
     }
@@ -649,6 +1201,22 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write an optional string to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the optional string value to write
+     */
+    public static void writeOptionalString(PbjWriter out, FieldDefinition field, @Nullable String value) {
+        if (value != null) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            out.writeVarIntNoZZ(sizeOfString(newField, value));
+            writeString(out, newField, value);
+        }
+    }
+
+    /**
      * Write an optional bytes to data output
      *
      * @param out The data output to write to
@@ -663,6 +1231,25 @@ public final class ProtoWriterTools {
             final var newField = field.type().optionalFieldDefinition;
             final int size = sizeOfBytes(newField, value);
             out.writeVarInt(size, false);
+            if (size > 0) {
+                writeBytes(out, newField, value);
+            }
+        }
+    }
+
+    /**
+     * Write an optional bytes to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the optional bytes value to write
+     */
+    public static void writeOptionalBytes(PbjWriter out, FieldDefinition field, @Nullable Bytes value) {
+        if (value != null) {
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            final var newField = field.type().optionalFieldDefinition;
+            final int size = sizeOfBytes(newField, value);
+            out.writeVarIntNoZZ(size);
             if (size > 0) {
                 writeBytes(out, newField, value);
             }
@@ -748,6 +1335,81 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a list of integers to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param list the list of integers value to write
+     */
+    public static void writeIntegerList(PbjWriter out, FieldDefinition field, List<Integer> list) {
+        assert switch (field.type()) {
+                    case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
+                    default -> false;
+                }
+                : "Not an integer type " + field;
+        assert field.repeated() : "Use writeInteger with non-repeated types";
+
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && list.isEmpty()) {
+            return;
+        }
+
+        final int listSize = list.size();
+        switch (field.type()) {
+            case INT32 -> {
+                int size = 0;
+                for (int i = 0; i < listSize; i++) {
+                    final int val = list.get(i);
+                    size += sizeOfVarInt32(val);
+                }
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
+                out.writeVarIntNoZZ(size);
+                for (int i = 0; i < listSize; i++) {
+                    final int val = list.get(i);
+                    out.writeVarIntNoZZ(val);
+                }
+            }
+            case UINT32 -> {
+                int size = 0;
+                for (int i = 0; i < listSize; i++) {
+                    final int val = list.get(i);
+                    size += sizeOfUnsignedVarInt64(Integer.toUnsignedLong(val));
+                }
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
+                out.writeVarIntNoZZ(size);
+                for (int i = 0; i < listSize; i++) {
+                    final int val = list.get(i);
+                    out.writeVarLongNoZZ(Integer.toUnsignedLong(val));
+                }
+            }
+            case SINT32 -> {
+                int size = 0;
+                for (int i = 0; i < listSize; i++) {
+                    final int val = list.get(i);
+                    size += sizeOfUnsignedVarInt64(((long) val << 1) ^ ((long) val >> 63));
+                }
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
+                out.writeVarIntNoZZ(size);
+                for (int i = 0; i < listSize; i++) {
+                    final int val = list.get(i);
+                    out.writeVarIntZZ(val);
+                }
+            }
+            case SFIXED32, FIXED32 -> {
+                // The bytes in protobuf are in little-endian order -- backwards for Java.
+                // Smallest byte first.
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
+                out.writeVarLongNoZZ((long) list.size() * FIXED32_SIZE);
+                for (int i = 0; i < listSize; i++) {
+                    final int val = list.get(i);
+                    out.writeIntLE(val);
+                }
+            }
+            default -> throw unsupported();
+        }
+    }
+
+    /**
      * Write a list of longs to data output
      *
      * @param out The data output to write to
@@ -810,6 +1472,68 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a list of longs to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param list the list of longs value to write
+     */
+    public static void writeLongList(PbjWriter out, FieldDefinition field, List<Long> list) {
+        assert switch (field.type()) {
+                    case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
+                    default -> false;
+                }
+                : "Not a long type " + field;
+        assert field.repeated() : "Use writeLong with non-repeated types";
+
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && list.isEmpty()) {
+            return;
+        }
+
+        final int listSize = list.size();
+        switch (field.type()) {
+            case INT64, UINT64 -> {
+                int size = 0;
+                for (int i = 0; i < listSize; i++) {
+                    final long val = list.get(i);
+                    size += sizeOfUnsignedVarInt64(val);
+                }
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
+                out.writeVarIntNoZZ(size);
+                for (int i = 0; i < listSize; i++) {
+                    final long val = list.get(i);
+                    out.writeVarLongNoZZ(val);
+                }
+            }
+            case SINT64 -> {
+                int size = 0;
+                for (int i = 0; i < listSize; i++) {
+                    final long val = list.get(i);
+                    size += sizeOfUnsignedVarInt64((val << 1) ^ (val >> 63));
+                }
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
+                out.writeVarIntNoZZ(size);
+                for (int i = 0; i < listSize; i++) {
+                    final long val = list.get(i);
+                    out.writeVarLongZZ(val);
+                }
+            }
+            case SFIXED64, FIXED64 -> {
+                // The bytes in protobuf are in little-endian order -- backwards for Java.
+                // Smallest byte first.
+                writeTag(out, field, WIRE_TYPE_DELIMITED);
+                out.writeVarLongNoZZ((long) list.size() * FIXED64_SIZE);
+                for (int i = 0; i < listSize; i++) {
+                    final long val = list.get(i);
+                    out.writeLongLE(val);
+                }
+            }
+            default -> throw unsupported();
+        }
+    }
+
+    /**
      * Write a list of floats to data output
      *
      * @param out The data output to write to
@@ -829,6 +1553,29 @@ public final class ProtoWriterTools {
         final int listSize = list.size();
         for (int i = 0; i < listSize; i++) {
             out.writeFloat(list.get(i), ByteOrder.LITTLE_ENDIAN);
+        }
+    }
+
+    /**
+     * Write a list of floats to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param list the list of floats value to write
+     */
+    public static void writeFloatList(PbjWriter out, FieldDefinition field, List<Float> list) {
+        assert field.type() == FieldType.FLOAT : "Not a float type " + field;
+        assert field.repeated() : "Use writeFloat with non-repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && list.isEmpty()) {
+            return;
+        }
+        final int size = list.size() * FIXED32_SIZE;
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
+        out.writeVarIntNoZZ(size);
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            out.writeFloatLE(list.get(i));
         }
     }
 
@@ -856,6 +1603,29 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a list of doubles to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param list the list of doubles value to write
+     */
+    public static void writeDoubleList(PbjWriter out, FieldDefinition field, List<Double> list) {
+        assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
+        assert field.repeated() : "Use writeDouble with non-repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && list.isEmpty()) {
+            return;
+        }
+        final int size = list.size() * FIXED64_SIZE;
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
+        out.writeVarIntNoZZ(size);
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            out.writeDoubleLE(list.get(i));
+        }
+    }
+
+    /**
      * Write a list of booleans to data output
      *
      * @param out The data output to write to
@@ -876,6 +1646,30 @@ public final class ProtoWriterTools {
         for (int i = 0; i < listSize; i++) {
             final boolean b = list.get(i);
             out.writeVarInt(b ? 1 : 0, false);
+        }
+    }
+
+    /**
+     * Write a list of booleans to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param list the list of booleans value to write
+     */
+    public static void writeBooleanList(PbjWriter out, FieldDefinition field, List<Boolean> list) {
+        assert field.type() == FieldType.BOOL : "Not a boolean type " + field;
+        assert field.repeated() : "Use writeBoolean with non-repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && list.isEmpty()) {
+            return;
+        }
+        // write
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
+        out.writeVarIntNoZZ(list.size());
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            final boolean b = list.get(i);
+            out.writeVarIntNoZZ(b ? 1 : 0);
         }
     }
 
@@ -907,6 +1701,32 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a list of enums to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param list the list of enums value to write
+     */
+    public static void writeEnumListProtoOrdinals(PbjWriter out, FieldDefinition field, List<Integer> list) {
+        assert field.type() == FieldType.ENUM : "Not an enum type " + field;
+        assert field.repeated() : "Use writeEnum with non-repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && list.isEmpty()) {
+            return;
+        }
+        final int listSize = list.size();
+        int size = 0;
+        for (int i = 0; i < listSize; i++) {
+            size += sizeOfUnsignedVarInt32(list.get(i));
+        }
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
+        out.writeVarIntNoZZ(size);
+        for (int i = 0; i < listSize; i++) {
+            out.writeVarIntNoZZ(list.get(i));
+        }
+    }
+
+    /**
      * Write a list of strings to data output
      *
      * @param out The data output to write to
@@ -932,6 +1752,29 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a list of strings to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param list the list of strings value to write
+     */
+    public static void writeStringList(PbjWriter out, FieldDefinition field, List<String> list) {
+        assert field.type() == FieldType.STRING : "Not a string type " + field;
+        assert field.repeated() : "Use writeString with non-repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && list.isEmpty()) {
+            return;
+        }
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            final String value = list.get(i);
+            writeTag(out, field, WIRE_TYPE_DELIMITED);
+            out.writeVarIntNoZZ(sizeOfStringNoTag(value));
+            out.writeStringNoTag(value);
+        }
+    }
+
+    /**
      * Write a list of messages to data output
      *
      * @param out The data output to write to
@@ -943,6 +1786,28 @@ public final class ProtoWriterTools {
      */
     public static <T> void writeMessageList(
             WritableSequentialData out, FieldDefinition field, List<T> list, Codec<T> codec) throws IOException {
+        assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
+        assert field.repeated() : "Use writeMessage with non-repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && list.isEmpty()) {
+            return;
+        }
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            writeMessageNoChecks(out, field, list.get(i), codec);
+        }
+    }
+
+    /**
+     * Write a list of messages to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param list the list of messages value to write
+     * @param codec the codec for the message type
+     * @param <T> type of message
+     */
+    public static <T> void writeMessageList(PbjWriter out, FieldDefinition field, List<T> list, Codec<T> codec) {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert field.repeated() : "Use writeMessage with non-repeated types";
         // When not a oneOf don't write default value
@@ -979,6 +1844,26 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a list of bytes objects to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param list the list of bytes objects value to write
+     */
+    public static void writeBytesList(PbjWriter out, FieldDefinition field, List<? extends RandomAccessData> list) {
+        assert field.type() == FieldType.BYTES : "Not a message type " + field;
+        assert field.repeated() : "Use writeBytes with non-repeated types";
+        // When not a oneOf don't write default value
+        if (!field.oneOf() && list.isEmpty()) {
+            return;
+        }
+        final int listSize = list.size();
+        for (int i = 0; i < listSize; i++) {
+            writeBytesNoChecks(out, field, list.get(i), false);
+        }
+    }
+
+    /**
      * Write a generic delimited field by delegating to a supplied `writer` to write the actual elements.
      *
      * @param out The data output to write to
@@ -991,6 +1876,21 @@ public final class ProtoWriterTools {
             final T out, final FieldDefinition field, final int size, final Consumer<T> writer) {
         writeTag(out, field);
         out.writeVarInt(size, false);
+        writer.accept(out);
+    }
+
+    /**
+     * Write a generic delimited field by delegating to a supplied `writer` to write the actual elements.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param size the size of all the elements together, in bytes
+     * @param writer the Consumer that accepts the `out` and writes the actual elements
+     */
+    public static void writeDelimited(
+            final PbjWriter out, final FieldDefinition field, final int size, final Consumer<PbjWriter> writer) {
+        writeTag(out, field);
+        out.writeVarIntNoZZ(size);
         writer.accept(out);
     }
 

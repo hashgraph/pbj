@@ -30,10 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
@@ -572,8 +572,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
-                throws IOException {
+        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final PbjWriter out) {
             final String value = item.getValue();
             if (value != null) {
                 ProtoWriterTools.writeString(out, VALUE_FIELD, value);

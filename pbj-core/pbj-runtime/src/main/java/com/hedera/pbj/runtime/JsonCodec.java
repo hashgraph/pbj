@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -74,7 +75,19 @@ public abstract class JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
     @Override
-    protected final void writeImpl(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+    protected final void writeImpl(@NonNull T item, @NonNull PbjWriter output) {
+        output.writeStringNoTag(toJSON(item));
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Writes directly via {@code output.writeUTF8(...)} instead of routing through a {@link PbjWriter}, since some
+     * {@link WritableSequentialData} implementations only support the string-level {@code writeUTF8} hook and not
+     * raw byte writes.
+     */
+    @Override
+    public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
         output.writeUTF8(toJSON(item));
     }
     /**

@@ -386,6 +386,16 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
+     * A helper method for efficient copy of our data into a {@link PbjWriter} without creating a defensive copy
+     * of the data.
+     *
+     * @param out the PbjWriter to copy into
+     */
+    public void writeTo(@NonNull final PbjWriter out) {
+        out.writeBytes(buffer, start, length);
+    }
+
+    /**
      * A helper method for efficient copy of our data into a MemorySegment starting at a given `position`
      * without creating a defensive copy of the data or writing each byte one at a time.
      * @param segment a destination MemorySegment

@@ -3,14 +3,13 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.BufferedSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 /**
  * Encapsulates Serialization, Deserialization and other IO operations.
@@ -291,19 +290,39 @@ public abstract class Codec<T> {
      * consistent entry point. Subclasses implement this method rather than {@code write} directly, since
      * {@code write} may perform additional work before and after delegating to this implementation.
      *
-     * @see #write(Object, WritableSequentialData) for a description
+     * @see #write(Object, PbjWriter) for a description
      */
-    protected abstract void writeImpl(@NonNull T item, @NonNull WritableSequentialData output) throws IOException;
+    protected abstract void writeImpl(@NonNull T item, @NonNull PbjWriter output);
+
+    /**
+     * Writes an item to the given {@link PbjWriter}.
+     *
+     * @param item The item to write. Must not be null.
+     * @param output The {@link PbjWriter} to write to.
+     */
+    public final void write(@NonNull T item, @NonNull PbjWriter output) {
+        writeImpl(item, output);
+    }
 
     /**
      * Writes an item to the given {@link WritableSequentialData}.
+     * <p>
+     * Overridable (rather than {@code final}) so that {@link JsonCodec} can redirect straight to
+     * {@code output.writeUTF8(...)}, bypassing the {@link PbjWriter}-based {@link #writeImpl(Object, PbjWriter)}
+     * path, since some {@link WritableSequentialData} implementations only support the string-level
+     * {@code writeUTF8} hook and not raw byte writes.
      *
      * @param item The item to write. Must not be null.
      * @param output The {@link WritableSequentialData} to write to.
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
-    public final void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
-        writeImpl(item, output);
+    public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+        final PbjWriter writer = new PbjWriter(output);
+        try {
+            writeImpl(item, writer);
+        } finally {
+            writer.flush();
+        }
     }
 
     /**
@@ -314,7 +333,7 @@ public abstract class Codec<T> {
      * @param output The byte array to write to, this must be large enough to hold the entire item.
      * @param startOffset The offset in the output array to start writing at.
      * @return The number of bytes written to the output array.
-     * @throws UncheckedIOException If the there is a problem writing to the output array.
+     * @throws RuntimeException If there is a problem writing to the output array.
      * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
      */
     public final int write(@NonNull T item, @NonNull byte[] output, final int startOffset) {
@@ -328,18 +347,18 @@ public abstract class Codec<T> {
      * The actual byte-array writing logic for a specific codec, invoked by the {@link #write(Object, byte[], int)}
      * methods through a single, consistent entry point. Generated codecs override this method with a
      * performance-focused implementation; this default implementation delegates to
-     * {@link #writeImpl(Object, WritableSequentialData)} so that hand-written codecs don't need to provide one.
+     * {@link #writeImpl(Object, PbjWriter)} so that hand-written codecs don't need to provide one.
      *
      * @see #write(Object, byte[], int) for a description
      */
     protected int writeImpl(@NonNull T item, @NonNull byte[] output, final int startOffset) {
-        final BufferedData bufferedData = BufferedData.wrap(output, startOffset, output.length - startOffset);
+        final PbjWriter writer = new PbjWriter(output, startOffset);
         try {
-            write(item, bufferedData);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            writeImpl(item, writer);
+        } finally {
+            writer.flush();
         }
-        return (int) bufferedData.position();
+        return writer.position() - startOffset;
     }
 
     /**
@@ -358,7 +377,7 @@ public abstract class Codec<T> {
      * read all the data, or just some special serialized data, as needed to find out the length of
      * the data.
      * <p>
-     * If {@code input} is a {@link BufferedSequentialData} (e.g. {@link BufferedData}), its position is
+     * If {@code input} is a {@link BufferedSequentialData} (e.g. {@code BufferedData}), its position is
      * updated to reflect exactly the bytes consumed by this call. A plain stream-backed input should be
      * treated as fully consumed afterward.
      *
@@ -404,7 +423,7 @@ public abstract class Codec<T> {
      * entire object, when we could have determined the bytes do not represent the same object very
      * cheaply and quickly.
      * <p>
-     * If {@code input} is a {@link BufferedSequentialData} (e.g. {@link BufferedData}), its position is
+     * If {@code input} is a {@link BufferedSequentialData} (e.g. {@code BufferedData}), its position is
      * updated to reflect exactly the bytes consumed by this call. A plain stream-backed input should be
      * treated as fully consumed afterward.
      *
@@ -433,11 +452,11 @@ public abstract class Codec<T> {
     public Bytes toBytes(@NonNull T item) {
         // it is cheaper performance wise to measure the size of the object first than grow a buffer as needed
         final byte[] bytes = new byte[measureRecord(item)];
-        final BufferedData bufferedData = BufferedData.wrap(bytes);
+        final PbjWriter writer = new PbjWriter(bytes, 0);
         try {
-            write(item, bufferedData);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            writeImpl(item, writer);
+        } finally {
+            writer.flush();
         }
         return Bytes.wrap(bytes);
     }
