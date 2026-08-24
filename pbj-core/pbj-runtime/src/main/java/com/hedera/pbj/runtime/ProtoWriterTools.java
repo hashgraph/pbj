@@ -82,7 +82,6 @@ public final class ProtoWriterTools {
         out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType.ordinal(), false);
     }
 
-
     /**
      * Write a protobuf tag to the output.
      *
@@ -751,8 +750,7 @@ public final class ProtoWriterTools {
      * @param field the descriptor for the field we are writing, the field must be repeated
      * @param value the bytes value to write
      */
-    public static void writeOneRepeatedBytes(
-            PbjWriter out, final FieldDefinition field, final RandomAccessData value) {
+    public static void writeOneRepeatedBytes(PbjWriter out, final FieldDefinition field, final RandomAccessData value) {
         assert field.type() == FieldType.BYTES : "Not a byte[] type " + field;
         assert field.repeated() : "writeOneRepeatedBytes can only be used with repeated fields";
         writeBytesNoChecks(out, field, value, true);
@@ -1311,9 +1309,9 @@ public final class ProtoWriterTools {
      */
     public static void writeIntegerList(PbjWriter out, FieldDefinition field, List<Integer> list) {
         assert switch (field.type()) {
-            case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
-            default -> false;
-        }
+                    case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
+                    default -> false;
+                }
                 : "Not an integer type " + field;
         assert field.repeated() : "Use writeInteger with non-repeated types";
 
