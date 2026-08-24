@@ -283,6 +283,15 @@ public class PbjReader implements AutoCloseable {
     }
 
     /**
+     * Returns the number of bytes remaining before the limit. This is not the byte length since a stream may return MAX_VALUE as its limit
+     *
+     * @return the number of bytes remaining
+     */
+    public long remaining() {
+        return limit() - position();
+    }
+
+    /**
      * Skips over {@code count} bytes, advancing the read position without returning the data.
      * Sets {@link #BufferUnderflow} if there are fewer than {@code count} bytes remaining.
      *
@@ -600,6 +609,15 @@ public class PbjReader implements AutoCloseable {
      */
     public int error() {
         return err > 0 ? err : 0;
+    }
+
+    /**
+     * Returns true if all operations has been successful
+     *
+     * @return {@code true} if no error has occurred
+     */
+    public boolean ok() {
+        return err <= 0;
     }
 
     private int bufferedInternal(int count) {
