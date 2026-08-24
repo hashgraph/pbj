@@ -133,7 +133,7 @@ public final class CodecGenerator implements Generator {
                 /**
                  * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
                  */
-                public final$staticModifier class $codecClass implements Codec<$modelClass> {
+                public final$staticModifier class $codecClass extends Codec<$modelClass> {
                 $cacheableSupport
                     /**
                      * An initial capacity for the ArrayList where unknown fields are collected.

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,11 +17,12 @@ import java.util.Objects;
  *
  * @param <T> The type of object to serialize and deserialize
  */
-public interface JsonCodec<T> extends Codec<T> {
+public abstract class JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
-    default @NonNull T parse(
-            @NonNull ReadableSequentialData input,
+    @Override
+    protected final @NonNull T parseImpl(
+            @NonNull PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
@@ -32,6 +34,20 @@ public interface JsonCodec<T> extends Codec<T> {
             throw new ParseException(ex);
         }
     }
+
+    /**
+     * The actual parsing logic for a specific codec, invoked by the {@link #parse} methods through a single,
+     * consistent entry point. Subclasses implement this method rather than {@code parse} directly, since
+     * {@code parse} may perform additional work before and after delegating to this implementation.
+     *
+     * @see #parse(JSONParser.ObjContext, boolean, int, int) for a description of each parameter
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    @NonNull
+    protected abstract T parseImpl(
+            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
+            throws ParseException;
 
     /**
      * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext. Throws if in strict mode ONLY.
@@ -51,28 +67,46 @@ public interface JsonCodec<T> extends Codec<T> {
      * @throws ParseException If parsing fails
      */
     @NonNull
-    T parse(@Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
-            throws ParseException;
-
-    /**
-     * Writes an item to the given {@link WritableSequentialData}.
-     *
-     * @param item The item to write. Must not be null.
-     * @param output The {@link WritableSequentialData} to write to.
-     * @throws IOException If the {@link WritableSequentialData} cannot be written to.
-     */
-    default void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
-        output.writeUTF8(toJSON(item));
+    public final T parse(
+            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
+            throws ParseException {
+        return parseImpl(root, strictMode, maxDepth, maxSize);
     }
 
+    /** {@inheritDoc} */
+    @Override
+    protected final void writeImpl(@NonNull T item, @NonNull PbjWriter output) {
+        output.writeStringNoTag(toJSON(item));
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Writes directly via {@code output.writeUTF8(...)} instead of routing through a {@link PbjWriter}, since some
+     * {@link WritableSequentialData} implementations only support the string-level {@code writeUTF8} hook and not
+     * raw byte writes.
+     */
+    @Override
+    public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+        output.writeUTF8(toJSON(item));
+    }
     /**
      * Returns JSON string representing an item.
      *
      * @param item      The item to convert. Must not be null.
      */
-    default String toJSON(@NonNull T item) {
+    public final String toJSON(@NonNull T item) {
         return toJSON(item, "", false);
     }
+
+    /**
+     * The actual JSON-writing logic for a specific codec, invoked by the {@link #toJSON} methods through a single,
+     * consistent entry point. Subclasses implement this method rather than {@code toJSON} directly, since
+     * {@code toJSON} may perform additional work before and after delegating to this implementation.
+     *
+     * @see #toJSON(Object, String, boolean) for a description
+     */
+    protected abstract String toJSONImpl(@NonNull T item, String indent, boolean inline);
 
     /**
      * Returns JSON string representing an item.
@@ -82,7 +116,9 @@ public interface JsonCodec<T> extends Codec<T> {
      * @param inline    When true the output will start with indent end with a new line otherwise
      *                        it will just be the object "{...}"
      */
-    String toJSON(@NonNull T item, String indent, boolean inline);
+    public final String toJSON(@NonNull T item, String indent, boolean inline) {
+        return toJSONImpl(item, indent, inline);
+    }
 
     /**
      * Reads from this data input the length of the data within the input. The implementation may
@@ -95,7 +131,8 @@ public interface JsonCodec<T> extends Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    default int measure(@NonNull ReadableSequentialData input) throws ParseException {
+    @Override
+    public final int measure(@NonNull PbjReader input) throws ParseException {
         final long startPosition = input.position();
         parse(input);
         return (int) (input.position() - startPosition);
@@ -109,7 +146,7 @@ public interface JsonCodec<T> extends Codec<T> {
      * @param item The input model data to measure write bytes for
      * @return The length in bytes that would be written
      */
-    default int measureRecord(T item) {
+    public final int measureRecord(T item) {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         WritableStreamingData out = new WritableStreamingData(bout);
         try {
@@ -134,12 +171,13 @@ public interface JsonCodec<T> extends Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    default boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+    @Override
+    public final boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException {
         return Objects.equals(item, parse(input));
     }
 
     @Override
-    default T getDefaultInstance() {
+    public final T getDefaultInstance() {
         return null;
     }
 }

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.function.ToIntFunction;
 
 /**
@@ -13,7 +12,7 @@ import java.util.function.ToIntFunction;
  *
  * @param <T> The type of the object to be encoded/decoded
  */
-class CodecWrapper<T> implements Codec<T> {
+class CodecWrapper<T> extends Codec<T> {
     private final ProtoWriter<T> writer;
     private final ToIntFunction<T> sizeOf;
 
@@ -24,23 +23,19 @@ class CodecWrapper<T> implements Codec<T> {
 
     @NonNull
     @Override
-    public T parse(
-            @NonNull ReadableSequentialData input,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize)
+    protected T parseImpl(
+            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+    protected void writeImpl(@NonNull T item, @NonNull PbjWriter output) {
         writer.write(item, output);
     }
 
     @Override
-    public int measure(@NonNull ReadableSequentialData input) throws ParseException {
+    public int measure(@NonNull PbjReader input) throws ParseException {
         throw new UnsupportedOperationException();
     }
 
@@ -50,7 +45,7 @@ class CodecWrapper<T> implements Codec<T> {
     }
 
     @Override
-    public boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+    public boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException {
         throw new UnsupportedOperationException();
     }
 

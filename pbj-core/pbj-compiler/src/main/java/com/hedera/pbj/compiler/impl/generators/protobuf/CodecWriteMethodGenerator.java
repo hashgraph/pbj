@@ -44,9 +44,8 @@ final class CodecWriteMethodGenerator {
              *
              * @param data The input model data to write
              * @param out The output stream to write to
-             * @throws IOException If there is a problem writing
              */
-            public void write(@NonNull $modelClass data, @NonNull final WritableSequentialData out) throws IOException {
+            protected final void writeImpl(@NonNull $modelClass data, @NonNull final PbjWriter out) {
                 $fieldWriteLines
                 // Check if not-empty to avoid creating a lambda if there's nothing to write.
                 if (!data.getUnknownFields().isEmpty()) {
