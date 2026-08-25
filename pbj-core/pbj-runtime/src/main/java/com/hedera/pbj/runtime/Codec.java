@@ -33,6 +33,21 @@ public abstract class Codec<T> {
      */
     public static final int DEFAULT_MAX_DEPTH = 128;
 
+    private static final class WriteCache {
+        PbjWriter writer = new PbjWriter();
+        /**  For recursive situations if the caller ever requires it */
+        boolean inUse = false;
+    }
+
+    private static final class ReadCache {
+        PbjReader reader = new PbjReader(Bytes.EMPTY);
+        /**  For recursive situations if the caller ever requires it */
+        boolean inUse = false;
+    }
+
+    private static final ThreadLocal<WriteCache> tlsWriter = ThreadLocal.withInitial(WriteCache::new);
+    private static final ThreadLocal<ReadCache> tlsReader = ThreadLocal.withInitial(ReadCache::new);
+
     /**
      * The actual parsing logic for a specific codec, invoked by the {@link #parse} methods through a single,
      * consistent entry point. Subclasses implement this method rather than {@code parse} directly, since
@@ -151,6 +166,10 @@ public abstract class Codec<T> {
      * rather than to individual instances of the model. In other words, this value should be a constant, or a config
      * value that is controlled by the application, rather than come from the input that the application reads.
      * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
+     * <p>
+     * This method uses a thread-local {@link PbjReader} to avoid allocating one per call. As a result it is not
+     * reentrant: calling this method again on the same thread before an outer call has returned (e.g. from within
+     * {@code parseImpl}) throws a {@link RuntimeException} rather than parsing normally.
      *
      * @param input The {@link ReadableSequentialData} from which to read the data to construct an object
      * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
@@ -160,6 +179,7 @@ public abstract class Codec<T> {
      * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
      * @return The parsed object. It must not return null.
      * @throws ParseException If parsing fails
+     * @throws RuntimeException If this method is called reentrantly on the same thread
      */
     @NonNull
     public final T parse(
@@ -169,11 +189,21 @@ public abstract class Codec<T> {
             int maxDepth,
             int maxSize)
             throws ParseException {
-        final PbjReader reader = new PbjReader(input);
+
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            throw new RuntimeException("tls reader already in use, avoid recursion");
+        }
+        cache.inUse = true;
+        PbjReader reader = cache.reader;
         try {
-            return parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.resetWith(input);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
         } finally {
             syncPosition(input, reader);
+            cache.inUse = false;
         }
     }
 
@@ -253,7 +283,7 @@ public abstract class Codec<T> {
      */
     @NonNull
     public final T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
-        return parse(new PbjReader(bytes), strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
+        return parse(bytes, strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
     }
 
     /**
@@ -279,7 +309,96 @@ public abstract class Codec<T> {
      */
     @NonNull
     public final T parse(@NonNull Bytes bytes) throws ParseException {
-        return parse(bytes.toReadableSequentialData());
+        return parse(bytes, false, DEFAULT_MAX_DEPTH);
+    }
+
+    /**
+     * Parses an object from the {@link Bytes} and returns it.
+     * <p>
+     * If {@code strictMode} is {@code true}, then throws an exception if fields
+     * have been defined on the encoded object that are not supported by the parser. This
+     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
+     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * parsing it is prepared to handle.
+     * <p>
+     * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
+     * will fail with a ParseException if the maximum depth is reached.
+     * <p>
+     * This default implementation uses the default limit of `Codec.DEFAULT_MAX_SIZE` for `maxSize`
+     *
+     * @param bytes The {@link Bytes} from which to read the data to construct an object
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+     * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
+     *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    @NonNull
+    public final T parse(@NonNull Bytes bytes, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
+        return parse(bytes, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+    }
+
+    /**
+     * Parses an object from the {@link Bytes} and returns it.
+     * <p>
+     * If {@code strictMode} is {@code true}, then throws an exception if fields
+     * have been defined on the encoded object that are not supported by the parser. This
+     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
+     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * parsing it is prepared to handle.
+     * <p>
+     * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
+     * will fail with a ParseException if the maximum depth is reached.
+     * <p>
+     * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
+     * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
+     * payload can cause the parser to allocate too much memory which can result in OutOfMemory and/or crashes.
+     * It's important to carefully estimate the maximum size limit that a particular protobuf model type should support,
+     * and then pass that value as a parameter. Note that the estimated limit should apply to the **type** as a whole,
+     * rather than to individual instances of the model. In other words, this value should be a constant, or a config
+     * value that is controlled by the application, rather than come from the input that the application reads.
+     * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
+     * <p>
+     * This method uses a thread-local {@link PbjReader} to avoid allocating one per call. As a result it is not
+     * reentrant: calling this method again on the same thread before an outer call has returned (e.g. from within
+     * {@code parseImpl}) throws a {@link RuntimeException} rather than parsing normally.
+     *
+     * @param bytes The {@link Bytes} from which to read the data to construct an object
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+     * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
+     *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     * @throws RuntimeException If this method is called reentrantly on the same thread
+     */
+    @NonNull
+    public final T parse(
+            @NonNull Bytes bytes, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+            throws ParseException {
+
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            throw new RuntimeException("tls reader already in use, avoid recursion");
+            /*
+            PbjReader reader = new PbjReader(input);
+            T res = parse(bytes, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res; //*/
+        }
+        cache.inUse = true;
+        PbjReader reader = cache.reader;
+        try {
+            reader.resetWith(bytes);
+            T res = parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
+            reader.throwOnError();
+            return res;
+        } finally {
+            cache.inUse = false;
+        }
     }
 
     /**
@@ -356,10 +475,18 @@ public abstract class Codec<T> {
      * @throws IOException If the {@link WritableSequentialData} cannot be written to.
      */
     public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
-        final PbjWriter writer = new PbjWriter(output);
-        writeImpl(item, writer);
-        writer.flush();
-        writer.throwOnError();
+        WriteCache cache = tlsWriter.get();
+        if (cache.inUse) {
+            throw new RuntimeException("tls writer already in use, avoid recursion");
+        }
+        cache.inUse = true;
+        try {
+            cache.writer.resetWith(output);
+            write(item, cache.writer);
+            cache.writer.flush();
+        } finally {
+            cache.inUse = false;
+        }
     }
 
     /**
@@ -389,13 +516,19 @@ public abstract class Codec<T> {
      * @see #write(Object, byte[], int) for a description
      */
     protected int writeImpl(@NonNull T item, @NonNull byte[] output, final int startOffset) {
-        final PbjWriter writer = new PbjWriter(output, startOffset);
-        try {
-            writeImpl(item, writer);
-        } finally {
-            writer.flush();
+        WriteCache cache = tlsWriter.get();
+        if (cache.inUse) {
+            throw new RuntimeException("tls writer already in use, avoid recursion");
         }
-        return writer.position() - startOffset;
+        cache.inUse = true;
+        try {
+            cache.writer.resetWithNull();
+            writeImpl(item, cache.writer);
+        } finally {
+            cache.writer.flush();
+            cache.inUse = false;
+        }
+        return cache.writer.position() - startOffset;
     }
 
     /**
@@ -408,6 +541,14 @@ public abstract class Codec<T> {
      * @throws ParseException If parsing fails
      */
     public abstract int measure(@NonNull PbjReader input) throws ParseException;
+
+    /*
+    public int measure(@NonNull PbjReader input) throws ParseException {
+        final long startPosition = input.position();
+        parse(input);
+        return (int) (input.position() - startPosition);
+    }
+    //*/
 
     /**
      * Temporary for test compatibility
@@ -425,11 +566,18 @@ public abstract class Codec<T> {
      * @throws ParseException If parsing fails
      */
     public final int measure(@NonNull ReadableSequentialData input) throws ParseException {
-        final PbjReader reader = new PbjReader(input);
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            throw new RuntimeException("tls reader already in use, avoid recursion");
+        }
+        cache.inUse = true;
+        PbjReader reader = cache.reader;
         try {
+            reader.resetWith(input);
             return measure(reader);
         } finally {
             syncPosition(input, reader);
+            cache.inUse = false;
         }
     }
 
@@ -474,11 +622,18 @@ public abstract class Codec<T> {
      * @throws ParseException If parsing fails
      */
     public final boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
-        final PbjReader reader = new PbjReader(input);
+        ReadCache cache = tlsReader.get();
+        if (cache.inUse) {
+            throw new RuntimeException("tls reader already in use, avoid recursion");
+        }
+        cache.inUse = true;
+        PbjReader reader = cache.reader;
         try {
+            reader.resetWith(input);
             return fastEquals(item, reader);
         } finally {
             syncPosition(input, reader);
+            cache.inUse = false;
         }
     }
 
@@ -490,17 +645,34 @@ public abstract class Codec<T> {
      * @throws RuntimeException wrapping an IOException If it is impossible
      * to write to the {@link WritableStreamingData}
      */
-    public Bytes toBytes(@NonNull T item) {
-        // TODO: Confirm if this next line is accurate with PbjWriter
-        // it is cheaper performance wise to measure the size of the object first than grow a buffer as needed
-        final byte[] bytes = new byte[measureRecord(item)];
-        final PbjWriter writer = new PbjWriter(bytes, 0);
-        try {
-            writeImpl(item, writer);
-        } finally {
-            writer.flush();
+    public final Bytes toBytes(@NonNull T item) {
+        WriteCache cache = tlsWriter.get();
+        if (cache.inUse) {
+            throw new RuntimeException("tls writer already in use, avoid recursion");
         }
-        return Bytes.wrap(bytes);
+        cache.inUse = true;
+        try {
+            cache.writer.resetWithNull();
+            return toBytes(item, cache.writer);
+        } finally {
+            cache.inUse = false;
+        }
+    }
+
+    /**
+     * Writes an item using the given {@link PbjWriter} and returns the written bytes.
+     * <p>
+     * The {@code writer} must be a standalone (non-streaming) writer, since the result is obtained via
+     * {@link PbjWriter#toByteArrayWrapped()}; a writer backed by an {@link java.io.OutputStream} or
+     * {@link WritableSequentialData} will report a usage error instead of returning the bytes.
+     *
+     * @param item The item to write. Must not be null.
+     * @param writer The {@link PbjWriter} to write the item to.
+     * @return The bytes written to {@code writer}, wrapped in a {@link Bytes} instance.
+     */
+    public final Bytes toBytes(@NonNull T item, PbjWriter writer) {
+        write(item, writer);
+        return writer.toByteArrayWrapped();
     }
 
     /**
