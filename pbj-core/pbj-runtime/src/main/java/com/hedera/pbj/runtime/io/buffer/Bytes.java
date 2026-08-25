@@ -485,6 +485,11 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         return new RandomAccessSequenceAdapter(this);
     }
 
+    @NonNull
+    public void setPbjReader(@NonNull PbjReader reader) {
+        reader.resetWith(buffer, start, start + length);
+    }
+
     /**
      * Exposes this {@link Bytes} as an {@link InputStream}. This is a zero-copy operation.
      *
