@@ -116,18 +116,18 @@ class CodecParseMethodGenerator {
             final String javaFieldType = field.type() == Field.FieldType.ENUM ? field.repeated() ? "List" :  "Object" : field.javaFieldType();
             return "%s temp_%s = %s;"
                     .formatted(javaFieldType, field.name(), field.javaDefault());
-        }).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2).stripTrailing())
+        }).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT).stripTrailing())
         .replace("$fieldsList",
                 fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", "))
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
         )
-        .replace("$parseLoop", parseAndDefaultBodyPair.parseBody().indent(DEFAULT_INDENT * 2).stripTrailing())
+        .replace("$parseLoop", parseAndDefaultBodyPair.parseBody().indent(DEFAULT_INDENT).stripTrailing())
         .replace("$defaultCaseBody", parseAndDefaultBodyPair.defaultBody().indent(DEFAULT_INDENT).stripTrailing())
         .replace("$listFieldsWriteProtection", fields.stream()
                 .filter(Field::repeated)
                 .map(field -> "if (temp_" + field.name() + " instanceof UnmodifiableArrayList ual) ual.makeReadOnly();")
                 .collect(Collectors.joining("\n"))
-                .indent(DEFAULT_INDENT * 2))
+                .indent(DEFAULT_INDENT))
         .indent(DEFAULT_INDENT);
         // spotless:on
     }
@@ -161,7 +161,7 @@ class CodecParseMethodGenerator {
                                 .replace("return false", "yield false")
                                 .replace("return true", "yield true")
                                 .indent(DEFAULT_INDENT))
-                .indent(DEFAULT_INDENT * 2);
+                .indent(DEFAULT_INDENT);
     }
 
     public record ParseAndDefaultBody(String parseBody, String defaultBody) {}
@@ -492,7 +492,7 @@ class CodecParseMethodGenerator {
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
                             mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
                     .replace("$mapParseLoop", parseAndDefaultBodyPair.parseBody()
-                            .indent(DEFAULT_INDENT * 2).stripTrailing())
+                            .indent(DEFAULT_INDENT).stripTrailing())
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                     .indent(DEFAULT_INDENT)
             );
