@@ -13,7 +13,7 @@ import java.util.function.ToIntFunction;
  *
  * @param <T> The type of the object to be encoded/decoded
  */
-class CodecWrapper<T> implements Codec<T> {
+class CodecWrapper<T> extends Codec<T> {
     private final ProtoWriter<T> writer;
     private final ToIntFunction<T> sizeOf;
 
@@ -24,7 +24,7 @@ class CodecWrapper<T> implements Codec<T> {
 
     @NonNull
     @Override
-    public T parse(
+    protected T parseImpl(
             @NonNull ReadableSequentialData input,
             boolean strictMode,
             boolean parseUnknownFields,
@@ -35,7 +35,7 @@ class CodecWrapper<T> implements Codec<T> {
     }
 
     @Override
-    public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+    protected void writeImpl(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
         writer.write(item, output);
     }
 

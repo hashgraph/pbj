@@ -82,7 +82,7 @@ class CodecParseMethodGenerator {
                  * @return Parsed $modelClassName model object or null if data input was null or empty
                  * @throws ParseException If parsing fails
                  */
-                public @NonNull $modelClassName parse(
+                protected final @NonNull $modelClassName parseImpl(
                         @NonNull final ReadableSequentialData input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
