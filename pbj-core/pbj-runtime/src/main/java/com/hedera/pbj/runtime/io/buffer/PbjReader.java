@@ -184,7 +184,7 @@ public class PbjReader implements AutoCloseable {
 
     /** Creates a reader backed by the given {@link Bytes}. */
     public PbjReader(Bytes bytes) {
-        bytes.setPbjReader(this);
+        bytes.resetPbjReader(this);
     }
 
     /** Resets this reader to read from the given {@link ReadableSequentialData}. */

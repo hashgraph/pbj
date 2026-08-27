@@ -486,7 +486,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     @NonNull
-    public void setPbjReader(@NonNull PbjReader reader) {
+    public void resetPbjReader(@NonNull PbjReader reader) {
         reader.resetWith(buffer, start, start + length);
     }
 
