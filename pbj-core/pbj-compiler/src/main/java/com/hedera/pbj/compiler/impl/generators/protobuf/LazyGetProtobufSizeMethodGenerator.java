@@ -50,7 +50,7 @@ public class LazyGetProtobufSizeMethodGenerator {
                 .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
                 .replace(
                         "$unknownFieldsSizeOfLines",
-                        formatUnknownFieldsSizeOfLines().indent(DEFAULT_INDENT))
+                        formatUnknownFieldsSizeOfLines().indent(DEFAULT_INDENT * 2))
                 .indent(DEFAULT_INDENT);
         // spotless:on
     }
@@ -113,8 +113,6 @@ public class LazyGetProtobufSizeMethodGenerator {
             prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
                     + Common.camelToUpperSnake(field.name()) + ")";
             prefix += "\n";
-            // The statement below is the (unbraced) body of the "if" above, so indent it one level
-            // deeper than the "if" itself to make that visually clear.
             statementIndent = " ".repeat(DEFAULT_INDENT);
         }
 
@@ -170,7 +168,7 @@ public class LazyGetProtobufSizeMethodGenerator {
                                 final int sizePre = _size;
                                 $K k = pbjMap.getSortedKeys().get(i);
                                 $V v = pbjMap.get(k);
-                                $fieldSizeOfLines
+                        $fieldSizeOfLines
                                 _size += sizeOfVarInt32(_size - sizePre);
                             }
                         }
