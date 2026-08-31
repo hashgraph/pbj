@@ -373,6 +373,15 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
+     * A helper method to copy buffer data into PbjWriter
+     *
+     * @param writer the PbjWriter to copy into
+     */
+    public void writeTo(@NonNull final PbjWriter writer) {
+        writer.writeBytes(buffer, start, length);
+    }
+
+    /**
      * A helper method for efficient copy of our data into an WritableSequentialData without creating a defensive copy
      * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
      * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
