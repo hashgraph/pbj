@@ -114,12 +114,12 @@ class CodecParseMethodTest {
                 final boolean strictMode,
                 final boolean parseUnknownFields,
                 final int maxDepth,
-                final int maxSize)
-                throws ParseException {
+                final int maxSize) {
             final int length = input.readInt();
             final byte[] payload = new byte[length];
             if (input.readBytes(payload) != length) {
-                throw new ParseException("Failed to read payload bytes");
+                input.setError(PbjReader.PARSE, "Failed to read payload bytes");
+                return null;
             }
             return new LengthPrefixed(payload);
         }

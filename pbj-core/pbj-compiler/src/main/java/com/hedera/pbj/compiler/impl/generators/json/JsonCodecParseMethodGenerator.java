@@ -58,17 +58,20 @@ class JsonCodecParseMethodGenerator {
                  * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
                  *
                  * @param root The JSON parsed object tree to parse data from
-                 * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
-                 * @return Parsed HashObject model object or null if data input was null or empty
-                 * @throws ParseException If parsing fails
+                 * @param input the {@link PbjReader} used solely to carry error state for this parse; sets
+                 *              {@link PbjReader#PARSE} if the size of a delimited field exceeds the limit
+                 * @return Parsed HashObject model object, or {@code null} if data input was null or empty, or an
+                 *         error was set on {@code input}
                  */
-                protected final @NonNull $modelClassName parseImpl(
+                protected final $modelClassName parseImpl(
                         @Nullable final JSONParser.ObjContext root,
+                        @NonNull final PbjReader input,
                         final boolean strictMode,
                         final int maxDepth,
-                        final int maxSize) throws ParseException {
+                        final int maxSize) {
                     if (maxDepth < 0) {
-                        throw new ParseException("Reached maximum allowed depth of nested messages");
+                        input.setError(PbjReader.MAX_DEPTH_REACHED);
+                        return null;
                     }
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
@@ -82,7 +85,8 @@ class JsonCodecParseMethodGenerator {
                                 default: {
                                     if (strictMode) {
                                         // Since we are parsing is strict mode, this is an exceptional condition.
-                                        throw new UnknownFieldException(kvPair.STRING().getText());
+                                        input.setError(PbjReader.UNKNOWN_FIELD, kvPair.STRING().getText());
+                                        return null;
                                     }
                                 }
                             }
@@ -90,7 +94,8 @@ class JsonCodecParseMethodGenerator {
 
                         return new $modelClassName($fieldsList);
                     } catch (Exception ex) {
-                        throw new ParseException(ex);
+                        input.setError(PbjReader.PARSE, ex.getMessage());
+                        return null;
                     }
                 }
                 """.replace("$modelClassName", modelClassName)
@@ -150,7 +155,7 @@ class JsonCodecParseMethodGenerator {
         if (field.repeated()) {
             if (field.type() == Field.FieldType.MESSAGE) {
                 sb.append(("parseObjArray(checkSize(\"$fieldName\", $valueGetter.arr().value(), $maxSize), "
-                                + field.messageType() + ".JSON, maxDepth - 1, $maxSize)")
+                                + field.messageType() + ".JSON, input, maxDepth - 1, $maxSize)")
                         .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                         .replace("$fieldName", field.name()));
             } else {
@@ -228,7 +233,7 @@ class JsonCodecParseMethodGenerator {
             switch (field.type()) {
                 case MESSAGE ->
                     sb.append(field.javaFieldType()
-                            + ".JSON.parse($valueGetter.getChild(JSONParser.ObjContext.class, 0), false, maxDepth - 1, $maxSize)"
+                            + ".JSON.parseNoEx($valueGetter.getChild(JSONParser.ObjContext.class, 0), input, false, maxDepth - 1, $maxSize)"
                                     .replace(
                                             "$maxSize",
                                             field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize"));

@@ -549,8 +549,7 @@ class ProtoParserToolsTest {
                 final boolean strictMode,
                 final boolean parseUnknownFields,
                 final int maxDepth,
-                final int maxSize)
-                throws ParseException {
+                final int maxSize) {
             String value = null;
             while (in.hasRemaining()) {
                 final int tag = in.readVarInt(false);
@@ -561,11 +560,13 @@ class ProtoParserToolsTest {
                     final int length = in.readVarInt(false);
                     final byte[] valueBytes = new byte[length];
                     if (in.readBytes(valueBytes) != length) {
-                        throw new ParseException("Failed to read value bytes");
+                        in.setError(PbjReader.PARSE, "Failed to read value bytes");
+                        return null;
                     }
                     value = new String(valueBytes, StandardCharsets.UTF_8);
                 } else {
-                    throw new ParseException("Unknown field: " + tag);
+                    in.setError(PbjReader.PARSE, "Unknown field: " + tag);
+                    return null;
                 }
             }
             return new TestMessage(value);
