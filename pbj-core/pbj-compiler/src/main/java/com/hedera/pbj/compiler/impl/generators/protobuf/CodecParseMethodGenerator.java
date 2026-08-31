@@ -289,44 +289,61 @@ class CodecParseMethodGenerator {
         sbFunc.append("""
 %s case%d(PbjReader input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
+        int divideAmount = fieldType.equals("List<Integer>") ? 2
+            : fieldType.equals("List<Long>") ? 4
+            : fieldType.equals("List<Float>") ? 2
+            : fieldType.equals("List<Double>") ? 4
+            : fieldType.equals("List<Boolean>") ? 1
+            : 0;
+
         if (field.type() == Field.FieldType.ENUM) {
+            divideAmount = 1;
             preRead = """
                     final int enumOrdinal = readEnum(input);
                     Object value = $enumName.fromProtobufOrdinal(enumOrdinal);
                     if (value == $enumName.UNRECOGNIZED) {
-                       value = Integer.valueOf(enumOrdinal);
+                        value = Integer.valueOf(enumOrdinal);
                     }
                     
                     """
-                    .replace("$enumName", Common.snakeToCamel(field.messageType(), true))
-            ;
+                    .replace("$enumName", Common.snakeToCamel(field.messageType(), true));
         } else {
             preRead = "";
         }
-        final String loopBody = preRead + "%s = addToList(%s,%s);"
-                .formatted(tempFieldName, tempFieldName, field.type() == Field.FieldType.ENUM ? "value" : readMethod(field));
+
+        if (divideAmount == 0) {
+            throw new RuntimeException("Need to implement");
+        }
+
         sbFunc.append("""
                 // Read the length of packed repeated field data
-                final long length = input.readVarInt(false);
+                final int length = input.readVarInt(false);
                 if (length > $maxSize) {
                     throw new ParseException("$fieldName size " + length + " is greater than max " + $maxSize);
                 }
                 if (input.remaining() < length) {
                     throw new BufferUnderflowException();
                 }
-                final var beforeLimit = input.limit();
-                final long beforePosition = input.position();
+                final var startLimit = input.limit();
+                final long startPosition = input.position();
                 input.limit(input.position() + length);
+                var list = new UnmodifiableArray$fieldType();
+                list.ensureCapacity(length$divideString);
                 while (input.hasRemaining()) {
-                $loopBody
+                    $preReadlist.add($readMethod);
                 }
-                input.limit(beforeLimit);
-                if (input.position() != beforePosition + length) {
+                $tempFieldName = list;
+                input.limit(startLimit);
+                if (input.position() != startPosition + length) {
                     throw new BufferUnderflowException();
                 }"""
-                .replace("$loopBody", loopBody.indent(DEFAULT_INDENT).stripTrailing())
+                .replace("$tempFieldName", tempFieldName)
+                .replace("$preRead", preRead)
+                .replace("$fieldType", fieldType)
+                .replace("$readMethod", field.type() == Field.FieldType.ENUM ? "value" : readMethod(field))
                 .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                 .replace("$fieldName", field.name())
+                .replace("$divideString", divideAmount == 1 ? "" : "/%d".formatted(divideAmount))
                 .indent(DEFAULT_INDENT));
         sbCase.append("\n}\n");
         sbFunc.append("    return %s;\n    }\n".formatted(tempFieldName));
