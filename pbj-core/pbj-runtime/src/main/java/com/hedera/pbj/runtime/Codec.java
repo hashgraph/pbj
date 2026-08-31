@@ -205,6 +205,12 @@ public abstract class Codec<T> {
             throws ParseException {
         return parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
     }
+
+    @NonNull
+    public final T parse(@NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            throws ParseException {
+        return parse(input, strictMode, parseUnknownFields, maxDepth, DEFAULT_MAX_SIZE);
+    }
     /**
      * Temporary for test compatibility
      *
@@ -251,7 +257,45 @@ public abstract class Codec<T> {
      */
     @NonNull
     public final T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
-        return parse(new PbjReader(bytes), strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
+        return parse(bytes, strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
+    }
+
+    /**
+     * Parses an object from the {@link Bytes} and returns it.
+     * <p>
+     * If {@code strictMode} is {@code true}, then throws an exception if fields
+     * have been defined on the encoded object that are not supported by the parser. This
+     * breaks forwards compatibility (an older parser cannot parse a newer encoded object),
+     * which is sometimes requires to avoid parsing an object that is newer than the code
+     * parsing it is prepared to handle.
+     * <p>
+     * The {@code maxDepth} specifies the maximum allowed depth of nested messages. The parsing
+     * will fail with a ParseException if the maximum depth is reached.
+     * <p>
+     * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
+     * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
+     * payload can cause the parser to allocate too much memory which can result in OutOfMemory and/or crashes.
+     * It's important to carefully estimate the maximum size limit that a particular protobuf model type should support,
+     * and then pass that value as a parameter. Note that the estimated limit should apply to the **type** as a whole,
+     * rather than to individual instances of the model. In other words, this value should be a constant, or a config
+     * value that is controlled by the application, rather than come from the input that the application reads.
+     * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
+     *
+     * @param input The {@link Bytes} from which to read the data to construct an object
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+     * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
+     *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    @NonNull
+    public final T parse(
+            @NonNull Bytes input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
+            throws ParseException {
+        final PbjReader reader = new PbjReader(input);
+        return parse(reader, strictMode, parseUnknownFields, maxDepth, maxSize);
     }
 
     /**
@@ -277,7 +321,7 @@ public abstract class Codec<T> {
      */
     @NonNull
     public final T parse(@NonNull Bytes bytes) throws ParseException {
-        return parse(bytes.toReadableSequentialData());
+        return parse(bytes, false, false, DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE);
     }
 
     /**
@@ -311,7 +355,7 @@ public abstract class Codec<T> {
      */
     @NonNull
     public final T parseStrict(@NonNull Bytes bytes) throws ParseException {
-        return parseStrict(bytes.toReadableSequentialData());
+        return parse(bytes, true, DEFAULT_MAX_DEPTH);
     }
 
     /**
@@ -489,7 +533,7 @@ public abstract class Codec<T> {
      * to write to the {@link WritableStreamingData}
      */
     public Bytes toBytes(@NonNull T item) {
-        // TODO: Confirm if this next line is accurate with PbjWriter
+        // TODO: Confirm if this next line is still true with PbjWriter
         // it is cheaper performance wise to measure the size of the object first than grow a buffer as needed
         final byte[] bytes = new byte[measureRecord(item)];
         final PbjWriter writer = new PbjWriter(bytes, 0);

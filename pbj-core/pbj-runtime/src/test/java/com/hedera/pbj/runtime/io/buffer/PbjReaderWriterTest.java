@@ -930,17 +930,6 @@ public class PbjReaderWriterTest {
     }
 
     @Test
-    void quickTest() {
-        byte[] a = {2, 3};
-        var by = Bytes.wrap(a);
-        var adap = by.toReadableSequentialData();
-        var r = new PbjReader(adap);
-        var w = new PbjWriter();
-        w.setError(4, "");
-        int q = 0;
-    }
-
-    @Test
     void largeWriteBypassCorrectness() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         PbjWriter writer = new PbjWriter(out);
