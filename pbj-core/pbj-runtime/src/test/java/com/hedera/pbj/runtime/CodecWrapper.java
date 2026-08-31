@@ -24,8 +24,7 @@ class CodecWrapper<T> extends Codec<T> {
     @NonNull
     @Override
     protected T parseImpl(
-            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
-            throws ParseException {
+            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize) {
         throw new UnsupportedOperationException();
     }
 
