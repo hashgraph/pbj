@@ -90,6 +90,7 @@ public abstract class JsonCodec<T> extends Codec<T> {
     public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
         output.writeUTF8(toJSON(item));
     }
+
     /**
      * Returns JSON string representing an item.
      *

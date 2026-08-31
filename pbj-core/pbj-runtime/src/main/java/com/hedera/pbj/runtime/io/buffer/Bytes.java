@@ -494,6 +494,16 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         return new RandomAccessSequenceAdapter(this);
     }
 
+    /**
+     * Create and return a new {@link PbjReader} that is backed by this {@link Bytes}.
+     *
+     * @return A {@link PbjReader} backed by this {@link Bytes}.
+     */
+    @NonNull
+    public PbjReader toPbjReader() {
+        return new PbjReader(this);
+    }
+
     @NonNull
     public void resetPbjReader(@NonNull PbjReader reader) {
         reader.resetWith(buffer, start, start + length);
