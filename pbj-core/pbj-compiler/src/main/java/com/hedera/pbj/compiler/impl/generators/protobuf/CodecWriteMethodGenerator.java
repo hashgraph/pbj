@@ -51,7 +51,7 @@ final class CodecWriteMethodGenerator {
                 if (!data.getUnknownFields().isEmpty()) {
                     data.getUnknownFields().forEach(uf -> {
                         final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
-                        out.writeVarInt(tag, false);
+                        out.writeVarIntNoZZ(tag);
                         uf.bytes().writeTo(out);
                     });
                 }
@@ -177,7 +177,7 @@ final class CodecWriteMethodGenerator {
                                     $V v = pbjMap.get(k);
                                     int size = 0;
                             $fieldSizeOfLines
-                                    out.writeVarInt(size, false);
+                                    out.writeVarIntNoZZ(size);
                             $fieldWriteLines
                                 }
                             }
