@@ -33,6 +33,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
@@ -358,7 +359,7 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesNullInput() {
         final FieldDefinition field = createFieldDefinition(BYTES);
-        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes(null, field));
+        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes((PbjReader) null, field));
     }
 
     @Test
