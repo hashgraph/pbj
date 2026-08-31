@@ -95,7 +95,7 @@ class CodecParseMethodGenerator {
                 $fieldDefs
                     List<UnknownField> $unknownFields = null;
 
-                    $parseLoop
+                $parseLoop
                 $listFieldsWriteProtection
                     if ($unknownFields != null) {
                         Collections.sort($unknownFields);
@@ -110,29 +110,34 @@ class CodecParseMethodGenerator {
                     return $unknownFields;
                 }
                 """
-        .replace("$cacheableSupport", isCacheable ? generateCacheableSupport(modelClassName, fields) : "return new $modelClassName($fieldsList);")
+        .replace(
+                "$cacheableSupport",
+                isCacheable
+                        ? generateCacheableSupport(modelClassName, fields)
+                        : "return new $modelClassName($fieldsList);".indent(DEFAULT_INDENT).stripTrailing())
         .replace("$modelClassName",modelClassName)
         .replace("$fieldDefs",fields.stream().map(field -> {
             final String javaFieldType = field.type() == Field.FieldType.ENUM ? field.repeated() ? "List" :  "Object" : field.javaFieldType();
             return "%s temp_%s = %s;"
                     .formatted(javaFieldType, field.name(), field.javaDefault());
-        }).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2).stripTrailing())
+        }).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT).stripTrailing())
         .replace("$fieldsList",
                 fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", "))
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
         )
-        .replace("$parseLoop", parseAndDefaultBodyPair.parseBody().indent(DEFAULT_INDENT * 2).stripTrailing())
+        .replace("$parseLoop", parseAndDefaultBodyPair.parseBody().indent(DEFAULT_INDENT).stripTrailing())
         .replace("$defaultCaseBody", parseAndDefaultBodyPair.defaultBody().indent(DEFAULT_INDENT).stripTrailing())
         .replace("$listFieldsWriteProtection", fields.stream()
                 .filter(Field::repeated)
                 .map(field -> "if (temp_" + field.name() + " instanceof UnmodifiableArrayList ual) ual.makeReadOnly();")
                 .collect(Collectors.joining("\n"))
-                .indent(DEFAULT_INDENT * 2))
+                .indent(DEFAULT_INDENT))
         .indent(DEFAULT_INDENT);
         // spotless:on
     }
 
     static String generateCacheableSupport(String modelClassName, final List<Field> fields) {
+        // spotless:off
         return """
                 final int objectHashCode;
                 {
@@ -154,14 +159,16 @@ class CodecParseMethodGenerator {
                 _theObject = new $modelClassName($fieldsList, objectHashCode);
                 CACHE[objectHashCode & CACHE_KEY_MASK] = _theObject;
                 return _theObject;
-                """.replace("$hashCodeBody", ModelGenerator.generateHashCodeBody(modelClassName, fields, "temp_"))
+                """
+                .replace("$hashCodeBody", ModelGenerator.generateHashCodeBody(modelClassName, fields, "temp_"))
                 .replace(
                         "$equalsBody",
                         ModelGenerator.generateEqualsBody(fields, modelClassName, "temp_")
                                 .replace("return false", "yield false")
                                 .replace("return true", "yield true")
-                                .indent(DEFAULT_INDENT))
-                .indent(DEFAULT_INDENT * 2);
+                                .indent(DEFAULT_INDENT * 2))
+                .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 
     public record ParseAndDefaultBody(String parseBody, String defaultBody) {}
@@ -282,9 +289,9 @@ class CodecParseMethodGenerator {
         // spotless:off
         sbCase.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
-        sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
-        sbFunc.append("""
-%s case%d(PbjReader input, int maxSize, %s %s) {""".formatted(fieldType, tag, fieldType, tempFieldName));
+        sbCase.append("    %s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
+        sbFunc.append("    %s case%d(PbjReader input, int maxSize, %s %s) {\n"
+                .formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
         int divideAmount = fieldType.equals("List<Integer>") ? 2
             : fieldType.equals("List<Long>") ? 4
@@ -300,10 +307,10 @@ class CodecParseMethodGenerator {
                     Object value = $enumName.fromProtobufOrdinal(enumOrdinal);
                     if (value == $enumName.UNRECOGNIZED) {
                         value = Integer.valueOf(enumOrdinal);
-                    }
-                    
-                    """
-                    .replace("$enumName", Common.snakeToCamel(field.messageType(), true));
+                    }"""
+                    .replace("$enumName", Common.snakeToCamel(field.messageType(), true))
+                    .indent(DEFAULT_INDENT)
+                    .stripTrailing();
         } else {
             preRead = "";
         }
@@ -329,13 +336,16 @@ class CodecParseMethodGenerator {
                 var list = new UnmodifiableArray$fieldType();
                 list.ensureCapacity(length$divideString);
                 while (input.hasRemaining()) {
-                    $preReadlist.add($readMethod);
+                $preRead
+                    list.add($readMethod);
                 }
                 $tempFieldName = list;
                 input.limit(startLimit);
                 if (input.position() != startPosition + length) {
                     input.setError(PbjReader.BUFFER_UNDERFLOW);
-                }"""
+                }
+                return $tempFieldName;
+                """
                 .replace("$tempFieldName", tempFieldName)
                 .replace("$preRead", preRead)
                 .replace("$fieldType", fieldType)
@@ -343,9 +353,9 @@ class CodecParseMethodGenerator {
                 .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                 .replace("$fieldName", field.name())
                 .replace("$divideString", divideAmount == 1 ? "" : "/%d".formatted(divideAmount))
-                .indent(DEFAULT_INDENT));
+                .indent(DEFAULT_INDENT * 2));
         sbCase.append("\n}\n");
-        sbFunc.append("    return %s;\n    }\n".formatted(tempFieldName));
+        sbFunc.append("    }\n");
         // spotless:on
     }
 
@@ -492,7 +502,7 @@ class CodecParseMethodGenerator {
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
                             mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
                     .replace("$mapParseLoop", parseAndDefaultBodyPair.parseBody()
-                            .indent(DEFAULT_INDENT * 2).stripTrailing())
+                            .indent(DEFAULT_INDENT).stripTrailing())
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                     .indent(DEFAULT_INDENT)
             );
