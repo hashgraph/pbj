@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,36 +21,34 @@ public abstract class JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
     @Override
-    protected final @NonNull T parseImpl(
-            @NonNull ReadableSequentialData input,
+    protected final T parseImpl(
+            @NonNull PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
-            final int maxSize)
-            throws ParseException {
-        try {
-            return parse(JsonTools.parseJson(input), strictMode, maxDepth, maxSize);
-        } catch (IOException ex) {
-            throw new ParseException(ex);
-        }
+            final int maxSize) {
+        return parseImpl(JsonTools.parseJson(input), input, strictMode, maxDepth, maxSize);
     }
 
     /**
-     * The actual parsing logic for a specific codec, invoked by the {@link #parse} methods through a single,
-     * consistent entry point. Subclasses implement this method rather than {@code parse} directly, since
-     * {@code parse} may perform additional work before and after delegating to this implementation.
+     * The actual parsing logic for a specific codec, invoked by the {@link #parseNoEx} methods through a single,
+     * consistent entry point. Subclasses implement this method rather than {@code parseNoEx} directly, since
+     * {@code parseNoEx} may perform additional work before and after delegating to this implementation.
      *
-     * @see #parse(JSONParser.ObjContext, boolean, int, int) for a description of each parameter
-     * @return The parsed object. It must not return null.
-     * @throws ParseException If parsing fails
+     * @see #parseNoEx(JSONParser.ObjContext, PbjReader, boolean, int, int) for a description of each parameter
+     * @return The parsed object, or {@code null} if an error was set on {@code input}
      */
-    @NonNull
     protected abstract T parseImpl(
-            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
-            throws ParseException;
+            @Nullable final JSONParser.ObjContext root,
+            @NonNull final PbjReader input,
+            final boolean strictMode,
+            final int maxDepth,
+            final int maxSize);
 
     /**
-     * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext. Throws if in strict mode ONLY.
+     * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext. Sets an error on
+     * {@code input} in strict mode ONLY. Same as parse, except doesn't throw. Check for error by using
+     * {@code input.error() != 0} (or {@code > 0}), or {@code input.ok()}. Return value may be null.
      * <p>
      * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
      * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
@@ -61,22 +60,37 @@ public abstract class JsonCodec<T> extends Codec<T> {
      * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
      *
      * @param root The JSON parsed object tree to parse data from
-     * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
-     * @return Parsed HashObject model object or null if data input was null or empty
-     * @throws ParseException If parsing fails
+     * @param input the {@link PbjReader} used solely to carry error state for this parse; sets
+     *              {@link PbjReader#PARSE} if the size of a delimited field exceeds the limit
+     * @return Parsed HashObject model object, or {@code null} if data input was null or empty, or an error was set
      */
-    @NonNull
-    public final T parse(
-            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
-            throws ParseException {
-        return parseImpl(root, strictMode, maxDepth, maxSize);
+    public final T parseNoEx(
+            @Nullable final JSONParser.ObjContext root,
+            @NonNull final PbjReader input,
+            final boolean strictMode,
+            final int maxDepth,
+            final int maxSize) {
+        return parseImpl(root, input, strictMode, maxDepth, maxSize);
     }
 
     /** {@inheritDoc} */
     @Override
-    protected final void writeImpl(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+    protected final void writeImpl(@NonNull T item, @NonNull PbjWriter output) {
+        output.writeStringNoTag(toJSON(item));
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Writes directly via {@code output.writeUTF8(...)} instead of routing through a {@link PbjWriter}, since some
+     * {@link WritableSequentialData} implementations only support the string-level {@code writeUTF8} hook and not
+     * raw byte writes.
+     */
+    @Override
+    public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
         output.writeUTF8(toJSON(item));
     }
+
     /**
      * Returns JSON string representing an item.
      *
@@ -118,7 +132,8 @@ public abstract class JsonCodec<T> extends Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    public final int measure(@NonNull ReadableSequentialData input) throws ParseException {
+    @Override
+    public final int measure(@NonNull PbjReader input) throws ParseException {
         final long startPosition = input.position();
         parse(input);
         return (int) (input.position() - startPosition);
@@ -157,7 +172,8 @@ public abstract class JsonCodec<T> extends Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    public final boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+    @Override
+    public final boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException {
         return Objects.equals(item, parse(input));
     }
 

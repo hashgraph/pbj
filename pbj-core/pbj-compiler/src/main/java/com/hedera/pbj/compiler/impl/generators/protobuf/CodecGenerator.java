@@ -147,9 +147,9 @@ public final class CodecGenerator implements Generator {
                     /**
                      * Empty constructor
                      */
-                     public $codecClass() {
-                         // no-op
-                     }
+                    public $codecClass() {
+                        // no-op
+                    }
 
                 $unsetOneOfConstants
                 $parseMethod
