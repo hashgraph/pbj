@@ -210,6 +210,7 @@ public final class ServiceGenerator {
                 methodLambda = "typedReplies -> " + name + "(typedReplies, options)";
             }
 
+            // spotless:off
             return """
                     case $methodName -> Pipelines.<$requestType, $replyType>$kind()
                             .mapRequest(bytes -> parse$simpleRequestType(bytes, options))
@@ -225,9 +226,11 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$kind", kind);
+            // spotless:on
         }
 
         private String formatUnaryMethodImplementation() {
+            // spotless:off
             return """
                         @Override
                         $methodSignatureWithoutOptions {
@@ -298,9 +301,11 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$methodName", name);
+            // spotless:on
         }
 
         private String formatClientStreamingMethodImplementation() {
+            // spotless:off
             return """
                         @Override
                         $methodSignatureWithoutOptions {
@@ -369,9 +374,11 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$methodName", name);
+            // spotless:on
         }
 
         private String formatServerStreamingMethodImplementation() {
+            // spotless:off
             return """
                         @Override
                         $methodSignatureWithoutOptions {
@@ -429,9 +436,11 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$methodName", name);
+            // spotless:on
         }
 
         private String formatBidiStreamingMethodImplementation() {
+            // spotless:off
             return """
                         @Override
                         $methodSignatureWithoutOptions {
@@ -496,6 +505,7 @@ public final class ServiceGenerator {
                     .replace("$replyType", replyType)
                     .replace("$simpleReplyType", replyType.replace(".", ""))
                     .replace("$methodName", name);
+            // spotless:on
         }
 
         String formatMethodImplementation() {
@@ -771,7 +781,7 @@ public final class ServiceGenerator {
                     Objects.requireNonNull(options);
 
                     // not strict, no unknown fields, hard-code maxDepth for now, and use custom maxSize:
-                    return get$simpleRequestTypeCodec(options).parse(message.toReadableSequentialData(), false, false, 16, options.maxMessageSizeBytes());
+                    return get$simpleRequestTypeCodec(options).parse(message, false, false, 16, options.maxMessageSizeBytes());
                 }
                 """
                 .replace("$requestType", requestType)
