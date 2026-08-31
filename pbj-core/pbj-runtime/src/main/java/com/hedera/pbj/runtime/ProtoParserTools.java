@@ -89,7 +89,7 @@ public final class ProtoParserTools {
      * @return the read int
      */
     public static int readInt32(PbjReader input) {
-        return input.readVarInt(false);
+        return input.readVarIntNoZZ();
     }
 
     /**
@@ -109,7 +109,7 @@ public final class ProtoParserTools {
      * @return the read long
      */
     public static long readInt64(PbjReader input) {
-        return input.readVarLong(false);
+        return input.readVarLongNoZZ();
     }
 
     /**
@@ -129,7 +129,7 @@ public final class ProtoParserTools {
      * @return the read int
      */
     public static int readUint32(PbjReader input) {
-        return input.readVarInt(false);
+        return input.readVarIntNoZZ();
     }
 
     /**
@@ -149,7 +149,7 @@ public final class ProtoParserTools {
      * @return the read long
      */
     public static long readUint64(PbjReader input) {
-        return input.readVarLong(false);
+        return input.readVarLongNoZZ();
     }
 
     /**
@@ -174,7 +174,7 @@ public final class ProtoParserTools {
      * @return the read boolean
      */
     public static boolean readBool(PbjReader input) {
-        final var i = input.readVarInt(false);
+        final var i = input.readVarIntNoZZ();
         if (i != 1 && i != 0) {
             input.setError(PbjReader.DATA_ENCODING);
         }
@@ -198,7 +198,7 @@ public final class ProtoParserTools {
      * @return the read enum protoc ordinal
      */
     public static int readEnum(PbjReader input) {
-        return input.readVarInt(false);
+        return input.readVarIntNoZZ();
     }
 
     /**
@@ -605,7 +605,7 @@ public final class ProtoParserTools {
      * of InputData
      */
     public static Bytes readBytes(final PbjReader input, final long maxSize) {
-        final int length = input.readVarInt(false);
+        final int length = input.readVarIntNoZZ();
         if (length > maxSize || length < 0) {
             input.setError(PbjReader.PARSE);
             return Bytes.EMPTY;
@@ -868,7 +868,7 @@ public final class ProtoParserTools {
             // The value for "zigZag" when calling varint doesn't matter because we are just reading past
             // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
             // the bytes, not how many of them there are)
-            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLongNoZZ();
             case WIRE_TYPE_DELIMITED -> {
                 final int length = input.readVarIntNoZZ();
                 if (length < 0) {
@@ -903,7 +903,7 @@ public final class ProtoParserTools {
      * @return the read tag
      */
     public static int readNextFieldNumber(final PbjReader input) {
-        final int tag = input.readVarInt(false);
+        final int tag = input.readVarIntNoZZ();
         return tag >> TAG_FIELD_OFFSET;
     }
 }
