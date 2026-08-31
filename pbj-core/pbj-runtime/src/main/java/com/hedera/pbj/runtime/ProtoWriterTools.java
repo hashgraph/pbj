@@ -1340,7 +1340,7 @@ public final class ProtoWriterTools {
      * @param value string value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    static int sizeOfStringNoTag(String value) {
+    public static int sizeOfStringNoTag(String value) {
         // When not a oneOf don't write default value
         if ((value == null || value.isEmpty())) {
             return 0;
