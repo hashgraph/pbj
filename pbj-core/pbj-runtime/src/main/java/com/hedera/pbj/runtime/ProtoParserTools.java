@@ -280,7 +280,9 @@ public final class ProtoParserTools {
             int b = src[i + 1];
             if ((a & 0xE0) == 0xC0) {
                 if ((b & 0xC0) == 0x80) {
-                    dst[di++] = (char) (((a & 0x1F) << 6) | (b & 0x3F));
+                    int codepoint = ((a & 0x1F) << 6) | (b & 0x3F);
+                    if (codepoint < 0x80) return -1; // Overlong encoding
+                    dst[di++] = (char) codepoint;
                     i += 2;
                     continue;
                 } else {
@@ -295,6 +297,7 @@ public final class ProtoParserTools {
             if ((a & 0xF0) == 0xE0) {
                 if ((b & 0xC0) == 0x80 && (c & 0xC0) == 0x80) {
                     codepoint = ((a & 0xF) << 12) | ((b & 0x3F) << 6) | (c & 0x3F);
+                    if (codepoint < 0x800) return -1; // Overlong encoding
                     i += 3;
                 } else {
                     return -1; // Bad encoding
@@ -304,6 +307,7 @@ public final class ProtoParserTools {
                 int d = src[i + 3];
                 if ((a & 0xF8) == 0xF0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80 && (d & 0xC0) == 0x80) {
                     codepoint = ((a & 7) << 18) | ((b & 0x3F) << 12) | ((c & 0x3F) << 6) | (d & 0x3F);
+                    if (codepoint < 0x10000) return -1; // Overlong encoding
                     i += 4;
                 } else {
                     return -1; // Bad encoding
@@ -355,7 +359,9 @@ public final class ProtoParserTools {
             }
             int b = src[i + 1];
             if ((a & 0xE0) == 0xC0 && (b & 0xC0) == 0x80) {
-                dst[di++] = (char) (((a & 0x1F) << 6) | (b & 0x3F));
+                int codepoint = ((a & 0x1F) << 6) | (b & 0x3F);
+                if (codepoint < 0x80) return -1; // Overlong encoding
+                dst[di++] = (char) codepoint;
                 i += 2;
                 continue;
             }
@@ -363,11 +369,13 @@ public final class ProtoParserTools {
             int codepoint = -1;
             if ((a & 0xF0) == 0xE0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80) {
                 codepoint = ((a & 0xF) << 12) | ((b & 0x3F) << 6) | (c & 0x3F);
+                if (codepoint < 0x800) return -1; // Overlong encoding
                 i += 3;
             } else {
                 int d = src[i + 3];
                 if ((a & 0xF8) == 0xF0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80 && (d & 0xC0) == 0x80) {
                     codepoint = ((a & 7) << 18) | ((b & 0x3F) << 12) | ((c & 0x3F) << 6) | (d & 0x3F);
+                    if (codepoint < 0x10000) return -1; // Overlong encoding
                     i += 4;
                 }
             }

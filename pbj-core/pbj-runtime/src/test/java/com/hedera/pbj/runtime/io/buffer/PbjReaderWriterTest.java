@@ -1343,6 +1343,27 @@ public class PbjReaderWriterTest {
     }
 
     @Test
+    void readStringRejectsOverlong2ByteEncoding() {
+        var reader = new PbjReader(new byte[] {2, (byte) 0xC0, (byte) 0xAF});
+        assertEquals("", reader.readString(Long.MAX_VALUE));
+        assertEquals(PbjReader.PARSE, reader.error());
+    }
+
+    @Test
+    void readStringRejectsOverlong3ByteEncoding() {
+        var reader = new PbjReader(new byte[] {3, (byte) 0xE0, (byte) 0x80, (byte) 0xAF});
+        assertEquals("", reader.readString(Long.MAX_VALUE));
+        assertEquals(PbjReader.PARSE, reader.error());
+    }
+
+    @Test
+    void readStringRejectsOverlong4ByteEncoding() {
+        var reader = new PbjReader(new byte[] {4, (byte) 0xF0, (byte) 0x80, (byte) 0x80, (byte) 0xAF});
+        assertEquals("", reader.readString(Long.MAX_VALUE));
+        assertEquals(PbjReader.PARSE, reader.error());
+    }
+
+    @Test
     void readStringReturnsEmptyOnInsufficientData() {
         var reader = new PbjReader(new byte[] {5, 'a', 'b'}); // length=5 but only 2 bytes follow
         assertEquals("", reader.readString(Long.MAX_VALUE));
