@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -109,7 +110,7 @@ public class PbjReader implements AutoCloseable {
         if (seq != null) {
             rsd = seq;
             absoluteLimit = seq.limit();
-            offset = (int) seq.position();
+            offset = seq.position();
         } else if (inputStream != null) {
             stream = inputStream;
         }
@@ -129,7 +130,7 @@ public class PbjReader implements AutoCloseable {
             rsd = seq;
             stream = null;
             absoluteLimit = seq.limit();
-            offset = (int) seq.position();
+            offset = seq.position();
         } else if (inputStream != null) {
             rsd = null;
             stream = inputStream;
@@ -197,7 +198,7 @@ public class PbjReader implements AutoCloseable {
         resetWith(bb.array(), position, position + bb.remaining());
     }
 
-    private void bufferMore(int relAmount) {
+    private void bufferMore() {
         if (err != 0) return;
         offset += pos;
         if (pos < end && pos != 0) {
@@ -232,7 +233,7 @@ public class PbjReader implements AutoCloseable {
     // still small, but less likely to hit this case in steaming, and only once when not streaming
     private boolean hasRemainingInternal() {
         if (seenEOF) return false;
-        bufferMore(1);
+        bufferMore();
         return pos < relLimit;
     }
 
@@ -294,8 +295,8 @@ public class PbjReader implements AutoCloseable {
         count -= skippedInBuffer;
         pos = relLimit;
         offset += count;
-        if (stream != null) {
-            try {
+        try {
+            if (stream != null) {
                 long remaining = count;
                 while (remaining > 0) {
                     long skipped = stream.skip(remaining);
@@ -311,11 +312,11 @@ public class PbjReader implements AutoCloseable {
                 if (remaining != 0) {
                     setError(BUFFER_UNDERFLOW);
                 }
-            } catch (IOException e) {
-                setError(IO_ERROR);
+            } else {
+                rsd.skip(count);
             }
-        } else {
-            rsd.skip(count); // may throw
+        } catch (IOException e) {
+            setError(IO_ERROR);
         }
     }
 
@@ -432,7 +433,7 @@ public class PbjReader implements AutoCloseable {
         byte[] bytes = new byte[10];
         if (pos + 10 <= relLimit) {
             for (int i = 0; i < 10; i++) {
-                bytes[i] = readByte();
+                bytes[i] = buf[pos++];
                 if (bytes[i] >= 0) {
                     return Bytes.wrap(bytes, 0, i + 1);
                 }
@@ -592,7 +593,7 @@ public class PbjReader implements AutoCloseable {
 
     private int bufferedInternal(int count) {
         if (count <= buf.length) {
-            bufferMore(count);
+            bufferMore();
             if (pos + count <= relLimit) {
                 int origPos = pos;
                 pos += count;
@@ -772,7 +773,7 @@ public class PbjReader implements AutoCloseable {
     }
 
     private int readIntBEInternal() {
-        bufferMore(4);
+        bufferMore();
         if (pos + 4 > relLimit) {
             setError(BUFFER_UNDERFLOW);
             return 0;
@@ -786,7 +787,7 @@ public class PbjReader implements AutoCloseable {
     }
 
     private int readIntLEInternal() {
-        bufferMore(4);
+        bufferMore();
         if (pos + 4 > relLimit) {
             setError(BUFFER_UNDERFLOW);
             return 0;
@@ -827,7 +828,7 @@ public class PbjReader implements AutoCloseable {
     }
 
     private long readLongBEInternal() {
-        bufferMore(8);
+        bufferMore();
         if (pos + 8 > relLimit) {
             setError(BUFFER_UNDERFLOW);
             return 0;
@@ -859,7 +860,7 @@ public class PbjReader implements AutoCloseable {
     }
 
     private long readLongLEInternal() {
-        bufferMore(8);
+        bufferMore();
         if (pos + 8 > relLimit) {
             setError(BUFFER_UNDERFLOW);
             return 0;
@@ -946,7 +947,7 @@ public class PbjReader implements AutoCloseable {
 
     private byte readByteInternal() {
         if (pos + 1 > relLimit) {
-            bufferMore(1);
+            bufferMore();
             if (pos + 1 > relLimit) {
                 setError(BUFFER_UNDERFLOW);
                 return 0;
@@ -975,6 +976,7 @@ public class PbjReader implements AutoCloseable {
         if (bufPos >= 0) {
             data = buf;
         } else {
+            // larger than internal buffer
             data = new byte[length];
             int copiedLen = readBytesInternalCopy(data, 0, length);
             if (copiedLen < length) {
@@ -985,8 +987,12 @@ public class PbjReader implements AutoCloseable {
         }
 
         if (charArray == null || length > charArray.length) {
-            int power2Capacity = 2 << (63 - Long.numberOfLeadingZeros(Math.max(2048, length)));
-            charArray = new char[power2Capacity];
+            long power2Capacity = 2 << (63 - Long.numberOfLeadingZeros(Math.max(2048, length)));
+            if (power2Capacity < 0 || power2Capacity > Integer.MAX_VALUE) {
+                setError(ILLEGAL_ARGUMENT, "length larger than int max");
+                return "";
+            }
+            charArray = new char[(int) power2Capacity];
         }
 
         int i = 0;
