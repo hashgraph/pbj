@@ -1320,58 +1320,173 @@ public final class ProtoWriterTools {
             return;
         }
 
-        final int listSize = list.size();
+        writeTag(out, field, WIRE_TYPE_DELIMITED);
         switch (field.type()) {
-            case INT32 -> {
-                int size = 0;
-                for (int i = 0; i < listSize; i++) {
-                    final int val = list.get(i);
-                    size += sizeOfVarInt32(val);
-                }
-                writeTag(out, field, WIRE_TYPE_DELIMITED);
-                out.writeVarInt(size, false);
-                for (int i = 0; i < listSize; i++) {
-                    final int val = list.get(i);
-                    out.writeVarInt(val, false);
-                }
-            }
-            case UINT32 -> {
-                int size = 0;
-                for (int i = 0; i < listSize; i++) {
-                    final int val = list.get(i);
-                    size += sizeOfUnsignedVarInt64(Integer.toUnsignedLong(val));
-                }
-                writeTag(out, field, WIRE_TYPE_DELIMITED);
-                out.writeVarInt(size, false);
-                for (int i = 0; i < listSize; i++) {
-                    final int val = list.get(i);
-                    out.writeVarLong(Integer.toUnsignedLong(val), false);
-                }
-            }
-            case SINT32 -> {
-                int size = 0;
-                for (int i = 0; i < listSize; i++) {
-                    final int val = list.get(i);
-                    size += sizeOfUnsignedVarInt64(((long) val << 1) ^ ((long) val >> 63));
-                }
-                writeTag(out, field, WIRE_TYPE_DELIMITED);
-                out.writeVarInt(size, false);
-                for (int i = 0; i < listSize; i++) {
-                    final int val = list.get(i);
-                    out.writeVarInt(val, true);
-                }
-            }
-            case SFIXED32, FIXED32 -> {
-                // The bytes in protobuf are in little-endian order -- backwards for Java.
-                // Smallest byte first.
-                writeTag(out, field, WIRE_TYPE_DELIMITED);
-                out.writeVarLong((long) list.size() * FIXED32_SIZE, false);
-                for (int i = 0; i < listSize; i++) {
-                    final int val = list.get(i);
-                    out.writeIntLE(val);
-                }
-            }
+            case INT32 -> writeInt32List(out, list);
+            case UINT32 -> writeUInt32List(out, list);
+            case SINT32 -> writeSInt32List(out, list);
+            case SFIXED32, FIXED32 -> writeFixed32List(out, list);
             default -> throw unsupported();
+        }
+    }
+
+    private static void writeInt32List(PbjWriter out, List<Integer> list) {
+        int listSize = list.size();
+        if (listSize > 0x7F) {
+            writeInt32ListLarge(out, list);
+            return;
+        }
+        out.reserveRel(0x7F * 10 + 2); // worst case
+        int pos = out.position();
+        out.placehold(1);
+        for (int i = 0; i < listSize; i++) {
+            out.writeVarIntNoZZ(list.get(i));
+        }
+        int size = out.position() - pos - 1;
+        if (size <= 0x7F) {
+            out.writeAtUnsafe(pos, (byte) size);
+        } else {
+            out.reinsertVarInt(pos);
+        }
+    }
+
+    private static void writeInt32ListTwoPass(PbjWriter out, List<Integer> list) {
+        int listSize = list.size();
+        int size = 0;
+        for (int i = 0; i < listSize; i++) {
+            int val = list.get(i);
+            size += ((val & ~0x7FL) == 0) ? 1 : sizeOfVarInt32(val);
+        }
+        out.writeVarIntNoZZ(size);
+        for (int i = 0; i < listSize; i++) {
+            out.writeVarIntNoZZ(list.get(i));
+        }
+    }
+
+    private static void writeInt32ListLarge(PbjWriter out, List<Integer> list) {
+        int listSize = list.size();
+        if (listSize > 1638) {
+            // 1639+ elements * 10 bytes worst case exceeds 16k buffer; fall back to two-pass
+            writeInt32ListTwoPass(out, list);
+            return;
+        }
+        out.reserveRel(listSize * 10 + 2);
+        int pos = out.position();
+        out.placehold(2);
+        for (int i = 0; i < listSize; i++) {
+            out.writeVarIntNoZZ(list.get(i));
+        }
+        int size = out.position() - pos - 2;
+        out.writeAtUnsafe(pos, (byte) ((size & 0x7F) | 0x80));
+        out.writeAtUnsafe(pos + 1, (byte) (size >>> 7));
+    }
+
+    private static void writeUInt32List(PbjWriter out, List<Integer> list) {
+        int listSize = list.size();
+        if (listSize > 0x7F) {
+            writeUInt32ListLarge(out, list);
+            return;
+        }
+        out.reserveRel(0x7F * 5 + 2); // worst case
+        int pos = out.position();
+        out.placehold(1);
+        for (int i = 0; i < listSize; i++) {
+            out.writeVarLongNoZZ(Integer.toUnsignedLong(list.get(i)));
+        }
+        int size = out.position() - pos - 1;
+        if (size <= 0x7F) {
+            out.writeAtUnsafe(pos, (byte) size);
+        } else {
+            out.reinsertVarInt(pos);
+        }
+    }
+
+    private static void writeUInt32ListTwoPass(PbjWriter out, List<Integer> list) {
+        int listSize = list.size();
+        int size = 0;
+        for (int i = 0; i < listSize; i++) {
+            size += sizeOfUnsignedVarInt64(Integer.toUnsignedLong(list.get(i)));
+        }
+        out.writeVarIntNoZZ(size);
+        for (int i = 0; i < listSize; i++) {
+            out.writeVarLongNoZZ(Integer.toUnsignedLong(list.get(i)));
+        }
+    }
+
+    private static void writeUInt32ListLarge(PbjWriter out, List<Integer> list) {
+        int listSize = list.size();
+        if (listSize > 3276) {
+            // 3277+ elements * 5 bytes worst case exceeds 16k buffer
+            writeUInt32ListTwoPass(out, list);
+            return;
+        }
+        out.reserveRel(listSize * 5 + 2);
+        int pos = out.position();
+        out.placehold(2);
+        for (int i = 0; i < listSize; i++) {
+            out.writeVarLongNoZZ(Integer.toUnsignedLong(list.get(i)));
+        }
+        int size = out.position() - pos - 2;
+        out.writeAtUnsafe(pos, (byte) ((size & 0x7F) | 0x80));
+        out.writeAtUnsafe(pos + 1, (byte) (size >>> 7));
+    }
+
+    private static void writeSInt32List(PbjWriter out, List<Integer> list) {
+        int listSize = list.size();
+        if (listSize > 0x7F) {
+            writeSInt32ListLarge(out, list);
+            return;
+        }
+        out.reserveRel(0x7F * 5 + 2); // worst case
+        int pos = out.position();
+        out.placehold(1);
+        for (int i = 0; i < listSize; i++) {
+            out.writeVarIntZZ(list.get(i));
+        }
+        int size = out.position() - pos - 1;
+        if (size <= 0x7F) {
+            out.writeAtUnsafe(pos, (byte) size);
+        } else {
+            out.reinsertVarInt(pos);
+        }
+    }
+
+    private static void writeSInt32ListTwoPass(PbjWriter out, List<Integer> list) {
+        int listSize = list.size();
+        int size = 0;
+        for (int i = 0; i < listSize; i++) {
+            final int val = list.get(i);
+            size += sizeOfUnsignedVarInt64(((long) val << 1) ^ ((long) val >> 63));
+        }
+        out.writeVarIntNoZZ(size);
+        for (int i = 0; i < listSize; i++) {
+            out.writeVarIntZZ(list.get(i));
+        }
+    }
+
+    private static void writeSInt32ListLarge(PbjWriter out, List<Integer> list) {
+        int listSize = list.size();
+        if (listSize > 3276) {
+            // 3277+ elements * 5 bytes worst case exceeds 16k buffer
+            writeSInt32ListTwoPass(out, list);
+            return;
+        }
+        out.reserveRel(listSize * 5 + 2);
+        int pos = out.position();
+        out.placehold(2);
+        for (int i = 0; i < listSize; i++) {
+            out.writeVarIntZZ(list.get(i));
+        }
+        int size = out.position() - pos - 2;
+        out.writeAtUnsafe(pos, (byte) ((size & 0x7F) | 0x80));
+        out.writeAtUnsafe(pos + 1, (byte) (size >>> 7));
+    }
+
+    private static void writeFixed32List(PbjWriter out, List<Integer> list) {
+        // The bytes in protobuf are in little-endian order -- backwards for Java.
+        out.writeVarLongNoZZ((long) list.size() * FIXED32_SIZE);
+        for (int i = 0; i < list.size(); i++) {
+            out.writeIntLE(list.get(i));
         }
     }
 
