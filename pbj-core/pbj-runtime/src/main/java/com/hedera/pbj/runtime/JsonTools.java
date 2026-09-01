@@ -8,6 +8,7 @@ import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.util.Base64;
 import java.util.List;
@@ -92,14 +93,17 @@ public final class JsonTools {
      *
      * @param input the PbjReader containing the JSON string
      * @return the Antlr JSON context object
-     * @throws IOException if there was a problem parsing the JSON
      */
-    public static JSONParser.ObjContext parseJson(@NonNull final PbjReader input) throws IOException {
-        final JSONLexer lexer = new JSONLexer(CharStreams.fromStream(input.asInputStream()));
-        final JSONParser parser = new JSONParser(new CommonTokenStream(lexer));
-        final JSONParser.JsonContext jsonContext = parser.json();
-        final JSONParser.ValueContext valueContext = jsonContext.value();
-        return valueContext.obj();
+    public static JSONParser.ObjContext parseJson(@NonNull final PbjReader input) {
+        try {
+            final JSONLexer lexer = new JSONLexer(CharStreams.fromStream(input.asInputStream()));
+            final JSONParser parser = new JSONParser(new CommonTokenStream(lexer));
+            final JSONParser.JsonContext jsonContext = parser.json();
+            final JSONParser.ValueContext valueContext = jsonContext.value();
+            return valueContext.obj();
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     /**
@@ -158,19 +162,18 @@ public final class JsonTools {
      *
      * @param list the JSON list to parse
      * @param codec the JsonCodec to use to parse the objects
+     * @param input the {@link PbjReader} used solely to carry error state for this parse
      * @return the list of parsed objects
      * @param <T> the type of the objects to parse
      */
     public static <T> List<T> parseObjArray(
-            List<JSONParser.ValueContext> list, JsonCodec<T> codec, final int maxDepth, final int maxSize) {
+            List<JSONParser.ValueContext> list,
+            JsonCodec<T> codec,
+            @NonNull final PbjReader input,
+            final int maxDepth,
+            final int maxSize) {
         return list.stream()
-                .map(v -> {
-                    try {
-                        return codec.parse(v.obj(), false, maxDepth - 1, maxSize);
-                    } catch (ParseException e) {
-                        throw new UncheckedParseException(e);
-                    }
-                })
+                .map(v -> codec.parseNoEx(v.obj(), input, false, maxDepth - 1, maxSize))
                 .toList();
     }
 

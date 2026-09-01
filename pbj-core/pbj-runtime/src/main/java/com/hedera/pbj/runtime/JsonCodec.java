@@ -21,36 +21,34 @@ public abstract class JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
     @Override
-    protected final @NonNull T parseImpl(
+    protected final T parseImpl(
             @NonNull PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
-            final int maxSize)
-            throws ParseException {
-        try {
-            return parse(JsonTools.parseJson(input), strictMode, maxDepth, maxSize);
-        } catch (IOException ex) {
-            throw new ParseException(ex);
-        }
+            final int maxSize) {
+        return parseImpl(JsonTools.parseJson(input), input, strictMode, maxDepth, maxSize);
     }
 
     /**
-     * The actual parsing logic for a specific codec, invoked by the {@link #parse} methods through a single,
-     * consistent entry point. Subclasses implement this method rather than {@code parse} directly, since
-     * {@code parse} may perform additional work before and after delegating to this implementation.
+     * The actual parsing logic for a specific codec, invoked by the {@link #parseNoEx} methods through a single,
+     * consistent entry point. Subclasses implement this method rather than {@code parseNoEx} directly, since
+     * {@code parseNoEx} may perform additional work before and after delegating to this implementation.
      *
-     * @see #parse(JSONParser.ObjContext, boolean, int, int) for a description of each parameter
-     * @return The parsed object. It must not return null.
-     * @throws ParseException If parsing fails
+     * @see #parseNoEx(JSONParser.ObjContext, PbjReader, boolean, int, int) for a description of each parameter
+     * @return The parsed object, or {@code null} if an error was set on {@code input}
      */
-    @NonNull
     protected abstract T parseImpl(
-            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
-            throws ParseException;
+            @Nullable final JSONParser.ObjContext root,
+            @NonNull final PbjReader input,
+            final boolean strictMode,
+            final int maxDepth,
+            final int maxSize);
 
     /**
-     * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext. Throws if in strict mode ONLY.
+     * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext. Sets an error on
+     * {@code input} in strict mode ONLY. Same as parse, except doesn't throw. Check for error by using
+     * {@code input.error() != 0} (or {@code > 0}), or {@code input.ok()}. Return value may be null.
      * <p>
      * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
      * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
@@ -62,15 +60,17 @@ public abstract class JsonCodec<T> extends Codec<T> {
      * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
      *
      * @param root The JSON parsed object tree to parse data from
-     * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
-     * @return Parsed HashObject model object or null if data input was null or empty
-     * @throws ParseException If parsing fails
+     * @param input the {@link PbjReader} used solely to carry error state for this parse; sets
+     *              {@link PbjReader#PARSE} if the size of a delimited field exceeds the limit
+     * @return Parsed HashObject model object, or {@code null} if data input was null or empty, or an error was set
      */
-    @NonNull
-    public final T parse(
-            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
-            throws ParseException {
-        return parseImpl(root, strictMode, maxDepth, maxSize);
+    public final T parseNoEx(
+            @Nullable final JSONParser.ObjContext root,
+            @NonNull final PbjReader input,
+            final boolean strictMode,
+            final int maxDepth,
+            final int maxSize) {
+        return parseImpl(root, input, strictMode, maxDepth, maxSize);
     }
 
     /** {@inheritDoc} */

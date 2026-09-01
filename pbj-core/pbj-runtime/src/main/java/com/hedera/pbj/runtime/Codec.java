@@ -43,8 +43,7 @@ public abstract class Codec<T> {
      * @see #parse(ReadableSequentialData, boolean, boolean, int, int) for a description
      */
     protected abstract T parseImpl(
-            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
-            throws ParseException;
+            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize);
 
     /**
      * Parses an object from the {@link PbjReader} and returns it.
@@ -90,8 +89,7 @@ public abstract class Codec<T> {
      * Return value may be null
      */
     public final T parseNoEx(
-            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
-            throws ParseException {
+            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize) {
         return parseImpl(input, strictMode, parseUnknownFields, maxDepth, maxSize);
     }
 
@@ -99,7 +97,7 @@ public abstract class Codec<T> {
      * Same as parseStrict, except doesn't throw. Check for error by using input.error() != 0 (or > 0), or input.ok()
      * Return value may be null
      */
-    public final T parseNoEx(@NonNull PbjReader input) throws ParseException {
+    public final T parseNoEx(@NonNull PbjReader input) {
         return parseNoEx(input, true, false, DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE);
     }
 
