@@ -46,7 +46,7 @@ final class CodecWriteMethodGenerator {
              * @param out The output stream to write to
              */
             protected final void writeImpl(@NonNull $modelClass data, @NonNull final PbjWriter out) {
-                $fieldWriteLines
+            $fieldWriteLines
                 // Check if not-empty to avoid creating a lambda if there's nothing to write.
                 if (!data.getUnknownFields().isEmpty()) {
                     data.getUnknownFields().forEach(uf -> {
@@ -176,9 +176,9 @@ final class CodecWriteMethodGenerator {
                                     $K k = pbjMap.getSortedKeys().get(i);
                                     $V v = pbjMap.get(k);
                                     int size = 0;
-                                    $fieldSizeOfLines
+                            $fieldSizeOfLines
                                     out.writeVarInt(size, false);
-                                    $fieldWriteLines
+                            $fieldWriteLines
                                 }
                             }
                             """

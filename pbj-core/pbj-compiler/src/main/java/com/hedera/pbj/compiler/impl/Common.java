@@ -264,7 +264,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.BOOL) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != $modelClassName.DEFAULT.$thatFieldName$suffix) {
-                               result = 31 * result + Boolean.hashCode($prefixFieldName$fieldName);
+                                result = 31 * result + Boolean.hashCode($prefixFieldName$fieldName);
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -275,7 +275,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.FLOAT) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != $modelClassName.DEFAULT.$thatFieldName$suffix) {
-                               result = 31 * result + Float.hashCode($prefixFieldName$fieldName);
+                                result = 31 * result + Float.hashCode($prefixFieldName$fieldName);
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -286,7 +286,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.DOUBLE) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != $modelClassName.DEFAULT.$thatFieldName$suffix) {
-                               result = 31 * result + Double.hashCode($prefixFieldName$fieldName);
+                                result = 31 * result + Double.hashCode($prefixFieldName$fieldName);
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -297,7 +297,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.BYTES) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                               result = 31 * result + $prefixFieldName$fieldName.hashCode();
+                                result = 31 * result + $prefixFieldName$fieldName.hashCode();
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -308,7 +308,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.ENUM) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                               result = 31 * result + Integer.hashCode(EnumWithProtoMetadata.protoOrdinal($prefixFieldName$fieldName));
+                                result = 31 * result + Integer.hashCode(EnumWithProtoMetadata.protoOrdinal($prefixFieldName$fieldName));
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -321,7 +321,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.STRING || f.parent() == null) { // process sub message
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                               result = 31 * result + $prefixFieldName$fieldName.hashCode();
+                                result = 31 * result + $prefixFieldName$fieldName.hashCode();
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -451,7 +451,7 @@ public final class Common {
                         } else {
                             result = 31 * result;
                         }
-                   }
+                    }
                 }
                 """)
                 .replace("$prefixFieldName", fieldNamePrefix)
