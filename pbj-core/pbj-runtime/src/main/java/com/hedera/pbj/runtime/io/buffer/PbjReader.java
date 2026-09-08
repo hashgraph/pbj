@@ -219,6 +219,10 @@ public class PbjReader implements AutoCloseable {
         int position = bb.arrayOffset() + bb.position();
         resetWith(bb.array(), position, position + bb.remaining());
     }
+    /** Resets this reader to read from the given {@link Bytes}. */
+    public void resetWith(Bytes bytes) {
+        bytes.resetPbjReader(this);
+    }
 
     /*
      * fills the buffer from the stream repecting the set limit
