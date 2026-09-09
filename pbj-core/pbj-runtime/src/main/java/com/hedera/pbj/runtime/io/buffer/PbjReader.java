@@ -38,7 +38,17 @@ public class PbjReader implements AutoCloseable {
     private boolean seenEOF, includeCause;
     private byte[] ownedBuf;
 
+    /*
+     * readString() needs a buffer when decoding a UTF8 string.
+     * The string constructor needs one large array.
+     * PbjReader has a thread-local storage cache in some projects,
+     * making this reused until the thread shutsdown
+     */
     private char[] charArray;
+    /*
+     * If a project doesn't care about stacktraces, setting pbj.ReaderWriter.useStackTrace to false
+     * will throw a premade exceptions that doesn't have the correct stacktrace. It's fast and good against DOS attacks
+     */
     private static final boolean useStacktrace =
             !"false".equalsIgnoreCase(System.getProperty("pbj.ReaderWriter.useStackTrace"));
 
@@ -64,6 +74,10 @@ public class PbjReader implements AutoCloseable {
     private static final IllegalArgumentException premadeIllegal;
     private static final ParseException premadeParseEmpty, premadeParseUnknown, premadeMaxDepth;
 
+    /*
+     * Some projects may not want exceptions, but their test expects them.
+     * Here are premade exceptions that are created once and thrown potentially many times
+     */
     static {
         premadeUnknown = new UnknownFieldException("");
         premadeUnderflow = new BufferUnderflowException();
@@ -78,6 +92,9 @@ public class PbjReader implements AutoCloseable {
         premadeMaxDepth = new ParseException("Reached maximum allowed depth");
     }
 
+    /*
+     * resetWith can't call constructors, so this is a private function
+     */
     private void construct(byte[] buffer, int position, int endPosition) {
         buf = buffer;
         pos = position;
@@ -86,6 +103,20 @@ public class PbjReader implements AutoCloseable {
         absoluteLimit = end;
         seenEOF = true;
         err = EOF;
+    }
+    /*
+     * resetWith doesn't call this, but it does accept these two as a parameter.
+     * I think having this would be consistent than having these two constructors the only two not calling another method
+     */
+    private void construct(ReadableSequentialData seq, InputStream inputStream) {
+        if (seq != null) {
+            rsd = seq;
+            absoluteLimit = seq.limit();
+            offset = (int) seq.position();
+        } else if (inputStream != null) {
+            stream = inputStream;
+        }
+        ownedBuf = buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
     }
 
     /**
@@ -105,17 +136,9 @@ public class PbjReader implements AutoCloseable {
         construct(buffer, position, endPosition);
     }
 
-    private void construct(ReadableSequentialData seq, InputStream inputStream) {
-        if (seq != null) {
-            rsd = seq;
-            absoluteLimit = seq.limit();
-            offset = seq.position();
-        } else if (inputStream != null) {
-            stream = inputStream;
-        }
-        ownedBuf = buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
-    }
-
+    /*
+     * An objected construct with bytes can be resetWith a stream object. However, these two constructions are very different
+     */
     private void resetWith(ReadableSequentialData seq, InputStream inputStream) {
         err = 0;
         cause = null;
@@ -197,6 +220,9 @@ public class PbjReader implements AutoCloseable {
         resetWith(bb.array(), position, position + bb.remaining());
     }
 
+    /*
+     * fills the buffer from the stream repecting the set limit
+     */
     private void bufferMore() {
         if (err != 0) return;
         offset += pos;
@@ -227,10 +253,12 @@ public class PbjReader implements AutoCloseable {
         // small and likely to inline
         if (pos < relLimit) return true;
         if (offset + pos == absoluteLimit) return false;
-        return hasRemainingInternal();
+        return hasRemaining_cold();
     }
-    // still small, but less likely to hit this case in steaming, and only once when not streaming
-    private boolean hasRemainingInternal() {
+    /*
+     * still small, but less likely to hit this case in steaming, and only once when not streaming
+     */
+    private boolean hasRemaining_cold() {
         if (seenEOF) return false;
         bufferMore();
         return pos < relLimit;
@@ -281,10 +309,13 @@ public class PbjReader implements AutoCloseable {
             pos += count;
             return;
         }
-        skipInternal(count);
+        skip_cold(count);
     }
 
-    private void skipInternal(int count) {
+    /*
+     * Skips data, and will call skip from a stream if it's using one, to avoid copying
+     */
+    private void skip_cold(int count) {
         if (seenEOF) {
             setError(BUFFER_UNDERFLOW);
             return;
@@ -320,6 +351,8 @@ public class PbjReader implements AutoCloseable {
     }
 
     /**
+     * Same as readVarInt(false), but avoids an if statement
+     *
      * Reads a base-128 varint and returns its value as an {@code int} (no zigzag decoding).
      * On a malformed varint, sets the error flag and returns {@code -1}; however,
      * {@code -1} is also a valid decoded value, so callers must check {@link #error()} to
@@ -345,6 +378,8 @@ public class PbjReader implements AutoCloseable {
     }
 
     /**
+     * Same as readVarInt(true), but avoids an if statement
+     *
      * Reads a base-128 varint and returns its zigzag-decoded value as an {@code int}.
      * Zigzag decoding maps the raw unsigned value {@code n} to {@code (n >>> 1) ^ -(n & 1)}.
      * On a malformed varint, sets the error flag and returns {@code -1}; however,
@@ -406,10 +441,15 @@ public class PbjReader implements AutoCloseable {
             setError(DATA_ENCODING);
             return -1;
         }
-        return readVarLongNoZZInternal();
+        // Do not inline readVarLongNoZZInternal. The above is hot and very likely to be inlined,
+        // the below includes a call to readByte which calls bufferMore which would not be inlined.
+        return readVarLongNoZZ_cold();
     }
 
-    private long readVarLongNoZZInternal() {
+    /*
+     * this indirectly calls bufferMore which won't be inlined. This is the slow path while public version is fast
+     */
+    private long readVarLongNoZZ_cold() {
         long value = 0;
         for (int i = 0; i < 10; i++) {
             byte b = readByte();
@@ -440,10 +480,13 @@ public class PbjReader implements AutoCloseable {
             setError(DATA_ENCODING);
             return Bytes.EMPTY;
         }
-        return readVarLongBytesInternal(bytes);
+        return readVarLongBytes_cold(bytes);
     }
 
-    private Bytes readVarLongBytesInternal(byte[] bytes) {
+    /*
+     * slow path, see bottom of readVarLongNoZZ for the reason
+     */
+    private Bytes readVarLongBytes_cold(byte[] bytes) {
         for (int i = 0; i < 10; i++) {
             bytes[i] = readByte();
             if (bytes[i] >= 0) {
@@ -528,6 +571,9 @@ public class PbjReader implements AutoCloseable {
         throw throwOnErrorImpl();
     }
 
+    /*
+     * split from public function so public function is more likely to be inlined
+     */
     private ParseException throwOnErrorImpl() throws ParseException {
         if (useStacktrace) {
             switch (err) {
@@ -590,7 +636,24 @@ public class PbjReader implements AutoCloseable {
         return err > 0 ? err : 0;
     }
 
-    private int bufferedInternal(int count) {
+    /**
+     * Returns true if all operations has been successful
+     *
+     * @return {@code true} if no error has occurred
+     */
+    public boolean ok() {
+        return err <= 0;
+    }
+
+    /*
+     * only used through readString, which only wants bufferred data if it fits
+     */
+    private int buffered(int count) {
+        if (pos + count <= relLimit) {
+            int origPos = pos;
+            pos += count;
+            return origPos;
+        }
         if (count <= buf.length) {
             bufferMore();
             if (pos + count <= relLimit) {
@@ -602,15 +665,9 @@ public class PbjReader implements AutoCloseable {
         return -1;
     }
 
-    private int buffered(int count) {
-        if (pos + count <= relLimit) {
-            int origPos = pos;
-            pos += count;
-            return origPos;
-        }
-        return bufferedInternal(count);
-    }
-
+    /*
+     * there's two input streams, and this is called indirectly from the readBytes methods (and readString via buffered above)
+     */
     private int readFromInput(@NonNull byte[] dst, int off, int len) {
         if (stream != null) {
             int total = 0;
@@ -631,6 +688,9 @@ public class PbjReader implements AutoCloseable {
         return (int) rsd.readBytes(dst, off, len);
     }
 
+    /*
+     * a consistent way to read data from the multiple readBytes methods
+     */
     private int readBytesInternalCopy(@NonNull byte[] dst, int dstOffset, int count) {
         if (err > 0) return -1;
         int copiedLen = Math.min(count, relLimit - pos);
@@ -706,11 +766,14 @@ public class PbjReader implements AutoCloseable {
             pos += length;
             return Bytes.wrap(dst);
         }
-        return readBytesInternal(length);
+        return readBytes_cold(length);
     }
 
+    /*
+     * Slow path of readBytes, although I'm not sure if any readBytes will be inlined
+     */
     @NonNull
-    private Bytes readBytesInternal(int length) {
+    private Bytes readBytes_cold(int length) {
         if (length == 0 || err > 0) {
             return Bytes.EMPTY;
         } else if (length < 0) {
@@ -750,7 +813,7 @@ public class PbjReader implements AutoCloseable {
             pos += 4;
             return v;
         }
-        return readIntBEInternal();
+        return readIntBE_cold();
     }
 
     /**
@@ -768,10 +831,12 @@ public class PbjReader implements AutoCloseable {
             pos += 4;
             return v;
         }
-        return readIntLEInternal();
+        // Don't inline the below. The above is very likely to inline
+        // while the below is not (and calls large methods like bufferMore())
+        return readIntLE_cold();
     }
 
-    private int readIntBEInternal() {
+    private int readIntBE_cold() {
         bufferMore();
         if (pos + 4 > relLimit) {
             setError(BUFFER_UNDERFLOW);
@@ -785,7 +850,7 @@ public class PbjReader implements AutoCloseable {
         return v;
     }
 
-    private int readIntLEInternal() {
+    private int readIntLE_cold() {
         bufferMore();
         if (pos + 4 > relLimit) {
             setError(BUFFER_UNDERFLOW);
@@ -823,10 +888,12 @@ public class PbjReader implements AutoCloseable {
             pos += 8;
             return v;
         }
-        return readLongBEInternal();
+        // Don't inline the below. The above is very likely to inline
+        // while the below is not (and calls large methods like bufferMore())
+        return readLongBE_cold();
     }
 
-    private long readLongBEInternal() {
+    private long readLongBE_cold() {
         bufferMore();
         if (pos + 8 > relLimit) {
             setError(BUFFER_UNDERFLOW);
@@ -855,10 +922,10 @@ public class PbjReader implements AutoCloseable {
             pos += 8;
             return v;
         }
-        return readLongLEInternal();
+        return readLongLE_cold();
     }
 
-    private long readLongLEInternal() {
+    private long readLongLE_cold() {
         bufferMore();
         if (pos + 8 > relLimit) {
             setError(BUFFER_UNDERFLOW);
@@ -941,10 +1008,11 @@ public class PbjReader implements AutoCloseable {
      */
     public byte readByte() {
         if (pos + 1 <= relLimit) return buf[pos++];
-        return readByteInternal();
+        // seperated so the above is likely to inline
+        return readByte_cold();
     }
 
-    private byte readByteInternal() {
+    private byte readByte_cold() {
         if (pos + 1 > relLimit) {
             bufferMore();
             if (pos + 1 > relLimit) {
