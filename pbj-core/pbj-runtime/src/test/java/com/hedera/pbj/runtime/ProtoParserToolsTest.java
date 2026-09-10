@@ -30,10 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
@@ -359,7 +359,9 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesNullInput() {
         final FieldDefinition field = createFieldDefinition(BYTES);
-        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes((PbjReader) null, field));
+        assertThrows(
+                NullPointerException.class,
+                () -> ProtoParserTools.extractFieldBytes((ReadableSequentialData) null, field));
     }
 
     @Test
@@ -543,7 +545,7 @@ class ProtoParserToolsTest {
         @NonNull
         @Override
         protected final TestMessage parseImpl(
-                @NonNull final ReadableSequentialData in,
+                @NonNull final PbjReader in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
                 final int maxDepth,
@@ -570,8 +572,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
-                throws IOException {
+        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final PbjWriter out) {
             final String value = item.getValue();
             if (value != null) {
                 ProtoWriterTools.writeString(out, VALUE_FIELD, value);
@@ -579,7 +580,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public int measure(@NonNull ReadableSequentialData input) throws ParseException {
+        public int measure(@NonNull PbjReader input) throws ParseException {
             throw new UnsupportedOperationException();
         }
 
@@ -593,8 +594,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public boolean fastEquals(@NonNull TestMessage item, @NonNull ReadableSequentialData input)
-                throws ParseException {
+        public boolean fastEquals(@NonNull TestMessage item, @NonNull PbjReader input) throws ParseException {
             throw new UnsupportedOperationException();
         }
 
