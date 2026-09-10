@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -238,6 +239,10 @@ public abstract class Codec<T> {
      */
     public final void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
         writeImpl(item, output);
+    }
+
+    public final void write(@NonNull T item, @NonNull PbjWriter output) {
+        // Next commit implements this
     }
 
     /**

@@ -2,6 +2,7 @@
 package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import java.io.IOException;
 
 /**
@@ -19,4 +20,8 @@ public interface ProtoWriter<T> {
      * @throws IOException If there is a problem writing
      */
     void write(T data, WritableSequentialData out) throws IOException;
+
+    default void write(T data, PbjWriter out) {
+        // Next commit implements this
+    }
 }
