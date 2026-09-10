@@ -29,14 +29,17 @@ import java.nio.ByteBuffer;
  * <p>Implements {@link AutoCloseable}: closing flushes pending bytes to the underlying stream.
  */
 public class PbjWriter implements AutoCloseable {
-    private byte[] buf;
+    private byte[] buf, ownedBuf;
     private int pos, cap;
     private int offset, err;
     private RuntimeException cause;
     private OutputStream output;
-    private boolean reuseable;
     private boolean mayGrow = true;
 
+    /*
+     * If a project doesn't care about stacktraces, setting pbj.ReaderWriter.useStackTrace to false
+     * will throw a premade exception that doesn't have the correct stacktrace. It's fast and good against DOS attacks
+     */
     private static final boolean useStacktrace =
             !"false".equalsIgnoreCase(System.getProperty("pbj.ReaderWriter.useStackTrace"));
     public static final int EOF = PbjReader.EOF,
@@ -56,6 +59,10 @@ public class PbjWriter implements AutoCloseable {
 
     private static final RuntimeException premadeRuntimeException;
 
+    /*
+     * Some projects may not want exceptions, but their test expects them.
+     * Here are premade exceptions that are created once and thrown potentially many times
+     */
     static {
         premadeRuntimeException = new RuntimeException("Stacktrace not enabled in PbjWriter");
     }
@@ -68,16 +75,16 @@ public class PbjWriter implements AutoCloseable {
      */
     public PbjWriter(@NonNull OutputStream output) {
         this.output = output;
-        buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+        ownedBuf = buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
         cap = buf.length;
-        reuseable = true;
     }
 
     /**
      * Creates a writer backed by a {@link ByteBuffer}.
      *
-     * <p>If the buffer has a backing array it is used directly. Otherwise an internal 16 KB
-     * streaming buffer is used and bytes are forwarded to the {@link ByteBuffer} on flush.
+     * <p>If the buffer has a backing array it is used directly and this will not grow beyond
+     * it. Otherwise an internal 16 KB streaming buffer is used and bytes are forwarded to the
+     * {@link ByteBuffer} on flush.
      *
      * @param buffer the target byte buffer
      */
@@ -86,6 +93,7 @@ public class PbjWriter implements AutoCloseable {
             buf = buffer.array();
             pos = buffer.arrayOffset() + buffer.position();
             cap = buffer.arrayOffset() + buffer.limit();
+            mayGrow = false;
         } else {
             this.output = new OutputStream() {
                 @Override
@@ -98,9 +106,8 @@ public class PbjWriter implements AutoCloseable {
                     buffer.put(b, off, len);
                 }
             };
-            buf = new byte[16 << 10];
+            ownedBuf = buf = new byte[16 << 10];
             cap = buf.length;
-            reuseable = true;
         }
     }
 
@@ -115,6 +122,7 @@ public class PbjWriter implements AutoCloseable {
         this.buf = buffer;
         this.pos = pos;
         this.cap = buffer.length;
+        mayGrow = false;
     }
 
     /**
@@ -142,9 +150,8 @@ public class PbjWriter implements AutoCloseable {
      * No backing output stream is attached; use {@link #toByteArray()} to retrieve the written bytes.
      */
     public PbjWriter() {
-        buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+        ownedBuf = buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
         cap = buf.length;
-        reuseable = true;
     }
 
     /**
@@ -156,12 +163,12 @@ public class PbjWriter implements AutoCloseable {
      *                    {@code false} to keep the buffer fixed at {@code reserveSize} bytes
      */
     public PbjWriter(int reserveSize, boolean mayGrow) {
-        if (mayGrow) buf = new byte[Math.max(reserveSize, 16 << 10)]; // 16k is friendly to x86-64 L1 cache
+        if (mayGrow) ownedBuf = new byte[Math.max(reserveSize, 16 << 10)]; // 16k is friendly to x86-64 L1 cache
         else {
-            buf = new byte[reserveSize];
+            ownedBuf = new byte[reserveSize];
         }
+        buf = ownedBuf;
         cap = buf.length;
-        reuseable = true;
         this.mayGrow = mayGrow;
     }
 
@@ -242,10 +249,11 @@ public class PbjWriter implements AutoCloseable {
             buf[pos++] = b;
             return;
         }
-        writeByteInternal(b);
+        // seperated so the above is likely to inline
+        writeByte_cold(b);
     }
 
-    private void writeByteInternal(byte b) {
+    private void writeByte_cold(byte b) {
         flushOrGrow(1);
         buf[pos++] = b;
     }
@@ -263,10 +271,10 @@ public class PbjWriter implements AutoCloseable {
             pos += 2;
             return;
         }
-        writeByte2Internal(b1, b2);
+        writeByte2_cold(b1, b2);
     }
 
-    private void writeByte2Internal(byte b1, byte b2) {
+    private void writeByte2_cold(byte b1, byte b2) {
         flushOrGrow(2);
         buf[pos] = b1;
         buf[pos + 1] = b2;
@@ -288,10 +296,10 @@ public class PbjWriter implements AutoCloseable {
             pos += 3;
             return;
         }
-        writeByte3Internal(b1, b2, b3);
+        writeByte3_cold(b1, b2, b3);
     }
 
-    private void writeByte3Internal(byte b1, byte b2, byte b3) {
+    private void writeByte3_cold(byte b1, byte b2, byte b3) {
         flushOrGrow(3);
         buf[pos] = b1;
         buf[pos + 1] = b2;
@@ -316,10 +324,10 @@ public class PbjWriter implements AutoCloseable {
             pos += 4;
             return;
         }
-        writeByte4Internal(b1, b2, b3, b4);
+        writeByte4_cold(b1, b2, b3, b4);
     }
 
-    private void writeByte4Internal(byte b1, byte b2, byte b3, byte b4) {
+    private void writeByte4_cold(byte b1, byte b2, byte b3, byte b4) {
         flushOrGrow(4);
         buf[pos] = b1;
         buf[pos + 1] = b2;
@@ -343,10 +351,10 @@ public class PbjWriter implements AutoCloseable {
             pos += len;
             return;
         }
-        writeBytesBDInternal(src, len, srcPos);
+        writeBytesBD_cold(src, len, srcPos);
     }
 
-    private void writeBytesBDInternal(BufferedData src, int len, long srcPos) {
+    private void writeBytesBD_cold(BufferedData src, int len, long srcPos) {
         if (output == null) {
             flushOrGrow(len); // to grow at least to pos + len
             src.getBytes(srcPos, buf, pos, len);
@@ -397,10 +405,11 @@ public class PbjWriter implements AutoCloseable {
             pos += length;
             return;
         }
-        writeBytesInternal(src, offset, length);
+        writeBytes_cold(src, offset, length);
     }
 
-    private void writeBytesInternal(byte[] src, int srcOffset, int length) {
+    private void writeBytes_cold(byte[] src, int srcOffset, int length) {
+        // the 2048 was picked out of the air, it's 1/8th of the buffer size
         if (output != null && length >= 2048) {
             if (pos > 0) {
                 try {
@@ -437,10 +446,10 @@ public class PbjWriter implements AutoCloseable {
             pos += len;
             return;
         }
-        writeBytesRAInternal(src, len);
+        writeBytesRA_cold(src, len);
     }
 
-    private void writeBytesRAInternal(RandomAccessData src, int len) {
+    private void writeBytesRA_cold(RandomAccessData src, int len) {
         if (output == null) {
             flushOrGrow(len);
             src.getBytes(0, buf, pos, len);
@@ -491,10 +500,12 @@ public class PbjWriter implements AutoCloseable {
             pos += 4;
             return;
         }
-        writeIntBEInternal(value);
+        // Don't inline the below. The above is very likely to inline
+        // while the below is not (and calls large methods like flushOrGrow())
+        writeIntBE_cold(value);
     }
 
-    private void writeIntBEInternal(int value) {
+    private void writeIntBE_cold(int value) {
         flushOrGrow(4);
         buf[pos] = (byte) (value >>> 24);
         buf[pos + 1] = (byte) (value >>> 16);
@@ -517,10 +528,12 @@ public class PbjWriter implements AutoCloseable {
             pos += 4;
             return;
         }
-        writeIntLEInternal(value);
+        // Don't inline the below. The above is very likely to inline
+        // while the below is not (and calls large methods like flushOrGrow())
+        writeIntLE_cold(value);
     }
 
-    private void writeIntLEInternal(int value) {
+    private void writeIntLE_cold(int value) {
         flushOrGrow(4);
         buf[pos] = (byte) value;
         buf[pos + 1] = (byte) (value >>> 8);
@@ -547,10 +560,12 @@ public class PbjWriter implements AutoCloseable {
             pos += 8;
             return;
         }
-        writeLongLEInternal(value);
+        // Don't inline the below. The above is very likely to inline
+        // while the below is not (and calls large methods like flushOrGrow())
+        writeLongLE_cold(value);
     }
 
-    private void writeLongLEInternal(long value) {
+    private void writeLongLE_cold(long value) {
         flushOrGrow(8);
         buf[pos] = (byte) value;
         buf[pos + 1] = (byte) (value >>> 8);
@@ -644,10 +659,12 @@ public class PbjWriter implements AutoCloseable {
             pos += 8;
             return;
         }
-        writeLongBEInternal(value);
+        // Don't inline the below. The above is very likely to inline
+        // while the below is not (and calls large methods like flushOrGrow())
+        writeLongBE_cold(value);
     }
 
-    private void writeLongBEInternal(long value) {
+    private void writeLongBE_cold(long value) {
         flushOrGrow(8);
         buf[pos] = (byte) (value >>> 56);
         buf[pos + 1] = (byte) (value >>> 48);
@@ -703,7 +720,7 @@ public class PbjWriter implements AutoCloseable {
         writeVarLongNoZZ(v);
     }
 
-    private void writeVarLongInternal(long v) {
+    private void writeVarLong_cold(long v) {
         flushOrGrow(10);
         while ((v & ~0x7FL) != 0) {
             buf[pos++] = (byte) (((int) v & 0x7F) | 0x80);
@@ -737,7 +754,7 @@ public class PbjWriter implements AutoCloseable {
             buf[pos++] = (byte) v;
             return;
         }
-        writeVarLongInternal(v);
+        writeVarLong_cold(v);
     }
 
     /**
@@ -781,6 +798,11 @@ public class PbjWriter implements AutoCloseable {
         }
     }
 
+    /*
+     * called from every *_cold path when the buffer doesn't have enough room for minLength bytes.
+     * If streaming, flushes buf to the output stream; otherwise grows buf to the next power of two
+     * that fits minLength, but only if mayGrow is true
+     */
     private void flushOrGrow(int minLength) {
         if (output != null) {
             if (minLength > cap) {
@@ -794,11 +816,11 @@ public class PbjWriter implements AutoCloseable {
             }
             offset += pos;
             pos = 0;
-        } else if (reuseable && mayGrow) {
+        } else if (mayGrow) {
             int power2Capacity = (int) 2L << (63 - Long.numberOfLeadingZeros(Math.max(buf.length, pos + minLength)));
             byte[] newBuf = new byte[power2Capacity];
             System.arraycopy(buf, 0, newBuf, 0, pos);
-            buf = newBuf;
+            ownedBuf = buf = newBuf;
             cap = buf.length;
         }
         // A possible else case is using a byte array and trying to reserve (or grow) past the length of it
@@ -827,17 +849,21 @@ public class PbjWriter implements AutoCloseable {
 
     /**
      * Resets this writer and redirects output to a new {@link OutputStream}.
-     * Only valid on writers that were originally created with an output stream.
-     * Sets the error code to {@link #USAGE_ERROR} if called on a non-reuseable writer.
+     *
+     * <p>If this writer was backed by a caller-supplied array or {@link ByteBuffer}, that memory
+     * is abandoned in favor of a freshly (or previously) owned internal buffer, which becomes
+     * growable going forward.
      *
      * @param out the new output stream
      */
     public void resetWith(OutputStream out) {
         reset();
-        if (!reuseable) {
-            setError(USAGE_ERROR, "resetWith on non-reuseable PbjWriter");
-            return;
+        if (ownedBuf == null) {
+            ownedBuf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+            mayGrow = true;
         }
+        buf = ownedBuf;
+        cap = buf.length;
         output = out;
     }
 
