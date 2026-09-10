@@ -1141,11 +1141,19 @@ public class PbjReaderWriterTest {
     }
 
     @Test
-    void resetWithOnNonReuseableWriterSetsError() {
+    void resetWithOnFixedArrayWriterLazilyOwnsABuffer() {
         byte[] buf = new byte[64];
         PbjWriter writer = new PbjWriter(buf, 0);
-        writer.resetWith(new ByteArrayOutputStream());
-        assertEquals(PbjWriter.USAGE_ERROR, writer.error());
+        writer.writeByte((byte) 1);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writer.resetWith(out);
+        assertEquals(0, writer.error());
+        assertEquals(1, buf[0]);
+
+        writer.writeByte((byte) 9);
+        writer.flush();
+        assertArrayEquals(new byte[] {9}, out.toByteArray());
+        assertEquals(1, buf[0]);
     }
 
     @Test
