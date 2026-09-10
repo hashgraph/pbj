@@ -267,6 +267,126 @@ public final class ProtoParserTools {
         }
     }
 
+    private static int fromUTF8Tail(char[] dst, int di, byte[] src, int i, int endPos) {
+        while (i < endPos) {
+            int a = src[i];
+            if ((a & 0x80) == 0) {
+                dst[di++] = (char) a;
+                i++;
+                continue;
+            }
+            if (i + 1 >= endPos) return -1;
+
+            int b = src[i + 1];
+            if ((a & 0xE0) == 0xC0) {
+                if ((b & 0xC0) == 0x80) {
+                    dst[di++] = (char) (((a & 0x1F) << 6) | (b & 0x3F));
+                    i += 2;
+                    continue;
+                } else {
+                    return -1; // Bad encoding
+                }
+            }
+
+            if (i + 2 >= endPos) return -1;
+
+            int c = src[i + 2];
+            int codepoint = -1;
+            if ((a & 0xF0) == 0xE0) {
+                if ((b & 0xC0) == 0x80 && (c & 0xC0) == 0x80) {
+                    codepoint = ((a & 0xF) << 12) | ((b & 0x3F) << 6) | (c & 0x3F);
+                    i += 3;
+                } else {
+                    return -1; // Bad encoding
+                }
+            } else {
+                if (i + 3 >= endPos) return -1;
+                int d = src[i + 3];
+                if ((a & 0xF8) == 0xF0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80 && (d & 0xC0) == 0x80) {
+                    codepoint = ((a & 7) << 18) | ((b & 0x3F) << 12) | ((c & 0x3F) << 6) | (d & 0x3F);
+                    i += 4;
+                } else {
+                    return -1; // Bad encoding
+                }
+            }
+
+            if (codepoint <= 0xFFFF) {
+                if (codepoint < 0 || (codepoint >= 0xD800 && codepoint < 0xE000)) return -1; // [D800, E000) is illegal
+                dst[di++] = (char) codepoint;
+                continue;
+            }
+
+            if (codepoint > 0x10FFFF) return -1; // Illegal range
+            int v = codepoint - 0x10000;
+            dst[di + 0] = (char) (0xD800 + ((v >> 10) & 0x3FF));
+            dst[di + 1] = (char) (0xDC00 + (v & 0x3FF));
+            di += 2;
+        }
+        return di;
+    }
+
+    /**
+     * Decodes UTF-8 bytes from {@code src} into the {@code char[]} destination, supporting all
+     * four UTF-8 byte widths (1–4 bytes). Codepoints above U+FFFF are written as surrogate pairs.
+     * Prefer using the simpler {@link #readString} function.
+     *
+     * <p>Decoding starts at {@code src[offset + pos]} and continues until {@code src[offset + length]}.
+     * The main loop keeps a 4-byte lookahead (exits when fewer than 5 bytes remain), delegating
+     * the final bytes to {@link #fromUTF8Tail}. Any unrecognised byte sequence returns {@code -1}.
+     *
+     * @param dst    the destination char array, written starting at index {@code pos}
+     * @param src    the source byte array containing UTF-8 data
+     * @param offset the base index within {@code src} where the UTF-8 region begins
+     * @param pos    bytes already decoded by the ASCII fast path; doubles as the read offset
+     *               (relative to {@code offset}) and the initial write index in {@code dst}
+     * @param length the total byte length of the UTF-8 region in {@code src} starting at {@code offset}
+     * @return the total number of {@code char}s written to {@code dst}, or {@code -1} if the
+     *         input contains an illegal byte sequence (surrogate range or out-of-range codepoint)
+     */
+    public static int fromUTF8(char[] dst, byte[] src, int offset, int pos, int length) {
+        int i = offset + pos;
+        int di = pos;
+        while (i + 4 < offset + length) {
+            int a = src[i];
+            if ((a & 0x80) == 0) {
+                dst[di++] = (char) a;
+                i++;
+                continue;
+            }
+            int b = src[i + 1];
+            if ((a & 0xE0) == 0xC0 && (b & 0xC0) == 0x80) {
+                dst[di++] = (char) (((a & 0x1F) << 6) | (b & 0x3F));
+                i += 2;
+                continue;
+            }
+            int c = src[i + 2];
+            int codepoint = -1;
+            if ((a & 0xF0) == 0xE0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80) {
+                codepoint = ((a & 0xF) << 12) | ((b & 0x3F) << 6) | (c & 0x3F);
+                i += 3;
+            } else {
+                int d = src[i + 3];
+                if ((a & 0xF8) == 0xF0 && (b & 0xC0) == 0x80 && (c & 0xC0) == 0x80 && (d & 0xC0) == 0x80) {
+                    codepoint = ((a & 7) << 18) | ((b & 0x3F) << 12) | ((c & 0x3F) << 6) | (d & 0x3F);
+                    i += 4;
+                }
+            }
+
+            if (codepoint <= 0xFFFF) {
+                if (codepoint < 0 || (codepoint >= 0xD800 && codepoint < 0xE000)) return -1; // [D800, E000) is illegal
+                dst[di++] = (char) codepoint;
+                continue;
+            }
+
+            if (codepoint > 0x10FFFF) return -1; // illegal range
+            int v = codepoint - 0x10000;
+            dst[di + 0] = (char) (0xD800 + ((v >> 10) & 0x3FF));
+            dst[di + 1] = (char) (0xDC00 + (v & 0x3FF));
+            di += 2;
+        }
+        return i == offset + length ? di : fromUTF8Tail(dst, di, src, i, offset + length);
+    }
+
     /**
      * Read a Bytes field from data input
      *
