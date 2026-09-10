@@ -197,9 +197,9 @@ final class CodecWriteByteArrayMethodGenerator {
                                     $K k = pbjMap.getSortedKeys().get(i);
                                     $V v = pbjMap.get(k);
                                     int size = 0;
-                                    $fieldSizeOfLines
+                            $fieldSizeOfLines
                                     offset += ProtoArrayWriterTools.writeUnsignedVarInt(output, offset, size);
-                                    $fieldWriteLines
+                            $fieldWriteLines
                                 }
                             }
                             """

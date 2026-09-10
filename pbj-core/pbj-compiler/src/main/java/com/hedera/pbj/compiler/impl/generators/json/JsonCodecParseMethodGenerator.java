@@ -75,13 +75,13 @@ class JsonCodecParseMethodGenerator {
                     }
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
-                        $fieldDefs
+                $fieldDefs
 
                         // -- EXTRACT VALUES FROM PARSE TREE ---------------------------------------------
 
                         for (JSONParser.PairContext kvPair : root.pair()) {
                             switch (toJsonFieldName(kvPair.STRING().getText())) {
-                                $caseStatements
+                $caseStatements
                                 default: {
                                     if (strictMode) {
                                         // Since we are parsing is strict mode, this is an exceptional condition.
@@ -102,13 +102,19 @@ class JsonCodecParseMethodGenerator {
                 .replace(
                         "$fieldDefs",
                         fields.stream()
-                                .map(field -> "    %s temp_%s = %s;"
+                                .map(field -> "%s temp_%s = %s;"
                                         .formatted(field.javaFieldType(), field.name(), field.javaDefault()))
-                                .collect(Collectors.joining("\n")))
+                                .collect(Collectors.joining("\n"))
+                                .indent(DEFAULT_INDENT * 2)
+                                .stripTrailing())
                 .replace(
                         "$fieldsList",
                         fields.stream().map(field -> "temp_" + field.name()).collect(Collectors.joining(", ")))
-                .replace("$caseStatements", generateCaseStatements(fields))
+                .replace(
+                        "$caseStatements",
+                        generateCaseStatements(fields)
+                                .indent(DEFAULT_INDENT * 4)
+                                .stripTrailing())
                 .indent(DEFAULT_INDENT);
     }
 
@@ -126,11 +132,12 @@ class JsonCodecParseMethodGenerator {
                 for (final Field subField : oneOfField.fields()) {
                     sb.append("case \"" + toJsonFieldName(subField.name()) + "\" /* [" + subField.fieldNumber()
                             + "] */ " + ": temp_"
-                            + oneOfField.name() + " = new %s<>(\n".formatted(oneOfField.className())
-                            + oneOfField.getEnumClassRef().indent(DEFAULT_INDENT)
-                            + "." + Common.camelToUpperSnake(subField.name()) + ", \n".indent(DEFAULT_INDENT));
-                    generateFieldCaseStatement(sb, subField, "kvPair.value()");
-                    sb.append("); break;\n");
+                            + oneOfField.name() + " = new %s<>(\n".formatted(oneOfField.className()));
+                    final StringBuilder valueSb = new StringBuilder();
+                    generateFieldCaseStatement(valueSb, subField, "kvPair.value()");
+                    sb.append((oneOfField.getEnumClassRef() + "." + Common.camelToUpperSnake(subField.name()) + ",\n"
+                                    + valueSb + "); break;\n")
+                            .indent(DEFAULT_INDENT));
                 }
             } else {
                 sb.append("case \"" + toJsonFieldName(field.name()) + "\" /* [" + field.fieldNumber() + "] */ "

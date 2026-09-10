@@ -87,27 +87,29 @@ class CodecMeasureRecordMethodGenerator {
                     + switch (field.messageType()) {
                         case "StringValue" -> "size += sizeOfOptionalString(%s, %s);".formatted(fieldDef, getValueCode);
                         case "BoolValue" -> "size += sizeOfOptionalBoolean(%s, %s);".formatted(fieldDef, getValueCode);
-                        case "Int32Value", "UInt32Value" -> "size += sizeOfOptionalInteger(%s, %s);"
-                                .formatted(fieldDef, getValueCode);
-                        case "Int64Value", "UInt64Value" -> "size += sizeOfOptionalLong(%s, %s);"
-                                .formatted(fieldDef, getValueCode);
+                        case "Int32Value", "UInt32Value" ->
+                            "size += sizeOfOptionalInteger(%s, %s);".formatted(fieldDef, getValueCode);
+                        case "Int64Value", "UInt64Value" ->
+                            "size += sizeOfOptionalLong(%s, %s);".formatted(fieldDef, getValueCode);
                         case "FloatValue" -> "size += sizeOfOptionalFloat(%s, %s);".formatted(fieldDef, getValueCode);
                         case "DoubleValue" -> "size += sizeOfOptionalDouble(%s, %s);".formatted(fieldDef, getValueCode);
                         case "BytesValue" -> "size += sizeOfOptionalBytes(%s, %s);".formatted(fieldDef, getValueCode);
-                        default -> throw new UnsupportedOperationException(
-                                "Unhandled optional message type:" + field.messageType());
+                        default ->
+                            throw new UnsupportedOperationException(
+                                    "Unhandled optional message type:" + field.messageType());
                     };
         } else if (field.repeated()) {
             return prefix
                     + switch (field.type()) {
                         case ENUM -> "size += sizeOfEnumList(%s, %s);".formatted(fieldDef, getValueCode);
-                        case MESSAGE -> "size += sizeOfMessageList($fieldDef, $valueCode, $codec);"
-                                .replace("$fieldDef", fieldDef)
-                                .replace("$valueCode", getValueCode)
-                                .replace(
-                                        "$codec",
-                                        ((SingleField) field).messageTypeModelPackage() + "."
-                                                + Common.capitalizeFirstLetter(field.messageType()) + ".PROTOBUF");
+                        case MESSAGE ->
+                            "size += sizeOfMessageList($fieldDef, $valueCode, $codec);"
+                                    .replace("$fieldDef", fieldDef)
+                                    .replace("$valueCode", getValueCode)
+                                    .replace(
+                                            "$codec",
+                                            ((SingleField) field).messageTypeModelPackage() + "."
+                                                    + Common.capitalizeFirstLetter(field.messageType()) + ".PROTOBUF");
                         default -> "size += sizeOf%sList(%s, %s);".formatted(writeMethodName, fieldDef, getValueCode);
                     };
         } else if (field.type() == Field.FieldType.MAP) {
@@ -127,7 +129,7 @@ class CodecMeasureRecordMethodGenerator {
                                 final int sizePre = size;
                                 $K k = pbjMap.getSortedKeys().get(i);
                                 $V v = pbjMap.get(k);
-                                $fieldSizeOfLines
+                        $fieldSizeOfLines
                                 size += sizeOfVarInt32(size - sizePre);
                             }
                         }
@@ -137,24 +139,25 @@ class CodecMeasureRecordMethodGenerator {
                     .replace("$javaFieldType", mapField.javaFieldType())
                     .replace("$K", mapField.keyField().type().boxedType)
                     .replace("$V", mapField.valueField().type() == Field.FieldType.MESSAGE ? mapField.valueField().messageType() : mapField.valueField().type().boxedType)
-                    .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
+                    .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT * 2))
                     ;
             // spotless:on
         } else {
             return prefix
                     + switch (field.type()) {
                         case ENUM -> "size += sizeOfEnum(%s, %s);".formatted(fieldDef, getValueCode);
-                        case STRING -> "size += sizeOfString(%s, %s, %s);"
-                                .formatted(fieldDef, getValueCode, skipDefault);
-                        case MESSAGE -> "size += sizeOfMessage($fieldDef, $valueCode, $codec);"
-                                .replace("$fieldDef", fieldDef)
-                                .replace("$valueCode", getValueCode)
-                                .replace(
-                                        "$codec",
-                                        ((SingleField) field).messageTypeModelPackage() + "."
-                                                + Common.capitalizeFirstLetter(field.messageType()) + ".PROTOBUF");
-                        case BOOL -> "size += sizeOfBoolean(%s, %s, %s);"
-                                .formatted(fieldDef, getValueCode, skipDefault);
+                        case STRING ->
+                            "size += sizeOfString(%s, %s, %s);".formatted(fieldDef, getValueCode, skipDefault);
+                        case MESSAGE ->
+                            "size += sizeOfMessage($fieldDef, $valueCode, $codec);"
+                                    .replace("$fieldDef", fieldDef)
+                                    .replace("$valueCode", getValueCode)
+                                    .replace(
+                                            "$codec",
+                                            ((SingleField) field).messageTypeModelPackage() + "."
+                                                    + Common.capitalizeFirstLetter(field.messageType()) + ".PROTOBUF");
+                        case BOOL ->
+                            "size += sizeOfBoolean(%s, %s, %s);".formatted(fieldDef, getValueCode, skipDefault);
                         case INT32,
                                 UINT32,
                                 SINT32,
@@ -165,8 +168,9 @@ class CodecMeasureRecordMethodGenerator {
                                 UINT64,
                                 FIXED64,
                                 SFIXED64,
-                                BYTES -> "size += sizeOf%s(%s, %s, %s);"
-                                .formatted(writeMethodName, fieldDef, getValueCode, skipDefault);
+                                BYTES ->
+                            "size += sizeOf%s(%s, %s, %s);"
+                                    .formatted(writeMethodName, fieldDef, getValueCode, skipDefault);
                         default -> "size += sizeOf%s(%s, %s);".formatted(writeMethodName, fieldDef, getValueCode);
                     };
         }
