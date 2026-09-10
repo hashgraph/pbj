@@ -29,16 +29,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteOrder;
@@ -358,18 +356,18 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesNullInput() {
         final FieldDefinition field = createFieldDefinition(BYTES);
-        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes(null, field));
+        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes((PbjReader) null, field));
     }
 
     @Test
     void testExtractBytesNullField() {
-        final ReadableSequentialData input = Bytes.EMPTY.toReadableSequentialData();
+        final PbjReader input = Bytes.EMPTY.toPbjReader();
         assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes(input, null));
     }
 
     @Test
     void testExtractBytesRepeatedField() {
-        final ReadableSequentialData input = Bytes.EMPTY.toReadableSequentialData();
+        final PbjReader input = Bytes.EMPTY.toPbjReader();
         final FieldDefinition field = new FieldDefinition("field", FieldType.BYTES, true, true, false, 1);
         assertThrows(IllegalArgumentException.class, () -> ProtoParserTools.extractFieldBytes(input, field));
     }
@@ -404,22 +402,20 @@ class ProtoParserToolsTest {
     private static final FieldDefinition BOOL_F = new FieldDefinition("boolfield", BOOL, false, true, false, 11);
     private static final boolean BOOL_V = true;
 
-    private static Bytes prepareExtractBytesTestInput() throws IOException {
-        try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
-                final WritableStreamingData out = new WritableStreamingData(bout)) {
-            ProtoWriterTools.writeInteger(out, INT32_F, INT32_V);
-            ProtoWriterTools.writeInteger(out, FIXED_F, FIXED32_V);
-            ProtoWriterTools.writeString(out, STRING_F, STRING_V);
-            ProtoWriterTools.writeBytes(out, BYTES_F, BYTES_V);
-            ProtoWriterTools.writeMessage(out, MESSAGE_F, MESSAGE_V, TestMessageCodec.INSTANCE);
-            ProtoWriterTools.writeDouble(out, DOUBLE_F, DOUBLE32_V);
-            return Bytes.wrap(bout.toByteArray());
-        }
+    private static PbjReader prepareExtractBytesTestInput() throws IOException {
+        PbjWriter out = new PbjWriter();
+        ProtoWriterTools.writeInteger(out, INT32_F, INT32_V);
+        ProtoWriterTools.writeInteger(out, FIXED_F, FIXED32_V);
+        ProtoWriterTools.writeString(out, STRING_F, STRING_V);
+        ProtoWriterTools.writeBytes(out, BYTES_F, BYTES_V);
+        ProtoWriterTools.writeMessage(out, MESSAGE_F, MESSAGE_V, TestMessageCodec.INSTANCE);
+        ProtoWriterTools.writeDouble(out, DOUBLE_F, DOUBLE32_V);
+        return out.toPbjReader();
     }
 
     @Test
     void testExtractBytesStringField() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final PbjReader input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, STRING_F);
         assertNotNull(bytes);
         assertEquals(STRING_V, new String(bytes.toByteArray(), StandardCharsets.UTF_8));
@@ -427,14 +423,14 @@ class ProtoParserToolsTest {
 
     @Test
     void testExtractFieldBytesInvalidType() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final PbjReader input = prepareExtractBytesTestInput();
         // should throw because INT32 is not a delimited type
         assertThrows(IllegalArgumentException.class, () -> ProtoParserTools.extractFieldBytes(input, INT32_F));
     }
 
     @Test
     void testExtractBytesBytesField() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final PbjReader input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, BYTES_F);
         assertNotNull(bytes);
         assertEquals(BYTES_V, bytes);
@@ -442,52 +438,58 @@ class ProtoParserToolsTest {
 
     @Test
     void testExtractBytesMessageField() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final PbjReader input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, MESSAGE_F);
         assertNotNull(bytes);
-        final TestMessage value = TestMessageCodec.INSTANCE.parse(bytes.toReadableSequentialData());
+        final TestMessage value = TestMessageCodec.INSTANCE.parse(bytes);
         assertNotNull(value);
         assertEquals(MESSAGE_V, value);
     }
 
     @Test
     void testExtractBytesUnknownField() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final PbjReader input = prepareExtractBytesTestInput();
         final Bytes bytes = ProtoParserTools.extractFieldBytes(input, UNKNOWN_F);
         assertNull(bytes);
     }
 
     @Test
     void testExtractField32Bit() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final PbjReader input = prepareExtractBytesTestInput();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_32_BIT, 32);
         assertNotNull(res);
     }
 
     @Test
     void testExtractField64Bit() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final PbjReader input = prepareExtractBytesTestInput();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_FIXED_64_BIT, 32);
         assertNotNull(res);
     }
 
     @Test
     void testExtractFieldVarInt() throws IOException, ParseException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
+        final PbjReader input = prepareExtractBytesTestInput();
         final var res = ProtoParserTools.extractField(input, WIRE_TYPE_VARINT_OR_ZIGZAG, 32);
         assertNotNull(res);
     }
 
     @Test
     void testExtractFieldGroupStartUnsupported() throws IOException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
-        assertThrows(IOException.class, () -> ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_START, 32));
+        final PbjReader input = prepareExtractBytesTestInput();
+        assertThrows(IOException.class, () -> {
+            ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_START, 32);
+            input.throwOnError2();
+        });
     }
 
     @Test
     void testExtractFieldGroupEndUnsupported() throws IOException {
-        final ReadableSequentialData input = prepareExtractBytesTestInput().toReadableSequentialData();
-        assertThrows(IOException.class, () -> ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_END, 32));
+        final PbjReader input = prepareExtractBytesTestInput();
+        assertThrows(IOException.class, () -> {
+            ProtoParserTools.extractField(input, WIRE_TYPE_GROUP_END, 32);
+            input.throwOnError2();
+        });
     }
 
     private static void skipTag(BufferedData data) {
@@ -542,12 +544,11 @@ class ProtoParserToolsTest {
         @NonNull
         @Override
         protected final TestMessage parseImpl(
-                @NonNull final ReadableSequentialData in,
+                @NonNull final PbjReader in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
                 final int maxDepth,
-                final int maxSize)
-                throws ParseException {
+                final int maxSize) {
             String value = null;
             while (in.hasRemaining()) {
                 final int tag = in.readVarInt(false);
@@ -558,19 +559,20 @@ class ProtoParserToolsTest {
                     final int length = in.readVarInt(false);
                     final byte[] valueBytes = new byte[length];
                     if (in.readBytes(valueBytes) != length) {
-                        throw new ParseException("Failed to read value bytes");
+                        in.setError(PbjReader.PARSE, "Failed to read value bytes");
+                        return null;
                     }
                     value = new String(valueBytes, StandardCharsets.UTF_8);
                 } else {
-                    throw new ParseException("Unknown field: " + tag);
+                    in.setError(PbjReader.PARSE, "Unknown field: " + tag);
+                    return null;
                 }
             }
             return new TestMessage(value);
         }
 
         @Override
-        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
-                throws IOException {
+        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final PbjWriter out) {
             final String value = item.getValue();
             if (value != null) {
                 ProtoWriterTools.writeString(out, VALUE_FIELD, value);
@@ -578,7 +580,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public int measure(@NonNull ReadableSequentialData input) throws ParseException {
+        public int measure(@NonNull PbjReader input) throws ParseException {
             throw new UnsupportedOperationException();
         }
 
@@ -592,8 +594,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public boolean fastEquals(@NonNull TestMessage item, @NonNull ReadableSequentialData input)
-                throws ParseException {
+        public boolean fastEquals(@NonNull TestMessage item, @NonNull PbjReader input) throws ParseException {
             throw new UnsupportedOperationException();
         }
 

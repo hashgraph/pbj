@@ -53,7 +53,7 @@ public final class ModelGenerator implements Generator {
             hashCode += hashCode << 10;
             hashCode ^= hashCode >>> 24;
             hashCode += hashCode << 30;
-        """.indent(DEFAULT_INDENT * 2);
+        """;
 
     /**
      * {@inheritDoc}
@@ -570,7 +570,7 @@ public final class ModelGenerator implements Generator {
                     // This doesn't have unknown fields, but that one has some. So they are greater:
                     return -1;
                 }
-                """.indent(DEFAULT_INDENT);
+                """.indent(DEFAULT_INDENT * 2);
 
         bodyContent +=
             """
@@ -608,7 +608,7 @@ public final class ModelGenerator implements Generator {
 
         bodyContent +=
         """
-            $equalsBody
+        $equalsBody
         }"""
                 .replace("$equalsBody", generateEqualsBody(fields, javaRecordName, ""))
                 .indent(DEFAULT_INDENT);
@@ -624,7 +624,7 @@ public final class ModelGenerator implements Generator {
         // and calculates the hashcode.
         equalsStatements = Common.getFieldsEqualsStatements(fields, equalsStatements, prefixFieldName);
         // spotless:off
-        String bodyContent = equalsStatements.indent(DEFAULT_INDENT);
+        String bodyContent = equalsStatements;
         bodyContent +=
                 """
                     // Treat null and empty lists as equal
@@ -644,8 +644,7 @@ public final class ModelGenerator implements Generator {
                     }
                     return true;
                 """
-                        .replace("$thatUnknownFields", thatUnknownFields)
-                        .indent(DEFAULT_INDENT);
+                .replace("$thatUnknownFields", thatUnknownFields);
         // spotless:on
         return bodyContent;
     }
@@ -682,9 +681,10 @@ public final class ModelGenerator implements Generator {
                 }
                 return $hashCode;
             }
-            """.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
-               .replace("$hashCodeBody", generateHashCodeBody(modelClassName, fields, "").indent(DEFAULT_INDENT))
-                .indent(DEFAULT_INDENT);
+            """
+            .replace("$hashCodeManipulation", HASH_CODE_MANIPULATION)
+            .replace("$hashCodeBody", generateHashCodeBody(modelClassName, fields, "").indent(DEFAULT_INDENT))
+            .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
     }
@@ -894,7 +894,7 @@ public final class ModelGenerator implements Generator {
             }
         }
         // spotless:on
-        return sb.toString().indent(DEFAULT_INDENT);
+        return sb.toString();
     }
 
     /**
