@@ -621,6 +621,13 @@ public final class ServiceGenerator {
         writer.addImport("java.util.concurrent.Flow");
         writer.addImport("java.util.concurrent.atomic.AtomicReference");
 
+        // Some generated code uses Codec.Parse Bytes overload.
+        // Some projects may want to use an alternative impl (such as using thread-locals)
+        String pbjUseUtils = System.getProperty("pbj.useUtils");
+        if (pbjUseUtils != null) {
+            writer.addImport(pbjUseUtils);
+        }
+
         rpcList.forEach(rpc -> {
             writer.addImport(rpc.requestTypePackage + "." + rpc.requestType);
             writer.addImport(rpc.replyTypePackage + "." + rpc.replyType);
@@ -773,6 +780,10 @@ public final class ServiceGenerator {
     }
 
     private static String formatParseRequestMethod(final String requestType) {
+        String parseLine = System.getProperty("pbj.useUtils") != null
+                ? "return PbjUtils.parse(get$simpleRequestTypeCodec(options), message, false, false, 16, options.maxMessageSizeBytes());"
+                : "return get$simpleRequestTypeCodec(options).parse(message, false, false, 16, options.maxMessageSizeBytes());";
+
         // spotless:off
         return """
                 @NonNull
@@ -781,9 +792,10 @@ public final class ServiceGenerator {
                     Objects.requireNonNull(options);
 
                     // not strict, no unknown fields, hard-code maxDepth for now, and use custom maxSize:
-                    return get$simpleRequestTypeCodec(options).parse(message, false, false, 16, options.maxMessageSizeBytes());
+                    $parseLine
                 }
                 """
+                .replace("$parseLine", parseLine)
                 .replace("$requestType", requestType)
                 .replace("$simpleRequestType", requestType.replace(".", ""))
                 ;
