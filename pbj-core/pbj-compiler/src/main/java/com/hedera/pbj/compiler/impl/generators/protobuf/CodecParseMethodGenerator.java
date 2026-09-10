@@ -185,7 +185,7 @@ class CodecParseMethodGenerator {
                         while (input.hasRemaining()) {
                             // Read the "tag" byte which gives us the field number for the next field to read
                             // and the wire type (way it is encoded on the wire).
-                            final int $prefixtag = input.readVarInt(false);
+                            final int $prefixtag = input.readVarIntNoZZ();
 
                             // The field is the top 5 bits of the byte. Read this off
                             final int $prefixfield = $prefixtag >>> TAG_FIELD_OFFSET;
@@ -321,7 +321,7 @@ class CodecParseMethodGenerator {
 
         sbFunc.append("""
                 // Read the length of packed repeated field data
-                final int length = input.readVarInt(false);
+                final int length = input.readVarIntNoZZ();
                 if (length > $maxSize) {
                     input.setError(PbjReader.PARSE, "$fieldName size " + length + " is greater than max " + $maxSize);
                     return $tempFieldName;
@@ -379,13 +379,13 @@ class CodecParseMethodGenerator {
         if (field.optionalValueType()) {
             sbCase.append("""
                             // Read the message size, it is not needed
-                            final var valueTypeMessageSize = input.readVarInt(false);
+                            final var valueTypeMessageSize = input.readVarIntNoZZ();
                             final $fieldType value;
                             if (valueTypeMessageSize > 0) {
                                 final var beforeLimit = input.limit();
                                 input.limit(input.position() + valueTypeMessageSize);
                                 // read inner tag
-                                final int valueFieldTag = input.readVarInt(false);
+                                final int valueFieldTag = input.readVarIntNoZZ();
                                 // assert tag is as expected; skip if a read error is already pending
                                 assert input.error() != 0 || (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
                                 assert input.error() != 0 || (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
@@ -424,7 +424,7 @@ class CodecParseMethodGenerator {
         } else if (field.type() == Field.FieldType.MESSAGE) {
             // spotless:off
             sbCase.append("""
-                        final var messageLength = input.readVarInt(false);
+                        final var messageLength = input.readVarIntNoZZ();
                         final $fieldType value;
                         if (messageLength == 0) {
                             value = $fieldType.DEFAULT;
@@ -469,7 +469,7 @@ class CodecParseMethodGenerator {
                     generateCaseStatements(sbFunc, mapEntryFields, schemaClassName), "map_entry_", schemaClassName);
             // spotless:off
             sbCase.append("""
-                        final var __map_messageLength = input.readVarInt(false);
+                        final var __map_messageLength = input.readVarIntNoZZ();
 
                         $fieldDefs
                         if (__map_messageLength != 0) {
