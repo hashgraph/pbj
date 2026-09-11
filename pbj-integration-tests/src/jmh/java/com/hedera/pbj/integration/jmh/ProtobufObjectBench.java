@@ -12,6 +12,7 @@ import com.hedera.pbj.integration.NonSynchronizedByteArrayOutputStream;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.test.proto.pbj.Everything;
@@ -124,6 +125,16 @@ public abstract class ProtobufObjectBench<P, G extends GeneratedMessage> {
         for (int i = 0; i < OPERATION_COUNT; i++) {
             benchmarkState.protobufDataBuffer.resetPosition();
             blackhole.consume(benchmarkState.pbjCodec.parse(benchmarkState.protobufDataBuffer));
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(OPERATION_COUNT)
+    public void parsePbjReaderViaByteArray(BenchmarkState<P, G> benchmarkState, Blackhole blackhole) throws ParseException {
+        PbjReader reader = new PbjReader(benchmarkState.protobuf);
+        for (int i = 0; i < OPERATION_COUNT; i++) {
+            reader.resetWith(benchmarkState.protobuf);
+            blackhole.consume(benchmarkState.pbjCodec.parse(reader));
         }
     }
 
