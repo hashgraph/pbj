@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,7 +22,7 @@ public abstract class JsonCodec<T> extends Codec<T> {
     /** {@inheritDoc} */
     @Override
     protected final @NonNull T parseImpl(
-            @NonNull ReadableSequentialData input,
+            @NonNull PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
@@ -74,7 +75,19 @@ public abstract class JsonCodec<T> extends Codec<T> {
 
     /** {@inheritDoc} */
     @Override
-    protected final void writeImpl(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+    protected final void writeImpl(@NonNull T item, @NonNull PbjWriter output) {
+        output.writeStringNoTag(toJSON(item));
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Writes directly via {@code output.writeUTF8(...)} instead of routing through a {@link PbjWriter}, since some
+     * {@link WritableSequentialData} implementations only support the string-level {@code writeUTF8} hook and not
+     * raw byte writes.
+     */
+    @Override
+    public void write(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
         output.writeUTF8(toJSON(item));
     }
     /**
@@ -118,7 +131,8 @@ public abstract class JsonCodec<T> extends Codec<T> {
      * @return The length of the data item in the input
      * @throws ParseException If parsing fails
      */
-    public final int measure(@NonNull ReadableSequentialData input) throws ParseException {
+    @Override
+    public final int measure(@NonNull PbjReader input) throws ParseException {
         final long startPosition = input.position();
         parse(input);
         return (int) (input.position() - startPosition);
@@ -157,7 +171,8 @@ public abstract class JsonCodec<T> extends Codec<T> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    public final boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
+    @Override
+    public final boolean fastEquals(@NonNull T item, @NonNull PbjReader input) throws ParseException {
         return Objects.equals(item, parse(input));
     }
 
