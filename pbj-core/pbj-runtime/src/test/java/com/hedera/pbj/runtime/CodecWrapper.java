@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.function.ToIntFunction;
 
 /**
@@ -25,17 +24,13 @@ class CodecWrapper<T> extends Codec<T> {
     @NonNull
     @Override
     protected T parseImpl(
-            @NonNull ReadableSequentialData input,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize)
+            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    protected void writeImpl(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
+    protected void writeImpl(@NonNull T item, @NonNull PbjWriter output) {
         writer.write(item, output);
     }
 

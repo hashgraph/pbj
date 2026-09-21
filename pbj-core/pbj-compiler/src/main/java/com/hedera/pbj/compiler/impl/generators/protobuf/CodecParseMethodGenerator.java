@@ -59,7 +59,7 @@ class CodecParseMethodGenerator {
         // spotless:off
         return """
                 /**
-                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link PbjReader}. Throws if in strict mode ONLY.
                  * <p>
                  * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
                  * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
@@ -83,7 +83,7 @@ class CodecParseMethodGenerator {
                  * @throws ParseException If parsing fails
                  */
                 protected final @NonNull $modelClassName parseImpl(
-                        @NonNull final ReadableSequentialData input,
+                        @NonNull final PbjReader input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
                         final int maxDepth,
@@ -110,8 +110,8 @@ class CodecParseMethodGenerator {
                         throw new ParseException(anyException);
                     }
                 }
-                
-                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, ReadableSequentialData input, int maxSize) throws ParseException, IOException {
+
+                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, PbjReader input, int maxSize) throws ParseException, IOException {
                 $defaultCaseBody
                     return $unknownFields;
                 }
@@ -182,20 +182,9 @@ class CodecParseMethodGenerator {
                         // -- PARSE LOOP ---------------------------------------------
                         // Continue to parse bytes out of the input stream until we get to the end.
                         while (input.hasRemaining()) {
-                            // Note: ReadableStreamingData.hasRemaining() won't flip to false
-                            // until the end of stream is actually hit with a read operation.
-                            // So we catch this exception here and **only** here, because an EOFException
-                            // anywhere else suggests that we're processing malformed data and so
-                            // we must re-throw the exception then.
-                            final int $prefixtag;
-                            try {
-                                // Read the "tag" byte which gives us the field number for the next field to read
-                                // and the wire type (way it is encoded on the wire).
-                                $prefixtag = input.readVarInt(false);
-                            } catch (EOFException e) {
-                                // There's no more fields. Stop the parsing loop.
-                                break;
-                            }
+                            // Read the "tag" byte which gives us the field number for the next field to read
+                            // and the wire type (way it is encoded on the wire).
+                            final int $prefixtag = input.readVarInt(false);
 
                             // The field is the top 5 bits of the byte. Read this off
                             final int $prefixfield = $prefixtag >>> TAG_FIELD_OFFSET;
@@ -298,7 +287,7 @@ class CodecParseMethodGenerator {
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
         sbFunc.append("""
-%s case%d(ReadableSequentialData input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
+%s case%d(PbjReader input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
         if (field.type() == Field.FieldType.ENUM) {
             preRead = """
@@ -371,9 +360,9 @@ class CodecParseMethodGenerator {
                                 input.limit(input.position() + valueTypeMessageSize);
                                 // read inner tag
                                 final int valueFieldTag = input.readVarInt(false);
-                                // assert tag is as expected
-                                assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
-                                assert (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
+                                // assert tag is as expected; skip if a read error is already pending
+                                assert input.error() != 0 || (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
+                                assert input.error() != 0 || (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
                                 // read value
                                 value = $readMethod;
                                 input.limit(beforeLimit);
