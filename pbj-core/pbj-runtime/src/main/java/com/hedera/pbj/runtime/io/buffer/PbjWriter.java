@@ -35,12 +35,13 @@ public class PbjWriter implements AutoCloseable {
     private RuntimeException cause;
     private OutputStream output;
     private boolean mayGrow = true;
+    private static final int DEFAULT_BUFFER_SIZE = 16 << 10; // 16k is friendly to x86-64 L1 cache
 
     /*
      * If a project doesn't care about stacktraces, setting pbj.ReaderWriter.useStackTrace to false
      * will throw a premade exception that doesn't have the correct stacktrace. It's fast and good against DOS attacks
      */
-    private static final boolean useStacktrace =
+    private static final boolean USE_STACKTRACE =
             !"false".equalsIgnoreCase(System.getProperty("pbj.ReaderWriter.useStackTrace"));
     public static final int EOF = PbjReader.EOF,
             DATA_ENCODING = PbjReader.DATA_ENCODING,
@@ -57,14 +58,14 @@ public class PbjWriter implements AutoCloseable {
             CLOSED = PbjReader.CLOSED,
             MALFORM_STRING = PbjReader.MALFORM_STRING;
 
-    private static final RuntimeException premadeRuntimeException;
+    private static final RuntimeException PREMADE_RUNTIME_EXCEPTION;
 
     /*
      * Some projects may not want exceptions, but their test expects them.
      * Here are premade exceptions that are created once and thrown potentially many times
      */
     static {
-        premadeRuntimeException = new RuntimeException("Stacktrace not enabled in PbjWriter");
+        PREMADE_RUNTIME_EXCEPTION = new RuntimeException("Stacktrace not enabled in PbjWriter");
     }
 
     /**
@@ -75,7 +76,7 @@ public class PbjWriter implements AutoCloseable {
      */
     public PbjWriter(@NonNull OutputStream output) {
         this.output = output;
-        ownedBuf = buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+        ownedBuf = buf = new byte[DEFAULT_BUFFER_SIZE];
         cap = buf.length;
     }
 
@@ -106,7 +107,7 @@ public class PbjWriter implements AutoCloseable {
                     buffer.put(b, off, len);
                 }
             };
-            ownedBuf = buf = new byte[16 << 10];
+            ownedBuf = buf = new byte[DEFAULT_BUFFER_SIZE];
             cap = buf.length;
         }
     }
@@ -150,7 +151,7 @@ public class PbjWriter implements AutoCloseable {
      * No backing output stream is attached; use {@link #toByteArray()} to retrieve the written bytes.
      */
     public PbjWriter() {
-        ownedBuf = buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+        ownedBuf = buf = new byte[DEFAULT_BUFFER_SIZE];
         cap = buf.length;
     }
 
@@ -163,7 +164,7 @@ public class PbjWriter implements AutoCloseable {
      *                    {@code false} to keep the buffer fixed at {@code reserveSize} bytes
      */
     public PbjWriter(int reserveSize, boolean mayGrow) {
-        if (mayGrow) ownedBuf = new byte[Math.max(reserveSize, 16 << 10)]; // 16k is friendly to x86-64 L1 cache
+        if (mayGrow) ownedBuf = new byte[Math.max(reserveSize, DEFAULT_BUFFER_SIZE)];
         else {
             ownedBuf = new byte[reserveSize];
         }
@@ -859,7 +860,7 @@ public class PbjWriter implements AutoCloseable {
     public void resetWith(OutputStream out) {
         reset();
         if (ownedBuf == null) {
-            ownedBuf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+            ownedBuf = new byte[DEFAULT_BUFFER_SIZE];
             mayGrow = true;
         }
         buf = ownedBuf;
@@ -885,27 +886,6 @@ public class PbjWriter implements AutoCloseable {
                 out.writeBytes(b, off, len);
             }
         });
-    }
-
-    /**
-     * Returns the raw internal byte array. The valid data occupies indices {@code [0, position())}.
-     * Intended for low-level inspection; prefer {@link #toByteArray()} for a correctly sized copy
-     *
-     * @return the internal buffer array
-     */
-    public byte[] internalArray() {
-        return buf;
-    }
-
-    /**
-     * Returns a zero-copy {@link Bytes} view wrapping the internal buffer from index 0 up to
-     * the current position. The backing array is shared, so the returned {@code Bytes} must
-     * not be retained beyond the next write operation.
-     *
-     * @return a {@code Bytes} view of the current contents
-     */
-    public Bytes internalArrayWrapped() {
-        return Bytes.wrap(buf, 0, pos);
     }
 
     /**
@@ -966,10 +946,10 @@ public class PbjWriter implements AutoCloseable {
     public void setError(int errorKind, String message) {
         if (err > 0) return;
         err = errorKind;
-        if (useStacktrace) {
+        if (USE_STACKTRACE) {
             cause = new RuntimeException(message);
         } else {
-            cause = premadeRuntimeException;
+            cause = PREMADE_RUNTIME_EXCEPTION;
         }
     }
 
