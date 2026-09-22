@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.pbj.runtime.io.buffer;
+package com.hedera.pbj.integration.test;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -22,22 +25,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class PbjReaderWriterTest {
-
-    @Test
-    void WriteConstructorBufferSizeConsistent() {
-        final int expectedSize = new PbjWriter().internalArray().length;
-        assertEquals(expectedSize, new PbjWriter((OutputStream) null).internalArray().length);
-        assertEquals(expectedSize, new PbjWriter((WritableSequentialData) null).internalArray().length);
-        assertEquals(expectedSize, new PbjWriter(128, true).internalArray().length);
-        // Does not apply to ByteBuffer, byte[], or reserve when large, or the below
-        assertEquals(128, new PbjWriter(128, false).internalArray().length);
-    }
-
-    @Test
-    void writerConstructorCanReserveLarge() {
-        PbjWriter writer = new PbjWriter(2 << 20, true);
-        assertEquals(2 << 20, writer.internalArray().length);
-    }
 
     @Test
     void writeByteBufferConstructorHeap() {
@@ -100,7 +87,6 @@ public class PbjReaderWriterTest {
     void toByteArrayWrappedErrorsOnStreamingWriter() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PbjWriter writer = new PbjWriter(baos);
-        assertEquals(Bytes.EMPTY, writer.internalArrayWrapped());
         assertEquals(Bytes.EMPTY, writer.toByteArrayWrapped());
         assertEquals(PbjWriter.USAGE_ERROR, writer.error());
         assertThrows(RuntimeException.class, () -> writer.throwOnError());
@@ -113,33 +99,6 @@ public class PbjReaderWriterTest {
         assertEquals(null, writer.toByteArray());
         assertEquals(PbjWriter.USAGE_ERROR, writer.error());
         assertThrows(RuntimeException.class, () -> writer.throwOnError());
-    }
-
-    @Test
-    void writerRelativeReserve() {
-        PbjWriter writer = new PbjWriter();
-        byte[] origArray = writer.internalArray();
-        writer.reserveRel(origArray.length);
-        byte[] arr2 = writer.internalArray();
-        assertEquals(origArray, arr2); // same object
-
-        writer.reserveRel(origArray.length + 1);
-        byte[] arr3 = writer.internalArray();
-        assertNotEquals(origArray, arr3); // diff object
-
-        writer.skip(arr3.length - 1);
-        writer.reserveRel(1);
-        byte[] arr4 = writer.internalArray();
-        assertEquals(arr3, arr4);
-
-        writer.skip(1);
-        writer.reserveRel(0);
-        byte[] arr5 = writer.internalArray();
-        assertEquals(arr4, arr5);
-
-        writer.reserveRel(1);
-        byte[] arr6 = writer.internalArray();
-        assertNotEquals(arr4, arr6);
     }
 
     @Test
@@ -270,7 +229,6 @@ public class PbjReaderWriterTest {
             writer.writeVarInt(i, false);
         }
         assertEquals(128, writer.position());
-        assertEquals(bytes, writer.internalArray());
         byte[] arr1 = writer.toByteArray();
         assertNotEquals(bytes, arr1);
         Bytes arr2 = writer.toByteArrayWrapped();
@@ -289,8 +247,6 @@ public class PbjReaderWriterTest {
         assertEquals(0, writer.position());
         writer.writeByte2((byte) 99, (byte) 88);
         assertEquals(2, writer.position());
-        assertEquals(99, writer.internalArray()[0]);
-        assertEquals(88, writer.internalArray()[1]);
         assertArrayEquals(new byte[] {99, 88}, writer.toByteArray());
     }
 
@@ -465,10 +421,10 @@ public class PbjReaderWriterTest {
 
             // edge test
             writer.reset();
-            int len = writer.internalArray().length;
+            int len = writer.toByteArray().length;
             writer.skip(len);
             writer.writeVarLong(v, false);
-            byte[] buf = writer.internalArray();
+            byte[] buf = writer.toByteArray();
             for (int i = 0; i < noZZLen; i++) {
                 assertEquals(buf[i], buf[i + len]);
             }
@@ -478,221 +434,221 @@ public class PbjReaderWriterTest {
     @Test
     void testWriteByteAtEdge() {
         PbjWriter writer = new PbjWriter();
-        int defaultLen = writer.internalArray().length;
+        final int defaultLen = 16 << 10;
         writer.skip(defaultLen - 1);
         writer.writeByte((byte) 1);
-        byte[] internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 1, internalArray[defaultLen - 1]);
+        byte[] writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 1, writtenBytes[defaultLen - 1]);
         writer.writeByte((byte) 1);
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 1, internalArray[defaultLen - 1]);
-        assertEquals((byte) 1, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 1, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 1, writtenBytes[defaultLen]);
 
         writer = new PbjWriter();
         writer.skip(defaultLen - 2);
         writer.writeByte2((byte) 1, (byte) 2);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 1, internalArray[defaultLen - 2]);
-        assertEquals((byte) 2, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 1, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 2, writtenBytes[defaultLen - 1]);
         writer.skip(-1);
         writer.writeByte2((byte) 1, (byte) 2);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 1, internalArray[defaultLen - 1]);
-        assertEquals((byte) 2, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 1, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 2, writtenBytes[defaultLen]);
 
         writer = new PbjWriter();
         writer.skip(defaultLen - 3);
         writer.writeByte3((byte) 1, (byte) 2, (byte) 3);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 1, internalArray[defaultLen - 3]);
-        assertEquals((byte) 2, internalArray[defaultLen - 2]);
-        assertEquals((byte) 3, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 1, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 2, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 3, writtenBytes[defaultLen - 1]);
         writer.skip(-2);
         writer.writeByte3((byte) 1, (byte) 2, (byte) 3);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 1, internalArray[defaultLen - 2]);
-        assertEquals((byte) 2, internalArray[defaultLen - 1]);
-        assertEquals((byte) 3, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 1, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 2, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 3, writtenBytes[defaultLen]);
 
         writer = new PbjWriter();
         writer.skip(defaultLen - 4);
         writer.writeByte4((byte) 1, (byte) 2, (byte) 3, (byte) 4);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 1, internalArray[defaultLen - 4]);
-        assertEquals((byte) 2, internalArray[defaultLen - 3]);
-        assertEquals((byte) 3, internalArray[defaultLen - 2]);
-        assertEquals((byte) 4, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 1, writtenBytes[defaultLen - 4]);
+        assertEquals((byte) 2, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 3, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 4, writtenBytes[defaultLen - 1]);
         writer.skip(-3);
         writer.writeByte4((byte) 1, (byte) 2, (byte) 3, (byte) 4);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 1, internalArray[defaultLen - 3]);
-        assertEquals((byte) 2, internalArray[defaultLen - 2]);
-        assertEquals((byte) 3, internalArray[defaultLen - 1]);
-        assertEquals((byte) 4, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 1, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 2, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 3, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 4, writtenBytes[defaultLen]);
 
         // writeInt writes big-endian: 4 = {0, 0, 0, 4}
         writer = new PbjWriter();
         writer.skip(defaultLen - 4);
         writer.writeInt(4);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 0, internalArray[defaultLen - 4]);
-        assertEquals((byte) 0, internalArray[defaultLen - 3]);
-        assertEquals((byte) 0, internalArray[defaultLen - 2]);
-        assertEquals((byte) 4, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 4]);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 4, writtenBytes[defaultLen - 1]);
         writer.skip(-3);
         writer.writeInt(4);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 0, internalArray[defaultLen - 3]);
-        assertEquals((byte) 0, internalArray[defaultLen - 2]);
-        assertEquals((byte) 0, internalArray[defaultLen - 1]);
-        assertEquals((byte) 4, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 4, writtenBytes[defaultLen]);
 
         // writeIntLE writes little-endian: 4 = {4, 0, 0, 0}
         writer = new PbjWriter();
         writer.skip(defaultLen - 4);
         writer.writeIntLE(4);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 4, internalArray[defaultLen - 4]);
-        assertEquals((byte) 0, internalArray[defaultLen - 3]);
-        assertEquals((byte) 0, internalArray[defaultLen - 2]);
-        assertEquals((byte) 0, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 4, writtenBytes[defaultLen - 4]);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 1]);
         writer.skip(-3);
         writer.writeIntLE(4);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 4, internalArray[defaultLen - 3]);
-        assertEquals((byte) 0, internalArray[defaultLen - 2]);
-        assertEquals((byte) 0, internalArray[defaultLen - 1]);
-        assertEquals((byte) 0, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 4, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 0, writtenBytes[defaultLen]);
 
         // writeLong writes big-endian: 8 = {0, 0, 0, 0, 0, 0, 0, 8}
         writer = new PbjWriter();
         writer.skip(defaultLen - 8);
         writer.writeLong(8);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 8, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 8, writtenBytes[defaultLen - 1]);
         writer.skip(-7);
         writer.writeLong(8);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 0, internalArray[defaultLen - 1]);
-        assertEquals((byte) 8, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 0, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 8, writtenBytes[defaultLen]);
 
         // writeFloatLE writes little-endian: 4.0f = 0x40800000 = {0x00, 0x00, 0x80, 0x40}
         writer = new PbjWriter();
         writer.skip(defaultLen - 4);
         writer.writeFloatLE(4);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 0x00, internalArray[defaultLen - 4]);
-        assertEquals((byte) 0x00, internalArray[defaultLen - 3]);
-        assertEquals((byte) 0x80, internalArray[defaultLen - 2]);
-        assertEquals((byte) 0x40, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 0x00, writtenBytes[defaultLen - 4]);
+        assertEquals((byte) 0x00, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 0x80, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 0x40, writtenBytes[defaultLen - 1]);
         writer.skip(-3);
         writer.writeFloatLE(4);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 0x00, internalArray[defaultLen - 3]);
-        assertEquals((byte) 0x00, internalArray[defaultLen - 2]);
-        assertEquals((byte) 0x80, internalArray[defaultLen - 1]);
-        assertEquals((byte) 0x40, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 0x00, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 0x00, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 0x80, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 0x40, writtenBytes[defaultLen]);
 
         // writeDoubleLE writes little-endian: 8.0 = 0x4020000000000000 = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
         // 0x40}
         writer = new PbjWriter();
         writer.skip(defaultLen - 8);
         writer.writeDoubleLE(8);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 0x20, internalArray[defaultLen - 2]);
-        assertEquals((byte) 0x40, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 0x20, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 0x40, writtenBytes[defaultLen - 1]);
         writer.skip(-7);
         writer.writeDoubleLE(8);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 0x20, internalArray[defaultLen - 1]);
-        assertEquals((byte) 0x40, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 0x20, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 0x40, writtenBytes[defaultLen]);
 
         byte[] array4 = new byte[] {10, 20, 30, 40};
         writer = new PbjWriter();
         writer.skip(defaultLen - 4);
         writer.writeBytes(array4);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 10, internalArray[defaultLen - 4]);
-        assertEquals((byte) 20, internalArray[defaultLen - 3]);
-        assertEquals((byte) 30, internalArray[defaultLen - 2]);
-        assertEquals((byte) 40, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 10, writtenBytes[defaultLen - 4]);
+        assertEquals((byte) 20, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 30, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 40, writtenBytes[defaultLen - 1]);
         writer.skip(-3);
         writer.writeBytes(array4);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 10, internalArray[defaultLen - 3]);
-        assertEquals((byte) 20, internalArray[defaultLen - 2]);
-        assertEquals((byte) 30, internalArray[defaultLen - 1]);
-        assertEquals((byte) 40, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 10, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 20, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 30, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 40, writtenBytes[defaultLen]);
 
         Bytes bytes4 = Bytes.wrap(new byte[] {10, 20, 30, 40});
         writer = new PbjWriter();
         writer.skip(defaultLen - 4);
         writer.writeBytes(bytes4);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 10, internalArray[defaultLen - 4]);
-        assertEquals((byte) 20, internalArray[defaultLen - 3]);
-        assertEquals((byte) 30, internalArray[defaultLen - 2]);
-        assertEquals((byte) 40, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 10, writtenBytes[defaultLen - 4]);
+        assertEquals((byte) 20, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 30, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 40, writtenBytes[defaultLen - 1]);
         writer.skip(-3);
         writer.writeBytes(bytes4);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 10, internalArray[defaultLen - 3]);
-        assertEquals((byte) 20, internalArray[defaultLen - 2]);
-        assertEquals((byte) 30, internalArray[defaultLen - 1]);
-        assertEquals((byte) 40, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 10, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 20, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 30, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 40, writtenBytes[defaultLen]);
 
         BufferedData bb4 = BufferedData.wrap(new byte[] {10, 20, 30, 40});
         writer = new PbjWriter();
         writer.skip(defaultLen - 4);
         writer.writeBytes(bb4);
-        internalArray = writer.internalArray();
-        assertEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 10, internalArray[defaultLen - 4]);
-        assertEquals((byte) 20, internalArray[defaultLen - 3]);
-        assertEquals((byte) 30, internalArray[defaultLen - 2]);
-        assertEquals((byte) 40, internalArray[defaultLen - 1]);
+        writtenBytes = writer.toByteArray();
+        assertEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 10, writtenBytes[defaultLen - 4]);
+        assertEquals((byte) 20, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 30, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 40, writtenBytes[defaultLen - 1]);
         writer.skip(-3);
         bb4.resetPosition();
         writer.writeBytes(bb4);
         assertEquals(defaultLen + 1, writer.position());
-        internalArray = writer.internalArray();
-        assertNotEquals(defaultLen, internalArray.length);
-        assertEquals((byte) 10, internalArray[defaultLen - 3]);
-        assertEquals((byte) 20, internalArray[defaultLen - 2]);
-        assertEquals((byte) 30, internalArray[defaultLen - 1]);
-        assertEquals((byte) 40, internalArray[defaultLen]);
+        writtenBytes = writer.toByteArray();
+        assertNotEquals(defaultLen, writtenBytes.length);
+        assertEquals((byte) 10, writtenBytes[defaultLen - 3]);
+        assertEquals((byte) 20, writtenBytes[defaultLen - 2]);
+        assertEquals((byte) 30, writtenBytes[defaultLen - 1]);
+        assertEquals((byte) 40, writtenBytes[defaultLen]);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         writer = new PbjWriter(baos);
@@ -892,10 +848,6 @@ public class PbjReaderWriterTest {
         assertEquals(7, result[0]);
         assertEquals(11, result[1]);
         assertEquals(22, result[4096]);
-
-        byte[] internalArray = writer.internalArray();
-        assertEquals(7, internalArray[0]);
-        assertEquals(0, internalArray[1]);
     }
 
     @Test
@@ -973,11 +925,10 @@ public class PbjReaderWriterTest {
             src[0] = 11;
             src[2046] = 22;
             writer.writeBytes(src, 0, 2047);
-            assertEquals(11, writer.internalArray()[0]);
             assertEquals(0, baos.toByteArray().length);
             writer.reset();
             baos.reset();
-            int internalLen = writer.internalArray().length;
+            final int internalLen = 16 << 10; // matches PbjWriter's default internal buffer size
             writer.skip(internalLen - 1);
             writer.writeBytes(src, 0, 2047);
             assertEquals(internalLen - 1, baos.toByteArray().length);
@@ -990,14 +941,10 @@ public class PbjReaderWriterTest {
             src[2047] = 22;
             writer.writeBytes(src, 0, 2048);
             writer.flush();
-            assertEquals(0, writer.internalArray()[0]); // this length bypasses buffer
             byte[] result = baos.toByteArray();
             assertEquals(2048, result.length);
             assertEquals((byte) 11, result[0]);
             assertEquals((byte) 22, result[2047]);
-            byte[] internalArray = writer.internalArray();
-            assertEquals(0, internalArray[0]);
-            assertEquals(0, internalArray[2047]);
         }
     }
 
@@ -1440,8 +1387,6 @@ public class PbjReaderWriterTest {
         assertEquals((byte) 8, reader.readByte());
         assertEquals(0, reader.error());
     }
-
-    //
 
     @Test
     void asInputStreamReturnsUnderlyingStreamIfNeverRead() {
