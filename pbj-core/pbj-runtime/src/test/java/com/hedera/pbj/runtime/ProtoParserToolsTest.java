@@ -30,9 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.buffer.PbjWriter;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
@@ -358,7 +359,9 @@ class ProtoParserToolsTest {
     @Test
     void testExtractBytesNullInput() {
         final FieldDefinition field = createFieldDefinition(BYTES);
-        assertThrows(NullPointerException.class, () -> ProtoParserTools.extractFieldBytes(null, field));
+        assertThrows(
+                NullPointerException.class,
+                () -> ProtoParserTools.extractFieldBytes((ReadableSequentialData) null, field));
     }
 
     @Test
@@ -542,12 +545,11 @@ class ProtoParserToolsTest {
         @NonNull
         @Override
         protected final TestMessage parseImpl(
-                @NonNull final ReadableSequentialData in,
+                @NonNull final PbjReader in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
                 final int maxDepth,
-                final int maxSize)
-                throws ParseException {
+                final int maxSize) {
             String value = null;
             while (in.hasRemaining()) {
                 final int tag = in.readVarInt(false);
@@ -558,19 +560,20 @@ class ProtoParserToolsTest {
                     final int length = in.readVarInt(false);
                     final byte[] valueBytes = new byte[length];
                     if (in.readBytes(valueBytes) != length) {
-                        throw new ParseException("Failed to read value bytes");
+                        in.setError(PbjReader.PARSE, "Failed to read value bytes");
+                        return null;
                     }
                     value = new String(valueBytes, StandardCharsets.UTF_8);
                 } else {
-                    throw new ParseException("Unknown field: " + tag);
+                    in.setError(PbjReader.PARSE, "Unknown field: " + tag);
+                    return null;
                 }
             }
             return new TestMessage(value);
         }
 
         @Override
-        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
-                throws IOException {
+        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final PbjWriter out) {
             final String value = item.getValue();
             if (value != null) {
                 ProtoWriterTools.writeString(out, VALUE_FIELD, value);
@@ -578,7 +581,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public int measure(@NonNull ReadableSequentialData input) throws ParseException {
+        public int measure(@NonNull PbjReader input) throws ParseException {
             throw new UnsupportedOperationException();
         }
 
@@ -592,8 +595,7 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public boolean fastEquals(@NonNull TestMessage item, @NonNull ReadableSequentialData input)
-                throws ParseException {
+        public boolean fastEquals(@NonNull TestMessage item, @NonNull PbjReader input) throws ParseException {
             throw new UnsupportedOperationException();
         }
 
