@@ -242,7 +242,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
 
                         try {
                             final ReplyT reply = replyCodec.parse(
-                                    replyBytes.toReadableSequentialData(),
+                                    replyBytes,
                                     false,
                                     false,
                                     Codec.DEFAULT_MAX_DEPTH,

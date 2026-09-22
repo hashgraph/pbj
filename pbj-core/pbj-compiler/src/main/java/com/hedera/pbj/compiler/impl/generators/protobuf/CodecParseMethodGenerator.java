@@ -59,7 +59,7 @@ class CodecParseMethodGenerator {
         // spotless:off
         return """
                 /**
-                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
+                 * Parses a $modelClassName object from ProtoBuf bytes in a {@link PbjReader}. Throws if in strict mode ONLY.
                  * <p>
                  * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
                  * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
@@ -77,68 +77,67 @@ class CodecParseMethodGenerator {
                  * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
                  * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
                  *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
-                 * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
-                 * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
-                 * @return Parsed $modelClassName model object or null if data input was null or empty
-                 * @throws ParseException If parsing fails
+                 * @param maxDepth sets the {@link PbjReader#MAX_DEPTH_REACHED} error if the depth of nested messages exceeds it.
+                 * @param maxSize sets the {@link PbjReader#PARSE} error if the size of a delimited field exceeds the limit
+                 * @return Parsed $modelClassName model object, or {@code null} if an error was set on {@code input}
                  */
-                protected final @NonNull $modelClassName parseImpl(
-                        @NonNull final ReadableSequentialData input,
+                protected final $modelClassName parseImpl(
+                        @NonNull final PbjReader input,
                         final boolean strictMode,
                         final boolean parseUnknownFields,
                         final int maxDepth,
-                        final int maxSize) throws ParseException {
+                        final int maxSize) {
                     if (maxDepth < 0) {
-                        throw new ParseException("Reached maximum allowed depth of nested messages");
+                        input.setError(PbjReader.MAX_DEPTH_REACHED);
+                        return null;
                     }
-                    try {
-                        // -- TEMP STATE FIELDS --------------------------------------
+                    // -- TEMP STATE FIELDS --------------------------------------
                 $fieldDefs
-                        List<UnknownField> $unknownFields = null;
+                    List<UnknownField> $unknownFields = null;
 
-                        $parseLoop
+                $parseLoop
                 $listFieldsWriteProtection
-                        if ($unknownFields != null) {
-                            Collections.sort($unknownFields);
-                            $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
-                        }
-                $cacheableSupport
-                    } catch (final Exception anyException) {
-                        if (anyException instanceof ParseException parseException) {
-                            throw parseException;
-                        }
-                        throw new ParseException(anyException);
+                    if ($unknownFields != null) {
+                        Collections.sort($unknownFields);
+                        $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
                     }
+                    if (input.error() > 0) return null;
+                $cacheableSupport
                 }
-                
-                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, ReadableSequentialData input, int maxSize) throws ParseException, IOException {
+
+                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, PbjReader input, int maxSize) {
                 $defaultCaseBody
                     return $unknownFields;
                 }
                 """
-        .replace("$cacheableSupport", isCacheable ? generateCacheableSupport(modelClassName, fields) : "return new $modelClassName($fieldsList);")
+        .replace(
+                "$cacheableSupport",
+                isCacheable
+                        ? generateCacheableSupport(modelClassName, fields)
+                        : "return new $modelClassName($fieldsList);".indent(DEFAULT_INDENT).stripTrailing())
         .replace("$modelClassName",modelClassName)
         .replace("$fieldDefs",fields.stream().map(field -> {
             final String javaFieldType = field.type() == Field.FieldType.ENUM ? field.repeated() ? "List" :  "Object" : field.javaFieldType();
             return "%s temp_%s = %s;"
                     .formatted(javaFieldType, field.name(), field.javaDefault());
-        }).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2).stripTrailing())
+        }).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT).stripTrailing())
         .replace("$fieldsList",
                 fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", "))
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
         )
-        .replace("$parseLoop", parseAndDefaultBodyPair.parseBody().indent(DEFAULT_INDENT * 2).stripTrailing())
+        .replace("$parseLoop", parseAndDefaultBodyPair.parseBody().indent(DEFAULT_INDENT).stripTrailing())
         .replace("$defaultCaseBody", parseAndDefaultBodyPair.defaultBody().indent(DEFAULT_INDENT).stripTrailing())
         .replace("$listFieldsWriteProtection", fields.stream()
                 .filter(Field::repeated)
                 .map(field -> "if (temp_" + field.name() + " instanceof UnmodifiableArrayList ual) ual.makeReadOnly();")
                 .collect(Collectors.joining("\n"))
-                .indent(DEFAULT_INDENT * 2))
+                .indent(DEFAULT_INDENT))
         .indent(DEFAULT_INDENT);
         // spotless:on
     }
 
     static String generateCacheableSupport(String modelClassName, final List<Field> fields) {
+        // spotless:off
         return """
                 final int objectHashCode;
                 {
@@ -160,14 +159,16 @@ class CodecParseMethodGenerator {
                 _theObject = new $modelClassName($fieldsList, objectHashCode);
                 CACHE[objectHashCode & CACHE_KEY_MASK] = _theObject;
                 return _theObject;
-                """.replace("$hashCodeBody", ModelGenerator.generateHashCodeBody(modelClassName, fields, "temp_"))
+                """
+                .replace("$hashCodeBody", ModelGenerator.generateHashCodeBody(modelClassName, fields, "temp_"))
                 .replace(
                         "$equalsBody",
                         ModelGenerator.generateEqualsBody(fields, modelClassName, "temp_")
                                 .replace("return false", "yield false")
                                 .replace("return true", "yield true")
-                                .indent(DEFAULT_INDENT))
-                .indent(DEFAULT_INDENT * 2);
+                                .indent(DEFAULT_INDENT * 2))
+                .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 
     public record ParseAndDefaultBody(String parseBody, String defaultBody) {}
@@ -182,20 +183,9 @@ class CodecParseMethodGenerator {
                         // -- PARSE LOOP ---------------------------------------------
                         // Continue to parse bytes out of the input stream until we get to the end.
                         while (input.hasRemaining()) {
-                            // Note: ReadableStreamingData.hasRemaining() won't flip to false
-                            // until the end of stream is actually hit with a read operation.
-                            // So we catch this exception here and **only** here, because an EOFException
-                            // anywhere else suggests that we're processing malformed data and so
-                            // we must re-throw the exception then.
-                            final int $prefixtag;
-                            try {
-                                // Read the "tag" byte which gives us the field number for the next field to read
-                                // and the wire type (way it is encoded on the wire).
-                                $prefixtag = input.readVarInt(false);
-                            } catch (EOFException e) {
-                                // There's no more fields. Stop the parsing loop.
-                                break;
-                            }
+                            // Read the "tag" byte which gives us the field number for the next field to read
+                            // and the wire type (way it is encoded on the wire).
+                            final int $prefixtag = input.readVarIntNoZZ();
 
                             // The field is the top 5 bits of the byte. Read this off
                             final int $prefixfield = $prefixtag >>> TAG_FIELD_OFFSET;
@@ -215,20 +205,22 @@ class CodecParseMethodGenerator {
                         // handle error cases here, so we do not do if statements in normal loop
                         // Validate the field number is valid (must be > 0)
                         if ($prefixfield == 0) {
-                            throw new IOException("Bad protobuf encoding. We read a field value of "
+                            input.setError(PbjReader.IO_ERROR, "Bad protobuf encoding. We read a field value of "
                                 + $prefixfield);
+                            return $unknownFields;
                         }
                         // Validate the wire type is valid (must be >=0 && <= 5).
                         // Otherwise we cannot parse this.
                         // Note: it is always >= 0 at this point (see code above where it is defined).
                         if (wireType > 5) {
-                            throw new IOException("Cannot understand wire_type of " + wireType);
+                            input.setError(PbjReader.PARSE, "Cannot understand wire_type of " + wireType);
+                            return $unknownFields;
                         }
                         // It may be that the parser subclass doesn't know about this field
                         if ($prefixf == null) {
                             if (strictMode) {
-                                // Since we are parsing is strict mode, this is an exceptional condition.
-                                throw new UnknownFieldException($prefixfield);
+                                input.setError(PbjReader.UNKNOWN_FIELD, String.valueOf($prefixfield));
+                                return $unknownFields;
                             } else if (parseUnknownFields) {
                                 if ($unknownFields == null) {
                                     $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
@@ -244,8 +236,9 @@ class CodecParseMethodGenerator {
                                 skipField(input, ProtoConstants.get(wireType), $skipMaxSize);
                             }
                         } else {
-                            throw new IOException("Bad tag [" + $prefixtag + "], field [" + $prefixfield
+                            input.setError(PbjReader.IO_ERROR, "Bad tag [" + $prefixtag + "], field [" + $prefixfield
                                     + "] wireType [" + wireType + "]");
+                            return $unknownFields;
                         }""");
         for (int i = 0; i < list.size(); i++) {
             list.set(i, list.get(i)
@@ -296,51 +289,73 @@ class CodecParseMethodGenerator {
         // spotless:off
         sbCase.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
-        sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
-        sbFunc.append("""
-%s case%d(ReadableSequentialData input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
+        sbCase.append("    %s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
+        sbFunc.append("    %s case%d(PbjReader input, int maxSize, %s %s) {\n"
+                .formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
+        int divideAmount = fieldType.equals("List<Integer>") ? 2
+            : fieldType.equals("List<Long>") ? 4
+            : fieldType.equals("List<Float>") ? 2
+            : fieldType.equals("List<Double>") ? 4
+            : fieldType.equals("List<Boolean>") ? 1
+            : 0;
+
         if (field.type() == Field.FieldType.ENUM) {
+            divideAmount = 1;
             preRead = """
                     final int enumOrdinal = readEnum(input);
                     Object value = $enumName.fromProtobufOrdinal(enumOrdinal);
                     if (value == $enumName.UNRECOGNIZED) {
-                       value = Integer.valueOf(enumOrdinal);
-                    }
-                    
-                    """
+                        value = Integer.valueOf(enumOrdinal);
+                    }"""
                     .replace("$enumName", Common.snakeToCamel(field.messageType(), true))
-            ;
+                    .indent(DEFAULT_INDENT)
+                    .stripTrailing();
         } else {
             preRead = "";
         }
-        final String loopBody = preRead + "%s = addToList(%s,%s);"
-                .formatted(tempFieldName, tempFieldName, field.type() == Field.FieldType.ENUM ? "value" : readMethod(field));
+
+        if (divideAmount == 0) {
+            throw new RuntimeException("Need to implement");
+        }
+
         sbFunc.append("""
                 // Read the length of packed repeated field data
-                final long length = input.readVarInt(false);
+                final int length = input.readVarIntNoZZ();
                 if (length > $maxSize) {
-                    throw new ParseException("$fieldName size " + length + " is greater than max " + $maxSize);
+                    input.setError(PbjReader.PARSE, "$fieldName size " + length + " is greater than max " + $maxSize);
+                    return $tempFieldName;
                 }
                 if (input.remaining() < length) {
-                    throw new BufferUnderflowException();
+                    input.setError(PbjReader.BUFFER_UNDERFLOW);
+                    return $tempFieldName;
                 }
-                final var beforeLimit = input.limit();
-                final long beforePosition = input.position();
+                final var startLimit = input.limit();
+                final long startPosition = input.position();
                 input.limit(input.position() + length);
+                var list = new UnmodifiableArray$fieldType();
+                list.ensureCapacity(length$divideString);
                 while (input.hasRemaining()) {
-                $loopBody
+                $preRead
+                    list.add($readMethod);
                 }
-                input.limit(beforeLimit);
-                if (input.position() != beforePosition + length) {
-                    throw new BufferUnderflowException();
-                }"""
-                .replace("$loopBody", loopBody.indent(DEFAULT_INDENT).stripTrailing())
+                $tempFieldName = list;
+                input.limit(startLimit);
+                if (input.position() != startPosition + length) {
+                    input.setError(PbjReader.BUFFER_UNDERFLOW);
+                }
+                return $tempFieldName;
+                """
+                .replace("$tempFieldName", tempFieldName)
+                .replace("$preRead", preRead)
+                .replace("$fieldType", fieldType)
+                .replace("$readMethod", field.type() == Field.FieldType.ENUM ? "value" : readMethod(field))
                 .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                 .replace("$fieldName", field.name())
-                .indent(DEFAULT_INDENT));
+                .replace("$divideString", divideAmount == 1 ? "" : "/%d".formatted(divideAmount))
+                .indent(DEFAULT_INDENT * 2));
         sbCase.append("\n}\n");
-        sbFunc.append("    return %s;\n    }\n".formatted(tempFieldName));
+        sbFunc.append("    }\n");
         // spotless:on
     }
 
@@ -364,16 +379,16 @@ class CodecParseMethodGenerator {
         if (field.optionalValueType()) {
             sbCase.append("""
                             // Read the message size, it is not needed
-                            final var valueTypeMessageSize = input.readVarInt(false);
+                            final var valueTypeMessageSize = input.readVarIntNoZZ();
                             final $fieldType value;
                             if (valueTypeMessageSize > 0) {
                                 final var beforeLimit = input.limit();
                                 input.limit(input.position() + valueTypeMessageSize);
                                 // read inner tag
-                                final int valueFieldTag = input.readVarInt(false);
-                                // assert tag is as expected
-                                assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
-                                assert (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
+                                final int valueFieldTag = input.readVarIntNoZZ();
+                                // assert tag is as expected; skip if a read error is already pending
+                                assert input.error() != 0 || (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
+                                assert input.error() != 0 || (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
                                 // read value
                                 value = $readMethod;
                                 input.limit(beforeLimit);
@@ -409,13 +424,14 @@ class CodecParseMethodGenerator {
         } else if (field.type() == Field.FieldType.MESSAGE) {
             // spotless:off
             sbCase.append("""
-                        final var messageLength = input.readVarInt(false);
+                        final var messageLength = input.readVarIntNoZZ();
                         final $fieldType value;
                         if (messageLength == 0) {
                             value = $fieldType.DEFAULT;
                         } else {
                             if (messageLength > $maxSize) {
-                                throw new ParseException("$fieldName size " + messageLength + " is greater than max " + $maxSize);
+                                input.setError(PbjReader.PARSE, "$fieldName size " + messageLength + " is greater than max " + $maxSize);
+                                return null;
                             }
                             final var limitBefore = input.limit();
                             // Make sure that we have enough bytes in the message
@@ -423,18 +439,17 @@ class CodecParseMethodGenerator {
                             // If the buffer is truncated on the boundary of a subObject,
                             // we will not throw.
                             final var startPos = input.position();
-                            try {
-                                if ((startPos + messageLength) > limitBefore) {
-                                    throw new BufferUnderflowException();
-                                }
-                                input.limit(startPos + messageLength);
-                                value = $readMethod;
-                                // Make sure we read the full number of bytes. for the types
-                                if ((startPos + messageLength) != input.position()) {
-                                    throw new BufferOverflowException();
-                                }
-                            } finally {
-                                input.limit(limitBefore);
+                            if ((startPos + messageLength) > limitBefore) {
+                                input.setError(PbjReader.BUFFER_UNDERFLOW);
+                                return null;
+                            }
+                            input.limit(startPos + messageLength);
+                            value = $readMethod;
+                            input.limit(limitBefore);
+                            // Make sure we read the full number of bytes. for the types
+                            if ((startPos + messageLength) != input.position()) {
+                                input.setError(PbjReader.BUFFER_UNDERFLOW);
+                                return null;
                             }
                         }
                         """
@@ -454,12 +469,13 @@ class CodecParseMethodGenerator {
                     generateCaseStatements(sbFunc, mapEntryFields, schemaClassName), "map_entry_", schemaClassName);
             // spotless:off
             sbCase.append("""
-                        final var __map_messageLength = input.readVarInt(false);
-                        
+                        final var __map_messageLength = input.readVarIntNoZZ();
+
                         $fieldDefs
                         if (__map_messageLength != 0) {
                             if (__map_messageLength > $maxSize) {
-                                throw new ParseException("$fieldName size " + __map_messageLength + " is greater than max " + $maxSize);
+                                input.setError(PbjReader.PARSE, "$fieldName size " + __map_messageLength + " is greater than max " + $maxSize);
+                                return null;
                             }
                             final var __map_limitBefore = input.limit();
                             // Make sure that we have enough bytes in the message
@@ -467,18 +483,17 @@ class CodecParseMethodGenerator {
                             // If the buffer is truncated on the boundary of a subObject,
                             // we will not throw.
                             final var __map_startPos = input.position();
-                            try {
-                                if ((__map_startPos + __map_messageLength) > __map_limitBefore) {
-                                    throw new BufferUnderflowException();
-                                }
-                                input.limit(__map_startPos + __map_messageLength);
+                            if ((__map_startPos + __map_messageLength) > __map_limitBefore) {
+                                input.setError(PbjReader.BUFFER_UNDERFLOW);
+                                return null;
+                            }
+                            input.limit(__map_startPos + __map_messageLength);
                         $mapParseLoop
-                                // Make sure we read the full number of bytes. for the types
-                                if ((__map_startPos + __map_messageLength) != input.position()) {
-                                    throw new BufferOverflowException();
-                                }
-                            } finally {
-                                input.limit(__map_limitBefore);
+                            input.limit(__map_limitBefore);
+                            // Make sure we read the full number of bytes. for the types
+                            if ((__map_startPos + __map_messageLength) != input.position()) {
+                                input.setError(PbjReader.BUFFER_UNDERFLOW);
+                                return null;
                             }
                         }
                         """
@@ -487,7 +502,7 @@ class CodecParseMethodGenerator {
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
                             mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
                     .replace("$mapParseLoop", parseAndDefaultBodyPair.parseBody()
-                            .indent(DEFAULT_INDENT * 2).stripTrailing())
+                            .indent(DEFAULT_INDENT).stripTrailing())
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                     .indent(DEFAULT_INDENT)
             );
@@ -519,7 +534,8 @@ class CodecParseMethodGenerator {
             sbCase.append(
                 """
                 if (temp_%s.size() >= %s) {
-                    throw new ParseException("%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
+                    input.setError(PbjReader.PARSE, "%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
+                    return null;
                 }
                 temp_%1$s = addToList(temp_%1$s,value);
                 """.formatted(field.name(), field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
@@ -530,7 +546,8 @@ class CodecParseMethodGenerator {
                 """
                 if (__map_messageLength != 0) {
                     if (temp_%s.size() >= %s) {
-                        throw new ParseException("%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
+                        input.setError(PbjReader.PARSE, "%1$s size %%d is greater than max %2$s".formatted(temp_%1$s.size()));
+                        return null;
                     }
                     temp_%1$s = addToMap(temp_%1$s, temp_%s, temp_%s);
                 }

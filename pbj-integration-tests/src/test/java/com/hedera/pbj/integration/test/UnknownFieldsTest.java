@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.integration.EverythingTestData;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.UnknownField;
@@ -58,8 +59,7 @@ public class UnknownFieldsTest {
         final Bytes bytes2 = MessageWithBytes.PROTOBUF.toBytes(msg2);
 
         // now read it as MessageWithBytesAndString, w/o even enabling unknown fields
-        final MessageWithBytesAndString msg3 =
-                MessageWithBytesAndString.PROTOBUF.parse(bytes2.toReadableSequentialData());
+        final MessageWithBytesAndString msg3 = MessageWithBytesAndString.PROTOBUF.parse(bytes2.toPbjReader());
 
         assertEquals(msg1, msg3);
     }
@@ -77,8 +77,8 @@ public class UnknownFieldsTest {
         assertEquals(0, msgWithUnknownFieldsDisabled.getUnknownFields().size());
 
         // Now let's enable parsing unknown fields:
-        final MessageWithEverythingUnknownFields msg = MessageWithEverythingUnknownFields.PROTOBUF.parse(
-                everythingBytes.toReadableSequentialData(), false, true, 16);
+        final MessageWithEverythingUnknownFields msg =
+                MessageWithEverythingUnknownFields.PROTOBUF.parse(everythingBytes.toPbjReader(), false, true, 16);
 
         assertEquals(0, msg.knownField());
         assertEquals(65, msg.getUnknownFields().size());
@@ -108,7 +108,7 @@ public class UnknownFieldsTest {
 
         // then read it as MessageWithBytes with unknown fields
         final MessageWithBytes messageWithBytes = MessageWithBytes.PROTOBUF.parse(
-                messageWithBytesAndStringBytes.toReadableSequentialData(), false, true, 16);
+                messageWithBytesAndStringBytes, false, true, 16, Codec.DEFAULT_MAX_SIZE);
 
         final MessageWithBytesWrapper messageWithBytesWrapper = new MessageWithBytesWrapper(
                 new OneOf<>(MessageWithBytesWrapper.MessageValidOneOfType.MESSAGE_WITH_BYTES, messageWithBytes));
@@ -122,7 +122,7 @@ public class UnknownFieldsTest {
 
         // parse bytes back as a receiving user would and confirm unknown fields exist in inner message
         final MessageWithBytesWrapper parsedWrapper = MessageWithBytesWrapper.PROTOBUF.parse(
-                messageWithBytesWrapperBytes.toReadableSequentialData(), false, true, 16);
+                messageWithBytesWrapperBytes, false, true, 16, Codec.DEFAULT_MAX_SIZE);
         MessageWithBytes parsedBytes = parsedWrapper.messageWithBytes();
         assertFalse(parsedBytes.getUnknownFields().isEmpty());
         assertEquals(1, parsedBytes.getUnknownFields().size());
@@ -130,7 +130,7 @@ public class UnknownFieldsTest {
         // now confirm that user can retrieve unknown fields when using expanded message MessageWithBytesAndString
         final Bytes messageWithBytesBytes = MessageWithBytes.PROTOBUF.toBytes(parsedBytes);
         final MessageWithBytesAndString messageWithBytesAndStringParsed =
-                MessageWithBytesAndString.PROTOBUF.parse(messageWithBytesBytes.toReadableSequentialData());
+                MessageWithBytesAndString.PROTOBUF.parse(messageWithBytesBytes);
         assertTrue(messageWithBytesAndStringParsed.getUnknownFields().isEmpty());
         assertEquals(messageWithBytesAndString, messageWithBytesAndStringParsed);
     }

@@ -88,32 +88,22 @@ public class MaxSizeTest {
         final Bytes bytes = Everything.PROTOBUF.toBytes(everything);
 
         // Try negative cases first:
-        assertThrows(ParseException.class, () -> Everything.PROTOBUF.parse(bytes.toReadableSequentialData()));
+        assertThrows(ParseException.class, () -> Everything.PROTOBUF.parse(bytes));
         assertThrows(
                 ParseException.class,
-                () -> Everything.PROTOBUF.parse(
-                        bytes.toReadableSequentialData(), false, false, Codec.DEFAULT_MAX_DEPTH, 256));
+                () -> Everything.PROTOBUF.parse(bytes, false, false, Codec.DEFAULT_MAX_DEPTH, 256));
         assertThrows(
                 ParseException.class,
-                () -> Everything.PROTOBUF.parse(
-                        bytes.toReadableSequentialData(),
-                        false,
-                        false,
-                        Codec.DEFAULT_MAX_DEPTH,
-                        Codec.DEFAULT_MAX_SIZE));
+                () -> Everything.PROTOBUF.parse(bytes, false, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE));
         // +1 still shouldn't work because the outer and the inner objects are still larger:
         assertThrows(
                 ParseException.class,
                 () -> Everything.PROTOBUF.parse(
-                        bytes.toReadableSequentialData(),
-                        false,
-                        false,
-                        Codec.DEFAULT_MAX_DEPTH,
-                        Codec.DEFAULT_MAX_SIZE + 1));
+                        bytes, false, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE + 1));
 
         // Now try supplying a large enough maxSize to parse it:
-        final Everything parsedEverything = Everything.PROTOBUF.parse(
-                bytes.toReadableSequentialData(), false, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE * 2);
+        final Everything parsedEverything =
+                Everything.PROTOBUF.parse(bytes, false, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE * 2);
 
         assertEquals(everything, parsedEverything);
     }
