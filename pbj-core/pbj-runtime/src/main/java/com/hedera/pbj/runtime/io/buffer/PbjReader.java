@@ -37,6 +37,7 @@ public class PbjReader implements AutoCloseable {
     private Exception cause;
     private boolean seenEOF, includeCause;
     private byte[] ownedBuf;
+    private static final int DEFAULT_BUFFER_SIZE = 16 << 10; // 16k is friendly to x86-64 L1 cache
 
     /*
      * readString() needs a buffer when decoding a UTF8 string.
@@ -49,7 +50,7 @@ public class PbjReader implements AutoCloseable {
      * If a project doesn't care about stacktraces, setting pbj.ReaderWriter.useStackTrace to false
      * will throw a premade exceptions that doesn't have the correct stacktrace. It's fast and good against DOS attacks
      */
-    private static final boolean useStacktrace =
+    private static final boolean USE_STACKTRACE =
             !"false".equalsIgnoreCase(System.getProperty("pbj.ReaderWriter.useStackTrace"));
 
     public static final int EOF = -1,
@@ -66,30 +67,31 @@ public class PbjReader implements AutoCloseable {
             MAX_DEPTH_REACHED = 12,
             MALFORM_STRING = 13;
 
-    private static final UnknownFieldException premadeUnknown;
-    private static final BufferUnderflowException premadeUnderflow;
-    private static final BufferOverflowException premadeOverflow;
-    private static final RuntimeException premadeRuntime, premadeUnsupported;
-    private static final DataEncodingException premadeDataEncoding;
-    private static final IllegalArgumentException premadeIllegal;
-    private static final ParseException premadeParseEmpty, premadeParseUnknown, premadeMaxDepth;
+    private static final UnknownFieldException PREMADE_UNKNOWN;
+    private static final BufferUnderflowException PREMADE_UNDERFLOW;
+    private static final BufferOverflowException PREMADE_OVERFLOW;
+    private static final RuntimeException PREMADE_RUNTIME;
+    private static final UnsupportedOperationException PREMADE_UNSUPPORTED;
+    private static final DataEncodingException PREMADE_DATA_ENCODING;
+    private static final IllegalArgumentException PREMADE_ILLEGAL;
+    private static final ParseException PREMADE_PARSE_EMPTY, PREMADE_PARSE_UNKNOWN, PREMADE_MAX_DEPTH;
 
     /*
      * Some projects may not want exceptions, but their test expects them.
      * Here are premade exceptions that are created once and thrown potentially many times
      */
     static {
-        premadeUnknown = new UnknownFieldException("");
-        premadeUnderflow = new BufferUnderflowException();
-        premadeOverflow = new BufferOverflowException();
-        premadeRuntime = new RuntimeException();
-        premadeUnsupported = new RuntimeException("Hit an unsupported feature");
-        premadeDataEncoding = new DataEncodingException("");
-        premadeIllegal = new IllegalArgumentException("");
+        PREMADE_UNKNOWN = new UnknownFieldException("");
+        PREMADE_UNDERFLOW = new BufferUnderflowException();
+        PREMADE_OVERFLOW = new BufferOverflowException();
+        PREMADE_RUNTIME = new RuntimeException();
+        PREMADE_UNSUPPORTED = new UnsupportedOperationException("Hit an unsupported feature");
+        PREMADE_DATA_ENCODING = new DataEncodingException("");
+        PREMADE_ILLEGAL = new IllegalArgumentException("");
 
-        premadeParseEmpty = new ParseException("parse error");
-        premadeParseUnknown = new ParseException("parse error", premadeUnknown);
-        premadeMaxDepth = new ParseException("Reached maximum allowed depth");
+        PREMADE_PARSE_EMPTY = new ParseException("parse error");
+        PREMADE_PARSE_UNKNOWN = new ParseException("parse error", PREMADE_UNKNOWN);
+        PREMADE_MAX_DEPTH = new ParseException("Reached maximum allowed depth");
     }
 
     /*
@@ -116,7 +118,7 @@ public class PbjReader implements AutoCloseable {
         } else if (inputStream != null) {
             stream = inputStream;
         }
-        ownedBuf = buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+        ownedBuf = buf = new byte[DEFAULT_BUFFER_SIZE];
     }
 
     /**
@@ -160,7 +162,7 @@ public class PbjReader implements AutoCloseable {
             offset = 0;
         }
         if (ownedBuf == null) {
-            ownedBuf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+            ownedBuf = new byte[DEFAULT_BUFFER_SIZE];
         }
         buf = ownedBuf;
         pos = 0;
@@ -225,7 +227,7 @@ public class PbjReader implements AutoCloseable {
     }
 
     /*
-     * fills the buffer from the stream repecting the set limit
+     * fills the buffer from the stream respecting the set limit
      */
     private void bufferMore() {
         if (err != 0) return;
@@ -534,7 +536,7 @@ public class PbjReader implements AutoCloseable {
         seenEOF = true;
         // TODO simplify when exceptions are not required
         includeCause = true;
-        if (useStacktrace) {
+        if (USE_STACKTRACE) {
             if (errorKind == UNKNOWN_FIELD) {
                 cause = new UnknownFieldException(message);
             } else if (errorKind == BUFFER_UNDERFLOW) {
@@ -549,16 +551,16 @@ public class PbjReader implements AutoCloseable {
             }
         } else {
             if (errorKind == UNKNOWN_FIELD) {
-                cause = premadeUnknown;
+                cause = PREMADE_UNKNOWN;
             } else if (errorKind == BUFFER_UNDERFLOW) {
-                cause = premadeUnderflow;
+                cause = PREMADE_UNDERFLOW;
             } else if (errorKind == BUFFER_OVERFLOW) {
-                cause = premadeOverflow;
+                cause = PREMADE_OVERFLOW;
             } else if (errorKind == PARSE) {
-                cause = premadeParseEmpty;
+                cause = PREMADE_PARSE_EMPTY;
                 includeCause = false;
             } else {
-                cause = premadeRuntime;
+                cause = PREMADE_RUNTIME;
             }
         }
     }
@@ -588,14 +590,14 @@ public class PbjReader implements AutoCloseable {
      * split from public function so public function is more likely to be inlined
      */
     private ParseException throwOnErrorImpl() throws ParseException {
-        if (useStacktrace) {
+        if (USE_STACKTRACE) {
             switch (err) {
                 case DATA_ENCODING:
                     throw new DataEncodingException("throwOnError", cause);
                 case ILLEGAL_ARGUMENT:
                     throw new IllegalArgumentException("throwOnError", cause);
                 case UNSUPPORTED:
-                    throw new RuntimeException("Hit an unsupported feature", cause);
+                    throw new UnsupportedOperationException("Hit an unsupported feature", cause);
                 case MAX_DEPTH_REACHED:
                     throw new ParseException("Reached maximum allowed depth");
                 case PARSE:
@@ -608,19 +610,19 @@ public class PbjReader implements AutoCloseable {
         } else {
             switch (err) {
                 case DATA_ENCODING:
-                    throw premadeDataEncoding;
+                    throw PREMADE_DATA_ENCODING;
                 case ILLEGAL_ARGUMENT:
-                    throw premadeIllegal;
+                    throw PREMADE_ILLEGAL;
                 case UNSUPPORTED:
-                    throw premadeUnsupported;
+                    throw PREMADE_UNSUPPORTED;
                 case MAX_DEPTH_REACHED:
-                    throw premadeMaxDepth;
+                    throw PREMADE_MAX_DEPTH;
                 case PARSE:
                 default:
                     if (includeCause) {
                         throw new ParseException(cause, true);
                     }
-                    throw premadeParseEmpty;
+                    throw PREMADE_PARSE_EMPTY;
             }
         }
     }
