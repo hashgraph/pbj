@@ -592,12 +592,6 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public boolean fastEquals(@NonNull TestMessage item, @NonNull ReadableSequentialData input)
-                throws ParseException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public TestMessage getDefaultInstance() {
             throw new UnsupportedOperationException();
         }

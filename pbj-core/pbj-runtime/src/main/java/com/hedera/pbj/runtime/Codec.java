@@ -296,20 +296,6 @@ public abstract class Codec<T> {
     public abstract int measureRecord(T item);
 
     /**
-     * Compares the given item with the bytes in the input, and returns false if it determines that
-     * the bytes in the input could not be equal to the given item. Sometimes we need to compare an
-     * item in memory with serialized bytes and don't want to incur the cost of deserializing the
-     * entire object, when we could have determined the bytes do not represent the same object very
-     * cheaply and quickly.
-     *
-     * @param item The item to compare. Cannot be null.
-     * @param input The input with the bytes to compare
-     * @return true if the bytes represent the item, false otherwise.
-     * @throws ParseException If parsing fails
-     */
-    public abstract boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException;
-
-    /**
      * Converts a Record into a Bytes object
      *
      * @param item The input model data to convert into a Bytes object.

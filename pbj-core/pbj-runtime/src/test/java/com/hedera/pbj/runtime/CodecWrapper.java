@@ -50,11 +50,6 @@ class CodecWrapper<T> extends Codec<T> {
     }
 
     @Override
-    public boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public T getDefaultInstance() {
         throw new UnsupportedOperationException();
     }
