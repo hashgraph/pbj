@@ -277,17 +277,6 @@ public abstract class Codec<T> {
     }
 
     /**
-     * Reads from this data input the length of the data within the input. The implementation may
-     * read all the data, or just some special serialized data, as needed to find out the length of
-     * the data.
-     *
-     * @param input The input to use
-     * @return The length of the data item in the input
-     * @throws ParseException If parsing fails
-     */
-    public abstract int measure(@NonNull ReadableSequentialData input) throws ParseException;
-
-    /**
      * Compute number of bytes that would be written when calling {@code write()} method.
      *
      * @param item The input model data to measure write bytes for

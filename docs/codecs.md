@@ -53,9 +53,7 @@ The `Codec<T>` interface defines the full contract for binary serialization:
 | `parse(ReadableSequentialData, strictMode, parseUnknownFields, maxDepth, maxSize)` | Deserialize from binary protobuf |
 | `write(T, WritableSequentialData)` | Serialize to binary protobuf (streaming) |
 | `write(T, byte[], startOffset)` | Serialize to byte array (performance path) |
-| `measure(ReadableSequentialData)` | Determine encoded size by parsing |
 | `measureRecord(T)` | Calculate serialized size from in-memory object |
-| `fastEquals(T, ReadableSequentialData)` | Compare object with encoded bytes without full deserialization |
 | `toBytes(T)` | Convenience: serialize to `Bytes` (measures first, then writes) |
 | `getDefaultInstance()` | Returns `T.DEFAULT` |
 
