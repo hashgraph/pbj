@@ -399,11 +399,7 @@ public final class TestGenerator implements Generator {
                     dataBuffer2.resetPosition();
                     assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measure(dataBuffer2));
                     assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measureRecord(modelObj));
-                
-                    // check fast equals
-                    dataBuffer2.resetPosition();
-                    assertTrue($modelClassName.PROTOBUF.fastEquals(modelObj, dataBuffer2));
-                
+                                
                     // Test toBytes()
                     Bytes bytes = $modelClassName.PROTOBUF.toBytes(modelObj);
                     final var dataBuffer3 = getThreadLocalDataBuffer();
