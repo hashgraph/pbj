@@ -167,7 +167,6 @@ Implements the `Codec<T>` interface for protobuf binary serialization. The gener
 | `CodecWriteByteArrayMethodGenerator` | `write(T) → byte[]` | Serialize to byte array |
 | `CodecMeasureDataMethodGenerator` | `measure(T)` | Compute serialized size |
 | `CodecMeasureRecordMethodGenerator` | `measureRecord(T)` | Record-based size measurement |
-| `CodecFastEqualsMethodGenerator` | `fastEquals(T, T)` | Optimized equality check |
 | `CodecDefaultInstanceMethodGenerator` | `getDefaultInstance()` | Singleton default instance |
 | `LazyGetProtobufSizeMethodGenerator` | `getProtobufSize()` | Lazy size computation for model |
 

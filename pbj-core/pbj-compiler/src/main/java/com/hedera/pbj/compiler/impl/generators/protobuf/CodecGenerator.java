@@ -157,7 +157,6 @@ public final class CodecGenerator implements Generator {
                 $writeByteArrayMethod
                 $measureDataMethod
                 $measureRecordMethod
-                $fastEqualsMethod
                 $getDefaultInstanceMethod
 
                 """
@@ -171,7 +170,6 @@ public final class CodecGenerator implements Generator {
                 .replace("$writeByteArrayMethod", writeByteArrayMethod)
                 .replace("$measureDataMethod", CodecMeasureDataMethodGenerator.generateMeasureMethod(modelClassName, fields))
                 .replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
-                .replace("$fastEqualsMethod", CodecFastEqualsMethodGenerator.generateFastEqualsMethod(modelClassName, fields))
                 .replace("$getDefaultInstanceMethod", generateGetDefaultInstanceMethod(modelClassName))
         );
         writer.append(sbFunc.toString());

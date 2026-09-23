@@ -87,4 +87,4 @@ Both strict and non-strict modes are supported: strict mode throws on unrecogniz
 
 ## Performance Characteristics
 
-JSON codecs provide default (non-optimized) implementations for `measure()`, `measureRecord()`, and `fastEquals()` since JSON is not considered performance-critical. The ANTLR-based parsing approach builds a full parse tree before walking it, which trades memory for simplicity. This is acceptable for PBJ's target use case where messages are bounded by `maxSize`.
+JSON codecs provide default (non-optimized) implementations for `measure()` and `measureRecord()` since JSON is not considered performance-critical. The ANTLR-based parsing approach builds a full parse tree before walking it, which trades memory for simplicity. This is acceptable for PBJ's target use case where messages are bounded by `maxSize`.

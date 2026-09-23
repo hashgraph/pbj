@@ -9,7 +9,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Extends Codec to support indenting.
@@ -141,24 +140,6 @@ public abstract class JsonCodec<T> extends Codec<T> {
             throw new RuntimeException(e);
         }
         return bout.size();
-    }
-
-    /**
-     * Compares the given item with the bytes in the input, and returns false if it determines that
-     * the bytes in the input could not be equal to the given item. Sometimes we need to compare an
-     * item in memory with serialized bytes and don't want to incur the cost of deserializing the
-     * entire object, when we could have determined the bytes do not represent the same object very
-     * cheaply and quickly.
-     * <p>
-     * This is not an efficient implementation, but it is not considered performance critical for JSON.
-     *
-     * @param item The item to compare. Cannot be null.
-     * @param input The input with the bytes to compare
-     * @return true if the bytes represent the item, false otherwise.
-     * @throws ParseException If parsing fails
-     */
-    public final boolean fastEquals(@NonNull T item, @NonNull ReadableSequentialData input) throws ParseException {
-        return Objects.equals(item, parse(input));
     }
 
     @Override
