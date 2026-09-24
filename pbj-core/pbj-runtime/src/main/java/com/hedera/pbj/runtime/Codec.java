@@ -38,9 +38,9 @@ public abstract class Codec<T> {
      * consistent entry point. Subclasses implement this method rather than {@code parse} directly, since
      * {@code parse} may perform additional work before and after delegating to this implementation.
      *
-     * The only difference is it's allowed to return null, the parse overloads call throwOnError.
+     * The only difference is it's allowed to return null (only when there is an error), the parse overloads call throwOnError.
      *
-     * @see #parse(ReadableSequentialData, boolean, boolean, int, int) for a description
+     * @see #parse(PbjReader, boolean, boolean, int, int) for a description
      */
     protected abstract T parseImpl(
             @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize);
@@ -336,6 +336,10 @@ public abstract class Codec<T> {
 
     /**
      * Writes an item to the given {@link PbjWriter}.
+     *
+     * It's possible this will flush if the object is large enough, but it's the callers responsibility to call flush for the complete object
+     * Calling flush is not necessary when not using a stream, such as when using {@link PbjWriter#toByteArray()}
+     * and {@link PbjWriter#toPbjReader()}
      *
      * @param item The item to write. Must not be null.
      * @param output The {@link PbjWriter} to write to.
