@@ -97,11 +97,9 @@ offset += ProtoArrayWriterTools.writeMessageList(output, offset, Schema.ITEMS, d
 
 The `boolean skipDefault` parameter (typically `true`) causes the writer to skip fields with default values — this is standard protobuf behavior for non-oneOf fields.
 
-### Measure and FastEquals
+### Measure
 
 - `measureRecord(T)` delegates to `data.protobufSize()`, which the model class caches.
-- `measure(ReadableSequentialData)` parses the input and measures bytes consumed.
-- `fastEquals(T, ReadableSequentialData)` currently does a full parse-and-compare. The interface is designed for future optimization where fields could be compared incrementally.
 
 ## Handling Special Field Types
 

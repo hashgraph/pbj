@@ -40,11 +40,6 @@ class CodecWrapper<T> extends Codec<T> {
     }
 
     @Override
-    public int measure(@NonNull ReadableSequentialData input) throws ParseException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public int measureRecord(T item) {
         return sizeOf.applyAsInt(item);
     }

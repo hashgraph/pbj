@@ -578,11 +578,6 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        public int measure(@NonNull ReadableSequentialData input) throws ParseException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public int measureRecord(@NonNull final TestMessage item) {
             final String value = item.getValue();
             if (value != null) {

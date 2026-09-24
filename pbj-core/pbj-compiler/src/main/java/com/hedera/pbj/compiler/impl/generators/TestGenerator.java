@@ -395,9 +395,8 @@ public final class TestGenerator implements Generator {
                     final $modelClassName modelObj3 = $modelClassName.PROTOBUF.parse(dataBuffer2);
                     assertEquals(modelObj, modelObj3);
                 
-                    // check measure methods
+                    // check measureRecord()
                     dataBuffer2.resetPosition();
-                    assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measure(dataBuffer2));
                     assertEquals(protoBufByteCount, $modelClassName.PROTOBUF.measureRecord(modelObj));
                                 
                     // Test toBytes()
