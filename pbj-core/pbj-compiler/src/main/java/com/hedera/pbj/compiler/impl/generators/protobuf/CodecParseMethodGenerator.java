@@ -412,9 +412,16 @@ class CodecParseMethodGenerator {
             // spotless:on
         } else if (field.type() == Field.FieldType.MESSAGE) {
             final String strictNonRepeatedCheck;
-            if (field.repeated() || field.parent() != null) {
-                // OneOf and repeated fields.
+            if (field.repeated()) {
                 strictNonRepeatedCheck = "";
+            } else if (field.parent() != null) {
+                final var oneOfField = field.parent();
+                strictNonRepeatedCheck = """
+                        if (strictMode && !temp_$oneOfFieldName.equals($defaultOneOfValue)) {
+                            throw new ParseException("A non-repeated $oneOfFieldName encountered more than once");
+                        }
+                        """.replace("$oneOfFieldName", oneOfField.name())
+                        .replace("$defaultOneOfValue", oneOfField.javaDefault());
             } else {
                 strictNonRepeatedCheck = """
                         if (strictMode && temp_$fieldName != null) {
