@@ -413,7 +413,6 @@ class CodecParseMethodGenerator {
         } else if (field.type() == Field.FieldType.MESSAGE) {
             final String strictNonRepeatedCheck;
             if (field.repeated()) {
-                // OneOf and repeated fields.
                 strictNonRepeatedCheck = "";
             } else if (field.parent() != null) {
                 final var oneOfField = field.parent();
