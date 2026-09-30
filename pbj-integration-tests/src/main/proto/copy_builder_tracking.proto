@@ -1,0 +1,84 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package proto;
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>>
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+
+// Sparse numbers test declaration-indexed tracking across multiple mask words.
+message WideTrackedModel {
+    int64 value1 = 100;
+    int64 value2 = 101;
+    int64 value3 = 102;
+    int64 value4 = 103;
+    int64 value5 = 104;
+    int64 value6 = 105;
+    int64 value7 = 106;
+    int64 value8 = 107;
+    int64 value9 = 108;
+    int64 value10 = 109;
+    int64 value11 = 110;
+    int64 value12 = 111;
+    int64 value13 = 112;
+    int64 value14 = 113;
+    int64 value15 = 114;
+    int64 value16 = 115;
+    int64 value17 = 116;
+    int64 value18 = 117;
+    int64 value19 = 118;
+    int64 value20 = 119;
+    int64 value21 = 120;
+    int64 value22 = 121;
+    int64 value23 = 122;
+    int64 value24 = 123;
+    int64 value25 = 124;
+    int64 value26 = 125;
+    int64 value27 = 126;
+    int64 value28 = 127;
+    int64 value29 = 128;
+    int64 value30 = 129;
+    int64 value31 = 130;
+    int64 value32 = 131;
+    int64 value33 = 132;
+    int64 value34 = 133;
+    int64 value35 = 134;
+    int64 value36 = 135;
+    int64 value37 = 136;
+    int64 value38 = 137;
+    int64 value39 = 138;
+    int64 value40 = 139;
+    int64 value41 = 140;
+    int64 value42 = 141;
+    int64 value43 = 142;
+    int64 value44 = 143;
+    int64 value45 = 144;
+    int64 value46 = 145;
+    int64 value47 = 146;
+    int64 value48 = 147;
+    int64 value49 = 148;
+    int64 value50 = 149;
+    int64 value51 = 150;
+    int64 value52 = 151;
+    int64 value53 = 152;
+    int64 value54 = 153;
+    int64 value55 = 154;
+    int64 value56 = 155;
+    int64 value57 = 156;
+    int64 value58 = 157;
+    int64 value59 = 158;
+    int64 value60 = 159;
+    int64 value61 = 160;
+    int64 value62 = 161;
+    int64 value63 = 162;
+    int64 value64 = 163;
+    int64 value65 = 164;
+    int64 value66 = 165;
+    int64 value67 = 166;
+    int64 value68 = 167;
+    int64 value69 = 168;
+    int64 value70 = 169;
+    oneof choice {
+        int64 number = 900;
+        string text = 901;
+    }
+}

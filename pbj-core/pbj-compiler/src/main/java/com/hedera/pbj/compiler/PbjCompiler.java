@@ -51,6 +51,28 @@ public abstract class PbjCompiler {
             String javaPackageSuffix,
             boolean generateTestClasses)
             throws Exception {
+        compileFilesIn(
+                sourceFiles,
+                classpath,
+                sourceRoots,
+                mainOutputDir,
+                testOutputDir,
+                javaPackageSuffix,
+                generateTestClasses,
+                false);
+    }
+
+    /** Compiles models with optional copy-builder tracking, in addition to the standard options. */
+    public static void compileFilesIn(
+            Iterable<File> sourceFiles,
+            Iterable<File> classpath,
+            Set<File> sourceRoots,
+            File mainOutputDir,
+            File testOutputDir,
+            String javaPackageSuffix,
+            boolean generateTestClasses,
+            boolean generateCopyBuilderTracking)
+            throws Exception {
 
         var allProtobufFiles = Stream.concat(
                         StreamSupport.stream(sourceFiles.spliterator(), false),
@@ -66,7 +88,7 @@ public abstract class PbjCompiler {
                     && protoFile.isFile()
                     && protoFile.getName().endsWith(LookupHelper.PROTO_EXTENSIION)) {
                 final ContextualLookupHelper contextualLookupHelper =
-                        new ContextualLookupHelper(lookupHelper, protoFile);
+                        new ContextualLookupHelper(lookupHelper, protoFile, generateCopyBuilderTracking);
                 try (final var input = new FileInputStream(protoFile)) {
                     final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
                     final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
