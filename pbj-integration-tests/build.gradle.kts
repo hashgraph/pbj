@@ -93,7 +93,10 @@ jmh {
 }
 
 // Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
-pbj { javaPackageSuffix = ".pbj.integration.tests" }
+pbj {
+    javaPackageSuffix = ".pbj.integration.tests"
+    generateCopyBuilderTracking = true
+}
 
 // Add downloaded HAPI repo protobuf files into build directory and add to sources to build them
 val cloneHederaProtobufs =

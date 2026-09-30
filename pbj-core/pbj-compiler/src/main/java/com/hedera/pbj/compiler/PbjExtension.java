@@ -19,4 +19,11 @@ public interface PbjExtension {
      * @return true if tests should be generated
      */
     Property<Boolean> getGenerateTestClasses();
+
+    /**
+     * Generate transient copy-builder origin and candidate-field tracking for every model.
+     * Disabled by default; enabling it does not change protobuf encodings or value semantics.
+     * @return the tracking generation property
+     */
+    Property<Boolean> getGenerateCopyBuilderTracking();
 }
