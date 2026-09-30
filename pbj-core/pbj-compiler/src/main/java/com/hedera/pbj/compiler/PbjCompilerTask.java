@@ -70,7 +70,7 @@ public abstract class PbjCompilerTask extends SourceTask {
     @Input
     public abstract Property<Boolean> getGenerateTestClasses();
 
-    /** Whether to generate transient copy-builder provenance, disabled by default. */
+    /** Whether to generate transient copy-builder provenance, enabled by default. */
     @Input
     public abstract Property<Boolean> getGenerateCopyBuilderTracking();
 
@@ -99,6 +99,6 @@ public abstract class PbjCompilerTask extends SourceTask {
                 getJavaTestOutputDirectory().get().getAsFile(),
                 getJavaPackageSuffix().getOrNull(),
                 getGenerateTestClasses().getOrElse(Boolean.FALSE),
-                getGenerateCopyBuilderTracking().getOrElse(Boolean.FALSE));
+                getGenerateCopyBuilderTracking().getOrElse(Boolean.TRUE));
     }
 }

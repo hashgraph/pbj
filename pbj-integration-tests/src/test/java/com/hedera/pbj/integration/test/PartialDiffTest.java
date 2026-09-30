@@ -4,13 +4,23 @@ package com.hedera.pbj.integration.test;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ComparableOneOf;
+import com.hedera.pbj.runtime.EnumWithProtoMetadata;
+import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.PartialApplier;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.*;
 import com.hedera.pbj.test.proto.pbj.tests.EverythingTest;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -19,7 +29,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
 class PartialDiffTest {
-    /** Generated fixtures cover HAPI state values plus PBJ's scalar/collection/presence models. */
+    /**
+     * Generated fixtures cover every HAPI state package plus PBJ's scalar, collection and presence models. Each type
+     * is checked with random fixture pairs, which take the full-compare path, and with random copy-builder chains,
+     * which take the tracked path.
+     */
     @TestFactory
     List<DynamicTest> roundTripsAcrossGeneratedStateTypes() throws Exception {
         final var root = Path.of(EverythingTest.class
@@ -34,8 +48,7 @@ class PartialDiffTest {
                     .toList()) {
                 final String name =
                         root.relativize(file).toString().replace('/', '.').replace(".class", "");
-                if (!(name.startsWith("com.hedera.hapi.node.state.")
-                        || name.startsWith("com.hedera.pbj.test.proto.pbj.tests."))) continue;
+                if (!isStateFixture(name)) continue;
                 final Class<?> fixture = Class.forName(name);
                 try {
                     final var arguments =
@@ -48,14 +61,150 @@ class PartialDiffTest {
                             check(prior, next);
                             check(prior, prior.getClass().getField("DEFAULT").get(null));
                         }
+                        final Setters setters = Setters.of(arguments.getFirst().getClass());
+                        for (int i = 0; i < 30; i++) {
+                            checkCopyBuilderChain(arguments, setters, random);
+                        }
                     }));
                 } catch (NoSuchFieldException ignored) {
                     // Nested generated types and enum tests do not expose this fixture field.
                 }
             }
         }
+        assertTrue(
+                result.stream().anyMatch(t -> t.getDisplayName().startsWith("com.hedera.hapi.platform.state.")),
+                "Must discover platform state fixtures");
         assertTrue(result.size() > 40, "Must discover the state fixtures, not silently skip them");
         return result;
+    }
+
+    private static boolean isStateFixture(String name) {
+        return (name.startsWith("com.hedera.hapi.") && name.contains(".state."))
+                || name.startsWith("com.hedera.pbj.test.proto.pbj.tests.");
+    }
+
+    /**
+     * Build {@code prior -> middle -> next} with copy builders, setting random fields to values taken from random
+     * fixtures (sometimes from {@code prior} itself, so a setter restores the old value). The tracked diff must equal
+     * a full compare, and every hop must round-trip.
+     */
+    private static void checkCopyBuilderChain(List<?> arguments, Setters setters, Random random) throws Exception {
+        final Object prior = arguments.get(random.nextInt(arguments.size()));
+        final Object middle = setters.copyAndSetRandomFields(prior, arguments, prior, random);
+        final Object next = setters.copyAndSetRandomFields(middle, arguments, prior, random);
+        final Class<?> type = prior.getClass();
+        assertSame(prior, type.getMethod("$copyBuilderOrigin").invoke(next));
+        assertSame(prior, type.getMethod("$copyBuilderOrigin").invoke(middle));
+        final var diff = type.getMethod("diff", type, type);
+        final Object tracked = diff.invoke(null, prior, next);
+        final Object full =
+                diff.invoke(null, prior, type.getMethod("$untracked").invoke(next));
+        if (tracked instanceof long[] words) {
+            assertArrayEquals((long[]) full, words);
+        } else {
+            assertEquals(full, tracked);
+        }
+        check(prior, middle);
+        check(prior, next);
+        // middle is not next's origin, so this takes the full-compare path
+        check(middle, next);
+    }
+
+    /** The builder setters of a generated model, driven by reflection so any state type can be chained. */
+    private record Setters(Method copyBuilder, Method build, List<Method[]> fields, List<OneOfSetters> oneOfs) {
+        /** Setters for one oneof: its getter, its clear method, and one setter per alternative keyed by kind. */
+        private record OneOfSetters(Method getter, Method clear, Map<Object, Method> alternatives) {}
+
+        static Setters of(Class<?> type) throws Exception {
+            final Class<?> builder = type.getMethod("copyBuilder").getReturnType();
+            final List<Method[]> fields = new ArrayList<>();
+            final List<OneOfSetters> oneOfs = new ArrayList<>();
+            for (Field field : type.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || field.getName().startsWith("$")) continue;
+                final Method getter = type.getMethod(field.getName());
+                if (OneOf.class.isAssignableFrom(field.getType())
+                        || ComparableOneOf.class.isAssignableFrom(field.getType())) {
+                    oneOfs.add(oneOfSetters(builder, field, getter));
+                    continue;
+                }
+                final Method setter = Arrays.stream(builder.getMethods())
+                        .filter(m -> m.getName().equals(field.getName())
+                                && m.getParameterCount() == 1
+                                && !m.isVarArgs()
+                                && wrap(m.getParameterTypes()[0]).isAssignableFrom(wrap(getter.getReturnType())))
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("No setter for " + type.getName() + "." + field));
+                fields.add(new Method[] {getter, setter});
+            }
+            return new Setters(type.getMethod("copyBuilder"), builder.getMethod("build"), fields, oneOfs);
+        }
+
+        private static OneOfSetters oneOfSetters(Class<?> builder, Field field, Method getter) throws Exception {
+            final String upper = Character.toUpperCase(field.getName().charAt(0))
+                    + field.getName().substring(1);
+            final var kindType = (Class<?>) ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
+            final Map<Object, Method> alternatives = new HashMap<>();
+            for (Object kind : kindType.getEnumConstants()) {
+                if (((EnumWithProtoMetadata) kind).protoOrdinal() <= 0) continue;
+                final String name = lowerCamel(((EnumWithProtoMetadata) kind).protoName());
+                alternatives.put(
+                        kind,
+                        Arrays.stream(builder.getMethods())
+                                .filter(m -> m.getName().equals(name)
+                                        && m.getParameterCount() == 1
+                                        && !m.isVarArgs()
+                                        && !m.getParameterTypes()[0].getName().endsWith("$Builder"))
+                                .findFirst()
+                                .orElseThrow(() -> new AssertionError("No oneof setter " + name)));
+            }
+            return new OneOfSetters(getter, builder.getMethod("clear" + upper), alternatives);
+        }
+
+        /** Copy-build {@code value}, setting each field with probability 1/4. */
+        Object copyAndSetRandomFields(Object value, List<?> donors, Object prior, Random random) throws Exception {
+            final Object builder = copyBuilder.invoke(value);
+            for (Method[] field : fields) {
+                if (random.nextInt(4) == 0) {
+                    field[1].invoke(builder, field[0].invoke(donor(donors, prior, random)));
+                }
+            }
+            for (OneOfSetters oneOf : oneOfs) {
+                if (random.nextInt(4) != 0) continue;
+                final Object donated = oneOf.getter().invoke(donor(donors, prior, random));
+                final Object kind = donated instanceof OneOf<?> o ? o.kind() : ((ComparableOneOf<?>) donated).kind();
+                final Object alternative =
+                        donated instanceof OneOf<?> o ? o.value() : ((ComparableOneOf<?>) donated).value();
+                final Method setter = oneOf.alternatives().get(kind);
+                if (setter == null) {
+                    oneOf.clear().invoke(builder);
+                } else {
+                    setter.invoke(builder, alternative);
+                }
+            }
+            return build.invoke(builder);
+        }
+
+        private static Object donor(List<?> donors, Object prior, Random random) {
+            return random.nextInt(4) == 0 ? prior : donors.get(random.nextInt(donors.size()));
+        }
+
+        private static String lowerCamel(String protoName) {
+            final StringBuilder name = new StringBuilder();
+            boolean upper = false;
+            for (char c : protoName.toCharArray()) {
+                if (c == '_') {
+                    upper = true;
+                } else {
+                    name.append(upper ? Character.toUpperCase(c) : name.isEmpty() ? Character.toLowerCase(c) : c);
+                    upper = false;
+                }
+            }
+            return name.toString();
+        }
+
+        private static Class<?> wrap(Class<?> type) {
+            return MethodType.methodType(type).wrap().returnType();
+        }
     }
 
     @SuppressWarnings("unchecked")

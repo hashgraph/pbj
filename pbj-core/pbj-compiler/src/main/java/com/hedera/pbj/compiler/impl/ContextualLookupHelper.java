@@ -28,12 +28,8 @@ public class ContextualLookupHelper {
      *
      * @param lookupHelper Lookup helper that we are delegating to
      * @param srcProtoFileContext The proto source file for context
+     * @param generateCopyBuilderTracking whether generated models include copy-builder provenance
      */
-    public ContextualLookupHelper(LookupHelper lookupHelper, File srcProtoFileContext) {
-        this(lookupHelper, srcProtoFileContext, false);
-    }
-
-    /** Creates a lookup context with optional transient model tracking. */
     public ContextualLookupHelper(
             LookupHelper lookupHelper, File srcProtoFileContext, boolean generateCopyBuilderTracking) {
         this.lookupHelper = lookupHelper;
