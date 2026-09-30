@@ -92,6 +92,11 @@ class CopyBuilderTrackingTest {
         assertTrue(fork.$copyBuilderFieldChanged(901));
         assertSame(root, fork.$copyBuilderOrigin());
         assertFalse(fork.$untracked().$copyBuilderFieldChanged(100));
+        // builders allocate a wide mask lazily, but tracked instances always carry one
+        final var unchanged = root.copyBuilder().build();
+        assertSame(root, unchanged.$copyBuilderOrigin());
+        assertFalse(unchanged.$copyBuilderFieldChanged(100));
+        assertArrayEquals(new long[2], WideTrackedModel.diff(root, unchanged));
     }
 
     @Test

@@ -16,7 +16,7 @@ class CopyBuilderGenerationTest {
     Path directory;
 
     @Test
-    void trackingIsOptInAndDoesNotChangeDefaultGeneration() throws Exception {
+    void trackingIsOnByDefaultAndCanBeTurnedOff() throws Exception {
         final var proto = directory.resolve("model.proto");
         Files.writeString(proto, """
                 syntax = "proto3";
@@ -32,6 +32,7 @@ class CopyBuilderGenerationTest {
                 plain.toFile(),
                 plain.toFile(),
                 null,
+                false,
                 false);
         final String plainSource = Files.readString(plain.resolve("example/Value.java"));
         assertFalse(plainSource.contains("CopyBuilderTracked"));
@@ -48,8 +49,7 @@ class CopyBuilderGenerationTest {
                 tracked.toFile(),
                 tracked.toFile(),
                 null,
-                false,
-                true);
+                false);
         assertTrue(Files.readString(tracked.resolve("example/Value.java")).contains("CopyBuilderTracked<Value>"));
         assertTrue(Files.readString(tracked.resolve("example/Empty.java")).contains("CopyBuilderTracked<Empty>"));
     }
