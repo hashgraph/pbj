@@ -59,6 +59,19 @@ public final class ProtoWriterTools {
         writeTag(out, field, wireType(field));
     }
 
+    ///
+    /// Write a protobuf tag to the output at the specified offset. Field wire format is calculated
+    /// based on field type.
+    ///
+    /// @param out The data output to write to
+    /// @param offset The offset in the output to start writing at
+    /// @param field The field to write the tag for
+    /// @return The number of bytes written
+    ///
+    public static int writeTag(final RandomAccessData out, final long offset, final FieldDefinition field) {
+        return writeTag(out, offset, field, wireType(field));
+    }
+
     /**
      * Write a protobuf tag to the output.
      *
@@ -69,6 +82,20 @@ public final class ProtoWriterTools {
     public static void writeTag(
             final WritableSequentialData out, final FieldDefinition field, final ProtoConstants wireType) {
         out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType.ordinal(), false);
+    }
+
+    ///
+    /// Write a protobuf tag to the output at the specified offset.
+    ///
+    /// @param out The data output to write to
+    /// @param offset The offset in the output to start writing at
+    /// @param field The field to write the tag for
+    /// @param wireType The field wire type to include in tag
+    /// @return The number of bytes written
+    ///
+    public static int writeTag(
+            final RandomAccessData out, final long offset, final FieldDefinition field, final ProtoConstants wireType) {
+        return out.putVarLong(offset, ((long) field.number() << TAG_TYPE_BITS) | wireType.ordinal());
     }
 
     /** Create an unsupported field type exception */

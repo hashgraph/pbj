@@ -10,6 +10,7 @@ import java.security.MessageDigest;
  * A simple implementation of RandomAccessData used to test default methods in the interface.
  */
 public class RandomAccessArray implements RandomAccessData {
+
     private final byte[] array;
 
     /**
@@ -44,5 +45,10 @@ public class RandomAccessArray implements RandomAccessData {
     @Override
     public void writeTo(@NonNull MessageDigest digest) {
         digest.update(array);
+    }
+
+    @Override
+    public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
+        return dst.putBytes(dstOffset, array);
     }
 }
