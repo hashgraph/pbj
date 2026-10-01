@@ -174,8 +174,9 @@ final class DiffGenerator {
 
         code.line(
                         "/** Sum the encoded sizes of the fields outside {@code mask}, stopping once they reach the target. */")
-                .open("private boolean $unchangedSizeReaches(final " + maskType + " mask, final long target) {")
-                .open("if (target == 0) {")
+                // Dollar-prefixed parameter names cannot shadow protobuf fields used by the sizing code.
+                .open("private boolean $unchangedSizeReaches(final " + maskType + " $mask, final long $target) {")
+                .open("if ($target == 0) {")
                 .line("return true;")
                 .close("}");
         if (!fields.isEmpty()) {
@@ -186,12 +187,12 @@ final class DiffGenerator {
                 .sorted(Comparator.comparingInt(i -> sizingCost(fields.get(i))))
                 .toList();
         for (int i : order) {
-            code.open("if (" + isClear("mask", i, wide) + ") {")
+            code.open("if (" + isClear("$mask", i, wide) + ") {")
                     .lines(LazyGetProtobufSizeMethodGenerator.buildFieldSizeOfLines(
                                     null, schema, List.of(fields.get(i)), Field::nameCamelFirstLower, true)
                             .stripTrailing()
                             .stripIndent())
-                    .open("if (_size >= target) {")
+                    .open("if (_size >= $target) {")
                     .line("return true;")
                     .close("}")
                     .close("}");
