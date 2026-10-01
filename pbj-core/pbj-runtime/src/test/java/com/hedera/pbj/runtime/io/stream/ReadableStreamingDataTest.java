@@ -4,6 +4,7 @@ package com.hedera.pbj.runtime.io.stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -24,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -181,6 +183,173 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
 
         final var stream = new ReadableStreamingData(inputStream);
         assertThatThrownBy(() -> stream.skip(5)).isInstanceOf(UncheckedIOException.class);
+    }
+
+    @Test
+    @DisplayName("A zero-byte skip falls back to reading available bytes")
+    void skipReadsWhenInputStreamSkipReturnsZero() {
+        final var inputStream = new BoundedZeroSkipInputStream(new byte[] {1, 2, 3, 4}, 8, 1);
+        final var stream = new ReadableStreamingData(inputStream);
+
+        assertDoesNotThrow(() -> stream.skip(3), "A zero-byte skip must consume available bytes.");
+
+        assertThat(stream.position()).isEqualTo(3);
+        assertThat(stream.limit()).isEqualTo(Long.MAX_VALUE);
+        assertThat(inputStream.skipCalls()).isBetween(1, 8);
+        assertThat(inputStream.readCalls()).isEqualTo(2);
+        assertThat(stream.readByte()).isEqualTo((byte) 4);
+    }
+
+    @Test
+    @DisplayName("A partial skip reports EOF and preserves the consumed position")
+    void partialSkipAtEndOfInputReportsEof() {
+        final var inputStream = new BoundedZeroSkipInputStream(new byte[] {1, 2}, 8, 1);
+        final var stream = new ReadableStreamingData(inputStream);
+
+        assertThrows(EOFException.class, () -> stream.skip(4));
+
+        assertThat(stream.position()).isEqualTo(2);
+        assertThat(stream.limit()).isEqualTo(Long.MAX_VALUE);
+        assertThat(stream.hasRemaining()).isFalse();
+        assertThat(stream.remaining()).isZero();
+        assertThat(inputStream.skipCalls()).isBetween(1, 8);
+        assertThat(inputStream.readCalls()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("Position includes bytes skipped before an I/O failure")
+    void partialSkipIoFailurePreservesPosition() {
+        final var skipCalls = new AtomicInteger();
+        final var bytes = new ByteArrayInputStream(new byte[] {1, 2, 3});
+        final InputStream inputStream = new InputStream() {
+            @Override
+            public int read() {
+                return bytes.read();
+            }
+
+            @Override
+            public long skip(final long n) throws IOException {
+                if (skipCalls.incrementAndGet() == 1) {
+                    return bytes.skip(Math.min(1, n));
+                }
+                throw new IOException("skip failed after partial progress");
+            }
+        };
+        final var stream = new ReadableStreamingData(inputStream);
+
+        final var exception = assertThrows(UncheckedIOException.class, () -> stream.skip(3));
+
+        assertThat(exception.getCause()).hasMessage("skip failed after partial progress");
+        assertThat(stream.position()).isEqualTo(1);
+        assertThat(stream.limit()).isEqualTo(Long.MAX_VALUE);
+    }
+
+    @Test
+    @DisplayName("A read failure after a zero-byte skip is propagated without retry")
+    void zeroSkipReadFailureIsPropagated() {
+        final var skipCalls = new AtomicInteger();
+        final InputStream inputStream = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("read failed");
+            }
+
+            @Override
+            public long skip(final long n) throws IOException {
+                if (skipCalls.incrementAndGet() == 1) {
+                    return 0;
+                }
+                throw new IOException("zero skip was retried");
+            }
+        };
+        final var stream = new ReadableStreamingData(inputStream);
+
+        final var exception = assertThrows(UncheckedIOException.class, () -> stream.skip(1));
+
+        assertThat(exception.getCause()).hasMessage("read failed");
+        assertThat(stream.position()).isZero();
+        assertThat(stream.limit()).isEqualTo(Long.MAX_VALUE);
+        assertThat(skipCalls.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("A fallback read failure retains bytes skipped earlier")
+    void partialSkipReadFailurePreservesPosition() {
+        final var skipCalls = new AtomicInteger();
+        final var readCalls = new AtomicInteger();
+        final var bytes = new ByteArrayInputStream(new byte[] {1, 2});
+        final InputStream inputStream = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                readCalls.incrementAndGet();
+                throw new IOException("read failed after partial progress");
+            }
+
+            @Override
+            public long skip(final long n) throws IOException {
+                final int calls = skipCalls.incrementAndGet();
+                if (calls == 1) {
+                    return bytes.skip(Math.min(1, n));
+                }
+                if (calls == 2) {
+                    return 0;
+                }
+                throw new IOException("zero skip was retried without an intervening read");
+            }
+        };
+        final var stream = new ReadableStreamingData(inputStream);
+
+        final var exception = assertThrows(UncheckedIOException.class, () -> stream.skip(3));
+
+        assertThat(exception.getCause()).hasMessage("read failed after partial progress");
+        assertThat(stream.position()).isEqualTo(1);
+        assertThat(stream.limit()).isEqualTo(Long.MAX_VALUE);
+        assertThat(skipCalls.get()).isBetween(1, 3);
+        assertThat(readCalls.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Zero and negative skips do not access the underlying stream")
+    void zeroAndNegativeSkipsDoNothing() {
+        final var inputStream = new BoundedZeroSkipInputStream(new byte[] {1, 2}, 0, 0);
+        final var stream = new ReadableStreamingData(inputStream);
+
+        stream.skip(0);
+        stream.skip(-1);
+
+        assertThat(stream.position()).isZero();
+        assertThat(stream.limit()).isEqualTo(Long.MAX_VALUE);
+        assertThat(inputStream.skipCalls()).isZero();
+        assertThat(inputStream.readCalls()).isZero();
+    }
+
+    @Test
+    @DisplayName("An explicit limit still rejects skips past it")
+    void explicitLimitStillRejectsSkipPastLimit() {
+        final var inputStream = new BoundedZeroSkipInputStream(new byte[] {1, 2, 3}, 0, 0);
+        final var stream = new ReadableStreamingData(inputStream);
+        stream.limit(2);
+
+        assertThrows(BufferUnderflowException.class, () -> stream.skip(3));
+
+        assertThat(stream.position()).isZero();
+        assertThat(stream.limit()).isEqualTo(2);
+        assertThat(inputStream.skipCalls()).isZero();
+        assertThat(inputStream.readCalls()).isZero();
+    }
+
+    @Test
+    @DisplayName("A known-length stream keeps its limit-based skip behavior")
+    void knownLengthSkipUsesItsLimit() {
+        final var stream = new ReadableStreamingData(new byte[] {1, 2, 3});
+
+        stream.skip(2);
+
+        assertThat(stream.position()).isEqualTo(2);
+        assertThat(stream.limit()).isEqualTo(3);
+        assertThrows(BufferUnderflowException.class, () -> stream.skip(2));
+        assertThat(stream.position()).isEqualTo(2);
+        assertThat(stream.limit()).isEqualTo(3);
     }
 
     @Test
@@ -347,6 +516,56 @@ final class ReadableStreamingDataTest extends ReadableSequentialTestBase {
         final Path file = Files.createTempFile(getClass().getSimpleName(), "readFileThatDoesntExist");
         Files.delete(file);
         assertThrows(IOException.class, () -> new ReadableStreamingData(file));
+    }
+
+    private static final class BoundedZeroSkipInputStream extends InputStream {
+        private final ByteArrayInputStream delegate;
+        private final int maxSkipCalls;
+        private final long firstSkipBytes;
+        private final AtomicInteger skipCalls = new AtomicInteger();
+        private final AtomicInteger readCalls = new AtomicInteger();
+        private boolean zeroSkipPending;
+        private int readCallsAtZeroSkip;
+
+        private BoundedZeroSkipInputStream(final byte[] bytes, final int maxSkipCalls, final long firstSkipBytes) {
+            this.delegate = new ByteArrayInputStream(bytes);
+            this.maxSkipCalls = maxSkipCalls;
+            this.firstSkipBytes = firstSkipBytes;
+        }
+
+        @Override
+        public int read() throws IOException {
+            readCalls.incrementAndGet();
+            return delegate.read();
+        }
+
+        @Override
+        public long skip(final long n) throws IOException {
+            final int calls = skipCalls.incrementAndGet();
+            if (calls > maxSkipCalls) {
+                throw new IOException("bounded zero-progress skip probe exceeded its call limit");
+            }
+            if (zeroSkipPending && readCalls.get() == readCallsAtZeroSkip) {
+                throw new IOException("zero-byte skip was retried without an intervening read");
+            }
+            if (calls == 1 && firstSkipBytes > 0) {
+                final long skipped = delegate.skip(Math.min(n, firstSkipBytes));
+                zeroSkipPending = skipped == 0;
+                readCallsAtZeroSkip = readCalls.get();
+                return skipped;
+            }
+            zeroSkipPending = true;
+            readCallsAtZeroSkip = readCalls.get();
+            return 0;
+        }
+
+        private int skipCalls() {
+            return skipCalls.get();
+        }
+
+        private int readCalls() {
+            return readCalls.get();
+        }
     }
 
     /**

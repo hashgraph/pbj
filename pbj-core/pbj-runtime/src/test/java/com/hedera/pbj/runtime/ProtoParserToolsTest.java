@@ -25,14 +25,17 @@ import static com.hedera.pbj.runtime.ProtoWriterTools.writeString;
 import static com.hedera.pbj.runtime.ProtoWriterToolsTest.createFieldDefinition;
 import static com.hedera.pbj.runtime.ProtoWriterToolsTest.randomVarSizeString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.EOFException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
@@ -40,6 +43,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -348,6 +352,23 @@ class ProtoParserToolsTest {
                 ParseException.class, () -> ProtoParserTools.skipField(streamingData, WIRE_TYPE_DELIMITED, maxSize));
     }
 
+    @Test
+    void testSkipTruncatedUnknownDelimitedFieldOnStreamingInput() throws IOException {
+        final var inputStream = new BoundedPartialZeroSkipInputStream(new byte[] {18, 3, 11, 12}, 8, 1);
+        final var input = new ReadableStreamingData(inputStream);
+
+        // Tag 18 is a length-delimited field; the parser's unknown-field branch calls skipField after this read.
+        assertEquals(18, input.readVarInt(false));
+        assertThrows(EOFException.class, () -> skipField(input, WIRE_TYPE_DELIMITED, Codec.DEFAULT_MAX_SIZE));
+
+        assertEquals(4, input.position());
+        assertEquals(Long.MAX_VALUE, input.limit());
+        assertFalse(input.hasRemaining());
+        assertEquals(0, input.remaining());
+        assertTrue(inputStream.skipCalls() > 0 && inputStream.skipCalls() <= 8);
+        assertEquals(4, inputStream.readCalls());
+    }
+
     @ParameterizedTest
     @EnumSource(names = {"WIRE_TYPE_GROUP_START", "WIRE_TYPE_GROUP_END"})
     void testSkipUnsupported(ProtoConstants unsupportedType) {
@@ -372,6 +393,57 @@ class ProtoParserToolsTest {
         final ReadableSequentialData input = Bytes.EMPTY.toReadableSequentialData();
         final FieldDefinition field = new FieldDefinition("field", FieldType.BYTES, true, true, false, 1);
         assertThrows(IllegalArgumentException.class, () -> ProtoParserTools.extractFieldBytes(input, field));
+    }
+
+    private static final class BoundedPartialZeroSkipInputStream extends InputStream {
+        private final ByteArrayInputStream bytes;
+        private final int maxSkipCalls;
+        private final long firstSkipBytes;
+        private int skipCalls;
+        private int readCalls;
+        private int readCallsAtZeroSkip;
+        private boolean zeroSkipPending;
+
+        private BoundedPartialZeroSkipInputStream(
+                final byte[] input, final int maxSkipCalls, final long firstSkipBytes) {
+            this.bytes = new ByteArrayInputStream(input);
+            this.maxSkipCalls = maxSkipCalls;
+            this.firstSkipBytes = firstSkipBytes;
+        }
+
+        @Override
+        public int read() throws IOException {
+            readCalls++;
+            return bytes.read();
+        }
+
+        @Override
+        public long skip(final long n) throws IOException {
+            final int calls = ++skipCalls;
+            if (calls > maxSkipCalls) {
+                throw new IOException("bounded zero-progress skip probe exceeded its call limit");
+            }
+            if (zeroSkipPending && readCalls == readCallsAtZeroSkip) {
+                throw new IOException("zero-byte skip was retried without an intervening read");
+            }
+            if (calls == 1) {
+                final long skipped = bytes.skip(Math.min(firstSkipBytes, n));
+                zeroSkipPending = skipped == 0;
+                readCallsAtZeroSkip = readCalls;
+                return skipped;
+            }
+            zeroSkipPending = true;
+            readCallsAtZeroSkip = readCalls;
+            return 0;
+        }
+
+        private int skipCalls() {
+            return skipCalls;
+        }
+
+        private int readCalls() {
+            return readCalls;
+        }
     }
 
     private static final FieldDefinition INT32_F =

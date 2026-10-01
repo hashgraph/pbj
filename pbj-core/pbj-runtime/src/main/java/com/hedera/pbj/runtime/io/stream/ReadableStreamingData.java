@@ -155,7 +155,8 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
     /**
      * {@inheritDoc}
      *
-     * @throws BufferUnderflowException if {@code count} would move the position past the {@link #limit()}.
+     * @throws BufferUnderflowException if {@code n} would move the position past the {@link #limit()}, or if the stream
+     *     reaches EOF before all requested bytes are skipped. In that case, the position reflects bytes consumed.
      */
     @Override
     public void skip(final long n) {
@@ -170,9 +171,16 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
         try {
             long toSkip = n;
             while (toSkip > 0) {
-                toSkip -= in.skip(toSkip);
+                final long skipped = in.skip(toSkip);
+                if (skipped == 0) {
+                    // InputStream.skip may make no progress even when bytes remain, so read to distinguish EOF.
+                    readByte();
+                    toSkip--;
+                } else {
+                    position += skipped;
+                    toSkip -= skipped;
+                }
             }
-            position += n;
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
