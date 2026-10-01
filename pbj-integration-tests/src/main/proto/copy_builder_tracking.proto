@@ -5,6 +5,12 @@ package proto;
 option java_package = "com.hedera.pbj.test.proto.java";
 option java_multiple_files = true;
 
+// Field names must not be shadowed by generated savings-helper parameters.
+message SavingsFieldNamesModel {
+    string mask = 1;
+    int64 target = 2;
+}
+
 // Sparse numbers test declaration-indexed tracking across multiple mask words.
 message WideTrackedModel {
     int64 value1 = 100;

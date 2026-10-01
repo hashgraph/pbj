@@ -396,6 +396,33 @@ class PartialDiffTest {
     }
 
     @Test
+    void savingsCheckUsesFieldsNamedMaskAndTarget() {
+        final var values = List.of(
+                SavingsFieldNamesModel.DEFAULT,
+                SavingsFieldNamesModel.newBuilder().mask("keep").build(),
+                SavingsFieldNamesModel.newBuilder().target(Long.MAX_VALUE).build(),
+                SavingsFieldNamesModel.newBuilder()
+                        .mask("keep")
+                        .target(Long.MAX_VALUE)
+                        .build());
+        for (var value : values) {
+            final long fullSize = SavingsFieldNamesModel.PROTOBUF.toBytes(value).length();
+            for (long mask = 0; mask < 4; mask++) {
+                final long partialSize = SavingsFieldNamesModel.PROTOBUF
+                        .toBytes(SavingsFieldNamesModel.partial(value, mask))
+                        .length();
+                for (int threshold = 0; threshold <= fullSize + 1; threshold++) {
+                    for (int overhead : new int[] {0, 1, 3}) {
+                        assertEquals(
+                                fullSize - partialSize >= (long) threshold + overhead,
+                                SavingsFieldNamesModel.worthPartial(value, mask, threshold, overhead));
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void savingsCheckStopsBeforeNestedSizingAndNeverMeasuresTheWholeValue() throws Exception {
         final var child = TimestampTest.newBuilder().seconds(5).build();
         final var next = Everything.newBuilder()
