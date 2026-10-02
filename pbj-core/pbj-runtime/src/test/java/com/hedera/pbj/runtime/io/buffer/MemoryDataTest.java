@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /// Test for heap MemoryData
@@ -49,5 +50,13 @@ final class MemoryDataTest extends BufferedDataTestBase<MemoryData> {
         assertEquals(str, data.asUtf8String());
         assertThrows(IllegalArgumentException.class, () -> data.putVarLong(0, 111L));
         assertEquals(str, data.asUtf8String());
+    }
+
+    @Nested
+    final class RandomAccessWriteTest extends RandomAccessWriteTestBase {
+        @Override
+        protected @NonNull RandomAccessData randomAccessData(@NonNull byte[] bytes) {
+            return MemoryData.wrap(bytes);
+        }
     }
 }

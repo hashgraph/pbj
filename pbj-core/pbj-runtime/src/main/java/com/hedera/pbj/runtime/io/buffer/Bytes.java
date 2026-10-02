@@ -385,6 +385,12 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
         wsd.writeBytes(buffer, Math.toIntExact(start + offset), length);
     }
 
+    @Override
+    public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
+        dst.putBytes(dstOffset, buffer, start, length);
+        return length;
+    }
+
     /**
      * A helper method for efficient copy of our data into a MemorySegment starting at a given `position`
      * without creating a defensive copy of the data or writing each byte one at a time.
