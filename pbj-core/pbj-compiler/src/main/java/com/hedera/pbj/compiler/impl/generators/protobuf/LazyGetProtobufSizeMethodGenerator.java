@@ -55,7 +55,7 @@ public class LazyGetProtobufSizeMethodGenerator {
         // spotless:on
     }
 
-    static String buildFieldSizeOfLines(
+    public static String buildFieldSizeOfLines(
             final String modelClassName,
             final String schemaClassName,
             final List<Field> fields,
