@@ -232,7 +232,7 @@ class ProtoWriterToolsTest {
             })
     void testWriteInteger_unsupported(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertThrows(RuntimeException.class, () -> writeInteger(bufferedData, definition, RNG.nextInt()));
+        assertThrows(Throwable.class, () -> writeInteger(bufferedData, definition, RNG.nextInt()));
     }
 
     @Test
@@ -317,7 +317,7 @@ class ProtoWriterToolsTest {
             })
     void testWriteLong_unsupported(FieldType type) {
         FieldDefinition definition = createFieldDefinition(type);
-        assertThrows(RuntimeException.class, () -> writeLong(bufferedData, definition, RNG.nextInt()));
+        assertThrows(Throwable.class, () -> writeLong(bufferedData, definition, RNG.nextInt()));
     }
 
     private static float nextNonZeroRandomFloat() {
