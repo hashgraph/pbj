@@ -34,6 +34,7 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
         final PbjExtension pbj = project.getExtensions().create("pbj", PbjExtension.class);
         // By default, test classes for 'main' are generated
         pbj.getGenerateTestClasses().convention(true);
+        pbj.getGenerateCopyBuilderTracking().convention(true);
 
         // get reference to java plugin
         final var javaPlugin = project.getExtensions().getByType(JavaPluginExtension.class);
@@ -110,6 +111,7 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
                     pbjTask.getJavaMainOutputDirectory().set(outputDirectoryMain);
                     pbjTask.getJavaTestOutputDirectory().set(outputDirectoryTest);
                     pbjTask.getJavaPackageSuffix().set(pbj.getJavaPackageSuffix());
+                    pbjTask.getGenerateCopyBuilderTracking().set(pbj.getGenerateCopyBuilderTracking());
                 });
 
         // 5) register fact that pbj should be run before compiling  by informing the 'java' part

@@ -21,6 +21,7 @@ import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
+import com.hedera.pbj.compiler.impl.generators.CopyBuilderGenerator.ConstructorTracking;
 import com.hedera.pbj.compiler.impl.generators.protobuf.LazyGetProtobufSizeMethodGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
@@ -90,8 +91,10 @@ public final class ModelGenerator implements Generator {
         writer.addImport("edu.umd.cs.findbugs.annotations.*");
         writer.addImport(lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef));
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
+        writer.addImport("java.util.Arrays");
         writer.addImport("java.util.Collections");
         writer.addImport("java.util.List");
+        writer.addImport("java.util.Objects");
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
@@ -202,24 +205,66 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         bodyContent += "private final List<UnknownField> $unknownFields;".indent(DEFAULT_INDENT);
+        final ConstructorTracking publicTracking =
+                lookupHelper.generateCopyBuilderTracking() ? ConstructorTracking.UNTRACKED : ConstructorTracking.NONE;
+        if (lookupHelper.generateCopyBuilderTracking()) {
+            bodyContent += "\n";
+            bodyContent += CopyBuilderGenerator.modelMembers(javaRecordName, fieldsNoPrecomputed);
+        }
         bodyContent += "\n";
         bodyContent += "\n";
 
         // constructors: w/o unknownFields, and with unknownFields; both w/ real enums and with Object
         bodyContent += generateConstructor(
-                javaRecordName, fields, false, false, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                javaRecordName,
+                fields,
+                false,
+                false,
+                false,
+                fieldsNoPrecomputed,
+                true,
+                msgDef,
+                lookupHelper,
+                publicTracking);
         bodyContent += "\n";
         if (hasEnums(fieldsNoPrecomputed)) {
             bodyContent += generateConstructor(
-                    javaRecordName, fields, false, false, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                    javaRecordName,
+                    fields,
+                    false,
+                    false,
+                    true,
+                    fieldsNoPrecomputed,
+                    true,
+                    msgDef,
+                    lookupHelper,
+                    publicTracking);
             bodyContent += "\n";
         }
         bodyContent += generateConstructor(
-                javaRecordName, fields, true, false, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                javaRecordName,
+                fields,
+                true,
+                false,
+                false,
+                fieldsNoPrecomputed,
+                true,
+                msgDef,
+                lookupHelper,
+                publicTracking);
         bodyContent += "\n";
         if (hasEnums(fieldsNoPrecomputed)) {
             bodyContent += generateConstructor(
-                    javaRecordName, fields, true, false, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                    javaRecordName,
+                    fields,
+                    true,
+                    false,
+                    true,
+                    fieldsNoPrecomputed,
+                    true,
+                    msgDef,
+                    lookupHelper,
+                    publicTracking);
             bodyContent += "\n";
         }
         // And if the model is cacheable, then also ctors w/ $hashCode
@@ -229,21 +274,73 @@ public final class ModelGenerator implements Generator {
                                 lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef))
                 != null) {
             bodyContent += generateConstructor(
-                    javaRecordName, fields, false, true, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                    javaRecordName,
+                    fields,
+                    false,
+                    true,
+                    false,
+                    fieldsNoPrecomputed,
+                    true,
+                    msgDef,
+                    lookupHelper,
+                    publicTracking);
             bodyContent += "\n";
             if (hasEnums(fieldsNoPrecomputed)) {
                 bodyContent += generateConstructor(
-                        javaRecordName, fields, false, true, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                        javaRecordName,
+                        fields,
+                        false,
+                        true,
+                        true,
+                        fieldsNoPrecomputed,
+                        true,
+                        msgDef,
+                        lookupHelper,
+                        publicTracking);
                 bodyContent += "\n";
             }
             bodyContent += generateConstructor(
-                    javaRecordName, fields, true, true, false, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                    javaRecordName,
+                    fields,
+                    true,
+                    true,
+                    false,
+                    fieldsNoPrecomputed,
+                    true,
+                    msgDef,
+                    lookupHelper,
+                    publicTracking);
             bodyContent += "\n";
             if (hasEnums(fieldsNoPrecomputed)) {
                 bodyContent += generateConstructor(
-                        javaRecordName, fields, true, true, true, fieldsNoPrecomputed, true, msgDef, lookupHelper);
+                        javaRecordName,
+                        fields,
+                        true,
+                        true,
+                        true,
+                        fieldsNoPrecomputed,
+                        true,
+                        msgDef,
+                        lookupHelper,
+                        publicTracking);
                 bodyContent += "\n";
             }
+        }
+
+        if (lookupHelper.generateCopyBuilderTracking()) {
+            // private constructor used by Builder.build() to carry provenance into the new instance
+            bodyContent += generateConstructor(
+                    javaRecordName,
+                    fields,
+                    true,
+                    false,
+                    true,
+                    fieldsNoPrecomputed,
+                    true,
+                    msgDef,
+                    lookupHelper,
+                    ConstructorTracking.TRACKED);
+            bodyContent += "\n";
         }
 
         // record style getters
@@ -281,6 +378,10 @@ public final class ModelGenerator implements Generator {
                 LazyGetProtobufSizeMethodGenerator.generateLazyGetProtobufSize(fieldsNoPrecomputed, schemaClassName);
         bodyContent += "\n";
 
+        // Diff helpers are stateless and available even when provenance generation is disabled.
+        bodyContent += DiffGenerator.generate(
+                javaRecordName, fieldsNoPrecomputed, schemaClassName, lookupHelper.generateCopyBuilderTracking());
+
         // hashCode method
         bodyContent += generateHashCode(javaRecordName, fieldsNoPrecomputed);
         bodyContent += "\n";
@@ -308,7 +409,8 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         // builder copy & new builder methods
-        bodyContent = generateBuilderFactoryMethods(bodyContent, fieldsNoPrecomputed);
+        bodyContent = generateBuilderFactoryMethods(
+                bodyContent, fieldsNoPrecomputed, lookupHelper.generateCopyBuilderTracking());
         bodyContent += "\n";
 
         // generate builder
@@ -350,12 +452,21 @@ public final class ModelGenerator implements Generator {
             final boolean isComparable,
             final ContextualLookupHelper lookupHelper)
             throws IOException {
-        final String implementsComparable;
+        String implementsComparable;
         if (isComparable) {
             implementsComparable = "implements Comparable<$javaRecordName> ";
         } else {
             implementsComparable = "";
         }
+
+        if (lookupHelper.generateCopyBuilderTracking()) {
+            implementsComparable = (isComparable ? implementsComparable.stripTrailing() + ", " : "implements ")
+                    + "CopyBuilderTracked<$javaRecordName> ";
+        }
+
+        implementsComparable =
+                (implementsComparable.isEmpty() ? "implements " : implementsComparable.stripTrailing() + ", ")
+                        + "DiffSupport.Value ";
 
         final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
 
@@ -778,6 +889,7 @@ public final class ModelGenerator implements Generator {
     /**
      * Generates a pre-populated constructor for a class.
      * @param fields the fields to use for the code generation
+     * @param tracking how the constructor initializes copy-builder provenance
      * @return the generated code
      */
     private static String generateConstructor(
@@ -789,7 +901,8 @@ public final class ModelGenerator implements Generator {
             final List<Field> fieldsNoPrecomputed,
             final boolean shouldThrowOnOneOfNull,
             final MessageDefContext msgDef,
-            final ContextualLookupHelper lookupHelper) {
+            final ContextualLookupHelper lookupHelper,
+            final ConstructorTracking tracking) {
         if (fields.isEmpty() && !initUnknownFields) {
             return "";
         }
@@ -799,9 +912,9 @@ public final class ModelGenerator implements Generator {
                  * Create a pre-populated $constructorName.
                  * $constructorParamDocs
                  */
-                public $constructorName($constructorParams$unknownFieldsParam$hashCodeParam) {
+                $access $constructorName($constructorParams$unknownFieldsParam$hashCodeParam$trackingParams) {
                     $unknownFieldsCode
-                    $hashCodeCode
+                    $hashCodeCode$trackingInit
             $constructorCode    }
             """
                 .replace("$constructorParamDocs",fieldsNoPrecomputed.stream().map(field ->
@@ -809,6 +922,14 @@ public final class ModelGenerator implements Generator {
                                 field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
                 ).collect(Collectors.joining(" ")))
                 .replace("$constructorName", constructorName)
+                .replace("$access", tracking == ConstructorTracking.TRACKED ? "private" : "public")
+                .replace("$trackingParams", tracking == ConstructorTracking.TRACKED
+                        ? CopyBuilderGenerator.constructorParameters(constructorName, fieldsNoPrecomputed)
+                        : "")
+                .replace("$trackingInit", tracking == ConstructorTracking.NONE
+                        ? ""
+                        : "\n" + CopyBuilderGenerator.constructorAssignments(fieldsNoPrecomputed, tracking)
+                                .indent(DEFAULT_INDENT * 2).stripTrailing())
                 .replace("$constructorParams",fieldsNoPrecomputed.stream().map(field -> {
                     if (field.type() == FieldType.ENUM && field.repeated()) {
                         return "List<?>" + " " + field.nameCamelFirstLower();
@@ -1101,7 +1222,8 @@ public final class ModelGenerator implements Generator {
      * @return the body content with new code appended
      */
     @NonNull
-    private static String generateBuilderFactoryMethods(String bodyContent, final List<Field> fields) {
+    private static String generateBuilderFactoryMethods(
+            String bodyContent, final List<Field> fields, final boolean tracking) {
         // spotless:off
         bodyContent +=
             """
@@ -1112,7 +1234,7 @@ public final class ModelGenerator implements Generator {
              * @return a pre-populated builder
              */
             public Builder copyBuilder() {
-                return new Builder(%s$unknownFieldsArg);
+                $copyBuilderBody
             }
             
             /**
@@ -1124,8 +1246,7 @@ public final class ModelGenerator implements Generator {
                 return new Builder();
             }
             """
-            .formatted(fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
-            .replace("$unknownFieldsArg", (fields.isEmpty() ? "" : ", ") + "$unknownFields")
+            .replace("$copyBuilderBody", CopyBuilderGenerator.copyBuilderBody(fields, tracking).indent(DEFAULT_INDENT).strip())
             .indent(DEFAULT_INDENT);
         // spotless:on
         return bodyContent;
@@ -1143,7 +1264,8 @@ public final class ModelGenerator implements Generator {
             final List<String> builderMethods,
             final MessageDefContext msgDef,
             final Field field,
-            final ContextualLookupHelper lookupHelper) {
+            final ContextualLookupHelper lookupHelper,
+            final String trackingMark) {
         final String prefix, postfix, fieldToSet;
         final String fieldAnnotations = getFieldAnnotations(field);
         final OneOfField parentOneOfField = field.parent();
@@ -1171,12 +1293,13 @@ public final class ModelGenerator implements Generator {
                  * @return builder to continue building with
                  */
                 public Builder $fieldName($fieldAnnotations$fieldType $fieldName) {
-                    this.$fieldToSet = $prefix$fieldName$postfix;
+                    this.$fieldToSet = $prefix$fieldName$postfix;$trackingMark
                     return this;
                 }"""
                 .replace("$fieldDoc", field.comment()
                         .replaceAll("\n", "\n * "))
                 .replace("$fieldName", fieldName)
+                .replace("$trackingMark", trackingMark)
                 .replace("$fieldToSet", fieldToSet)
                 .replace("$prefix", prefix)
                 .replace("$postfix", postfix)
@@ -1195,13 +1318,14 @@ public final class ModelGenerator implements Generator {
                          * @return builder to continue building with
                          */
                         public Builder $fieldName($messageClass.Builder builder) {
-                            this.$fieldToSet =$prefix builder.build() $postfix;
+                            this.$fieldToSet =$prefix builder.build() $postfix;$trackingMark
                             return this;
                         }"""
                     .replace("$messageClass",field.messageType())
                     .replace("$fieldDoc",field.comment()
                             .replaceAll("\n", "\n * "))
                     .replace("$fieldName", fieldName)
+                    .replace("$trackingMark", trackingMark)
                     .replace("$fieldToSet",fieldToSet)
                     .replace("$prefix",prefix)
                     .replace("$postfix",postfix)
@@ -1236,13 +1360,14 @@ public final class ModelGenerator implements Generator {
                          * @return builder to continue building with
                          */
                         public Builder $fieldName($baseType ... values) {
-                            this.$fieldToSet = $repeatedPrefix List.of(values) $repeatedPostfix;
+                            this.$fieldToSet = $repeatedPrefix List.of(values) $repeatedPostfix;$trackingMark
                             return this;
                         }"""
                     .replace("$baseType",field.javaFieldType().substring("List<".length(),field.javaFieldType().length()-1))
                     .replace("$fieldDoc",field.comment()
                             .replaceAll("\n", "\n * "))
                     .replace("$fieldName", fieldName)
+                    .replace("$trackingMark", trackingMark)
                     .replace("$fieldToSet",fieldToSet)
                     .replace("$fieldType",field.javaFieldType())
                     .replace("$repeatedPrefix",repeatedPrefix)
@@ -1264,7 +1389,12 @@ public final class ModelGenerator implements Generator {
             final MessageDefContext msgDef, final List<Field> fields, final ContextualLookupHelper lookupHelper) {
         final String javaRecordName = msgDef.messageName().getText();
         final List<String> builderMethods = new ArrayList<>();
-        for (final Field field : fields) {
+        for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
+            final Field field = fields.get(fieldIndex);
+            // appended to each setter's assignment line, at the setter body's indentation
+            final String trackingMark = lookupHelper.generateCopyBuilderTracking()
+                    ? "\n" + " ".repeat(DEFAULT_INDENT) + CopyBuilderGenerator.mark(fields, fieldIndex)
+                    : "";
             if (field.type() == Field.FieldType.ONE_OF) {
                 final OneOfField oneOfField = (OneOfField) field;
                 // spotless:off
@@ -1273,9 +1403,10 @@ public final class ModelGenerator implements Generator {
                          * Clear $fieldToSet oneof by setting it to UNSET.
                          */
                         public void clear$fieldName() {
-                            this.$fieldToSet = $fieldValue;
+                            this.$fieldToSet = $fieldValue;$trackingMark
                         }
                         """
+                        .replace("$trackingMark", trackingMark)
                         .replace("$fieldName", oneOfField.nameCamelFirstUpper())
                         .replace("$fieldToSet", oneOfField.nameCamelFirstLower())
                         .replace("$fieldValue", getDefaultValue(oneOfField, msgDef, lookupHelper))
@@ -1283,10 +1414,10 @@ public final class ModelGenerator implements Generator {
                 );
                 // spotless:on
                 for (final Field subField : oneOfField.fields()) {
-                    generateBuilderMethods(builderMethods, msgDef, subField, lookupHelper);
+                    generateBuilderMethods(builderMethods, msgDef, subField, lookupHelper, trackingMark);
                 }
             } else {
-                generateBuilderMethods(builderMethods, msgDef, field, lookupHelper);
+                generateBuilderMethods(builderMethods, msgDef, field, lookupHelper, trackingMark);
             }
         }
         // spotless:off
@@ -1297,7 +1428,7 @@ public final class ModelGenerator implements Generator {
              */
             public static final class Builder {
                 $fields;
-                private final List<UnknownField> $unknownFields;
+                private final List<UnknownField> $unknownFields;$trackingFields
         
                 /**
                  * Create an empty builder
@@ -1338,12 +1469,17 @@ public final class ModelGenerator implements Generator {
                             + " " + field.nameCamelFirstLower()
                             + " = " + getDefaultValue(field, msgDef, lookupHelper);
                 }).collect(Collectors.joining(";\n    ")))
-                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, false, false, fields, false, msgDef, lookupHelper))
-                .replace("$prePopulatedObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, false, false, true, fields, false, msgDef, lookupHelper) : "")
-                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, false, false, fields, false, msgDef, lookupHelper))
-                .replace("$prePopulatedWithUnknownFieldsObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, true, false, true, fields, false, msgDef, lookupHelper) : "")
+                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, false, false, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE))
+                .replace("$prePopulatedObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, false, false, true, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE) : "")
+                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, false, false, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE))
+                .replace("$prePopulatedWithUnknownFieldsObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, true, false, true, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE) : "")
+                .replace("$trackingFields", lookupHelper.generateCopyBuilderTracking()
+                        ? "\n" + CopyBuilderGenerator.builderMembers(javaRecordName, fields)
+                                .indent(DEFAULT_INDENT).stripTrailing()
+                        : "")
                 .replace("$javaRecordName",javaRecordName)
-                .replace("$recordParams",fields.stream().map(Field::nameCamelFirstLower).collect(Collectors.joining(", ")))
+                .replace("$recordParams", CopyBuilderGenerator.constructorArguments(fields)
+                        + (lookupHelper.generateCopyBuilderTracking() ? ", $copyBuilderOrigin, $copyBuilderChanged" : ""))
                 .replace("$builderMethods", String.join("\n", builderMethods))
                 .replace("$getterMethods", generateRecordStyleGetters(fields, true))
                 .indent(DEFAULT_INDENT);

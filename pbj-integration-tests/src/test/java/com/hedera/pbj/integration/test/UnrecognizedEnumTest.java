@@ -67,5 +67,8 @@ public class UnrecognizedEnumTest {
         // Play the same trick using the ctor:
         final MessageWithUnrecognizedEnum1 msg2 = new MessageWithUnrecognizedEnum1(null, null);
         assertEquals(PbjEnumUnrecognized1.A1, msg2.enumValue());
+        assertEquals(0, msg.enumValueProtoOrdinal());
+        assertEquals(Bytes.EMPTY, MessageWithUnrecognizedEnum1.PROTOBUF.toBytes(msg));
+        assertEquals(Bytes.EMPTY, MessageWithUnrecognizedEnum1.PROTOBUF.toBytes(msg2));
     }
 }

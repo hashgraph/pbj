@@ -262,7 +262,10 @@ public final class EnumGenerator {
                      * @return protoOrdinal of the object
                      */
                     public static int toProtoOrdinal(Object obj) {
-                        if (obj instanceof $enumName pbjEnum) {
+                        if (obj == null) {
+                            // Match fromObject(): an unset enum has protobuf ordinal zero.
+                            return 0;
+                        } else if (obj instanceof $enumName pbjEnum) {
                             return pbjEnum.protoOrdinal();
                         } else if (obj instanceof Integer i) {
                             return i;
@@ -314,8 +317,7 @@ public final class EnumGenerator {
                         return Integer.compare(i1, i2);
                     }
                 }
-                """
-                .replace("$javaDocComment", javaDocComment)
+                """.replace("$javaDocComment", javaDocComment)
                 .replace("$deprecated$", deprecated)
                 .replace("$enumName", enumName)
                 .replace("$enumValues", String.join(",\n\n", enumValuesCode).indent(DEFAULT_INDENT))

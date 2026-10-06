@@ -20,16 +20,26 @@ public class ContextualLookupHelper {
     /** The proto source file for context */
     private final File srcProtoFileContext;
 
+    private final boolean generateCopyBuilderTracking;
+
     /**
      * Create a new ContextualLookupHelper delegating to {@code  lookupHelper} with the context of
      * {@code srcProtoFileContext}.
      *
      * @param lookupHelper Lookup helper that we are delegating to
      * @param srcProtoFileContext The proto source file for context
+     * @param generateCopyBuilderTracking whether generated models include copy-builder provenance
      */
-    public ContextualLookupHelper(LookupHelper lookupHelper, File srcProtoFileContext) {
+    public ContextualLookupHelper(
+            LookupHelper lookupHelper, File srcProtoFileContext, boolean generateCopyBuilderTracking) {
         this.lookupHelper = lookupHelper;
         this.srcProtoFileContext = srcProtoFileContext;
+        this.generateCopyBuilderTracking = generateCopyBuilderTracking;
+    }
+
+    /** Whether generated models should include copy-builder provenance. */
+    public boolean generateCopyBuilderTracking() {
+        return generateCopyBuilderTracking;
     }
 
     /** Get the LookupHelper instance backing this ContextualLookupHelper. */
