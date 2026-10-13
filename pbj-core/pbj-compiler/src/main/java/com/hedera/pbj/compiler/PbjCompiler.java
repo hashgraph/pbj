@@ -59,12 +59,12 @@ public abstract class PbjCompiler {
                 testOutputDir,
                 javaPackageSuffix,
                 generateTestClasses,
-                true);
+                false);
     }
 
     /**
      * Compiles models, as {@link #compileFilesIn(Iterable, Iterable, Set, File, File, String, boolean)} does, with
-     * control over copy-builder tracking, which the other overload always generates.
+     * control over copy-builder tracking, which the other overload disables by default.
      */
     public static void compileFilesIn(
             Iterable<File> sourceFiles,

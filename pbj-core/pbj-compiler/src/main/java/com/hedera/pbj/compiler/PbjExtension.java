@@ -21,7 +21,7 @@ public interface PbjExtension {
     Property<Boolean> getGenerateTestClasses();
 
     /**
-     * Generate transient copy-builder origin and candidate-field tracking for every model, which is true by default.
+     * Generate transient copy-builder origin and candidate-field tracking for every model, which is false by default.
      * Tracking only accelerates diffs, so disabling it saves the per-instance cost without changing protobuf
      * encodings, value semantics, or diff results.
      * @return the tracking generation property
