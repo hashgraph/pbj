@@ -13,45 +13,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * Generates shallow, top-level diff helpers for every model. Masks index fields in declaration order, with one bit
+ * Generates shallow, top-level diff helpers for selected root models. Masks index fields in declaration order, with one bit
  * per oneof; cleared-field lists use protobuf field numbers.
  */
 final class DiffGenerator {
     private DiffGenerator() {}
-
-    /** Minimal line-oriented writer that keeps generated code indented like hand-written code. */
-    private static final class Code {
-        private final StringBuilder out = new StringBuilder();
-        private int depth;
-
-        Code line(String text) {
-            if (!text.isEmpty()) out.append(" ".repeat(depth * DEFAULT_INDENT)).append(text);
-            out.append('\n');
-            return this;
-        }
-
-        /** Append pre-generated lines at the current depth. */
-        Code lines(String text) {
-            text.stripTrailing().lines().forEach(l -> line(l.stripTrailing()));
-            return this;
-        }
-
-        Code open(String text) {
-            line(text);
-            depth++;
-            return this;
-        }
-
-        Code close(String text) {
-            depth--;
-            return line(text);
-        }
-
-        @Override
-        public String toString() {
-            return out.toString();
-        }
-    }
 
     /** One entry of a cleared-fields list, generated in ascending field-number order. */
     private record Clear(int fieldNumber, String condition) {}
@@ -59,178 +25,195 @@ final class DiffGenerator {
     static String generate(String model, List<Field> fields, String schema, boolean tracking) {
         final boolean wide = CopyBuilderGenerator.isWide(fields);
         final String maskType = CopyBuilderGenerator.maskType(fields);
-        final Code code = new Code();
-        generateDiff(code, model, fields, maskType, wide, tracking);
-        generatePartial(code, model, fields, maskType, wide);
-        generateWorthPartial(code, model, fields, schema, maskType, wide);
-        generateRequireDiffable(code, model);
-        generateClearedFields(code, model, fields, maskType, wide);
-        generateApplyPartial(code, model, fields);
-        generateEqualsForDiff(code, model, fields);
-        return code.toString().indent(DEFAULT_INDENT);
+        return String.join(
+                        "\n",
+                        generateDiff(model, fields, maskType, wide, tracking),
+                        generatePartial(model, fields, maskType, wide),
+                        generateWorthPartial(model, fields, schema, maskType, wide),
+                        generateRequireDiffable(model),
+                        generateClearedFields(model, fields, maskType, wide),
+                        generateApplyPartial(model, fields),
+                        generateEqualsForDiff(model, fields))
+                .lines()
+                .map(String::stripTrailing)
+                .collect(Collectors.joining("\n", "", "\n"))
+                .indent(DEFAULT_INDENT);
     }
 
-    private static void generateDiff(
-            Code code, String model, List<Field> fields, String maskType, boolean wide, boolean tracking) {
-        code.line("/**")
-                .line(
-                        " * Find the fields whose values differ. When {@code next} was copy-built from exactly {@code prior},")
-                .line(" * only the fields its builders set are compared; otherwise every field is compared.")
-                .line(" *")
-                .line(" * @param prior the prior value")
-                .line(" * @param next the next value")
-                .line(" * @return mask of differing fields, bit {@code i} being the {@code i}-th declared field")
-                .line(" */")
-                .open("public static " + maskType + " diff(final " + model + " prior, final " + model + " next) {");
-        if (tracking) {
-            code.open("if (next.$copyBuilderOrigin == prior) {")
-                    .line("return diff(prior, next, next.$copyBuilderChanged);")
-                    .close("}");
-        }
-        code.line("return diff(prior, next, " + allFields(fields, wide) + ");")
-                .close("}")
-                .line("");
+    private static String generateDiff(
+            String model, List<Field> fields, String maskType, boolean wide, boolean tracking) {
+        final String trackingCheck = tracking ? """
+                if (next.$copyBuilderOrigin == prior) {
+                    return diff(prior, next, next.$copyBuilderChanged);
+                }
+                """.indent(DEFAULT_INDENT) : "";
+        final String comparisons = IntStream.range(0, fields.size())
+                .mapToObj(i -> {
+                    final Field field = fields.get(i);
+                    final String name = field.nameCamelFirstLower();
+                    return """
+                            if ($candidate && $different) {
+                                $resultWord |= $bit;
+                            }
+                            """.replace("$candidate", isSet("candidates", i, wide))
+                            .replace("$different", different(field, "prior." + name, "next." + name))
+                            .replace("$resultWord", word("result", i, wide))
+                            .replace("$bit", bit(i));
+                })
+                .collect(Collectors.joining());
+        return """
+                /**
+                 * Find the fields whose values differ. When {@code next} was copy-built from exactly {@code prior},
+                 * only the fields its builders set are compared; otherwise every field is compared.
+                 *
+                 * @param prior the prior value
+                 * @param next the next value
+                 * @return mask of differing fields, bit {@code i} being the {@code i}-th declared field
+                 */
+                public static $maskType diff(final $model prior, final $model next) {
+                $trackingCheck
+                    return diff(prior, next, $allFields);
+                }
 
-        code.line("/**")
-                .line(
-                        " * Compare candidate fields by value: primitives by {@code ==}, other values by identity and then")
-                .line(" * by an equality that implies equal encodings.")
-                .line(" *")
-                .line(" * @param prior the prior value")
-                .line(" * @param next the next value")
-                .line(" * @param candidates mask of the fields to compare")
-                .line(" * @return mask of the candidate fields whose values differ")
-                .line(" */")
-                .open("public static " + maskType + " diff(final " + model + " prior, final " + model + " next, final "
-                        + maskType + " candidates) {")
-                .line("requireNonNull(prior);")
-                .line("requireNonNull(next);")
-                .line("$requireDiffable(prior);")
-                .line("$requireDiffable(next);");
-        checkMaskLength(code, fields, wide, "candidates");
-        code.line(
-                wide
-                        ? "final long[] result = new long[" + CopyBuilderGenerator.maskWords(fields) + "];"
-                        : "long result = 0L;");
-        for (int i = 0; i < fields.size(); i++) {
-            final String name = fields.get(i).nameCamelFirstLower();
-            code.open("if (" + isSet("candidates", i, wide) + " && "
-                            + different(fields.get(i), "prior." + name, "next." + name) + ") {")
-                    .line(word("result", i, wide) + " |= " + bit(i) + ";")
-                    .close("}");
-        }
-        code.line("return result;").close("}").line("");
+                /**
+                 * Compare candidate fields by value, preserving raw NaN payloads. Other scalar values use
+                 * {@code ==}; objects use identity and then an equality that implies equal encodings.
+                 *
+                 * @param prior the prior value
+                 * @param next the next value
+                 * @param candidates mask of the fields to compare
+                 * @return mask of the candidate fields whose values differ
+                 */
+                public static $maskType diff(final $model prior, final $model next, final $maskType candidates) {
+                    requireNonNull(prior);
+                    requireNonNull(next);
+                    $requireDiffable(prior);
+                    $requireDiffable(next);
+                $maskCheck
+                    $resultDeclaration
+                $comparisons
+                    return result;
+                }
+                """.replace("$maskType", maskType)
+                .replace("$model", model)
+                .replace("$trackingCheck\n", trackingCheck)
+                .replace("$allFields", allFields(fields, wide))
+                .replace(
+                        "$maskCheck\n",
+                        maskValidation(fields, wide, "candidates").indent(DEFAULT_INDENT))
+                .replace(
+                        "$resultDeclaration",
+                        wide
+                                ? "final long[] result = new long[" + CopyBuilderGenerator.maskWords(fields) + "];"
+                                : "long result = 0L;")
+                .replace("$comparisons\n", comparisons.indent(DEFAULT_INDENT));
     }
 
-    private static void generatePartial(Code code, String model, List<Field> fields, String maskType, boolean wide) {
-        code.line("/**")
-                .line(
-                        " * Keep only the selected fields, resetting every other field to its default. The result encodes")
-                .line(" * to just the selected fields that are not default; see {@link #clearedFields}.")
-                .line(" *")
-                .line(" * @param next the value to take the selected fields from")
-                .line(" * @param mask mask of the fields to keep")
-                .line(" * @return the partial value")
-                .line(" */")
-                .open("public static " + model + " partial(final " + model + " next, final " + maskType + " mask) {")
-                .line("$requireDiffable(next);");
-        checkMaskLength(code, fields, wide, "mask");
-        final List<String> arguments = new ArrayList<>();
-        for (int i = 0; i < fields.size(); i++) {
-            final String name = fields.get(i).nameCamelFirstLower();
-            arguments.add(isSet("mask", i, wide) + " ? next." + name + " : DEFAULT." + name);
-        }
-        construct(code, model, arguments);
-        code.close("}").line("");
+    private static String generatePartial(String model, List<Field> fields, String maskType, boolean wide) {
+        final List<String> arguments = IntStream.range(0, fields.size())
+                .mapToObj(i -> {
+                    final String name = fields.get(i).nameCamelFirstLower();
+                    return isSet("mask", i, wide) + " ? next." + name + " : DEFAULT." + name;
+                })
+                .toList();
+        return """
+                /**
+                 * Keep only the selected fields, resetting every other field to its default. The result encodes
+                 * to just the selected fields that are not default; see {@link #clearedFields}.
+                 *
+                 * @param next the value to take the selected fields from
+                 * @param mask mask of the fields to keep
+                 * @return the partial value
+                 */
+                public static $model partial(final $model next, final $maskType mask) {
+                    $requireDiffable(next);
+                $maskCheck
+                $construction
+                }
+                """.replace("$model", model)
+                .replace("$maskType", maskType)
+                .replace("$maskCheck\n", maskValidation(fields, wide, "mask").indent(DEFAULT_INDENT))
+                .replace("$construction\n", construct(model, arguments).indent(DEFAULT_INDENT));
     }
 
-    private static void generateWorthPartial(
-            Code code, String model, List<Field> fields, String schema, String maskType, boolean wide) {
-        code.line("/**")
-                .line(
-                        " * Check whether the fields outside {@code mask} encode to at least {@code minSaving + overhead}")
-                .line(
-                        " * bytes. Fields are measured cheapest first (scalars, then strings and bytes, then messages and")
-                .line(
-                        " * oneofs, then repeated fields and maps), stopping as soon as the target is reached, so the full")
-                .line(" * encoded size is never computed.")
-                .line(" *")
-                .line(" * @param next the value that would be sent in full")
-                .line(" * @param mask mask of the fields a partial value would carry")
-                .line(" * @param minSaving the minimum number of bytes worth saving, not negative")
-                .line(" * @param overhead the extra bytes a partial update costs, not negative")
-                .line(" * @return true if sending a partial value saves enough bytes")
-                .line(" */")
-                .open("public static boolean worthPartial(final " + model + " next, final " + maskType
-                        + " mask, final int minSaving, final int overhead) {")
-                .line("$requireDiffable(next);");
-        checkMaskLength(code, fields, wide, "mask");
-        code.open("if (minSaving < 0 || overhead < 0) {")
-                .line("throw new IllegalArgumentException(\"Costs must not be negative\");")
-                .close("}")
-                .line("return next.$unchangedSizeReaches(mask, (long) minSaving + overhead);")
-                .close("}")
-                .line("");
-
-        code.line(
-                        "/** Sum the encoded sizes of the fields outside {@code mask}, stopping once they reach the target. */")
-                // Dollar-prefixed parameter names cannot shadow protobuf fields used by the sizing code.
-                .open("private boolean $unchangedSizeReaches(final " + maskType + " $mask, final long $target) {")
-                .open("if ($target == 0) {")
-                .line("return true;")
-                .close("}");
-        if (!fields.isEmpty()) {
-            code.line("int _size = 0;");
-        }
-        final List<Integer> order = IntStream.range(0, fields.size())
+    private static String generateWorthPartial(
+            String model, List<Field> fields, String schema, String maskType, boolean wide) {
+        final String measurements = IntStream.range(0, fields.size())
                 .boxed()
                 .sorted(Comparator.comparingInt(i -> sizingCost(fields.get(i))))
-                .toList();
-        for (int i : order) {
-            code.open("if (" + isClear("$mask", i, wide) + ") {")
-                    .lines(LazyGetProtobufSizeMethodGenerator.buildFieldSizeOfLines(
-                                    null, schema, List.of(fields.get(i)), Field::nameCamelFirstLower, true)
-                            .stripTrailing()
-                            .stripIndent())
-                    .open("if (_size >= $target) {")
-                    .line("return true;")
-                    .close("}")
-                    .close("}");
-        }
-        code.line("return false;").close("}").line("");
+                .map(i -> """
+                        if ($condition) {
+                        $fieldSize
+                            if (_size >= $target) {
+                                return true;
+                            }
+                        }
+                        """.replace("$condition", isClear("$mask", i, wide)).replace(
+                        "$fieldSize\n",
+                        LazyGetProtobufSizeMethodGenerator.buildFieldSizeOfLines(
+                                        null, schema, List.of(fields.get(i)), Field::nameCamelFirstLower, true)
+                                .stripTrailing()
+                                .stripIndent()
+                                .lines()
+                                .map(String::stripTrailing)
+                                .collect(Collectors.joining("\n"))
+                                .indent(DEFAULT_INDENT)))
+                .collect(Collectors.joining());
+        return """
+                /**
+                 * Check whether the fields outside {@code mask} encode to at least {@code minSaving + overhead}
+                 * bytes. Fields are measured cheapest first (scalars, then strings and bytes, then messages and
+                 * oneofs, then repeated fields and maps), stopping as soon as the target is reached, so the full
+                 * encoded size is never computed.
+                 *
+                 * @param next the value that would be sent in full
+                 * @param mask mask of the fields a partial value would carry
+                 * @param minSaving the minimum number of bytes worth saving, not negative
+                 * @param overhead the extra bytes a partial update costs, not negative
+                 * @return true if sending a partial value saves enough bytes
+                 */
+                public static boolean worthPartial(final $model next, final $maskType mask, final int minSaving, final int overhead) {
+                    $requireDiffable(next);
+                $maskCheck
+                    if (minSaving < 0 || overhead < 0) {
+                        throw new IllegalArgumentException("Costs must not be negative");
+                    }
+                    return next.$unchangedSizeReaches(mask, (long) minSaving + overhead);
+                }
+
+                /** Sum the encoded sizes of the fields outside {@code mask}, stopping once they reach the target. */
+                private boolean $unchangedSizeReaches(final $maskType $mask, final long $target) {
+                    if ($target == 0) {
+                        return true;
+                    }
+                $sizeInit
+                $measurements
+                    return false;
+                }
+                """.replace("$model", model)
+                .replace("$maskType", maskType)
+                .replace("$maskCheck\n", maskValidation(fields, wide, "mask").indent(DEFAULT_INDENT))
+                .replace("$sizeInit\n", fields.isEmpty() ? "" : "int _size = 0;\n".indent(DEFAULT_INDENT))
+                .replace("$measurements\n", measurements.indent(DEFAULT_INDENT));
     }
 
-    private static void generateRequireDiffable(Code code, String model) {
-        code.line("/** Diffs are top-level field replacements, which cannot carry unknown fields. */")
-                .open("private static void $requireDiffable(final " + model + " value) {")
-                .open("if (!value.getUnknownFields().isEmpty()) {")
-                .line("throw new UnsupportedOperationException(\"Unknown fields require a full replacement\");")
-                .close("}")
-                .close("}")
-                .line("");
+    private static String generateRequireDiffable(String model) {
+        return """
+                /** Diffs are top-level field replacements, which cannot carry unknown fields. */
+                private static void $requireDiffable(final $model value) {
+                    if (!value.getUnknownFields().isEmpty()) {
+                        throw new UnsupportedOperationException("Unknown fields require a full replacement");
+                    }
+                }
+                """.replace("$model", model);
     }
 
-    private static void generateClearedFields(
-            Code code, String model, List<Field> fields, String maskType, boolean wide) {
-        code.line("/**")
-                .line(
-                        " * List the selected fields whose new value is the default, including every inactive alternative")
-                .line(" * of a selected oneof.")
-                .line(" *")
-                .line(" * @param next the next value")
-                .line(" * @param mask mask of the selected fields")
-                .line(" * @return the field numbers to clear, in ascending order")
-                .line(" */")
-                .open("public static int[] clearedFields(final " + model + " next, final " + maskType + " mask) {")
-                .line("return clearedFields(null, next, mask);")
-                .close("}")
-                .line("");
-
+    private static String generateClearedFields(String model, List<Field> fields, String maskType, boolean wide) {
         final List<Clear> clears = new ArrayList<>();
         for (int i = 0; i < fields.size(); i++) {
-            final Field f = fields.get(i);
-            final String name = f.nameCamelFirstLower();
-            if (f instanceof OneOfField group) {
+            final Field field = fields.get(i);
+            final String name = field.nameCamelFirstLower();
+            if (field instanceof OneOfField group) {
                 for (Field alt : group.fields()) {
                     clears.add(new Clear(
                             alt.fieldNumber(),
@@ -239,147 +222,206 @@ final class DiffGenerator {
                                     + ".kind().protoOrdinal() == " + alt.fieldNumber() + ")"));
                 }
             } else {
-                clears.add(new Clear(f.fieldNumber(), isSet("mask", i, wide) + " && " + absent(f, "next." + name)));
+                clears.add(new Clear(
+                        field.fieldNumber(), isSet("mask", i, wide) + " && " + absent(field, "next." + name)));
             }
         }
         clears.sort(Comparator.comparingInt(Clear::fieldNumber));
+        final String clearChecks = clears.stream()
+                .map(clear -> """
+                        if ($condition) {
+                            cleared[count++] = $number;
+                        }
+                        """.replace("$condition", clear.condition())
+                        .replace("$number", Integer.toString(clear.fieldNumber())))
+                .collect(Collectors.joining());
+        final String clearBody = clears.isEmpty()
+                ? "return new int[0];\n"
+                : """
+                final int[] cleared = new int[$count];
+                int count = 0;
+                $clearChecks
+                return count == cleared.length ? cleared : java.util.Arrays.copyOf(cleared, count);
+                """.replace("$count", Integer.toString(clears.size())).replace("$clearChecks\n", clearChecks);
+        return """
+                /**
+                 * List the selected fields whose new value is the default, including every inactive alternative
+                 * of a selected oneof.
+                 *
+                 * @param next the next value
+                 * @param mask mask of the selected fields
+                 * @return the field numbers to clear, in ascending order
+                 */
+                public static int[] clearedFields(final $model next, final $maskType mask) {
+                    return clearedFields(null, next, mask);
+                }
 
-        code.line("/**")
-                .line(
-                        " * List the selected fields whose new value is the default. With a prior value, a selected oneof")
-                .line(" * clears only the alternative that was set before, if it is no longer set.")
-                .line(" *")
-                .line(" * @param prior the prior value, or null to clear every inactive oneof alternative")
-                .line(" * @param next the next value")
-                .line(" * @param mask mask of the selected fields")
-                .line(" * @return the field numbers to clear, in ascending order")
-                .line(" */")
-                .open("public static int[] clearedFields(final @Nullable " + model + " prior, final " + model
-                        + " next, final " + maskType + " mask) {")
-                .line("$requireDiffable(next);")
-                .open("if (prior != null) {")
-                .line("$requireDiffable(prior);")
-                .close("}");
-        checkMaskLength(code, fields, wide, "mask");
-        if (clears.isEmpty()) {
-            code.line("return new int[0];").close("}").line("");
-            return;
-        }
-        code.line("final int[] cleared = new int[" + clears.size() + "];").line("int count = 0;");
-        for (Clear clear : clears) {
-            code.open("if (" + clear.condition() + ") {")
-                    .line("cleared[count++] = " + clear.fieldNumber() + ";")
-                    .close("}");
-        }
-        code.line("return count == cleared.length ? cleared : Arrays.copyOf(cleared, count);")
-                .close("}")
-                .line("");
+                /**
+                 * List the selected fields whose new value is the default. With a prior value, a selected oneof
+                 * clears only the alternative that was set before, if it is no longer set.
+                 *
+                 * @param prior the prior value, or null to clear every inactive oneof alternative
+                 * @param next the next value
+                 * @param mask mask of the selected fields
+                 * @return the field numbers to clear, in ascending order
+                 */
+                public static int[] clearedFields(final @Nullable $model prior, final $model next, final $maskType mask) {
+                    $requireDiffable(next);
+                    if (prior != null) {
+                        $requireDiffable(prior);
+                    }
+                $maskCheck
+                $clearBody
+                }
+                """.replace("$model", model)
+                .replace("$maskType", maskType)
+                .replace("$maskCheck\n", maskValidation(fields, wide, "mask").indent(DEFAULT_INDENT))
+                .replace("$clearBody\n", clearBody.indent(DEFAULT_INDENT));
     }
 
-    private static void generateApplyPartial(Code code, String model, List<Field> fields) {
-        code.line("/**")
-                .line(" * Apply a partial value to a prior value without serialization, for consumers that hold models")
-                .line(" * rather than bytes. The object-level equivalent of {@link PartialApplier#splice}.")
-                .line(" *")
-                .line(" * @param prior the prior value")
-                .line(" * @param partial the replacement fields, as produced by {@link #partial}")
-                .line(" * @param cleared the field numbers to reset to their defaults, in ascending order")
-                .line(" * @return the next value")
-                .line(" * @throws IllegalArgumentException if a field is both replaced and cleared, a field number is")
-                .line(" *         unknown, or a oneof switch does not clear its old alternative")
-                .line(" */")
-                .open("public static " + model + " applyPartial(final " + model + " prior, final " + model
-                        + " partial, final int[] cleared) {")
-                .line("$requireDiffable(prior);")
-                .line("$requireDiffable(partial);")
-                .line("PartialApplier.validateCleared(cleared);");
-        for (Field f : fields) {
-            code.line("boolean " + clearFlag(f) + " = false;");
-        }
-        code.open("for (final int number : cleared) {").open("switch (number) {");
-        for (Field f : fields) {
-            final String name = f.nameCamelFirstLower();
-            if (f instanceof OneOfField group) {
+    private static String generateApplyPartial(String model, List<Field> fields) {
+        final String clearFlags = fields.stream()
+                .map(field -> "boolean " + clearFlag(field) + " = false;\n")
+                .collect(Collectors.joining());
+        final StringBuilder clearCases = new StringBuilder();
+        final StringBuilder oneofChecks = new StringBuilder();
+        for (Field field : fields) {
+            final String name = field.nameCamelFirstLower();
+            if (field instanceof OneOfField group) {
                 for (Field alt : group.fields()) {
-                    code.open("case " + alt.fieldNumber() + " -> {");
-                    throwIfReplacedAndCleared(
-                            code, "partial." + name + ".kind().protoOrdinal() == " + alt.fieldNumber());
-                    code.open("if (prior." + name + ".kind().protoOrdinal() == " + alt.fieldNumber() + ") {")
-                            .line(clearFlag(f) + " = true;")
-                            .close("}")
-                            .close("}");
+                    clearCases.append("""
+                            case $number -> {
+                            $conflictCheck
+                                if (prior.$name.kind().protoOrdinal() == $number) {
+                                    $clearFlag = true;
+                                }
+                            }
+                            """.replace("$number", Integer.toString(alt.fieldNumber()))
+                            .replace(
+                                    "$conflictCheck\n",
+                                    throwIfReplacedAndCleared("partial." + name + ".kind().protoOrdinal() == "
+                                                    + alt.fieldNumber())
+                                            .indent(DEFAULT_INDENT))
+                            .replace("$name", name)
+                            .replace("$clearFlag", clearFlag(field)));
                 }
+                oneofChecks.append("""
+                        if ($partialPresent && $priorPresent
+                                && partial.$name.kind() != prior.$name.kind()
+                                && !$clearFlag) {
+                            throw new IllegalArgumentException("Oneof switch must clear its old alternative");
+                        }
+                        """.replace("$partialPresent", present(field, "partial." + name))
+                        .replace("$priorPresent", present(field, "prior." + name))
+                        .replace("$name", name)
+                        .replace("$clearFlag", clearFlag(field)));
             } else {
-                code.open("case " + f.fieldNumber() + " -> {");
-                throwIfReplacedAndCleared(code, present(f, "partial." + name));
-                code.line(clearFlag(f) + " = true;").close("}");
+                clearCases.append("""
+                        case $number -> {
+                        $conflictCheck
+                            $clearFlag = true;
+                        }
+                        """.replace("$number", Integer.toString(field.fieldNumber()))
+                        .replace(
+                                "$conflictCheck\n",
+                                throwIfReplacedAndCleared(present(field, "partial." + name))
+                                        .indent(DEFAULT_INDENT))
+                        .replace("$clearFlag", clearFlag(field)));
             }
         }
-        code.line("default -> throw new IllegalArgumentException(\"Unknown cleared field: \" + number);")
-                .close("}")
-                .close("}");
-        for (Field f : fields) {
-            if (!(f instanceof OneOfField)) continue;
-            final String name = f.nameCamelFirstLower();
-            code.open("if (" + present(f, "partial." + name) + " && " + present(f, "prior." + name))
-                    .line("    && partial." + name + ".kind() != prior." + name + ".kind()")
-                    .line("    && !" + clearFlag(f) + ") {")
-                    .line("throw new IllegalArgumentException(\"Oneof switch must clear its old alternative\");")
-                    .close("}");
-        }
-        final List<String> arguments = new ArrayList<>();
-        for (Field f : fields) {
-            final String name = f.nameCamelFirstLower();
-            arguments.add(present(f, "partial." + name) + " ? partial." + name + " : " + clearFlag(f) + " ? DEFAULT."
-                    + name + " : prior." + name);
-        }
-        construct(code, model, arguments);
-        code.close("}").line("");
+        final List<String> arguments = fields.stream()
+                .map(field -> {
+                    final String name = field.nameCamelFirstLower();
+                    return present(field, "partial." + name) + " ? partial." + name + " : " + clearFlag(field)
+                            + " ? DEFAULT." + name + " : prior." + name;
+                })
+                .toList();
+        return """
+                /**
+                 * Apply a partial value to a prior value without serialization, for consumers that hold models
+                 * rather than bytes. The object-level equivalent of {@link PartialApplier#splice}.
+                 *
+                 * @param prior the prior value
+                 * @param partial the replacement fields, as produced by {@link #partial}
+                 * @param cleared the field numbers to reset to their defaults, in ascending order
+                 * @return the next value
+                 * @throws IllegalArgumentException if a field is both replaced and cleared, a field number is
+                 *         unknown, or a oneof switch does not clear its old alternative
+                 */
+                public static $model applyPartial(final $model prior, final $model partial, final int[] cleared) {
+                    $requireDiffable(prior);
+                    $requireDiffable(partial);
+                    PartialApplier.validateCleared(cleared);
+                $clearFlags
+                    for (final int number : cleared) {
+                        switch (number) {
+                $clearCases
+                            default -> throw new IllegalArgumentException("Unknown cleared field: " + number);
+                        }
+                    }
+                $oneofChecks
+                $construction
+                }
+                """.replace("$model", model)
+                .replace("$clearFlags\n", clearFlags.indent(DEFAULT_INDENT))
+                .replace("$clearCases\n", clearCases.toString().indent(DEFAULT_INDENT * 3))
+                .replace("$oneofChecks\n", oneofChecks.toString().indent(DEFAULT_INDENT))
+                .replace("$construction\n", construct(model, arguments).indent(DEFAULT_INDENT));
     }
 
-    private static void throwIfReplacedAndCleared(Code code, String replaced) {
-        code.open("if (" + replaced + ") {")
-                .line("throw new IllegalArgumentException(\"Field is both replaced and cleared: \" + number);")
-                .close("}");
+    private static String throwIfReplacedAndCleared(String replaced) {
+        return """
+                if ($replaced) {
+                    throw new IllegalArgumentException("Field is both replaced and cleared: " + number);
+                }
+                """.replace("$replaced", replaced);
     }
 
-    private static void generateEqualsForDiff(Code code, String model, List<Field> fields) {
-        code.line("/** {@inheritDoc} */")
-                .line("@Override")
-                .open("public boolean $equalsForDiff(final Object other) {")
-                .open("if (this == other) {")
-                .line("return true;")
-                .close("}")
-                .open("if (!(other instanceof " + model + " that)) {")
-                .line("return false;")
-                .close("}");
-        for (Field f : fields) {
-            final String name = f.nameCamelFirstLower();
-            code.open("if (" + different(f, "this." + name, "that." + name) + ") {")
-                    .line("return false;")
-                    .close("}");
-        }
-        code.line("return getUnknownFields().equals(that.getUnknownFields());").close("}");
+    static String generateEqualsForDiff(String model, List<Field> fields) {
+        final String comparisons = fields.stream()
+                .map(field -> {
+                    final String name = field.nameCamelFirstLower();
+                    return """
+                            if ($different) {
+                                return false;
+                            }
+                            """.replace("$different", different(field, "this." + name, "that." + name));
+                })
+                .collect(Collectors.joining());
+        return """
+                /** {@inheritDoc} */
+                @Override
+                public boolean $equalsForDiff(final Object other) {
+                    if (this == other) {
+                        return true;
+                    }
+                    if (!(other instanceof $model that)) {
+                        return false;
+                    }
+                $comparisons
+                    return getUnknownFields().equals(that.getUnknownFields());
+                }
+                """.replace("$model", model).replace("$comparisons\n", comparisons.indent(DEFAULT_INDENT));
     }
 
     /** Emit a model construction with no unknown fields, one argument per line. */
-    private static void construct(Code code, String model, List<String> arguments) {
+    private static String construct(String model, List<String> arguments) {
         final List<String> all = new ArrayList<>(arguments);
         all.add("null");
-        code.line("return new " + model + "(");
-        code.depth += 2;
-        for (int i = 0; i < all.size(); i++) {
-            code.line(all.get(i) + (i < all.size() - 1 ? "," : ");"));
-        }
-        code.depth -= 2;
+        return """
+                return new $model(
+                $arguments);
+                """.replace("$model", model).replace(
+                "$arguments", String.join(",\n", all).indent(DEFAULT_INDENT * 2).stripTrailing());
     }
 
-    private static void checkMaskLength(Code code, List<Field> fields, boolean wide, String mask) {
-        if (!wide) return;
-        final int words = CopyBuilderGenerator.maskWords(fields);
-        code.open("if (" + mask + ".length != " + words + ") {")
-                .line("throw new IllegalArgumentException(\"Mask must have " + words + " words\");")
-                .close("}");
+    private static String maskValidation(List<Field> fields, boolean wide, String mask) {
+        if (!wide) return "";
+        return """
+                if ($mask.length != $words) {
+                    throw new IllegalArgumentException("Mask must have $words words");
+                }
+                """.replace("$mask", mask).replace("$words", Integer.toString(CopyBuilderGenerator.maskWords(fields)));
     }
 
     private static String allFields(List<Field> fields, boolean wide) {
@@ -441,7 +483,8 @@ final class DiffGenerator {
         if (f.optionalValueType()) {
             final boolean floating =
                     f.messageType().equals("FloatValue") || f.messageType().equals("DoubleValue");
-            return "!" + (floating ? "DiffSupport.equal" : "Objects.equals") + "(" + a + ", " + b + ")";
+            return "!" + (floating ? "com.hedera.pbj.runtime.DiffSupport.equal" : "java.util.Objects.equals") + "(" + a
+                    + ", " + b + ")";
         }
         if (f.repeated()) {
             final boolean needsWireEquality =
@@ -449,11 +492,17 @@ final class DiffGenerator {
                         case FLOAT, DOUBLE, ENUM, MESSAGE -> true;
                         default -> false;
                     };
-            return "!" + (needsWireEquality ? "DiffSupport.equal" : "Objects.equals") + "(" + a + ", " + b + ")";
+            return "!" + (needsWireEquality ? "com.hedera.pbj.runtime.DiffSupport.equal" : "java.util.Objects.equals")
+                    + "(" + a + ", " + b + ")";
         }
         return switch (f.type()) {
-            case STRING, BYTES -> "!Objects.equals(" + a + ", " + b + ")";
+            case STRING, BYTES -> "!java.util.Objects.equals(" + a + ", " + b + ")";
             case MESSAGE, MAP, ONE_OF -> "!DiffSupport.equal(" + a + ", " + b + ")";
+            // Both signs of zero are omitted for singular scalars; NaNs must compare their raw payloads.
+            case FLOAT ->
+                a + " != " + b + " && Float.floatToRawIntBits(" + a + ") != Float.floatToRawIntBits(" + b + ")";
+            case DOUBLE ->
+                a + " != " + b + " && Double.doubleToRawLongBits(" + a + ") != Double.doubleToRawLongBits(" + b + ")";
             case ENUM ->
                 "(" + a + " == null ? 0 : EnumWithProtoMetadata.protoOrdinal(" + a + ")) != (" + b
                         + " == null ? 0 : EnumWithProtoMetadata.protoOrdinal(" + b + "))";

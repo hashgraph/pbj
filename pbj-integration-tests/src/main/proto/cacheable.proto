@@ -19,6 +19,7 @@ message NotCacheableAccountID {
 }
 
 // <<<pbj.cacheable = 16>>>
+// <<<pbj.copy_builder_tracking = true>>>
 message CacheableAccountID {
   int64 shardNum = 1;
   int64 realmNum = 2;

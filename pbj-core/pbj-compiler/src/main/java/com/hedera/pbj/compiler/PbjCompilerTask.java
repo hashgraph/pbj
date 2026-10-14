@@ -74,6 +74,14 @@ public abstract class PbjCompilerTask extends SourceTask {
     @Input
     public abstract Property<Boolean> getGenerateCopyBuilderTracking();
 
+    /** Explicit protobuf diff roots; empty by default. */
+    @Input
+    public abstract SetProperty<String> getDiffMessages();
+
+    /** Protobuf messages whose direct message fields select diff roots; empty by default. */
+    @Input
+    public abstract SetProperty<String> getDiffMessageContainers();
+
     /** Src folders to determine the relative path of files to resolve import statements. */
     @Internal
     public abstract SetProperty<File> getSourceRoots();
@@ -99,6 +107,8 @@ public abstract class PbjCompilerTask extends SourceTask {
                 getJavaTestOutputDirectory().get().getAsFile(),
                 getJavaPackageSuffix().getOrNull(),
                 getGenerateTestClasses().getOrElse(Boolean.FALSE),
-                getGenerateCopyBuilderTracking().getOrElse(Boolean.FALSE));
+                getGenerateCopyBuilderTracking().getOrElse(Boolean.FALSE),
+                getDiffMessages().getOrElse(java.util.Set.of()),
+                getDiffMessageContainers().getOrElse(java.util.Set.of()));
     }
 }

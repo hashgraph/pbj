@@ -95,8 +95,17 @@ jmh {
 // Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
 pbj {
     javaPackageSuffix = ".pbj.integration.tests"
-    // Opt in so the integration fixtures exercise copy-builder tracking as well as diff helpers.
-    generateCopyBuilderTracking = true
+    diffMessageContainers = setOf("proto.DiffCatalog")
+    // Leave tracking at its default (false). Local annotations cover the tracked path;
+    // representative HAPI roots compile and run without tracking.
+    diffMessages =
+        setOf(
+            "proto.Account",
+            "proto.Token",
+            "proto.Topic",
+            "proto.PlainDiffRoot",
+            "com.hedera.hapi.platform.state.PlatformState",
+        )
 }
 
 // Add downloaded HAPI repo protobuf files into build directory and add to sources to build them

@@ -108,12 +108,14 @@ public final class TestGenerator implements Generator {
                 public final class $testClassName {
                 $testMethod
                 $testArguments
+                $diffTests
                 """
                 .replace("$testClassAnnotations", testClassAnnotations)
                 .replace("$modelClass", modelClassName)
                 .replace("$testClassName", testClassName)
-                .replace("$testMethod", generateTestMethod(lookupHelper.getCompleteClass(msgDef), protoCJavaFullQualifiedClass).indent(DEFAULT_INDENT))
-                .replace("$testArguments", generateModelTestArgumentsMethod(lookupHelper.getCompleteClass(msgDef), fields).indent(DEFAULT_INDENT))
+                .replace("$testMethod", generateTestMethod(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, lookupHelper.getCompleteClass(msgDef)).indent(DEFAULT_INDENT))
+                .replace("$testArguments", generateModelTestArgumentsMethod(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), fields, lookupHelper.getCompleteClass(msgDef)).indent(DEFAULT_INDENT))
+                .replace("$diffTests", lookupHelper.hasDiffApis(msgDef) ? generateDiffTests(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, fields, lookupHelper.generateCopyBuilderTracking(msgDef)) : "")
         );
         // spotless:on
 
@@ -126,7 +128,115 @@ public final class TestGenerator implements Generator {
         writer.append("}");
     }
 
-    private static String generateModelTestArgumentsMethod(final String modelClassName, final List<Field> fields) {
+    private static String generateDiffTests(String model, String protoc, List<Field> fields, boolean tracking) {
+        String roundTrips = """
+                @Test
+                public void testPartialRoundTrip() throws Exception {
+                    assertInstanceOf(com.hedera.pbj.runtime.DiffCodec.class, $model.PROTOBUF);
+                    for (int i = 0; i < ARGUMENTS.size(); i++) {
+                        final var value = ARGUMENTS.get(i);
+                        checkPartialRoundTrip(value, ARGUMENTS.get((i + 1) % ARGUMENTS.size()));
+                        checkPartialRoundTrip($model.DEFAULT, value);
+                        checkPartialRoundTrip(value, $model.DEFAULT);
+                    }
+                }
+
+                private void checkPartialRoundTrip($model prior, $model next) throws Exception {
+                    final var mask = $model.diff(prior, next);
+                    final var partial = $model.partial(next, mask);
+                    final var priorBytes = $model.PROTOBUF.toBytes(prior);
+                    final var nextBytes = $model.PROTOBUF.toBytes(next);
+                    final var partialBytes = $model.PROTOBUF.toBytes(partial);
+                    final var precise = $model.clearedFields(prior, next, mask);
+                    final var broad = $model.clearedFields(next, mask);
+                    for (var cleared : new int[][] { precise, broad }) {
+                        assertEquals(nextBytes, com.hedera.pbj.runtime.PartialApplier.splice(priorBytes, partialBytes, cleared));
+                        final var applied = $model.applyPartial(prior, partial, cleared);
+                        assertTrue(next.$equalsForDiff(applied));
+                        assertEquals(nextBytes, $model.PROTOBUF.toBytes(applied));
+                    }
+                    assertArrayEquals(partialBytes.toByteArray(), $protoc.parseFrom(partialBytes.toByteArray()).toByteArray());
+                    final long saving = nextBytes.length() - partialBytes.length();
+                    for (int threshold : new int[] { 0, 1, 32, 128 }) {
+                        for (int overhead : new int[] { 0, 17 }) {
+                            assertEquals(saving >= (long) threshold + overhead,
+                                    $model.worthPartial(next, mask, threshold, overhead));
+                        }
+                    }
+                }
+                """.replace("$model", model).replace("$protoc", protoc);
+        if (!tracking) return roundTrips.indent(DEFAULT_INDENT);
+        final var setters = new StringBuilder();
+        for (Field field : fields) {
+            String name = field.nameCamelFirstLower();
+            String set;
+            if (field instanceof OneOfField group) {
+                set = "switch (donor." + name + "().kind()) {\n";
+                for (Field alternative : group.fields()) {
+                    set += "case " + com.hedera.pbj.compiler.impl.Common.camelToUpperSnake(alternative.name())
+                            + " -> builder." + alternative.nameCamelFirstLower() + "(donor."
+                            + alternative.nameCamelFirstLower() + "());\n";
+                }
+                set += "default -> builder.clear" + field.nameCamelFirstUpper() + "();\n}\n";
+            } else {
+                set = "builder." + name + "(donor." + name + "());\n";
+            }
+            int number = field instanceof OneOfField group
+                    ? group.fields().getFirst().fieldNumber()
+                    : field.fieldNumber();
+            setters.append("""
+                    {
+                        final var builder = prior.copyBuilder();
+                    $set
+                        final var next = builder.build();
+                        assertTrue(next.$copyBuilderFieldChanged($number));
+                        assertSame(prior, next.$copyBuilderOrigin());
+                        final var detached = next.$untracked();
+                        $maskAssertion
+                        if (donor == prior) {
+                            $emptyMaskAssertion
+                        }
+                        checkPartialRoundTrip(prior, next);
+                        assertTrue(next.$equalsForDiff(detached));
+                        assertEquals(next.hashCode(), detached.hashCode());
+                        assertEquals($model.PROTOBUF.toBytes(next), $model.PROTOBUF.toBytes(detached));
+                        final var chained = next.copyBuilder().build();
+                        assertSame(prior, chained.$copyBuilderOrigin());
+                        assertEquals($model.PROTOBUF.toBytes(next), $model.PROTOBUF.toBytes(chained));
+                    }
+                    """.replace("$set\n", set.indent(DEFAULT_INDENT))
+                    .replace("$number", Integer.toString(number))
+                    .replace(
+                            "$maskAssertion",
+                            fields.size() > Long.SIZE
+                                    ? "assertArrayEquals(" + model + ".diff(prior, detached), " + model
+                                            + ".diff(prior, next));"
+                                    : "assertEquals(" + model + ".diff(prior, detached), " + model
+                                            + ".diff(prior, next));")
+                    .replace(
+                            "$emptyMaskAssertion",
+                            fields.size() > Long.SIZE
+                                    ? "assertArrayEquals(new long[" + ((fields.size() + Long.SIZE - 1) / Long.SIZE)
+                                            + "], " + model + ".diff(prior, next));"
+                                    : "assertEquals(0L, " + model + ".diff(prior, next));")
+                    .replace("$model", model));
+        }
+        // Re-run every generated setter with the same prior as donor: candidates are marked, but the diff is empty.
+        String tracked = """
+                @Test
+                public void testCopyBuilderTracking() throws Exception {
+                    final var prior = ARGUMENTS.getFirst();
+                    for ($model donor : List.of(ARGUMENTS.get(Math.min(1, ARGUMENTS.size() - 1)), prior)) {
+                $setters
+                    }
+                }
+                """.replace("$model", model)
+                .replace("$setters\n", setters.toString().indent(DEFAULT_INDENT * 2));
+        return (roundTrips + tracked).indent(DEFAULT_INDENT);
+    }
+
+    private static String generateModelTestArgumentsMethod(
+            final String modelClassName, final List<Field> fields, final String selfType) {
         // spotless:off
         return
                 """
@@ -158,17 +268,17 @@ public final class TestGenerator implements Generator {
                     return ARGUMENTS.stream().map(NoToStringWrapper::new);
                 }
                 """.formatted(modelClassName,fields.stream()
-                            .filter(field -> !field.javaFieldType().equals(modelClassName))
+                            .filter(field -> !field.javaFieldType().equals(selfType))
                             .map(f -> "final var %sList = %s;".formatted(f.nameCamelFirstLower(),
                                     generateTestData(modelClassName, f, f.optionalValueType(), f.repeated())))
                             .collect(Collectors.joining("\n")).indent(DEFAULT_INDENT),
-                    fields.stream().filter(field -> !field.javaFieldType().equals(modelClassName))
+                    fields.stream().filter(field -> !field.javaFieldType().equals(selfType))
                             .map(f -> f.nameCamelFirstLower()+"List.size()")
                             .collect(Collectors.collectingAndThen(Collectors.toList(),
                                     list -> list.isEmpty() ? Stream.of("0") : list.stream()))
                             .collect(Collectors.joining(",\n")).indent(DEFAULT_INDENT * 2),
                     modelClassName,
-                    fields.stream().map(field -> field.javaFieldType().equals(modelClassName)
+                    fields.stream().map(field -> field.javaFieldType().equals(selfType)
                             ? field.javaFieldType() + ".newBuilder().build()"
                             : "$nameList.get(Math.min(i, $nameList.size()-1))"
                                     .replace("$name", field.nameCamelFirstLower()))
@@ -287,7 +397,7 @@ public final class TestGenerator implements Generator {
             case BYTES -> "BYTES_TESTS_LIST";
             // Skip the special UNRECOGNIZED constant in tests because it cannot(shouldn't) be set by client code
             case ENUM ->
-                "Arrays.asList(%s.values()).stream().filter(e -> !\"UNRECOGNIZED\".equals(e.name())).toList()"
+                "java.util.Arrays.asList(%s.values()).stream().filter(e -> !\"UNRECOGNIZED\".equals(e.name())).toList()"
                         .formatted(javaFieldType);
             case ONE_OF ->
                 throw new RuntimeException("Should never happen, should have been caught in generateTestData()");
@@ -307,7 +417,8 @@ public final class TestGenerator implements Generator {
      * @param protoCJavaFullQualifiedClass The qualified class name of the protoc generated object class
      * @return Code for test method
      */
-    private static String generateTestMethod(final String modelClassName, final String protoCJavaFullQualifiedClass) {
+    private static String generateTestMethod(
+            final String modelClassName, final String protoCJavaFullQualifiedClass, final String testName) {
         // spotless:off
         return """
                 /** A reference to the protoc generated object class. */
@@ -331,7 +442,7 @@ public final class TestGenerator implements Generator {
                     // clamp limit to bytes written
                     dataBuffer.limit(dataBuffer.position());
                 
-                    Arrays.fill(bytesArray, (byte) 0);
+                    java.util.Arrays.fill(bytesArray, (byte) 0);
                     $modelClassName.PROTOBUF.write(modelObj, bytesArray, 0);
 
                     // copy bytes to ByteBuffer
@@ -342,12 +453,12 @@ public final class TestGenerator implements Generator {
                 
                     // Check the write(byte[]) output against write(WritableSequentialData):
                     dataBuffer.resetPosition();
-                    final int mismatchIndex = Arrays.mismatch(byteBuffer.array(), 0, protoBufByteCount, bytesArray, 0, protoBufByteCount);
+                    final int mismatchIndex = java.util.Arrays.mismatch(byteBuffer.array(), 0, protoBufByteCount, bytesArray, 0, protoBufByteCount);
                     if (mismatchIndex != -1) {
                         fail("Mismatch at index " + mismatchIndex +
                                 ": in buffer got " + byteBuffer.array()[mismatchIndex] + ", but in array got " + bytesArray[mismatchIndex] +
                                 ".\\nBuffer:\\n" + dataBuffer.toString() +
-                                "\\nArray:\\n" + Arrays.toString(Arrays.copyOf(bytesArray, protoBufByteCount)) +
+                                "\\nArray:\\n" + java.util.Arrays.toString(java.util.Arrays.copyOf(bytesArray, protoBufByteCount)) +
                                 "\\nModel:\\n" + modelObj +
                                 "\\nProtobuf size:\\n" + protoBufByteCount
                         );
@@ -359,7 +470,7 @@ public final class TestGenerator implements Generator {
                             fail("write(byte[]) wrote more bytes into array than write(WritableSequentialData) into buffer," +
                                     " e.g. at index " + i + " got " + bytesArray[i] + " but expected zero." +
                                     "\\nBuffer:\\n" + dataBuffer.toString() +
-                                    "\\nArray:\\n" + Arrays.toString(Arrays.copyOf(bytesArray, protoBufByteCount)) +
+                                    "\\nArray:\\n" + java.util.Arrays.toString(java.util.Arrays.copyOf(bytesArray, protoBufByteCount)) +
                                     "\\nModel:\\n" + modelObj +
                                     "\\nProtobuf size:\\n" + protoBufByteCount
                             );
@@ -452,7 +563,7 @@ public final class TestGenerator implements Generator {
                     assertEquals($modelClassName.DEFAULT, codecDefaultInstance);
                 }
                 """
-                .replace("$simpleModelClassName", modelClassName.replace(".", ""))
+                .replace("$simpleModelClassName", testName.replace(".", ""))
                 .replace("$modelClassName",modelClassName)
                 .replace("$protocModelClass",protoCJavaFullQualifiedClass);
         // spotless:on

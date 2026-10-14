@@ -90,6 +90,9 @@ final class CopyBuilderGenerator {
                 private long[] $copyBuilderChanged;
 
                 private void $markChanged(final int word, final long bit) {
+                    if ($copyBuilderOrigin == null) {
+                        return;
+                    }
                     if ($copyBuilderChanged == null) {
                         $copyBuilderChanged = new long[$words];
                     }
@@ -105,10 +108,10 @@ final class CopyBuilderGenerator {
             return "return " + create + ";";
         }
         return """
-                final Builder builder = $create;
-                builder.$copyBuilderOrigin = $copyBuilderOrigin == null ? this : $copyBuilderOrigin;
-                builder.$copyBuilderChanged = $copyChanged;
-                return builder;""".replace("$create", create).replace(
+                final Builder $builder = $create;
+                $builder.$copyBuilderOrigin = $copyBuilderOrigin == null ? this : $copyBuilderOrigin;
+                $builder.$copyBuilderChanged = $copyChanged;
+                return $builder;""".replace("$create", create).replace(
                 "$copyChanged",
                 isWide(fields)
                         ? "$copyBuilderChanged == null ? null : $copyBuilderChanged.clone()"

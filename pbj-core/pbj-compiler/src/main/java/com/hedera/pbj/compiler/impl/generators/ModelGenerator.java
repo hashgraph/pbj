@@ -91,10 +91,8 @@ public final class ModelGenerator implements Generator {
         writer.addImport("edu.umd.cs.findbugs.annotations.*");
         writer.addImport(lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef));
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
-        writer.addImport("java.util.Arrays");
         writer.addImport("java.util.Collections");
         writer.addImport("java.util.List");
-        writer.addImport("java.util.Objects");
 
         // Iterate over all the items in the protobuf schema
         for (final var item : msgDef.messageBody().messageElement()) {
@@ -205,9 +203,10 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         bodyContent += "private final List<UnknownField> $unknownFields;".indent(DEFAULT_INDENT);
-        final ConstructorTracking publicTracking =
-                lookupHelper.generateCopyBuilderTracking() ? ConstructorTracking.UNTRACKED : ConstructorTracking.NONE;
-        if (lookupHelper.generateCopyBuilderTracking()) {
+        final ConstructorTracking publicTracking = lookupHelper.generateCopyBuilderTracking(msgDef)
+                ? ConstructorTracking.UNTRACKED
+                : ConstructorTracking.NONE;
+        if (lookupHelper.generateCopyBuilderTracking(msgDef)) {
             bodyContent += "\n";
             bodyContent += CopyBuilderGenerator.modelMembers(javaRecordName, fieldsNoPrecomputed);
         }
@@ -327,7 +326,7 @@ public final class ModelGenerator implements Generator {
             }
         }
 
-        if (lookupHelper.generateCopyBuilderTracking()) {
+        if (lookupHelper.generateCopyBuilderTracking(msgDef)) {
             // private constructor used by Builder.build() to carry provenance into the new instance
             bodyContent += generateConstructor(
                     javaRecordName,
@@ -378,9 +377,16 @@ public final class ModelGenerator implements Generator {
                 LazyGetProtobufSizeMethodGenerator.generateLazyGetProtobufSize(fieldsNoPrecomputed, schemaClassName);
         bodyContent += "\n";
 
-        // Diff helpers are stateless and available even when provenance generation is disabled.
-        bodyContent += DiffGenerator.generate(
-                javaRecordName, fieldsNoPrecomputed, schemaClassName, lookupHelper.generateCopyBuilderTracking());
+        if (lookupHelper.hasDiffApis(msgDef)) {
+            bodyContent += DiffGenerator.generate(
+                    javaRecordName,
+                    fieldsNoPrecomputed,
+                    schemaClassName,
+                    lookupHelper.generateCopyBuilderTracking(msgDef));
+        } else if (lookupHelper.hasDiffEquality(msgDef)) {
+            bodyContent += DiffGenerator.generateEqualsForDiff(javaRecordName, fieldsNoPrecomputed)
+                    .indent(DEFAULT_INDENT);
+        }
 
         // hashCode method
         bodyContent += generateHashCode(javaRecordName, fieldsNoPrecomputed);
@@ -410,7 +416,7 @@ public final class ModelGenerator implements Generator {
 
         // builder copy & new builder methods
         bodyContent = generateBuilderFactoryMethods(
-                bodyContent, fieldsNoPrecomputed, lookupHelper.generateCopyBuilderTracking());
+                bodyContent, fieldsNoPrecomputed, lookupHelper.generateCopyBuilderTracking(msgDef));
         bodyContent += "\n";
 
         // generate builder
@@ -459,14 +465,16 @@ public final class ModelGenerator implements Generator {
             implementsComparable = "";
         }
 
-        if (lookupHelper.generateCopyBuilderTracking()) {
+        if (lookupHelper.generateCopyBuilderTracking(msgDef)) {
             implementsComparable = (isComparable ? implementsComparable.stripTrailing() + ", " : "implements ")
                     + "CopyBuilderTracked<$javaRecordName> ";
         }
 
-        implementsComparable =
-                (implementsComparable.isEmpty() ? "implements " : implementsComparable.stripTrailing() + ", ")
-                        + "DiffSupport.Value ";
+        if (lookupHelper.hasDiffEquality(msgDef)) {
+            implementsComparable =
+                    (implementsComparable.isEmpty() ? "implements " : implementsComparable.stripTrailing() + ", ")
+                            + "com.hedera.pbj.runtime.DiffSupport.Value ";
+        }
 
         final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
 
@@ -1392,7 +1400,7 @@ public final class ModelGenerator implements Generator {
         for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
             final Field field = fields.get(fieldIndex);
             // appended to each setter's assignment line, at the setter body's indentation
-            final String trackingMark = lookupHelper.generateCopyBuilderTracking()
+            final String trackingMark = lookupHelper.generateCopyBuilderTracking(msgDef)
                     ? "\n" + " ".repeat(DEFAULT_INDENT) + CopyBuilderGenerator.mark(fields, fieldIndex)
                     : "";
             if (field.type() == Field.FieldType.ONE_OF) {
@@ -1473,13 +1481,13 @@ public final class ModelGenerator implements Generator {
                 .replace("$prePopulatedObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, false, false, true, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE) : "")
                 .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, false, false, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE))
                 .replace("$prePopulatedWithUnknownFieldsObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, true, false, true, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE) : "")
-                .replace("$trackingFields", lookupHelper.generateCopyBuilderTracking()
+                .replace("$trackingFields", lookupHelper.generateCopyBuilderTracking(msgDef)
                         ? "\n" + CopyBuilderGenerator.builderMembers(javaRecordName, fields)
                                 .indent(DEFAULT_INDENT).stripTrailing()
                         : "")
                 .replace("$javaRecordName",javaRecordName)
                 .replace("$recordParams", CopyBuilderGenerator.constructorArguments(fields)
-                        + (lookupHelper.generateCopyBuilderTracking() ? ", $copyBuilderOrigin, $copyBuilderChanged" : ""))
+                        + (lookupHelper.generateCopyBuilderTracking(msgDef) ? ", $copyBuilderOrigin, $copyBuilderChanged" : ""))
                 .replace("$builderMethods", String.join("\n", builderMethods))
                 .replace("$getterMethods", generateRecordStyleGetters(fields, true))
                 .indent(DEFAULT_INDENT);

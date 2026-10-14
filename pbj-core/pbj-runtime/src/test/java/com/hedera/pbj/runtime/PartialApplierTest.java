@@ -25,6 +25,16 @@ class PartialApplierTest {
     }
 
     @Test
+    void capturesTheFirstRunAtTheNextFieldOrEndOfInput() {
+        final var firstRun = bytes("0a01610a0162");
+        assertEquals(firstRun, PartialApplier.splice(Bytes.EMPTY, firstRun, new int[0]));
+        final var prior = bytes("0a01610a01621001");
+        assertEquals(firstRun, PartialApplier.splice(prior, Bytes.EMPTY, new int[] {2}));
+        assertEquals(bytes("0a01631001"), PartialApplier.splice(prior, bytes("0a0163"), new int[0]));
+        assertEquals(bytes("1001"), PartialApplier.splice(prior, Bytes.EMPTY, new int[] {1}));
+    }
+
+    @Test
     void preservesFixedWidthsOpaqueNestedPayloadsAndNegativeVarints() {
         final var all = bytes("08ffffffffffffffffff011100000000000000001a02ffff2500000000");
         assertEquals(all, PartialApplier.splice(Bytes.EMPTY, all, new int[0]));

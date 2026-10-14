@@ -7,10 +7,15 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Schema-free top-level protobuf replacement. Inputs must use ascending field order and canonical
- * varints. All occurrences of a field form one replacement run. Empty length-delimited values retain
+ * Schema-free top-level protobuf replacement for PBJ-encoded state values and partial updates.
+ * Inputs must use ascending field order and canonical varints. All occurrences of a field form one
+ * replacement run. Empty length-delimited values retain
  * their presence; payloads are opaque. Oneof switches MUST explicitly clear the old alternative.
  * This utility cannot validate schema-dependent defaults, oneofs, packed contents, or nested messages.
+ *
+ * <p>Arbitrary protobuf encodings, including client-submitted transactions, need not meet these
+ * requirements. If using another encoder, normalize the values with their schema and the appropriate
+ * PBJ codec before splicing. This utility does not normalize field order or varints.
  */
 public final class PartialApplier {
     private PartialApplier() {}
@@ -95,6 +100,8 @@ public final class PartialApplier {
             final int number = (int) (tag >>> 3);
             if (number < field) throw new IllegalArgumentException("Fields are not in ascending order");
             if (number != field) {
+                // Finish the previous run at the next field's tag. The first tag only starts a run;
+                // a buffer containing one field run is captured at EOF below.
                 if (field != 0) runs.add(new Run(field, bytes, start, tagStart));
                 field = number;
                 start = tagStart;

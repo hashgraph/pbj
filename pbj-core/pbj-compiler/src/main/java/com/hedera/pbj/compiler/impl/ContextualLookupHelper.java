@@ -38,8 +38,19 @@ public class ContextualLookupHelper {
     }
 
     /** Whether generated models should include copy-builder provenance. */
-    public boolean generateCopyBuilderTracking() {
-        return generateCopyBuilderTracking;
+    public boolean generateCopyBuilderTracking(MessageDefContext message) {
+        return hasDiffApis(message)
+                && LookupHelper.messageOption(message, "pbj.copy_builder_tracking", generateCopyBuilderTracking);
+    }
+
+    /** Whether this message is selected for the full diff API. */
+    public boolean hasDiffApis(MessageDefContext message) {
+        return lookupHelper.hasDiffApis(message);
+    }
+
+    /** Whether this message is a root or a dependency needing safe diff comparison. */
+    public boolean hasDiffEquality(MessageDefContext message) {
+        return lookupHelper.hasDiffEquality(message);
     }
 
     /** Get the LookupHelper instance backing this ContextualLookupHelper. */

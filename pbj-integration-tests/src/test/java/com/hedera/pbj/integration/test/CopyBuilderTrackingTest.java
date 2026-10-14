@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.CopyBuilderTracked;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.CacheableAccountID;
+import com.hedera.pbj.test.proto.pbj.CopyBuilderFieldNamesModel;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hedera.pbj.test.proto.pbj.MessageWithBytes;
 import com.hedera.pbj.test.proto.pbj.MessageWithBytesAndString;
@@ -17,6 +18,21 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CopyBuilderTrackingTest {
+    @Test
+    void copyBuilderPreservesAndTracksAFieldNamedBuilder() {
+        final var root = CopyBuilderFieldNamesModel.newBuilder().builder("old").build();
+        final var unchanged = root.copyBuilder().build();
+        assertSame(root, unchanged.$copyBuilderOrigin());
+        assertEquals("old", unchanged.builder());
+        assertEquals(0L, CopyBuilderFieldNamesModel.diff(root, unchanged));
+
+        final var next = unchanged.copyBuilder().builder("new").build();
+        assertSame(root, next.$copyBuilderOrigin());
+        assertTrue(next.$copyBuilderFieldChanged(1));
+        assertEquals(1L, CopyBuilderFieldNamesModel.diff(root, next));
+        assertEquals("new", next.builder());
+    }
+
     @Test
     void chainsRetainTheRootAndSettersMarkCandidatesEvenWhenValuesAreRestored() {
         final var root =
