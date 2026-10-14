@@ -38,6 +38,7 @@ public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
     }
 
     private record StubbedRandomAccessData(@NonNull byte[] bytes) implements RandomAccessData {
+
         @Override
         public long length() {
             return bytes.length;
@@ -69,6 +70,11 @@ public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
         @Override
         public void writeTo(@NonNull MessageDigest digest) {
             digest.update(bytes);
+        }
+
+        @Override
+        public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
+            return dst.putBytes(dstOffset, bytes);
         }
     }
 }

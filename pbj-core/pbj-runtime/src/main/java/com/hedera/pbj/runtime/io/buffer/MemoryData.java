@@ -622,6 +622,19 @@ public final class MemoryData
         return len;
     }
 
+    @Override
+    public int putBytes(final long offset, @NonNull final ByteBuffer src) {
+        if (offset < 0) {
+            throw new IllegalArgumentException("Negative offsets not allowed");
+        }
+        final int len = src.remaining();
+        if (offset + len > limit) {
+            throw new BufferOverflowException();
+        }
+        MemorySegment.copy(MemorySegment.ofBuffer(src), src.position(), segment, offset, len);
+        return len;
+    }
+
     @Override // to follow BufferedData semantics and not modify the dst position
     public long getBytes(final long offset, @NonNull final ByteBuffer dst) {
         final var len = Math.min(dst.remaining(), length() - offset);
@@ -671,6 +684,11 @@ public final class MemoryData
     @Override
     public void writeTo(@NonNull MessageDigest digest) {
         digest.update(segment.asByteBuffer().limit(Math.toIntExact(limit)));
+    }
+
+    @Override
+    public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
+        return dst.putBytes(dstOffset, segment.asByteBuffer().limit(Math.toIntExact(limit)));
     }
 
     @Override

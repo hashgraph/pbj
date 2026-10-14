@@ -136,6 +136,27 @@ public interface RandomAccessData {
         return putBytes(offset, src, 0, src.length);
     }
 
+    ///
+    /// Writes a given byte buffer to the current object at a specified offset, in bytes.
+    ///
+    /// @return The number of bytes written.
+    /// @throws BufferOverflowException if the number of available bytes in the source buffer
+    /// is greater than the remaining bytes after the offset in this object
+    ///
+    default int putBytes(final long offset, @NonNull final ByteBuffer src) {
+        checkOffset(offset);
+        if (offset + length() > src.remaining()) {
+            throw new BufferOverflowException();
+        }
+
+        int pos = 0;
+        while (src.hasRemaining()) {
+            putByte(offset + pos, src.get());
+            pos++;
+        }
+        return pos;
+    }
+
     /**
      * Get bytes starting at the given {@code offset} into the destination {@link ByteBuffer}, up to
      * {@link ByteBuffer#remaining()} number of bytes. If {@link ByteBuffer#remaining()} is larger than the number
@@ -710,6 +731,15 @@ public interface RandomAccessData {
      * @param digest a MessageDigest to write data to
      */
     void writeTo(@NonNull final MessageDigest digest);
+
+    ///
+    /// Writes the entire copy of the data into a given random access object at a
+    /// specified offset.
+    ///
+    /// @throws BufferOverflowException if there is no room in the target object to
+    ///         write all bytes from this object at the specified offset
+    ///
+    long writeTo(@NonNull final RandomAccessData dst, final long dstOffset);
 
     /**
      * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative.

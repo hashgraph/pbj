@@ -403,6 +403,19 @@ public sealed class BufferedData
         return len;
     }
 
+    @Override
+    public int putBytes(final long offset, @NonNull final ByteBuffer src) {
+        if (offset < 0) {
+            throw new IllegalArgumentException("Negative offsets not allowed");
+        }
+        final int len = src.remaining();
+        if (offset + len > buffer.limit()) {
+            throw new BufferOverflowException();
+        }
+        buffer.put(Math.toIntExact(offset), src, src.position(), len);
+        return len;
+    }
+
     /** {@inheritDoc} */
     @Override
     public long getBytes(final long offset, @NonNull final ByteBuffer dst) {
@@ -943,6 +956,11 @@ public sealed class BufferedData
         // more reasonable than allocating a single large byte array to consume all the data at once.
         // So we probably don't need faster versions of this method because this one should be the fastest.
         digest.update(buffer);
+    }
+
+    @Override
+    public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
+        return dst.putBytes(dstOffset, buffer);
     }
 
     // Helper methods

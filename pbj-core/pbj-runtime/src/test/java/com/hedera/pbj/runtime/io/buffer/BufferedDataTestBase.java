@@ -504,6 +504,14 @@ abstract class BufferedDataTestBase<
     }
 
     @Nested
+    final class RandomAccessWriteTest extends RandomAccessWriteTestBase {
+        @Override
+        protected @NonNull RandomAccessData randomAccessData(@NonNull byte[] bytes) {
+            return BufferedData.wrap(bytes);
+        }
+    }
+
+    @Nested
     final class WritableSequentialDataTest extends WritableTestBase {
         @NonNull
         @Override
