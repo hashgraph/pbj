@@ -134,7 +134,7 @@ public final class TestGenerator implements Generator {
                 public void testPartialRoundTrip() throws Exception {
                     assertInstanceOf(com.hedera.pbj.runtime.DiffCodec.class, $model.PROTOBUF);
                     for (int i = 0; i < ARGUMENTS.size(); i++) {
-                        final var value = ARGUMENTS.get(i);
+                        final $model value = ARGUMENTS.get(i);
                         checkPartialRoundTrip(value, ARGUMENTS.get((i + 1) % ARGUMENTS.size()));
                         checkPartialRoundTrip($model.DEFAULT, value);
                         checkPartialRoundTrip(value, $model.DEFAULT);
@@ -142,16 +142,16 @@ public final class TestGenerator implements Generator {
                 }
 
                 private void checkPartialRoundTrip($model prior, $model next) throws Exception {
-                    final var mask = $model.diff(prior, next);
-                    final var partial = $model.partial(next, mask);
-                    final var priorBytes = $model.PROTOBUF.toBytes(prior);
-                    final var nextBytes = $model.PROTOBUF.toBytes(next);
-                    final var partialBytes = $model.PROTOBUF.toBytes(partial);
-                    final var precise = $model.clearedFields(prior, next, mask);
-                    final var broad = $model.clearedFields(next, mask);
-                    for (var cleared : new int[][] { precise, broad }) {
+                    final $maskType mask = $model.diff(prior, next);
+                    final $model partial = $model.partial(next, mask);
+                    final com.hedera.pbj.runtime.io.buffer.Bytes priorBytes = $model.PROTOBUF.toBytes(prior);
+                    final com.hedera.pbj.runtime.io.buffer.Bytes nextBytes = $model.PROTOBUF.toBytes(next);
+                    final com.hedera.pbj.runtime.io.buffer.Bytes partialBytes = $model.PROTOBUF.toBytes(partial);
+                    final int[] precise = $model.clearedFields(prior, next, mask);
+                    final int[] broad = $model.clearedFields(next, mask);
+                    for (int[] cleared : new int[][] { precise, broad }) {
                         assertEquals(nextBytes, com.hedera.pbj.runtime.PartialApplier.splice(priorBytes, partialBytes, cleared));
-                        final var applied = $model.applyPartial(prior, partial, cleared);
+                        final $model applied = $model.applyPartial(prior, partial, cleared);
                         assertTrue(next.$equalsForDiff(applied));
                         assertEquals(nextBytes, $model.PROTOBUF.toBytes(applied));
                     }
@@ -164,9 +164,11 @@ public final class TestGenerator implements Generator {
                         }
                     }
                 }
-                """.replace("$model", model).replace("$protoc", protoc);
+                """.replace("$maskType", CopyBuilderGenerator.maskType(fields))
+                .replace("$model", model)
+                .replace("$protoc", protoc);
         if (!tracking) return roundTrips.indent(DEFAULT_INDENT);
-        final var setters = new StringBuilder();
+        final StringBuilder setters = new StringBuilder();
         for (Field field : fields) {
             String name = field.nameCamelFirstLower();
             String set;
@@ -186,12 +188,12 @@ public final class TestGenerator implements Generator {
                     : field.fieldNumber();
             setters.append("""
                     {
-                        final var builder = prior.copyBuilder();
+                        final $model.Builder builder = prior.copyBuilder();
                     $set
-                        final var next = builder.build();
+                        final $model next = builder.build();
                         assertTrue(next.$copyBuilderFieldChanged($number));
                         assertSame(prior, next.$copyBuilderOrigin());
-                        final var detached = next.$untracked();
+                        final $model detached = next.$untracked();
                         $maskAssertion
                         if (donor == prior) {
                             $emptyMaskAssertion
@@ -200,7 +202,7 @@ public final class TestGenerator implements Generator {
                         assertTrue(next.$equalsForDiff(detached));
                         assertEquals(next.hashCode(), detached.hashCode());
                         assertEquals($model.PROTOBUF.toBytes(next), $model.PROTOBUF.toBytes(detached));
-                        final var chained = next.copyBuilder().build();
+                        final $model chained = next.copyBuilder().build();
                         assertSame(prior, chained.$copyBuilderOrigin());
                         assertEquals($model.PROTOBUF.toBytes(next), $model.PROTOBUF.toBytes(chained));
                     }
@@ -225,7 +227,7 @@ public final class TestGenerator implements Generator {
         String tracked = """
                 @Test
                 public void testCopyBuilderTracking() throws Exception {
-                    final var prior = ARGUMENTS.getFirst();
+                    final $model prior = ARGUMENTS.getFirst();
                     for ($model donor : List.of(ARGUMENTS.get(Math.min(1, ARGUMENTS.size() - 1)), prior)) {
                 $setters
                     }

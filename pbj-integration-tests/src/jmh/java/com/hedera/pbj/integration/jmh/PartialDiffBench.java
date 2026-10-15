@@ -40,7 +40,7 @@ public class PartialDiffBench {
         final Bytes payload = Bytes.wrap(new byte[payloadSize]);
         switch (model) {
             case "SMALL" -> {
-                final var root = CacheableAccountID.newBuilder()
+                final CacheableAccountID root = CacheableAccountID.newBuilder()
                         .shardNum(1)
                         .alias(payload)
                         .build();
@@ -49,7 +49,7 @@ public class PartialDiffBench {
                 codec = (DiffCodec<Object>) (DiffCodec<?>) CacheableAccountID.PROTOBUF;
             }
             case "EVERYTHING" -> {
-                final var root = Everything.newBuilder()
+                final Everything root = Everything.newBuilder()
                         .bytesField(payload)
                         .int32Number(1)
                         .build();
@@ -58,7 +58,7 @@ public class PartialDiffBench {
                 codec = (DiffCodec<Object>) (DiffCodec<?>) Everything.PROTOBUF;
             }
             case "WIDE", "WIDE_POPULATED" -> {
-                final var builder = WideTrackedModel.newBuilder()
+                final WideTrackedModel.Builder builder = WideTrackedModel.newBuilder()
                         .text("x".repeat(payloadSize))
                         .value1(1);
                 if (model.equals("WIDE_POPULATED")) {
@@ -67,7 +67,7 @@ public class PartialDiffBench {
                         builder.getClass().getMethod("value" + i, long.class).invoke(builder, (long) i);
                     }
                 }
-                final var root = builder.build();
+                final WideTrackedModel root = builder.build();
                 prior = root;
                 tracked = root.copyBuilder().value1(2).build();
                 codec = (DiffCodec<Object>) (DiffCodec<?>) WideTrackedModel.PROTOBUF;
@@ -76,7 +76,7 @@ public class PartialDiffBench {
         }
         plain = CopyBuilderTracked.untracked(tracked);
         mask = codec.diff(prior, tracked);
-        final var partial = codec.partial(tracked, mask);
+        final Object partial = codec.partial(tracked, mask);
         cleared = codec.clearedFields(prior, tracked, mask);
         priorBytes = codec.toBytes(prior);
         partialBytes = codec.toBytes(partial);

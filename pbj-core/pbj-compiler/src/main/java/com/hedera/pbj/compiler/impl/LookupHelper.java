@@ -136,15 +136,25 @@ public final class LookupHelper {
     private final Set<String> diffEqualityMessages = new HashSet<>();
 
     /**
+     * Roots with at most this many mask entries get no copy-builder tracking from the project setting. Comparing a
+     * few fields costs about as much as checking a mask, and tracking is per class, so small ubiquitous types such as
+     * IDs and timestamps would otherwise carry tracking state in every instance. An explicit
+     * {@code pbj.copy_builder_tracking} comment overrides this.
+     */
+    public static final int MAX_UNTRACKED_DIFF_ENTRIES = 8;
+
+    /**
      * Select roots explicitly or from a catalog's direct message fields, then walk nested dependencies.
      * Misspelled selections fail compilation rather than silently losing optimization.
      */
     public void selectDiffMessages(Set<String> roots, Set<String> containers) {
         diffRoots.clear();
         diffEqualityMessages.clear();
-        for (var entry : messageDefinitions.entrySet()) {
-            if (messageOption(entry.getValue(), "pbj.diff")
-                    || messageOption(entry.getValue(), "pbj.copy_builder_tracking")) diffRoots.add(entry.getKey());
+        for (Map.Entry<String, MessageDefContext> entry : messageDefinitions.entrySet()) {
+            final MessageDefContext message = entry.getValue();
+            if (messageOption(message, "pbj.diff") || messageOption(message, "pbj.copy_builder_tracking")) {
+                diffRoots.add(entry.getKey());
+            }
         }
         for (String root : roots) {
             requireMessage(root);
@@ -154,7 +164,7 @@ public final class LookupHelper {
             requireMessage(container);
             diffRoots.addAll(messageDependencies(container));
         }
-        final var pending = new ArrayDeque<>(diffRoots);
+        final ArrayDeque<String> pending = new ArrayDeque<>(diffRoots);
         while (!pending.isEmpty()) {
             String name = pending.removeFirst();
             if (diffEqualityMessages.add(name)) pending.addAll(messageDependencies(name));
@@ -162,17 +172,25 @@ public final class LookupHelper {
     }
 
     private void requireMessage(String name) {
-        if (!messageDefinitions.containsKey(name)) throw new IllegalArgumentException("Unknown diff message: " + name);
+        if (!messageDefinitions.containsKey(name)) {
+            throw new IllegalArgumentException("Unknown diff message: " + name);
+        }
     }
 
     private Set<String> messageDependencies(String name) {
-        final var dependencies = new HashSet<String>();
-        for (var element : messageDefinitions.get(name).messageBody().messageElement()) {
-            if (element.field() != null) addDependency(name, element.field().type_(), dependencies);
-            if (element.mapField() != null)
+        final Set<String> dependencies = new HashSet<>();
+        for (MessageElementContext element :
+                messageDefinitions.get(name).messageBody().messageElement()) {
+            if (element.field() != null) {
+                addDependency(name, element.field().type_(), dependencies);
+            }
+            if (element.mapField() != null) {
                 addDependency(name, element.mapField().type_(), dependencies);
+            }
             if (element.oneof() != null) {
-                for (var field : element.oneof().oneofField()) addDependency(name, field.type_(), dependencies);
+                for (Protobuf3Parser.OneofFieldContext field : element.oneof().oneofField()) {
+                    addDependency(name, field.type_(), dependencies);
+                }
             }
         }
         return dependencies;
@@ -195,15 +213,24 @@ public final class LookupHelper {
         return diffEqualityMessages.contains(getFullyQualifiedProtoNameForContext(message));
     }
 
-    /** Read a boolean PBJ message option from its special comments. */
-    public static boolean messageOption(MessageDefContext message, String option) {
-        return messageOption(message, option, false);
+    /** Number of diff mask entries: one per ordinary or map field, and one per oneof group. */
+    public static int diffEntryCount(MessageDefContext message) {
+        int count = 0;
+        for (MessageElementContext element : message.messageBody().messageElement()) {
+            if (element.field() != null || element.mapField() != null || element.oneof() != null) count++;
+        }
+        return count;
     }
 
-    /** Read a boolean option, falling back to the project setting when absent. */
-    public static boolean messageOption(MessageDefContext message, String option, boolean defaultValue) {
-        for (var comment : message.optionComment()) {
-            var matcher = OPTION_COMMENT.matcher(comment.getText());
+    /** Read a boolean PBJ message option from its special comments, defaulting to false. */
+    public static boolean messageOption(MessageDefContext message, String option) {
+        return Boolean.TRUE.equals(messageOptionValue(message, option));
+    }
+
+    /** Read a boolean PBJ message option from its special comments, or null when it is absent. */
+    public static @Nullable Boolean messageOptionValue(MessageDefContext message, String option) {
+        for (Protobuf3Parser.OptionCommentContext comment : message.optionComment()) {
+            final java.util.regex.Matcher matcher = OPTION_COMMENT.matcher(comment.getText());
             if (matcher.find() && matcher.group(1).equals(option)) {
                 String value = matcher.group(2).trim();
                 if (!value.equals("true") && !value.equals("false")) {
@@ -212,7 +239,7 @@ public final class LookupHelper {
                 return Boolean.parseBoolean(value);
             }
         }
-        return defaultValue;
+        return null;
     }
 
     /**

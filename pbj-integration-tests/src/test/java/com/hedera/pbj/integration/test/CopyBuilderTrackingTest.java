@@ -20,13 +20,15 @@ import org.junit.jupiter.api.Test;
 class CopyBuilderTrackingTest {
     @Test
     void copyBuilderPreservesAndTracksAFieldNamedBuilder() {
-        final var root = CopyBuilderFieldNamesModel.newBuilder().builder("old").build();
-        final var unchanged = root.copyBuilder().build();
+        final CopyBuilderFieldNamesModel root =
+                CopyBuilderFieldNamesModel.newBuilder().builder("old").build();
+        final CopyBuilderFieldNamesModel unchanged = root.copyBuilder().build();
         assertSame(root, unchanged.$copyBuilderOrigin());
         assertEquals("old", unchanged.builder());
         assertEquals(0L, CopyBuilderFieldNamesModel.diff(root, unchanged));
 
-        final var next = unchanged.copyBuilder().builder("new").build();
+        final CopyBuilderFieldNamesModel next =
+                unchanged.copyBuilder().builder("new").build();
         assertSame(root, next.$copyBuilderOrigin());
         assertTrue(next.$copyBuilderFieldChanged(1));
         assertEquals(1L, CopyBuilderFieldNamesModel.diff(root, next));
@@ -35,12 +37,12 @@ class CopyBuilderTrackingTest {
 
     @Test
     void chainsRetainTheRootAndSettersMarkCandidatesEvenWhenValuesAreRestored() {
-        final var root =
+        final Everything root =
                 Everything.newBuilder().int32Number(1).text("unchanged").build();
         assertNull(root.$copyBuilderOrigin());
         assertSame(root, root.$untracked());
-        final var middle = root.copyBuilder().int32Number(2).build();
-        final var next = middle.copyBuilder()
+        final Everything middle = root.copyBuilder().int32Number(2).build();
+        final Everything next = middle.copyBuilder()
                 .int32Number(1)
                 .bytesField(Bytes.wrap("new"))
                 .build();
@@ -50,7 +52,7 @@ class CopyBuilderTrackingTest {
         assertTrue(next.$copyBuilderFieldChanged(17));
         assertFalse(next.$copyBuilderFieldChanged(16));
         assertFalse(next.$copyBuilderFieldChanged(999));
-        final var detached = next.$untracked();
+        final Everything detached = next.$untracked();
         assertNotSame(next, detached);
         assertEquals(next, detached);
         assertNull(detached.$copyBuilderOrigin());
@@ -60,14 +62,14 @@ class CopyBuilderTrackingTest {
 
     @Test
     void oneofSettersAndClearMarkEveryAlternativeIncludingSelectedZero() {
-        final var root = Everything.newBuilder().textOneOf("old").build();
-        final var switched = root.copyBuilder().int32NumberOneOf(0).build();
+        final Everything root = Everything.newBuilder().textOneOf("old").build();
+        final Everything switched = root.copyBuilder().int32NumberOneOf(0).build();
         assertTrue(switched.$copyBuilderFieldChanged(100001));
         assertTrue(switched.$copyBuilderFieldChanged(100016));
         assertFalse(switched.$copyBuilderFieldChanged(1));
-        final var builder = switched.copyBuilder();
+        final Everything.Builder builder = switched.copyBuilder();
         builder.clearOneofExample();
-        final var unset = builder.build();
+        final Everything unset = builder.build();
         assertSame(root, unset.$copyBuilderOrigin());
         assertTrue(unset.$copyBuilderFieldChanged(100016));
         assertEquals(
@@ -76,8 +78,8 @@ class CopyBuilderTrackingTest {
 
     @Test
     void messageBuilderListVarargsMapsAndOptionalWrapperSettersAreTracked() {
-        final var root = Everything.DEFAULT;
-        final var next = root.copyBuilder()
+        final Everything root = Everything.DEFAULT;
+        final Everything next = root.copyBuilder()
                 .subObject(TimestampTest.newBuilder().seconds(123))
                 .textList("a", "b")
                 .int32NumberList(List.of(1, 2))
@@ -93,11 +95,11 @@ class CopyBuilderTrackingTest {
 
     @Test
     void wideMasksAreImmutableSnapshotsAcrossBuilderReuseAndForks() {
-        final var root = WideTrackedModel.DEFAULT;
-        final var builder = root.copyBuilder().value1(1).value64(64);
-        final var first = builder.build();
-        final var second = builder.value65(65).build();
-        final var fork = second.copyBuilder().value70(70).number(0).build();
+        final WideTrackedModel root = WideTrackedModel.DEFAULT;
+        final WideTrackedModel.Builder builder = root.copyBuilder().value1(1).value64(64);
+        final WideTrackedModel first = builder.build();
+        final WideTrackedModel second = builder.value65(65).build();
+        final WideTrackedModel fork = second.copyBuilder().value70(70).number(0).build();
         assertTrue(first.$copyBuilderFieldChanged(100));
         assertTrue(first.$copyBuilderFieldChanged(163));
         assertFalse(first.$copyBuilderFieldChanged(164));
@@ -109,7 +111,7 @@ class CopyBuilderTrackingTest {
         assertSame(root, fork.$copyBuilderOrigin());
         assertFalse(fork.$untracked().$copyBuilderFieldChanged(100));
         // builders allocate a wide mask lazily, but tracked instances always carry one
-        final var unchanged = root.copyBuilder().build();
+        final WideTrackedModel unchanged = root.copyBuilder().build();
         assertSame(root, unchanged.$copyBuilderOrigin());
         assertFalse(unchanged.$copyBuilderFieldChanged(100));
         assertArrayEquals(new long[2], WideTrackedModel.diff(root, unchanged));
@@ -117,9 +119,10 @@ class CopyBuilderTrackingTest {
 
     @Test
     void trackingHasNoEffectOnValueSemanticsCodecsOrCachedModels() throws Exception {
-        final var root = CacheableAccountID.newBuilder().accountNum(123).build();
-        final var tracked = root.copyBuilder().shardNum(1).build();
-        final var plain =
+        final CacheableAccountID root =
+                CacheableAccountID.newBuilder().accountNum(123).build();
+        final CacheableAccountID tracked = root.copyBuilder().shardNum(1).build();
+        final CacheableAccountID plain =
                 CacheableAccountID.newBuilder().shardNum(1).accountNum(123).build();
         assertEquals(plain, tracked);
         assertEquals(plain.hashCode(), tracked.hashCode());
@@ -130,7 +133,8 @@ class CopyBuilderTrackingTest {
         assertNull(CacheableAccountID.PROTOBUF
                 .parse(CacheableAccountID.PROTOBUF.toBytes(tracked))
                 .$copyBuilderOrigin());
-        final var jsonParsed = CacheableAccountID.JSON.parse(Bytes.wrap(CacheableAccountID.JSON.toJSON(tracked)));
+        final CacheableAccountID jsonParsed =
+                CacheableAccountID.JSON.parse(Bytes.wrap(CacheableAccountID.JSON.toJSON(tracked)));
         assertNull(jsonParsed.$copyBuilderOrigin());
         assertSame(plain, CopyBuilderTracked.untracked(plain));
         assertEquals(plain, CopyBuilderTracked.untracked(tracked));
@@ -139,11 +143,11 @@ class CopyBuilderTrackingTest {
 
     @Test
     void copyBuildersAndUntrackedCopiesPreserveUnknownFields() throws Exception {
-        final var bytes = MessageWithBytesAndString.PROTOBUF.toBytes(
+        final Bytes bytes = MessageWithBytesAndString.PROTOBUF.toBytes(
                 new MessageWithBytesAndString(Bytes.wrap("known"), "unknown"));
-        final var root =
+        final MessageWithBytes root =
                 MessageWithBytes.PROTOBUF.parse(bytes.toReadableSequentialData(), false, true, Codec.DEFAULT_MAX_DEPTH);
-        final var next = root.copyBuilder().build();
+        final MessageWithBytes next = root.copyBuilder().build();
         assertFalse(next.getUnknownFields().isEmpty());
         assertEquals(root, next);
         assertEquals(bytes, MessageWithBytes.PROTOBUF.toBytes(next));

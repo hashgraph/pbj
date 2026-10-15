@@ -16,8 +16,8 @@ class PartialApplierTest {
 
     @Test
     void replacesWholeRepeatedRunsPreservesEmptyPresenceAndDropsClears() {
-        final var old = bytes("080112016112001801220178");
-        final var patch = bytes("12001201622a00");
+        final Bytes old = bytes("080112016112001801220178");
+        final Bytes patch = bytes("12001201622a00");
         assertEquals(bytes("080112001201622a00"), PartialApplier.splice(old, patch, new int[] {3, 4}));
         assertEquals(old, PartialApplier.splice(old, Bytes.EMPTY, new int[0]));
         assertEquals(Bytes.EMPTY, PartialApplier.splice(old, Bytes.EMPTY, new int[] {1, 2, 3, 4}));
@@ -26,9 +26,9 @@ class PartialApplierTest {
 
     @Test
     void capturesTheFirstRunAtTheNextFieldOrEndOfInput() {
-        final var firstRun = bytes("0a01610a0162");
+        final Bytes firstRun = bytes("0a01610a0162");
         assertEquals(firstRun, PartialApplier.splice(Bytes.EMPTY, firstRun, new int[0]));
-        final var prior = bytes("0a01610a01621001");
+        final Bytes prior = bytes("0a01610a01621001");
         assertEquals(firstRun, PartialApplier.splice(prior, Bytes.EMPTY, new int[] {2}));
         assertEquals(bytes("0a01631001"), PartialApplier.splice(prior, bytes("0a0163"), new int[0]));
         assertEquals(bytes("1001"), PartialApplier.splice(prior, Bytes.EMPTY, new int[] {1}));
@@ -36,7 +36,7 @@ class PartialApplierTest {
 
     @Test
     void preservesFixedWidthsOpaqueNestedPayloadsAndNegativeVarints() {
-        final var all = bytes("08ffffffffffffffffff011100000000000000001a02ffff2500000000");
+        final Bytes all = bytes("08ffffffffffffffffff011100000000000000001a02ffff2500000000");
         assertEquals(all, PartialApplier.splice(Bytes.EMPTY, all, new int[0]));
     }
 

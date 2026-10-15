@@ -26,7 +26,7 @@ pbj {
     generateTestClasses = true       // generate JUnit 5 tests (default: true)
     diffMessages = setOf<String>()           // diff roots by protobuf message name (default: empty)
     diffMessageContainers = setOf<String>()  // catalogs whose message-valued fields are diff roots (default: empty)
-    generateCopyBuilderTracking = false      // copy-builder tracking on diff roots (default: false)
+    generateCopyBuilderTracking = false      // copy-builder tracking on larger diff roots (default: false)
 }
 ```
 
@@ -120,7 +120,7 @@ Message comments can select a message as a diff root (see [Partial Updates (Diff
 // <<<pbj.diff = true>>>
 message Topic { ... }
 
-// Diff APIs plus copy-builder tracking, regardless of the project setting
+// Diff APIs plus copy-builder tracking, regardless of the project setting or the message size
 // <<<pbj.copy_builder_tracking = true>>>
 message Account { ... }
 
@@ -482,7 +482,7 @@ pbj {
     // The container itself is not selected.
     diffMessageContainers = setOf("com.hedera.hapi.platform.state.StateValue")
 
-    // Optional: track touched fields in copy builders on roots, to speed up diff()
+    // Optional: track touched fields in copy builders on roots with more than 8 entries, to speed up diff()
     generateCopyBuilderTracking = true
 }
 ```
@@ -513,14 +513,23 @@ discover diff support with `instanceof DiffCodec` and work with opaque `Object` 
 
 ### Copy-Builder Tracking
 
-With tracking enabled (`generateCopyBuilderTracking = true` or `pbj.copy_builder_tracking = true`), a root implements
-`CopyBuilderTracked<T>`. Values built through `copyBuilder()` remember the instance they were copied from and which
+A tracked root implements `CopyBuilderTracked<T>`. Values built through `copyBuilder()` remember the instance they were copied from and which
 setters were called. When `next` was copied directly from `prior`, `diff(prior, next)` checks only the touched
 fields. Otherwise it compares every field. Either way, the result is identical. Tracking only affects CPU cost and
 never appears in `equals()`, `hashCode()`, `toString()` or the codecs. `CopyBuilderTracked.untracked(value)` returns
 an equal copy without tracking state.
 
-Tracking adds per-instance state to the root only. Nested types such as IDs and timestamps don't change.
+Which roots are tracked:
+
+- `pbj.copy_builder_tracking = true` or `= false` on a message always wins.
+- Otherwise, `generateCopyBuilderTracking = true` tracks only roots with **more than 8 mask entries** (ordinary and
+  map fields, plus one per oneof group). Smaller roots keep the diff APIs and compare every field, which costs about
+  the same as checking a mask.
+
+Tracking is a property of the generated class, so it adds an object reference and a mask to **every** instance of a
+tracked root, including instances nested inside other messages. The size limit keeps small, widely used roots, such
+as `AccountID` and `Timestamp` when selected through `StateValue`, from paying that cost everywhere. If you annotate a
+small type with `pbj.copy_builder_tracking = true`, it pays the same cost.
 
 ### Producer and Consumer Contract
 

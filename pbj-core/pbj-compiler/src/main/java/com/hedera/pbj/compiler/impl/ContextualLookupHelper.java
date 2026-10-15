@@ -37,10 +37,17 @@ public class ContextualLookupHelper {
         this.generateCopyBuilderTracking = generateCopyBuilderTracking;
     }
 
-    /** Whether generated models should include copy-builder provenance. */
+    /**
+     * Whether generated models should include copy-builder provenance. An explicit {@code pbj.copy_builder_tracking}
+     * comment wins; otherwise the project setting applies to roots with more than
+     * {@link LookupHelper#MAX_UNTRACKED_DIFF_ENTRIES} mask entries.
+     */
     public boolean generateCopyBuilderTracking(MessageDefContext message) {
-        return hasDiffApis(message)
-                && LookupHelper.messageOption(message, "pbj.copy_builder_tracking", generateCopyBuilderTracking);
+        if (!hasDiffApis(message)) return false;
+        final Boolean explicit = LookupHelper.messageOptionValue(message, "pbj.copy_builder_tracking");
+        if (explicit != null) return explicit;
+        return generateCopyBuilderTracking
+                && LookupHelper.diffEntryCount(message) > LookupHelper.MAX_UNTRACKED_DIFF_ENTRIES;
     }
 
     /** Whether this message is selected for the full diff API. */

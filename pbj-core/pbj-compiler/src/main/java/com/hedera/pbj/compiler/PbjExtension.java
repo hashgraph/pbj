@@ -23,8 +23,9 @@ public interface PbjExtension {
 
     /**
      * Generate transient copy-builder origin and candidate-field tracking for selected diff roots, which is false by default.
-     * Tracking only accelerates diffs, so disabling it saves the per-instance cost without changing protobuf
-     * encodings, value semantics, or diff results.
+     * Applies only to roots with more than 8 mask entries; an explicit {@code pbj.copy_builder_tracking} comment
+     * overrides this. Tracking only accelerates diffs, so disabling it saves the per-instance cost without changing
+     * protobuf encodings, value semantics, or diff results.
      * @return the tracking generation property
      */
     Property<Boolean> getGenerateCopyBuilderTracking();

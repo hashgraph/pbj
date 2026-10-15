@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -38,14 +39,14 @@ public final class DiffSupport {
         if (a instanceof Value value) return value.$equalsForDiff(b);
         if (a instanceof List<?> x && b instanceof List<?> y) {
             if (x.size() != y.size()) return false;
-            final var xi = x.iterator();
-            final var yi = y.iterator();
+            final Iterator<?> xi = x.iterator();
+            final Iterator<?> yi = y.iterator();
             while (xi.hasNext()) if (!equal(xi.next(), yi.next())) return false;
             return true;
         }
         if (a instanceof Map<?, ?> x && b instanceof Map<?, ?> y) {
             if (x.size() != y.size()) return false;
-            for (var entry : x.entrySet()) {
+            for (Map.Entry<?, ?> entry : x.entrySet()) {
                 if (!y.containsKey(entry.getKey()) || !equal(entry.getValue(), y.get(entry.getKey()))) return false;
             }
             return true;
