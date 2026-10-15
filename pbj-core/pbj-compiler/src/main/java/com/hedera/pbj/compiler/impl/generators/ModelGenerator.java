@@ -467,7 +467,7 @@ public final class ModelGenerator implements Generator {
 
         if (lookupHelper.generateCopyBuilderTracking(msgDef)) {
             implementsComparable = (isComparable ? implementsComparable.stripTrailing() + ", " : "implements ")
-                    + "CopyBuilderTracked<$javaRecordName> ";
+                    + "com.hedera.pbj.runtime.CopyBuilderTracked<$javaRecordName> ";
         }
 
         if (lookupHelper.hasDiffEquality(msgDef)) {

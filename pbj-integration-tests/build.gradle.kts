@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-import org.hiero.gradle.tasks.GitClone
-
 plugins {
     id("org.hiero.gradle.module.application")
     id("org.hiero.gradle.feature.legacy-classpath")
@@ -95,46 +93,49 @@ jmh {
 // Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
 pbj {
     javaPackageSuffix = ".pbj.integration.tests"
-    diffMessageContainers = setOf("proto.DiffCatalog")
+    // StateValue is the catalog Hiero uses, so every HAPI state value is a diff root.
+    diffMessageContainers = setOf("proto.DiffCatalog", "com.hedera.hapi.platform.state.StateValue")
     // Leave tracking at its default (false). Local annotations cover the tracked path;
-    // representative HAPI roots compile and run without tracking.
-    diffMessages =
-        setOf(
-            "proto.Account",
-            "proto.Token",
-            "proto.Topic",
-            "proto.PlainDiffRoot",
-            "com.hedera.hapi.platform.state.PlatformState",
-        )
+    // HAPI roots compile and run without tracking.
+    diffMessages = setOf("proto.Account", "proto.Token", "proto.Topic", "proto.PlainDiffRoot")
 }
 
-// Add downloaded HAPI repo protobuf files into build directory and add to sources to build them
-val cloneHederaProtobufs =
-    tasks.register<GitClone>("cloneHederaProtobufs") {
-        localCloneDirectory = layout.buildDirectory.dir("hedera-protobufs")
-        url = "https://github.com/hashgraph/hedera-protobufs.git"
-        // choose tag or branch of HAPI you would like to test with
-        // branch = "main"
-        // See a comment below where we work around a javadoc bug in v0.55.0. Remove it once we can
-        // upgrade.
-        tag = "v0.55.0"
+// HAPI protobuf files from the published hedera-protobuf-java-api artifact. The proto sources
+// moved into hiero-consensus-node, and hedera-protobufs no longer carries newer files such as
+// StateValue. The artifact bundles them under one root, so imports like "services/x.proto" resolve.
+val hapiProtos =
+    configurations.dependencyScope("hapiProtos") {
+        dependencies.add(
+            project.dependencies.create("com.hedera.hashgraph:hedera-protobuf-java-api:0.78.1")
+        )
+    }
+val hapiProtosClasspath =
+    configurations.resolvable("hapiProtosClasspath") {
+        extendsFrom(hapiProtos.get())
+        isTransitive = false
+    }
+val extractHapiProtos =
+    tasks.register<Sync>("extractHapiProtos") {
+        from(hapiProtosClasspath.map { files -> files.map { zipTree(it) } }) {
+            include("**/*.proto")
+            // Same exclusions as hiero-consensus-node's own PBJ build
+            exclude("mirror/**", "sdk/**")
+        }
+        includeEmptyDirs = false
+        into(layout.buildDirectory.dir("hapi-protos"))
     }
 
 sourceSets {
     main {
-        pbj {
-            srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("block") })
-            srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("platform") })
-            srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("services") })
-            srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("streams") })
-        }
-        proto {
-            srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("block") })
-            srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("platform") })
-            srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("services") })
-            srcDir(cloneHederaProtobufs.flatMap { it.localCloneDirectory.dir("streams") })
-        }
+        pbj { srcDir(extractHapiProtos) }
+        proto { srcDir(extractHapiProtos) }
     }
+}
+
+// The full HAPI generates several thousand sources, more than javac's default heap handles
+tasks.compileJava {
+    options.isFork = true
+    options.forkOptions.memoryMaximumSize = "4g"
 }
 
 val custom = sourceSets.create("custom") { proto { setSrcDirs(emptyList<Directory>()) } }
@@ -144,21 +145,10 @@ java.registerFeature("custom") { usingSourceSet(custom) }
 // Exclude protoc generated from docs
 tasks.javadoc {
     exclude("com/hederahashgraph/service/proto/**")
-    exclude("com/hedera/hapi/**/legacy/**")
-    exclude("com/hedera/**/protoc/**")
+    exclude("**/protoc/**")
     exclude("com/hedera/services/stream/proto/**")
     exclude("com/hedera/hashgraph/pbj/integration/**")
     exclude("com/hedera/pbj/test/proto/java/**")
-
-    // This <h3> issue in javadoc:
-    //
-    //         error: unexpected heading used: <H3>, compared to implicit preceding heading: <H3>
-    //
-    // is fixed in hedera-protobufs v0.57.2. However, this new version produces many other
-    // errors when we try to use it in PBJ integration tests. So for now we stick to v0.55.0 (see
-    // above in cloneHederaProtobufs) and work around the problem by excluding this particular file
-    // from javadoc processing:
-    exclude("com/hedera/hapi/node/token/TokenServiceInterface.java")
 }
 
 @Suppress("UnstableApiUsage")

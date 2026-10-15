@@ -339,7 +339,7 @@ final class DiffGenerator {
         return """
                 /**
                  * Apply a partial value to a prior value without serialization, for consumers that hold models
-                 * rather than bytes. The object-level equivalent of {@link PartialApplier#splice}.
+                 * rather than bytes. The object-level equivalent of {@link com.hedera.pbj.runtime.PartialApplier#splice}.
                  *
                  * @param prior the prior value
                  * @param partial the replacement fields, as produced by {@link #partial}
@@ -351,7 +351,7 @@ final class DiffGenerator {
                 public static $model applyPartial(final $model prior, final $model partial, final int[] cleared) {
                     $requireDiffable(prior);
                     $requireDiffable(partial);
-                    PartialApplier.validateCleared(cleared);
+                    com.hedera.pbj.runtime.PartialApplier.validateCleared(cleared);
                 $clearFlags
                     for (final int number : cleared) {
                         switch (number) {
@@ -443,7 +443,8 @@ final class DiffGenerator {
             case STRING -> "!" + value + ".isEmpty()";
             case BYTES -> value + ".length() != 0";
             case ONE_OF -> value + ".kind().protoOrdinal() > 0";
-            case ENUM -> value + " != null && EnumWithProtoMetadata.protoOrdinal(" + value + ") != 0";
+            case ENUM ->
+                value + " != null && com.hedera.pbj.runtime.EnumWithProtoMetadata.protoOrdinal(" + value + ") != 0";
             case BOOL -> value;
             default -> value + " != 0";
         };
@@ -457,7 +458,9 @@ final class DiffGenerator {
             case STRING -> value + ".isEmpty()";
             case BYTES -> value + ".length() == 0";
             case ONE_OF -> value + ".kind().protoOrdinal() == 0";
-            case ENUM -> "(" + value + " == null || EnumWithProtoMetadata.protoOrdinal(" + value + ") == 0)";
+            case ENUM ->
+                "(" + value + " == null || com.hedera.pbj.runtime.EnumWithProtoMetadata.protoOrdinal(" + value
+                        + ") == 0)";
             case BOOL -> "!" + value;
             default -> value + " == 0";
         };
@@ -497,15 +500,17 @@ final class DiffGenerator {
         }
         return switch (f.type()) {
             case STRING, BYTES -> "!java.util.Objects.equals(" + a + ", " + b + ")";
-            case MESSAGE, MAP, ONE_OF -> "!DiffSupport.equal(" + a + ", " + b + ")";
+            case MESSAGE, MAP, ONE_OF -> "!com.hedera.pbj.runtime.DiffSupport.equal(" + a + ", " + b + ")";
             // Both signs of zero are omitted for singular scalars; NaNs must compare their raw payloads.
             case FLOAT ->
-                a + " != " + b + " && Float.floatToRawIntBits(" + a + ") != Float.floatToRawIntBits(" + b + ")";
+                a + " != " + b + " && java.lang.Float.floatToRawIntBits(" + a
+                        + ") != java.lang.Float.floatToRawIntBits(" + b + ")";
             case DOUBLE ->
-                a + " != " + b + " && Double.doubleToRawLongBits(" + a + ") != Double.doubleToRawLongBits(" + b + ")";
+                a + " != " + b + " && java.lang.Double.doubleToRawLongBits(" + a
+                        + ") != java.lang.Double.doubleToRawLongBits(" + b + ")";
             case ENUM ->
-                "(" + a + " == null ? 0 : EnumWithProtoMetadata.protoOrdinal(" + a + ")) != (" + b
-                        + " == null ? 0 : EnumWithProtoMetadata.protoOrdinal(" + b + "))";
+                "(" + a + " == null ? 0 : com.hedera.pbj.runtime.EnumWithProtoMetadata.protoOrdinal(" + a + ")) != ("
+                        + b + " == null ? 0 : com.hedera.pbj.runtime.EnumWithProtoMetadata.protoOrdinal(" + b + "))";
             default -> a + " != " + b;
         };
     }

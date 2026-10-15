@@ -147,6 +147,9 @@ Generates a Java `record` for each protobuf message containing:
 - Builder inner class with fluent API (`newBuilder()`, `toBuilder()`)
 - OneOf inner enums and typed accessor methods
 - Static `PROTOBUF` and `JSON` codec constants
+- For diff roots: static `diff`, `partial`, `clearedFields`, `worthPartial` and `applyPartial` methods, and optionally
+  copy-builder tracking (`DiffGenerator`, `CopyBuilderGenerator`). Messages nested under a root get only
+  `$equalsForDiff()`. See [Partial Updates (Diffs)](usage-guide.md#partial-updates-diffs).
 
 ### SchemaGenerator
 

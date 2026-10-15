@@ -10,3 +10,26 @@ option java_multiple_files = true;
 message Long {
     string text = 1;
 }
+
+// Model names must not shadow PBJ runtime types referenced by generated diff code.
+message DiffSupport { string text = 1; }
+message PartialApplier { string text = 1; }
+message CopyBuilderTracked { string text = 1; }
+enum RuntimeNameKind {
+    RUNTIME_NAME_KIND_UNSPECIFIED = 0;
+    RUNTIME_NAME_KIND_SET = 1;
+}
+
+// <<<pbj.copy_builder_tracking = true>>>
+message RuntimeNameRoot {
+    DiffSupport diff_support = 1;
+    PartialApplier partial_applier = 2;
+    CopyBuilderTracked copy_builder_tracked = 3;
+    RuntimeNameKind kind = 4;
+    float float_value = 5;
+    double double_value = 6;
+    oneof choice {
+        string text = 7;
+        DiffSupport nested = 8;
+    }
+}
