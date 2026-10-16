@@ -18,10 +18,12 @@ enum PbjEnumUnrecognized2 {
 
 // The two messages below should be "binary-compatible" on the wire, so that we can serialize/deserialize both
 // to/from the same bytes:
+// <<<pbj.diff = true>>>
 message MessageWithUnrecognizedEnum1 {
   PbjEnumUnrecognized1 enum_value = 1;
   repeated PbjEnumUnrecognized1 enum_list = 2;
 }
+// <<<pbj.diff = true>>>
 message MessageWithUnrecognizedEnum2 {
   PbjEnumUnrecognized2 enum_value = 1;
   repeated PbjEnumUnrecognized2 enum_list = 2;
