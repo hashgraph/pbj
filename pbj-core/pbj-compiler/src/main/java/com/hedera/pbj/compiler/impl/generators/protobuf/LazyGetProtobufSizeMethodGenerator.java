@@ -46,8 +46,7 @@ public class LazyGetProtobufSizeMethodGenerator {
                     }
                     return $protobufEncodedSize;
                 }
-                """
-                .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
+                """.replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT))
                 .replace(
                         "$unknownFieldsSizeOfLines",
                         formatUnknownFieldsSizeOfLines().indent(DEFAULT_INDENT))
@@ -55,7 +54,7 @@ public class LazyGetProtobufSizeMethodGenerator {
         // spotless:on
     }
 
-    static String buildFieldSizeOfLines(
+    public static String buildFieldSizeOfLines(
             final String modelClassName,
             final String schemaClassName,
             final List<Field> fields,
@@ -174,8 +173,7 @@ public class LazyGetProtobufSizeMethodGenerator {
                                 _size += sizeOfVarInt32(_size - sizePre);
                             }
                         }
-                        """
-                            .replace("$fieldDef", fieldDef)
+                        """.replace("$fieldDef", fieldDef)
                             .replace("$map", getValueCode)
                             .replace("$javaFieldType", mapField.javaFieldType())
                             .replace("$K", mapField.keyField().type().boxedType)

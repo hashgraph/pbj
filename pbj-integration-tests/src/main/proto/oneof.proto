@@ -13,6 +13,7 @@ import "bytes.proto";
  * Verifies if a reversed order of field numbers in a oneOf definition works.
  * Note that below, the oneOf with number 30 precedes the oneOf with number 16.
  */
+// <<<pbj.diff = true>>>
 message OneOfWithReversedFieldNumberOrder {
   oneof staked_id {
     MessageWithBytes staked_account_id = 30;

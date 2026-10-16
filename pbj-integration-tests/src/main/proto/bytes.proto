@@ -10,6 +10,7 @@ option java_multiple_files = true;
 /**
  * Sample protobuf containing bytes.
  */
+// <<<pbj.copy_builder_tracking = true>>>
 message MessageWithBytes {
   bytes bytesField = 1;
 }

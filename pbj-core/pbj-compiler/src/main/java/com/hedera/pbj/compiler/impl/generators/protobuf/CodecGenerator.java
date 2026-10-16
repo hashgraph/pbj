@@ -133,7 +133,7 @@ public final class CodecGenerator implements Generator {
                 /**
                  * Protobuf Codec for $modelClass model object. Generated based on protobuf schema.
                  */
-                public final$staticModifier class $codecClass extends Codec<$modelClass> {
+                public final$staticModifier class $codecClass extends $codecInterface<$modelClass> {
                 $cacheableSupport
                     /**
                      * An initial capacity for the ArrayList where unknown fields are collected.
@@ -157,9 +157,12 @@ public final class CodecGenerator implements Generator {
                 $writeByteArrayMethod
                 $measureRecordMethod
                 $getDefaultInstanceMethod
+                $diffMethods
 
                 """
                 .replace("$modelClass", modelClassName)
+                .replace("$codecInterface", lookupHelper.hasDiffApis(msgDef) ? "com.hedera.pbj.runtime.DiffCodec" : "Codec")
+                .replace("$diffMethods", lookupHelper.hasDiffApis(msgDef) ? generateDiffMethods(modelClassName, fields) : "")
                 .replace("$staticModifier", staticModifier)
                 .replace("$codecClass", codecClassName)
                 .replace("$cacheableSupport", cacheableSupport)
@@ -180,5 +183,40 @@ public final class CodecGenerator implements Generator {
         }
 
         writer.append("}");
+    }
+
+    private static String generateDiffMethods(String model, List<Field> fields) {
+        final String mask = fields.size() > Long.SIZE ? "(long[]) mask" : "(java.lang.Long) mask";
+        return """
+                @Override
+                public boolean canDiff($model value) {
+                    return value != null && value.getUnknownFields().isEmpty();
+                }
+
+                @Override
+                public Object diff($model prior, $model next) {
+                    return $model.diff(prior, next);
+                }
+
+                @Override
+                public $model partial($model next, Object mask) {
+                    return $model.partial(next, $mask);
+                }
+
+                @Override
+                public int[] clearedFields($model prior, $model next, Object mask) {
+                    return $model.clearedFields(prior, next, $mask);
+                }
+
+                @Override
+                public boolean worthPartial($model next, Object mask, int minSaving, int overhead) {
+                    return $model.worthPartial(next, $mask, minSaving, overhead);
+                }
+
+                @Override
+                public $model applyPartial($model prior, $model partial, int[] clearedFields) {
+                    return $model.applyPartial(prior, partial, clearedFields);
+                }
+                """.replace("$model", model).replace("$mask", mask).indent(DEFAULT_INDENT);
     }
 }
