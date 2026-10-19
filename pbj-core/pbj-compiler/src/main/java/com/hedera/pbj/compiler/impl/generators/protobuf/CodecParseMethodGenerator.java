@@ -407,8 +407,27 @@ class CodecParseMethodGenerator {
             sbCase.append('\n');
             // spotless:on
         } else if (field.type() == Field.FieldType.MESSAGE) {
+            final String strictNonRepeatedCheck;
+            if (field.repeated()) {
+                strictNonRepeatedCheck = "";
+            } else if (field.parent() != null) {
+                final var oneOfField = field.parent();
+                strictNonRepeatedCheck = """
+                        if (strictMode && !temp_$oneOfFieldName.equals($defaultOneOfValue)) {
+                            throw new ParseException("A non-repeated $oneOfFieldName encountered more than once");
+                        }
+                        """.replace("$oneOfFieldName", oneOfField.name())
+                        .replace("$defaultOneOfValue", oneOfField.javaDefault());
+            } else {
+                strictNonRepeatedCheck = """
+                        if (strictMode && temp_$fieldName != null) {
+                            throw new ParseException("A non-repeated $fieldName encountered more than once");
+                        }
+                        """;
+            }
             // spotless:off
             sbCase.append("""
+                        $strictNonRepeatedCheck
                         final var messageLength = input.readVarInt(false);
                         final $fieldType value;
                         if (messageLength == 0) {
@@ -438,6 +457,7 @@ class CodecParseMethodGenerator {
                             }
                         }
                         """
+                    .replace("$strictNonRepeatedCheck", strictNonRepeatedCheck)
                     .replace("$readMethod", readMethod(field))
                     .replace("$fieldType", field.javaFieldTypeBase())
                     .replace("$fieldName", field.name())
