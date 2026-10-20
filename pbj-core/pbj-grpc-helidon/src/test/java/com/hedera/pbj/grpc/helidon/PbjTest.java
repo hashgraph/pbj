@@ -43,6 +43,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Flow;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -454,6 +455,69 @@ class PbjTest {
 
             assertThat(status).isEqualTo(GrpcStatus.DEADLINE_EXCEEDED);
             assertThat(Duration.ofNanos(System.nanoTime() - start)).isGreaterThanOrEqualTo(Duration.ofMillis(200));
+        }
+
+        @Test
+        void blockedDeadlineCleanupDoesNotDelayOtherRequests() throws InterruptedException {
+            final var cleanupEntered = new CountDownLatch(1);
+            final var releaseCleanup = new CountDownLatch(1);
+            final var cleanupFinished = new CountDownLatch(1);
+            final var openedCalls = new AtomicInteger();
+            PROXY.svc = new GreeterServiceImpl() {
+                @Override
+                public Pipeline<? super Bytes> open(
+                        Method method, RequestOptions options, Pipeline<? super Bytes> replies) {
+                    final boolean blockCleanup = openedCalls.incrementAndGet() == 1;
+                    return new Pipeline<>() {
+                        @Override
+                        public void onSubscribe(Flow.Subscription subscription) {}
+
+                        @Override
+                        public void onNext(Bytes item) {}
+
+                        @Override
+                        public void onError(Throwable throwable) {
+                            if (blockCleanup) {
+                                cleanupEntered.countDown();
+                                try {
+                                    releaseCleanup.await();
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                } finally {
+                                    cleanupFinished.countDown();
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void onComplete() {}
+                    };
+                }
+            };
+
+            try {
+                assertServerDeadline();
+                assertThat(cleanupEntered.await(2, TimeUnit.SECONDS)).isTrue();
+                assertServerDeadline();
+                assertThat(cleanupFinished.getCount()).isEqualTo(1);
+            } finally {
+                releaseCleanup.countDown();
+                assertThat(cleanupFinished.await(2, TimeUnit.SECONDS)).isTrue();
+            }
+        }
+
+        private void assertServerDeadline() {
+            final var status = assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
+                try (var response = CLIENT.post()
+                        .contentType(APPLICATION_GRPC_PROTO)
+                        .path("/greeter.Greeter/sayHelloStreamReply")
+                        .header(HeaderNames.create("grpc-timeout"), "100m")
+                        .submit(messageBytes(SIMPLE_REQUEST))) {
+                    assertThat(response.entity().inputStream().readAllBytes()).isEmpty();
+                    return grpcStatus(response.trailers());
+                }
+            });
+            assertThat(status).isEqualTo(GrpcStatus.DEADLINE_EXCEEDED);
         }
     }
 

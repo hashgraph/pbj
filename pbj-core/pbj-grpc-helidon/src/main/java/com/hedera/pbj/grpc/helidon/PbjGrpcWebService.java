@@ -2,6 +2,7 @@
 package com.hedera.pbj.grpc.helidon;
 
 import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_WEB;
+import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_WEB_JSON;
 import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_WEB_PROTO;
 import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_WEB_TEXT;
 import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_WEB_TEXT_PROTO;
@@ -23,10 +24,13 @@ import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.helidon.common.context.Context;
+import io.helidon.common.context.Contexts;
 import io.helidon.common.uri.UriEncoding;
 import io.helidon.http.Header;
 import io.helidon.http.HeaderName;
 import io.helidon.http.HeaderNames;
+import io.helidon.http.HttpMediaType;
 import io.helidon.http.Status;
 import io.helidon.webserver.http.HttpRules;
 import io.helidon.webserver.http.HttpService;
@@ -46,6 +50,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -77,14 +83,16 @@ import java.util.stream.Collectors;
  *     <li>Binary ({@code application/grpc-web}, {@code +proto}, {@code +json}) and base64 text
  *     ({@code application/grpc-web-text}, {@code +proto}) modes.</li>
  *     <li>Message compression ({@code grpc-encoding} and {@code grpc-accept-encoding}).</li>
- *     <li>Deadlines ({@code grpc-timeout}). The deadline is checked once the request body has been read, and while
- *     waiting for replies.</li>
+ *     <li>Deadlines ({@code grpc-timeout}), including service initialization, request-body reads, and synchronous
+ *     service execution. A cancelled worker is interrupted; application code must cooperate with interruption.</li>
  *     <li>CORS for an allowlist of origins, see {@link Builder#allowedOrigins(String...)}. Without an allowlist no CORS
  *     headers are sent, so only same-origin pages and non-browser clients can call the service.</li>
  * </ul>
  *
- * <p>Each call blocks its (virtual) request thread until the service completes the call, because Helidon finishes
- * the response once the handler returns.
+ * <p>Each call keeps its (virtual) request thread until completion and dispatches the service on a cancellable virtual
+ * worker with the same Helidon request context. Detected I/O failures and deadlines notify the request pipeline once.
+ * Helidon's {@code HttpService} API does not expose idle client disconnects or HTTP/2 stream resets; use a finite
+ * {@code grpc-timeout} to bound retention when a client leaves an otherwise idle stream.
  */
 public final class PbjGrpcWebService implements HttpService {
     private static final System.Logger LOGGER = System.getLogger(PbjGrpcWebService.class.getName());
@@ -181,8 +189,8 @@ public final class PbjGrpcWebService implements HttpService {
     }
 
     /**
-     * A single gRPC-Web call. It reads the request on the request thread, receives replies from the service on any
-     * thread, and writes the response under a lock.
+     * A single gRPC-Web call. A virtual worker reads and dispatches requests; the original request thread enforces
+     * the deadline and owns response completion. Service replies from any thread are serialized under a write lock.
      */
     private final class Call implements Pipeline<Bytes> {
         private final PbjMethodRoute route;
@@ -195,19 +203,26 @@ public final class PbjGrpcWebService implements HttpService {
         /** Released once the service has completed the call, successfully or not. */
         private final CountDownLatch done = new CountDownLatch(1);
 
-        private boolean textMode;
+        private boolean requestTextMode;
+        private boolean responseTextMode;
+        private String requestContentType = APPLICATION_GRPC_WEB_PROTO;
         private String contentType = APPLICATION_GRPC_WEB_PROTO;
+        private long deadline = Long.MAX_VALUE;
+
+        /** Published independently of response writes, so expiry cannot wait on a slow writer. */
+        private final AtomicReference<Completion> completion = new AtomicReference<>();
+
+        private final AtomicBoolean failureNotified = new AtomicBoolean();
+        private volatile Pipeline<? super Bytes> requests;
+        private Context context;
         private String outgoingEncoding = GrpcCompression.IDENTITY;
 
         /** The output stream of the response, opened when the first message is sent. Guarded by {@link #lock}. */
         private OutputStream out;
 
-        /** Whether the call has completed. No messages may be sent once it has. Guarded by {@link #lock}. */
-        private boolean completed;
-
         private Status httpStatus = Status.OK_200;
-        private GrpcStatus grpcStatus = GrpcStatus.OK;
-        private String grpcMessage;
+
+        private record Completion(GrpcStatus status, String message, Throwable failure) {}
 
         Call(@NonNull final PbjMethodRoute route, @NonNull final ServerRequest req, @NonNull final ServerResponse res) {
             this.route = route;
@@ -223,11 +238,10 @@ public final class PbjGrpcWebService implements HttpService {
                     .filter(PbjGrpcWebService.this::isAllowedOrigin)
                     .ifPresent(origin -> addCorsHeaders(origin, res));
 
-            final Pipeline<? super Bytes> requests;
-            final long deadline;
             final GrpcCompression.Decompressor decompressor;
             try {
-                contentType = negotiateContentType();
+                requestContentType = negotiateRequestContentType();
+                contentType = negotiateResponseContentType();
                 final var methodType = route.method().type();
                 if (methodType == ServiceInterface.MethodType.CLIENT_STREAMING
                         || methodType == ServiceInterface.MethodType.BIDI_STREAMING) {
@@ -240,10 +254,9 @@ public final class PbjGrpcWebService implements HttpService {
                 outgoingEncoding = GrpcCompression.determineCompressorName(
                         headerValues(GrpcHeaders.GRPC_ACCEPT_ENCODING), serviceConfig.encoding());
                 deadline = deadline();
-                requests = route.service().open(route.method(), options(), this);
             } catch (final GrpcException e) {
                 route.failedGrpcRequestCounter().increment();
-                complete(e.status(), e.getMessage());
+                fail(e);
                 finishResponse();
                 return;
             } catch (final UnsupportedContentTypeException e) {
@@ -260,35 +273,88 @@ public final class PbjGrpcWebService implements HttpService {
                 return;
             }
 
+            // Capture the lazily initialized request context on its owning thread. The service must see the
+            // same authentication/context values when it is dispatched on the cancellable worker.
+            context = req.context();
+            final var worker = Thread.ofVirtual()
+                    .name("pbj-grpc-web-call")
+                    .unstarted(() -> Contexts.runInContext(context, () -> dispatch(decompressor)));
+            worker.start();
             try {
-                readRequests(requests, decompressor);
-                requests.clientEndStreamReceived();
-                awaitCompletion(requests, deadline);
+                awaitCompletion();
             } catch (final InterruptedException e) {
+                fail(new GrpcException(GrpcStatus.CANCELLED, e));
                 Thread.currentThread().interrupt();
-                fail(requests, new GrpcException(GrpcStatus.CANCELLED, e));
-            } catch (final Exception e) {
-                fail(requests, e);
             } finally {
-                finishResponse();
+                // Cleanup can release an asynchronous publisher that is holding the write lock. Never
+                // make its cancellation depend on finishing a possibly blocked response first.
+                notifyFailure();
+                try {
+                    finishResponse();
+                } finally {
+                    // Interrupting an HTTP/1 body read closes its socket, so send the status first.
+                    if (completion.get().failure() != null) {
+                        worker.interrupt();
+                    }
+                    notifyFailure();
+                }
             }
         }
 
-        /**
-         * Fails the call. If the service has not completed the call already, for example because the request could not
-         * be read, the status is taken from the exception. The service is then told about the error so that it can
-         * tear down its resources.
-         */
-        private void fail(@NonNull final Pipeline<? super Bytes> requests, @NonNull final Exception e) {
-            if (e instanceof GrpcException grpcException) {
-                complete(grpcException.status(), grpcException.getMessage());
-            } else {
-                complete(GrpcStatus.INTERNAL, null);
-            }
+        /** Runs service initialization and request dispatch without blocking deadline enforcement. */
+        private void dispatch(@NonNull final GrpcCompression.Decompressor decompressor) {
             try {
-                requests.onError(e);
-            } catch (final RuntimeException onErrorFailure) {
-                LOGGER.log(DEBUG, "Service failed to handle an error for " + route.method(), onErrorFailure);
+                requests = route.service().open(route.method(), options(), this);
+                if (isCompleted()) {
+                    return;
+                }
+                readRequests(requests, decompressor);
+                if (!isCompleted()) {
+                    requests.clientEndStreamReceived();
+                }
+            } catch (final Throwable e) {
+                if (requests == null) {
+                    if (e instanceof GrpcException) {
+                        route.failedGrpcRequestCounter().increment();
+                        fail(e);
+                    } else {
+                        route.failedUnknownRequestCounter().increment();
+                        LOGGER.log(INFO, "Failed to initialize grpc-web call", e);
+                        terminate(new Completion(GrpcStatus.UNKNOWN, null, e));
+                    }
+                } else {
+                    fail(e);
+                }
+            } finally {
+                notifyFailure();
+            }
+        }
+
+        /** Records a failure; application cleanup must never block the response/deadline thread. */
+        private void fail(@NonNull final Throwable failure) {
+            final var status =
+                    failure instanceof GrpcException grpcException ? grpcException.status() : GrpcStatus.INTERNAL;
+            final var message = failure instanceof GrpcException ? failure.getMessage() : null;
+            terminate(new Completion(status, message, failure));
+        }
+
+        /** Delivers cancellation once, including when initialization finishes after the call has expired. */
+        private void notifyFailure() {
+            final var result = completion.get();
+            final var pipeline = requests;
+            if (result != null
+                    && result.failure() != null
+                    && pipeline != null
+                    && failureNotified.compareAndSet(false, true)) {
+                Thread.ofVirtual()
+                        .name("pbj-grpc-web-cleanup")
+                        .start(() -> Contexts.runInContext(context, () -> {
+                            try {
+                                pipeline.onError(result.failure());
+                            } catch (final RuntimeException e) {
+                                LOGGER.log(DEBUG, "Service failed to handle an error for " + route.method(), e);
+                            }
+                        }));
             }
         }
 
@@ -298,7 +364,7 @@ public final class PbjGrpcWebService implements HttpService {
                 @NonNull final GrpcCompression.Decompressor decompressor)
                 throws IOException {
             final var deframer = new GrpcDeframer(maxMessageSizeBytes, decompressor, requests::onNext);
-            final var base64 = textMode ? new Base64ChunkDecoder() : null;
+            final var base64 = requestTextMode ? new Base64ChunkDecoder() : null;
             final byte[] buffer = new byte[READ_BUFFER_SIZE];
             try (InputStream in = req.content().inputStream()) {
                 int read;
@@ -316,31 +382,70 @@ public final class PbjGrpcWebService implements HttpService {
             }
         }
 
-        /** Waits for the service to complete the call, failing it if the deadline passes first. */
-        private void awaitCompletion(@NonNull final Pipeline<? super Bytes> requests, final long deadline)
-                throws InterruptedException {
+        /** Waits on the request thread while the worker reads and dispatches the call. */
+        private void awaitCompletion() throws InterruptedException {
             if (deadline == Long.MAX_VALUE) {
                 done.await();
             } else if (!done.await(deadline - System.nanoTime(), TimeUnit.NANOSECONDS)) {
-                route.deadlineExceededCounter().increment();
-                fail(requests, new GrpcException(GrpcStatus.DEADLINE_EXCEEDED));
+                expireDeadline();
             }
         }
 
+        private boolean expireDeadline() {
+            if (deadline != Long.MAX_VALUE && deadline - System.nanoTime() <= 0) {
+                final var failure = new GrpcException(GrpcStatus.DEADLINE_EXCEEDED);
+                if (terminate(new Completion(failure.status(), failure.getMessage(), failure))) {
+                    route.deadlineExceededCounter().increment();
+                }
+                return true;
+            }
+            return false;
+        }
+
         @NonNull
-        private String negotiateContentType() throws UnsupportedContentTypeException {
-            final var requestContentType = req.headers().contentType();
-            final var ct = requestContentType.isEmpty()
-                    ? ""
-                    : requestContentType.get().mediaType().text();
-            if (ct.startsWith(APPLICATION_GRPC_WEB_TEXT)) {
-                textMode = true;
-                return APPLICATION_GRPC_WEB_TEXT.equals(ct) ? APPLICATION_GRPC_WEB_TEXT_PROTO : ct;
+        private String negotiateRequestContentType() throws UnsupportedContentTypeException {
+            final var ct = req.headers()
+                    .contentType()
+                    .map(type -> type.mediaType().text())
+                    .orElse("");
+            requestTextMode = ct.startsWith(APPLICATION_GRPC_WEB_TEXT);
+            return switch (ct) {
+                case APPLICATION_GRPC_WEB, APPLICATION_GRPC_WEB_PROTO -> APPLICATION_GRPC_WEB_PROTO;
+                case APPLICATION_GRPC_WEB_TEXT, APPLICATION_GRPC_WEB_TEXT_PROTO -> APPLICATION_GRPC_WEB_TEXT_PROTO;
+                case APPLICATION_GRPC_WEB_JSON -> APPLICATION_GRPC_WEB_JSON;
+                default ->
+                    throw new UnsupportedContentTypeException("invalid gRPC-Web request content-type \"" + ct + "\"");
+            };
+        }
+
+        /** Negotiate the transfer encoding without changing the protobuf/JSON codec used by the service. */
+        @NonNull
+        private String negotiateResponseContentType() {
+            if (!req.headers().contains(HeaderNames.ACCEPT)) {
+                responseTextMode = requestTextMode;
+                return requestContentType;
             }
-            if (ct.startsWith(APPLICATION_GRPC_WEB)) {
-                return APPLICATION_GRPC_WEB.equals(ct) ? APPLICATION_GRPC_WEB_PROTO : ct;
+            final boolean json = APPLICATION_GRPC_WEB_JSON.equals(requestContentType);
+            final var binary = HttpMediaType.create(json ? APPLICATION_GRPC_WEB_JSON : APPLICATION_GRPC_WEB_PROTO);
+            final var text =
+                    HttpMediaType.create(json ? APPLICATION_GRPC_WEB_TEXT + "+json" : APPLICATION_GRPC_WEB_TEXT_PROTO);
+            final var preferred = requestTextMode ? text : binary;
+            final var alternative = requestTextMode ? binary : text;
+            final var accepted = json
+                    ? req.headers().bestAccepted(preferred, alternative)
+                    : req.headers()
+                            .bestAccepted(
+                                    preferred,
+                                    alternative,
+                                    HttpMediaType.create(APPLICATION_GRPC_WEB),
+                                    HttpMediaType.create(APPLICATION_GRPC_WEB_TEXT));
+            if (accepted.isEmpty()) {
+                httpStatus = Status.NOT_ACCEPTABLE_406;
+                throw new GrpcException(
+                        GrpcStatus.INVALID_ARGUMENT, "No supported gRPC-Web response content type in Accept");
             }
-            throw new UnsupportedContentTypeException("invalid gRPC-Web request content-type \"" + ct + "\"");
+            responseTextMode = accepted.get().text().startsWith(APPLICATION_GRPC_WEB_TEXT);
+            return responseTextMode ? text.text() : binary.text();
         }
 
         @NonNull
@@ -384,7 +489,7 @@ public final class PbjGrpcWebService implements HttpService {
                     .collect(Collectors.toUnmodifiableMap(Header::name, Header::values));
             return new GrpcRequestOptions(
                     Optional.ofNullable(req.authority()),
-                    contentType,
+                    requestContentType,
                     maxMessageSizeBytes,
                     metadata,
                     req.remotePeer().address(),
@@ -392,27 +497,22 @@ public final class PbjGrpcWebService implements HttpService {
         }
 
         private boolean isCompleted() {
-            lock.lock();
-            try {
-                return completed;
-            } finally {
-                lock.unlock();
-            }
+            return completion.get() != null;
         }
 
-        /** Records the final status of the call, unless it was already completed, and releases the request thread. */
-        private void complete(@NonNull final GrpcStatus status, @Nullable final String message) {
-            lock.lock();
-            try {
-                if (!completed) {
-                    completed = true;
-                    grpcStatus = status;
-                    grpcMessage = message;
-                }
-            } finally {
-                lock.unlock();
+        /** Records exactly one terminal outcome, without waiting for an active network write. */
+        private boolean terminate(@NonNull final Completion result) {
+            if (completion.compareAndSet(null, result)) {
+                done.countDown();
+                return true;
             }
-            done.countDown();
+            return false;
+        }
+
+        private void complete(@NonNull final GrpcStatus status, @Nullable final String message) {
+            if (!expireDeadline()) {
+                terminate(new Completion(status, message, null));
+            }
         }
 
         /**
@@ -422,7 +522,14 @@ public final class PbjGrpcWebService implements HttpService {
         private void finishResponse() {
             lock.lock();
             try {
+                final var result = completion.get();
+                final var grpcStatus = result.status();
+                final var grpcMessage = result.message();
                 if (out == null) {
+                    if (!req.content().consumed()
+                            && req.prologue().protocolVersion().startsWith("1.")) {
+                        res.header(HeaderNames.CONNECTION, "close");
+                    }
                     res.status(httpStatus);
                     res.header(HeaderNames.CONTENT_TYPE, contentType);
                     res.header(GrpcHeaders.header(grpcStatus));
@@ -454,7 +561,7 @@ public final class PbjGrpcWebService implements HttpService {
 
         /** Writes a frame to the response body, base64 encoding it in text mode, and flushes it to the client. */
         private void writeFrame(@NonNull final byte[] frame) throws IOException {
-            out.write(textMode ? Base64.getEncoder().encode(frame) : frame);
+            out.write(responseTextMode ? Base64.getEncoder().encode(frame) : frame);
             out.flush();
         }
 
@@ -468,8 +575,8 @@ public final class PbjGrpcWebService implements HttpService {
         public void onNext(@NonNull final Bytes reply) {
             lock.lock();
             try {
-                if (completed) {
-                    throw new IllegalStateException("The call has already completed");
+                if (expireDeadline() || isCompleted()) {
+                    return;
                 }
                 if (out == null) {
                     res.status(Status.OK_200);
@@ -497,6 +604,8 @@ public final class PbjGrpcWebService implements HttpService {
         private void failedResponse(@NonNull final Exception e) {
             LOGGER.log(DEBUG, "Failed to respond to grpc-web request: " + route.method(), e);
             route.failedResponseCounter().increment();
+            fail(new GrpcException(GrpcStatus.CANCELLED, e));
+            notifyFailure();
         }
 
         @Override

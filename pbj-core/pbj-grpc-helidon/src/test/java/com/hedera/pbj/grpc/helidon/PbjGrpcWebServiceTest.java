@@ -131,6 +131,58 @@ class PbjGrpcWebServiceTest {
             assertThat(response.trailers()).containsEntry("grpc-status", "0");
         }
 
+        @ParameterizedTest
+        @EnumSource(Transport.class)
+        void binaryRequestCanAcceptTextResponse(final Transport transport) throws Exception {
+            final var response =
+                    post(transport, SAY_HELLO, GRPC_WEB_PROTO, frame(REQUEST), Map.of("accept", GRPC_WEB_TEXT));
+
+            assertThat(response.header("content-type")).isEqualTo(GRPC_WEB_TEXT_PROTO);
+            assertThat(response.replies()).containsExactly(reply("Hello PBJ"));
+            assertThat(response.trailers()).containsEntry("grpc-status", "0");
+        }
+
+        @ParameterizedTest
+        @EnumSource(Transport.class)
+        void textRequestCanAcceptBinaryResponse(final Transport transport) throws Exception {
+            final var response = post(
+                    transport,
+                    SAY_HELLO,
+                    GRPC_WEB_TEXT,
+                    Base64.getEncoder().encode(frame(REQUEST)),
+                    Map.of("accept", GRPC_WEB_PROTO));
+
+            assertThat(response.header("content-type")).isEqualTo(GRPC_WEB_PROTO);
+            assertThat(response.replies()).containsExactly(reply("Hello PBJ"));
+            assertThat(response.trailers()).containsEntry("grpc-status", "0");
+        }
+
+        @Test
+        void acceptQualityChoosesPreferredResponseEncoding() throws Exception {
+            final var response = post(
+                    Transport.HTTP_1_1,
+                    SAY_HELLO,
+                    GRPC_WEB_PROTO,
+                    frame(REQUEST),
+                    Map.of("accept", GRPC_WEB_PROTO + ";q=0.2, " + GRPC_WEB_TEXT + ";q=0.9"));
+
+            assertThat(response.header("content-type")).isEqualTo(GRPC_WEB_TEXT_PROTO);
+            assertThat(response.replies()).containsExactly(reply("Hello PBJ"));
+        }
+
+        @Test
+        void unsupportedAcceptIsRejected() throws Exception {
+            final var response = post(
+                    Transport.HTTP_1_1,
+                    SAY_HELLO,
+                    GRPC_WEB_PROTO,
+                    frame(REQUEST),
+                    Map.of("accept", "application/json"));
+
+            assertThat(response.status()).isEqualTo(406);
+            assertThat(response.header("grpc-status")).isEqualTo("" + GrpcStatus.INVALID_ARGUMENT.ordinal());
+        }
+
         @Test
         void bareContentTypeIsTreatedAsProtobuf() throws Exception {
             final var options = new AtomicReference<ServiceInterface.RequestOptions>();

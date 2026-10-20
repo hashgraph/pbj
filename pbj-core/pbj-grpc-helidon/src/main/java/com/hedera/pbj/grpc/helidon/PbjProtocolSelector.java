@@ -45,8 +45,9 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
      */
     PbjProtocolSelector(@NonNull final PbjConfig config) {
         this.config = requireNonNull(config);
-        this.deadlineDetector = (timeoutNanos, onDeadlineExceeded) ->
-                deadlineExecutorService.schedule(onDeadlineExceeded, timeoutNanos, TimeUnit.NANOSECONDS);
+        this.deadlineDetector = (timeoutNanos, onDeadlineExceeded) -> deadlineExecutorService.schedule(
+                // Response writes and service cleanup may block. Keep them off the shared timer thread.
+                () -> Thread.startVirtualThread(onDeadlineExceeded), timeoutNanos, TimeUnit.NANOSECONDS);
 
         final var metricRegistry = Metrics.globalRegistry();
         this.requestCounter = metricRegistry.getOrCreate(

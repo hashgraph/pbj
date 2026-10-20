@@ -545,7 +545,102 @@ class PbjProtocolHandlerTest {
                 connectionContext);
         handler.init();
 
-        assertThat(deadlineDetector.capturedTimeoutNanos).isEqualTo(timeoutNanos);
+        assertThat(deadlineDetector.capturedTimeoutNanos).isPositive().isLessThan(timeoutNanos);
+    }
+
+    @Test
+    void deadlineDuringServiceOpenClosesResponseAndNotifiesPipelineOnce() {
+        headers = deadlineHeaders();
+        final var handler = deadlineHandler();
+        service.onOpen = () -> {
+            deadlineDetector.callback.run();
+            assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+            assertThat(service.error).isNull(); // open has not returned a request pipeline yet
+            service.replies.onNext(Bytes.EMPTY);
+            service.replies.onComplete();
+        };
+
+        handler.init();
+        deadlineDetector.callback.run();
+        service.replies.onError(new GrpcException(GrpcStatus.INTERNAL));
+
+        assertThat(service.error).isInstanceOfSatisfying(GrpcException.class, e -> assertThat(e.status())
+                .isEqualTo(GrpcStatus.DEADLINE_EXCEEDED));
+        assertThat(service.errorCount).isEqualTo(1);
+        assertThat(route.deadlineExceededCounter().count()).isEqualTo(1);
+        assertThat(streamWriter.writtenDataFrames).isEmpty();
+        assertSingleTerminalStatus(GrpcStatus.DEADLINE_EXCEEDED);
+    }
+
+    @Test
+    void immediateDeadlineCancelsFutureReturnedAfterCallback() {
+        headers = deadlineHeaders();
+        deadlineDetector.runImmediately = true;
+        final var handler = deadlineHandler();
+
+        handler.init();
+
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+        assertThat(service.calledMethod).isNull();
+        assertThat(deadlineDetector.cancelled).isTrue();
+        assertSingleTerminalStatus(GrpcStatus.DEADLINE_EXCEEDED);
+    }
+
+    @Test
+    void initializationFailureAfterDeadlineDoesNotSendAnotherStatus() {
+        headers = deadlineHeaders();
+        service.onOpen = () -> {
+            deadlineDetector.callback.run();
+            throw new GrpcException(GrpcStatus.INTERNAL);
+        };
+        final var handler = deadlineHandler();
+
+        handler.init();
+
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+        assertThat(route.deadlineExceededCounter().count()).isEqualTo(1);
+        assertSingleTerminalStatus(GrpcStatus.DEADLINE_EXCEEDED);
+    }
+
+    @Test
+    void completionDuringServiceOpenWinsAgainstLateDeadline() {
+        headers = deadlineHeaders();
+        service.onOpen = () -> service.replies.onComplete();
+        final var handler = deadlineHandler();
+
+        handler.init();
+        deadlineDetector.callback.run();
+        service.replies.onError(new GrpcException(GrpcStatus.INTERNAL));
+
+        assertThat(service.error).isNull();
+        assertThat(route.deadlineExceededCounter().count()).isZero();
+        assertThat(deadlineDetector.cancelled).isTrue();
+        assertSingleTerminalStatus(GrpcStatus.OK);
+    }
+
+    private Http2Headers deadlineHeaders() {
+        return Http2Headers.create(WritableHeaders.create()
+                .add(HeaderNames.CONTENT_TYPE, "application/grpc+proto")
+                .add(HeaderNames.create("grpc-timeout"), "30S"));
+    }
+
+    private PbjProtocolHandler deadlineHandler() {
+        return new PbjProtocolHandler(
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
+    }
+
+    private void assertSingleTerminalStatus(final GrpcStatus status) {
+        assertThat(streamWriter.writtenHeaders).hasSize(2);
+        assertThat(streamWriter.writtenHeaders.getLast().httpHeaders().value(HeaderNames.create("grpc-status")))
+                .contains(Integer.toString(status.ordinal()));
     }
 
     @Test
@@ -717,11 +812,18 @@ class PbjProtocolHandlerTest {
 
     private static final class DeadlineDetectorStub implements DeadlineDetector {
         long capturedTimeoutNanos = Long.MIN_VALUE;
+        Runnable callback;
+        boolean runImmediately;
+        boolean cancelled;
 
         @NonNull
         @Override
         public ScheduledFuture<?> scheduleDeadline(long timeoutNanos, @NonNull Runnable onDeadlineExceeded) {
             capturedTimeoutNanos = timeoutNanos;
+            callback = onDeadlineExceeded;
+            if (runImmediately) {
+                callback.run();
+            }
             return new ScheduledFuture<>() {
                 @Override
                 public long getDelay(@NonNull TimeUnit unit) {
@@ -735,12 +837,13 @@ class PbjProtocolHandlerTest {
 
                 @Override
                 public boolean cancel(boolean mayInterruptIfRunning) {
-                    return false;
+                    cancelled = true;
+                    return true;
                 }
 
                 @Override
                 public boolean isCancelled() {
-                    return false;
+                    return cancelled;
                 }
 
                 @Override
@@ -766,7 +869,10 @@ class PbjProtocolHandlerTest {
         private RequestOptions opts;
         private List<Bytes> receivedBytes = new ArrayList<>();
         private Throwable error;
+        private int errorCount;
         private boolean completed;
+        private Runnable onOpen = () -> {};
+        private Pipeline<? super Bytes> replies;
 
         static final Method METHOD = () -> "m";
 
@@ -795,6 +901,8 @@ class PbjProtocolHandlerTest {
                 throws GrpcException {
             this.calledMethod = method;
             this.opts = opts;
+            this.replies = responses;
+            onOpen.run();
             return new Pipeline<>() {
                 @Override
                 public void onSubscribe(Flow.Subscription subscription) {
@@ -809,6 +917,7 @@ class PbjProtocolHandlerTest {
                 @Override
                 public void onError(Throwable throwable) {
                     error = throwable;
+                    errorCount++;
                 }
 
                 @Override

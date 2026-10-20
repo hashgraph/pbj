@@ -59,7 +59,6 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -111,7 +110,16 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      *
      * <p>Method calls on this object are thread-safe.
      */
-    private Future<?> deadlineFuture = CompletableFuture.completedFuture(null);
+    private volatile Future<?> deadlineFuture = CompletableFuture.completedFuture(null);
+
+    /** Publishes the request pipeline to the deadline callback and defers cancellation until open returns. */
+    private final Object pipelineLock = new Object();
+
+    /** A deadline that expired before the request pipeline was available. Guarded by {@link #pipelineLock}. */
+    private GrpcException pendingDeadline;
+
+    /** Serializes response writes and allows only one terminal response, including initialization failures. */
+    private final SendToClientSubscriber outgoing = new SendToClientSubscriber();
 
     /**
      * Reassembles incoming messages from the data frames. Created in {@link #init()} once the decompressor is known.
@@ -246,10 +254,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             this.deframer =
                     new GrpcDeframer(config.maxMessageSizeBytes(), decompressor, bytes -> pipeline.onNext(bytes));
 
-            // If the grpc-timeout header is present, determine when that timeout would occur, or
-            // default to a future that is so far in the future it will never happen.
+            // Count initialization time against the client's timeout, including sending the response headers.
             final var timeout = requestHeaders.value(GRPC_TIMEOUT);
-            deadlineFuture = timeout.map(this::scheduleDeadline).orElse(new NoopScheduledFuture<>());
+            final long timeoutStart = System.nanoTime();
 
             // At this point, the request itself is valid. Maybe it will still fail to be handled by
             // the service interface, but as far as the protocol is concerned, this was a valid
@@ -263,6 +270,15 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                                     : String.join(",", route.serviceConfig().acceptEncodings())),
                     requestContentType,
                     emptyList());
+
+            // The timer can expire while service.open() is running. It closes the response immediately and
+            // notifies the request pipeline once open has returned it.
+            deadlineFuture =
+                    timeout.map(value -> scheduleDeadline(value, timeoutStart)).orElse(new NoopScheduledFuture<>());
+            if (outgoing.isCompleted()) {
+                deadlineFuture.cancel(false);
+                return;
+            }
 
             // NOTE: The specification mentions the "Message-Type" header. Like everyone else, we're
             // just going to ignore that header. See https://github.com/grpc/grpc/issues/12468.
@@ -285,22 +301,24 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
             // the client.
-            final Pipeline<? super Bytes> outgoing = new SendToClientSubscriber();
-            pipeline = route.service().open(route.method(), options, outgoing);
+            final var openedPipeline = route.service().open(route.method(), options, outgoing);
+            final GrpcException expiredDeadline;
+            synchronized (pipelineLock) {
+                pipeline = openedPipeline;
+                expiredDeadline = pendingDeadline;
+                pendingDeadline = null;
+            }
+            if (expiredDeadline != null) {
+                notifyDeadline(openedPipeline, expiredDeadline);
+            }
         } catch (final GrpcException grpcException) {
             route.failedGrpcRequestCounter().increment();
-            new TrailerOnlyBuilder()
-                    .grpcStatus(grpcException.status())
-                    .statusMessage(grpcException.getMessage())
-                    .send();
+            outgoing.initializationError(Status.OK_200, grpcException.status(), grpcException.getMessage());
             error();
         } catch (final HttpException httpException) {
             route.failedHttpRequestCounter().increment();
-            new TrailerOnlyBuilder()
-                    .httpStatus(httpException.status())
-                    .grpcStatus(GrpcStatus.INVALID_ARGUMENT)
-                    .statusMessage(httpException.getMessage())
-                    .send();
+            outgoing.initializationError(
+                    httpException.status(), GrpcStatus.INVALID_ARGUMENT, httpException.getMessage());
             error();
         } catch (final Exception unknown) {
             route.failedUnknownRequestCounter().increment();
@@ -308,7 +326,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // If the socket is closed, then sending the trailers would fail too.
             // But we still want to call error() so that we clean up resources:
             try {
-                new TrailerOnlyBuilder().grpcStatus(GrpcStatus.UNKNOWN).send();
+                outgoing.initializationError(Status.OK_200, GrpcStatus.UNKNOWN, null);
             } finally {
                 error();
             }
@@ -391,20 +409,46 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * <p>Illegal values result in the deadline being ignored.
      *
      * @param timeout The timeout value. Cannot be null.
+     * @param timeoutStart The {@link System#nanoTime()} value when the timeout was first read.
      * @return The future representing the task that will be executed if/when the deadline is
      *     reached.
      */
     @NonNull
-    private ScheduledFuture<?> scheduleDeadline(@NonNull final String timeout) {
+    private ScheduledFuture<?> scheduleDeadline(@NonNull final String timeout, final long timeoutStart) {
         final var timeoutNanos = GrpcTimeout.parseNanos(timeout);
         if (timeoutNanos.isPresent()) {
-            return deadlineDetector.scheduleDeadline(timeoutNanos.getAsLong(), () -> {
-                route.deadlineExceededCounter().increment();
-                pipeline.onError(new GrpcException(GrpcStatus.DEADLINE_EXCEEDED));
-            });
+            final long remainingNanos = Math.max(0, timeoutNanos.getAsLong() - (System.nanoTime() - timeoutStart));
+            return deadlineDetector.scheduleDeadline(remainingNanos, this::deadlineExceeded);
         }
 
         return new NoopScheduledFuture<>();
+    }
+
+    private void deadlineExceeded() {
+        final var expiredDeadline = new GrpcException(GrpcStatus.DEADLINE_EXCEEDED);
+        if (!outgoing.fail(expiredDeadline)) {
+            return;
+        }
+        route.deadlineExceededCounter().increment();
+        final Pipeline<? super Bytes> requests;
+        synchronized (pipelineLock) {
+            requests = pipeline;
+            if (requests == null) {
+                pendingDeadline = expiredDeadline;
+            }
+        }
+        if (requests != null) {
+            notifyDeadline(requests, expiredDeadline);
+        }
+    }
+
+    private void notifyDeadline(
+            @NonNull final Pipeline<? super Bytes> requests, @NonNull final GrpcException expiredDeadline) {
+        try {
+            requests.onError(expiredDeadline);
+        } catch (final RuntimeException e) {
+            LOGGER.log(DEBUG, "Service failed to handle an expired deadline for " + route.method(), e);
+        }
     }
 
     /**
@@ -561,7 +605,25 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * receives bytes from the handlers to send to the client.
      */
     private final class SendToClientSubscriber implements Pipeline<Bytes> {
-        private final AtomicBoolean completedOnce = new AtomicBoolean(false);
+        /** Guarded by this subscriber's monitor, along with response writes. */
+        private boolean completed;
+
+        private synchronized boolean isCompleted() {
+            return completed;
+        }
+
+        private synchronized void initializationError(
+                @NonNull final Status status, @NonNull final GrpcStatus grpcStatus, @Nullable final String message) {
+            if (completed) {
+                return;
+            }
+            completed = true;
+            new TrailerOnlyBuilder()
+                    .httpStatus(status)
+                    .grpcStatus(grpcStatus)
+                    .statusMessage(message)
+                    .send();
+        }
 
         @Override
         public void onSubscribe(@NonNull final Flow.Subscription subscription) {
@@ -570,7 +632,10 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         }
 
         @Override
-        public void onNext(@NonNull final Bytes response) {
+        public synchronized void onNext(@NonNull final Bytes response) {
+            if (completed) {
+                return;
+            }
             try {
                 final var bufferData = BufferData.create(GrpcFramer.frameMessage(response, outgoingEncoding));
                 final var header = Http2FrameHeader.create(
@@ -589,6 +654,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
         @Override
         public void onError(@NonNull final Throwable throwable) {
+            fail(throwable);
+        }
+
+        private synchronized boolean fail(@NonNull final Throwable throwable) {
+            if (completed) {
+                return false;
+            }
+            completed = true;
             try {
                 if (throwable instanceof final GrpcException grpcException) {
                     new TrailerBuilder()
@@ -604,14 +677,21 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 // just continue.
             }
             error();
+            return true;
         }
 
         @Override
-        public void onComplete() {
-            if (!completedOnce.compareAndSet(false, true)) {
+        public synchronized void onComplete() {
+            if (completed) {
                 return;
             }
-            new TrailerBuilder().send();
+            completed = true;
+            try {
+                new TrailerBuilder().send();
+            } catch (final RuntimeException e) {
+                error();
+                throw e;
+            }
 
             deadlineFuture.cancel(false);
 
