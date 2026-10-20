@@ -24,6 +24,7 @@ module com.hedera.pbj.grpc.helidon {
     requires io.helidon.common.socket;
     requires io.helidon.common.uri;
     requires io.helidon.http.http2;
+    requires io.helidon.http.media;
     requires io.helidon.http;
     requires io.helidon.metrics.api;
     requires java.net.http;

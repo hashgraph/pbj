@@ -3,6 +3,7 @@ package com.hedera.pbj.grpc.helidon;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import com.google.protobuf.util.JsonFormat;
 import com.hedera.pbj.runtime.grpc.GrpcException;
@@ -423,6 +424,36 @@ class PbjTest {
             } catch (StatusRuntimeException e) {
                 assertThat(e.getStatus().getCode()).isEqualTo(Status.DEADLINE_EXCEEDED.getCode());
             }
+        }
+
+        /**
+         * The client above also enforces its own deadline, so it would pass even if the server ignored the
+         * grpc-timeout header. This client sets no deadline of its own, so only the server can end the call.
+         */
+        @Test
+        void serverEnforcesDeadline() {
+            PROXY.svc = new GreeterServiceImpl() {
+                @Override
+                public void sayHelloStreamReply(HelloRequest request, Pipeline<? super HelloReply> replies) {
+                    // Never reply, and never complete
+                }
+            };
+
+            final long start = System.nanoTime();
+            final var status = assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+                try (var response = CLIENT.post()
+                        .contentType(APPLICATION_GRPC_PROTO)
+                        .path("/greeter.Greeter/sayHelloStreamReply")
+                        .header(HeaderNames.create("grpc-timeout"), "200m")
+                        .submit(messageBytes(SIMPLE_REQUEST))) {
+                    // The trailers are only available once the (empty) entity has been read
+                    assertThat(response.entity().inputStream().readAllBytes()).isEmpty();
+                    return grpcStatus(response.trailers());
+                }
+            });
+
+            assertThat(status).isEqualTo(GrpcStatus.DEADLINE_EXCEEDED);
+            assertThat(Duration.ofNanos(System.nanoTime() - start)).isGreaterThanOrEqualTo(Duration.ofMillis(200));
         }
     }
 

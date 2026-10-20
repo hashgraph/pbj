@@ -523,16 +523,16 @@ class PbjProtocolHandlerTest {
     }
 
     /**
-     * Verifies that {@code scheduleDeadline} computation is correct
+     * Verifies that {@code scheduleDeadline} passes the timeout to the detector as a delay from now, not as an
+     * absolute {@link System#nanoTime()} value, which the detector would treat as a delay of days.
      */
     @Test
-    void scheduleDeadlinePassesPositiveFutureNanosToDetector() {
+    void scheduleDeadlinePassesTimeoutNanosToDetector() {
         final long timeoutNanos = TimeUnit.SECONDS.toNanos(30);
         headers = Http2Headers.create(WritableHeaders.create()
                 .add(HeaderNames.CONTENT_TYPE, "application/grpc+proto")
                 .add(HeaderNames.create("grpc-timeout"), "30S"));
 
-        final long beforeNanos = System.nanoTime();
         final var handler = new PbjProtocolHandler(
                 headers,
                 streamWriter,
@@ -544,11 +544,8 @@ class PbjProtocolHandlerTest {
                 deadlineDetector,
                 connectionContext);
         handler.init();
-        final long afterNanos = System.nanoTime();
 
-        assertThat(deadlineDetector.capturedDeadlineNanos).isPositive();
-        assertThat(deadlineDetector.capturedDeadlineNanos).isGreaterThanOrEqualTo(beforeNanos + timeoutNanos);
-        assertThat(deadlineDetector.capturedDeadlineNanos).isLessThanOrEqualTo(afterNanos + timeoutNanos);
+        assertThat(deadlineDetector.capturedTimeoutNanos).isEqualTo(timeoutNanos);
     }
 
     @Test
@@ -719,12 +716,12 @@ class PbjProtocolHandlerTest {
     }
 
     private static final class DeadlineDetectorStub implements DeadlineDetector {
-        long capturedDeadlineNanos = Long.MIN_VALUE;
+        long capturedTimeoutNanos = Long.MIN_VALUE;
 
         @NonNull
         @Override
-        public ScheduledFuture<?> scheduleDeadline(long deadlineNanos, @NonNull Runnable onDeadlineExceeded) {
-            capturedDeadlineNanos = deadlineNanos;
+        public ScheduledFuture<?> scheduleDeadline(long timeoutNanos, @NonNull Runnable onDeadlineExceeded) {
+            capturedTimeoutNanos = timeoutNanos;
             return new ScheduledFuture<>() {
                 @Override
                 public long getDelay(@NonNull TimeUnit unit) {

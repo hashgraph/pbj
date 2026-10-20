@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.grpc.helidon;
 
+import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_WEB;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
@@ -44,8 +45,8 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
      */
     PbjProtocolSelector(@NonNull final PbjConfig config) {
         this.config = requireNonNull(config);
-        this.deadlineDetector = (deadline, onDeadlineExceeded) ->
-                deadlineExecutorService.schedule(onDeadlineExceeded, deadline, TimeUnit.NANOSECONDS);
+        this.deadlineDetector = (timeoutNanos, onDeadlineExceeded) ->
+                deadlineExecutorService.schedule(onDeadlineExceeded, timeoutNanos, TimeUnit.NANOSECONDS);
 
         final var metricRegistry = Metrics.globalRegistry();
         this.requestCounter = metricRegistry.getOrCreate(
@@ -89,6 +90,13 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
         // correct.
         if (prologue.method() != Method.POST) {
             this.failedRequestCounter.increment();
+            return NOT_SUPPORTED;
+        }
+
+        // gRPC-Web requests are not native gRPC. Leave them for the HttpRouting, where a PbjGrpcWebService may be
+        // registered to handle them. This check must come before the route lookup, which claims every POST.
+        final var contentType = headers.httpHeaders().contentType();
+        if (contentType.isPresent() && contentType.get().text().startsWith(APPLICATION_GRPC_WEB)) {
             return NOT_SUPPORTED;
         }
 

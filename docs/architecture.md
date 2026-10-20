@@ -57,10 +57,10 @@ PBJ is organized as two independent top-level Gradle projects. All modules under
 |------------------------------|--------------------------------------|--------------------------------------------------------------------------|
 | `pbj-compiler`               | _(none — Gradle plugin)_             | Parses `.proto` files, generates Java source code                        |
 | `pbj-runtime`                | `com.hedera.pbj.runtime`             | Core runtime: codecs, IO abstractions, collection types, gRPC interfaces |
-| `pbj-grpc-helidon`           | `com.hedera.pbj.grpc.helidon`        | gRPC server on Helidon WebServer (HTTP/2)                                |
+| `pbj-grpc-helidon`           | `com.hedera.pbj.grpc.helidon`        | gRPC and gRPC-Web server on Helidon WebServer                            |
 | `pbj-grpc-helidon-config`    | `com.hedera.pbj.grpc.helidon.config` | Helidon annotation processor config for gRPC server                      |
 | `pbj-grpc-client-helidon`    | `com.hedera.pbj.grpc.client.helidon` | gRPC client using Helidon HTTP/2 WebClient                               |
-| `pbj-grpc-common`            | `com.hedera.pbj.grpc.common`         | Shared gRPC utilities (compression transformers)                         |
+| `pbj-grpc-common`            | `com.hedera.pbj.grpc.common`         | Shared gRPC utilities (framing, timeouts, compression transformers)      |
 | `hiero-dependency-versions/` | —                                    | BOM for dependency version management                                    |
 
 ### `pbj-integration-tests/` — Validation Suite
@@ -233,6 +233,8 @@ PbjProtocolHandler
 ```
 
 The server supports all four gRPC call types (unary, client-streaming, server-streaming, bidirectional) and handles deadline propagation via the `grpc-timeout` header.
+
+`PbjProtocolSelector` declines requests with an `application/grpc-web*` content type, so Helidon passes them on to the `HttpRouting`. There, `PbjGrpcWebService` serves gRPC-Web over HTTP/1.1 and HTTP/2: it reads the request body, deframes it (decoding base64 first in text mode), calls the same `ServiceInterface.open(...)`, and writes the replies as frames followed by a final trailers frame flagged `0x80`, instead of HTTP/2 trailers. It also answers CORS preflight requests. Both handlers share the transport-neutral framing code in `pbj-grpc-common` (`GrpcDeframer`, `GrpcFramer`, `GrpcTimeout`, `GrpcRequestOptions`, `Base64ChunkDecoder`).
 
 ### Client (`pbj-grpc-client-helidon`)
 

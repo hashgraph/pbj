@@ -13,6 +13,10 @@ import static java.lang.System.Logger.Level.INFO;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.grpc.common.GrpcDeframer;
+import com.hedera.pbj.grpc.common.GrpcFramer;
+import com.hedera.pbj.grpc.common.GrpcRequestOptions;
+import com.hedera.pbj.grpc.common.GrpcTimeout;
 import com.hedera.pbj.grpc.common.compression.ZstdGrpcTransformer;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcCompression;
@@ -45,8 +49,6 @@ import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.Http2WindowUpdate;
 import io.helidon.webserver.ConnectionContext;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
-import java.net.SocketAddress;
-import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -59,7 +61,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -76,11 +77,6 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
     private static final HeaderName GRPC_ENCODING = HeaderNames.createFromLowercase("grpc-encoding");
     private static final HeaderName GRPC_ACCEPT_ENCODING = HeaderNames.createFromLowercase("grpc-accept-encoding");
-
-    /** The regular expression used to parse the grpc-timeout header. */
-    private static final String GRPC_TIMEOUT_REGEX = "(\\d{1,8})([HMSmun])";
-
-    private static final Pattern GRPC_TIMEOUT_PATTERN = Pattern.compile(GRPC_TIMEOUT_REGEX);
 
     // Helidon-specific fields related to the connection itself
     private final Http2Headers headers;
@@ -118,46 +114,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     private Future<?> deadlineFuture = CompletableFuture.completedFuture(null);
 
     /**
-     * The bytes of the next incoming message. This is created dynamically as a message is received,
-     * and is never larger than the system configured {@link PbjConfig#maxMessageSizeBytes()}.
+     * Reassembles incoming messages from the data frames. Created in {@link #init()} once the decompressor is known.
      *
      * <p>This member is only accessed by the {@link #data} method, which is called sequentially.
      */
-    private byte[] entityBytes = null;
+    private GrpcDeframer deframer;
 
-    /**
-     * The current index into {@link #entityBytes} into which data is to be read.
-     *
-     * <p>This member is only accessed by the {@link #data} method, which is called sequentially.
-     */
-    private int entityBytesIndex = 0;
-
-    /** The compressedFlag for the current entityBytes. */
-    private int entityIsCompressed = 0;
-
-    /** States for currentReadState state ,machine */
-    enum ReadState {
-        /**
-         * Start state, when we are looking for first byte that says if data is compressed or not
-         */
-        START,
-        /**
-         * State were we are reading length, can be partial length of final point when we have all
-         * length bytes
-         */
-        READ_LENGTH,
-        /** State where we are reading the protobuf entity bytes */
-        READ_ENTITY_BYTES
-    }
-
-    /** State machine as we read bytes from incoming data */
-    private ReadState currentReadState = ReadState.START;
-
-    /** Number of read bytes between 0 and {@code Integer.BYTES} = 4 */
-    private int numOfPartReadBytes = 0;
-
-    /** Byte array to store bytes as we build up to a full 4 byte integer */
-    private final byte[] partReadLengthBytes = new byte[Integer.BYTES];
+    /** Adapts the Helidon {@link BufferData} of each data frame for the {@link #deframer}. */
+    private final BufferDataInput bufferDataInput = new BufferDataInput();
 
     /**
      * The communication pipeline between server and client
@@ -279,6 +243,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 LOGGER.log(DEBUG, "outgoingEncoding: " + outgoingEncoding);
             }
 
+            this.deframer =
+                    new GrpcDeframer(config.maxMessageSizeBytes(), decompressor, bytes -> pipeline.onNext(bytes));
+
             // If the grpc-timeout header is present, determine when that timeout would occur, or
             // default to a future that is so far in the future it will never happen.
             final var timeout = requestHeaders.value(GRPC_TIMEOUT);
@@ -307,7 +274,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
             // Create the "options" to make available to the ServiceInterface. These options are
             // used to decide on the best way to parse or handle the request.
-            final var options = new Options(
+            final var options = new GrpcRequestOptions(
                     Optional.ofNullable(headers.authority()), // the client (see http2 spec)
                     contentType,
                     config.maxMessageSizeBytes(),
@@ -379,95 +346,14 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // longer flow.
             // There is some asynchronous behavior here, but in the worst case, we handle a few more
             // bytes before the stream is closed.
-            while (data.available() > 0) {
-                switch (currentReadState) {
-                    case START: {
-                        // Read whether this message is compressed.
-                        entityIsCompressed = data.read();
-                        if (entityIsCompressed != 0 && entityIsCompressed != 1) {
-                            throw new GrpcException(
-                                    GrpcStatus.UNIMPLEMENTED,
-                                    "Compression flag " + entityIsCompressed
-                                            + " is not supported. Only 0 and 1 are supported.");
-                        }
-                        currentReadState = ReadState.READ_LENGTH;
-                        numOfPartReadBytes = 0;
-                        break;
-                    }
-                    case READ_LENGTH: {
-                        // if I have not read a full int yet then read more from available bytes
-                        if (numOfPartReadBytes < Integer.BYTES) {
-                            // we do not have enough bytes yet to read a 4 byte int
-                            // read the bytes we do have and store them for next time
-                            final int bytesToRead = Math.min(data.available(), Integer.BYTES - numOfPartReadBytes);
-                            data.read(partReadLengthBytes, numOfPartReadBytes, bytesToRead);
-                            numOfPartReadBytes += bytesToRead;
-                        }
-                        // check if we have read all the 4 bytes of the length int32
-                        if (numOfPartReadBytes == Integer.BYTES) {
-                            final long length = ((long) partReadLengthBytes[0] & 0xFF) << 24
-                                    | ((long) partReadLengthBytes[1] & 0xFF) << 16
-                                    | ((long) partReadLengthBytes[2] & 0xFF) << 8
-                                    | ((long) partReadLengthBytes[3] & 0xFF);
-                            if (length > config.maxMessageSizeBytes()) {
-                                throw new GrpcException(
-                                        GrpcStatus.INVALID_ARGUMENT, "Message size exceeds maximum allowed size");
-                            }
-
-                            // In this case we have a request with no message, like an empty unary request
-                            if (length == 0) {
-                                final Bytes bytes = Bytes.EMPTY;
-                                pipeline.onNext(bytes);
-                                currentReadState = ReadState.START;
-                            } else {
-                                // Create a buffer to hold the message. We sadly cannot reuse this buffer
-                                // because once we have filled it and wrapped it in Bytes and sent it to the
-                                // handler, some user code may grab and hold that Bytes object for an arbitrary
-                                // amount of time, and if we were to scribble into the same byte array, we
-                                // would break the application. So we need a new buffer each time :-(
-                                entityBytes = new byte[(int) length];
-                                entityBytesIndex = 0;
-                                // done with length now, so move on to next state
-                                currentReadState = ReadState.READ_ENTITY_BYTES;
-                            }
-                        }
-                        break;
-                    }
-                    case READ_ENTITY_BYTES: {
-                        // By the time we get here, entityBytes is no longer null. It may be empty, or it
-                        // may already have been partially populated from a previous iteration. It may be
-                        // that the number of bytes available to be read is larger than just this one
-                        // message. So we need to be careful to read, from what is available, only up to
-                        // the message length, and to leave the rest for the next iteration.
-                        final int available = data.available();
-                        final int numBytesToRead = Math.min(entityBytes.length - entityBytesIndex, available);
-                        data.read(entityBytes, entityBytesIndex, numBytesToRead);
-                        entityBytesIndex += numBytesToRead;
-
-                        // If we have completed reading the message, then we can proceed.
-                        if (entityBytesIndex == entityBytes.length) {
-                            currentReadState = ReadState.START;
-                            // Grab and wrap the bytes and reset to being reading the next
-                            // message
-                            var bytes = Bytes.wrap(entityBytes);
-                            if (entityIsCompressed == 1) {
-                                bytes = decompressor.decompress(bytes);
-                            }
-                            pipeline.onNext(bytes);
-                            entityBytesIndex = 0;
-                            entityBytes = null;
-                        }
-                        break;
-                    }
-                }
-            }
+            bufferDataInput.data = data;
+            deframer.add(bufferDataInput);
 
             // The end of the stream has been reached! It is possible that a bad client will send
             // end of stream before all the message data we sent. In that case, it is as if the
             // message were never sent.
             if (header.flags(Http2FrameTypes.DATA).endOfStream()) {
-                entityBytesIndex = 0;
-                entityBytes = null;
+                deframer.reset();
                 // HALF_CLOSED_REMOTE prevents the Helidon server from closing the stream.
                 // So we mark the stream as CLOSED as this is the only state under which
                 // the server HTTP2 stream will be properly released by Helidon.
@@ -499,21 +385,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     }
 
     /**
-     * Helper function. Given a string of digits followed by a unit, schedule a callback to be
-     * invoked when the deadline is exceeded, and return the associated future. The proper format of
-     * the string is defined in the specification as:
-     *
-     * <pre>
-     *      Timeout → "grpc-timeout" TimeoutValue TimeoutUnit
-     *      TimeoutValue → {positive integer as ASCII string of at most 8 digits}
-     *      TimeoutUnit → Hour / Minute / Second / Millisecond / Microsecond / Nanosecond
-     *             Hour → "H"
-     *             Minute → "M"
-     *             Second → "S"
-     *             Millisecond → "m"
-     *             Microsecond → "u"
-     *             Nanosecond → "n"
-     * </pre>
+     * Helper function. Given the value of the {@code grpc-timeout} header, schedule a callback to be invoked when the
+     * deadline is exceeded, and return the associated future. See {@link GrpcTimeout} for the format.
      *
      * <p>Illegal values result in the deadline being ignored.
      *
@@ -523,25 +396,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      */
     @NonNull
     private ScheduledFuture<?> scheduleDeadline(@NonNull final String timeout) {
-        final var matcher = GRPC_TIMEOUT_PATTERN.matcher(timeout);
-        if (matcher.matches()) {
-            final var num = Integer.parseInt(matcher.group(1));
-            final var unit = matcher.group(2);
-            final var deadline = System.nanoTime()
-                    + TimeUnit.NANOSECONDS.convert(
-                            num,
-                            switch (unit) {
-                                case "H" -> TimeUnit.HOURS;
-                                case "M" -> TimeUnit.MINUTES;
-                                case "S" -> TimeUnit.SECONDS;
-                                case "m" -> TimeUnit.MILLISECONDS;
-                                case "u" -> TimeUnit.MICROSECONDS;
-                                case "n" -> TimeUnit.NANOSECONDS;
-                                // This should NEVER be reachable, because the matcher
-                                // would not have matched.
-                                default -> throw new GrpcException(GrpcStatus.INTERNAL, "Invalid unit: " + unit);
-                            });
-            return deadlineDetector.scheduleDeadline(deadline, () -> {
+        final var timeoutNanos = GrpcTimeout.parseNanos(timeout);
+        if (timeoutNanos.isPresent()) {
+            return deadlineDetector.scheduleDeadline(timeoutNanos.getAsLong(), () -> {
                 route.deadlineExceededCounter().increment();
                 pipeline.onError(new GrpcException(GrpcStatus.DEADLINE_EXCEEDED));
             });
@@ -715,13 +572,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         @Override
         public void onNext(@NonNull final Bytes response) {
             try {
-                final Bytes compressedResponse =
-                        GrpcCompression.getCompressor(outgoingEncoding).compress(response);
-                final int length = (int) compressedResponse.length();
-                final var bufferData = BufferData.create(5 + length);
-                bufferData.write(GrpcCompression.IDENTITY.equals(outgoingEncoding) ? 0 : 1);
-                bufferData.writeUnsignedInt32(length);
-                bufferData.write(compressedResponse.toByteArray());
+                final var bufferData = BufferData.create(GrpcFramer.frameMessage(response, outgoingEncoding));
                 final var header = Http2FrameHeader.create(
                         bufferData.available(), Http2FrameTypes.DATA, Http2Flag.DataFlags.create(0), streamId);
 
@@ -778,15 +629,25 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         }
     }
 
-    /** Simple implementation of the {@link ServiceInterface.RequestOptions} interface. */
-    private record Options(
-            Optional<String> authority,
-            String contentType,
-            int maxMessageSizeBytes,
-            Map<String, String> metadata,
-            SocketAddress remoteAddress,
-            Optional<Certificate[]> remoteCertificateChain)
-            implements ServiceInterface.RequestOptions {}
+    /** A reusable {@link GrpcDeframer.Input} over the {@link BufferData} of the current data frame. */
+    private static final class BufferDataInput implements GrpcDeframer.Input {
+        private BufferData data;
+
+        @Override
+        public int available() {
+            return data.available();
+        }
+
+        @Override
+        public int read() {
+            return data.read();
+        }
+
+        @Override
+        public void read(@NonNull final byte[] dst, final int offset, final int length) {
+            data.read(dst, offset, length);
+        }
+    }
 
     /**
      * A {@link ScheduledFuture} that does nothing. This is used when there is no deadline set for
