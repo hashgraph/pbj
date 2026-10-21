@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -42,6 +44,7 @@ import io.helidon.webclient.api.ClientConnection;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.http2.Http2ClientConnection;
 import io.helidon.webclient.http2.StreamTimeoutException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -152,6 +155,24 @@ public class PbjGrpcCallTest {
 
         // It submits a private method reference, so this is the best we can do:
         verify(executor, times(1)).submit(any(Runnable.class));
+    }
+
+    @Test
+    public void testConstructorReportsAClosedConnectionAsAnIoFailure() {
+        final PbjGrpcClientConfig config =
+                new PbjGrpcClientConfig(READ_TIMEOUT, tls, OPTIONS.authority(), OPTIONS.contentType());
+        doReturn(config).when(grpcClient).getConfig();
+        // Helidon 4.5.6 refuses to add a stream to a closed connection:
+        final IllegalStateException closed = new IllegalStateException("Connection is closed");
+        doThrow(closed).when(grpcClientStream).writeHeaders(any(Http2Headers.class), eq(false));
+
+        final UncheckedIOException exception = assertThrows(
+                UncheckedIOException.class,
+                () -> new PbjGrpcCall(
+                        grpcClient, grpcClientStream, OPTIONS, METHOD_NAME, requestCodec, replyCodec, pipeline));
+
+        assertSame(closed, exception.getCause().getCause());
+        verifyNoInteractions(webClient, executor);
     }
 
     @ParameterizedTest
