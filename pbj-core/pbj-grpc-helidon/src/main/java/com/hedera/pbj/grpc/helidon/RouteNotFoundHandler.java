@@ -22,6 +22,7 @@ import java.util.Objects;
 final class RouteNotFoundHandler implements Http2SubProtocolSelector.SubProtocolHandler {
     private final Http2StreamWriter streamWriter;
     private final int streamId;
+    private final Status httpStatus;
     private Http2StreamState currentStreamState;
 
     /**
@@ -34,15 +35,25 @@ final class RouteNotFoundHandler implements Http2SubProtocolSelector.SubProtocol
             @NonNull final Http2StreamWriter streamWriter,
             final int streamId,
             @NonNull final Http2StreamState currentStreamState) {
+        this(streamWriter, streamId, currentStreamState, Status.OK_200);
+    }
+
+    /** Selects an HTTP status for a headers-only rejection, including an unsupported native HEAD request. */
+    RouteNotFoundHandler(
+            @NonNull final Http2StreamWriter streamWriter,
+            final int streamId,
+            @NonNull final Http2StreamState currentStreamState,
+            @NonNull final Status httpStatus) {
         this.streamWriter = Objects.requireNonNull(streamWriter);
         this.streamId = streamId;
         this.currentStreamState = Objects.requireNonNull(currentStreamState);
+        this.httpStatus = Objects.requireNonNull(httpStatus);
     }
 
     @Override
     public void init() {
         final WritableHeaders<?> writable = WritableHeaders.create();
-        writable.set(Http2Headers.STATUS_NAME, Status.OK_200.code());
+        writable.set(Http2Headers.STATUS_NAME, httpStatus.code());
         writable.set(GrpcHeaders.NOT_FOUND);
         final Http2Headers http2Headers = Http2Headers.create(writable);
         streamWriter.writeHeaders(
@@ -50,7 +61,10 @@ final class RouteNotFoundHandler implements Http2SubProtocolSelector.SubProtocol
                 streamId,
                 Http2Flag.HeaderFlags.create(Http2Flag.END_OF_HEADERS | Http2Flag.END_OF_STREAM),
                 FlowControl.Outbound.NOOP);
-        currentStreamState = Http2StreamState.HALF_CLOSED_LOCAL;
+        currentStreamState = currentStreamState == Http2StreamState.HALF_CLOSED_REMOTE
+                        || currentStreamState == Http2StreamState.CLOSED
+                ? Http2StreamState.CLOSED
+                : Http2StreamState.HALF_CLOSED_LOCAL;
     }
 
     @Override

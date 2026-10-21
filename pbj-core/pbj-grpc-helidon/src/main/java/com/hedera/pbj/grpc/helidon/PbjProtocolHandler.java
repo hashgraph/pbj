@@ -15,7 +15,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.grpc.common.GrpcDeframer;
 import com.hedera.pbj.grpc.common.GrpcFramer;
-import com.hedera.pbj.grpc.common.compression.ZstdGrpcTransformer;
+import com.hedera.pbj.grpc.common.compression.GrpcCompressionRegistry;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.GrpcException;
@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
  */
 final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHandler {
     static {
-        new ZstdGrpcTransformer().register("zstd");
+        GrpcCompressionRegistry.initialize();
     }
 
     private static final System.Logger LOGGER = System.getLogger(PbjProtocolHandler.class.getName());
@@ -128,6 +128,9 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * <p>This member is only accessed by the {@link #data} method, which is called sequentially.
      */
     private GrpcDeframer deframer;
+
+    /** Complete request messages received, accessed sequentially by the transport. */
+    private int requestMessageCount;
 
     /** Adapts the Helidon {@link BufferData} of each data frame for the {@link #deframer}. */
     private final BufferDataInput bufferDataInput = new BufferDataInput();
@@ -208,8 +211,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                                 yield ct;
                             }
                             throw new HttpException(
-                                    "invalid gRPC request content-type \"" + ct + "\"",
-                                    Status.UNSUPPORTED_MEDIA_TYPE_415);
+                                    "Unsupported gRPC request content type", Status.UNSUPPORTED_MEDIA_TYPE_415);
                         }
                     };
 
@@ -219,10 +221,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             try {
                 this.decompressor = GrpcCompression.determineDecompressor(encodings);
             } catch (IllegalStateException ex) {
-                throw new GrpcException(
-                        GrpcStatus.UNIMPLEMENTED,
-                        "Decompressor is not installed for grpc-encoding \"" + String.join(", ", encodings) + "\"",
-                        ex);
+                throw new GrpcException(GrpcStatus.UNIMPLEMENTED, "Unsupported gRPC request encoding", ex);
             }
 
             // Metadata, aka additional GRPC headers, provided by the client with the request.
@@ -252,8 +251,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                 LOGGER.log(DEBUG, "outgoingEncoding: " + outgoingEncoding);
             }
 
-            this.deframer =
-                    new GrpcDeframer(config.maxMessageSizeBytes(), decompressor, bytes -> pipeline.onNext(bytes));
+            this.deframer = new GrpcDeframer(config.maxMessageSizeBytes(), decompressor, this::onRequestMessage);
 
             // Count initialization time against the client's timeout, including sending the response headers.
             final var timeout = requestHeaders.value(GRPC_TIMEOUT);
@@ -302,7 +300,8 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
             // the client.
-            final Pipeline<? super Bytes> openedPipeline = route.service().open(route.method(), options, outgoing);
+            final Pipeline<? super Bytes> openedPipeline =
+                    new SerializedRequestPipeline(route.service().open(route.method(), options, outgoing));
             final GrpcException expiredDeadline;
             synchronized (pipelineLock) {
                 pipeline = openedPipeline;
@@ -342,7 +341,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
     @Override
     public void rstStream(@NonNull final Http2RstStream rstStream) {
-        pipeline.onComplete();
+        error();
+        final Pipeline<? super Bytes> requests = pipeline;
+        if (requests != null) {
+            requests.onComplete();
+        }
     }
 
     @Override
@@ -360,18 +363,22 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         Objects.requireNonNull(header);
         Objects.requireNonNull(data);
 
+        // Helidon may still deliver DATA after initialization failed or a deadline closed the response.
+        // No request pipeline or deframer is available on some initialization failure paths.
+        if (outgoing.isCompleted() || deframer == null || pipeline == null) {
+            return;
+        }
         try {
-            // NOTE: if the deadline is exceeded, then the stream will be closed and data will no
-            // longer flow.
-            // There is some asynchronous behavior here, but in the worst case, we handle a few more
-            // bytes before the stream is closed.
             bufferDataInput.data = data;
             deframer.add(bufferDataInput);
 
-            // The end of the stream has been reached! It is possible that a bad client will send
-            // end of stream before all the message data we sent. In that case, it is as if the
-            // message were never sent.
             if (header.flags(Http2FrameTypes.DATA).endOfStream()) {
+                if (deframer.isMidMessage()) {
+                    throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, "Truncated gRPC request message");
+                }
+                if (requiresSingleRequest() && requestMessageCount == 0) {
+                    throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, "Expected exactly one request message");
+                }
                 deframer.reset();
                 // HALF_CLOSED_REMOTE prevents the Helidon server from closing the stream.
                 // So we mark the stream as CLOSED as this is the only state under which
@@ -383,8 +390,27 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // I have to propagate this error through the service interface, so it can respond to
             // errors in the connection, tear down resources, etc. It will also forward this on
             // to the client, causing the connection to be torn down.
+            outgoing.fail(e);
             pipeline.onError(e);
+        } finally {
+            bufferDataInput.data = null;
         }
+    }
+
+    private boolean requiresSingleRequest() {
+        final ServiceInterface.MethodType type = route.method().type();
+        return type == ServiceInterface.MethodType.UNARY || type == ServiceInterface.MethodType.SERVER_STREAMING;
+    }
+
+    private void onRequestMessage(final Bytes message) {
+        if (outgoing.isCompleted()) {
+            return;
+        }
+        if (requiresSingleRequest() && requestMessageCount != 0) {
+            throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, "Expected exactly one request message");
+        }
+        requestMessageCount++;
+        pipeline.onNext(message);
     }
 
     /**

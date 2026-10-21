@@ -8,6 +8,7 @@ import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.function.Consumer;
 
 /**
@@ -78,13 +79,16 @@ public final class GrpcDeframer {
      */
     private byte[] entityBytes = null;
 
+    /** The declared wire payload length; allocation follows bytes received rather than this value. */
+    private int entityLength;
+
     /** The index into {@link #entityBytes} into which data is to be read next. */
     private int entityBytesIndex = 0;
 
     /**
      * Create a new deframer.
      *
-     * @param maxMessageSizeBytes the maximum size of a single message, before decompression
+     * @param maxMessageSizeBytes the maximum wire and decompressed size of a single message
      * @param decompressor the decompressor to use for messages that have the compression flag set
      * @param onMessage called once for each complete message
      */
@@ -92,7 +96,7 @@ public final class GrpcDeframer {
             final int maxMessageSizeBytes,
             @NonNull final GrpcCompression.Decompressor decompressor,
             @NonNull final Consumer<Bytes> onMessage) {
-        this(maxMessageSizeBytes, decompressingConsumer(decompressor, onMessage));
+        this(maxMessageSizeBytes, decompressingConsumer(maxMessageSizeBytes, decompressor, onMessage));
     }
 
     /**
@@ -111,11 +115,13 @@ public final class GrpcDeframer {
     }
 
     private static MessageConsumer decompressingConsumer(
-            final GrpcCompression.Decompressor decompressor, final Consumer<Bytes> onMessage) {
+            final int maxMessageSizeBytes,
+            final GrpcCompression.Decompressor decompressor,
+            final Consumer<Bytes> onMessage) {
         requireNonNull(decompressor);
         requireNonNull(onMessage);
-        return (flag, bytes) ->
-                onMessage.accept(flag == 1 && bytes.length() != 0 ? decompressor.decompress(bytes) : bytes);
+        return (flag, bytes) -> onMessage.accept(
+                flag == 1 ? GrpcCompression.decompress(decompressor, bytes, maxMessageSizeBytes) : bytes);
     }
 
     /**
@@ -178,40 +184,43 @@ public final class GrpcDeframer {
                             currentReadState = ReadState.START;
                             onMessage.accept(entityIsCompressed, Bytes.EMPTY);
                         } else {
-                            // Create a buffer to hold the message. We sadly cannot reuse this buffer
-                            // because once we have filled it and wrapped it in Bytes and sent it to the
-                            // handler, some user code may grab and hold that Bytes object for an arbitrary
-                            // amount of time, and if we were to scribble into the same byte array, we
-                            // would break the application. So we need a new buffer each time :-(
-                            entityBytes = new byte[(int) length];
+                            // Allocate only when payload bytes arrive. A length prefix alone must not reserve
+                            // the full advertised size for a stalled sender.
+                            entityLength = (int) length;
+                            entityBytes = null;
                             entityBytesIndex = 0;
-                            // done with length now, so move on to next state
                             currentReadState = ReadState.READ_ENTITY_BYTES;
                         }
                     }
                     break;
                 }
                 case READ_ENTITY_BYTES: {
-                    // By the time we get here, entityBytes is no longer null. It may already have been partially
-                    // populated from a previous iteration. It may be that the number of bytes available to be read
-                    // is larger than just this one message. So we need to be careful to read, from what is
-                    // available, only up to the message length, and to leave the rest for the next iteration.
-                    final int numBytesToRead = Math.min(entityBytes.length - entityBytesIndex, data.available());
+                    final int numBytesToRead = Math.min(entityLength - entityBytesIndex, data.available());
+                    ensurePayloadCapacity(entityBytesIndex + numBytesToRead);
                     data.read(entityBytes, entityBytesIndex, numBytesToRead);
                     entityBytesIndex += numBytesToRead;
 
-                    // If we have completed reading the message, then we can proceed.
-                    if (entityBytesIndex == entityBytes.length) {
+                    if (entityBytesIndex == entityLength) {
                         currentReadState = ReadState.START;
-                        // Grab and wrap the bytes and reset to begin reading the next message
+                        // Completed messages own their array; it is never reused for another message.
                         final Bytes bytes = Bytes.wrap(entityBytes);
                         entityBytesIndex = 0;
+                        entityLength = 0;
                         entityBytes = null;
                         onMessage.accept(entityIsCompressed, bytes);
                     }
                     break;
                 }
             }
+        }
+    }
+
+    private void ensurePayloadCapacity(final int required) {
+        if (entityBytes == null) {
+            entityBytes = new byte[Math.min(entityLength, Math.max(8192, required))];
+        } else if (required > entityBytes.length) {
+            final int capacity = (int) Math.min(entityLength, Math.max((long) required, entityBytes.length * 2L));
+            entityBytes = Arrays.copyOf(entityBytes, capacity);
         }
     }
 
@@ -223,6 +232,7 @@ public final class GrpcDeframer {
         currentReadState = ReadState.START;
         numOfPartReadBytes = 0;
         entityBytesIndex = 0;
+        entityLength = 0;
         entityBytes = null;
     }
 

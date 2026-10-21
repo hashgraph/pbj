@@ -282,8 +282,9 @@ class PbjGrpcWebServiceLifecycleTest {
     }
 
     @Test
-    void deadlineAfterInitialReplyFinishesTrailersWhileHttp1BodyIsStillStalled() throws Exception {
+    void deadlineBeforeRequestEofDoesNotDispatchTheFirstMessage() throws Exception {
         final AtomicReference<Pipeline<? super Bytes>> replies = new AtomicReference<Pipeline<? super Bytes>>();
+        final AtomicInteger dispatched = new AtomicInteger();
         final RecordingPipeline requests = new RecordingPipeline(new Pipeline<Bytes>() {
             @Override
             public void onSubscribe(final Flow.Subscription subscription) {
@@ -292,6 +293,7 @@ class PbjGrpcWebServiceLifecycleTest {
 
             @Override
             public void onNext(final Bytes bytes) {
+                dispatched.incrementAndGet();
                 replies.get().onNext(Bytes.EMPTY);
             }
 
@@ -313,11 +315,12 @@ class PbjGrpcWebServiceLifecycleTest {
                     .write(("POST " + PATH + " HTTP/1.1\r\nHost: localhost\r\nContent-Type: " + CONTENT_TYPE
                                     + "\r\ngrpc-timeout: " + TIMEOUT + "\r\nContent-Length: 10\r\n\r\n")
                             .getBytes(StandardCharsets.US_ASCII));
-            // The first complete frame triggers a reply, but the second declared frame never arrives.
+            // Do not dispatch the first complete message until the request body has been validated through EOF.
             socket.getOutputStream().write(new byte[5]);
             socket.getOutputStream().flush();
             final String response = new String(socket.getInputStream().readAllBytes(), StandardCharsets.US_ASCII);
             assertThat(response).startsWith("HTTP/1.1 200 OK\r\n").contains("grpc-status: 4\r\n");
+            assertThat(dispatched).hasValue(0);
             assertThat(requests.errorDelivered.await(2, TimeUnit.SECONDS)).isTrue();
             assertThat(requests.errors).hasValue(1);
         }

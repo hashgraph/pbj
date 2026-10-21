@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.grpc.helidon;
 
+import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC;
 import static com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions.APPLICATION_GRPC_WEB;
 import static java.util.Objects.requireNonNull;
 
@@ -9,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.http.HttpMediaType;
 import io.helidon.http.HttpPrologue;
 import io.helidon.http.Method;
+import io.helidon.http.Status;
 import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2Settings;
 import io.helidon.http.http2.Http2StreamState;
@@ -16,6 +18,7 @@ import io.helidon.http.http2.Http2StreamWriter;
 import io.helidon.http.http2.StreamFlowControl;
 import io.helidon.metrics.api.Counter;
 import io.helidon.metrics.api.Metrics;
+import io.helidon.metrics.api.Tag;
 import io.helidon.webserver.ConnectionContext;
 import io.helidon.webserver.Router;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
@@ -52,10 +55,13 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
                 () -> Thread.startVirtualThread(onDeadlineExceeded), timeoutNanos, TimeUnit.NANOSECONDS);
 
         final var metricRegistry = Metrics.globalRegistry();
-        this.requestCounter = metricRegistry.getOrCreate(
-                Counter.builder("pbj.grpc.requests").scope("vendor").description("The number of gRPC requests"));
+        this.requestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.requests")
+                .scope("vendor")
+                .addTag(Tag.create("transport", "grpc"))
+                .description("The number of gRPC requests"));
         this.failedRequestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.request.failures")
                 .scope("vendor")
+                .addTag(Tag.create("transport", "grpc"))
                 .description("The number of failed gRPC requests"));
     }
 
@@ -86,6 +92,7 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
         Objects.requireNonNull(router);
 
         this.requestCounter.increment();
+        final Optional<HttpMediaType> contentType = headers.httpHeaders().contentType();
 
         // As per the specification, only POST requests are supported. I would have thought that the
         // code here should return a response code of 405 (Method Not Allowed) if the method is not
@@ -93,12 +100,24 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
         // correct.
         if (prologue.method() != Method.POST) {
             this.failedRequestCounter.increment();
+            // HEAD responses cannot contain DATA. Preserve the unsupported-method 404 for an explicitly native
+            // RPC endpoint without falling through to an HTTP error handler that can emit a response body.
+            if (prologue.method() == Method.HEAD
+                    && contentType.isPresent()
+                    && contentType.get().text().startsWith(APPLICATION_GRPC)
+                    && !contentType.get().text().startsWith(APPLICATION_GRPC_WEB)) {
+                final PbjRouting routing = router.routing(PbjRouting.class, EMPTY);
+                if (routing.findRoute(prologue) != null) {
+                    return new SubProtocolResult(
+                            true,
+                            new RouteNotFoundHandler(streamWriter, streamId, currentStreamState, Status.NOT_FOUND_404));
+                }
+            }
             return NOT_SUPPORTED;
         }
 
         // gRPC-Web requests are not native gRPC. Leave them for the HttpRouting, where a PbjGrpcWebService may be
         // registered to handle them. This check must come before the route lookup, which claims every POST.
-        final Optional<HttpMediaType> contentType = headers.httpHeaders().contentType();
         if (contentType.isPresent() && contentType.get().text().startsWith(APPLICATION_GRPC_WEB)) {
             return NOT_SUPPORTED;
         }

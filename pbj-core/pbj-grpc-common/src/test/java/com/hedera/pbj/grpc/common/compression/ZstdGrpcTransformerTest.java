@@ -3,8 +3,11 @@ package com.hedera.pbj.grpc.common.compression;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.grpc.GrpcCompression;
+import com.hedera.pbj.runtime.grpc.GrpcException;
+import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Arrays;
 import org.junit.jupiter.api.Assertions;
@@ -46,5 +49,30 @@ public class ZstdGrpcTransformerTest {
 
         final Bytes decompressedData = zstdGrpcTransformer.decompress(compressedData);
         assertArrayEquals(data, decompressedData.toByteArray());
+    }
+
+    @Test
+    void boundedTransformationAcceptsExactLimitAndRejectsLargerOutput() {
+        final ZstdGrpcTransformer transformer = new ZstdGrpcTransformer();
+        final Bytes payload = Bytes.wrap(new byte[16_384]);
+        final Bytes compressed = transformer.compress(payload);
+        assertEquals(payload, transformer.decompress(compressed, 16_384));
+        final GrpcException failure =
+                assertThrows(GrpcException.class, () -> transformer.decompress(compressed, 16_383));
+        assertEquals(GrpcStatus.RESOURCE_EXHAUSTED, failure.status());
+        assertEquals(Bytes.EMPTY, transformer.decompress(transformer.compress(Bytes.EMPTY), 0));
+    }
+
+    @Test
+    void rejectsAnOversizedAdvertisedNativeWindowBeforeReadingPayload() {
+        final ZstdGrpcTransformer transformer = new ZstdGrpcTransformer();
+        final byte[] compressed =
+                transformer.compress(Bytes.wrap(new byte[] {42})).toByteArray();
+        // The streaming compressor emits an unknown-content-size frame with a window descriptor at byte five.
+        assertEquals(0, compressed[4]);
+        compressed[5] = (byte) 0xF8;
+        final GrpcException failure =
+                assertThrows(GrpcException.class, () -> transformer.decompress(Bytes.wrap(compressed), 1024));
+        assertEquals(GrpcStatus.RESOURCE_EXHAUSTED, failure.status());
     }
 }

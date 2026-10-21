@@ -235,8 +235,13 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                         // If the compressedFlag is 0, then per the specification, the message isn't compressed
                         // regardless of the grpc-encoding value:
                         // https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
-                        final Bytes replyBytes =
-                                datagram.compressedFlag() == 1 ? decompressor.decompress(bytes) : bytes;
+                        final Bytes replyBytes = datagram.compressedFlag() == 1
+                                ? GrpcCompression.decompress(
+                                        decompressor,
+                                        bytes,
+                                        grpcClient.getConfig().maxIncomingBufferSize()
+                                                - PbjGrpcDatagramReader.PREFIX_LENGTH)
+                                : bytes;
 
                         try {
                             final ReplyT reply = replyCodec.parse(

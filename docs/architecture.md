@@ -236,6 +236,35 @@ The server supports all four gRPC call types (unary, client-streaming, server-st
 
 `PbjProtocolSelector` declines requests with an `application/grpc-web*` content type, so Helidon passes them on to the `HttpRouting`. There, `PbjGrpcWebService` serves gRPC-Web over HTTP/1.1 and HTTP/2: it reads the request body, deframes it (decoding base64 first in text mode), calls the same `ServiceInterface.open(...)`, and writes the replies as frames followed by a final trailers frame flagged `0x80`, instead of HTTP/2 trailers. It also answers CORS preflight requests. Both handlers share the transport-neutral framing code in `pbj-grpc-common` (`GrpcDeframer`, `GrpcFramer`, `Base64ChunkDecoder`). Server request options and timeout parsing live in `pbj-grpc-helidon`. The client uses the same `GrpcDeframer` through a bounded message queue, preserving wire compression flags until response processing.
 
+Native gRPC and gRPC-Web are registered separately because Helidon routes them through different protocol APIs. Share the same `PbjConfig` and `PbjGrpcServiceConfig` instances explicitly so message limits and compression settings stay aligned:
+
+```java
+final PbjConfig protocolConfig = PbjConfig.builder()
+        .maxMessageSizeBytes(4 * 1024 * 1024)
+        .build();
+final PbjGrpcServiceConfig serviceConfig = PbjGrpcServiceConfig.DEFAULT;
+WebServer.builder()
+        .addProtocol(protocolConfig)
+        .addRouting(PbjRouting.builder().service(service, serviceConfig))
+        .addRouting(HttpRouting.builder().register(PbjGrpcWebService.builder(service)
+                .config(protocolConfig)
+                .serviceConfig(serviceConfig)
+                .build()))
+        .build();
+```
+
+The web service owns its admission and lifetime limits. `defaultTimeout(Duration)` is five minutes when the client omits a valid `grpc-timeout`; `maxTimeout(Duration)` clamps both client and default lifetimes to one hour by default. `maxConcurrentCalls(int)` defaults to 1024 admitted calls per `PbjGrpcWebService` instance, shared across that instance's methods, and excess calls fail with `RESOURCE_EXHAUSTED`. Configure these values explicitly for long-lived subscriptions and reconnect subscriptions when their maximum lifetime expires. They are separate from the listener's connection, HTTP/2 stream, concurrent-request, and idle-timeout limits.
+
+Request metadata excludes protocol, routing, and hop-by-hop headers. Authorization and custom application metadata remain available. Cookies are omitted unless `forwardCookies(true)` is selected; applications that opt into cookie authentication must provide their own CSRF protection. Origin allowlists accept serialized HTTP(S) origins or `*`; paths, credentials, query strings, fragments, and the opaque `null` origin are rejected.
+
+Cancellation records a terminal outcome independently of response writes and interrupts the dispatch worker and active response writers. Signals delivered to the application request pipeline are serialized, so `onError` is deferred until an active `onNext` callback returns. Interruption is cooperative: application callbacks and application-owned asynchronous publishers must release resources when cancelled; PBJ cannot forcibly stop application code that ignores interruption. Helidon's `HttpService` API does not expose an idle peer disconnect or HTTP/2 stream reset, so these server-owned lifetimes also bound otherwise idle calls after a client leaves.
+
+Method counters use a `transport` tag with `grpc` or `grpc-web` so failures and deadlines can be attributed to the correct endpoint. Dashboard queries that select individual time series must include this tag; aggregate queries can sum over both transports. Zstd is installed once by a shared registry initializer before either server transport negotiates compression, including a server that only registers gRPC-Web.
+
+Native gRPC deadline scheduling uses the remaining timeout duration, rather than treating an absolute `System.nanoTime()` value as a delay. This is a behavior change: a client-specified `grpc-timeout` now terminates long-lived native streams when it expires. Completion and terminal error writes are serialized with in-flight response messages. Consumers must verify their consensus-node and block-node client timeout settings during integration; the PBJ repository tests do not constitute an end-to-end consensus-node validation.
+
+The dependency platform selects Helidon 4.5.6. This patch line contains HTTP/2 hardening, including limits on header-table growth and connection-window accounting; see the [Helidon release notes](https://github.com/helidon-io/helidon/releases/tag/4.5.6) and [Oracle October 2026 advisory](https://www.oracle.com/security-alerts/cpuoct2026.html). Applications that manage Helidon versions independently must select a compatible patched version as well. PBJ's call limits complement the server's connection, concurrent-request, HTTP/2 stream, and idle-timeout limits; configure those for the deployment rather than relying on browser-provided timeout headers.
+
 ### Client (`pbj-grpc-client-helidon`)
 
 The client wraps Helidon's HTTP/2 WebClient:
@@ -271,7 +300,7 @@ Compression algorithms are registered in a global `GrpcCompression` registry. Bu
 | Gzip            | `gzip`       | `GzipGrpcTransformer`                                         |
 | Zstandard       | `zstd`       | `ZstdGrpcTransformer` (in `pbj-grpc-common`, uses `zstd-jni`) |
 
-Custom compression algorithms can be registered at runtime via `GrpcCompression.registerCompressor()`.
+Custom compression algorithms can be registered at runtime via `GrpcCompression.registerCompressor()` and `registerDecompressor()`. Inbound compressed messages use `Decompressor.decompress(Bytes, int maxOutputSize)`: custom decompressors must implement this bounded overload and stop before buffering output beyond the supplied limit. Implementing only the legacy `decompress(Bytes)` method remains source-compatible, but bounded inbound decoding fails with `UNIMPLEMENTED` until the algorithm supplies a bounded implementation. Gzip and zstd enforce the limit while streaming their output; exceeding it fails with `RESOURCE_EXHAUSTED` rather than allocating the complete expanded payload.
 
 ## Data Flow: End to End
 
@@ -350,8 +379,8 @@ Model objects defer expensive computations (`hashCode()`, `protobufEncodedSize()
 | Module system | JPMS                      | —       |
 | Build         | Gradle (Kotlin DSL)       | 9.1.0   |
 | Proto parsing | ANTLR                     | 4.13.2  |
-| HTTP/2 server | Helidon WebServer         | 4.4.0   |
-| HTTP/2 client | Helidon WebClient         | 4.4.0   |
+| HTTP/2 server | Helidon WebServer         | 4.5.6   |
+| HTTP/2 client | Helidon WebClient         | 4.5.6   |
 | Compression   | zstd-jni                  | —       |
 | Testing       | JUnit 5, Mockito, AssertJ | —       |
 | Benchmarks    | JMH                       | —       |

@@ -85,6 +85,14 @@ class PbjTest {
         SERVER = WebServer.builder()
                 .port(8080)
                 .addRouting(PbjRouting.builder().service(PROXY))
+                .routing(routing -> {
+                    routing.head("/ordinary-head", (request, response) -> response.header(
+                                    HeaderNames.create("x-head-route"), "ordinary")
+                            .send());
+                    routing.head(SAY_HELLO_PATH, (request, response) -> response.header(
+                                    HeaderNames.create("x-head-route"), "ordinary")
+                            .send());
+                })
                 .build()
                 .start();
 
@@ -146,7 +154,7 @@ class PbjTest {
          */
         @ParameterizedTest
         @ValueSource(strings = {"GET", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE"})
-        void mustUsePost(final String methodName) {
+        void mustUsePost(final String methodName) throws IOException {
             try (var response = CLIENT.method(Method.create(methodName))
                     .contentType(APPLICATION_GRPC_PROTO)
                     .path(SAY_HELLO_PATH)
@@ -157,6 +165,23 @@ class PbjTest {
                 // to be 405 Method Not Allowed instead. See PbjProtocolSelector for the check for
                 // POST.
                 assertThat(response.status().code()).isEqualTo(404);
+                if ("HEAD".equals(methodName)) {
+                    assertThat(response.inputStream().readAllBytes()).isEmpty();
+                    assertThat(response.headers().first(HeaderNames.create("x-head-route")))
+                            .isEmpty();
+                }
+            }
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"/ordinary-head", SAY_HELLO_PATH})
+        void ordinaryHeadRequestsStillReachHttpRouting(final String path) throws IOException {
+            try (final Http2ClientResponse response =
+                    CLIENT.method(Method.HEAD).path(path).request()) {
+                assertThat(response.status().code()).isEqualTo(200);
+                assertThat(response.headers().first(HeaderNames.create("x-head-route")))
+                        .hasValue("ordinary");
+                assertThat(response.inputStream().readAllBytes()).isEmpty();
             }
         }
     }

@@ -101,6 +101,8 @@ public interface ServiceInterface extends AutoCloseable {
         String APPLICATION_GRPC_WEB_TEXT = "application/grpc-web-text";
         /** A constant for the base64 encoded gRPC-Web content type "application/grpc-web-text+proto". */
         String APPLICATION_GRPC_WEB_TEXT_PROTO = "application/grpc-web-text+proto";
+        /** Base64-encoded gRPC-Web JSON. */
+        String APPLICATION_GRPC_WEB_TEXT_JSON = "application/grpc-web-text+json";
 
         /**
          * Default maximum message size in bytes ({@value}).
@@ -143,10 +145,13 @@ public interface ServiceInterface extends AutoCloseable {
 
         /**
          * Gets whether the content type describes a JSON message. This will be true if the {@link #contentType()}
-         * is equal to {@link #APPLICATION_GRPC_JSON} or {@link #APPLICATION_GRPC_WEB_JSON}.
+         * is equal to {@link #APPLICATION_GRPC_JSON}, {@link #APPLICATION_GRPC_WEB_JSON}, or
+         * {@link #APPLICATION_GRPC_WEB_TEXT_JSON}.
          */
         default boolean isJson() {
-            return APPLICATION_GRPC_JSON.equals(contentType()) || APPLICATION_GRPC_WEB_JSON.equals(contentType());
+            return APPLICATION_GRPC_JSON.equals(contentType())
+                    || APPLICATION_GRPC_WEB_JSON.equals(contentType())
+                    || APPLICATION_GRPC_WEB_TEXT_JSON.equals(contentType());
         }
 
         /**

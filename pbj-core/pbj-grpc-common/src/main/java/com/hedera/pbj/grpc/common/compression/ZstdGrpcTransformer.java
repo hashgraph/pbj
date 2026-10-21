@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.grpc.common.compression;
 
+import com.github.luben.zstd.Zstd;
+import com.github.luben.zstd.ZstdIOException;
 import com.github.luben.zstd.ZstdInputStream;
 import com.github.luben.zstd.ZstdOutputStream;
 import com.hedera.pbj.runtime.grpc.GrpcCompression;
+import com.hedera.pbj.runtime.grpc.GrpcException;
+import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -42,15 +46,25 @@ public record ZstdGrpcTransformer(int level) implements GrpcCompression.GrpcTran
 
     @Override
     public Bytes decompress(Bytes bytes) {
-        byte[] buffer = new byte[1024];
-        try (ZstdInputStream zis = new ZstdInputStream(bytes.toInputStream());
-                ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            int len;
-            while ((len = zis.read(buffer, 0, buffer.length)) > 0) {
-                baos.write(buffer, 0, len);
+        return decompress(bytes, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public Bytes decompress(final Bytes bytes, final int maxOutputSize) {
+        if (maxOutputSize < 0) {
+            throw new IllegalArgumentException("maxOutputSize must not be negative");
+        }
+        // A stream's advertised window can itself demand substantial native memory. Permit the ordinary zstd
+        // streaming window (up to 8 MiB), or the configured message limit if larger, but never an arbitrary window.
+        final int windowLog = Math.max(23, 32 - Integer.numberOfLeadingZeros(Math.max(1, maxOutputSize) - 1));
+        try (ZstdInputStream zis = new ZstdInputStream(bytes.toInputStream()).setLongMax(windowLog)) {
+            return GrpcCompression.readDecompressed(zis, maxOutputSize);
+        } catch (final ZstdIOException e) {
+            if (e.getErrorCode() == Zstd.errFrameParameterWindowTooLarge()) {
+                throw new GrpcException(GrpcStatus.RESOURCE_EXHAUSTED, "Compressed message window exceeds limit", e);
             }
-            return Bytes.wrap(baos.toByteArray());
-        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
     }
