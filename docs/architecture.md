@@ -234,7 +234,7 @@ PbjProtocolHandler
 
 The server supports all four gRPC call types (unary, client-streaming, server-streaming, bidirectional) and handles deadline propagation via the `grpc-timeout` header.
 
-`PbjProtocolSelector` declines requests with an `application/grpc-web*` content type, so Helidon passes them on to the `HttpRouting`. There, `PbjGrpcWebService` serves gRPC-Web over HTTP/1.1 and HTTP/2: it reads the request body, deframes it (decoding base64 first in text mode), calls the same `ServiceInterface.open(...)`, and writes the replies as frames followed by a final trailers frame flagged `0x80`, instead of HTTP/2 trailers. It also answers CORS preflight requests. Both handlers share the transport-neutral framing code in `pbj-grpc-common` (`GrpcDeframer`, `GrpcFramer`, `GrpcTimeout`, `GrpcRequestOptions`, `Base64ChunkDecoder`).
+`PbjProtocolSelector` declines requests with an `application/grpc-web*` content type, so Helidon passes them on to the `HttpRouting`. There, `PbjGrpcWebService` serves gRPC-Web over HTTP/1.1 and HTTP/2: it reads the request body, deframes it (decoding base64 first in text mode), calls the same `ServiceInterface.open(...)`, and writes the replies as frames followed by a final trailers frame flagged `0x80`, instead of HTTP/2 trailers. It also answers CORS preflight requests. Both handlers share the transport-neutral framing code in `pbj-grpc-common` (`GrpcDeframer`, `GrpcFramer`, `Base64ChunkDecoder`). Server request options and timeout parsing live in `pbj-grpc-helidon`. The client uses the same `GrpcDeframer` through a bounded message queue, preserving wire compression flags until response processing.
 
 ### Client (`pbj-grpc-client-helidon`)
 

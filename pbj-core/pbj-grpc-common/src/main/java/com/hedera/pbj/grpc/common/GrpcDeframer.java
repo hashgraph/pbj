@@ -15,10 +15,10 @@ import java.util.function.Consumer;
  *
  * <p>Each gRPC message on the wire is prefixed with 5 bytes: one byte compression flag (0 or 1), followed by the
  * length of the message as a 4-byte big-endian unsigned integer. A single chunk of input may contain a part of a
- * message, exactly one message, or the tail of one message and the head of another. This class is transport-neutral:
- * it is used by the native HTTP/2 gRPC handler and by the gRPC-Web handler alike.
+ * message, exactly one message, or the tail of one message and the head of another. Framing is independent of the
+ * HTTP transport and of whether messages are requests or responses.
  *
- * <p>Each complete message is decompressed if needed and handed to the {@code onMessage} consumer.
+ * <p>Each complete message is handed to the configured consumer, optionally after decompression.
  *
  * <p>This class is not thread-safe. Callers are expected to feed it data sequentially.
  */
@@ -51,9 +51,15 @@ public final class GrpcDeframer {
         void read(byte[] dst, int offset, int length);
     }
 
+    /** Receives a complete wire payload before decompression, including its compression flag. */
+    @FunctionalInterface
+    public interface MessageConsumer {
+        /** Receives one immutable wire payload. Flags are either zero or one. */
+        void accept(int compressionFlag, Bytes payload);
+    }
+
     private final int maxMessageSizeBytes;
-    private final GrpcCompression.Decompressor decompressor;
-    private final Consumer<Bytes> onMessage;
+    private final MessageConsumer onMessage;
     private final ArrayInput arrayInput = new ArrayInput();
 
     private ReadState currentReadState = ReadState.START;
@@ -86,9 +92,30 @@ public final class GrpcDeframer {
             final int maxMessageSizeBytes,
             @NonNull final GrpcCompression.Decompressor decompressor,
             @NonNull final Consumer<Bytes> onMessage) {
+        this(maxMessageSizeBytes, decompressingConsumer(decompressor, onMessage));
+    }
+
+    /**
+     * Creates a deframer that exposes wire payloads before decompression. This permits callers to inspect network
+     * bytes or queue compressed messages before decoding them.
+     *
+     * @param maxMessageSizeBytes maximum wire payload size
+     * @param onMessage receives the compression flag and immutable payload of each complete message
+     */
+    public GrpcDeframer(final int maxMessageSizeBytes, @NonNull final MessageConsumer onMessage) {
+        if (maxMessageSizeBytes < 0) {
+            throw new IllegalArgumentException("maxMessageSizeBytes must not be negative");
+        }
         this.maxMessageSizeBytes = maxMessageSizeBytes;
-        this.decompressor = requireNonNull(decompressor);
         this.onMessage = requireNonNull(onMessage);
+    }
+
+    private static MessageConsumer decompressingConsumer(
+            final GrpcCompression.Decompressor decompressor, final Consumer<Bytes> onMessage) {
+        requireNonNull(decompressor);
+        requireNonNull(onMessage);
+        return (flag, bytes) ->
+                onMessage.accept(flag == 1 && bytes.length() != 0 ? decompressor.decompress(bytes) : bytes);
     }
 
     /**
@@ -149,7 +176,7 @@ public final class GrpcDeframer {
                         // In this case we have a request with no message, like an empty unary request
                         if (length == 0) {
                             currentReadState = ReadState.START;
-                            onMessage.accept(Bytes.EMPTY);
+                            onMessage.accept(entityIsCompressed, Bytes.EMPTY);
                         } else {
                             // Create a buffer to hold the message. We sadly cannot reuse this buffer
                             // because once we have filled it and wrapped it in Bytes and sent it to the
@@ -177,13 +204,10 @@ public final class GrpcDeframer {
                     if (entityBytesIndex == entityBytes.length) {
                         currentReadState = ReadState.START;
                         // Grab and wrap the bytes and reset to begin reading the next message
-                        var bytes = Bytes.wrap(entityBytes);
+                        final Bytes bytes = Bytes.wrap(entityBytes);
                         entityBytesIndex = 0;
                         entityBytes = null;
-                        if (entityIsCompressed == 1) {
-                            bytes = decompressor.decompress(bytes);
-                        }
-                        onMessage.accept(bytes);
+                        onMessage.accept(entityIsCompressed, bytes);
                     }
                     break;
                 }

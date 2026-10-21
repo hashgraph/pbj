@@ -5,6 +5,5 @@ description = "A library with common code used by both PBJ gRPC client and serve
 
 testModuleInfo {
     requires("org.junit.jupiter.api")
-    requires("org.junit.jupiter.params")
     requiresStatic("java.annotation")
 }

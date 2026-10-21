@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.pbj.grpc.common;
+package com.hedera.pbj.grpc.helidon;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -21,7 +22,7 @@ import java.util.regex.Pattern;
  *             Nanosecond → "n"
  * </pre>
  */
-public final class GrpcTimeout {
+final class GrpcTimeout {
     /** The name of the header carrying the timeout. */
     public static final String HEADER_NAME = "grpc-timeout";
 
@@ -39,12 +40,12 @@ public final class GrpcTimeout {
      */
     @NonNull
     public static OptionalLong parseNanos(@NonNull final String timeout) {
-        final var matcher = GRPC_TIMEOUT_PATTERN.matcher(timeout);
+        final Matcher matcher = GRPC_TIMEOUT_PATTERN.matcher(timeout);
         if (!matcher.matches()) {
             return OptionalLong.empty();
         }
-        final var num = Integer.parseInt(matcher.group(1));
-        final var unit =
+        final int num = Integer.parseInt(matcher.group(1));
+        final TimeUnit unit =
                 switch (matcher.group(2)) {
                     case "H" -> TimeUnit.HOURS;
                     case "M" -> TimeUnit.MINUTES;

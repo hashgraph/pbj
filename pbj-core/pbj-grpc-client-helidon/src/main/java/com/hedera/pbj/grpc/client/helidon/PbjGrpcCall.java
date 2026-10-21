@@ -230,9 +230,7 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                             throw new IllegalStateException("GRPC datagram compressed flag " + datagram.compressedFlag()
                                     + " is unsupported. Only 0 and 1 are valid.");
                         }
-                        BufferData data = datagram.data();
-                        final byte[] array = data.readBytes();
-                        final Bytes bytes = Bytes.wrap(array);
+                        final Bytes bytes = datagram.data();
                         PbjGrpcCall.networkBytesInspector.received(bytes);
                         // If the compressedFlag is 0, then per the specification, the message isn't compressed
                         // regardless of the grpc-encoding value:

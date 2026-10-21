@@ -23,8 +23,8 @@ class Base64ChunkDecoderTest {
         final byte[] original = ascii("The quick brown fox jumps over the lazy dog");
         final byte[] encoded = Base64.getEncoder().encode(original);
         for (int split = 0; split <= encoded.length; split++) {
-            final var decoder = new Base64ChunkDecoder();
-            final var out = new ByteArrayOutputStream();
+            final Base64ChunkDecoder decoder = new Base64ChunkDecoder();
+            final ByteArrayOutputStream out = new ByteArrayOutputStream();
             out.writeBytes(decoder.decode(encoded, 0, split));
             out.writeBytes(decoder.decode(encoded, split, encoded.length - split));
             decoder.finish();
@@ -39,8 +39,8 @@ class Base64ChunkDecoderTest {
                 + Base64.getEncoder().encodeToString(ascii("bc"))
                 + Base64.getEncoder().encodeToString(ascii("def")));
         for (int split = 0; split <= encoded.length; split++) {
-            final var decoder = new Base64ChunkDecoder();
-            final var out = new ByteArrayOutputStream();
+            final Base64ChunkDecoder decoder = new Base64ChunkDecoder();
+            final ByteArrayOutputStream out = new ByteArrayOutputStream();
             out.writeBytes(decoder.decode(encoded, 0, split));
             out.writeBytes(decoder.decode(encoded, split, encoded.length - split));
             decoder.finish();
@@ -51,7 +51,7 @@ class Base64ChunkDecoderTest {
     @Test
     void ignoresWhitespace() {
         final byte[] encoded = ascii("YW\r\nJj ZA==\n");
-        final var decoder = new Base64ChunkDecoder();
+        final Base64ChunkDecoder decoder = new Base64ChunkDecoder();
         assertEquals("abcd", new String(decoder.decode(encoded, 0, encoded.length), StandardCharsets.US_ASCII));
         assertDoesNotThrow(decoder::finish);
     }
@@ -59,7 +59,7 @@ class Base64ChunkDecoderTest {
     @Test
     void rejectsInvalidCharacters() {
         final byte[] encoded = ascii("YW*j");
-        final var e =
+        final GrpcException e =
                 assertThrows(GrpcException.class, () -> new Base64ChunkDecoder().decode(encoded, 0, encoded.length));
         assertEquals(GrpcStatus.INVALID_ARGUMENT, e.status());
     }
@@ -67,9 +67,33 @@ class Base64ChunkDecoderTest {
     @Test
     void rejectsATruncatedStream() {
         final byte[] encoded = ascii("YWJjZ");
-        final var decoder = new Base64ChunkDecoder();
+        final Base64ChunkDecoder decoder = new Base64ChunkDecoder();
         assertEquals(3, decoder.decode(encoded, 0, encoded.length).length);
-        final var e = assertThrows(GrpcException.class, decoder::finish);
+        final GrpcException e = assertThrows(GrpcException.class, decoder::finish);
         assertEquals(GrpcStatus.INVALID_ARGUMENT, e.status());
+    }
+
+    @Test
+    void closeValidatesTruncatedInput() {
+        final Base64ChunkDecoder decoder = new Base64ChunkDecoder();
+        decoder.decode(ascii("YQ"), 0, 2);
+        final GrpcException error = assertThrows(GrpcException.class, decoder::close);
+        assertEquals(GrpcStatus.INVALID_ARGUMENT, error.status());
+        assertDoesNotThrow(decoder::close);
+    }
+
+    @Test
+    void abortDiscardsPartialInputWithoutInvalidArgument() {
+        try (Base64ChunkDecoder decoder = new Base64ChunkDecoder()) {
+            decoder.decode(ascii("YQ"), 0, 2);
+            decoder.abort();
+        }
+    }
+
+    @Test
+    void closedDecoderRejectsMoreInput() {
+        final Base64ChunkDecoder decoder = new Base64ChunkDecoder();
+        decoder.close();
+        assertThrows(IllegalStateException.class, () -> decoder.decode(ascii("YWJj"), 0, 4));
     }
 }

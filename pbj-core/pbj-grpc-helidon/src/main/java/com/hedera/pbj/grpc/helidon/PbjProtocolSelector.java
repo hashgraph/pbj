@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import io.helidon.http.HttpMediaType;
 import io.helidon.http.HttpPrologue;
 import io.helidon.http.Method;
 import io.helidon.http.http2.Http2Headers;
@@ -20,6 +21,7 @@ import io.helidon.webserver.Router;
 import io.helidon.webserver.http2.spi.Http2SubProtocolSelector;
 import io.helidon.webserver.http2.spi.SubProtocolResult;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -96,7 +98,7 @@ class PbjProtocolSelector implements Http2SubProtocolSelector {
 
         // gRPC-Web requests are not native gRPC. Leave them for the HttpRouting, where a PbjGrpcWebService may be
         // registered to handle them. This check must come before the route lookup, which claims every POST.
-        final var contentType = headers.httpHeaders().contentType();
+        final Optional<HttpMediaType> contentType = headers.httpHeaders().contentType();
         if (contentType.isPresent() && contentType.get().text().startsWith(APPLICATION_GRPC_WEB)) {
             return NOT_SUPPORTED;
         }

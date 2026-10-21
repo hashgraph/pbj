@@ -30,7 +30,7 @@ class GrpcDeframerTest {
     }
 
     private static byte[] concat(final byte[]... parts) {
-        final var out = new ByteArrayOutputStream();
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
         for (final byte[] part : parts) {
             out.writeBytes(part);
         }
@@ -45,7 +45,7 @@ class GrpcDeframerTest {
                 GrpcFramer.frame(GrpcFramer.UNCOMPRESSED_FLAG, text("world!")));
         for (int split = 0; split <= stream.length; split++) {
             messages.clear();
-            final var deframer = deframer(100);
+            final GrpcDeframer deframer = deframer(100);
             deframer.add(stream, 0, split);
             deframer.add(stream, split, stream.length - split);
             assertEquals(List.of(text("hello"), Bytes.EMPTY, text("world!")), messages, "split at " + split);
@@ -56,7 +56,7 @@ class GrpcDeframerTest {
     @Test
     void readsOneByteAtATime() {
         final byte[] stream = GrpcFramer.frame(GrpcFramer.UNCOMPRESSED_FLAG, text("abc"));
-        final var deframer = deframer(100);
+        final GrpcDeframer deframer = deframer(100);
         for (int i = 0; i < stream.length; i++) {
             deframer.add(stream, i, 1);
             assertEquals(i < stream.length - 1, deframer.isMidMessage());
@@ -68,7 +68,7 @@ class GrpcDeframerTest {
     void decompressesCompressedMessages() {
         final byte[] frame = GrpcFramer.frameMessage(text("compress me"), "gzip");
         assertEquals(GrpcFramer.COMPRESSED_FLAG, frame[0]);
-        final var deframer =
+        final GrpcDeframer deframer =
                 new GrpcDeframer(100, GrpcCompression.determineDecompressor(List.of("gzip")), messages::add);
         deframer.add(frame, 0, frame.length);
         assertEquals(List.of(text("compress me")), messages);
@@ -77,21 +77,23 @@ class GrpcDeframerTest {
     @Test
     void rejectsMessagesLargerThanTheMaximum() {
         final byte[] frame = GrpcFramer.frame(GrpcFramer.UNCOMPRESSED_FLAG, text("12345"));
-        final var e = assertThrows(GrpcException.class, () -> deframer(4).add(frame, 0, frame.length));
+        final GrpcException e =
+                assertThrows(GrpcException.class, () -> deframer(4).add(frame, 0, frame.length));
         assertEquals(GrpcStatus.INVALID_ARGUMENT, e.status());
     }
 
     @Test
     void rejectsUnknownCompressionFlags() {
         final byte[] frame = GrpcFramer.frame(2, text("x"));
-        final var e = assertThrows(GrpcException.class, () -> deframer(100).add(frame, 0, frame.length));
+        final GrpcException e =
+                assertThrows(GrpcException.class, () -> deframer(100).add(frame, 0, frame.length));
         assertEquals(GrpcStatus.UNIMPLEMENTED, e.status());
     }
 
     @Test
     void resetDiscardsAPartialMessage() {
         final byte[] frame = GrpcFramer.frame(GrpcFramer.UNCOMPRESSED_FLAG, text("partial"));
-        final var deframer = deframer(100);
+        final GrpcDeframer deframer = deframer(100);
         deframer.add(frame, 0, 7);
         assertTrue(deframer.isMidMessage());
         deframer.reset();

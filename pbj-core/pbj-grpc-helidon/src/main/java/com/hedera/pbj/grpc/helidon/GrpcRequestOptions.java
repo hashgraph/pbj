@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.pbj.grpc.common;
+package com.hedera.pbj.grpc.helidon;
 
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import java.net.SocketAddress;
@@ -18,7 +18,7 @@ import java.util.Optional;
  * @param remoteAddress the address of the remote peer, or null if unknown
  * @param remoteCertificateChain the TLS certificate chain of the remote peer, if any
  */
-public record GrpcRequestOptions(
+record GrpcRequestOptions(
         Optional<String> authority,
         String contentType,
         int maxMessageSizeBytes,

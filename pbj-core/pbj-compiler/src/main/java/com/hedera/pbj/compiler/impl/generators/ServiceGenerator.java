@@ -193,7 +193,7 @@ public final class ServiceGenerator {
             return sb.toString();
         }
 
-        String formatMethodTypeCase() {
+        String formatMethodEnumConstant() {
             final String type;
             if (!requestStream && !replyStream) {
                 type = "UNARY";
@@ -204,7 +204,7 @@ public final class ServiceGenerator {
             } else {
                 type = "BIDI_STREAMING";
             }
-            return "case " + name + " -> MethodType." + type + ";";
+            return name + "(MethodType." + type + ")";
         }
 
         String formatCaseStatement() {
@@ -546,7 +546,7 @@ public final class ServiceGenerator {
 
         List<RPC> rpcList = new ArrayList<>();
 
-        for (var item : serviceDef.serviceElement()) {
+        for (final Protobuf3Parser.ServiceElementContext item : serviceDef.serviceElement()) {
             if (item.rpc() != null) {
                 final String name = item.rpc().rpcName().ident().getText();
 
@@ -566,7 +566,8 @@ public final class ServiceGenerator {
 
                 boolean deprecatedServiceValue = false;
                 if (item.rpc().optionStatement() != null) {
-                    for (var option : item.rpc().optionStatement()) {
+                    for (final Protobuf3Parser.OptionStatementContext option :
+                            item.rpc().optionStatement()) {
                         if ("deprecated".equals(option.optionName().getText())) {
                             deprecatedServiceValue = true;
                         } else {
@@ -662,7 +663,7 @@ public final class ServiceGenerator {
                             final @NonNull Method method,
                             final @NonNull RequestOptions options,
                             final @NonNull Pipeline<? super Bytes> replies) {
-                        final var m = ($serviceNameMethod) method;
+                        final $serviceNameMethod m = ($serviceNameMethod) method;
                         try {
                             return switch (m) {
                 $methodCaseStatements
@@ -715,7 +716,7 @@ public final class ServiceGenerator {
                 .replace("$deprecated$", deprecated)
                 .replace("$serviceName", serviceName)
                 .replace("$suffix", SUFFIX)
-                .replace("$methodEnumBody", formatMethodEnumBody(rpcList).indent(DEFAULT_INDENT * 2).replaceAll("(?m)^ +$", ""))
+                .replace("$methodEnumBody", formatMethodEnumBody(rpcList, serviceName).indent(DEFAULT_INDENT * 2).replaceAll("(?m)^ +$", ""))
                 .replace("$serviceMethods", RPC.formatForEach(rpcList, rpc ->
                     rpc.formatDefaultMethod(true) + "\n" + rpc.formatDefaultMethod(false)
                 , "\n\n", DEFAULT_INDENT))
@@ -728,22 +729,25 @@ public final class ServiceGenerator {
         // spotless:on
     }
 
-    private static String formatMethodEnumBody(final List<RPC> rpcList) {
+    private static String formatMethodEnumBody(final List<RPC> rpcList, final String serviceName) {
         if (rpcList.isEmpty()) {
             return "";
         }
         // spotless:off
-        return rpcList.stream().map(RPC::name).collect(Collectors.joining(",\n")) + ";\n"
+        return rpcList.stream().map(RPC::formatMethodEnumConstant).collect(Collectors.joining(",\n")) + ";\n"
                 + """
+
+                private final MethodType type;
+
+                $serviceNameMethod(final MethodType type) {
+                    this.type = type;
+                }
 
                 @Override
                 public MethodType type() {
-                    return switch (this) {
-                $methodTypeCases
-                    };
+                    return type;
                 }
-                """
-                .replace("$methodTypeCases", RPC.formatForEach(rpcList, RPC::formatMethodTypeCase, "\n", DEFAULT_INDENT * 2).stripTrailing());
+                """.replace("$serviceName", serviceName);
         // spotless:on
     }
 

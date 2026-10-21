@@ -13,19 +13,19 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.pbj.grpc.common.Base64ChunkDecoder;
 import com.hedera.pbj.grpc.common.GrpcDeframer;
 import com.hedera.pbj.grpc.common.GrpcFramer;
-import com.hedera.pbj.grpc.common.GrpcRequestOptions;
-import com.hedera.pbj.grpc.common.GrpcTimeout;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
+import com.hedera.pbj.runtime.grpc.ServiceInterface.MethodType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.context.Context;
 import io.helidon.common.context.Contexts;
+import io.helidon.common.media.type.MediaType;
 import io.helidon.common.uri.UriEncoding;
 import io.helidon.http.Header;
 import io.helidon.http.HeaderName;
@@ -46,6 +46,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
@@ -153,8 +154,8 @@ public final class PbjGrpcWebService implements HttpService {
     @Override
     public void routing(@NonNull final HttpRules rules) {
         for (final ServiceInterface.Method method : service.methods()) {
-            final var route = new PbjMethodRoute(service, serviceConfig, method);
-            final var path = "/" + service.fullName() + "/" + method.name();
+            final PbjMethodRoute route = new PbjMethodRoute(service, serviceConfig, method);
+            final String path = "/" + service.fullName() + "/" + method.name();
             rules.post(path, (req, res) -> new Call(route, req, res).handle());
             rules.options(path, this::preflight);
         }
@@ -162,7 +163,7 @@ public final class PbjGrpcWebService implements HttpService {
 
     /** Answers a CORS preflight request. */
     private void preflight(@NonNull final ServerRequest req, @NonNull final ServerResponse res) {
-        final var origin = req.headers().first(HeaderNames.ORIGIN);
+        final Optional<String> origin = req.headers().first(HeaderNames.ORIGIN);
         if (origin.isEmpty() || !isAllowedOrigin(origin.get())) {
             res.status(Status.FORBIDDEN_403).send();
             return;
@@ -242,7 +243,7 @@ public final class PbjGrpcWebService implements HttpService {
             try {
                 requestContentType = negotiateRequestContentType();
                 contentType = negotiateResponseContentType();
-                final var methodType = route.method().type();
+                final MethodType methodType = route.method().type();
                 if (methodType == ServiceInterface.MethodType.CLIENT_STREAMING
                         || methodType == ServiceInterface.MethodType.BIDI_STREAMING) {
                     throw new GrpcException(
@@ -276,7 +277,7 @@ public final class PbjGrpcWebService implements HttpService {
             // Capture the lazily initialized request context on its owning thread. The service must see the
             // same authentication/context values when it is dispatched on the cancellable worker.
             context = req.context();
-            final var worker = Thread.ofVirtual()
+            final Thread worker = Thread.ofVirtual()
                     .name("pbj-grpc-web-call")
                     .unstarted(() -> Contexts.runInContext(context, () -> dispatch(decompressor)));
             worker.start();
@@ -332,16 +333,16 @@ public final class PbjGrpcWebService implements HttpService {
 
         /** Records a failure; application cleanup must never block the response/deadline thread. */
         private void fail(@NonNull final Throwable failure) {
-            final var status =
+            final GrpcStatus status =
                     failure instanceof GrpcException grpcException ? grpcException.status() : GrpcStatus.INTERNAL;
-            final var message = failure instanceof GrpcException ? failure.getMessage() : null;
+            final String message = failure instanceof GrpcException ? failure.getMessage() : null;
             terminate(new Completion(status, message, failure));
         }
 
         /** Delivers cancellation once, including when initialization finishes after the call has expired. */
         private void notifyFailure() {
-            final var result = completion.get();
-            final var pipeline = requests;
+            final Completion result = completion.get();
+            final Pipeline<? super Bytes> pipeline = requests;
             if (result != null
                     && result.failure() != null
                     && pipeline != null
@@ -363,22 +364,26 @@ public final class PbjGrpcWebService implements HttpService {
                 @NonNull final Pipeline<? super Bytes> requests,
                 @NonNull final GrpcCompression.Decompressor decompressor)
                 throws IOException {
-            final var deframer = new GrpcDeframer(maxMessageSizeBytes, decompressor, requests::onNext);
-            final var base64 = requestTextMode ? new Base64ChunkDecoder() : null;
+            final GrpcDeframer deframer = new GrpcDeframer(maxMessageSizeBytes, decompressor, requests::onNext);
             final byte[] buffer = new byte[READ_BUFFER_SIZE];
-            try (InputStream in = req.content().inputStream()) {
-                int read;
-                while (!isCompleted() && (read = in.read(buffer)) != -1) {
-                    if (base64 == null) {
-                        deframer.add(buffer, 0, read);
-                    } else {
-                        final byte[] decoded = base64.decode(buffer, 0, read);
-                        deframer.add(decoded, 0, decoded.length);
+            try (Base64ChunkDecoder base64 = requestTextMode ? new Base64ChunkDecoder() : null) {
+                boolean reachedEnd = false;
+                try (InputStream in = req.content().inputStream()) {
+                    int read = 0;
+                    while (!isCompleted() && (read = in.read(buffer)) != -1) {
+                        if (base64 == null) {
+                            deframer.add(buffer, 0, read);
+                        } else {
+                            final byte[] decoded = base64.decode(buffer, 0, read);
+                            deframer.add(decoded, 0, decoded.length);
+                        }
+                    }
+                    reachedEnd = read == -1 && !isCompleted();
+                } finally {
+                    if (base64 != null && !reachedEnd) {
+                        base64.abort();
                     }
                 }
-            }
-            if (base64 != null && !isCompleted()) {
-                base64.finish();
             }
         }
 
@@ -393,7 +398,7 @@ public final class PbjGrpcWebService implements HttpService {
 
         private boolean expireDeadline() {
             if (deadline != Long.MAX_VALUE && deadline - System.nanoTime() <= 0) {
-                final var failure = new GrpcException(GrpcStatus.DEADLINE_EXCEEDED);
+                final GrpcException failure = new GrpcException(GrpcStatus.DEADLINE_EXCEEDED);
                 if (terminate(new Completion(failure.status(), failure.getMessage(), failure))) {
                     route.deadlineExceededCounter().increment();
                 }
@@ -404,7 +409,7 @@ public final class PbjGrpcWebService implements HttpService {
 
         @NonNull
         private String negotiateRequestContentType() throws UnsupportedContentTypeException {
-            final var ct = req.headers()
+            final String ct = req.headers()
                     .contentType()
                     .map(type -> type.mediaType().text())
                     .orElse("");
@@ -426,12 +431,13 @@ public final class PbjGrpcWebService implements HttpService {
                 return requestContentType;
             }
             final boolean json = APPLICATION_GRPC_WEB_JSON.equals(requestContentType);
-            final var binary = HttpMediaType.create(json ? APPLICATION_GRPC_WEB_JSON : APPLICATION_GRPC_WEB_PROTO);
-            final var text =
+            final HttpMediaType binary =
+                    HttpMediaType.create(json ? APPLICATION_GRPC_WEB_JSON : APPLICATION_GRPC_WEB_PROTO);
+            final HttpMediaType text =
                     HttpMediaType.create(json ? APPLICATION_GRPC_WEB_TEXT + "+json" : APPLICATION_GRPC_WEB_TEXT_PROTO);
-            final var preferred = requestTextMode ? text : binary;
-            final var alternative = requestTextMode ? binary : text;
-            final var accepted = json
+            final HttpMediaType preferred = requestTextMode ? text : binary;
+            final HttpMediaType alternative = requestTextMode ? binary : text;
+            final Optional<MediaType> accepted = json
                     ? req.headers().bestAccepted(preferred, alternative)
                     : req.headers()
                             .bestAccepted(
@@ -450,7 +456,7 @@ public final class PbjGrpcWebService implements HttpService {
 
         @NonNull
         private GrpcCompression.Decompressor negotiateDecompressor() {
-            final var encodings = req.headers().contains(GrpcHeaders.GRPC_ENCODING)
+            final List<String> encodings = req.headers().contains(GrpcHeaders.GRPC_ENCODING)
                     ? headerValues(GrpcHeaders.GRPC_ENCODING)
                     : List.of(GrpcCompression.IDENTITY);
             try {
@@ -473,11 +479,11 @@ public final class PbjGrpcWebService implements HttpService {
          * Returns {@link Long#MAX_VALUE} if there is no deadline, or the header is invalid.
          */
         private long deadline() {
-            final var timeout = req.headers().first(GrpcHeaders.GRPC_TIMEOUT);
+            final Optional<String> timeout = req.headers().first(GrpcHeaders.GRPC_TIMEOUT);
             if (timeout.isEmpty()) {
                 return Long.MAX_VALUE;
             }
-            final var timeoutNanos = GrpcTimeout.parseNanos(timeout.get());
+            final OptionalLong timeoutNanos = GrpcTimeout.parseNanos(timeout.get());
             return timeoutNanos.isPresent() ? System.nanoTime() + timeoutNanos.getAsLong() : Long.MAX_VALUE;
         }
 
@@ -522,9 +528,9 @@ public final class PbjGrpcWebService implements HttpService {
         private void finishResponse() {
             lock.lock();
             try {
-                final var result = completion.get();
-                final var grpcStatus = result.status();
-                final var grpcMessage = result.message();
+                final Completion result = completion.get();
+                final GrpcStatus grpcStatus = result.status();
+                final String grpcMessage = result.message();
                 if (out == null) {
                     if (!req.content().consumed()
                             && req.prologue().protocolVersion().startsWith("1.")) {
@@ -538,7 +544,7 @@ public final class PbjGrpcWebService implements HttpService {
                     }
                     res.send();
                 } else {
-                    final var trailers = new StringBuilder()
+                    final StringBuilder trailers = new StringBuilder()
                             .append("grpc-status: ")
                             .append(grpcStatus.ordinal())
                             .append("\r\n");
@@ -547,7 +553,7 @@ public final class PbjGrpcWebService implements HttpService {
                                 .append(UriEncoding.encodeUri(grpcMessage))
                                 .append("\r\n");
                     }
-                    final var payload = Bytes.wrap(trailers.toString().getBytes(StandardCharsets.US_ASCII));
+                    final Bytes payload = Bytes.wrap(trailers.toString().getBytes(StandardCharsets.US_ASCII));
                     writeFrame(GrpcFramer.frame(GrpcFramer.TRAILERS_FLAG, payload));
                     out.close();
                 }

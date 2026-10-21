@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.pbj.grpc.common;
+package com.hedera.pbj.grpc.helidon;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

@@ -15,6 +15,7 @@ import io.helidon.http.HeaderNames;
 import io.helidon.http.HttpMediaType;
 import io.helidon.webclient.http2.Http2Client;
 import io.helidon.webclient.http2.Http2ClientProtocolConfig;
+import io.helidon.webclient.http2.Http2ClientResponse;
 import io.helidon.webserver.WebServer;
 import java.io.BufferedReader;
 import java.io.FilterOutputStream;
@@ -43,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Exercises deadlines across service initialization, synchronous dispatch, and request-body reads. */
 @Timeout(8)
@@ -59,11 +61,11 @@ class PbjGrpcWebServiceLifecycleTest {
     @ParameterizedTest
     @EnumSource(Transport.class)
     void deadlineDuringOpenInterruptsWorkerAndCleansUpLatePipeline(final Transport transport) throws Exception {
-        final var entered = new CountDownLatch(1);
-        final var release = new CountDownLatch(1);
-        final var interrupted = new CountDownLatch(1);
-        final var requests = new RecordingPipeline(null);
-        final var service = new TestService(replies -> {
+        final CountDownLatch entered = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        final CountDownLatch interrupted = new CountDownLatch(1);
+        final RecordingPipeline requests = new RecordingPipeline(null);
+        final TestService service = new TestService(replies -> {
             entered.countDown();
             try {
                 release.await();
@@ -74,8 +76,8 @@ class PbjGrpcWebServiceLifecycleTest {
             return requests;
         });
 
-        try (final var server = new TestServer(service)) {
-            final var response = server.postAsync(transport);
+        try (final TestServer server = new TestServer(service)) {
+            final FutureTask<Response> response = server.postAsync(transport);
             try {
                 assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
                 assertDeadline(response.get(3, TimeUnit.SECONDS));
@@ -94,12 +96,12 @@ class PbjGrpcWebServiceLifecycleTest {
     @ParameterizedTest
     @EnumSource(Transport.class)
     void deadlineDuringSynchronousUnaryDispatchInterruptsWorker(final Transport transport) throws Exception {
-        final var entered = new CountDownLatch(1);
-        final var release = new CountDownLatch(1);
-        final var interrupted = new CountDownLatch(1);
-        final var requestPipeline = new AtomicReference<RecordingPipeline>();
-        final var service = new TestService(replies -> {
-            final var unary = Pipelines.<Bytes, Bytes>unary()
+        final CountDownLatch entered = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        final CountDownLatch interrupted = new CountDownLatch(1);
+        final AtomicReference<RecordingPipeline> requestPipeline = new AtomicReference<RecordingPipeline>();
+        final TestService service = new TestService(replies -> {
+            final Pipeline<? super Bytes> unary = Pipelines.<Bytes, Bytes>unary()
                     .mapRequest(bytes -> bytes)
                     .method(bytes -> {
                         entered.countDown();
@@ -115,18 +117,18 @@ class PbjGrpcWebServiceLifecycleTest {
                     .mapResponse(bytes -> bytes)
                     .respondTo(replies)
                     .build();
-            final var requests = new RecordingPipeline(unary);
+            final RecordingPipeline requests = new RecordingPipeline(unary);
             requestPipeline.set(requests);
             return requests;
         });
 
-        try (final var server = new TestServer(service)) {
-            final var response = server.postAsync(transport);
+        try (final TestServer server = new TestServer(service)) {
+            final FutureTask<Response> response = server.postAsync(transport);
             try {
                 assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
                 assertDeadline(response.get(3, TimeUnit.SECONDS));
                 assertThat(interrupted.await(2, TimeUnit.SECONDS)).isTrue();
-                final var requests = requestPipeline.get();
+                final RecordingPipeline requests = requestPipeline.get();
                 assertThat(requests.errorDelivered.await(2, TimeUnit.SECONDS)).isTrue();
                 assertThat(requests.errors).hasValue(1);
             } finally {
@@ -139,14 +141,14 @@ class PbjGrpcWebServiceLifecycleTest {
     @ParameterizedTest
     @EnumSource(Transport.class)
     void lateCallbacksCannotReplaceDeadlineOrWriteToFinishedResponse(final Transport transport) throws Exception {
-        final var replies = new AtomicReference<Pipeline<? super Bytes>>();
-        final var requests = new RecordingPipeline(null);
-        final var service = new TestService(responses -> {
+        final AtomicReference<Pipeline<? super Bytes>> replies = new AtomicReference<Pipeline<? super Bytes>>();
+        final RecordingPipeline requests = new RecordingPipeline(null);
+        final TestService service = new TestService(responses -> {
             replies.set(responses);
             return requests;
         });
 
-        try (final var server = new TestServer(service)) {
+        try (final TestServer server = new TestServer(service)) {
             assertDeadline(server.postAsync(transport).get(3, TimeUnit.SECONDS));
             assertThat(requests.errorDelivered.await(2, TimeUnit.SECONDS)).isTrue();
             assertThat(requests.errorMarker.get()).isSameAs(server.marker);
@@ -163,12 +165,12 @@ class PbjGrpcWebServiceLifecycleTest {
     @ParameterizedTest
     @EnumSource(Transport.class)
     void errorDuringServiceOpenCompletesWithUnknown(final Transport transport) throws Exception {
-        final var service = new TestService(replies -> {
+        final TestService service = new TestService(replies -> {
             throw new AssertionError("Service initialization failed");
         });
 
-        try (final var server = new TestServer(service)) {
-            final var response = server.postAsync(transport).get(3, TimeUnit.SECONDS);
+        try (final TestServer server = new TestServer(service)) {
+            final Response response = server.postAsync(transport).get(3, TimeUnit.SECONDS);
             assertThat(response.httpStatus()).isEqualTo(200);
             assertThat(response.grpcStatus()).isEqualTo(GrpcStatus.UNKNOWN.ordinal());
         }
@@ -177,19 +179,19 @@ class PbjGrpcWebServiceLifecycleTest {
     @ParameterizedTest
     @EnumSource(Transport.class)
     void deadlineCleanupCanReleaseABlockedAsynchronousResponseWrite(final Transport transport) throws Exception {
-        final var writing = new CountDownLatch(1);
-        final var releaseWrite = new CountDownLatch(1);
-        final var publisher = new AtomicReference<Thread>();
-        final var requests = new AtomicReference<RecordingPipeline>();
-        final var service = new TestService(ServiceInterface.MethodType.SERVER_STREAMING, replies -> {
-            final var stream = Pipelines.<Bytes, Bytes>serverStreaming()
+        final CountDownLatch writing = new CountDownLatch(1);
+        final CountDownLatch releaseWrite = new CountDownLatch(1);
+        final AtomicReference<Thread> publisher = new AtomicReference<Thread>();
+        final AtomicReference<RecordingPipeline> requests = new AtomicReference<RecordingPipeline>();
+        final TestService service = new TestService(ServiceInterface.MethodType.SERVER_STREAMING, replies -> {
+            final Pipeline<? super Bytes> stream = Pipelines.<Bytes, Bytes>serverStreaming()
                     .mapRequest(bytes -> bytes)
                     .method((request, responses) ->
                             publisher.set(Thread.ofVirtual().start(() -> responses.onNext(Bytes.EMPTY))))
                     .mapResponse(bytes -> bytes)
                     .respondTo(replies)
                     .build();
-            final var pipeline = new RecordingPipeline(stream, releaseWrite::countDown);
+            final RecordingPipeline pipeline = new RecordingPipeline(stream, releaseWrite::countDown);
             requests.set(pipeline);
             return pipeline;
         });
@@ -209,8 +211,8 @@ class PbjGrpcWebServiceLifecycleTest {
             }
         };
 
-        try (final var server = new TestServer(service, streamFilter)) {
-            final var response = server.postAsync(transport);
+        try (final TestServer server = new TestServer(service, streamFilter)) {
+            final FutureTask<Response> response = server.postAsync(transport);
             try {
                 assertThat(writing.await(2, TimeUnit.SECONDS)).isTrue();
                 assertThat(requests.get().errorDelivered.await(2, TimeUnit.SECONDS))
@@ -231,8 +233,8 @@ class PbjGrpcWebServiceLifecycleTest {
     @ParameterizedTest
     @EnumSource(Transport.class)
     void serviceOpenAndUnaryDispatchSeeTheRequestContext(final Transport transport) throws Exception {
-        final var dispatchMarker = new AtomicReference<RequestMarker>();
-        final var service = new TestService(replies -> Pipelines.<Bytes, Bytes>unary()
+        final AtomicReference<RequestMarker> dispatchMarker = new AtomicReference<RequestMarker>();
+        final TestService service = new TestService(replies -> Pipelines.<Bytes, Bytes>unary()
                 .mapRequest(bytes -> bytes)
                 .method(bytes -> {
                     dispatchMarker.set(currentMarker());
@@ -242,31 +244,32 @@ class PbjGrpcWebServiceLifecycleTest {
                 .respondTo(replies)
                 .build());
 
-        try (final var server = new TestServer(service)) {
-            final var response = server.postAsync(transport).get(3, TimeUnit.SECONDS);
+        try (final TestServer server = new TestServer(service)) {
+            final Response response = server.postAsync(transport).get(3, TimeUnit.SECONDS);
             assertThat(response.grpcStatus()).isEqualTo(GrpcStatus.OK.ordinal());
             assertThat(service.openMarker.get()).isSameAs(server.marker);
             assertThat(dispatchMarker.get()).isSameAs(server.marker);
         }
     }
 
-    @Test
-    void deadlineDuringStalledHttp1BodySendsStatusBeforeClosingConnection() throws Exception {
-        final var requests = new RecordingPipeline(null);
-        try (final var server = new TestServer(new TestService(replies -> requests));
-                final var socket = new Socket("localhost", server.server.port())) {
+    @ParameterizedTest
+    @ValueSource(strings = {CONTENT_TYPE, "application/grpc-web-text+proto"})
+    void deadlineDuringStalledHttp1BodySendsStatusBeforeClosingConnection(final String contentType) throws Exception {
+        final RecordingPipeline requests = new RecordingPipeline(null);
+        try (final TestServer server = new TestServer(new TestService(replies -> requests));
+                final Socket socket = new Socket("localhost", server.server.port())) {
             socket.setSoTimeout(3_000);
             socket.getOutputStream()
-                    .write(("POST " + PATH + " HTTP/1.1\r\nHost: localhost\r\nContent-Type: " + CONTENT_TYPE
+                    .write(("POST " + PATH + " HTTP/1.1\r\nHost: localhost\r\nContent-Type: " + contentType
                                     + "\r\ngrpc-timeout: " + TIMEOUT + "\r\nContent-Length: 5\r\n\r\n")
                             .getBytes(StandardCharsets.US_ASCII));
             // Leave a frame unfinished without half-closing the socket: the body read must hit the RPC deadline.
-            socket.getOutputStream().write(0);
+            socket.getOutputStream().write(contentType.contains("text") ? 'A' : 0);
             socket.getOutputStream().flush();
-            final var reader =
+            final BufferedReader reader =
                     new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
             assertThat(reader.readLine()).isEqualTo("HTTP/1.1 200 OK");
-            final var headers = new StringBuilder();
+            final StringBuilder headers = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null && !line.isEmpty()) {
                 headers.append(line.toLowerCase(java.util.Locale.ROOT)).append('\n');
@@ -280,8 +283,8 @@ class PbjGrpcWebServiceLifecycleTest {
 
     @Test
     void deadlineAfterInitialReplyFinishesTrailersWhileHttp1BodyIsStillStalled() throws Exception {
-        final var replies = new AtomicReference<Pipeline<? super Bytes>>();
-        final var requests = new RecordingPipeline(new Pipeline<Bytes>() {
+        final AtomicReference<Pipeline<? super Bytes>> replies = new AtomicReference<Pipeline<? super Bytes>>();
+        final RecordingPipeline requests = new RecordingPipeline(new Pipeline<Bytes>() {
             @Override
             public void onSubscribe(final Flow.Subscription subscription) {
                 subscription.request(Long.MAX_VALUE);
@@ -298,13 +301,13 @@ class PbjGrpcWebServiceLifecycleTest {
             @Override
             public void onComplete() {}
         });
-        final var service = new TestService(ServiceInterface.MethodType.SERVER_STREAMING, responses -> {
+        final TestService service = new TestService(ServiceInterface.MethodType.SERVER_STREAMING, responses -> {
             replies.set(responses);
             return requests;
         });
 
-        try (final var server = new TestServer(service);
-                final var socket = new Socket("localhost", server.server.port())) {
+        try (final TestServer server = new TestServer(service);
+                final Socket socket = new Socket("localhost", server.server.port())) {
             socket.setSoTimeout(3_000);
             socket.getOutputStream()
                     .write(("POST " + PATH + " HTTP/1.1\r\nHost: localhost\r\nContent-Type: " + CONTENT_TYPE
@@ -313,7 +316,7 @@ class PbjGrpcWebServiceLifecycleTest {
             // The first complete frame triggers a reply, but the second declared frame never arrives.
             socket.getOutputStream().write(new byte[5]);
             socket.getOutputStream().flush();
-            final var response = new String(socket.getInputStream().readAllBytes(), StandardCharsets.US_ASCII);
+            final String response = new String(socket.getInputStream().readAllBytes(), StandardCharsets.US_ASCII);
             assertThat(response).startsWith("HTTP/1.1 200 OK\r\n").contains("grpc-status: 4\r\n");
             assertThat(requests.errorDelivered.await(2, TimeUnit.SECONDS)).isTrue();
             assertThat(requests.errors).hasValue(1);
@@ -322,9 +325,9 @@ class PbjGrpcWebServiceLifecycleTest {
 
     @Test
     void responseWriteFailureTerminatesCallEvenWhenProducerOnlyCatchesTheFailure() throws Exception {
-        final var replies = new AtomicReference<Pipeline<? super Bytes>>();
-        final var firstReply = new CountDownLatch(1);
-        final var requests = new RecordingPipeline(new Pipeline<Bytes>() {
+        final AtomicReference<Pipeline<? super Bytes>> replies = new AtomicReference<Pipeline<? super Bytes>>();
+        final CountDownLatch firstReply = new CountDownLatch(1);
+        final RecordingPipeline requests = new RecordingPipeline(new Pipeline<Bytes>() {
             @Override
             public void onSubscribe(final Flow.Subscription subscription) {
                 subscription.request(Long.MAX_VALUE);
@@ -342,13 +345,13 @@ class PbjGrpcWebServiceLifecycleTest {
             @Override
             public void onComplete() {}
         });
-        final var service = new TestService(ServiceInterface.MethodType.SERVER_STREAMING, responses -> {
+        final TestService service = new TestService(ServiceInterface.MethodType.SERVER_STREAMING, responses -> {
             replies.set(responses);
             return requests;
         });
 
-        try (final var server = new TestServer(service)) {
-            try (final var socket = new Socket("localhost", server.server.port())) {
+        try (final TestServer server = new TestServer(service)) {
+            try (final Socket socket = new Socket("localhost", server.server.port())) {
                 socket.setSoTimeout(3_000);
                 socket.setSoLinger(true, 0);
                 socket.getOutputStream()
@@ -357,17 +360,17 @@ class PbjGrpcWebServiceLifecycleTest {
                                 .getBytes(StandardCharsets.US_ASCII));
                 socket.getOutputStream().write(new byte[5]);
                 socket.getOutputStream().flush();
-                final var reader =
+                final BufferedReader reader =
                         new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
                 assertThat(reader.readLine()).isEqualTo("HTTP/1.1 200 OK");
                 assertThat(firstReply.await(2, TimeUnit.SECONDS)).isTrue();
             }
 
-            final var failedWrite = new CountDownLatch(1);
-            final var producer = Thread.ofVirtual().start(() -> {
+            final CountDownLatch failedWrite = new CountDownLatch(1);
+            final Thread producer = Thread.ofVirtual().start(() -> {
                 try {
                     // The peer reset the socket. Keep writing until that reset reaches a server write.
-                    final var message = Bytes.wrap(new byte[64 * 1024]);
+                    final Bytes message = Bytes.wrap(new byte[64 * 1024]);
                     for (int i = 0; i < 64; i++) {
                         replies.get().onNext(message);
                     }
@@ -544,19 +547,21 @@ class PbjGrpcWebServiceLifecycleTest {
         }
 
         private FutureTask<Response> postAsync(final Transport transport) {
-            final var task = new FutureTask<>(() -> {
+            final FutureTask<Response> task = new FutureTask<>(() -> {
                 if (transport == Transport.HTTP_1_1) {
-                    final var request = HttpRequest.newBuilder(URI.create("http://localhost:" + server.port() + PATH))
+                    final HttpRequest request = HttpRequest.newBuilder(
+                                    URI.create("http://localhost:" + server.port() + PATH))
                             .timeout(Duration.ofSeconds(3))
                             .header("content-type", CONTENT_TYPE)
                             .header("grpc-timeout", TIMEOUT)
                             .POST(HttpRequest.BodyPublishers.ofByteArray(new byte[5]))
                             .build();
-                    final var response = http1Client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                    final HttpResponse<byte[]> response =
+                            http1Client.send(request, HttpResponse.BodyHandlers.ofByteArray());
                     return new Response(
                             response.statusCode(), response.headers().firstValue("grpc-status"), response.body());
                 }
-                try (final var response = http2Client
+                try (final Http2ClientResponse response = http2Client
                         .post()
                         .path(PATH)
                         .readTimeout(Duration.ofSeconds(3))
@@ -585,13 +590,13 @@ class PbjGrpcWebServiceLifecycleTest {
             if (statusHeader.isPresent()) {
                 return Integer.parseInt(statusHeader.get());
             }
-            final var frames = ByteBuffer.wrap(body);
+            final ByteBuffer frames = ByteBuffer.wrap(body);
             while (frames.hasRemaining()) {
                 final int flags = frames.get() & 0xff;
-                final var payload = new byte[frames.getInt()];
+                final byte[] payload = new byte[frames.getInt()];
                 frames.get(payload);
                 if ((flags & 0x80) != 0) {
-                    for (final var line : new String(payload, StandardCharsets.US_ASCII).split("\r\n")) {
+                    for (final String line : new String(payload, StandardCharsets.US_ASCII).split("\r\n")) {
                         if (line.startsWith("grpc-status: ")) {
                             return Integer.parseInt(line.substring("grpc-status: ".length()));
                         }

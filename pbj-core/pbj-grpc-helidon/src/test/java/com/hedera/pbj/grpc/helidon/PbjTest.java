@@ -441,8 +441,8 @@ class PbjTest {
             };
 
             final long start = System.nanoTime();
-            final var status = assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
-                try (var response = CLIENT.post()
+            final GrpcStatus status = assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+                try (Http2ClientResponse response = CLIENT.post()
                         .contentType(APPLICATION_GRPC_PROTO)
                         .path("/greeter.Greeter/sayHelloStreamReply")
                         .header(HeaderNames.create("grpc-timeout"), "200m")
@@ -459,10 +459,10 @@ class PbjTest {
 
         @Test
         void blockedDeadlineCleanupDoesNotDelayOtherRequests() throws InterruptedException {
-            final var cleanupEntered = new CountDownLatch(1);
-            final var releaseCleanup = new CountDownLatch(1);
-            final var cleanupFinished = new CountDownLatch(1);
-            final var openedCalls = new AtomicInteger();
+            final CountDownLatch cleanupEntered = new CountDownLatch(1);
+            final CountDownLatch releaseCleanup = new CountDownLatch(1);
+            final CountDownLatch cleanupFinished = new CountDownLatch(1);
+            final AtomicInteger openedCalls = new AtomicInteger();
             PROXY.svc = new GreeterServiceImpl() {
                 @Override
                 public Pipeline<? super Bytes> open(
@@ -507,8 +507,8 @@ class PbjTest {
         }
 
         private void assertServerDeadline() {
-            final var status = assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
-                try (var response = CLIENT.post()
+            final GrpcStatus status = assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
+                try (Http2ClientResponse response = CLIENT.post()
                         .contentType(APPLICATION_GRPC_PROTO)
                         .path("/greeter.Greeter/sayHelloStreamReply")
                         .header(HeaderNames.create("grpc-timeout"), "100m")

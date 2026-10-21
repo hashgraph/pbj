@@ -46,9 +46,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -551,7 +554,7 @@ class PbjProtocolHandlerTest {
     @Test
     void deadlineDuringServiceOpenClosesResponseAndNotifiesPipelineOnce() {
         headers = deadlineHeaders();
-        final var handler = deadlineHandler();
+        final PbjProtocolHandler handler = deadlineHandler();
         service.onOpen = () -> {
             deadlineDetector.callback.run();
             assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
@@ -576,7 +579,7 @@ class PbjProtocolHandlerTest {
     void immediateDeadlineCancelsFutureReturnedAfterCallback() {
         headers = deadlineHeaders();
         deadlineDetector.runImmediately = true;
-        final var handler = deadlineHandler();
+        final PbjProtocolHandler handler = deadlineHandler();
 
         handler.init();
 
@@ -593,7 +596,7 @@ class PbjProtocolHandlerTest {
             deadlineDetector.callback.run();
             throw new GrpcException(GrpcStatus.INTERNAL);
         };
-        final var handler = deadlineHandler();
+        final PbjProtocolHandler handler = deadlineHandler();
 
         handler.init();
 
@@ -606,7 +609,7 @@ class PbjProtocolHandlerTest {
     void completionDuringServiceOpenWinsAgainstLateDeadline() {
         headers = deadlineHeaders();
         service.onOpen = () -> service.replies.onComplete();
-        final var handler = deadlineHandler();
+        final PbjProtocolHandler handler = deadlineHandler();
 
         handler.init();
         deadlineDetector.callback.run();
@@ -616,6 +619,70 @@ class PbjProtocolHandlerTest {
         assertThat(route.deadlineExceededCounter().count()).isZero();
         assertThat(deadlineDetector.cancelled).isTrue();
         assertSingleTerminalStatus(GrpcStatus.OK);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void finalTrailersWaitForAnInFlightMessage(final boolean deadline) throws Exception {
+        final CountDownLatch writing = new CountDownLatch(1);
+        final CountDownLatch releaseWrite = new CountDownLatch(1);
+        final CountDownLatch terminalSent = new CountDownLatch(1);
+        final ConcurrentLinkedQueue<String> order = new ConcurrentLinkedQueue<>();
+        streamWriter = new StreamWriterStub() {
+            @Override
+            public void writeData(final Http2FrameData frame, final FlowControl.Outbound control) {
+                writing.countDown();
+                try {
+                    assertThat(releaseWrite.await(2, TimeUnit.SECONDS)).isTrue();
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+                super.writeData(frame, control);
+                order.add("message");
+            }
+
+            @Override
+            public int writeHeaders(
+                    final Http2Headers values,
+                    final int id,
+                    final Http2Flag.HeaderFlags flags,
+                    final FlowControl.Outbound control) {
+                if (values.httpHeaders().contains(HeaderNames.create("grpc-status"))) {
+                    order.add("trailers");
+                    terminalSent.countDown();
+                }
+                return super.writeHeaders(values, id, flags, control);
+            }
+        };
+        headers = deadlineHeaders();
+        final PbjProtocolHandler handler = deadlineHandler();
+        handler.init();
+        final FutureTask<Void> message = new FutureTask<>(() -> {
+            service.replies.onNext(Bytes.EMPTY);
+            return null;
+        });
+        final FutureTask<Void> terminal = new FutureTask<>(() -> {
+            if (deadline) {
+                deadlineDetector.callback.run();
+            } else {
+                service.replies.onComplete();
+            }
+            return null;
+        });
+        Thread.startVirtualThread(message);
+        try {
+            assertThat(writing.await(2, TimeUnit.SECONDS)).isTrue();
+            Thread.startVirtualThread(terminal);
+            assertThat(terminalSent.await(100, TimeUnit.MILLISECONDS)).isFalse();
+        } finally {
+            releaseWrite.countDown();
+        }
+        message.get(2, TimeUnit.SECONDS);
+        terminal.get(2, TimeUnit.SECONDS);
+        service.replies.onNext(Bytes.EMPTY);
+        assertThat(order).containsExactly("message", "trailers");
+        assertSingleTerminalStatus(deadline ? GrpcStatus.DEADLINE_EXCEEDED : GrpcStatus.OK);
     }
 
     private Http2Headers deadlineHeaders() {

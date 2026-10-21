@@ -10,19 +10,24 @@ import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
+import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import greeter.GreeterGrpc;
 import greeter.HelloReply;
 import greeter.HelloRequest;
+import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.HttpMediaType;
 import io.helidon.webclient.http2.Http2Client;
 import io.helidon.webclient.http2.Http2ClientProtocolConfig;
+import io.helidon.webclient.http2.Http2ClientRequest;
+import io.helidon.webclient.http2.Http2ClientResponse;
 import io.helidon.webserver.WebServer;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -40,6 +45,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Tests {@link PbjGrpcWebService} end to end, over HTTP/1.1 and HTTP/2, on a server that also serves native gRPC on
@@ -69,7 +75,7 @@ class PbjGrpcWebServiceTest {
 
     @BeforeAll
     static void setup() {
-        final var proxy = new GreeterProxy();
+        final GreeterProxy proxy = new GreeterProxy();
         server = WebServer.builder()
                 .port(0)
                 .addRouting(PbjRouting.builder().service(proxy))
@@ -111,7 +117,7 @@ class PbjGrpcWebServiceTest {
         @ParameterizedTest
         @EnumSource(Transport.class)
         void binaryMode(final Transport transport) throws Exception {
-            final var response = post(transport, SAY_HELLO, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
+            final WebResponse response = post(transport, SAY_HELLO, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
 
             assertThat(response.status()).isEqualTo(200);
             assertThat(response.header("content-type")).isEqualTo(GRPC_WEB_PROTO);
@@ -122,8 +128,8 @@ class PbjGrpcWebServiceTest {
         @ParameterizedTest
         @EnumSource(Transport.class)
         void textMode(final Transport transport) throws Exception {
-            final var body = Base64.getEncoder().encode(frame(REQUEST));
-            final var response = post(transport, SAY_HELLO, GRPC_WEB_TEXT, body, Map.of());
+            final byte[] body = Base64.getEncoder().encode(frame(REQUEST));
+            final WebResponse response = post(transport, SAY_HELLO, GRPC_WEB_TEXT, body, Map.of());
 
             assertThat(response.status()).isEqualTo(200);
             assertThat(response.header("content-type")).isEqualTo(GRPC_WEB_TEXT_PROTO);
@@ -134,7 +140,7 @@ class PbjGrpcWebServiceTest {
         @ParameterizedTest
         @EnumSource(Transport.class)
         void binaryRequestCanAcceptTextResponse(final Transport transport) throws Exception {
-            final var response =
+            final WebResponse response =
                     post(transport, SAY_HELLO, GRPC_WEB_PROTO, frame(REQUEST), Map.of("accept", GRPC_WEB_TEXT));
 
             assertThat(response.header("content-type")).isEqualTo(GRPC_WEB_TEXT_PROTO);
@@ -145,7 +151,7 @@ class PbjGrpcWebServiceTest {
         @ParameterizedTest
         @EnumSource(Transport.class)
         void textRequestCanAcceptBinaryResponse(final Transport transport) throws Exception {
-            final var response = post(
+            final WebResponse response = post(
                     transport,
                     SAY_HELLO,
                     GRPC_WEB_TEXT,
@@ -159,7 +165,7 @@ class PbjGrpcWebServiceTest {
 
         @Test
         void acceptQualityChoosesPreferredResponseEncoding() throws Exception {
-            final var response = post(
+            final WebResponse response = post(
                     Transport.HTTP_1_1,
                     SAY_HELLO,
                     GRPC_WEB_PROTO,
@@ -172,7 +178,7 @@ class PbjGrpcWebServiceTest {
 
         @Test
         void unsupportedAcceptIsRejected() throws Exception {
-            final var response = post(
+            final WebResponse response = post(
                     Transport.HTTP_1_1,
                     SAY_HELLO,
                     GRPC_WEB_PROTO,
@@ -185,7 +191,7 @@ class PbjGrpcWebServiceTest {
 
         @Test
         void bareContentTypeIsTreatedAsProtobuf() throws Exception {
-            final var options = new AtomicReference<ServiceInterface.RequestOptions>();
+            final AtomicReference<RequestOptions> options = new AtomicReference<ServiceInterface.RequestOptions>();
             SERVICE.set(new GreeterServiceImpl() {
                 @Override
                 @NonNull
@@ -198,7 +204,7 @@ class PbjGrpcWebServiceTest {
                 }
             });
 
-            final var response =
+            final WebResponse response =
                     post(Transport.HTTP_1_1, SAY_HELLO, GRPC_WEB, frame(REQUEST), Map.of("x-custom", "custom-value"));
 
             assertThat(response.header("content-type")).isEqualTo(GRPC_WEB_PROTO);
@@ -211,21 +217,22 @@ class PbjGrpcWebServiceTest {
 
         @Test
         void jsonMode() throws Exception {
-            final var json = JsonFormat.printer().print(REQUEST).getBytes(StandardCharsets.UTF_8);
-            final var body = GrpcFramer.frame(GrpcFramer.UNCOMPRESSED_FLAG, Bytes.wrap(json));
-            final var response = post(Transport.HTTP_1_1, SAY_HELLO, "application/grpc-web+json", body, Map.of());
+            final byte[] json = JsonFormat.printer().print(REQUEST).getBytes(StandardCharsets.UTF_8);
+            final byte[] body = GrpcFramer.frame(GrpcFramer.UNCOMPRESSED_FLAG, Bytes.wrap(json));
+            final WebResponse response =
+                    post(Transport.HTTP_1_1, SAY_HELLO, "application/grpc-web+json", body, Map.of());
 
             assertThat(response.header("content-type")).isEqualTo("application/grpc-web+json");
             assertThat(response.messages()).hasSize(1);
-            final var builder = HelloReply.newBuilder();
+            final HelloReply.Builder builder = HelloReply.newBuilder();
             JsonFormat.parser().merge(new String(response.messages().getFirst(), StandardCharsets.UTF_8), builder);
             assertThat(builder.build()).isEqualTo(reply("Hello PBJ"));
         }
 
         @Test
         void compressedRequest() throws Exception {
-            final var body = GrpcFramer.frameMessage(Bytes.wrap(REQUEST.toByteArray()), "gzip");
-            final var response =
+            final byte[] body = GrpcFramer.frameMessage(Bytes.wrap(REQUEST.toByteArray()), "gzip");
+            final WebResponse response =
                     post(Transport.HTTP_1_1, SAY_HELLO, GRPC_WEB_PROTO, body, Map.of("grpc-encoding", "gzip"));
 
             assertThat(response.replies()).containsExactly(reply("Hello PBJ"));
@@ -238,7 +245,7 @@ class PbjGrpcWebServiceTest {
         @ParameterizedTest
         @EnumSource(Transport.class)
         void streamsEveryReplyThenTheTrailers(final Transport transport) throws Exception {
-            final var response = post(transport, STREAM_REPLY, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
+            final WebResponse response = post(transport, STREAM_REPLY, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
 
             assertThat(response.status()).isEqualTo(200);
             assertThat(response.replies()).hasSize(10).containsOnly(reply("Hello!"));
@@ -247,8 +254,8 @@ class PbjGrpcWebServiceTest {
 
         @Test
         void textModeEncodesEachFrame() throws Exception {
-            final var body = Base64.getEncoder().encode(frame(REQUEST));
-            final var response = post(Transport.HTTP_2, STREAM_REPLY, GRPC_WEB_TEXT_PROTO, body, Map.of());
+            final byte[] body = Base64.getEncoder().encode(frame(REQUEST));
+            final WebResponse response = post(Transport.HTTP_2, STREAM_REPLY, GRPC_WEB_TEXT_PROTO, body, Map.of());
 
             assertThat(response.replies()).hasSize(10).containsOnly(reply("Hello!"));
             assertThat(response.trailers()).containsEntry("grpc-status", "0");
@@ -266,7 +273,7 @@ class PbjGrpcWebServiceTest {
                 }
             });
 
-            final var response = post(transport, STREAM_REPLY, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
+            final WebResponse response = post(transport, STREAM_REPLY, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
 
             assertThat(response.status()).isEqualTo(200);
             assertThat(response.replies()).containsExactly(reply("one"), reply("two"));
@@ -289,7 +296,8 @@ class PbjGrpcWebServiceTest {
                 }
             });
 
-            final var response = post(Transport.HTTP_1_1, STREAM_REPLY, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
+            final WebResponse response =
+                    post(Transport.HTTP_1_1, STREAM_REPLY, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
 
             assertThat(response.replies()).hasSize(5).first().isEqualTo(reply("async 0"));
             assertThat(response.trailers()).containsEntry("grpc-status", "0");
@@ -301,11 +309,11 @@ class PbjGrpcWebServiceTest {
         @ParameterizedTest
         @EnumSource(Transport.class)
         void errorBeforeAnyReplyIsTrailersOnly(final Transport transport) throws Exception {
-            final var service = new GreeterServiceImpl();
+            final GreeterServiceImpl service = new GreeterServiceImpl();
             service.errorToThrow = GrpcStatus.PERMISSION_DENIED;
             SERVICE.set(service);
 
-            final var response = post(transport, SAY_HELLO, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
+            final WebResponse response = post(transport, SAY_HELLO, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
 
             assertThat(response.status()).isEqualTo(200);
             assertThat(response.header("grpc-status")).isEqualTo("" + GrpcStatus.PERMISSION_DENIED.ordinal());
@@ -315,8 +323,8 @@ class PbjGrpcWebServiceTest {
         @ParameterizedTest
         @EnumSource(Transport.class)
         void clientStreamingIsUnimplemented(final Transport transport) throws Exception {
-            for (final var path : List.of(STREAM_REQUEST, STREAM_BIDI)) {
-                final var response = post(transport, path, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
+            for (final String path : List.of(STREAM_REQUEST, STREAM_BIDI)) {
+                final WebResponse response = post(transport, path, GRPC_WEB_PROTO, frame(REQUEST), Map.of());
 
                 assertThat(response.status()).isEqualTo(200);
                 assertThat(response.header("grpc-status")).isEqualTo("" + GrpcStatus.UNIMPLEMENTED.ordinal());
@@ -326,7 +334,8 @@ class PbjGrpcWebServiceTest {
 
         @Test
         void unsupportedContentTypeIs415() throws Exception {
-            final var response = post(Transport.HTTP_1_1, SAY_HELLO, "application/json", frame(REQUEST), Map.of());
+            final WebResponse response =
+                    post(Transport.HTTP_1_1, SAY_HELLO, "application/json", frame(REQUEST), Map.of());
 
             assertThat(response.status()).isEqualTo(415);
             assertThat(response.header("grpc-status")).isEqualTo("" + GrpcStatus.INVALID_ARGUMENT.ordinal());
@@ -335,18 +344,18 @@ class PbjGrpcWebServiceTest {
         @ParameterizedTest
         @EnumSource(Transport.class)
         void messageLargerThanTheMaximumIsRejected(final Transport transport) throws Exception {
-            final var large = HelloRequest.newBuilder()
+            final HelloRequest large = HelloRequest.newBuilder()
                     .setName("x".repeat(MAX_MESSAGE_SIZE))
                     .build();
-            final var response = post(transport, SAY_HELLO, GRPC_WEB_PROTO, frame(large), Map.of());
+            final WebResponse response = post(transport, SAY_HELLO, GRPC_WEB_PROTO, frame(large), Map.of());
 
             assertThat(response.header("grpc-status")).isEqualTo("" + GrpcStatus.INVALID_ARGUMENT.ordinal());
         }
 
         @Test
         void invalidBase64IsRejected() throws Exception {
-            final var body = "not*base64".getBytes(StandardCharsets.US_ASCII);
-            final var response = post(Transport.HTTP_1_1, SAY_HELLO, GRPC_WEB_TEXT, body, Map.of());
+            final byte[] body = "not*base64".getBytes(StandardCharsets.US_ASCII);
+            final WebResponse response = post(Transport.HTTP_1_1, SAY_HELLO, GRPC_WEB_TEXT, body, Map.of());
 
             assertThat(response.header("grpc-status")).isEqualTo("" + GrpcStatus.INVALID_ARGUMENT.ordinal());
         }
@@ -362,7 +371,7 @@ class PbjGrpcWebServiceTest {
             });
 
             final long start = System.nanoTime();
-            final var response =
+            final WebResponse response =
                     post(transport, STREAM_REPLY, GRPC_WEB_PROTO, frame(REQUEST), Map.of("grpc-timeout", "200m"));
 
             assertThat(response.header("grpc-status")).isEqualTo("" + GrpcStatus.DEADLINE_EXCEEDED.ordinal());
@@ -372,9 +381,31 @@ class PbjGrpcWebServiceTest {
 
     @Nested
     class Cors {
+        @ParameterizedTest
+        @ValueSource(
+                strings = {
+                    "https://allowed.exampl",
+                    "https://allowed.example.evil.test",
+                    "http://allowed.example",
+                    "https://allowed.example:8443",
+                    "https://allowed.example/path"
+                })
+        void lookalikeOriginsDoNotMatchTheAllowlist(final String origin) throws Exception {
+            final HttpResponse<Void> response = http1Client.send(
+                    HttpRequest.newBuilder(uri(SAY_HELLO))
+                            .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                            .header("origin", origin)
+                            .header("Access-Control-Request-Method", "POST")
+                            .build(),
+                    HttpResponse.BodyHandlers.discarding());
+            assertThat(response.statusCode()).isEqualTo(403);
+            assertThat(response.headers().firstValue("access-control-allow-origin"))
+                    .isEmpty();
+        }
+
         @Test
         void preflightFromAnAllowedOrigin() throws Exception {
-            final var response = http1Client.send(
+            final HttpResponse<Void> response = http1Client.send(
                     HttpRequest.newBuilder(uri(SAY_HELLO))
                             .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
                             .header("Origin", ALLOWED_ORIGIN)
@@ -384,7 +415,7 @@ class PbjGrpcWebServiceTest {
                     HttpResponse.BodyHandlers.discarding());
 
             assertThat(response.statusCode()).isEqualTo(204);
-            final var headers = response.headers();
+            final HttpHeaders headers = response.headers();
             assertThat(headers.firstValue("access-control-allow-origin")).hasValue(ALLOWED_ORIGIN);
             assertThat(headers.firstValue("access-control-allow-methods")).hasValue("POST, OPTIONS");
             assertThat(headers.firstValue("access-control-allow-headers"))
@@ -395,7 +426,7 @@ class PbjGrpcWebServiceTest {
 
         @Test
         void preflightFromAnotherOriginIsForbidden() throws Exception {
-            final var response = http1Client.send(
+            final HttpResponse<Void> response = http1Client.send(
                     HttpRequest.newBuilder(uri(SAY_HELLO))
                             .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
                             .header("Origin", OTHER_ORIGIN)
@@ -411,7 +442,7 @@ class PbjGrpcWebServiceTest {
         @ParameterizedTest
         @EnumSource(Transport.class)
         void callFromAnAllowedOriginExposesTheStatusHeaders(final Transport transport) throws Exception {
-            final var response =
+            final WebResponse response =
                     post(transport, SAY_HELLO, GRPC_WEB_PROTO, frame(REQUEST), Map.of("origin", ALLOWED_ORIGIN));
 
             assertThat(response.header("access-control-allow-origin")).isEqualTo(ALLOWED_ORIGIN);
@@ -421,7 +452,7 @@ class PbjGrpcWebServiceTest {
 
         @Test
         void callFromAnotherOriginGetsNoCorsHeaders() throws Exception {
-            final var response =
+            final WebResponse response =
                     post(Transport.HTTP_1_1, SAY_HELLO, GRPC_WEB_PROTO, frame(REQUEST), Map.of("origin", OTHER_ORIGIN));
 
             assertThat(response.header("access-control-allow-origin")).isNull();
@@ -432,11 +463,11 @@ class PbjGrpcWebServiceTest {
     class SharedPort {
         @Test
         void nativeGrpcStillWorks() throws Exception {
-            final var channel = ManagedChannelBuilder.forAddress("localhost", server.port())
+            final ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", server.port())
                     .usePlaintext()
                     .build();
             try {
-                final var reply = GreeterGrpc.newBlockingStub(channel).sayHello(REQUEST);
+                final HelloReply reply = GreeterGrpc.newBlockingStub(channel).sayHello(REQUEST);
                 assertThat(reply).isEqualTo(reply("Hello PBJ"));
             } finally {
                 channel.shutdownNow();
@@ -446,7 +477,7 @@ class PbjGrpcWebServiceTest {
         @Test
         void otherHttp2PostsAreStillClaimedByNativeGrpc() throws Exception {
             // A native gRPC request on HTTP/2 must not reach the HttpRouting, even for a path the web service serves
-            try (var response = http2Client
+            try (Http2ClientResponse response = http2Client
                     .post()
                     .path(SAY_HELLO)
                     .contentType(HttpMediaType.create("application/grpc+proto"))
@@ -479,16 +510,17 @@ class PbjGrpcWebServiceTest {
             final byte[] body,
             final Map<String, String> headers)
             throws Exception {
-        final var responseHeaders = new HashMap<String, String>();
+        final HashMap<String, String> responseHeaders = new HashMap<String, String>();
         final int status;
         final byte[] responseBody;
         if (transport == Transport.HTTP_1_1) {
-            final var request = HttpRequest.newBuilder(uri(path))
+            final HttpRequest.Builder request = HttpRequest.newBuilder(uri(path))
                     .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                     .header("content-type", contentType)
                     .header("x-grpc-web", "1");
             headers.forEach(request::header);
-            final var response = http1Client.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
+            final HttpResponse<byte[]> response =
+                    http1Client.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
             assertThat(response.version()).isEqualTo(HttpClient.Version.HTTP_1_1);
             status = response.statusCode();
             response.headers()
@@ -496,20 +528,20 @@ class PbjGrpcWebServiceTest {
                     .forEach((name, values) -> responseHeaders.put(name.toLowerCase(Locale.ROOT), values.getFirst()));
             responseBody = response.body();
         } else {
-            final var request = http2Client
+            final Http2ClientRequest request = http2Client
                     .post()
                     .path(path)
                     .contentType(HttpMediaType.create(contentType))
                     .header(HeaderNames.create("x-grpc-web"), "1");
             headers.forEach((name, value) -> request.header(HeaderNames.create(name), value));
-            try (var response = request.submit(body)) {
+            try (Http2ClientResponse response = request.submit(body)) {
                 status = response.status().code();
                 response.headers()
                         .forEach(header -> responseHeaders.put(header.name().toLowerCase(Locale.ROOT), header.get()));
                 responseBody = response.entity().inputStream().readAllBytes();
             }
         }
-        final var contentTypeHeader = responseHeaders.getOrDefault("content-type", "");
+        final String contentTypeHeader = responseHeaders.getOrDefault("content-type", "");
         return WebResponse.parse(status, responseHeaders, responseBody, contentTypeHeader.startsWith(GRPC_WEB_TEXT));
     }
 
@@ -521,12 +553,12 @@ class PbjGrpcWebServiceTest {
                 final int status, final Map<String, String> headers, final byte[] body, final boolean textMode) {
             byte[] data = body;
             if (textMode) {
-                final var decoder = new Base64ChunkDecoder();
-                data = decoder.decode(body, 0, body.length);
-                decoder.finish();
+                try (final Base64ChunkDecoder decoder = new Base64ChunkDecoder()) {
+                    data = decoder.decode(body, 0, body.length);
+                }
             }
-            final var messages = new ArrayList<byte[]>();
-            final var trailers = new HashMap<String, String>();
+            final ArrayList<byte[]> messages = new ArrayList<byte[]>();
+            final HashMap<String, String> trailers = new HashMap<String, String>();
             int position = 0;
             while (position < data.length) {
                 final int flags = data[position] & 0xFF;
@@ -534,12 +566,12 @@ class PbjGrpcWebServiceTest {
                         | ((data[position + 2] & 0xFF) << 16)
                         | ((data[position + 3] & 0xFF) << 8)
                         | (data[position + 4] & 0xFF);
-                final var payload = new byte[length];
+                final byte[] payload = new byte[length];
                 System.arraycopy(data, position + 5, payload, 0, length);
                 position += 5 + length;
                 if ((flags & GrpcFramer.TRAILERS_FLAG) != 0) {
                     assertThat(position).as("the trailer frame must be last").isEqualTo(data.length);
-                    for (final var line : new String(payload, StandardCharsets.US_ASCII).split("\r\n")) {
+                    for (final String line : new String(payload, StandardCharsets.US_ASCII).split("\r\n")) {
                         final int colon = line.indexOf(':');
                         trailers.put(
                                 line.substring(0, colon).trim().toLowerCase(Locale.ROOT),
@@ -561,8 +593,8 @@ class PbjGrpcWebServiceTest {
         }
 
         List<HelloReply> replies() throws Exception {
-            final var replies = new ArrayList<HelloReply>();
-            for (final var message : messages) {
+            final ArrayList<HelloReply> replies = new ArrayList<HelloReply>();
+            for (final byte[] message : messages) {
                 replies.add(HelloReply.parseFrom(message));
             }
             return replies;

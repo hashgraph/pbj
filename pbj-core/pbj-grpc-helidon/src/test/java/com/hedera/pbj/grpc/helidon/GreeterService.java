@@ -21,19 +21,20 @@ import java.util.Objects;
  */
 public interface GreeterService extends ServiceInterface {
     enum GreeterMethod implements Method {
-        sayHello,
-        sayHelloStreamRequest,
-        sayHelloStreamReply,
-        sayHelloStreamBidi;
+        sayHello(MethodType.UNARY),
+        sayHelloStreamRequest(MethodType.CLIENT_STREAMING),
+        sayHelloStreamReply(MethodType.SERVER_STREAMING),
+        sayHelloStreamBidi(MethodType.BIDI_STREAMING);
+
+        private final MethodType type;
+
+        GreeterMethod(final MethodType type) {
+            this.type = type;
+        }
 
         @Override
         public MethodType type() {
-            return switch (this) {
-                case sayHello -> MethodType.UNARY;
-                case sayHelloStreamRequest -> MethodType.CLIENT_STREAMING;
-                case sayHelloStreamReply -> MethodType.SERVER_STREAMING;
-                case sayHelloStreamBidi -> MethodType.BIDI_STREAMING;
-            };
+            return type;
         }
     }
 
@@ -71,7 +72,7 @@ public interface GreeterService extends ServiceInterface {
             final @NonNull RequestOptions options,
             final @NonNull Pipeline<? super Bytes> replies) {
 
-        final var m = (GreeterMethod) method;
+        final GreeterMethod m = (GreeterMethod) method;
         try {
             return switch (m) {
                 // Simple request -> response
@@ -122,7 +123,7 @@ public interface GreeterService extends ServiceInterface {
         if (options.isProtobuf()) {
             request = HelloRequest.parseFrom(message.toByteArray());
         } else if (options.isJson()) {
-            final var builder = HelloRequest.newBuilder();
+            final HelloRequest.Builder builder = HelloRequest.newBuilder();
             JsonFormat.parser().merge(message.asUtf8String(), builder);
             request = builder.build();
         } else {

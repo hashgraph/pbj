@@ -19,7 +19,7 @@ import java.util.Base64;
  *
  * <p>This class is not thread-safe.
  */
-public final class Base64ChunkDecoder {
+public final class Base64ChunkDecoder implements AutoCloseable {
     private static final Base64.Decoder DECODER = Base64.getDecoder();
     private static final byte[] EMPTY = new byte[0];
 
@@ -27,6 +27,7 @@ public final class Base64ChunkDecoder {
     private final byte[] pending = new byte[4];
 
     private int pendingCount = 0;
+    private boolean closed;
 
     /**
      * Decodes as much of the given chunk as possible.
@@ -40,6 +41,9 @@ public final class Base64ChunkDecoder {
     @NonNull
     public byte[] decode(@NonNull final byte[] src, final int offset, final int length) {
         requireNonNull(src);
+        if (closed) {
+            throw new IllegalStateException("Decoder has already been closed");
+        }
         final byte[] chars = new byte[pendingCount + length];
         System.arraycopy(pending, 0, chars, 0, pendingCount);
         int total = pendingCount;
@@ -83,8 +87,25 @@ public final class Base64ChunkDecoder {
      *     4-character group
      */
     public void finish() {
-        if (pendingCount != 0) {
-            throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, "Truncated base64 in grpc-web-text request");
+        close();
+    }
+
+    /** Discards unfinished input after cancellation or an I/O failure; closing then performs no validation. */
+    public void abort() {
+        closed = true;
+        pendingCount = 0;
+    }
+
+    /** Validates a normal end of input. Idempotent; callers must abort streams that did not reach normal EOF. */
+    @Override
+    public void close() {
+        if (!closed) {
+            closed = true;
+            final int remaining = pendingCount;
+            pendingCount = 0;
+            if (remaining != 0) {
+                throw new GrpcException(GrpcStatus.INVALID_ARGUMENT, "Truncated base64 in grpc-web-text request");
+            }
         }
     }
 

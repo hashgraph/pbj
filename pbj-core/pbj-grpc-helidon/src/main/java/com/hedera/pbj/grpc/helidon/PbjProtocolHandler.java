@@ -15,8 +15,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.grpc.common.GrpcDeframer;
 import com.hedera.pbj.grpc.common.GrpcFramer;
-import com.hedera.pbj.grpc.common.GrpcRequestOptions;
-import com.hedera.pbj.grpc.common.GrpcTimeout;
 import com.hedera.pbj.grpc.common.compression.ZstdGrpcTransformer;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.GrpcCompression;
@@ -53,13 +51,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -290,7 +291,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
 
             // Create the "options" to make available to the ServiceInterface. These options are
             // used to decide on the best way to parse or handle the request.
-            final var options = new GrpcRequestOptions(
+            final GrpcRequestOptions options = new GrpcRequestOptions(
                     Optional.ofNullable(headers.authority()), // the client (see http2 spec)
                     contentType,
                     config.maxMessageSizeBytes(),
@@ -301,7 +302,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             // Setup the subscribers. The "outgoing" subscriber will send messages to the client.
             // This is given to the "open" method on the service to allow it to send messages to
             // the client.
-            final var openedPipeline = route.service().open(route.method(), options, outgoing);
+            final Pipeline<? super Bytes> openedPipeline = route.service().open(route.method(), options, outgoing);
             final GrpcException expiredDeadline;
             synchronized (pipelineLock) {
                 pipeline = openedPipeline;
@@ -415,7 +416,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      */
     @NonNull
     private ScheduledFuture<?> scheduleDeadline(@NonNull final String timeout, final long timeoutStart) {
-        final var timeoutNanos = GrpcTimeout.parseNanos(timeout);
+        final OptionalLong timeoutNanos = GrpcTimeout.parseNanos(timeout);
         if (timeoutNanos.isPresent()) {
             final long remainingNanos = Math.max(0, timeoutNanos.getAsLong() - (System.nanoTime() - timeoutStart));
             return deadlineDetector.scheduleDeadline(remainingNanos, this::deadlineExceeded);
@@ -425,7 +426,7 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
     }
 
     private void deadlineExceeded() {
-        final var expiredDeadline = new GrpcException(GrpcStatus.DEADLINE_EXCEEDED);
+        final GrpcException expiredDeadline = new GrpcException(GrpcStatus.DEADLINE_EXCEEDED);
         if (!outgoing.fail(expiredDeadline)) {
             return;
         }
@@ -605,24 +606,31 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
      * receives bytes from the handlers to send to the client.
      */
     private final class SendToClientSubscriber implements Pipeline<Bytes> {
-        /** Guarded by this subscriber's monitor, along with response writes. */
-        private boolean completed;
+        /** Terminal state is published without waiting for a possibly blocked network writer. */
+        private final AtomicBoolean completed = new AtomicBoolean();
 
-        private synchronized boolean isCompleted() {
-            return completed;
+        /** Orders DATA and terminal trailers; guarding only the completion flag permits DATA after trailers. */
+        private final ReentrantLock writeLock = new ReentrantLock();
+
+        private boolean isCompleted() {
+            return completed.get();
         }
 
-        private synchronized void initializationError(
+        private void initializationError(
                 @NonNull final Status status, @NonNull final GrpcStatus grpcStatus, @Nullable final String message) {
-            if (completed) {
+            if (!completed.compareAndSet(false, true)) {
                 return;
             }
-            completed = true;
-            new TrailerOnlyBuilder()
-                    .httpStatus(status)
-                    .grpcStatus(grpcStatus)
-                    .statusMessage(message)
-                    .send();
+            writeLock.lock();
+            try {
+                new TrailerOnlyBuilder()
+                        .httpStatus(status)
+                        .grpcStatus(grpcStatus)
+                        .statusMessage(message)
+                        .send();
+            } finally {
+                writeLock.unlock();
+            }
         }
 
         @Override
@@ -632,23 +640,22 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
         }
 
         @Override
-        public synchronized void onNext(@NonNull final Bytes response) {
-            if (completed) {
-                return;
-            }
+        public void onNext(@NonNull final Bytes response) {
+            writeLock.lock();
             try {
-                final var bufferData = BufferData.create(GrpcFramer.frameMessage(response, outgoingEncoding));
-                final var header = Http2FrameHeader.create(
+                if (completed.get()) {
+                    return;
+                }
+                final BufferData bufferData = BufferData.create(GrpcFramer.frameMessage(response, outgoingEncoding));
+                final Http2FrameHeader header = Http2FrameHeader.create(
                         bufferData.available(), Http2FrameTypes.DATA, Http2Flag.DataFlags.create(0), streamId);
-
-                // This method may throw an UncheckedIOException. If this happens, the connection with the client
-                // has been violently terminated, and we should raise the error, and we should throw an exception
-                // so the user knows the connection is toast.
                 streamWriter.writeData(new Http2FrameData(header, bufferData), flowControl);
             } catch (final Exception e) {
                 LOGGER.log(DEBUG, "Failed to respond to grpc request: " + route.method(), e);
                 route.failedResponseCounter().increment();
                 throw new RuntimeException(e);
+            } finally {
+                writeLock.unlock();
             }
         }
 
@@ -657,11 +664,11 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
             fail(throwable);
         }
 
-        private synchronized boolean fail(@NonNull final Throwable throwable) {
-            if (completed) {
+        private boolean fail(@NonNull final Throwable throwable) {
+            if (!completed.compareAndSet(false, true)) {
                 return false;
             }
-            completed = true;
+            writeLock.lock();
             try {
                 if (throwable instanceof final GrpcException grpcException) {
                     new TrailerBuilder()
@@ -672,35 +679,36 @@ final class PbjProtocolHandler implements Http2SubProtocolSelector.SubProtocolHa
                     LOGGER.log(DEBUG, "Failed to send response", throwable);
                     new TrailerBuilder().grpcStatus(GrpcStatus.INTERNAL).send();
                 }
-            } catch (Exception ignored) {
-                // If an exception is thrown trying to return headers, we're already in the error state, so
-                // just continue.
+            } catch (final Exception ignored) {
+                // The connection may already be closed. Cleanup is still required.
+            } finally {
+                writeLock.unlock();
+                error();
             }
-            error();
             return true;
         }
 
         @Override
-        public synchronized void onComplete() {
-            if (completed) {
+        public void onComplete() {
+            if (!completed.compareAndSet(false, true)) {
                 return;
             }
-            completed = true;
+            writeLock.lock();
             try {
                 new TrailerBuilder().send();
+                deadlineFuture.cancel(false);
+                currentStreamState.getAndUpdate(currentValue -> {
+                    if (requireNonNull(currentValue) == Http2StreamState.OPEN) {
+                        return Http2StreamState.HALF_CLOSED_LOCAL;
+                    }
+                    return Http2StreamState.CLOSED;
+                });
             } catch (final RuntimeException e) {
                 error();
                 throw e;
+            } finally {
+                writeLock.unlock();
             }
-
-            deadlineFuture.cancel(false);
-
-            currentStreamState.getAndUpdate(currentValue -> {
-                if (requireNonNull(currentValue) == Http2StreamState.OPEN) {
-                    return Http2StreamState.HALF_CLOSED_LOCAL;
-                }
-                return Http2StreamState.CLOSED;
-            });
         }
 
         @Override
