@@ -18,6 +18,11 @@ import java.util.zip.GZIPOutputStream;
 
 /**
  * A registry of GRPC compressors and decompressors (commonly - transformers) supported by PBJ GRPC server and client.
+ *
+ * <p>Registration operations are serialized. Use {@link #registerCompressorIfAbsent} and
+ * {@link #registerDecompressorIfAbsent} to install defaults atomically without replacing an application registration;
+ * a separate lookup followed by registration does not provide that guarantee. Callers do not need to synchronize
+ * externally when using these operations. Compressor and decompressor registrations are independent operations.
  */
 public class GrpcCompression {
     private static final System.Logger LOGGER = System.getLogger(GrpcCompression.class.getName());
@@ -170,6 +175,28 @@ public class GrpcCompression {
     /** Register a Decompressor, potentially overwriting an existing registration for `name`. */
     public static synchronized void registerDecompressor(String name, Decompressor decompressor) {
         DECOMPRESSOR_MAP.put(name, decompressor);
+    }
+
+    /**
+     * Atomically registers a compressor unless one is already registered under the same name.
+     *
+     * @param name the encoding name
+     * @param compressor the default compressor to install
+     * @return true if this call installed the compressor, or false if an existing registration was retained
+     */
+    public static synchronized boolean registerCompressorIfAbsent(String name, Compressor compressor) {
+        return COMPRESSOR_MAP.putIfAbsent(name, compressor) == null;
+    }
+
+    /**
+     * Atomically registers a decompressor unless one is already registered under the same name.
+     *
+     * @param name the encoding name
+     * @param decompressor the default decompressor to install
+     * @return true if this call installed the decompressor, or false if an existing registration was retained
+     */
+    public static synchronized boolean registerDecompressorIfAbsent(String name, Decompressor decompressor) {
+        return DECOMPRESSOR_MAP.putIfAbsent(name, decompressor) == null;
     }
 
     static {

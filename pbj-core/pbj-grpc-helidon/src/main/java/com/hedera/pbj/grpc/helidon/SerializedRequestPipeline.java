@@ -90,7 +90,7 @@ final class SerializedRequestPipeline implements Pipeline<Bytes> {
                 callback.run();
                 delivered = true;
             }
-        } catch (final RuntimeException | Error e) {
+        } catch (final Throwable e) {
             failure = e;
         } finally {
             deliveryLock.unlock();
@@ -104,17 +104,21 @@ final class SerializedRequestPipeline implements Pipeline<Bytes> {
             drainTerminal();
         } catch (final VirtualMachineError fatal) {
             throw fatal;
-        } catch (final RuntimeException | Error terminalFailure) {
+        } catch (final Throwable terminalFailure) {
             if (failure == null) {
-                throw terminalFailure;
+                failure = terminalFailure;
+            } else if (failure != terminalFailure) {
+                failure.addSuppressed(terminalFailure);
             }
-            failure.addSuppressed(terminalFailure);
         }
-        if (failure instanceof final RuntimeException exception) {
-            throw exception;
-        }
-        if (failure instanceof final Error error) {
-            throw error;
+        if (failure != null) {
+            if (failure instanceof final RuntimeException exception) {
+                throw exception;
+            }
+            if (failure instanceof final Error error) {
+                throw error;
+            }
+            throw new RuntimeException(failure);
         }
         return delivered;
     }

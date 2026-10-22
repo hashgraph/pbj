@@ -8,18 +8,15 @@ public final class GrpcCompressionRegistry {
     static {
         final ZstdGrpcTransformer zstd = new ZstdGrpcTransformer();
         // Keep application-provided implementations when a transport initializes after application setup.
-        if (GrpcCompression.getCompressor("zstd") == null) {
-            GrpcCompression.registerCompressor("zstd", zstd);
-        }
-        if (GrpcCompression.getDecompressor("zstd") == null) {
-            GrpcCompression.registerDecompressor("zstd", zstd);
-        }
+        GrpcCompression.registerCompressorIfAbsent("zstd", zstd);
+        GrpcCompression.registerDecompressorIfAbsent("zstd", zstd);
     }
 
     private GrpcCompressionRegistry() {}
 
-    /** Initializes the shared algorithms once. Repeated calls do not replace registered implementations. */
-    public static void initialize() {
-        // Initialization is performed by the JVM before this method can be invoked.
-    }
+    /**
+     * Installs the shared algorithms, such as zstd, the first time it is called. Later calls do nothing, and an
+     * implementation already registered under the same name is never replaced.
+     */
+    public static void initialize() {}
 }

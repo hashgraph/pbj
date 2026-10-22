@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -14,8 +15,10 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class SerializedRequestPipelineTest {
@@ -139,6 +142,92 @@ class SerializedRequestPipelineTest {
         wrapper.set(pipeline);
         assertThatThrownBy(() -> pipeline.onNext(Bytes.EMPTY)).isSameAs(fatal);
         assertThat(errorDelivered).isFalse();
+    }
+
+    static Stream<Throwable> callbackFailures() {
+        return Stream.of(
+                new IllegalStateException("request failure"),
+                new AssertionError("request failure"),
+                new IOException("unexpected checked request failure"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("callbackFailures")
+    void callbackFailureIsPreservedWhenDeferredCancellationAlsoFails(final Throwable failure) {
+        final IllegalArgumentException terminalFailure = new IllegalArgumentException("terminal failure");
+        final AtomicReference<SerializedRequestPipeline> wrapper = new AtomicReference<>();
+        final SerializedRequestPipeline pipeline = new SerializedRequestPipeline(new TestPipeline() {
+            @Override
+            public void onNext(final Bytes item) {
+                wrapper.get().onError(new IllegalStateException("cancelled"));
+                SerializedRequestPipelineTest.<RuntimeException>throwUnchecked(failure);
+            }
+
+            @Override
+            public void onError(final Throwable throwable) {
+                throw terminalFailure;
+            }
+        });
+        wrapper.set(pipeline);
+
+        assertThatThrownBy(() -> pipeline.onNext(Bytes.EMPTY)).satisfies(thrown -> assertPropagated(thrown, failure));
+        assertThat(failure.getSuppressed()).containsExactly(terminalFailure);
+    }
+
+    @ParameterizedTest
+    @MethodSource("callbackFailures")
+    void identicalCallbackAndTerminalFailuresDoNotMaskTheOriginal(final Throwable failure) {
+        final AtomicReference<SerializedRequestPipeline> wrapper = new AtomicReference<>();
+        final SerializedRequestPipeline pipeline = new SerializedRequestPipeline(new TestPipeline() {
+            @Override
+            public void onNext(final Bytes item) {
+                wrapper.get().onError(new IllegalStateException("cancelled"));
+                SerializedRequestPipelineTest.<RuntimeException>throwUnchecked(failure);
+            }
+
+            @Override
+            public void onError(final Throwable throwable) {
+                SerializedRequestPipelineTest.<RuntimeException>throwUnchecked(failure);
+            }
+        });
+        wrapper.set(pipeline);
+
+        assertThatThrownBy(() -> pipeline.onNext(Bytes.EMPTY)).satisfies(thrown -> assertPropagated(thrown, failure));
+        assertThat(failure.getSuppressed()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @MethodSource("callbackFailures")
+    void deferredTerminalFailureIsPropagatedAfterASuccessfulCallback(final Throwable failure) {
+        final AtomicReference<SerializedRequestPipeline> wrapper = new AtomicReference<>();
+        final SerializedRequestPipeline pipeline = new SerializedRequestPipeline(new TestPipeline() {
+            @Override
+            public void onNext(final Bytes item) {
+                wrapper.get().onError(new IllegalStateException("cancelled"));
+            }
+
+            @Override
+            public void onError(final Throwable throwable) {
+                SerializedRequestPipelineTest.<RuntimeException>throwUnchecked(failure);
+            }
+        });
+        wrapper.set(pipeline);
+
+        assertThatThrownBy(() -> pipeline.onNext(Bytes.EMPTY)).satisfies(thrown -> assertPropagated(thrown, failure));
+    }
+
+    private static void assertPropagated(final Throwable thrown, final Throwable failure) {
+        if (failure instanceof RuntimeException || failure instanceof Error) {
+            assertThat(thrown).isSameAs(failure);
+        } else {
+            assertThat(thrown).isInstanceOf(RuntimeException.class).hasCause(failure);
+        }
+    }
+
+    /** Exercises unexpected checked failures from callbacks whose Java signatures do not declare them. */
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> void throwUnchecked(final Throwable failure) throws T {
+        throw (T) failure;
     }
 
     @Test
