@@ -51,7 +51,57 @@ public abstract class PbjCompiler {
             String javaPackageSuffix,
             boolean generateTestClasses)
             throws Exception {
+        compileFilesIn(
+                sourceFiles,
+                classpath,
+                sourceRoots,
+                mainOutputDir,
+                testOutputDir,
+                javaPackageSuffix,
+                generateTestClasses,
+                false);
+    }
 
+    /**
+     * Compiles models, as {@link #compileFilesIn(Iterable, Iterable, Set, File, File, String, boolean)} does, with
+     * control over copy-builder tracking, which the other overload disables by default.
+     */
+    public static void compileFilesIn(
+            Iterable<File> sourceFiles,
+            Iterable<File> classpath,
+            Set<File> sourceRoots,
+            File mainOutputDir,
+            File testOutputDir,
+            String javaPackageSuffix,
+            boolean generateTestClasses,
+            boolean generateCopyBuilderTracking)
+            throws Exception {
+        compileFilesIn(
+                sourceFiles,
+                classpath,
+                sourceRoots,
+                mainOutputDir,
+                testOutputDir,
+                javaPackageSuffix,
+                generateTestClasses,
+                generateCopyBuilderTracking,
+                Set.of(),
+                Set.of());
+    }
+
+    /** Compile selected diff roots and their equality dependencies. Names are protobuf names, not Java names. */
+    public static void compileFilesIn(
+            Iterable<File> sourceFiles,
+            Iterable<File> classpath,
+            Set<File> sourceRoots,
+            File mainOutputDir,
+            File testOutputDir,
+            String javaPackageSuffix,
+            boolean generateTestClasses,
+            boolean generateCopyBuilderTracking,
+            Set<String> diffMessages,
+            Set<String> diffMessageContainers)
+            throws Exception {
         var allProtobufFiles = Stream.concat(
                         StreamSupport.stream(sourceFiles.spliterator(), false),
                         StreamSupport.stream(classpath.spliterator(), false))
@@ -60,13 +110,14 @@ public abstract class PbjCompiler {
 
         // first we do a scan of files to build lookup tables for imports, packages etc.
         final LookupHelper lookupHelper = new LookupHelper(allProtobufFiles, javaPackageSuffix);
+        lookupHelper.selectDiffMessages(diffMessages, diffMessageContainers);
         // for each proto src directory generate code
         for (final File protoFile : sourceFiles) {
             if (protoFile.exists()
                     && protoFile.isFile()
                     && protoFile.getName().endsWith(LookupHelper.PROTO_EXTENSIION)) {
                 final ContextualLookupHelper contextualLookupHelper =
-                        new ContextualLookupHelper(lookupHelper, protoFile);
+                        new ContextualLookupHelper(lookupHelper, protoFile, generateCopyBuilderTracking);
                 try (final var input = new FileInputStream(protoFile)) {
                     final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
                     final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));

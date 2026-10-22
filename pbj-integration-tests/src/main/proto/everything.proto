@@ -13,6 +13,7 @@ import "google/protobuf/wrappers.proto";
 /**
  * Example protobuf containing examples of all types
  */
+// <<<pbj.copy_builder_tracking = true>>>
 message Everything {
     // line comment for reserved keyword
     reserved 18, 19;

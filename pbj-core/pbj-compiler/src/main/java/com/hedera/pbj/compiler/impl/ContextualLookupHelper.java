@@ -20,16 +20,44 @@ public class ContextualLookupHelper {
     /** The proto source file for context */
     private final File srcProtoFileContext;
 
+    private final boolean generateCopyBuilderTracking;
+
     /**
      * Create a new ContextualLookupHelper delegating to {@code  lookupHelper} with the context of
      * {@code srcProtoFileContext}.
      *
      * @param lookupHelper Lookup helper that we are delegating to
      * @param srcProtoFileContext The proto source file for context
+     * @param generateCopyBuilderTracking whether generated models include copy-builder provenance
      */
-    public ContextualLookupHelper(LookupHelper lookupHelper, File srcProtoFileContext) {
+    public ContextualLookupHelper(
+            LookupHelper lookupHelper, File srcProtoFileContext, boolean generateCopyBuilderTracking) {
         this.lookupHelper = lookupHelper;
         this.srcProtoFileContext = srcProtoFileContext;
+        this.generateCopyBuilderTracking = generateCopyBuilderTracking;
+    }
+
+    /**
+     * Whether generated models should include copy-builder provenance. An explicit {@code pbj.copy_builder_tracking}
+     * comment wins; otherwise the project setting applies to roots with more than
+     * {@link LookupHelper#MAX_UNTRACKED_DIFF_ENTRIES} mask entries.
+     */
+    public boolean generateCopyBuilderTracking(MessageDefContext message) {
+        if (!hasDiffApis(message)) return false;
+        final Boolean explicit = LookupHelper.messageOptionValue(message, "pbj.copy_builder_tracking");
+        if (explicit != null) return explicit;
+        return generateCopyBuilderTracking
+                && LookupHelper.diffEntryCount(message) > LookupHelper.MAX_UNTRACKED_DIFF_ENTRIES;
+    }
+
+    /** Whether this message is selected for the full diff API. */
+    public boolean hasDiffApis(MessageDefContext message) {
+        return lookupHelper.hasDiffApis(message);
+    }
+
+    /** Whether this message is a root or a dependency needing safe diff comparison. */
+    public boolean hasDiffEquality(MessageDefContext message) {
+        return lookupHelper.hasDiffEquality(message);
     }
 
     /** Get the LookupHelper instance backing this ContextualLookupHelper. */

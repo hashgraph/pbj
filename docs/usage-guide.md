@@ -24,10 +24,15 @@ dependencies {
 pbj {
     javaPackageSuffix = ".pbj"      // appended to derived package names
     generateTestClasses = true       // generate JUnit 5 tests (default: true)
+    diffMessages = setOf<String>()           // diff roots by protobuf message name (default: empty)
+    diffMessageContainers = setOf<String>()  // catalogs whose message-valued fields are diff roots (default: empty)
+    generateCopyBuilderTracking = false      // copy-builder tracking on larger diff roots (default: false)
 }
 ```
 
 Setting `generateTestClasses = false` avoids requiring a dependency on Google Protobuf libraries (which the generated tests use for binary compatibility validation).
+
+The diff options are described in [Partial Updates (Diffs)](#partial-updates-diffs).
 
 ### Multiple Source Directories
 
@@ -105,6 +110,27 @@ message Account {
 The generated `compareTo()` compares fields in the order listed, using the appropriate comparison for each type (`Integer.compare()`, `Long.compareUnsigned()`, null-safe `String.compareTo()`, etc.). Nested message fields must themselves be comparable.
 
 Supported in the comparable list: all scalar types, strings, bytes, enums, messages, oneOf fields, and wrapper types. Repeated fields and map fields cannot be included.
+
+### Diff Roots
+
+Message comments can select a message as a diff root (see [Partial Updates (Diffs)](#partial-updates-diffs)):
+
+```protobuf
+// Diff APIs, without copy-builder tracking unless the project enables it
+// <<<pbj.diff = true>>>
+message Topic { ... }
+
+// Diff APIs plus copy-builder tracking, regardless of the project setting or the message size
+// <<<pbj.copy_builder_tracking = true>>>
+message Account { ... }
+
+// Diff APIs, but never copy-builder tracking, even when the project enables it
+// <<<pbj.copy_builder_tracking = false>>>
+message Token { ... }
+```
+
+`pbj.copy_builder_tracking = true` also makes the message a diff root. `pbj.copy_builder_tracking = false` only turns
+tracking off. On its own it doesn't select a root, so combine it with `pbj.diff = true` or a Gradle selection.
 
 ## Working with Generated Model Objects
 
@@ -433,6 +459,119 @@ try {
     // Handle gracefully
 }
 ```
+
+## Partial Updates (Diffs)
+
+PBJ can generate shallow diff and replay support for selected messages. A producer sends only the top-level fields
+that changed, plus a list of fields to clear, and a consumer rebuilds the complete value from the prior value. Nested
+messages, repeated fields and maps are replaced as whole fields. A partial is an ordinary encoding of the message, so
+any protobuf library can parse it.
+
+### Selecting Diff Roots
+
+Diff support is opt-in. Only **diff roots** get the diff APIs. Messages reachable from a root (through message fields,
+lists, maps and oneofs) get only the encoding-aware `$equalsForDiff()` used for comparison. Unrelated messages are
+unchanged. Select roots in Gradle, with [message comments](#diff-roots), or both. The selections are additive.
+
+```kotlin
+pbj {
+    // Individual roots, by fully qualified protobuf message name (not the generated Java name)
+    diffMessages = setOf("proto.Account", "proto.Token")
+
+    // Every message-valued field of each container (including oneof members and map values) becomes a root.
+    // The container itself is not selected.
+    diffMessageContainers = setOf("com.hedera.hapi.platform.state.StateValue")
+
+    // Optional: track touched fields in copy builders on roots with more than 8 entries, to speed up diff()
+    generateCopyBuilderTracking = true
+}
+```
+
+With a container catalog such as Hiero's `StateValue`, every state type becomes a root, including types added later,
+without maintaining a separate list. An unknown name in either set fails the build.
+
+### Generated APIs
+
+Each root `Model` gets these static methods:
+
+```java
+long diff(Model prior, Model next);                      // mask of changed fields
+long diff(Model prior, Model next, long candidates);     // check only candidate fields
+Model partial(Model next, long mask);                    // keep masked fields, reset the rest
+int[] clearedFields(Model prior, Model next, long mask); // precise clears, including old oneof alternatives
+int[] clearedFields(Model next, long mask);              // clears every inactive oneof alternative
+boolean worthPartial(Model next, long mask, int minSaving, int overhead);
+Model applyPartial(Model prior, Model partial, int[] cleared);
+```
+
+Each mask bit is one ordinary field or one oneof group, in declaration order. Models with more than 64 entries use
+`long[]` masks. Cleared lists are sorted protobuf field numbers. Every changed field is checked by value, so a field
+set back to its existing value is not reported as changed.
+
+Each root's `PROTOBUF` codec also extends `DiffCodec<T>`. Callers that only hold a registered `Codec<T>` can
+discover diff support with `instanceof DiffCodec` and work with opaque `Object` masks.
+
+### Copy-Builder Tracking
+
+A tracked root implements `CopyBuilderTracked<T>`. Values built through `copyBuilder()` remember the instance they were copied from and which
+setters were called. When `next` was copied directly from `prior`, `diff(prior, next)` checks only the touched
+fields. Otherwise it compares every field. Either way, the result is identical. Tracking only affects CPU cost and
+never appears in `equals()`, `hashCode()`, `toString()` or the codecs. `CopyBuilderTracked.untracked(value)` returns
+an equal copy without tracking state.
+
+Which roots are tracked:
+
+- `pbj.copy_builder_tracking = true` or `= false` on a message always wins.
+- Otherwise, `generateCopyBuilderTracking = true` tracks only roots with **more than 8 mask entries** (ordinary and
+  map fields, plus one per oneof group). Smaller roots keep the diff APIs and compare every field, which costs about
+  the same as checking a mask.
+
+Tracking is a property of the generated class, so it adds an object reference and a mask to **every** instance of a
+tracked root, including instances nested inside other messages. The size limit keeps small, widely used roots, such
+as `AccountID` and `Timestamp` when selected through `StateValue`, from paying that cost everywhere. If you annotate a
+small type with `pbj.copy_builder_tracking = true`, it pays the same cost.
+
+### Producer and Consumer Contract
+
+Producer:
+
+```java
+if (codec instanceof DiffCodec<T> diffCodec && diffCodec.canDiff(prior) && diffCodec.canDiff(next)) {
+    final Object mask = diffCodec.diff(prior, next);
+    if (diffCodec.worthPartial(next, mask, minSaving, envelopeOverhead)) {
+        emitPartial(diffCodec.partial(next, mask), diffCodec.clearedFields(prior, next, mask));
+        return;
+    }
+}
+emitFull(next);
+```
+
+- **Check `canDiff` on both values.** It returns `false` for `null` and for values with top-level unknown fields.
+  The direct model methods throw `UnsupportedOperationException` in that case, so emit the full value instead.
+- **Use `clearedFields(prior, next, mask)`.** It clears exactly the fields that `prior` had and `next` lacks. The
+  overload without `prior` clears every inactive oneof alternative, which is valid but larger.
+- **Oneof switches must clear the old alternative.** If `prior` set oneof member 5 and `next` sets member 7, the
+  cleared list must contain 5. `PartialApplier` is schema-free and can't infer this, and `applyPartial` rejects
+  patches that omit it.
+- **Producers must agree on policy.** If several producers must emit identical bytes, they need the same root
+  selection and emission thresholds. Consumers can replay partials without generated diff APIs.
+
+Consumer, with models:
+
+```java
+Model next = Model.applyPartial(prior, partial, cleared);
+```
+
+Consumer, with bytes and no schema:
+
+```java
+Bytes nextBytes = PartialApplier.splice(priorBytes, partialBytes, cleared);
+```
+
+`splice` replaces complete top-level field runs, removes cleared fields and copies the remaining bytes unchanged.
+Both inputs must use ascending field order and canonical varints, as PBJ produces. Normalize values from other
+encoders through their PBJ codec first. `splice` validates framing, ordering and clears, but schema-specific checks
+remain the caller's responsibility.
 
 ## gRPC Services
 
