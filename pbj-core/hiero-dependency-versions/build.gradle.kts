@@ -2,7 +2,7 @@
 group = "com.hedera.hashgraph"
 
 val antlr = "4.13.2"
-val grpc = "1.85.0"
+val grpc = "1.85.1"
 val helidon = "4.5.6"
 val protobuf = "4.35.1"
 
@@ -79,5 +79,5 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-http2:$helidon") {
         because("io.helidon.webclient.http2")
     }
-    api("com.github.luben:zstd-jni:1.5.7-22") { because("com.github.luben.zstd_jni") }
+    api("com.github.luben:zstd-jni:1.5.7-24") { because("com.github.luben.zstd_jni") }
 }

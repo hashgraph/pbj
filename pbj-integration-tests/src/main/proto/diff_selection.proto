@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package proto;
+// <<<pbj.java_package = "com.hedera.pbj.test.proto.pbj">>>
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+
+// Selection is derived from this catalog, without generating helpers on the catalog itself.
+message DiffCatalog {
+    oneof value {
+        CatalogSelectedRoot plain = 1;
+    }
+}
+message CatalogSelectedRoot { DiffChild child = 1; }
+message PlainDiffRoot {
+    map<string, DiffChild> by_name = 1;
+    DiffChild scalar = 2;
+    repeated DiffChild repeated_child = 3;
+    Objects objects = 4;
+    Arrays arrays = 5;
+}
+message DiffChild {
+    repeated float values = 1;
+}
+// These names must not collide with Java utility imports used in generated diffs.
+message Objects { string name = 1; }
+message Arrays { string name = 1; }
+message UnrelatedDiffModel { float value = 1; }

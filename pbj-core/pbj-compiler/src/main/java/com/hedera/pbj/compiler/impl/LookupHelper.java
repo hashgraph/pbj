@@ -18,6 +18,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -128,6 +129,118 @@ public final class LookupHelper {
      * enum or not
      */
     private final Set<String> enumNames = new HashSet<>();
+
+    private final Map<String, MessageDefContext> messageDefinitions = new HashMap<>();
+    private final Map<String, File> messageFiles = new HashMap<>();
+    private final Set<String> diffRoots = new HashSet<>();
+    private final Set<String> diffEqualityMessages = new HashSet<>();
+
+    /**
+     * Roots with at most this many mask entries get no copy-builder tracking from the project setting. Comparing a
+     * few fields costs about as much as checking a mask, and tracking is per class, so small ubiquitous types such as
+     * IDs and timestamps would otherwise carry tracking state in every instance. An explicit
+     * {@code pbj.copy_builder_tracking} comment overrides this.
+     */
+    public static final int MAX_UNTRACKED_DIFF_ENTRIES = 8;
+
+    /**
+     * Select roots explicitly or from a catalog's direct message fields, then walk nested dependencies.
+     * Misspelled selections fail compilation rather than silently losing optimization.
+     */
+    public void selectDiffMessages(Set<String> roots, Set<String> containers) {
+        diffRoots.clear();
+        diffEqualityMessages.clear();
+        for (Map.Entry<String, MessageDefContext> entry : messageDefinitions.entrySet()) {
+            final MessageDefContext message = entry.getValue();
+            if (messageOption(message, "pbj.diff") || messageOption(message, "pbj.copy_builder_tracking")) {
+                diffRoots.add(entry.getKey());
+            }
+        }
+        for (String root : roots) {
+            requireMessage(root);
+            diffRoots.add(root);
+        }
+        for (String container : containers) {
+            requireMessage(container);
+            diffRoots.addAll(messageDependencies(container));
+        }
+        final ArrayDeque<String> pending = new ArrayDeque<>(diffRoots);
+        while (!pending.isEmpty()) {
+            String name = pending.removeFirst();
+            if (diffEqualityMessages.add(name)) pending.addAll(messageDependencies(name));
+        }
+    }
+
+    private void requireMessage(String name) {
+        if (!messageDefinitions.containsKey(name)) {
+            throw new IllegalArgumentException("Unknown diff message: " + name);
+        }
+    }
+
+    private Set<String> messageDependencies(String name) {
+        final Set<String> dependencies = new HashSet<>();
+        for (MessageElementContext element :
+                messageDefinitions.get(name).messageBody().messageElement()) {
+            if (element.field() != null) {
+                addDependency(name, element.field().type_(), dependencies);
+            }
+            if (element.mapField() != null) {
+                addDependency(name, element.mapField().type_(), dependencies);
+            }
+            if (element.oneof() != null) {
+                for (Protobuf3Parser.OneofFieldContext field : element.oneof().oneofField()) {
+                    addDependency(name, field.type_(), dependencies);
+                }
+            }
+        }
+        return dependencies;
+    }
+
+    private void addDependency(String owner, Protobuf3Parser.Type_Context type, Set<String> dependencies) {
+        if (type.messageType() == null) return;
+        String name = getFullyQualifiedProtoName(messageFiles.get(owner), type.messageType());
+        // Google wrappers are mapped to Java scalars; enums need no generated comparison.
+        if (messageDefinitions.containsKey(name)) dependencies.add(name);
+    }
+
+    /** Whether this message has the full stateless diff APIs. */
+    public boolean hasDiffApis(MessageDefContext message) {
+        return diffRoots.contains(getFullyQualifiedProtoNameForContext(message));
+    }
+
+    /** Whether this message needs encoding-aware equality as a root or a nested dependency. */
+    public boolean hasDiffEquality(MessageDefContext message) {
+        return diffEqualityMessages.contains(getFullyQualifiedProtoNameForContext(message));
+    }
+
+    /** Number of diff mask entries: one per ordinary or map field, and one per oneof group. */
+    public static int diffEntryCount(MessageDefContext message) {
+        int count = 0;
+        for (MessageElementContext element : message.messageBody().messageElement()) {
+            if (element.field() != null || element.mapField() != null || element.oneof() != null) count++;
+        }
+        return count;
+    }
+
+    /** Read a boolean PBJ message option from its special comments, defaulting to false. */
+    public static boolean messageOption(MessageDefContext message, String option) {
+        return Boolean.TRUE.equals(messageOptionValue(message, option));
+    }
+
+    /** Read a boolean PBJ message option from its special comments, or null when it is absent. */
+    public static @Nullable Boolean messageOptionValue(MessageDefContext message, String option) {
+        for (Protobuf3Parser.OptionCommentContext comment : message.optionComment()) {
+            final java.util.regex.Matcher matcher = OPTION_COMMENT.matcher(comment.getText());
+            if (matcher.find() && matcher.group(1).equals(option)) {
+                String value = matcher.group(2).trim();
+                if (!value.equals("true") && !value.equals("false")) {
+                    throw new IllegalArgumentException(option + " must be true or false");
+                }
+                return Boolean.parseBoolean(value);
+            }
+        }
+        return null;
+    }
 
     /**
      * Build a new lookup helper, root directory of protobuf files. This scans directory reading
@@ -655,6 +768,8 @@ public final class LookupHelper {
                 PBJ_MESSAGE_PACKAGE_OPTION_NAME);
 
         final String fullyQualifiedMessage = getFullyQualifiedProtoNameForContext(msgDef);
+        messageDefinitions.put(fullyQualifiedMessage, msgDef);
+        messageFiles.put(fullyQualifiedMessage, new File(fullQualifiedFile));
         comparableFieldsByMsg.computeIfAbsent(fullyQualifiedMessage, v -> extractComparableFields(msgDef));
         final Integer cacheSize = extractCacheSize(msgDef);
         if (cacheSize != null) {
