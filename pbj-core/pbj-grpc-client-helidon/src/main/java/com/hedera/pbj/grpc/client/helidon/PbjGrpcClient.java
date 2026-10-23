@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.grpc.client.helidon;
 
-import com.hedera.pbj.grpc.common.compression.ZstdGrpcTransformer;
+import com.hedera.pbj.grpc.common.compression.GrpcCompressionRegistry;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.grpc.GrpcClient;
@@ -33,7 +33,7 @@ import java.util.Optional;
  */
 public final class PbjGrpcClient implements GrpcClient, AutoCloseable {
     static {
-        new ZstdGrpcTransformer().register("zstd");
+        GrpcCompressionRegistry.initialize();
     }
 
     private final WebClient webClient;

@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.grpc.client.helidon;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -13,10 +16,12 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -31,6 +36,7 @@ import io.helidon.http.HeaderName;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.Headers;
 import io.helidon.http.Method;
+import io.helidon.http.WritableHeaders;
 import io.helidon.http.http2.Http2FrameData;
 import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamState;
@@ -38,6 +44,7 @@ import io.helidon.webclient.api.ClientConnection;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.http2.Http2ClientConnection;
 import io.helidon.webclient.http2.StreamTimeoutException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -148,6 +155,24 @@ public class PbjGrpcCallTest {
 
         // It submits a private method reference, so this is the best we can do:
         verify(executor, times(1)).submit(any(Runnable.class));
+    }
+
+    @Test
+    public void testConstructorReportsAClosedConnectionAsAnIoFailure() {
+        final PbjGrpcClientConfig config =
+                new PbjGrpcClientConfig(READ_TIMEOUT, tls, OPTIONS.authority(), OPTIONS.contentType());
+        doReturn(config).when(grpcClient).getConfig();
+        // Helidon 4.5.6 refuses to add a stream to a closed connection:
+        final IllegalStateException closed = new IllegalStateException("Connection is closed");
+        doThrow(closed).when(grpcClientStream).writeHeaders(any(Http2Headers.class), eq(false));
+
+        final UncheckedIOException exception = assertThrows(
+                UncheckedIOException.class,
+                () -> new PbjGrpcCall(
+                        grpcClient, grpcClientStream, OPTIONS, METHOD_NAME, requestCodec, replyCodec, pipeline));
+
+        assertSame(closed, exception.getCause().getCause());
+        verifyNoInteractions(webClient, executor);
     }
 
     @ParameterizedTest
@@ -523,6 +548,103 @@ public class PbjGrpcCallTest {
         assertEquals("test execution exception", throwable.getMessage());
         assertEquals("inner", throwable.getCause().getMessage());
 
+        verifyNoMoreInteractions(pipeline);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"gzip", "identity"})
+    void rejectsOversizedDecodedRepliesAndCompressedIdentityReplies(final String encoding) throws Exception {
+        final Runnable runnable = fetchReceiveRepliesLoop();
+        final PbjGrpcClientConfig config = new PbjGrpcClientConfig(
+                READ_TIMEOUT,
+                tls,
+                OPTIONS.authority(),
+                OPTIONS.contentType(),
+                "identity",
+                java.util.Set.of(encoding),
+                1024,
+                4096);
+        doReturn(config).when(grpcClient).getConfig();
+        doReturn(WritableHeaders.create().add(HeaderNames.create("grpc-encoding"), encoding))
+                .when(http2Headers)
+                .httpHeaders();
+        doReturn(new CompletableFuture<Headers>()).when(grpcClientStream).trailers();
+        doReturn(true).when(grpcClientStream).hasEntity();
+        final Bytes payload = "gzip".equals(encoding)
+                ? GrpcCompression.getCompressor("gzip").compress(Bytes.wrap(new byte[8192]))
+                : Bytes.EMPTY;
+        final BufferData frame = BufferData.create((int) payload.length() + 5);
+        frame.write(1);
+        frame.writeInt32((int) payload.length());
+        frame.write(payload.toByteArray());
+        final Http2FrameData data = mock(Http2FrameData.class);
+        doReturn(frame).when(data).data();
+        doReturn(data).when(grpcClientStream).readOne(READ_TIMEOUT);
+
+        runnable.run();
+
+        final ArgumentCaptor<Throwable> failure = ArgumentCaptor.forClass(Throwable.class);
+        verify(pipeline).onError(failure.capture());
+        final GrpcException grpcFailure = assertInstanceOf(GrpcException.class, failure.getValue());
+        assertEquals(
+                "gzip".equals(encoding) ? GrpcStatus.RESOURCE_EXHAUSTED : GrpcStatus.INTERNAL, grpcFailure.status());
+        verifyNoInteractions(replyCodec);
+        verifyNoMoreInteractions(pipeline);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void acceptsReplyFieldAtCodecLimitWithProtobufOverhead(final boolean compressed) throws Exception {
+        final Runnable runnable = fetchReceiveRepliesLoop();
+        final PbjGrpcClientConfig config = new PbjGrpcClientConfig(
+                READ_TIMEOUT,
+                tls,
+                OPTIONS.authority(),
+                OPTIONS.contentType(),
+                "identity",
+                java.util.Set.of("gzip"),
+                1024,
+                4096);
+        doReturn(config).when(grpcClient).getConfig();
+        final Headers responseHeaders = WritableHeaders.create().add(HeaderNames.create("grpc-encoding"), "gzip");
+        doReturn(responseHeaders).when(http2Headers).httpHeaders();
+        final CompletableFuture<Headers> trailers = new CompletableFuture<>();
+        doReturn(trailers).when(grpcClientStream).trailers();
+        doReturn(true).when(grpcClientStream).hasEntity();
+        // A length-delimited protobuf field with 1024 data bytes requires three additional bytes for its tag/length.
+        final byte[] decoded = new byte[1027];
+        decoded[0] = 0x0a;
+        decoded[1] = (byte) 0x80;
+        decoded[2] = 0x08;
+        final Bytes payload =
+                compressed ? GrpcCompression.getCompressor("gzip").compress(Bytes.wrap(decoded)) : Bytes.wrap(decoded);
+        final BufferData frame = BufferData.create((int) payload.length() + 5);
+        frame.write(compressed ? 1 : 0);
+        frame.writeInt32((int) payload.length());
+        frame.write(payload.toByteArray());
+        final Http2FrameData data = mock(Http2FrameData.class);
+        doReturn(frame).when(data).data();
+        doAnswer(invocation -> {
+                    trailers.complete(responseHeaders);
+                    return data;
+                })
+                .when(grpcClientStream)
+                .readOne(READ_TIMEOUT);
+        final Object reply = new Object();
+        doReturn(reply)
+                .when(replyCodec)
+                .parse(any(ReadableSequentialData.class), eq(false), eq(false), eq(Codec.DEFAULT_MAX_DEPTH), eq(1024));
+
+        runnable.run();
+
+        final ArgumentCaptor<ReadableSequentialData> decodedData =
+                ArgumentCaptor.forClass(ReadableSequentialData.class);
+        verify(replyCodec).parse(decodedData.capture(), eq(false), eq(false), eq(Codec.DEFAULT_MAX_DEPTH), eq(1024));
+        final byte[] received = new byte[decoded.length];
+        assertEquals(decoded.length, decodedData.getValue().readBytes(received));
+        assertArrayEquals(decoded, received);
+        verify(pipeline).onNext(reply);
+        verify(pipeline).onComplete();
         verifyNoMoreInteractions(pipeline);
     }
 }

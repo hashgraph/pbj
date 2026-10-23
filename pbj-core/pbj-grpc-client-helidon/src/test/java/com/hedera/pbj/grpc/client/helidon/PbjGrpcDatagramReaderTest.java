@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import io.helidon.common.buffers.BufferData;
 import java.nio.BufferOverflowException;
 import java.util.Arrays;
@@ -20,7 +21,10 @@ public class PbjGrpcDatagramReaderTest {
         PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(MAX_BUFFER_SIZE);
 
         // First, test the happy case, fill up the buffer to the current max limit (note that it's hard-coded here):
-        BufferData goodData = BufferData.create("a".repeat(10 * 1024 * 1024));
+        BufferData goodData = BufferData.create(MAX_BUFFER_SIZE);
+        goodData.write(0);
+        goodData.writeInt32(MAX_BUFFER_SIZE - 5);
+        goodData.write(new byte[MAX_BUFFER_SIZE - 5]);
         reader.add(goodData);
 
         // Now try to add some more, 1 byte should be enough:
@@ -37,9 +41,9 @@ public class PbjGrpcDatagramReaderTest {
         reader.add(zeroData);
         PbjGrpcDatagramReader.Datagram datagram = reader.extractNextDatagram();
         assertEquals(0, datagram.compressedFlag());
-        BufferData bufferData = datagram.data();
+        Bytes bufferData = datagram.data();
         assertNotNull(bufferData);
-        assertEquals(0, bufferData.available());
+        assertEquals(0, bufferData.length());
 
         // 1 byte long datagram
         BufferData oneData = BufferData.create(new byte[] {0, 0, 0, 0, 1, 66});
@@ -48,8 +52,8 @@ public class PbjGrpcDatagramReaderTest {
         assertEquals(0, datagram.compressedFlag());
         bufferData = datagram.data();
         assertNotNull(bufferData);
-        assertEquals(1, bufferData.available());
-        assertEquals(66, bufferData.read());
+        assertEquals(1, bufferData.length());
+        assertEquals(66, bufferData.getByte(0));
 
         // Many bytes long datagram
         String data = "Some test data here...";
@@ -62,8 +66,8 @@ public class PbjGrpcDatagramReaderTest {
         assertEquals(0, datagram.compressedFlag());
         bufferData = datagram.data();
         assertNotNull(bufferData);
-        assertEquals(data.getBytes().length, bufferData.available());
-        assertEquals(data, bufferData.readString(data.getBytes().length));
+        assertEquals(data.getBytes().length, bufferData.length());
+        assertEquals(data, bufferData.asUtf8String());
     }
 
     @Test
@@ -91,66 +95,32 @@ public class PbjGrpcDatagramReaderTest {
 
         PbjGrpcDatagramReader.Datagram datagram = reader.extractNextDatagram();
         assertEquals(0, datagram.compressedFlag());
-        BufferData bufferData = datagram.data();
+        Bytes bufferData = datagram.data();
         assertNotNull(bufferData);
-        assertEquals(data.getBytes().length, bufferData.available());
-        assertEquals(data, bufferData.readString(data.getBytes().length));
+        assertEquals(data.getBytes().length, bufferData.length());
+        assertEquals(data, bufferData.asUtf8String());
     }
 
     @Test
-    void testFlipCircularBuffer() {
-        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(MAX_BUFFER_SIZE);
+    void testDrainCompleteMessageWhileNextMessageIsPartial() {
+        final PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(MAX_BUFFER_SIZE);
+        final String first = "a".repeat(1000);
+        final String second = "b".repeat(1000);
+        final BufferData firstFrame = BufferData.create(first.length() + 6);
+        firstFrame.write(0);
+        firstFrame.writeInt32(first.length());
+        firstFrame.write(first.getBytes());
+        firstFrame.write(0); // First byte of the second message's prefix.
+        reader.add(firstFrame);
 
-        // The initial size is currently 1024, so fill it up almost completely:
-        String dataString = "a".repeat(1000);
-
-        reader.add(BufferData.create(new byte[] {0}));
+        assertEquals(first, reader.extractNextDatagram().data().asUtf8String());
         assertNull(reader.extractNextDatagram());
-
-        BufferData lengthData = BufferData.create(4);
-        lengthData.writeInt32(dataString.getBytes().length);
-        reader.add(lengthData);
+        final BufferData remaining = BufferData.create(second.length() + 4);
+        remaining.writeInt32(second.length());
+        remaining.write(second.getBytes());
+        reader.add(remaining);
+        assertEquals(second, reader.extractNextDatagram().data().asUtf8String());
         assertNull(reader.extractNextDatagram());
-
-        BufferData theData = BufferData.create(dataString.getBytes());
-        reader.add(theData);
-
-        // At this point we use 1005 bytes of the initial 1024 capacity.
-        // Just in case we implement any future optimizations, let's start
-        // sending the next datagram right away
-        reader.add(BufferData.create(new byte[] {0}));
-
-        // At this point the writePosition is at 1006 or something like that.
-        // Let's read the first datagram and mark almost the entire buffer free
-        // (except for that zero byte that we've just added above):
-        PbjGrpcDatagramReader.Datagram datagram = reader.extractNextDatagram();
-        assertEquals(0, datagram.compressedFlag());
-        BufferData bufferData = datagram.data();
-        assertNotNull(bufferData);
-        assertEquals(dataString.getBytes().length, bufferData.available());
-        assertEquals(dataString, bufferData.readString(dataString.getBytes().length));
-
-        // The next datagram isn't ready yet:
-        assertNull(reader.extractNextDatagram());
-
-        // Now let's just finish adding the exact same 1000 bytes datagram,
-        // which should force the reader to flip:
-        String newDataString = "b".repeat(dataString.length());
-        lengthData.rewind();
-        reader.add(lengthData);
-        assertNull(reader.extractNextDatagram());
-        reader.add(BufferData.create(newDataString.getBytes()));
-
-        // At this point, the circular buffer must've flipped over the tail to the head.
-        // The buffer is private, so we cannot check it. But we should be able to
-        // read back the last datagram. And more importantly, the flipping logic
-        // is now covered by tests.
-        PbjGrpcDatagramReader.Datagram newDatagram = reader.extractNextDatagram();
-        assertEquals(0, newDatagram.compressedFlag());
-        BufferData newBufferData = newDatagram.data();
-        assertNotNull(newBufferData);
-        assertEquals(newDataString.getBytes().length, newBufferData.available());
-        assertEquals(newDataString, newBufferData.readString(newDataString.getBytes().length));
     }
 
     private void testDatagrams(final PbjGrpcDatagramReader reader, final List<String> datagrams) {
@@ -167,10 +137,10 @@ public class PbjGrpcDatagramReaderTest {
         datagrams.forEach(dataString -> {
             PbjGrpcDatagramReader.Datagram datagram = reader.extractNextDatagram();
             assertEquals(0, datagram.compressedFlag());
-            BufferData bufferData = datagram.data();
+            Bytes bufferData = datagram.data();
             assertNotNull(bufferData);
-            assertEquals(dataString.getBytes().length, bufferData.available());
-            assertEquals(dataString, bufferData.readString(dataString.getBytes().length));
+            assertEquals(dataString.getBytes().length, bufferData.length());
+            assertEquals(dataString, bufferData.asUtf8String());
         });
 
         // Ensure there's nothing else there:
@@ -178,16 +148,43 @@ public class PbjGrpcDatagramReaderTest {
     }
 
     @Test
-    void testEnlargePartiallyFilledBuffer() {
-        PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(MAX_BUFFER_SIZE);
-
-        // Add two datagrams of 1000 bytes, which will enlarge the initial 1024 bytes buffer
+    void testRepeatedBatchesRemainOrdered() {
+        final PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(MAX_BUFFER_SIZE);
         testDatagrams(reader, List.of("a".repeat(1000), "b".repeat(1000)));
-
-        // Now repeat this again, but this time 3 times. The writePosition of the buffer
-        // is now near the tail. So writing 2 same datagrams would simply flip the pointer.
-        // However, writing the 3rd one would enlarge the buffer again AND copy parts
-        // from both the tail and the head of the buffer, hence fully covering the enlarging logic:
         testDatagrams(reader, List.of("1".repeat(1000), "2".repeat(1000), "3".repeat(1000)));
+    }
+
+    @Test
+    void preservesCompressionFlagAndWirePayload() {
+        final PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(100);
+        reader.add(BufferData.create(new byte[] {1, 0, 0, 0, 3, 10, 20, 30}));
+        final PbjGrpcDatagramReader.Datagram message = reader.extractNextDatagram();
+        assertEquals(1, message.compressedFlag());
+        assertEquals(Bytes.wrap(new byte[] {10, 20, 30}), message.data());
+    }
+
+    @Test
+    void queuedAndPartialMessagesShareTheBufferLimit() {
+        final PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(11);
+        reader.add(BufferData.create(new byte[] {0, 0, 0, 0, 1, 42, 0, 0, 0, 0, 1}));
+        assertThrows(BufferOverflowException.class, () -> reader.add(BufferData.create(new byte[] {43})));
+        assertEquals(Bytes.wrap(new byte[] {42}), reader.extractNextDatagram().data());
+        reader.add(BufferData.create(new byte[] {43}));
+        assertEquals(Bytes.wrap(new byte[] {43}), reader.extractNextDatagram().data());
+    }
+
+    @Test
+    void rejectsAnOversizedAnnouncedMessageBeforeAllocatingPayload() {
+        final PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(10);
+        assertThrows(BufferOverflowException.class, () -> reader.add(BufferData.create(new byte[] {0, 0, 0, 0, 6})));
+    }
+
+    @Test
+    void completedMessagesOwnTheirBytes() {
+        final PbjGrpcDatagramReader reader = new PbjGrpcDatagramReader(20);
+        final byte[] frame = {0, 0, 0, 0, 1, 42};
+        reader.add(BufferData.create(frame));
+        frame[5] = 99;
+        assertEquals(Bytes.wrap(new byte[] {42}), reader.extractNextDatagram().data());
     }
 }
