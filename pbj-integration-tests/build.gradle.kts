@@ -106,7 +106,7 @@ pbj {
 val hapiProtos =
     configurations.dependencyScope("hapiProtos") {
         dependencies.add(
-            project.dependencies.create("com.hedera.hashgraph:hedera-protobuf-java-api:0.78.1")
+            project.dependencies.create("com.hedera.hashgraph:hedera-protobuf-java-api:0.78.2")
         )
     }
 val hapiProtosClasspath =
