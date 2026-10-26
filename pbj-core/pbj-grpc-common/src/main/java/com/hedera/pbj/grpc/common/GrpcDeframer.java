@@ -8,7 +8,6 @@ import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
 import java.util.function.Consumer;
 
 /**
@@ -20,6 +19,10 @@ import java.util.function.Consumer;
  * HTTP transport and of whether messages are requests or responses.
  *
  * <p>Each complete message is handed to the configured consumer, optionally after decompression.
+ *
+ * <p>A non-empty payload uses one array of its declared size, allocated when its first bytes arrive. A length
+ * prefix alone does not allocate a payload array. Once payload bytes arrive, the full declared size is reserved,
+ * bounded by the configured maximum message size.
  *
  * <p>This class is not thread-safe. Callers are expected to feed it data sequentially.
  */
@@ -79,7 +82,7 @@ public final class GrpcDeframer {
      */
     private byte[] entityBytes = null;
 
-    /** The declared wire payload length; allocation follows bytes received rather than this value. */
+    /** The declared wire payload length, validated against {@link #maxMessageSizeBytes} before allocation. */
     private int entityLength;
 
     /** The index into {@link #entityBytes} into which data is to be read next. */
@@ -195,8 +198,11 @@ public final class GrpcDeframer {
                     break;
                 }
                 case READ_ENTITY_BYTES: {
+                    if (entityBytes == null) {
+                        // Allocate once on the first payload bytes, then fill the same array across input chunks.
+                        entityBytes = new byte[entityLength];
+                    }
                     final int numBytesToRead = Math.min(entityLength - entityBytesIndex, data.available());
-                    ensurePayloadCapacity(entityBytesIndex + numBytesToRead);
                     data.read(entityBytes, entityBytesIndex, numBytesToRead);
                     entityBytesIndex += numBytesToRead;
 
@@ -212,15 +218,6 @@ public final class GrpcDeframer {
                     break;
                 }
             }
-        }
-    }
-
-    private void ensurePayloadCapacity(final int required) {
-        if (entityBytes == null) {
-            entityBytes = new byte[Math.min(entityLength, Math.max(8192, required))];
-        } else if (required > entityBytes.length) {
-            final int capacity = (int) Math.min(entityLength, Math.max((long) required, entityBytes.length * 2L));
-            entityBytes = Arrays.copyOf(entityBytes, capacity);
         }
     }
 
