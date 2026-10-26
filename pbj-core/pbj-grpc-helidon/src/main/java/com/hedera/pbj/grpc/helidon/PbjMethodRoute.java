@@ -9,6 +9,7 @@ import io.helidon.http.HttpPrologue;
 import io.helidon.http.PathMatcher;
 import io.helidon.http.PathMatchers;
 import io.helidon.metrics.api.Counter;
+import io.helidon.metrics.api.MeterRegistry;
 import io.helidon.metrics.api.Metrics;
 import io.helidon.metrics.api.Tag;
 
@@ -40,6 +41,7 @@ final class PbjMethodRoute extends PbjRoute {
     private static final String SERVICE_TAG = "service";
     private static final String METHOD_TAG = "method";
     private static final String FAILURE_TAG = "failure";
+    private static final String TRANSPORT_TAG = "transport";
 
     @NonNull
     private final Counter requestCounter;
@@ -69,49 +71,65 @@ final class PbjMethodRoute extends PbjRoute {
             @NonNull final ServiceInterface service,
             @NonNull final PbjGrpcServiceConfig serviceConfig,
             @NonNull final ServiceInterface.Method method) {
+        this(service, serviceConfig, method, "grpc");
+    }
+
+    /** Creates a route whose counters are distinguished by their wire transport. */
+    PbjMethodRoute(
+            @NonNull final ServiceInterface service,
+            @NonNull final PbjGrpcServiceConfig serviceConfig,
+            @NonNull final ServiceInterface.Method method,
+            @NonNull final String transport) {
         this.service = requireNonNull(service);
         this.serviceConfig = requireNonNull(serviceConfig);
         this.method = requireNonNull(method);
+        requireNonNull(transport);
 
-        final var serviceName = service.fullName();
-        final var methodName = method.name();
+        final String serviceName = service.fullName();
+        final String methodName = method.name();
         this.fullPath = SEP + serviceName + SEP + methodName;
         this.pathMatcher = PathMatchers.exact(fullPath);
 
-        final var metricRegistry = Metrics.globalRegistry();
+        final MeterRegistry metricRegistry = Metrics.globalRegistry();
         this.requestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.requests")
                 .scope(SCOPE)
                 .addTag(Tag.create(SERVICE_TAG, serviceName))
                 .addTag(Tag.create(METHOD_TAG, methodName))
+                .addTag(Tag.create(TRANSPORT_TAG, transport))
                 .description("The number of gRPC requests"));
         this.failedGrpcRequestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.failed.requests")
                 .scope(SCOPE)
                 .addTag(Tag.create(SERVICE_TAG, serviceName))
                 .addTag(Tag.create(METHOD_TAG, methodName))
+                .addTag(Tag.create(TRANSPORT_TAG, transport))
                 .addTag(Tag.create(FAILURE_TAG, "grpc-exception"))
                 .description("The number of failed gRPC requests"));
         this.failedHttpRequestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.failed.requests")
                 .scope(SCOPE)
                 .addTag(Tag.create(SERVICE_TAG, serviceName))
                 .addTag(Tag.create(METHOD_TAG, methodName))
+                .addTag(Tag.create(TRANSPORT_TAG, transport))
                 .addTag(Tag.create(FAILURE_TAG, "http-exception"))
                 .description("The number of failed HTTP requests"));
         this.failedUnknownRequestCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.failed.requests")
                 .scope(SCOPE)
                 .addTag(Tag.create(SERVICE_TAG, serviceName))
                 .addTag(Tag.create(METHOD_TAG, methodName))
+                .addTag(Tag.create(TRANSPORT_TAG, transport))
                 .addTag(Tag.create(FAILURE_TAG, "unknown-exception"))
                 .description("The number of failed unknown requests"));
         this.failedResponseCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.failed.responses")
                 .scope(SCOPE)
                 .addTag(Tag.create(SERVICE_TAG, serviceName))
                 .addTag(Tag.create(METHOD_TAG, methodName))
+                .addTag(Tag.create(TRANSPORT_TAG, transport))
                 .addTag(Tag.create(FAILURE_TAG, "response"))
                 .description("The number of failed responses"));
         this.deadlineExceededCounter = metricRegistry.getOrCreate(Counter.builder("pbj.grpc.deadline.exceeded")
                 .scope(SCOPE)
                 .addTag(Tag.create(SERVICE_TAG, serviceName))
                 .addTag(Tag.create(METHOD_TAG, methodName))
+                .addTag(Tag.create(TRANSPORT_TAG, transport))
                 .description("The number of gRPC requests that exceeded their" + " deadline"));
     }
 

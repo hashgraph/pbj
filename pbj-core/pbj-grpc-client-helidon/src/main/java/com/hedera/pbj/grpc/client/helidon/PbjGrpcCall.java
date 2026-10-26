@@ -21,6 +21,8 @@ import io.helidon.http.http2.Http2Headers;
 import io.helidon.http.http2.Http2StreamState;
 import io.helidon.webclient.http2.Http2ClientStream;
 import io.helidon.webclient.http2.StreamTimeoutException;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -140,7 +142,13 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
             }
         }
 
-        clientStream.writeHeaders(Http2Headers.create(headers), false);
+        try {
+            clientStream.writeHeaders(Http2Headers.create(headers), false);
+        } catch (final IllegalStateException e) {
+            // Helidon 4.5.6 rejects a new stream on a closed connection with an IllegalStateException, where
+            // earlier versions failed the socket write instead. Keep reporting a closed connection as an I/O failure.
+            throw new UncheckedIOException(new IOException(e.getMessage(), e));
+        }
 
         // We must start this loop only AFTER writing headers above because that operation initializes
         // an internal buffer in the clientStream. W/o that, we get NPEs when calling clientStream APIs.
@@ -230,15 +238,18 @@ public class PbjGrpcCall<RequestT, ReplyT> implements GrpcCall<RequestT, ReplyT>
                             throw new IllegalStateException("GRPC datagram compressed flag " + datagram.compressedFlag()
                                     + " is unsupported. Only 0 and 1 are valid.");
                         }
-                        BufferData data = datagram.data();
-                        final byte[] array = data.readBytes();
-                        final Bytes bytes = Bytes.wrap(array);
+                        final Bytes bytes = datagram.data();
                         PbjGrpcCall.networkBytesInspector.received(bytes);
                         // If the compressedFlag is 0, then per the specification, the message isn't compressed
                         // regardless of the grpc-encoding value:
                         // https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md
-                        final Bytes replyBytes =
-                                datagram.compressedFlag() == 1 ? decompressor.decompress(bytes) : bytes;
+                        final Bytes replyBytes = datagram.compressedFlag() == 1
+                                ? GrpcCompression.decompress(
+                                        decompressor,
+                                        bytes,
+                                        grpcClient.getConfig().maxIncomingBufferSize()
+                                                - PbjGrpcDatagramReader.PREFIX_LENGTH)
+                                : bytes;
 
                         try {
                             final ReplyT reply = replyCodec.parse(

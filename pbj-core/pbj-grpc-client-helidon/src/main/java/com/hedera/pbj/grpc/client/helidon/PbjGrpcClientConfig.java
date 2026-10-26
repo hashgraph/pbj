@@ -23,10 +23,11 @@ import java.util.Set;
  * @param acceptEncodings Accepted GRPC encodings for receiving data from remote peers which typically refer
  *      to compression algorithms, e.g. "identity", "gzip", etc.
  *      Note that the encoding must be registered as a `Decompressor` with `GrpcCompression` to actually be supported.
- * @param maxSize the maximum size of messages that the client is able to receive, defaults to Codec.DEFAULT_MAX_SIZE.
- * @param maxIncomingBufferSize the max size of an incoming buffer for receiving messages. Must be larger than
- *                              the `maxSize` to account for protobuf metadata as well as support high rate of ingress
- *                              of multiple messages, especially in case of server or bidi streaming.
+ * @param maxSize the maximum field size passed to the reply codec, defaults to Codec.DEFAULT_MAX_SIZE.
+ * @param maxIncomingBufferSize the maximum buffered wire bytes, including message prefixes and queued messages.
+ *                              A decoded message is also limited to this value minus the five-byte gRPC prefix.
+ *                              Must be larger than `maxSize` to account for protobuf metadata and to support
+ *                              multiple queued messages, especially for server or bidi streaming.
  *                              Defaults to Codec.DEFAULT_MAX_SIZE * 5.
  */
 public record PbjGrpcClientConfig(

@@ -193,6 +193,20 @@ public final class ServiceGenerator {
             return sb.toString();
         }
 
+        String formatMethodEnumConstant() {
+            final String type;
+            if (!requestStream && !replyStream) {
+                type = "UNARY";
+            } else if (requestStream && !replyStream) {
+                type = "CLIENT_STREAMING";
+            } else if (!requestStream && replyStream) {
+                type = "SERVER_STREAMING";
+            } else {
+                type = "BIDI_STREAMING";
+            }
+            return name + "(MethodType." + type + ")";
+        }
+
         String formatCaseStatement() {
             final String kind;
             final String methodLambda;
@@ -217,8 +231,7 @@ public final class ServiceGenerator {
                             .mapResponse(reply -> serialize$simpleReplyType(reply, options))
                             .respondTo(replies)
                             .build();
-                    """
-                    .replace("$methodName", name)
+                    """.replace("$methodName", name)
                     .replace("$methodLambda", methodLambda)
                     .replace("$requestType", requestType)
                     .replace("$simpleRequestType", requestType.replace(".", ""))
@@ -289,8 +302,7 @@ public final class ServiceGenerator {
 
                             throw new RuntimeException("Call to $methodName completed w/o receiving a reply or an error explicitly. The request was: " + request);
                         }
-                        """
-                    .replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
+                        """.replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
                     .replace("$delegateToMethodWithOptions", formatDelegateToMethodWithOptions())
                     .replace("$methodSignatureWithOptions", formatMethodSignature("public", true))
                     .replace("$requestType", requestType)
@@ -360,8 +372,7 @@ public final class ServiceGenerator {
                                 }
                             };
                         }
-                        """
-                    .replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
+                        """.replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
                     .replace("$delegateToMethodWithOptions", formatDelegateToMethodWithOptions())
                     .replace("$methodSignatureWithOptions", formatMethodSignature("public", true))
                     .replace("$requestType", requestType)
@@ -420,8 +431,7 @@ public final class ServiceGenerator {
                             // have been reported through replies.onError() where the client must handle them.
                             // Alternatively, the client could time out if the replies pipeline never saw onComplete().
                         }
-                        """
-                    .replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
+                        """.replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
                     .replace("$delegateToMethodWithOptions", formatDelegateToMethodWithOptions())
                     .replace("$methodSignatureWithOptions", formatMethodSignature("public", true))
                     .replace("$requestType", requestType)
@@ -487,8 +497,7 @@ public final class ServiceGenerator {
                                 }
                             };
                         }
-                        """
-                    .replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
+                        """.replace("$methodSignatureWithoutOptions", formatMethodSignature("public", false))
                     .replace("$delegateToMethodWithOptions", formatDelegateToMethodWithOptions())
                     .replace("$methodSignatureWithOptions", formatMethodSignature("public", true))
                     .replace("$requestType", requestType)
@@ -537,7 +546,7 @@ public final class ServiceGenerator {
 
         List<RPC> rpcList = new ArrayList<>();
 
-        for (var item : serviceDef.serviceElement()) {
+        for (final Protobuf3Parser.ServiceElementContext item : serviceDef.serviceElement()) {
             if (item.rpc() != null) {
                 final String name = item.rpc().rpcName().ident().getText();
 
@@ -557,7 +566,8 @@ public final class ServiceGenerator {
 
                 boolean deprecatedServiceValue = false;
                 if (item.rpc().optionStatement() != null) {
-                    for (var option : item.rpc().optionStatement()) {
+                    for (final Protobuf3Parser.OptionStatementContext option :
+                            item.rpc().optionStatement()) {
                         if ("deprecated".equals(option.optionName().getText())) {
                             deprecatedServiceValue = true;
                         } else {
@@ -627,7 +637,7 @@ public final class ServiceGenerator {
                     public static final String FULL_NAME = "$fullyQualifiedProtoServiceName";
                 
                     enum $serviceNameMethod implements Method {
-                $methodNames
+                $methodEnumBody
                     }
                 
                 $serviceMethods
@@ -653,7 +663,7 @@ public final class ServiceGenerator {
                             final @NonNull Method method,
                             final @NonNull RequestOptions options,
                             final @NonNull Pipeline<? super Bytes> replies) {
-                        final var m = ($serviceNameMethod) method;
+                        final $serviceNameMethod m = ($serviceNameMethod) method;
                         try {
                             return switch (m) {
                 $methodCaseStatements
@@ -706,7 +716,7 @@ public final class ServiceGenerator {
                 .replace("$deprecated$", deprecated)
                 .replace("$serviceName", serviceName)
                 .replace("$suffix", SUFFIX)
-                .replace("$methodNames", RPC.formatForEach(rpcList, RPC::name, ",\n", DEFAULT_INDENT * 2))
+                .replace("$methodEnumBody", formatMethodEnumBody(rpcList, serviceName).indent(DEFAULT_INDENT * 2).replaceAll("(?m)^ +$", ""))
                 .replace("$serviceMethods", RPC.formatForEach(rpcList, rpc ->
                     rpc.formatDefaultMethod(true) + "\n" + rpc.formatDefaultMethod(false)
                 , "\n\n", DEFAULT_INDENT))
@@ -716,6 +726,28 @@ public final class ServiceGenerator {
                 .replace("$requestReplySerdeMethods", formatRequestReplySerdeMethods(rpcList).indent(DEFAULT_INDENT))
                 .replace("$methodImplementations", RPC.formatForEach(rpcList, RPC::formatMethodImplementation, "\n\n", DEFAULT_INDENT * 2))
         );
+        // spotless:on
+    }
+
+    private static String formatMethodEnumBody(final List<RPC> rpcList, final String serviceName) {
+        if (rpcList.isEmpty()) {
+            return "";
+        }
+        // spotless:off
+        return rpcList.stream().map(RPC::formatMethodEnumConstant).collect(Collectors.joining(",\n")) + ";\n"
+                + """
+
+                private final MethodType type;
+
+                $serviceNameMethod(final MethodType type) {
+                    this.type = type;
+                }
+
+                @Override
+                public MethodType type() {
+                    return type;
+                }
+                """.replace("$serviceName", serviceName);
         // spotless:on
     }
 

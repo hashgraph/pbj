@@ -18,10 +18,11 @@ interface DeadlineDetector {
      * deadline may be exceeded by a small amount of time measuring in the microseconds or even
      * milliseconds.
      *
-     * @param deadlineNanos The deadline, in nanoseconds, from now.
+     * @param timeoutNanos The time until the deadline, in nanoseconds from now. This is a delay, not a
+     *     {@link System#nanoTime()} value.
      * @param onDeadlineExceeded The callback to invoke when the deadline has been exceeded.
      * @return A {@link ScheduledFuture} that can be used to cancel the deadline.
      */
     @NonNull
-    ScheduledFuture<?> scheduleDeadline(long deadlineNanos, @NonNull Runnable onDeadlineExceeded);
+    ScheduledFuture<?> scheduleDeadline(long timeoutNanos, @NonNull Runnable onDeadlineExceeded);
 }

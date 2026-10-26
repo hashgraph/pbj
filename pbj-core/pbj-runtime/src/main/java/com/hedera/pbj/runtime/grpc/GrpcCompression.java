@@ -6,6 +6,7 @@ import static java.lang.System.Logger.Level.DEBUG;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -17,6 +18,11 @@ import java.util.zip.GZIPOutputStream;
 
 /**
  * A registry of GRPC compressors and decompressors (commonly - transformers) supported by PBJ GRPC server and client.
+ *
+ * <p>Registration operations are serialized. Use {@link #registerCompressorIfAbsent} and
+ * {@link #registerDecompressorIfAbsent} to install defaults atomically without replacing an application registration;
+ * a separate lookup followed by registration does not provide that guarantee. Callers do not need to synchronize
+ * externally when using these operations. Compressor and decompressor registrations are independent operations.
  */
 public class GrpcCompression {
     private static final System.Logger LOGGER = System.getLogger(GrpcCompression.class.getName());
@@ -34,6 +40,23 @@ public class GrpcCompression {
     public interface Decompressor {
         /** Decompress given Bytes and return the decompressed Bytes. */
         Bytes decompress(Bytes bytes);
+
+        /**
+         * Decompress a message marked compressed, rejecting output larger than {@code maxOutputSize} while decoding.
+         * Transport implementations use this overload so compressed input cannot cause unbounded output allocation.
+         *
+         * <p>Custom decompressors must override this method and enforce the limit before allocating or retaining
+         * output beyond it. The default deliberately rejects compressed messages instead of falling back to the
+         * unbounded overload. Streaming implementations can use {@link GrpcCompression#readDecompressed}.
+         *
+         * @param bytes the compressed wire payload
+         * @param maxOutputSize maximum decompressed message size in bytes
+         * @return the decompressed message
+         * @throws GrpcException if bounded decompression is unsupported or the output limit is exceeded
+         */
+        default Bytes decompress(final Bytes bytes, final int maxOutputSize) {
+            throw new GrpcException(GrpcStatus.UNIMPLEMENTED, "Decompressor does not support bounded output");
+        }
     }
 
     /** Convenience interface to implement both Compressor and Decompressor at once. */
@@ -51,6 +74,11 @@ public class GrpcCompression {
         @Override
         public Bytes decompress(Bytes bytes) {
             return bytes;
+        }
+
+        @Override
+        public Bytes decompress(final Bytes bytes, final int maxOutputSize) {
+            throw new GrpcException(GrpcStatus.INTERNAL, "Compressed message requires a non-identity grpc-encoding");
         }
     }
 
@@ -72,18 +100,68 @@ public class GrpcCompression {
 
         @Override
         public Bytes decompress(Bytes bytes) {
-            byte[] buffer = new byte[1024];
-            try (GZIPInputStream gis = new GZIPInputStream(bytes.toInputStream());
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                int len;
-                while ((len = gis.read(buffer, 0, buffer.length)) > 0) {
-                    baos.write(buffer, 0, len);
-                }
-                return Bytes.wrap(baos.toByteArray());
-            } catch (IOException e) {
+            return decompress(bytes, Integer.MAX_VALUE);
+        }
+
+        @Override
+        public Bytes decompress(final Bytes bytes, final int maxOutputSize) {
+            try (GZIPInputStream gis = new GZIPInputStream(bytes.toInputStream())) {
+                return readDecompressed(gis, maxOutputSize);
+            } catch (final IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
+    }
+
+    /**
+     * Reads a decoded stream without retaining more than {@code maxOutputSize} bytes of message data. At most one
+     * additional decoded byte is requested to distinguish an exact-size message from an oversized message. The
+     * caller owns the stream and is responsible for closing it.
+     *
+     * @param input a stream producing decoded bytes
+     * @param maxOutputSize the maximum decoded message size
+     * @return the complete decoded message
+     * @throws IOException if reading fails
+     * @throws GrpcException with {@link GrpcStatus#RESOURCE_EXHAUSTED} if the decoded message is too large
+     */
+    public static Bytes readDecompressed(final InputStream input, final int maxOutputSize) throws IOException {
+        if (maxOutputSize < 0) {
+            throw new IllegalArgumentException("maxOutputSize must not be negative");
+        }
+        final byte[] buffer = new byte[(int) Math.min(8192L, (long) maxOutputSize + 1)];
+        try (final ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(8192, maxOutputSize))) {
+            int length;
+            while ((length = input.read(
+                            buffer, 0, (int) Math.min(buffer.length, (long) maxOutputSize - output.size() + 1)))
+                    != -1) {
+                if (length > maxOutputSize - output.size()) {
+                    throw new GrpcException(
+                            GrpcStatus.RESOURCE_EXHAUSTED, "Decompressed message exceeds maximum allowed size");
+                }
+                output.write(buffer, 0, length);
+            }
+            return Bytes.wrap(output.toByteArray());
+        }
+    }
+
+    /**
+     * Decodes a compressed wire message using a bounded decompressor and verifies its result. Implementations must
+     * still enforce the bound while decoding; this final check detects custom implementations that violate it.
+     *
+     * @param decompressor the selected decompressor
+     * @param bytes the compressed message
+     * @param maxOutputSize maximum decoded size
+     * @return the decoded message
+     */
+    public static Bytes decompress(final Decompressor decompressor, final Bytes bytes, final int maxOutputSize) {
+        if (maxOutputSize < 0) {
+            throw new IllegalArgumentException("maxOutputSize must not be negative");
+        }
+        final Bytes decoded = decompressor.decompress(bytes, maxOutputSize);
+        if (decoded.length() > maxOutputSize) {
+            throw new GrpcException(GrpcStatus.RESOURCE_EXHAUSTED, "Decompressed message exceeds maximum allowed size");
+        }
+        return decoded;
     }
 
     private static final Map<String, Compressor> COMPRESSOR_MAP = new HashMap<>();
@@ -97,6 +175,28 @@ public class GrpcCompression {
     /** Register a Decompressor, potentially overwriting an existing registration for `name`. */
     public static synchronized void registerDecompressor(String name, Decompressor decompressor) {
         DECOMPRESSOR_MAP.put(name, decompressor);
+    }
+
+    /**
+     * Atomically registers a compressor unless one is already registered under the same name.
+     *
+     * @param name the encoding name
+     * @param compressor the default compressor to install
+     * @return true if this call installed the compressor, or false if an existing registration was retained
+     */
+    public static synchronized boolean registerCompressorIfAbsent(String name, Compressor compressor) {
+        return COMPRESSOR_MAP.putIfAbsent(name, compressor) == null;
+    }
+
+    /**
+     * Atomically registers a decompressor unless one is already registered under the same name.
+     *
+     * @param name the encoding name
+     * @param decompressor the default decompressor to install
+     * @return true if this call installed the decompressor, or false if an existing registration was retained
+     */
+    public static synchronized boolean registerDecompressorIfAbsent(String name, Decompressor decompressor) {
+        return DECOMPRESSOR_MAP.putIfAbsent(name, decompressor) == null;
     }
 
     static {

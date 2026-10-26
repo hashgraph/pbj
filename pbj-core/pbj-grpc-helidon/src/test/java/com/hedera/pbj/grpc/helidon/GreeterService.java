@@ -21,10 +21,21 @@ import java.util.Objects;
  */
 public interface GreeterService extends ServiceInterface {
     enum GreeterMethod implements Method {
-        sayHello,
-        sayHelloStreamRequest,
-        sayHelloStreamReply,
-        sayHelloStreamBidi
+        sayHello(MethodType.UNARY),
+        sayHelloStreamRequest(MethodType.CLIENT_STREAMING),
+        sayHelloStreamReply(MethodType.SERVER_STREAMING),
+        sayHelloStreamBidi(MethodType.BIDI_STREAMING);
+
+        private final MethodType type;
+
+        GreeterMethod(final MethodType type) {
+            this.type = type;
+        }
+
+        @Override
+        public MethodType type() {
+            return type;
+        }
     }
 
     // Unary, a single request/response call.
@@ -61,37 +72,41 @@ public interface GreeterService extends ServiceInterface {
             final @NonNull RequestOptions options,
             final @NonNull Pipeline<? super Bytes> replies) {
 
-        final var m = (GreeterMethod) method;
+        final GreeterMethod m = (GreeterMethod) method;
         try {
             return switch (m) {
-                    // Simple request -> response
-                case sayHello -> Pipelines.<HelloRequest, HelloReply>unary()
-                        .mapRequest(bytes -> parseRequest(bytes, options))
-                        .method(this::sayHello)
-                        .mapResponse(reply -> createReply(reply, options))
-                        .respondTo(replies)
-                        .build();
-                    // Client sends many requests with a single response from the server at the end
-                case sayHelloStreamRequest -> Pipelines.<HelloRequest, HelloReply>clientStreaming()
-                        .mapRequest(bytes -> parseRequest(bytes, options))
-                        .method(this::sayHelloStreamRequest)
-                        .mapResponse(reply -> createReply(reply, options))
-                        .respondTo(replies)
-                        .build();
-                    // Client sends a single request and the server sends many responses
-                case sayHelloStreamReply -> Pipelines.<HelloRequest, HelloReply>serverStreaming()
-                        .mapRequest(bytes -> parseRequest(bytes, options))
-                        .method(this::sayHelloStreamReply)
-                        .mapResponse(reply -> createReply(reply, options))
-                        .respondTo(replies)
-                        .build();
-                    // Client and server are sending messages back and forth.
-                case sayHelloStreamBidi -> Pipelines.<HelloRequest, HelloReply>bidiStreaming()
-                        .mapRequest(bytes -> parseRequest(bytes, options))
-                        .method(this::sayHelloStreamBidi)
-                        .mapResponse(reply -> createReply(reply, options))
-                        .respondTo(replies)
-                        .build();
+                // Simple request -> response
+                case sayHello ->
+                    Pipelines.<HelloRequest, HelloReply>unary()
+                            .mapRequest(bytes -> parseRequest(bytes, options))
+                            .method(this::sayHello)
+                            .mapResponse(reply -> createReply(reply, options))
+                            .respondTo(replies)
+                            .build();
+                // Client sends many requests with a single response from the server at the end
+                case sayHelloStreamRequest ->
+                    Pipelines.<HelloRequest, HelloReply>clientStreaming()
+                            .mapRequest(bytes -> parseRequest(bytes, options))
+                            .method(this::sayHelloStreamRequest)
+                            .mapResponse(reply -> createReply(reply, options))
+                            .respondTo(replies)
+                            .build();
+                // Client sends a single request and the server sends many responses
+                case sayHelloStreamReply ->
+                    Pipelines.<HelloRequest, HelloReply>serverStreaming()
+                            .mapRequest(bytes -> parseRequest(bytes, options))
+                            .method(this::sayHelloStreamReply)
+                            .mapResponse(reply -> createReply(reply, options))
+                            .respondTo(replies)
+                            .build();
+                // Client and server are sending messages back and forth.
+                case sayHelloStreamBidi ->
+                    Pipelines.<HelloRequest, HelloReply>bidiStreaming()
+                            .mapRequest(bytes -> parseRequest(bytes, options))
+                            .method(this::sayHelloStreamBidi)
+                            .mapResponse(reply -> createReply(reply, options))
+                            .respondTo(replies)
+                            .build();
             };
         } catch (Exception e) {
             replies.onError(e);
@@ -108,7 +123,7 @@ public interface GreeterService extends ServiceInterface {
         if (options.isProtobuf()) {
             request = HelloRequest.parseFrom(message.toByteArray());
         } else if (options.isJson()) {
-            final var builder = HelloRequest.newBuilder();
+            final HelloRequest.Builder builder = HelloRequest.newBuilder();
             JsonFormat.parser().merge(message.asUtf8String(), builder);
             request = builder.build();
         } else {

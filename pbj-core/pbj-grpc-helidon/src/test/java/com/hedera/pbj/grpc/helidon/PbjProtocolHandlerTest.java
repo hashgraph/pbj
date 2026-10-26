@@ -46,9 +46,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,6 +60,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class PbjProtocolHandlerTest {
@@ -75,6 +79,7 @@ class PbjProtocolHandlerTest {
 
     @BeforeEach
     void setUp() {
+        Metrics.globalRegistry().close(); // reset before creating counters for this test
         headers = Http2Headers.create(WritableHeaders.create().add(HeaderNames.CONTENT_TYPE, "application/grpc+proto"));
         streamWriter = new StreamWriterStub();
         streamId = 1;
@@ -146,7 +151,6 @@ class PbjProtocolHandlerTest {
             }
         };
 
-        Metrics.globalRegistry().close(); // reset the counters
         assertThat(route.requestCounter().count()).isZero();
         assertThat(route.failedGrpcRequestCounter().count()).isZero();
         assertThat(route.failedHttpRequestCounter().count()).isZero();
@@ -194,16 +198,14 @@ class PbjProtocolHandlerTest {
         // I verified with the go GRPC server its behavior in this scenario. The following headers should be
         // available in the response
         // Content-Type: application/grpc
-        // Grpc-Message: invalid gRPC request content-type ""
+        // Grpc-Message: Unsupported gRPC request content type
         // Grpc-Status: 3
         final var responseHeaders =
                 responseHeaderFrame.httpHeaders().stream().collect(Collectors.toMap(Header::name, Header::values));
         assertThat(responseHeaders)
                 .contains(
                         entry("grpc-status", "" + GrpcStatus.INVALID_ARGUMENT.ordinal()),
-                        entry(
-                                "grpc-message",
-                                UriEncoding.encodeUri("invalid gRPC request content-type \"" + contentType + "\"")),
+                        entry("grpc-message", UriEncoding.encodeUri("Unsupported gRPC request content type")),
                         entry("Content-Type", "application/grpc"),
                         entry("grpc-accept-encoding", "identity"));
 
@@ -370,17 +372,14 @@ class PbjProtocolHandlerTest {
         // I verified with the go GRPC server its behavior in this scenario. The following headers should be
         // available in the response
         // Content-Type: application/grpc
-        // Grpc-Message: grpc: Decompressor is not installed for grpc-encoding "[bad encoding here]"
+        // Grpc-Message: Unsupported gRPC request encoding
         // Grpc-Status: 12
         final var responseHeaders =
                 responseHeaderFrame.httpHeaders().stream().collect(Collectors.toMap(Header::name, Header::values));
         assertThat(responseHeaders)
                 .contains(
                         entry("grpc-status", "" + GrpcStatus.UNIMPLEMENTED.ordinal()),
-                        entry(
-                                "grpc-message",
-                                UriEncoding.encodeUri(
-                                        "Decompressor is not installed for grpc-encoding \"" + encoding + "\"")),
+                        entry("grpc-message", UriEncoding.encodeUri("Unsupported gRPC request encoding")),
                         entry("Content-Type", "application/grpc"),
                         entry("grpc-accept-encoding", "identity"));
 
@@ -523,16 +522,16 @@ class PbjProtocolHandlerTest {
     }
 
     /**
-     * Verifies that {@code scheduleDeadline} computation is correct
+     * Verifies that {@code scheduleDeadline} passes the timeout to the detector as a delay from now, not as an
+     * absolute {@link System#nanoTime()} value, which the detector would treat as a delay of days.
      */
     @Test
-    void scheduleDeadlinePassesPositiveFutureNanosToDetector() {
+    void scheduleDeadlinePassesTimeoutNanosToDetector() {
         final long timeoutNanos = TimeUnit.SECONDS.toNanos(30);
         headers = Http2Headers.create(WritableHeaders.create()
                 .add(HeaderNames.CONTENT_TYPE, "application/grpc+proto")
                 .add(HeaderNames.create("grpc-timeout"), "30S"));
 
-        final long beforeNanos = System.nanoTime();
         final var handler = new PbjProtocolHandler(
                 headers,
                 streamWriter,
@@ -544,11 +543,290 @@ class PbjProtocolHandlerTest {
                 deadlineDetector,
                 connectionContext);
         handler.init();
-        final long afterNanos = System.nanoTime();
 
-        assertThat(deadlineDetector.capturedDeadlineNanos).isPositive();
-        assertThat(deadlineDetector.capturedDeadlineNanos).isGreaterThanOrEqualTo(beforeNanos + timeoutNanos);
-        assertThat(deadlineDetector.capturedDeadlineNanos).isLessThanOrEqualTo(afterNanos + timeoutNanos);
+        assertThat(deadlineDetector.capturedTimeoutNanos).isPositive().isLessThan(timeoutNanos);
+    }
+
+    @Test
+    void deadlineDuringServiceOpenClosesResponseAndNotifiesPipelineOnce() {
+        headers = deadlineHeaders();
+        final PbjProtocolHandler handler = deadlineHandler();
+        service.onOpen = () -> {
+            deadlineDetector.callback.run();
+            assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+            assertThat(service.error).isNull(); // open has not returned a request pipeline yet
+            service.replies.onNext(Bytes.EMPTY);
+            service.replies.onComplete();
+        };
+
+        handler.init();
+        deadlineDetector.callback.run();
+        service.replies.onError(new GrpcException(GrpcStatus.INTERNAL));
+
+        assertThat(service.error).isInstanceOfSatisfying(GrpcException.class, e -> assertThat(e.status())
+                .isEqualTo(GrpcStatus.DEADLINE_EXCEEDED));
+        assertThat(service.errorCount).isEqualTo(1);
+        assertThat(route.deadlineExceededCounter().count()).isEqualTo(1);
+        assertThat(streamWriter.writtenDataFrames).isEmpty();
+        assertSingleTerminalStatus(GrpcStatus.DEADLINE_EXCEEDED);
+    }
+
+    @Test
+    void immediateDeadlineCancelsFutureReturnedAfterCallback() {
+        headers = deadlineHeaders();
+        deadlineDetector.runImmediately = true;
+        final PbjProtocolHandler handler = deadlineHandler();
+
+        handler.init();
+
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+        assertThat(service.calledMethod).isNull();
+        assertThat(deadlineDetector.cancelled).isTrue();
+        assertSingleTerminalStatus(GrpcStatus.DEADLINE_EXCEEDED);
+    }
+
+    @Test
+    void initializationFailureAfterDeadlineDoesNotSendAnotherStatus() {
+        headers = deadlineHeaders();
+        service.onOpen = () -> {
+            deadlineDetector.callback.run();
+            throw new GrpcException(GrpcStatus.INTERNAL);
+        };
+        final PbjProtocolHandler handler = deadlineHandler();
+
+        handler.init();
+
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+        assertThat(route.deadlineExceededCounter().count()).isEqualTo(1);
+        assertSingleTerminalStatus(GrpcStatus.DEADLINE_EXCEEDED);
+    }
+
+    @Test
+    void completionDuringServiceOpenWinsAgainstLateDeadline() {
+        headers = deadlineHeaders();
+        service.onOpen = () -> service.replies.onComplete();
+        final PbjProtocolHandler handler = deadlineHandler();
+
+        handler.init();
+        deadlineDetector.callback.run();
+        service.replies.onError(new GrpcException(GrpcStatus.INTERNAL));
+
+        assertThat(service.error).isNull();
+        assertThat(route.deadlineExceededCounter().count()).isZero();
+        assertThat(deadlineDetector.cancelled).isTrue();
+        assertSingleTerminalStatus(GrpcStatus.OK);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void dataAfterInitializationFailureDoesNotDereferenceAMissingPipeline(final boolean failsDuringOpen) {
+        if (failsDuringOpen) {
+            service.onOpen = () -> {
+                throw new IllegalStateException("Service failed to open");
+            };
+        } else {
+            headers = Http2Headers.create(WritableHeaders.create().add(HeaderNames.CONTENT_TYPE, "text/plain"));
+        }
+        final PbjProtocolHandler handler = deadlineHandler();
+        handler.init();
+        handler.data(createDataFrameHeader(0), BufferData.create(new byte[] {0, 0, 0, 0, 0}));
+        assertThat(service.receivedBytes).isEmpty();
+        assertThat(handler.streamState()).isEqualTo(Http2StreamState.CLOSED);
+        assertThat(streamWriter.writtenHeaders).hasSize(failsDuringOpen ? 2 : 1);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ServiceInterface.MethodType.class,
+            names = {"UNARY", "SERVER_STREAMING"})
+    void singleRequestMethodsRejectAnEmptyBody(final ServiceInterface.MethodType type) {
+        useMethodType(type);
+        final PbjProtocolHandler handler = deadlineHandler();
+        handler.init();
+        final Http2FrameHeader end = Http2FrameHeader.create(
+                0, Http2FrameTypes.DATA, Http2Flag.DataFlags.create(Http2Flags.END_STREAM), streamId);
+        handler.data(end, BufferData.create(0));
+        assertThat(service.receivedBytes).isEmpty();
+        assertSingleTerminalStatus(GrpcStatus.INVALID_ARGUMENT);
+        assertThat(service.error).isInstanceOf(GrpcException.class);
+    }
+
+    @Test
+    void incompleteMessageAtEndOfStreamIsRejected() {
+        final PbjProtocolHandler handler = deadlineHandler();
+        handler.init();
+        handler.data(createDataFrameHeader(1), BufferData.create(new byte[] {0, 0, 0, 0, 3, 42}));
+        assertThat(service.receivedBytes).isEmpty();
+        assertSingleTerminalStatus(GrpcStatus.INVALID_ARGUMENT);
+        assertThat(service.error).isInstanceOf(GrpcException.class);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ServiceInterface.MethodType.class,
+            names = {"UNARY", "SERVER_STREAMING"})
+    void singleRequestMethodsNeverDispatchASecondMessage(final ServiceInterface.MethodType type) {
+        useMethodType(type);
+        final PbjProtocolHandler handler = deadlineHandler();
+        handler.init();
+        handler.data(createDataFrameHeader(5), BufferData.create(new byte[10]));
+        assertThat(service.receivedBytes).containsExactly(Bytes.EMPTY);
+        assertSingleTerminalStatus(GrpcStatus.INVALID_ARGUMENT);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ServiceInterface.MethodType.class,
+            names = {"CLIENT_STREAMING", "BIDI_STREAMING", "UNKNOWN"})
+    void streamingAndLegacyMethodsContinueToAcceptMultipleMessages(final ServiceInterface.MethodType type) {
+        useMethodType(type);
+        final PbjProtocolHandler handler = deadlineHandler();
+        handler.init();
+        handler.data(createDataFrameHeader(5), BufferData.create(new byte[10]));
+        assertThat(service.receivedBytes).containsExactly(Bytes.EMPTY, Bytes.EMPTY);
+        assertThat(service.error).isNull();
+    }
+
+    @Test
+    void deadlineErrorIsSerializedAfterAnActiveServiceCallback() throws Exception {
+        final CountDownLatch entered = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        final AtomicBoolean active = new AtomicBoolean();
+        service.onMessage = () -> {
+            active.set(true);
+            entered.countDown();
+            try {
+                assertThat(release.await(2, TimeUnit.SECONDS)).isTrue();
+            } catch (final InterruptedException e) {
+                throw new RuntimeException(e);
+            } finally {
+                active.set(false);
+            }
+        };
+        service.onError = () -> assertThat(active).isFalse();
+        headers = deadlineHeaders();
+        final PbjProtocolHandler handler = deadlineHandler();
+        handler.init();
+        final FutureTask<Void> message = new FutureTask<>(() -> {
+            handler.data(createDataFrameHeader(0), BufferData.create(new byte[5]));
+            return null;
+        });
+        Thread.startVirtualThread(message);
+        try {
+            assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
+            deadlineDetector.callback.run();
+            assertThat(service.error).isNull();
+            assertSingleTerminalStatus(GrpcStatus.DEADLINE_EXCEEDED);
+        } finally {
+            release.countDown();
+        }
+        message.get(2, TimeUnit.SECONDS);
+        assertThat(service.error).isInstanceOf(GrpcException.class);
+        assertThat(service.errorCount).isEqualTo(1);
+    }
+
+    private void useMethodType(final ServiceInterface.MethodType type) {
+        final ServiceInterface.Method method = new ServiceInterface.Method() {
+            @Override
+            public String name() {
+                return "m";
+            }
+
+            @Override
+            public ServiceInterface.MethodType type() {
+                return type;
+            }
+        };
+        route = new PbjMethodRoute(service, PbjGrpcServiceConfig.DEFAULT, method);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void finalTrailersWaitForAnInFlightMessage(final boolean deadline) throws Exception {
+        final CountDownLatch writing = new CountDownLatch(1);
+        final CountDownLatch releaseWrite = new CountDownLatch(1);
+        final CountDownLatch terminalSent = new CountDownLatch(1);
+        final ConcurrentLinkedQueue<String> order = new ConcurrentLinkedQueue<>();
+        streamWriter = new StreamWriterStub() {
+            @Override
+            public void writeData(final Http2FrameData frame, final FlowControl.Outbound control) {
+                writing.countDown();
+                try {
+                    assertThat(releaseWrite.await(2, TimeUnit.SECONDS)).isTrue();
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+                super.writeData(frame, control);
+                order.add("message");
+            }
+
+            @Override
+            public int writeHeaders(
+                    final Http2Headers values,
+                    final int id,
+                    final Http2Flag.HeaderFlags flags,
+                    final FlowControl.Outbound control) {
+                if (values.httpHeaders().contains(HeaderNames.create("grpc-status"))) {
+                    order.add("trailers");
+                    terminalSent.countDown();
+                }
+                return super.writeHeaders(values, id, flags, control);
+            }
+        };
+        headers = deadlineHeaders();
+        final PbjProtocolHandler handler = deadlineHandler();
+        handler.init();
+        final FutureTask<Void> message = new FutureTask<>(() -> {
+            service.replies.onNext(Bytes.EMPTY);
+            return null;
+        });
+        final FutureTask<Void> terminal = new FutureTask<>(() -> {
+            if (deadline) {
+                deadlineDetector.callback.run();
+            } else {
+                service.replies.onComplete();
+            }
+            return null;
+        });
+        Thread.startVirtualThread(message);
+        try {
+            assertThat(writing.await(2, TimeUnit.SECONDS)).isTrue();
+            Thread.startVirtualThread(terminal);
+            assertThat(terminalSent.await(100, TimeUnit.MILLISECONDS)).isFalse();
+        } finally {
+            releaseWrite.countDown();
+        }
+        message.get(2, TimeUnit.SECONDS);
+        terminal.get(2, TimeUnit.SECONDS);
+        service.replies.onNext(Bytes.EMPTY);
+        assertThat(order).containsExactly("message", "trailers");
+        assertSingleTerminalStatus(deadline ? GrpcStatus.DEADLINE_EXCEEDED : GrpcStatus.OK);
+    }
+
+    private Http2Headers deadlineHeaders() {
+        return Http2Headers.create(WritableHeaders.create()
+                .add(HeaderNames.CONTENT_TYPE, "application/grpc+proto")
+                .add(HeaderNames.create("grpc-timeout"), "30S"));
+    }
+
+    private PbjProtocolHandler deadlineHandler() {
+        return new PbjProtocolHandler(
+                headers,
+                streamWriter,
+                streamId,
+                flowControl,
+                currentStreamState,
+                config,
+                route,
+                deadlineDetector,
+                connectionContext);
+    }
+
+    private void assertSingleTerminalStatus(final GrpcStatus status) {
+        assertThat(streamWriter.writtenHeaders).hasSize(2);
+        assertThat(streamWriter.writtenHeaders.getLast().httpHeaders().value(HeaderNames.create("grpc-status")))
+                .contains(Integer.toString(status.ordinal()));
     }
 
     @Test
@@ -719,12 +997,19 @@ class PbjProtocolHandlerTest {
     }
 
     private static final class DeadlineDetectorStub implements DeadlineDetector {
-        long capturedDeadlineNanos = Long.MIN_VALUE;
+        long capturedTimeoutNanos = Long.MIN_VALUE;
+        Runnable callback;
+        boolean runImmediately;
+        boolean cancelled;
 
         @NonNull
         @Override
-        public ScheduledFuture<?> scheduleDeadline(long deadlineNanos, @NonNull Runnable onDeadlineExceeded) {
-            capturedDeadlineNanos = deadlineNanos;
+        public ScheduledFuture<?> scheduleDeadline(long timeoutNanos, @NonNull Runnable onDeadlineExceeded) {
+            capturedTimeoutNanos = timeoutNanos;
+            callback = onDeadlineExceeded;
+            if (runImmediately) {
+                callback.run();
+            }
             return new ScheduledFuture<>() {
                 @Override
                 public long getDelay(@NonNull TimeUnit unit) {
@@ -738,12 +1023,13 @@ class PbjProtocolHandlerTest {
 
                 @Override
                 public boolean cancel(boolean mayInterruptIfRunning) {
-                    return false;
+                    cancelled = true;
+                    return true;
                 }
 
                 @Override
                 public boolean isCancelled() {
-                    return false;
+                    return cancelled;
                 }
 
                 @Override
@@ -769,7 +1055,12 @@ class PbjProtocolHandlerTest {
         private RequestOptions opts;
         private List<Bytes> receivedBytes = new ArrayList<>();
         private Throwable error;
+        private int errorCount;
         private boolean completed;
+        private Runnable onOpen = () -> {};
+        private Runnable onMessage = () -> {};
+        private Runnable onError = () -> {};
+        private Pipeline<? super Bytes> replies;
 
         static final Method METHOD = () -> "m";
 
@@ -798,6 +1089,8 @@ class PbjProtocolHandlerTest {
                 throws GrpcException {
             this.calledMethod = method;
             this.opts = opts;
+            this.replies = responses;
+            onOpen.run();
             return new Pipeline<>() {
                 @Override
                 public void onSubscribe(Flow.Subscription subscription) {
@@ -807,11 +1100,14 @@ class PbjProtocolHandlerTest {
                 @Override
                 public void onNext(Bytes item) {
                     receivedBytes.add(item);
+                    onMessage.run();
                 }
 
                 @Override
                 public void onError(Throwable throwable) {
+                    onError.run();
                     error = throwable;
+                    errorCount++;
                 }
 
                 @Override
