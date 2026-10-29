@@ -205,7 +205,7 @@ final class InlineFieldCodeGenerator {
      * The fully qualified codec class of a message field's type, or null when that message is not generated in this
      * build and so must be reached through its {@code Codec} instance.
      */
-    private String directCodecClass(final SingleField field) {
+    static String directCodecClass(final SingleField field, final ContextualLookupHelper lookupHelper) {
         if (!lookupHelper
                 .getLookupHelper()
                 .isGeneratedInThisBuild(field.messageTypeModelPackage(), field.completeClassName())) {
@@ -273,7 +273,7 @@ final class InlineFieldCodeGenerator {
         final String tag = tagCode(field.fieldNumber(), field.type().wireType());
 
         if (field.type() == Field.FieldType.MESSAGE) {
-            final String codec = directCodecClass(single);
+            final String codec = directCodecClass(single, lookupHelper);
             if (codec == null) {
                 return fallback.apply(field);
             }
