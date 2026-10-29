@@ -131,6 +131,11 @@ jobs:
         working-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
         run: ./gradlew check
 
+      - name: Gradle Check, all performance options on (PBJ Integration)
+        if: ${{ inputs.enable-integration-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}
+        working-directory: ${{ env.PBJ_INTEGRATION_TESTS }}
+        run: ./gradlew check -PpbjPerformance=max
+
       - name: Publish Integration Test Report (PBJ Integration)
         uses: step-security/publish-unit-test-result-action@c8537a200a435e2560109a6a8ed9cac838b62656 # v2.3.0
         if: ${{ inputs.enable-integration-tests && steps.gradle-integration-build.conclusion == 'success' && !cancelled() && always() }}

@@ -7,7 +7,9 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Static tools and test cases used by generated test classes.
@@ -152,6 +154,102 @@ public final class ProtoTestTools {
     }
 
     // =================================================================================================================
+    // Non-canonical encodings
+
+    /**
+     * Reverses the order of the top-level fields of an encoded message. Occurrences of the same field number keep
+     * their relative order, so repeated fields and maps decode to the same values; only the order of the distinct
+     * field numbers is reversed. The result decodes to the same message, but is not in the canonical (ascending field
+     * number) order that PBJ and protoc write, so it exercises a parser's handling of out-of-order fields.
+     *
+     * @param message the encoded message, in any order
+     * @return the same fields with the order of distinct field numbers reversed
+     */
+    public static Bytes reverseTopLevelFieldOrder(final Bytes message) {
+        final byte[] in = message.toByteArray();
+        // field number to the [start, end) ranges of its occurrences, in order of first appearance
+        final Map<Integer, List<int[]>> fields = new LinkedHashMap<>();
+        int p = 0;
+        while (p < in.length) {
+            final int start = p;
+            final long tag = readVarLong(in, p);
+            p += varLongSize(tag);
+            final int wireType = (int) (tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+            p = switch (wireType) {
+                case 0 -> p + varLongSize(readVarLong(in, p));
+                case 1 -> p + Long.BYTES;
+                case 2 -> {
+                    final long length = readVarLong(in, p);
+                    final int lengthStart = p + varLongSize(length);
+                    yield lengthStart + (int) length;
+                }
+                case 5 -> p + Integer.BYTES;
+                default -> throw new IllegalArgumentException("Unsupported wire type " + wireType + " at " + start);
+            };
+            if (p > in.length) {
+                throw new IllegalArgumentException("Truncated field at " + start);
+            }
+            final int fieldNumber = (int) (tag >>> ProtoParserTools.TAG_FIELD_OFFSET);
+            fields.computeIfAbsent(fieldNumber, k -> new ArrayList<>()).add(new int[] {start, p});
+        }
+        final List<List<int[]>> groups = new ArrayList<>(fields.values());
+        Collections.reverse(groups);
+        final byte[] out = new byte[in.length];
+        int o = 0;
+        for (final List<int[]> group : groups) {
+            for (final int[] range : group) {
+                System.arraycopy(in, range[0], out, o, range[1] - range[0]);
+                o += range[1] - range[0];
+            }
+        }
+        return Bytes.wrap(out);
+    }
+
+    /**
+     * Appends a varint field with the given field number and the value 1 to an encoded message. Pass a field number
+     * the message does not define, and the result is the message with one unknown field at the end.
+     *
+     * @param message the encoded message
+     * @param fieldNumber the field number of the appended field
+     * @return the message followed by the varint field
+     */
+    public static Bytes appendVarIntField(final Bytes message, final int fieldNumber) {
+        final long tag = ((long) fieldNumber << ProtoParserTools.TAG_FIELD_OFFSET)
+                | ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal();
+        final byte[] field = new byte[varLongSize(tag) + 1];
+        int o = 0;
+        long v = tag;
+        while ((v & ~0x7FL) != 0) {
+            field[o++] = (byte) ((v & 0x7F) | 0x80);
+            v >>>= 7;
+        }
+        field[o++] = (byte) v;
+        field[o] = 1;
+        return message.append(Bytes.wrap(field));
+    }
+
+    /** Reads an unsigned varint at {@code in[p]}. */
+    private static long readVarLong(final byte[] in, final int p) {
+        long value = 0;
+        for (int i = 0; i < 10; i++) {
+            if (p + i >= in.length) {
+                throw new IllegalArgumentException("Truncated varint at " + p);
+            }
+            final byte b = in[p + i];
+            value |= (long) (b & 0x7F) << (7 * i);
+            if (b >= 0) {
+                return value;
+            }
+        }
+        throw new IllegalArgumentException("Malformed varint at " + p);
+    }
+
+    /** The number of bytes in the minimal varint encoding of {@code value}. */
+    private static int varLongSize(final long value) {
+        return Math.max(1, (64 - Long.numberOfLeadingZeros(value) + 6) / 7);
+    }
+
+    // =================================================================================================================
     // Standard lists of values to test with
 
     /** integer type test cases */
@@ -178,9 +276,7 @@ public final class ProtoTestTools {
             }));
 
     /** string type test cases, small as possible to make tests fast, there is a separate integration test with extra tests  */
-    public static final List<String> STRING_TESTS_LIST = List.of(
-            "",
-            """
+    public static final List<String> STRING_TESTS_LIST = List.of("", """
             This a small to speed tests
             Couple extended chars ©« あめ بِها
             """);
