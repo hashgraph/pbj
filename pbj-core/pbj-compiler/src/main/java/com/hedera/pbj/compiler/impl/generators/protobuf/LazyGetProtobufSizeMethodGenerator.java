@@ -4,6 +4,7 @@ package com.hedera.pbj.compiler.impl.generators.protobuf;
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.Common;
+import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
@@ -20,9 +21,17 @@ import java.util.stream.Stream;
  */
 public class LazyGetProtobufSizeMethodGenerator {
 
-    public static String generateLazyGetProtobufSize(final List<Field> fields, final String schemaClassName) {
-        final String fieldSizeOfLines =
-                buildFieldSizeOfLines(null, schemaClassName, fields, Field::nameCamelFirstLower, true);
+    public static String generateLazyGetProtobufSize(
+            final List<Field> fields, final String schemaClassName, final ContextualLookupHelper lookupHelper) {
+        final String fieldSizeOfLines = new InlineFieldCodeGenerator(
+                        InlineFieldCodeGenerator.Target.SIZE,
+                        "",
+                        lookupHelper,
+                        field -> generateFieldSizeOfLines(
+                                        field, null, schemaClassName, field.nameCamelFirstLower(), true, false)
+                                + "\n")
+                .fieldsInOrder(fields)
+                .indent(DEFAULT_INDENT);
         // spotless:off
         return """
                 /**
@@ -66,7 +75,7 @@ public class LazyGetProtobufSizeMethodGenerator {
                         : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldSizeOfLines(
-                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
+                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault, true))
                 .collect(Collectors.joining("\n"))
                 .indent(DEFAULT_INDENT);
     }
@@ -90,6 +99,7 @@ public class LazyGetProtobufSizeMethodGenerator {
      * @param modelClassName The model class name for model class for message type we are generating writer for
      * @param getValueCode java code to get the value of field
      * @param skipDefault true if default value of the field should result in size zero
+     * @param oneOfGuard for a oneof member, whether to add the comment and kind check; false inside a switch case
      * @return java code for adding fields size to "size" variable
      */
     private static String generateFieldSizeOfLines(
@@ -97,7 +107,8 @@ public class LazyGetProtobufSizeMethodGenerator {
             final String modelClassName,
             final String schemaClassName,
             String getValueCode,
-            boolean skipDefault) {
+            boolean skipDefault,
+            boolean oneOfGuard) {
         final String fieldDef = schemaClassName + "." + Common.camelToUpperSnake(field.name());
         String prefix = "// [" + field.fieldNumber() + "] - " + field.name();
         prefix += "\n";
@@ -109,12 +120,16 @@ public class LazyGetProtobufSizeMethodGenerator {
                     ? oneOfField.nameCamelFirstUpper() + "OneOfType"
                     : modelClassName + "." + oneOfField.nameCamelFirstUpper() + "OneOfType";
             getValueCode = oneOfField.nameCamelFirstLower() + ".as()";
-            prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
-                    + Common.camelToUpperSnake(field.name()) + ")";
-            prefix += "\n";
-            // The statement below is the (unbraced) body of the "if" above, so indent it one level
-            // deeper than the "if" itself to make that visually clear.
-            statementIndent = " ".repeat(DEFAULT_INDENT);
+            if (oneOfGuard) {
+                prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
+                        + Common.camelToUpperSnake(field.name()) + ")";
+                prefix += "\n";
+                // The statement below is the (unbraced) body of the "if" above, so indent it one level
+                // deeper than the "if" itself to make that visually clear.
+                statementIndent = " ".repeat(DEFAULT_INDENT);
+            } else {
+                prefix = "";
+            }
         }
 
         final String writeMethodName = field.methodNameType();

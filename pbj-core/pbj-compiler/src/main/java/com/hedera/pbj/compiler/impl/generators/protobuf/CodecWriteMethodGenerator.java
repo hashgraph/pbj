@@ -4,6 +4,7 @@ package com.hedera.pbj.compiler.impl.generators.protobuf;
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.Common;
+import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
@@ -20,22 +21,18 @@ import java.util.stream.Stream;
 final class CodecWriteMethodGenerator {
 
     static String generateWriteMethod(
-            final String modelClassName, final String schemaClassName, final List<Field> fields) {
-        final String fieldWriteLines = buildFieldWriteLines(
-                modelClassName,
-                schemaClassName,
-                fields,
-                field -> {
-                    if (field.type() == Field.FieldType.ENUM) {
-                        if (field.repeated()) {
-                            return "data.%sProtoOrdinals()".formatted(field.nameCamelFirstLower());
-                        } else {
-                            return "data.%sProtoOrdinal()".formatted(field.nameCamelFirstLower());
-                        }
-                    }
-                    return "data.%s()".formatted(field.nameCamelFirstLower());
-                },
-                true);
+            final String modelClassName,
+            final String schemaClassName,
+            final List<Field> fields,
+            final ContextualLookupHelper lookupHelper) {
+        final String fieldWriteLines = new InlineFieldCodeGenerator(
+                        InlineFieldCodeGenerator.Target.STREAM,
+                        "data.",
+                        lookupHelper,
+                        field -> generateFieldWriteLines(
+                                        field, modelClassName, schemaClassName, valueCode(field), true, false)
+                                + "\n")
+                .fieldsInOrder(fields);
         // spotless:off
         return
             """
@@ -47,7 +44,20 @@ final class CodecWriteMethodGenerator {
              * @throws IOException If there is a problem writing
              */
             protected final void writeImpl(@NonNull $modelClass data, @NonNull final WritableSequentialData out) throws IOException {
-                $fieldWriteLines
+                writeTo(data, out);
+            }
+
+            /**
+             * Write out a $modelClass model to output stream in protobuf format. Generated codecs call this directly for
+             * nested messages, so the call is static and can be inlined.
+             *
+             * @param data The input model data to write
+             * @param out The output stream to write to
+             * @throws IOException If there is a problem writing
+             */
+            public static void writeTo(@NonNull final $modelClass data, @NonNull final WritableSequentialData out)
+                    throws IOException {
+            $fieldWriteLines
                 // Check if not-empty to avoid creating a lambda if there's nothing to write.
                 if (!data.getUnknownFields().isEmpty()) {
                     data.getUnknownFields().forEach(uf -> {
@@ -59,9 +69,19 @@ final class CodecWriteMethodGenerator {
             }
             """
             .replace("$modelClass", modelClassName)
-            .replace("$fieldWriteLines", fieldWriteLines)
+            .replace("$fieldWriteLines", fieldWriteLines.indent(DEFAULT_INDENT))
             .indent(DEFAULT_INDENT);
         // spotless:on
+    }
+
+    /** Java code reading a field outside a oneof from {@code data}. */
+    private static String valueCode(final Field field) {
+        if (field.type() == Field.FieldType.ENUM) {
+            return field.repeated()
+                    ? "data.%sProtoOrdinals()".formatted(field.nameCamelFirstLower())
+                    : "data.%sProtoOrdinal()".formatted(field.nameCamelFirstLower());
+        }
+        return "data.%s()".formatted(field.nameCamelFirstLower());
     }
 
     private static String buildFieldWriteLines(
@@ -76,7 +96,7 @@ final class CodecWriteMethodGenerator {
                         : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .map(field -> generateFieldWriteLines(
-                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault))
+                        field, modelClassName, schemaClassName, getValueBuilder.apply(field), skipDefault, true))
                 .collect(Collectors.joining("\n"))
                 .indent(DEFAULT_INDENT);
     }
@@ -88,6 +108,7 @@ final class CodecWriteMethodGenerator {
      * @param modelClassName The model class name for model class for message type we are generating writer for
      * @param getValueCode java code to get the value of field
      * @param skipDefault skip writing the field if it has default value (for non-oneOf only)
+     * @param oneOfGuard for a oneof member, whether to add the comment and kind check; false inside a switch case
      * @return java code to write field to output
      */
     private static String generateFieldWriteLines(
@@ -95,7 +116,8 @@ final class CodecWriteMethodGenerator {
             final String modelClassName,
             final String schemaClassName,
             String getValueCode,
-            boolean skipDefault) {
+            boolean skipDefault,
+            boolean oneOfGuard) {
         final String fieldDef = schemaClassName + "." + Common.camelToUpperSnake(field.name());
         String prefix = "// [%d] - %s%n".formatted(field.fieldNumber(), field.name());
 
@@ -103,8 +125,14 @@ final class CodecWriteMethodGenerator {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = "%s.%sOneOfType".formatted(modelClassName, oneOfField.nameCamelFirstUpper());
             getValueCode = "(%s)data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
-            prefix += "if (data.%s().kind() == %s.%s)%n"
-                    .formatted(oneOfField.nameCamelFirstLower(), oneOfType, Common.camelToUpperSnake(field.name()));
+            prefix = oneOfGuard
+                    ? prefix
+                            + "if (data.%s().kind() == %s.%s)%n"
+                                    .formatted(
+                                            oneOfField.nameCamelFirstLower(),
+                                            oneOfType,
+                                            Common.camelToUpperSnake(field.name()))
+                    : "";
         }
         // spotless:off
         final String writeMethodName = field.methodNameType();

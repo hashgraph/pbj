@@ -475,6 +475,36 @@ public final class ProtoWriterTools {
     }
 
     /**
+     * Write a string's length and UTF-8 bytes, without a tag.
+     *
+     * @param out The data output to write to
+     * @param value The string to write
+     * @throws IOException If an I/O error occurs
+     */
+    public static void writeStringNoTag(final WritableSequentialData out, final String value) throws IOException {
+        out.writeVarInt(sizeOfStringNoTag(value), false);
+        Utf8Tools.encodeUtf8(value, out);
+    }
+
+    /**
+     * Write a bytes value's length and contents, without a tag.
+     *
+     * @param out The data output to write to
+     * @param value The bytes to write
+     * @throws IOException If fewer bytes than the value's length were written
+     */
+    public static void writeBytesNoTag(final WritableSequentialData out, final RandomAccessData value)
+            throws IOException {
+        out.writeVarInt(Math.toIntExact(value.length()), false);
+        final long posBefore = out.position();
+        out.writeBytes(value);
+        final long bytesWritten = out.position() - posBefore;
+        if (bytesWritten != value.length()) {
+            throw new IOException("Wrote less bytes [" + bytesWritten + "] than expected [" + value.length() + "]");
+        }
+    }
+
+    /**
      * Write a message to data output, assuming the corresponding field is non-repeated.
      *
      * @param out The data output to write to
@@ -1074,7 +1104,7 @@ public final class ProtoWriterTools {
      * @param value The int value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    static int sizeOfUnsignedVarInt64(long value) {
+    public static int sizeOfUnsignedVarInt64(long value) {
         // handle popular special case up front
         if ((value & (~0L << 7)) == 0L) return 1;
         final int clz = Long.numberOfLeadingZeros(value);
@@ -1367,7 +1397,7 @@ public final class ProtoWriterTools {
      * @param value string value to get encoded size for
      * @return the number of bytes for encoded value
      */
-    static int sizeOfStringNoTag(String value) {
+    public static int sizeOfStringNoTag(String value) {
         // When not a oneOf don't write default value
         if ((value == null || value.isEmpty())) {
             return 0;

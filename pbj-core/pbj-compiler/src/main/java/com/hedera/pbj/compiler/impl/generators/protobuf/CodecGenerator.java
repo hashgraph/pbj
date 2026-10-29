@@ -61,7 +61,7 @@ public final class CodecGenerator implements Generator {
             }
         }
         final String writeMethod =
-                CodecWriteMethodGenerator.generateWriteMethod(modelClassName, schemaClassName, fields);
+                CodecWriteMethodGenerator.generateWriteMethod(modelClassName, schemaClassName, fields, lookupHelper);
         final String writeByteArrayMethod = CodecWriteByteArrayMethodGenerator.generateWriteMethod(
                 modelClassName, schemaClassName, fields, lookupHelper);
 
