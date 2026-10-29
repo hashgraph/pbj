@@ -287,7 +287,7 @@ class CodecParseMethodGenerator {
                 field.type() == Field.FieldType.ENUM ? field.repeated() ? "List" : "Object" : field.javaFieldType();
         var tempFieldName = "temp_" + field.name();
         // spotless:off
-        sbCase.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] */ -> {%n"
+        sbCase.append("case %d /* type=%d [%s] packed-repeated field=%d [%s] a */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         sbCase.append("    %s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
         sbFunc.append("    %s case%d(PbjReader input, int maxSize, %s %s) {\n"
@@ -374,7 +374,7 @@ class CodecParseMethodGenerator {
         final int fieldNum = field.fieldNumber();
         final int tag = Common.getTag(wireType, fieldNum);
         // spotless:off
-        sbCase.append("case %d /* type=%d [%s] field=%d [%s] */ -> {%n"
+        sbCase.append("case %d /* type=%d [%s] field=%d [%s] b */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         if (field.optionalValueType()) {
             sbCase.append("""

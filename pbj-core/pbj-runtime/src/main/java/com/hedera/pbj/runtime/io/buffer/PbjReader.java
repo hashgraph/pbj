@@ -27,7 +27,7 @@ import java.nio.ByteBuffer;
  * EOF is not an error and will return 0 when error() is called.
  * ByteBuffer using a direct buffer is not supported
  */
-public class PbjReader implements AutoCloseable {
+public class PbjReader implements AutoCloseable, ReadableSequentialData {
     private byte[] buf;
     private int pos, end;
     private int relLimit, err;
@@ -117,6 +117,10 @@ public class PbjReader implements AutoCloseable {
             stream = inputStream;
         }
         ownedBuf = buf = new byte[16 << 10]; // 16k is friendly to x86-64 L1 cache
+    }
+
+    public long capacity() {
+        return buf.length;
     }
 
     /**
@@ -317,9 +321,9 @@ public class PbjReader implements AutoCloseable {
      *
      * @param count the number of bytes to skip
      */
-    public void skip(int count) {
+    public void skip(long count) {
         if (count >= 0 && pos + count <= relLimit) {
-            pos += count;
+            pos += (int)count;
             return;
         }
         skip_cold(count);
@@ -328,7 +332,7 @@ public class PbjReader implements AutoCloseable {
     /*
      * Skips data, and will call skip from a stream if it's using one, to avoid copying
      */
-    private void skip_cold(int count) {
+    private void skip_cold(long count) {
         if (seenEOF) {
             setError(BUFFER_UNDERFLOW);
             return;
