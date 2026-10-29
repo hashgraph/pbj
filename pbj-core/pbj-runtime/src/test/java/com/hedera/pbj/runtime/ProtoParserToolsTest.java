@@ -223,7 +223,7 @@ class ProtoParserToolsTest {
         data.writeVarInt(maxSize + 1, false); // write the size first
         data.writeBytes(byteArray);
         final ReadableStreamingData streamingData = new ReadableStreamingData(data.toInputStream());
-        assertThrows(ParseException.class, () -> ProtoParserTools.readString(streamingData, maxSize));
+        assertThrows(UncheckedParseException.class, () -> ProtoParserTools.readString(streamingData, maxSize));
     }
 
     @Test
@@ -268,7 +268,7 @@ class ProtoParserToolsTest {
         data.writeVarInt(maxSize + 1, false); // write the size first
         data.writeBytes(byteArray);
         final ReadableStreamingData streamingData = new ReadableStreamingData(data.toInputStream());
-        assertThrows(ParseException.class, () -> ProtoParserTools.readBytes(streamingData, maxSize));
+        assertThrows(UncheckedParseException.class, () -> ProtoParserTools.readBytes(streamingData, maxSize));
     }
 
     @Test
@@ -343,7 +343,8 @@ class ProtoParserToolsTest {
         data.writeBytes(byteArray);
         final ReadableStreamingData streamingData = new ReadableStreamingData(data.toInputStream());
         assertThrows(
-                ParseException.class, () -> ProtoParserTools.skipField(streamingData, WIRE_TYPE_DELIMITED, maxSize));
+                UncheckedParseException.class,
+                () -> ProtoParserTools.skipField(streamingData, WIRE_TYPE_DELIMITED, maxSize));
     }
 
     @ParameterizedTest

@@ -6,6 +6,7 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -27,7 +28,7 @@ import java.nio.ByteBuffer;
  * EOF is not an error and will return 0 when error() is called.
  * ByteBuffer using a direct buffer is not supported
  */
-public class PbjReader implements AutoCloseable, ReadableSequentialData {
+public final class PbjReader extends ReadableStreamingData implements AutoCloseable {
     private byte[] buf;
     private int pos, end;
     private int relLimit, err;
@@ -323,7 +324,7 @@ public class PbjReader implements AutoCloseable, ReadableSequentialData {
      */
     public void skip(long count) {
         if (count >= 0 && pos + count <= relLimit) {
-            pos += (int)count;
+            pos += (int) count;
             return;
         }
         skip_cold(count);
@@ -767,6 +768,18 @@ public class PbjReader implements AutoCloseable, ReadableSequentialData {
             dst.position(dst.position() + len);
         }
         return len;
+    }
+
+    /**
+     * Reads bytes into the given {@link BufferedData}, up to the smaller of this reader's remaining
+     * bytes and the destination's remaining capacity.
+     *
+     * @param dst the destination buffer
+     * @return the number of bytes read, or {@code -1} if a pre-existing error is set
+     */
+    @Override
+    public long readBytes(@NonNull final BufferedData dst) {
+        throw new RuntimeException("Don't use in this test");
     }
 
     /**

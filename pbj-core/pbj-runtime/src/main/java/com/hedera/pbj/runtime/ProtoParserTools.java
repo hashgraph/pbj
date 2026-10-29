@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.PbjReader;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -83,12 +86,32 @@ public final class ProtoParserTools {
     }
 
     /**
+     * Read a protobuf int32 from input
+     *
+     * @param input The input data to read from
+     * @return the read int
+     */
+    public static int readInt32(ReadableStreamingData input) {
+        return input.readVarInt(false);
+    }
+
+    /**
      * Read a protobuf int64(long) from input
      *
      * @param input The input data to read from
      * @return the read long
      */
     public static long readInt64(final ReadableSequentialData input) {
+        return input.readVarLong(false);
+    }
+
+    /**
+     * Read a protobuf int64(long) from input
+     *
+     * @param input The input data to read from
+     * @return the read long
+     */
+    public static long readInt64(ReadableStreamingData input) {
         return input.readVarLong(false);
     }
 
@@ -103,12 +126,32 @@ public final class ProtoParserTools {
     }
 
     /**
+     * Read a protobuf uint32 from input
+     *
+     * @param input The input data to read from
+     * @return the read int
+     */
+    public static int readUint32(ReadableStreamingData input) {
+        return input.readVarInt(false);
+    }
+
+    /**
      * Read a protobuf uint64 from input
      *
      * @param input The input data to read from
      * @return the read long
      */
     public static long readUint64(final ReadableSequentialData input) {
+        return input.readVarLong(false);
+    }
+
+    /**
+     * Read a protobuf uint64 from input
+     *
+     * @param input The input data to read from
+     * @return the read long
+     */
+    public static long readUint64(ReadableStreamingData input) {
         return input.readVarLong(false);
     }
 
@@ -128,16 +171,15 @@ public final class ProtoParserTools {
     }
 
     /**
-     * Read a protobuf bool from a {@link PbjReader}. Sets {@link PbjReader#PARSE} error if the value is not 0 or 1.
+     * Read a protobuf bool from input
      *
      * @param input The input data to read from
      * @return the read boolean
      */
-    public static boolean readBool(final PbjReader input) {
-        final int i = input.readVarIntNoZZ();
+    public static boolean readBool(ReadableStreamingData input) {
+        final var i = input.readVarInt(false);
         if (i != 1 && i != 0) {
-            input.setError(PbjReader.PARSE, "Bad protobuf encoding. Boolean was not 0 or 1");
-            return false;
+            setError(input, PbjReader.DATA_ENCODING);
         }
         return i == 1;
     }
@@ -153,12 +195,32 @@ public final class ProtoParserTools {
     }
 
     /**
+     * Read a protobuf enum from input
+     *
+     * @param input The input data to read from
+     * @return the read enum protoc ordinal
+     */
+    public static int readEnum(ReadableStreamingData input) {
+        return input.readVarInt(false);
+    }
+
+    /**
      * Read a protobuf sint32 from input
      *
      * @param input The input data to read from
      * @return the read int
      */
     public static int readSignedInt32(final ReadableSequentialData input) {
+        return input.readVarInt(true);
+    }
+
+    /**
+     * Read a protobuf sint32 from input
+     *
+     * @param input The input data to read from
+     * @return the read int
+     */
+    public static int readSignedInt32(ReadableStreamingData input) {
         return input.readVarInt(true);
     }
 
@@ -173,12 +235,32 @@ public final class ProtoParserTools {
     }
 
     /**
+     * Read a protobuf sint64 from input
+     *
+     * @param input The input data to read from
+     * @return the read long
+     */
+    public static long readSignedInt64(ReadableStreamingData input) {
+        return input.readVarLong(true);
+    }
+
+    /**
      * Read a protobuf sfixed32 from input
      *
      * @param input The input data to read from
      * @return the read int
      */
     public static int readSignedFixed32(final ReadableSequentialData input) {
+        return input.readInt(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    /**
+     * Read a protobuf sfixed32 from input
+     *
+     * @param input The input data to read from
+     * @return the read int
+     */
+    public static int readSignedFixed32(ReadableStreamingData input) {
         return input.readInt(ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -193,12 +275,32 @@ public final class ProtoParserTools {
     }
 
     /**
+     * Read a protobuf fixed32 from input
+     *
+     * @param input The input data to read from
+     * @return the read int
+     */
+    public static int readFixed32(ReadableStreamingData input) {
+        return input.readInt(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    /**
      * Read a protobuf float from input
      *
      * @param input The input data to read from
      * @return the read float
      */
     public static float readFloat(final ReadableSequentialData input) {
+        return input.readFloat(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    /**
+     * Read a protobuf float from input
+     *
+     * @param input The input data to read from
+     * @return the read float
+     */
+    public static float readFloat(ReadableStreamingData input) {
         return input.readFloat(ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -213,6 +315,16 @@ public final class ProtoParserTools {
     }
 
     /**
+     * Read a protobuf sfixed64 from input
+     *
+     * @param input The input data to read from
+     * @return the read long
+     */
+    public static long readSignedFixed64(final ReadableStreamingData input) {
+        return input.readLong(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    /**
      * Read a fixed 64, which is a fixed size encoded long
      *
      * @param input the input to read from
@@ -223,12 +335,32 @@ public final class ProtoParserTools {
     }
 
     /**
+     * Read a fixed 64, which is a fixed size encoded long
+     *
+     * @param input the input to read from
+     * @return read long
+     */
+    public static long readFixed64(ReadableStreamingData input) {
+        return input.readLong(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    /**
      * Read a double from input data
      *
      * @param input the input to read from
      * @return read double
      */
     public static double readDouble(final ReadableSequentialData input) {
+        return input.readDouble(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    /**
+     * Read a double from input data
+     *
+     * @param input the input to read from
+     * @return read double
+     */
+    public static double readDouble(ReadableStreamingData input) {
         return input.readDouble(ByteOrder.LITTLE_ENDIAN);
     }
 
@@ -245,9 +377,11 @@ public final class ProtoParserTools {
             throw new UncheckedParseException(ex);
         }
     }
-    public static String readString(final PbjReader input) {
+
+    public static String readString(final ReadableStreamingData input) {
         return readString(input, Long.MAX_VALUE);
     }
+
     /**
      * Read a String field from data input
      *
@@ -284,8 +418,20 @@ public final class ProtoParserTools {
             throw new MalformedProtobufException("Malformed UTF-8 string encountered", e);
         }
     }
-    public static String readString(final PbjReader input, final long maxSize) {
-        return input.readString(maxSize);
+
+    /**
+     * Read a String field from data input
+     *
+     * @param input the input to read from
+     * @param maxSize the maximum allowed size
+     * @return Read string
+     */
+    public static String readString(final ReadableStreamingData input, final long maxSize) {
+        try {
+            return readString((ReadableSequentialData) input, maxSize);
+        } catch (IOException | ParseException ex) {
+            throw new UncheckedParseException(ex instanceof ParseException pe ? pe : new ParseException(ex));
+        }
     }
 
     private static int fromUTF8Tail(char[] dst, int di, byte[] src, int i, int endPos) {
@@ -456,10 +602,19 @@ public final class ProtoParserTools {
         return bytes;
     }
 
-    public static Bytes readBytes(final PbjReader input, final long maxSize) {
-        final int length = input.readVarIntNoZZ();
+    /**
+     * Read a Bytes field from data input, setting an error on {@code input} if the Bytes in the input
+     * is longer than the maxSize.
+     *
+     * @param input the input to read from
+     * @param maxSize the maximum allowed size
+     * @return read Bytes object, this can be a copy or a direct reference to inputs data. So it has same life span
+     * of InputData
+     */
+    public static Bytes readBytes(final ReadableStreamingData input, final long maxSize) {
+        final int length = input.readVarInt(false);
         if (length > maxSize || length < 0) {
-            input.setError(PbjReader.PARSE);
+            setError(input, PbjReader.PARSE);
             return Bytes.EMPTY;
         }
         return input.readBytes(length);
@@ -524,6 +679,50 @@ public final class ProtoParserTools {
     }
 
     /**
+     * Reads a requested length-delimited protobuf field from the input and returns it as a
+     * {@link Bytes} object. If the requested field is repeated or not length-delimited, this
+     * method throws an {@link IllegalArgumentException}. .
+     *
+     * <p>The input must contain valid protobuf encoded bytes. If the field is not found in
+     * the input {@code null} is returned. If the field occurs multiple time in the input, bytes
+     * for the first occurrence are returned.
+     *
+     * <p>The returned Bytes object, if not null, will not contain the tag or the length.
+     *
+     * @param input The input to read from
+     * @param field Field definition to extract bytes for
+     * @return Field bytes without tag or length, or {@code null} if the field is not found
+     *      in the input
+     */
+    @Nullable
+    public static Bytes extractFieldBytes(
+            @NonNull final ReadableStreamingData input, @NonNull final FieldDefinition field) {
+        Objects.requireNonNull(input);
+        Objects.requireNonNull(field);
+        if (field.repeated()) {
+            throw new IllegalArgumentException("Cannot extract field bytes for a repeated field: " + field);
+        }
+        if (ProtoWriterTools.wireType(field) != ProtoConstants.WIRE_TYPE_DELIMITED) {
+            throw new IllegalArgumentException("Cannot extract field bytes for a non-length-delimited field: " + field);
+        }
+        while (input.hasRemaining()) {
+            final int tag = input.readVarInt(false);
+            final int fieldNum = tag >> TAG_FIELD_OFFSET;
+            final ProtoConstants wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+            if (fieldNum == field.number()) {
+                if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
+                    setError(input, PbjReader.PARSE);
+                }
+                final int length = input.readVarInt(false);
+                return input.readBytes(length);
+            } else {
+                skipField(input, wireType);
+            }
+        }
+        return null;
+    }
+
+    /**
      * Extract the bytes in a stream for a given wire type. Assumes you have already read tag.
      *
      * @param input The input to move ahead
@@ -560,7 +759,16 @@ public final class ProtoParserTools {
         };
     }
 
-    public static Bytes extractField(final PbjReader input, final ProtoConstants wireType, final long maxSize) {
+    /**
+     * Extract the bytes in a stream for a given wire type. Assumes you have already read tag.
+     *
+     * @param input The input to move ahead
+     * @param wireType The wire type of field to skip
+     * @param maxSize the maximum allowed size for repeated/length-encoded fields
+     * @return the extracted bytes
+     */
+    public static Bytes extractField(
+            final ReadableStreamingData input, final ProtoConstants wireType, final long maxSize) {
         return switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.readBytes(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.readBytes(4);
@@ -572,25 +780,25 @@ public final class ProtoParserTools {
                 final Bytes lenBytes = input.readVarLongBytes();
                 final int length = lenBytes.getVarInt(0, false);
                 if (length < 0) {
-                    input.setError(PbjReader.IO_ERROR);
+                    setError(input, PbjReader.IO_ERROR);
                     yield Bytes.EMPTY;
                 }
                 if (length > maxSize) {
-                    input.setError(PbjReader.PARSE);
+                    setError(input, PbjReader.PARSE);
                     yield Bytes.EMPTY;
                 }
                 yield Bytes.merge(lenBytes, input.readBytes(length));
             }
             case WIRE_TYPE_GROUP_START -> {
-                input.setError(PbjReader.UNSUPPORTED);
+                setError(input, PbjReader.UNSUPPORTED);
                 yield Bytes.EMPTY;
             }
             case WIRE_TYPE_GROUP_END -> {
-                input.setError(PbjReader.UNSUPPORTED);
+                setError(input, PbjReader.UNSUPPORTED);
                 yield Bytes.EMPTY;
             }
             default -> {
-                input.setError(PbjReader.IO_ERROR);
+                setError(input, PbjReader.IO_ERROR);
                 yield Bytes.EMPTY;
             }
         };
@@ -610,7 +818,14 @@ public final class ProtoParserTools {
             throw new UncheckedParseException(ex);
         }
     }
-    public static void skipField(final PbjReader input, final ProtoConstants wireType) {
+
+    /**
+     * Skip over the bytes in a stream for a given wire type. Assumes you have already read tag.
+     *
+     * @param input The input to move ahead
+     * @param wireType The wire type of field to skip
+     */
+    public static void skipField(final ReadableStreamingData input, final ProtoConstants wireType) {
         skipField(input, wireType, Long.MAX_VALUE);
     }
 
@@ -648,27 +863,34 @@ public final class ProtoParserTools {
         }
     }
 
-    public static void skipField(final PbjReader input, final ProtoConstants wireType, final long maxSize) {
+    /**
+     * Skip over the bytes in a stream for a given wire type. Assumes you have already read tag.
+     *
+     * @param input The input to move ahead
+     * @param wireType The wire type of field to skip
+     * @param maxSize the maximum allowed size for repeated/length-encoded fields
+     */
+    public static void skipField(final ReadableStreamingData input, final ProtoConstants wireType, final long maxSize) {
         switch (wireType) {
             case WIRE_TYPE_FIXED_64_BIT -> input.skip(8);
             case WIRE_TYPE_FIXED_32_BIT -> input.skip(4);
             // The value for "zigZag" when calling varint doesn't matter because we are just reading past
             // the varint, we don't care how to interpret it (zigzag is only used for interpretation of
             // the bytes, not how many of them there are)
-            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLongNoZZ();
+            case WIRE_TYPE_VARINT_OR_ZIGZAG -> input.readVarLong(false);
             case WIRE_TYPE_DELIMITED -> {
-                final int length = input.readVarIntNoZZ();
+                final int length = input.readVarInt(false);
                 if (length < 0) {
-                    input.setError(PbjReader.IO_ERROR);
+                    setError(input, PbjReader.IO_ERROR);
                 }
                 if (length > maxSize) {
-                    input.setError(PbjReader.PARSE);
+                    setError(input, PbjReader.PARSE);
                 }
                 input.skip(length);
             }
-            case WIRE_TYPE_GROUP_START -> input.setError(PbjReader.UNSUPPORTED);
-            case WIRE_TYPE_GROUP_END -> input.setError(PbjReader.UNSUPPORTED);
-            default -> input.setError(PbjReader.IO_ERROR);
+            case WIRE_TYPE_GROUP_START -> setError(input, PbjReader.UNSUPPORTED);
+            case WIRE_TYPE_GROUP_END -> setError(input, PbjReader.UNSUPPORTED);
+            default -> setError(input, PbjReader.IO_ERROR);
         }
     }
 
@@ -681,5 +903,33 @@ public final class ProtoParserTools {
     public static int readNextFieldNumber(final ReadableSequentialData input) {
         final int tag = input.readVarInt(false);
         return tag >> TAG_FIELD_OFFSET;
+    }
+
+    /**
+     * Read the next field number from the input
+     *
+     * @param input The input data to read from
+     * @return the read tag
+     */
+    public static int readNextFieldNumber(final ReadableStreamingData input) {
+        final int tag = input.readVarInt(false);
+        return tag >> TAG_FIELD_OFFSET;
+    }
+
+    /**
+     * Records an error on a {@link PbjReader}; any other input has no error state, so the matching
+     * exception is thrown instead.
+     */
+    private static void setError(final ReadableStreamingData input, final int errorKind) {
+        if (input instanceof PbjReader reader) {
+            reader.setError(errorKind);
+            return;
+        }
+        switch (errorKind) {
+            case PbjReader.PARSE -> throw new UncheckedParseException(new ParseException("parse error"));
+            case PbjReader.DATA_ENCODING -> throw new DataEncodingException("Invalid encoding");
+            case PbjReader.UNSUPPORTED -> throw new UnsupportedOperationException("Unsupported wire type");
+            default -> throw new UncheckedIOException(new IOException("I/O error " + errorKind));
+        }
     }
 }

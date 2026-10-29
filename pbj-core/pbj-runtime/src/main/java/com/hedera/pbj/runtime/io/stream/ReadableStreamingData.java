@@ -40,6 +40,15 @@ public class ReadableStreamingData implements ReadableSequentialData, Closeable 
     private boolean eof = false;
 
     /**
+     * Constructor for subclasses that fully override every method of this class and do not use the
+     * underlying stream state held here.
+     */
+    protected ReadableStreamingData() {
+        this.in = null;
+        this.capacity = Long.MAX_VALUE;
+    }
+
+    /**
      * Creates a new streaming data object on top of a given input stream.
      *
      * @param in the underlying input stream, can not be null
