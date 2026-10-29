@@ -133,6 +133,13 @@ public final class LookupHelper {
     private final Map<String, MessageDefContext> messageDefinitions = new HashMap<>();
     private final Map<String, File> messageFiles = new HashMap<>();
     private final Set<String> diffRoots = new HashSet<>();
+
+    /**
+     * Model classes (Java package plus complete class name) generated in this build from source files, as opposed to
+     * messages from dependency jars. Generated codecs call each other's static methods directly only for these.
+     */
+    private final Set<String> modelClassesInThisBuild = new HashSet<>();
+
     private final Set<String> diffEqualityMessages = new HashSet<>();
 
     /**
@@ -220,6 +227,35 @@ public final class LookupHelper {
             if (element.field() != null || element.mapField() != null || element.oneof() != null) count++;
         }
         return count;
+    }
+
+    /**
+     * Record which proto files this build generates code for, so generators can tell messages generated alongside
+     * them from messages in dependencies.
+     *
+     * @param sourceFiles the proto files code is generated for
+     */
+    public void markSourceFiles(Iterable<File> sourceFiles) {
+        final Set<String> paths = new HashSet<>();
+        sourceFiles.forEach(file -> paths.add(file.getAbsolutePath()));
+        messageFiles.forEach((message, file) -> {
+            if (paths.contains(file.getAbsolutePath())) {
+                modelClassesInThisBuild.add(pbjPackageMap.get(message) + "." + pbjCompleteClassMap.get(message));
+            }
+        });
+    }
+
+    /**
+     * Whether a message's model, and so its codec, is generated in this build from a source file. Messages from
+     * dependency jars may come from another PBJ version, so generated code reaches them only through their public
+     * {@code Codec}.
+     *
+     * @param modelPackage the Java package of the message's model class
+     * @param completeClass the model's complete class name, including outer classes
+     * @return true if the codec is generated in this build
+     */
+    public boolean isGeneratedInThisBuild(String modelPackage, String completeClass) {
+        return modelClassesInThisBuild.contains(modelPackage + "." + completeClass);
     }
 
     /** Read a boolean PBJ message option from its special comments, defaulting to false. */
