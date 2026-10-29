@@ -101,6 +101,58 @@ public final class ProtoArrayWriterTools {
     }
 
     /**
+     * Write an unsigned varint to the output, never touching {@code output[end]} or beyond. This is the fast path for
+     * generated writers: pass the end of the message being written as {@code end}, because the bytes after it may
+     * belong to the caller.
+     *
+     * <p>The one-byte case is handled here and the method is kept small, so it inlines at every call site; longer
+     * varints go to {@link #writeVarIntWide}.
+     *
+     * @param output The byte array to write to
+     * @param offset The offset to start writing at
+     * @param end The end of the message being written; no byte at or after it is modified
+     * @param value The value to write
+     * @return The number of bytes written
+     */
+    public static int writeVarInt(@NonNull final byte[] output, final int offset, final int end, final long value) {
+        if ((value >>> 7) == 0) {
+            output[offset] = (byte) value;
+            return 1;
+        }
+        return writeVarIntWide(output, offset, end, value);
+    }
+
+    /**
+     * Write an unsigned varint of two or more bytes. When the varint fits in 8 bytes and at least 8 bytes remain before
+     * {@code end}, the 7-bit groups are spread into bytes with shifts and masks, the continuation bits set on all but
+     * the last byte, and one 8-byte little-endian word is stored. The bytes it writes past the varint are still inside
+     * the message, and later fields overwrite them. Otherwise it falls back to {@link #writeUnsignedVarInt}.
+     *
+     * @param output The byte array to write to
+     * @param offset The offset to start writing at
+     * @param end The end of the message being written; no byte at or after it is modified
+     * @param value The value to write, at least 128 or negative
+     * @return The number of bytes written
+     */
+    static int writeVarIntWide(@NonNull final byte[] output, final int offset, final int end, final long value) {
+        if ((value >>> 56) != 0 || end - offset < Long.BYTES) {
+            return writeUnsignedVarInt(output, offset, value);
+        }
+        final int size = (Long.SIZE - Long.numberOfLeadingZeros(value) + 6) / 7; // 2..8
+        final long spread = (value & 0x7FL)
+                | ((value & 0x3F80L) << 1)
+                | ((value & 0x1FC000L) << 2)
+                | ((value & 0xFE00000L) << 3)
+                | ((value & 0x7F0000000L) << 4)
+                | ((value & 0x3F800000000L) << 5)
+                | ((value & 0x1FC0000000000L) << 6)
+                | ((value & 0xFE000000000000L) << 7);
+        final long continuation = 0x8080808080808080L & ((1L << ((size - 1) << 3)) - 1);
+        LONG_LITTLE_ENDIAN.set(output, offset, spread | continuation);
+        return size;
+    }
+
+    /**
      * Write a signed zigzag encoded varint32 to the output.
      *
      * @param output The byte array to write to

@@ -7,6 +7,7 @@ import com.hedera.pbj.integration.jmh.varint.writers.GoogleCodedOutputStream;
 import com.hedera.pbj.integration.jmh.varint.writers.KafkaByteBuffer;
 import com.hedera.pbj.integration.jmh.varint.writers.PbjBufferedData;
 import com.hedera.pbj.integration.jmh.varint.writers.PbjBufferedDataDirect;
+import com.hedera.pbj.integration.jmh.varint.writers.PbjByteArray;
 import com.hedera.pbj.integration.jmh.varint.writers.PbjWritableStreamingData;
 import com.hedera.pbj.integration.jmh.varint.writers.RichardStartinByteArray;
 import java.io.IOException;
@@ -105,6 +106,22 @@ public class VarIntWriterBench {
     @OperationsPerInvocation(NUM_OF_VALUES)
     public void pbjBufferedDataDirect(PbjBufferedDataDirect state) throws IOException {
         for (int i = 0; i < NUM_OF_VALUES; i++) state.writeVarint(numbers[i]);
+        state.endLoop();
+    }
+
+    @Benchmark
+    @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+    @OperationsPerInvocation(NUM_OF_VALUES)
+    public void pbjByteArray(PbjByteArray state) {
+        for (int i = 0; i < NUM_OF_VALUES; i++) state.writeVarint(numbers[i]);
+        state.endLoop();
+    }
+
+    @Benchmark
+    @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+    @OperationsPerInvocation(NUM_OF_VALUES)
+    public void pbjByteArraySingleStore(PbjByteArray state) {
+        for (int i = 0; i < NUM_OF_VALUES; i++) state.writeVarintSingleStore(numbers[i]);
         state.endLoop();
     }
 
