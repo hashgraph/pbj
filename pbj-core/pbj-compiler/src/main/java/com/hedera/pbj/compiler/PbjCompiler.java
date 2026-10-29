@@ -8,6 +8,7 @@ import com.hedera.pbj.compiler.impl.FileSetWriter;
 import com.hedera.pbj.compiler.impl.FileType;
 import com.hedera.pbj.compiler.impl.JavaFileWriter;
 import com.hedera.pbj.compiler.impl.LookupHelper;
+import com.hedera.pbj.compiler.impl.PerformanceOptions;
 import com.hedera.pbj.compiler.impl.generators.EnumGenerator;
 import com.hedera.pbj.compiler.impl.generators.Generator;
 import com.hedera.pbj.compiler.impl.generators.ServiceGenerator;
@@ -102,6 +103,38 @@ public abstract class PbjCompiler {
             Set<String> diffMessages,
             Set<String> diffMessageContainers)
             throws Exception {
+        compileFilesIn(
+                sourceFiles,
+                classpath,
+                sourceRoots,
+                mainOutputDir,
+                testOutputDir,
+                javaPackageSuffix,
+                generateTestClasses,
+                generateCopyBuilderTracking,
+                diffMessages,
+                diffMessageContainers,
+                PerformanceOptions.NONE);
+    }
+
+    /**
+     * Compiles models, as {@link #compileFilesIn(Iterable, Iterable, Set, File, File, String, boolean, boolean, Set,
+     * Set)} does, with project defaults for the fast code generation options. Option comments in proto files override
+     * them, per file or per message.
+     */
+    public static void compileFilesIn(
+            Iterable<File> sourceFiles,
+            Iterable<File> classpath,
+            Set<File> sourceRoots,
+            File mainOutputDir,
+            File testOutputDir,
+            String javaPackageSuffix,
+            boolean generateTestClasses,
+            boolean generateCopyBuilderTracking,
+            Set<String> diffMessages,
+            Set<String> diffMessageContainers,
+            PerformanceOptions projectOptions)
+            throws Exception {
         var allProtobufFiles = Stream.concat(
                         StreamSupport.stream(sourceFiles.spliterator(), false),
                         StreamSupport.stream(classpath.spliterator(), false))
@@ -116,15 +149,20 @@ public abstract class PbjCompiler {
             if (protoFile.exists()
                     && protoFile.isFile()
                     && protoFile.getName().endsWith(LookupHelper.PROTO_EXTENSIION)) {
-                final ContextualLookupHelper contextualLookupHelper =
-                        new ContextualLookupHelper(lookupHelper, protoFile, generateCopyBuilderTracking);
                 try (final var input = new FileInputStream(protoFile)) {
                     final var lexer = new Protobuf3Lexer(CharStreams.fromStream(input));
                     final var parser = new Protobuf3Parser(new CommonTokenStream(lexer));
                     final Protobuf3Parser.ProtoContext parsedDoc = parser.proto();
+                    final ContextualLookupHelper contextualLookupHelper = new ContextualLookupHelper(
+                            lookupHelper,
+                            protoFile,
+                            generateCopyBuilderTracking,
+                            PerformanceOptions.fromComments(parsedDoc.optionComment(), protoFile.getName()),
+                            projectOptions);
                     for (final var topLevelDef : parsedDoc.topLevelDef()) {
                         final Protobuf3Parser.MessageDefContext msgDef = topLevelDef.messageDef();
                         if (msgDef != null) {
+                            contextualLookupHelper.checkOptions(msgDef);
                             final FileSetWriter writer = FileSetWriter.create(
                                     mainOutputDir, testOutputDir, msgDef, contextualLookupHelper, generateTestClasses);
                             for (Map.Entry<Class<? extends Generator>, Function<FileSetWriter, JavaFileWriter>> entry :
