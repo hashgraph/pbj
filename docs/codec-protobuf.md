@@ -267,9 +267,18 @@ its length and tag. A message with a map of enums writes itself forward into the
 message. `writeReverse` works for every codec: one without a reverse writer measures the item and writes it forward
 into the buffer.
 
-**When it pays.** Skipping the measuring pass helps most for objects written soon after they are built, while they are
-still in the CPU caches and their sizes have not been computed yet. Reading each object's fields last first works
-against the order they sit in memory, so for large batches of objects that are no longer in cache, or whose sizes are
-already cached, the forward writer can be faster. Measure with your own data before switching; `BlockItemKindBench`
-in the integration tests compares both writers on HAPI block items.
+**When it pays: measure on your own data.** `pbj.fast_write` is off by default, and `toBytes` and the other `write`
+methods never use the reverse writer; only `writeReverse` does. Skipping the measuring pass helps for objects encoded
+right after they are built, while they are still in the CPU caches. But the reverse writer reads each object's fields
+last first, against the order they were allocated in, which costs a lot once objects are out of cache. On AMD EPYC,
+with HAPI block items:
+
+| `STATE_CHANGES` items | Forward, fresh | Reverse, fresh | Forward, sizes cached | Reverse, sizes cached |
+|---|---:|---:|---:|---:|
+| 200 items, in cache | 89 µs | 72 µs (−20%) | 63 µs | 81 µs (+29%) |
+| all 21,986 items, out of cache | 13.8 ms | 39.3 ms (2.8× slower) | 9.2 ms | 39.1 ms (4.3× slower) |
+
+So it wins for small objects encoded straight after building, and loses for large workloads like HAPI's blocks and
+whenever sizes are already cached. On Apple Silicon the two writers are about equal. Compare both writers on your
+own messages before turning it on; `BlockItemKindBench` in the integration tests shows how.
 
