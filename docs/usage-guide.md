@@ -151,8 +151,9 @@ per message, per proto file or for the whole project:
 | `// <<<pbj.oneof_storage = "unboxed">>>` | `oneofStorage` | `"boxed"` / `"unboxed"` | `"boxed"` |
 | `// <<<pbj.performance = "max">>>` | `performance` | `"default"` / `"max"` | `"default"` |
 
-`performance` is shorthand: `"max"` turns the other four on, and `"default"` sets them to their defaults. What each
-option generates is described in [codec-protobuf.md](codec-protobuf.md#performance-options).
+`performance` is shorthand: `"max"` turns the other four on, and `"default"` sets them to their defaults. `"max"`
+includes `fast_write`, which is not always faster; the example below turns it off. What each option generates is
+described in [codec-protobuf.md](codec-protobuf.md#performance-options).
 
 For each message, an option comes from the first of these that sets it: the message's comments, the file's comments,
 the Gradle project, the built-in default. At each level a specific option wins over `performance`. A message's
@@ -343,8 +344,9 @@ HelloRequest parsed = HelloRequest.PROTOBUF.parse(readableData);
 ```
 
 `writeReverse` writes into a reusable `ReverseBuffer` instead of a new `Bytes`. It produces the same bytes as `toBytes`,
-and messages generated with `pbj.fast_write` write themselves back to front without measuring first (see
-[codec-protobuf.md](codec-protobuf.md#reverse-writer-pbjfast_write)):
+and messages generated with `pbj.fast_write` write themselves back to front without measuring first. That is faster
+only for objects encoded right after they are built, and slower for large workloads out of cache, so measure on your
+own data before turning it on (see [codec-protobuf.md](codec-protobuf.md#reverse-writer-pbjfast_write)):
 
 ```java
 ReverseBuffer buffer = new ReverseBuffer(4096);
