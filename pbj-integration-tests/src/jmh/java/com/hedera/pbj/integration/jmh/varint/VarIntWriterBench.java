@@ -10,6 +10,9 @@ import com.hedera.pbj.integration.jmh.varint.writers.PbjBufferedDataDirect;
 import com.hedera.pbj.integration.jmh.varint.writers.PbjByteArray;
 import com.hedera.pbj.integration.jmh.varint.writers.PbjWritableStreamingData;
 import com.hedera.pbj.integration.jmh.varint.writers.RichardStartinByteArray;
+import com.hedera.pbj.integration.jmh.varint.writers.SmartNoDataDependencyByteArray;
+import com.hedera.pbj.integration.jmh.varint.writers.SteinbornBlendedByteArray;
+import com.hedera.pbj.integration.jmh.varint.writers.SteinbornBulkByteArray;
 import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -43,8 +46,7 @@ public class VarIntWriterBench {
      * Number of bytes to read at a time (1, 2, 4, or 8). So create inputs with 1 byte siz,e, 2 byte size, 4 byte size,
      * and 8 byte size.
      */
-    //    @Param({"1", "2", "3", "4", "8"})
-    @Param({"4"})
+    @Param({"1", "2", "3", "4", "8"})
     public int numOfBytes;
 
     private long[] numbers;
@@ -120,7 +122,7 @@ public class VarIntWriterBench {
     @Benchmark
     @CompilerControl(CompilerControl.Mode.DONT_INLINE)
     @OperationsPerInvocation(NUM_OF_VALUES)
-    public void pbjByteArraySingleStore(PbjByteArray state) {
+    public void pbjByteArrayWriteVarInt(PbjByteArray state) {
         for (int i = 0; i < NUM_OF_VALUES; i++) state.writeVarintSingleStore(numbers[i]);
         state.endLoop();
     }
@@ -137,6 +139,32 @@ public class VarIntWriterBench {
     @CompilerControl(CompilerControl.Mode.DONT_INLINE)
     @OperationsPerInvocation(NUM_OF_VALUES)
     public void kafkaByteBuffer(KafkaByteBuffer state) throws IOException {
+        for (int i = 0; i < NUM_OF_VALUES; i++) state.writeVarint(numbers[i]);
+        state.endLoop();
+    }
+
+    // Contenders from draft PR #795
+
+    @Benchmark
+    @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+    @OperationsPerInvocation(NUM_OF_VALUES)
+    public void smartNoDataDependencyByteArray(SmartNoDataDependencyByteArray state) {
+        for (int i = 0; i < NUM_OF_VALUES; i++) state.writeVarint(numbers[i]);
+        state.endLoop();
+    }
+
+    @Benchmark
+    @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+    @OperationsPerInvocation(NUM_OF_VALUES)
+    public void steinbornBlendedByteArray(SteinbornBlendedByteArray state) {
+        for (int i = 0; i < NUM_OF_VALUES; i++) state.writeVarint(numbers[i]);
+        state.endLoop();
+    }
+
+    @Benchmark
+    @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+    @OperationsPerInvocation(NUM_OF_VALUES)
+    public void steinbornBulkByteArray(SteinbornBulkByteArray state) {
         for (int i = 0; i < NUM_OF_VALUES; i++) state.writeVarint(numbers[i]);
         state.endLoop();
     }

@@ -502,23 +502,18 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                                 throw new ParseException("$fieldName size " + __map_messageLength + " is greater than max " + $maxSize);
                             }
                             final var __map_limitBefore = input.limit();
-                            // Make sure that we have enough bytes in the message
-                            // to read the subObject.
-                            // If the buffer is truncated on the boundary of a subObject,
-                            // we will not throw.
-                            final var __map_startPos = input.position();
-                            try {
-                                if ((__map_startPos + __map_messageLength) > __map_limitBefore) {
-                                    throw new BufferUnderflowException();
-                                }
-                                input.limit(__map_startPos + __map_messageLength);
+                            // Make sure that we have enough bytes in the message to read the entry.
+                            final var __map_end = input.position() + __map_messageLength;
+                            if (__map_end > __map_limitBefore) {
+                                throw new BufferUnderflowException();
+                            }
+                            input.limit(__map_end);
+                            // If this throws, the limit stays narrowed: Codec.parse restores the caller's limit
                         $mapParseLoop
-                                // Make sure we read the full number of bytes. for the types
-                                if ((__map_startPos + __map_messageLength) != input.position()) {
-                                    throw new BufferOverflowException();
-                                }
-                            } finally {
-                                input.limit(__map_limitBefore);
+                            input.limit(__map_limitBefore);
+                            // Make sure we read the full number of bytes
+                            if (input.position() != __map_end) {
+                                throw new BufferOverflowException();
                             }
                         }
                         """
@@ -527,7 +522,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
                             mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
                     .replace("$mapParseLoop", parseAndDefaultBodyPair.parseBody()
-                            .indent(DEFAULT_INDENT * 2).stripTrailing())
+                            .indent(DEFAULT_INDENT).stripTrailing())
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                     .indent(DEFAULT_INDENT)
             );

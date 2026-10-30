@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
+import com.hedera.pbj.runtime.Utf8Tools;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,10 +15,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
-import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.CodingErrorAction;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -296,26 +293,8 @@ public final class ArrayCursor {
         final int length = length(maxSize, null);
         final int q = p;
         p = q + length;
-        // ASCII, by far the most common, needs no decoder
-        for (int i = q; i < q + length; i++) {
-            if (in[i] < 0) {
-                return decodeUtf8(q, length);
-            }
-        }
-        return new String(in, q, length, StandardCharsets.ISO_8859_1);
-    }
-
-    private String decodeUtf8(final int offset, final int length) throws MalformedProtobufException {
-        try {
-            return StandardCharsets.UTF_8
-                    .newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(in, offset, length))
-                    .toString();
-        } catch (CharacterCodingException e) {
-            throw new MalformedProtobufException("Malformed UTF-8 string encountered", e);
-        }
+        // the same strict decoding as the stream parser
+        return Utf8Tools.decodeUtf8Strict(in, q, length);
     }
 
     /**

@@ -25,6 +25,20 @@ final class RandomAccessSequenceAdapter implements ReadableSequentialData {
     private final long start;
     /** The position. Will be a value between 0 and the {@link #capacity} */
     private long position;
+
+    static {
+        ArrayInputsAccess.install();
+    }
+
+    /** The data this adapter reads, for {@link ArrayInputsAccess}. */
+    RandomAccessData delegate() {
+        return delegate;
+    }
+
+    /** The index in the delegate of the current position, for {@link ArrayInputsAccess}. */
+    long absolutePosition() {
+        return start + position;
+    }
     /** The limit. Will be a value between {@link #position} and the {@link #capacity} */
     private long limit;
 
