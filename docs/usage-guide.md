@@ -276,6 +276,19 @@ BlockRequest.BlockSpecifierOneOfType kind = specifier.kind();
 long blockNum = specifier.as();  // cast to the active variant's type
 ```
 
+With `pbj.oneof_storage = "unboxed"` (see [Performance Options](#performance-options)), a model stores each oneof as
+its kind and value rather than a `OneOf`, and parsing allocates no `OneOf`. The model gets a `blockSpecifierKind()`
+accessor, which returns the kind without allocating. `blockSpecifier()` still works, but builds a new `OneOf` on each
+call, so prefer the kind accessor and the typed getters:
+
+```java
+switch (request.blockSpecifierKind()) {
+    case BLOCK_NUMBER -> fetch(request.blockNumber());
+    case RETRIEVE_LATEST -> fetchLatest();
+    case UNSET -> throw new IllegalArgumentException("no block specifier");
+}
+```
+
 ### Repeated Fields
 
 Repeated fields return immutable `List<T>`:
