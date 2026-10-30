@@ -104,6 +104,20 @@ final class ArrayCursorTest {
     }
 
     @Test
+    void bytesReadThroughTheSequentialViewOfBytesAreViews() throws Exception {
+        // a length-prefixed bytes value, after one byte the caller has already read
+        final byte[] array = {9, 3, 1, 2, 3};
+        final Bytes source = Bytes.wrap(array);
+        final var input = source.toReadableSequentialData();
+        input.skip(1);
+        final ArrayCursor cursor = ArrayCursor.of(input);
+        final Bytes value = cursor.bytes(100);
+        assertEquals(Bytes.wrap(new byte[] {1, 2, 3}), value);
+        // like the stream parser over Bytes, which is immutable, the value shares the source's array
+        assertTrue(value.backingArray() == array, "a view of the source, not a copy");
+    }
+
+    @Test
     void everyVarintLengthReadsTheSameAtEveryDistanceFromTheLimit() {
         // the fast path needs 8 bytes left and handles up to 8-byte varints; the rest take the slow path
         for (int length = 1; length <= 10; length++) {

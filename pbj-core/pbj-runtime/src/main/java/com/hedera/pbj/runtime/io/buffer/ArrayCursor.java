@@ -77,8 +77,9 @@ public final class ArrayCursor {
             return new ArrayCursor(data.backingArray(), offset, offset + Math.toIntExact(data.remaining()));
         }
         if (input instanceof RandomAccessSequenceAdapter adapter && adapter.delegate() instanceof Bytes bytes) {
+            // like the stream parser over Bytes, bytes fields are then views of the Bytes rather than copies
             final int offset = bytes.backingOffset() + Math.toIntExact(adapter.absolutePosition());
-            return new ArrayCursor(bytes.backingArray(), offset, offset + Math.toIntExact(adapter.remaining()));
+            return new ArrayCursor(bytes.backingArray(), offset, offset + Math.toIntExact(adapter.remaining()), bytes);
         }
         return null;
     }
