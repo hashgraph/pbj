@@ -49,6 +49,10 @@ public class BlockItemKindBench {
     @Param({"SIGNED_TRANSACTION", "STATE_CHANGES", "TRANSACTION_RESULT", "TRACE_DATA", "TRANSACTION_OUTPUT"})
     public String kind;
 
+    /** The most items of the kind to use, 0 for all; a few hundred fit in the CPU caches. */
+    @Param("0")
+    public int limit;
+
     private final List<Bytes> itemBytes = new ArrayList<>();
     private List<BlockItem> cached;
     private List<BlockItem> fresh;
@@ -62,7 +66,7 @@ public class BlockItemKindBench {
             final Block block = Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
             int max = 0;
             for (final BlockItem item : block.items()) {
-                if (item.item().kind().name().equals(kind)) {
+                if (item.item().kind().name().equals(kind) && (limit == 0 || itemBytes.size() < limit)) {
                     itemBytes.add(BlockItem.PROTOBUF.toBytes(item));
                     max = Math.max(max, item.protobufSize());
                 }
