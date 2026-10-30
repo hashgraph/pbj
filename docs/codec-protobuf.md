@@ -225,5 +225,97 @@ contain messages with another.
 | `pbj.views` | A zero-copy, reusable view class that reads fields in place from encoded bytes |
 | `pbj.oneof_storage = "unboxed"` | Models store each oneof as a kind and a value, so parsing allocates no `OneOf` |
 
-The option names are reserved now; the code they generate is added step by step (see
-[fast-codegen-plan.md](fast-codegen-plan.md)), and until then an option has no effect.
+The code each option generates is added step by step (see [fast-codegen-plan.md](fast-codegen-plan.md)). Each
+section below describes what an option generates today; an option without a section has no effect yet.
+
+### Byte-Array Parser (`pbj.fast_parse`)
+
+The codec gets a second parser, a static `parseArray(ArrayCursor, strictMode, parseUnknownFields, maxDepth, maxSize)`
+that reads straight from a `byte[]` instead of through `ReadableSequentialData`. Nothing changes for callers:
+`Codec.parse` uses it automatically when the input is array-backed, which means a `Bytes` or a `BufferedData` over a
+heap array (`BufferedData.wrap(byte[])`, `BufferedData.allocate(int)`). Direct buffers and streams still use the
+stream parser. Generated array parsers call each other directly for nested messages.
+
+Writers emit fields in field-number order, so the parser first tests for each field's tag in that order, one byte
+compare per field, and a repeated field loops on its tag. Oneofs and maps
+stay out of this fast path. Anything else (oneofs, maps, fields out of order or repeated, unknown fields) falls
+through to a general loop. Results and errors are the same as the stream parser's for the same input and arguments:
+strict mode, unknown-field collection, `maxDepth`, `maxSize`, malformed UTF-8 and truncated input all behave alike.
+
+Every field type is supported, so every message that asks for an array parser gets one.
+
+### Reverse Writer (`pbj.fast_write`)
+
+The codec gets a static `writeReverseTo(item, ReverseBuffer)` and overrides `Codec.writeReverse(item, buffer)` to use
+it. `toBytes` and the other `write` methods are unchanged. The reverse writer writes the message back to front into a
+reusable `ReverseBuffer`: fields, list elements and unknown fields in reverse order, and each value before its length
+and tag. A nested message's length is then just the number of bytes written since it began, so nothing is measured
+first, and once the buffer has grown to fit the largest message, writing allocates nothing. The output is
+byte-identical to `toBytes`.
+
+```java
+final ReverseBuffer buffer = new ReverseBuffer(4096);
+for (Order order : orders) {
+    buffer.reset();
+    Order.PROTOBUF.writeReverse(order, buffer);
+    send(buffer.bytes());   // a view, valid until the next reset or write; toBytes() or copyTo() copy it
+}
+```
+
+Maps are written as entries in reverse sorted-key order, and `google.protobuf` wrapper types as the wrapped value, then
+its length and tag. A message with a map of enums writes itself forward into the buffer instead, measuring only that
+message. `writeReverse` works for every codec: one without a reverse writer measures the item and writes it forward
+into the buffer.
+
+**When it pays.** Skipping the measuring pass helps most for objects written soon after they are built, while they are
+still in the CPU caches and their sizes have not been computed yet. Reading each object's fields last first works
+against the order they sit in memory, so for large batches of objects that are no longer in cache, or whose sizes are
+already cached, the forward writer can be faster. Measure with your own data before switching; `BlockItemKindBench`
+in the integration tests compares both writers on HAPI block items.
+
+### Zero-Copy Views (`pbj.views`)
+
+The model gets a nested, reusable `View` class that reads fields in place from encoded bytes instead of parsing them
+into objects. [usage-guide.md](usage-guide.md#zero-copy-views) shows how to use one and the reuse pitfall.
+
+```java
+final Order.View view = new Order.View();
+for (Bytes bytes : orders) {
+    view.wrap(bytes);          // or wrap(bytes, strictMode, maxDepth, maxSize), as for parse()
+    total += view.amount();    // numbers and enums are decoded once, by wrap
+    if (view.hasCustomer()) {
+        names.add(view.customer().name());   // a child view, re-wrapped with the parent
+    }
+    for (var line = view.lines(); line.next(); ) {
+        count += line.value().quantity();
+    }
+}
+```
+
+`wrap` indexes the message in one pass, with the same in-order fast path and the same checks of tags, wire types,
+lengths, bools and UTF-8 as parsing; a malformed message throws `ParseException`. `wrap(bytes, strictMode, maxDepth,
+maxSize)` applies the same limits and strict mode as `parse` with those arguments, and passes them down to nested
+views. Nested messages, repeated message elements and wrapper type values are validated when they are read, so a
+malformed one throws from its accessor or cursor rather than from `wrap`.
+
+What a view has for each kind of field:
+
+| Field | Accessors |
+|---|---|
+| Number, bool | `xxx()`, decoded by `wrap` |
+| Enum | `xxx()`, and `xxxProtoOrdinal()` for the raw number |
+| String, bytes | `xxx()` builds a `String` or `Bytes`; `xxxArray()`, `xxxOffset()`, `xxxLength()` and `xxxEquals(byte[])` read it without allocating |
+| Message | `xxx()` returns a child view, created once and re-wrapped with the parent |
+| `google.protobuf` wrapper type | `xxx()` returns the value, or null when absent |
+| Repeated | `xxxCount()`, and `xxx()` returns a reusable cursor: `next()` moves to each element, `value()` reads it (and `valueOffset()`, `valueLength()`, `valueEquals(byte[])` for strings and bytes) |
+| Oneof | `xxxKind()` returns which alternative is set; each alternative has the accessors of a singular field |
+
+Message and wrapper type fields also have `hasXxx()`. `toModel()` parses the wrapped bytes into a model object. Wrapping
+and reading numbers, enums, nested views, cursors and offsets allocate nothing.
+
+A view and its child views and cursors are reused, so a child view returned earlier reads whatever its parent was
+last wrapped over. The wrapped bytes must not change while a view reads them.
+
+A message gets a view only if it has no maps or repeated wrapper types, and every message field's type also gets a
+view (messages may contain each other). When a message asks for a view in its own or its file's comments and gets
+none, the build prints why. A message with a view that declares its own nested message or enum named `View` fails the build.
