@@ -203,10 +203,34 @@ public abstract class Codec<T> {
      */
     @NonNull
     public final T parse(@NonNull Bytes bytes, final boolean strictMode, final int maxDepth) throws ParseException {
+        return parse(bytes, strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
+    }
+
+    /**
+     * Parses an object from the {@link Bytes} and returns it, as
+     * {@link #parse(ReadableSequentialData, boolean, boolean, int, int)} does with the same arguments.
+     *
+     * @param bytes The {@link Bytes} from which to read the data to construct an object
+     * @param strictMode when {@code true}, the parser errors out on unknown fields; otherwise they'll be simply skipped.
+     * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
+     *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
+     * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
+     * @return The parsed object. It must not return null.
+     * @throws ParseException If parsing fails
+     */
+    @NonNull
+    public final T parse(
+            @NonNull Bytes bytes,
+            final boolean strictMode,
+            final boolean parseUnknownFields,
+            final int maxDepth,
+            final int maxSize)
+            throws ParseException {
         if (hasArrayParser()) {
-            return parseArrayImpl(ArrayCursor.of(bytes), strictMode, false, maxDepth, DEFAULT_MAX_SIZE);
+            return parseArrayImpl(ArrayCursor.of(bytes), strictMode, parseUnknownFields, maxDepth, maxSize);
         }
-        return parse(bytes.toReadableSequentialData(), strictMode, maxDepth);
+        return parse(bytes.toReadableSequentialData(), strictMode, parseUnknownFields, maxDepth, maxSize);
     }
 
     /**
