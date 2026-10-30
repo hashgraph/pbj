@@ -36,8 +36,11 @@ import org.junit.jupiter.api.Test;
  * cannot grow back.
  */
 final class AllocationTest {
-    /** Warm-up and measured operations. */
-    private static final int ITERATIONS = 10_000;
+    /**
+     * Measured operations, and warm-up operations before them: well past C2's compile threshold, so the measured code is
+     * compiled on any JVM version.
+     */
+    private static final int ITERATIONS = 50_000;
 
     /**
      * The sample block shared with the JMH benchmarks. The other sample block, 497558, was written with an older
@@ -54,7 +57,8 @@ final class AllocationTest {
     /**
      * Ceilings for parsing from {@link Bytes}, in bytes per message, by block item kind (and for signed transactions).
      * These are today's figures rounded up to the next 8 bytes; parsing allocates the result objects, so they are not
-     * zero.
+     * zero. Each figure is an average over the first {@value #ITERATIONS} items of its kind (cycling), so it changes if
+     * the iteration count does.
      */
     private static final Map<String, Long> PARSE_CEILINGS = Map.ofEntries(
             Map.entry("BLOCK_FOOTER", 240L),
@@ -63,7 +67,7 @@ final class AllocationTest {
             Map.entry("EVENT_HEADER", 456L),
             Map.entry("ROUND_HEADER", 136L),
             Map.entry("SIGNED_TRANSACTION", 136L),
-            Map.entry("STATE_CHANGES", 3944L),
+            Map.entry("STATE_CHANGES", 4000L),
             Map.entry("SignedTransaction", 400L),
             Map.entry("TRACE_DATA", 5696L),
             Map.entry("TRANSACTION_OUTPUT", 480L),
@@ -144,6 +148,36 @@ final class AllocationTest {
         figures.forEach((kind, bytes) -> assertTrue(
                 bytes <= WRITE_BYTE_ARRAY_CEILING,
                 kind + " allocated " + bytes + " bytes per write, ceiling " + WRITE_BYTE_ARRAY_CEILING));
+    }
+
+    /**
+     * Measuring and writing freshly built objects, whose sizes are not cached yet: the objects are built before the
+     * measurement, which covers only {@code protobufSize()} and {@code write(T, byte[], int)}.
+     */
+    @Test
+    void sizeAndWriteFreshObjects() throws ParseException {
+        final List<Bytes> encoded = ITEMS_BY_KIND.values().stream()
+                .flatMap(List::stream)
+                .map(BlockItem.PROTOBUF::toBytes)
+                .toList();
+        final byte[] out =
+                new byte[encoded.stream().mapToInt(b -> (int) b.length()).max().orElse(0)];
+        long bytesPerOperation = -1;
+        // several rounds over newly parsed objects, the last one measured once the code is compiled
+        for (int round = 0; round < 6; round++) {
+            final List<BlockItem> fresh = new ArrayList<>(encoded.size());
+            for (final Bytes bytes : encoded) {
+                fresh.add(BlockItem.PROTOBUF.parse(bytes));
+            }
+            final long before = allocatedBytes();
+            for (final BlockItem item : fresh) {
+                BlockItem.PROTOBUF.write(item, out, 0);
+            }
+            bytesPerOperation = (allocatedBytes() - before) / fresh.size();
+        }
+        System.out.println(
+                "protobufSize() and write(T, byte[], int) of fresh objects, bytes per operation: " + bytesPerOperation);
+        assertEquals(0L, bytesPerOperation, "measuring and writing a fresh object");
     }
 
     @Test

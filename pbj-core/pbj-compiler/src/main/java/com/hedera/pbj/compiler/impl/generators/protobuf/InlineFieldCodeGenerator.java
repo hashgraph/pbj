@@ -65,6 +65,8 @@ final class InlineFieldCodeGenerator {
     private final ContextualLookupHelper lookupHelper;
     /** The target's existing code for a field, without a oneof guard, for field kinds that are not inlined. */
     private final Function<Field, String> fallback;
+    /** The Java names of all fields of the message being generated, so renamed locals don't clash with them. */
+    private Set<String> fieldNames = Set.of();
 
     /**
      * @param target what the generated code does with each field
@@ -90,6 +92,10 @@ final class InlineFieldCodeGenerator {
      * @return the code
      */
     String fieldsInOrder(final List<Field> fields) {
+        fieldNames = fields.stream()
+                .flatMap(field -> field instanceof OneOfField oneOf ? oneOf.fields().stream() : Stream.of(field))
+                .map(Field::nameCamelFirstLower)
+                .collect(Collectors.toSet());
         final List<Field> sorted = fields.stream()
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF
                         ? ((OneOfField) field).fields().stream()
@@ -196,9 +202,17 @@ final class InlineFieldCodeGenerator {
     }
 
     /** The Java name of a local holding a field's value, avoiding the names the generated method uses itself. */
-    private static String localName(final Field field) {
+    private String localName(final Field field) {
         final String name = field.nameCamelFirstLower();
-        return RESERVED_NAMES.contains(name) ? name + "Value" : name;
+        if (!RESERVED_NAMES.contains(name)) {
+            return name;
+        }
+        // a new name, clashing with neither the method's own names nor another field's local
+        String local = name + "Value";
+        for (int i = 2; RESERVED_NAMES.contains(local) || fieldNames.contains(local); i++) {
+            local = name + "Value" + i;
+        }
+        return local;
     }
 
     /**
