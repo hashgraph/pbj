@@ -243,3 +243,33 @@ through to a general loop. Results and errors are the same as the stream parser'
 strict mode, unknown-field collection, `maxDepth`, `maxSize`, malformed UTF-8 and truncated input all behave alike.
 
 Every field type is supported, so every message that asks for an array parser gets one.
+
+### Reverse Writer (`pbj.fast_write`)
+
+The codec gets a static `writeReverseTo(item, ReverseBuffer)` and overrides `Codec.writeReverse(item, buffer)` to use
+it. `toBytes` and the other `write` methods are unchanged. The reverse writer writes the message back to front into a
+reusable `ReverseBuffer`: fields, list elements and unknown fields in reverse order, and each value before its length
+and tag. A nested message's length is then just the number of bytes written since it began, so nothing is measured
+first, and once the buffer has grown to fit the largest message, writing allocates nothing. The output is
+byte-identical to `toBytes`.
+
+```java
+final ReverseBuffer buffer = new ReverseBuffer(4096);
+for (Order order : orders) {
+    buffer.reset();
+    Order.PROTOBUF.writeReverse(order, buffer);
+    send(buffer.bytes());   // a view, valid until the next reset or write; toBytes() or copyTo() copy it
+}
+```
+
+Maps are written as entries in reverse sorted-key order, and `google.protobuf` wrapper types as the wrapped value, then
+its length and tag. A message with a map of enums writes itself forward into the buffer instead, measuring only that
+message. `writeReverse` works for every codec: one without a reverse writer measures the item and writes it forward
+into the buffer.
+
+**When it pays.** Skipping the measuring pass helps most for objects written soon after they are built, while they are
+still in the CPU caches and their sizes have not been computed yet. Reading each object's fields last first works
+against the order they sit in memory, so for large batches of objects that are no longer in cache, or whose sizes are
+already cached, the forward writer can be faster. Measure with your own data before switching; `BlockItemKindBench`
+in the integration tests compares both writers on HAPI block items.
+
