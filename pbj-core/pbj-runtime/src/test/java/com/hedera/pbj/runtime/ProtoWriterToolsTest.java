@@ -1195,6 +1195,31 @@ class ProtoWriterToolsTest {
     }
 
     @Test
+    void testFloatingPointDefaultIsWrittenWhenNotSkipped() {
+        // map entries write their value even when it is the default, as protoc does
+        final FieldDefinition floatField = createFieldDefinition(FLOAT);
+        final FieldDefinition doubleField = createFieldDefinition(DOUBLE);
+        assertEquals(0, ProtoWriterTools.sizeOfFloat(floatField, 0f, true));
+        assertEquals(TAG_SIZE + Float.BYTES, ProtoWriterTools.sizeOfFloat(floatField, 0f, false));
+        assertEquals(0, ProtoWriterTools.sizeOfDouble(doubleField, 0d, true));
+        assertEquals(TAG_SIZE + Double.BYTES, ProtoWriterTools.sizeOfDouble(doubleField, 0d, false));
+
+        ProtoWriterTools.writeFloat(bufferedData, floatField, 0f, true);
+        ProtoWriterTools.writeDouble(bufferedData, doubleField, 0d, true);
+        assertEquals(0, bufferedData.position());
+        ProtoWriterTools.writeFloat(bufferedData, floatField, 0f, false);
+        assertEquals(TAG_SIZE + Float.BYTES, bufferedData.position());
+        ProtoWriterTools.writeDouble(bufferedData, doubleField, 0d, false);
+        assertEquals(2 * TAG_SIZE + Float.BYTES + Double.BYTES, bufferedData.position());
+
+        final byte[] array = new byte[20];
+        assertEquals(0, ProtoArrayWriterTools.writeFloat(array, 0, floatField, 0f, true));
+        assertEquals(TAG_SIZE + Float.BYTES, ProtoArrayWriterTools.writeFloat(array, 0, floatField, 0f, false));
+        assertEquals(0, ProtoArrayWriterTools.writeDouble(array, 0, doubleField, 0d, true));
+        assertEquals(TAG_SIZE + Double.BYTES, ProtoArrayWriterTools.writeDouble(array, 0, doubleField, 0d, false));
+    }
+
+    @Test
     void testSizeOfString() {
         final FieldDefinition definition = createFieldDefinition(STRING);
         final String str = randomVarSizeString();

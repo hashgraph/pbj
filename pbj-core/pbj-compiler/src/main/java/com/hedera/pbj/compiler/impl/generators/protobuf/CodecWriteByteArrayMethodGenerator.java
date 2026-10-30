@@ -239,6 +239,9 @@ final class CodecWriteByteArrayMethodGenerator {
                             .formatted(fieldDef, getValueCode, skipDefault);
                     case BYTES -> "offset += ProtoArrayWriterTools.writeBytes(output, offset, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, skipDefault);
+                    // map entries always write their value, as protoc does
+                    case FLOAT, DOUBLE -> "offset += ProtoArrayWriterTools.write%s(output, offset, %s, %s%s);"
+                            .formatted(writeMethodName, fieldDef, getValueCode, skipDefault ? "" : ", false");
                     default -> "offset += ProtoArrayWriterTools.write%s(output, offset, %s, %s);"
                             .formatted(writeMethodName, fieldDef, getValueCode);
                 };

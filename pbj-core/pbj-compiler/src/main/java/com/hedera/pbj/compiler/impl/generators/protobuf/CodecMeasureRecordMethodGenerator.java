@@ -175,6 +175,10 @@ class CodecMeasureRecordMethodGenerator {
                                 BYTES ->
                             "size += sizeOf%s(%s, %s, %s);"
                                     .formatted(writeMethodName, fieldDef, getValueCode, skipDefault);
+                        // map entries always write their value, as protoc does
+                        case FLOAT, DOUBLE ->
+                            "size += sizeOf%s(%s, %s%s);"
+                                    .formatted(writeMethodName, fieldDef, getValueCode, skipDefault ? "" : ", false");
                         default -> "size += sizeOf%s(%s, %s);".formatted(writeMethodName, fieldDef, getValueCode);
                     };
         }

@@ -205,6 +205,9 @@ final class CodecWriteMethodGenerator {
                             .formatted(fieldDef, getValueCode, skipDefault);
                     case INT32, UINT32, SINT32, FIXED32, SFIXED32, INT64, SINT64, UINT64, FIXED64, SFIXED64, BYTES ->
                             "write%s(out, %s, %s, %s);".formatted(writeMethodName, fieldDef, getValueCode, skipDefault);
+                    // map entries always write their value, as protoc does
+                    case FLOAT, DOUBLE -> "write%s(out, %s, %s%s);"
+                            .formatted(writeMethodName, fieldDef, getValueCode, skipDefault ? "" : ", false");
                     default -> "write%s(out, %s, %s);"
                             .formatted(writeMethodName, fieldDef, getValueCode);
                 };

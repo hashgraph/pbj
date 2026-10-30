@@ -215,10 +215,23 @@ public final class ProtoWriterTools {
      * @param value the float value to write
      */
     public static void writeFloat(WritableSequentialData out, FieldDefinition field, float value) {
+        writeFloat(out, field, value, true);
+    }
+
+    /**
+     * Write a float to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the float value to write
+     * @param skipDefault skip writing the field if it has the default value 0 (for non-oneOf only); map entries
+     *     write it, as protoc does
+     */
+    public static void writeFloat(WritableSequentialData out, FieldDefinition field, float value, boolean skipDefault) {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
         assert !field.repeated() : "Use writeFloatList with repeated types";
         // When not a oneOf don't write default value
-        if (!field.oneOf() && value == 0) {
+        if (skipDefault && !field.oneOf() && value == 0) {
             return;
         }
         writeTag(out, field, WIRE_TYPE_FIXED_32_BIT);
@@ -233,10 +246,24 @@ public final class ProtoWriterTools {
      * @param value the double value to write
      */
     public static void writeDouble(WritableSequentialData out, FieldDefinition field, double value) {
+        writeDouble(out, field, value, true);
+    }
+
+    /**
+     * Write a double to data output
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing
+     * @param value the double value to write
+     * @param skipDefault skip writing the field if it has the default value 0 (for non-oneOf only); map entries
+     *     write it, as protoc does
+     */
+    public static void writeDouble(
+            WritableSequentialData out, FieldDefinition field, double value, boolean skipDefault) {
         assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
         assert !field.repeated() : "Use writeDoubleList with repeated types";
         // When not a oneOf don't write default value
-        if (!field.oneOf() && value == 0) {
+        if (skipDefault && !field.oneOf() && value == 0) {
             return;
         }
         writeTag(out, field, WIRE_TYPE_FIXED_64_BIT);
@@ -1294,7 +1321,20 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfFloat(FieldDefinition field, float value) {
-        if (!field.oneOf() && value == 0) return 0;
+        return sizeOfFloat(field, value, true);
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a float field
+     *
+     * @param field descriptor of field
+     * @param value float value to get encoded size for
+     * @param skipDefault true if the default value 0 should result in size zero (for non-oneOf only); map entries
+     *     write it, as protoc does
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfFloat(FieldDefinition field, float value, boolean skipDefault) {
+        if (skipDefault && !field.oneOf() && value == 0) return 0;
         return sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED32_SIZE;
     }
 
@@ -1306,7 +1346,20 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfDouble(FieldDefinition field, double value) {
-        if (!field.oneOf() && value == 0) return 0;
+        return sizeOfDouble(field, value, true);
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode a double field
+     *
+     * @param field descriptor of field
+     * @param value double value to get encoded size for
+     * @param skipDefault true if the default value 0 should result in size zero (for non-oneOf only); map entries
+     *     write it, as protoc does
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfDouble(FieldDefinition field, double value, boolean skipDefault) {
+        if (skipDefault && !field.oneOf() && value == 0) return 0;
         return sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG) + FIXED64_SIZE;
     }
 

@@ -532,10 +532,30 @@ public final class ProtoArrayWriterTools {
      * @return the number of bytes written
      */
     public static int writeFloat(@NonNull final byte[] output, final int offset, FieldDefinition field, float value) {
+        return writeFloat(output, offset, field, value, true);
+    }
+
+    /**
+     * Write a float to data output
+     *
+     * @param output the byte array to write to
+     * @param offset the offset to start writing at
+     * @param field the descriptor for the field we are writing
+     * @param value the float value to write
+     * @param skipDefault skip writing the field if it has the default value 0 (for non-oneOf only); map entries
+     *     write it, as protoc does
+     * @return the number of bytes written
+     */
+    public static int writeFloat(
+            @NonNull final byte[] output,
+            final int offset,
+            FieldDefinition field,
+            float value,
+            final boolean skipDefault) {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
         assert !field.repeated() : "Use writeFloatList with repeated types";
         // When not a oneOf don't write default value
-        if (!field.oneOf() && value == 0) {
+        if (skipDefault && !field.oneOf() && value == 0) {
             return 0;
         }
         int bytesWritten = 0;
@@ -555,10 +575,30 @@ public final class ProtoArrayWriterTools {
      * @return the number of bytes written
      */
     public static int writeDouble(@NonNull final byte[] output, final int offset, FieldDefinition field, double value) {
+        return writeDouble(output, offset, field, value, true);
+    }
+
+    /**
+     * Write a double to data output
+     *
+     * @param output the byte array to write to
+     * @param offset the offset to start writing at
+     * @param field the descriptor for the field we are writing
+     * @param value the double value to write
+     * @param skipDefault skip writing the field if it has the default value 0 (for non-oneOf only); map entries
+     *     write it, as protoc does
+     * @return the number of bytes written
+     */
+    public static int writeDouble(
+            @NonNull final byte[] output,
+            final int offset,
+            FieldDefinition field,
+            double value,
+            final boolean skipDefault) {
         assert field.type() == DOUBLE : "Not a double type " + field;
         assert !field.repeated() : "Use writeDoubleList with repeated types";
         // When not a oneOf don't write default value
-        if (!field.oneOf() && value == 0) {
+        if (skipDefault && !field.oneOf() && value == 0) {
             return 0;
         }
         int bytesWritten = 0;

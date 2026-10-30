@@ -44,3 +44,13 @@ message MessageWithEnumMaps {
   /** A map from string to an enum. */
   map<string, MapColor> mapStringToColor = 2;
 }
+
+/**
+ * Sample protobuf containing maps with floating point values.
+ */
+message MessageWithFloatingPointMaps {
+  /** A map from int32 to a float. */
+  map<int32, float> mapInt32ToFloat = 1;
+  /** A map from string to a double. */
+  map<string, double> mapStringToDouble = 2;
+}
