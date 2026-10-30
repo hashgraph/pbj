@@ -197,8 +197,8 @@ final class CodecParseArrayMethodGenerator {
     }
 
     /**
-     * Fast path code testing for a field's tag, {@code if} or {@code while} it is next. Empty for tags longer than
-     * two bytes, which only the general loop handles.
+     * Fast path code testing for a field's tag, {@code if} or {@code while} it is next. Empty for tags of three or more
+     * bytes (field numbers above 2047). That is safe: the general loop that follows reads any field, in any order.
      */
     private static String fastPathCode(final Field field, final int wireType, final String keyword, final String body) {
         final int[] tagBytes = InlineFieldCodeGenerator.tagBytes(field.fieldNumber(), wireType);
