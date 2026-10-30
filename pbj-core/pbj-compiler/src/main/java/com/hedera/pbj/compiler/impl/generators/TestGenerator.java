@@ -259,7 +259,26 @@ public final class TestGenerator implements Generator {
                         default -> "assertEquals(modelObj.%s(), view.%s());%n".formatted(name, name);
                     });
         }
+        // each string field holding the single byte 0xFF, which is not UTF-8
+        final String malformedStrings = fields.stream()
+                .filter(field -> field.type() == Field.FieldType.STRING)
+                .map(field -> java.util.Arrays.stream(
+                                Common.tagBytes(field.fieldNumber(), Common.TYPE_LENGTH_DELIMITED))
+                        .mapToObj(b -> "(byte) 0x%02X, ".formatted(b))
+                        .collect(Collectors.joining("", "{", "1, (byte) 0xFF}")))
+                .collect(Collectors.joining(", "));
         // spotless:off
+        final String malformedTest = malformedStrings.isEmpty() ? "" : """
+
+                @Test
+                public void test$simpleModelClassNameViewRejectsMalformedUtf8() {
+                    for (final byte[] malformed : new byte[][] {$malformedStrings}) {
+                        final Bytes bytes = Bytes.wrap(malformed);
+                        assertThrows(com.hedera.pbj.runtime.ParseException.class, () -> $modelClassName.PROTOBUF.parse(bytes));
+                        assertThrows(com.hedera.pbj.runtime.ParseException.class, () -> new $modelClassName.View().wrap(bytes));
+                    }
+                }
+                """.replace("$malformedStrings", malformedStrings);
         return """
                 @ParameterizedTest
                 @MethodSource("createModelTestArguments")
@@ -273,7 +292,8 @@ public final class TestGenerator implements Generator {
                     view.wrap(appendVarIntField(reverseTopLevelFieldOrder(bytes), $unknownField));
                 $checks
                 }
-                """
+                $malformedTest"""
+                .replace("$malformedTest", malformedTest)
                 .replace("$checks", checks.toString().indent(DEFAULT_INDENT))
                 .replace("$simpleModelClassName", testName.replace(".", ""))
                 .replace("$modelClassName", modelClassName)
