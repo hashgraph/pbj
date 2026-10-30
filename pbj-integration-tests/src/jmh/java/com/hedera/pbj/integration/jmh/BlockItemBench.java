@@ -48,7 +48,9 @@ import org.openjdk.jmh.infra.Blackhole;
 public class BlockItemBench {
     /**
      * The sample block files in {@code src/jmh/resources} that parse with the current HAPI schema. Block 497558 was
-     * written with an older {@code BlockHeader} layout and no longer parses.
+     * written with an older {@code BlockHeader} layout, whose field now has a different wire type, and no longer parses
+     * with PBJ (it fails with "Wire type 'Group Start' is unsupported"), so only block 030221 is used. It alone has
+     * 67,869 items, every kind the newer block has, and 21,981 signed transactions.
      */
     private static final String[] BLOCK_FILES = {"/000000000000000000000000000000030221.blk.gz"};
 
@@ -64,6 +66,11 @@ public class BlockItemBench {
     private static final List<Bytes> ITEM_BYTES = new ArrayList<>();
 
     private static final List<Bytes> TRANSACTION_BYTES = new ArrayList<>();
+
+    /** The same items and transactions as byte arrays, for protoc. */
+    private static final List<byte[]> ITEM_ARRAYS = new ArrayList<>();
+
+    private static final List<byte[]> TRANSACTION_ARRAYS = new ArrayList<>();
 
     /** Items and transactions in the benchmarks below; kept in sync with the lists above. */
     static final int ITEM_COUNT;
@@ -87,6 +94,8 @@ public class BlockItemBench {
                 throw new IllegalStateException(e);
             }
         }
+        ITEM_BYTES.forEach(b -> ITEM_ARRAYS.add(b.toByteArray()));
+        TRANSACTION_BYTES.forEach(b -> TRANSACTION_ARRAYS.add(b.toByteArray()));
         ITEM_COUNT = ITEM_BYTES.size();
         TRANSACTION_COUNT = TRANSACTION_BYTES.size();
         if (ITEM_COUNT != ITEMS || TRANSACTION_COUNT != TRANSACTIONS) {
@@ -147,6 +156,34 @@ public class BlockItemBench {
         }
     }
 
+    /** Protoc block items parsed again before every invocation, so protoc's memoized sizes are not cached yet. */
+    @State(Scope.Thread)
+    public static class FreshProtoCItems {
+        List<com.hedera.hapi.block.stream.protoc.BlockItem> items;
+
+        @Setup(Level.Invocation)
+        public void rebuild() throws IOException {
+            items = new ArrayList<>(ITEM_ARRAYS.size());
+            for (final byte[] bytes : ITEM_ARRAYS) {
+                items.add(com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(bytes));
+            }
+        }
+    }
+
+    /** Protoc signed transactions parsed again before every invocation. */
+    @State(Scope.Thread)
+    public static class FreshProtoCTransactions {
+        List<com.hederahashgraph.api.proto.java.SignedTransaction> transactions;
+
+        @Setup(Level.Invocation)
+        public void rebuild() throws IOException {
+            transactions = new ArrayList<>(TRANSACTION_ARRAYS.size());
+            for (final byte[] bytes : TRANSACTION_ARRAYS) {
+                transactions.add(com.hederahashgraph.api.proto.java.SignedTransaction.parseFrom(bytes));
+            }
+        }
+    }
+
     private static int maxLength(final List<Bytes> all) {
         long max = 0;
         for (final Bytes bytes : all) {
@@ -197,6 +234,34 @@ public class BlockItemBench {
         }
     }
 
+    /**
+     * Measuring freshly built items: {@code protobufSize()} on objects whose sizes are not cached yet. A fresh write
+     * should cost about a cached write plus this.
+     */
+    @Benchmark
+    @OperationsPerInvocation(ITEMS)
+    public void itemSizeFresh(final FreshItems state, final Blackhole bh) {
+        for (final BlockItem item : state.items) {
+            bh.consume(item.protobufSize());
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(ITEMS)
+    public void itemToBytesProtoCFresh(final FreshProtoCItems state, final Blackhole bh) {
+        for (final var item : state.items) {
+            bh.consume(item.toByteArray());
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(ITEMS)
+    public void itemParseProtoC(final Blackhole bh) throws IOException {
+        for (final byte[] bytes : ITEM_ARRAYS) {
+            bh.consume(com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(bytes));
+        }
+    }
+
     @Benchmark
     @OperationsPerInvocation(ITEMS)
     public void itemParseBytes(final Blackhole bh) throws ParseException {
@@ -228,6 +293,22 @@ public class BlockItemBench {
     public void transactionToBytesFresh(final FreshTransactions state, final Blackhole bh) {
         for (final SignedTransaction transaction : state.transactions) {
             bh.consume(SignedTransaction.PROTOBUF.toBytes(transaction));
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(TRANSACTIONS)
+    public void transactionToBytesProtoCFresh(final FreshProtoCTransactions state, final Blackhole bh) {
+        for (final var transaction : state.transactions) {
+            bh.consume(transaction.toByteArray());
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(TRANSACTIONS)
+    public void transactionParseProtoC(final Blackhole bh) throws IOException {
+        for (final byte[] bytes : TRANSACTION_ARRAYS) {
+            bh.consume(com.hederahashgraph.api.proto.java.SignedTransaction.parseFrom(bytes));
         }
     }
 
