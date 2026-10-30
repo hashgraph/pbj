@@ -12,6 +12,7 @@ import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
+import com.hedera.pbj.runtime.io.DataEncodingException;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
@@ -69,6 +70,23 @@ final class ArrayCursorTest {
         // reads stop at the limit, not the end of the array
         final ArrayCursor limited = new ArrayCursor(bytes(0x96, 0x01), 0, 1);
         assertThrows(BufferUnderflowException.class, limited::varint);
+    }
+
+    @Test
+    void overLongVarintsThrow() {
+        // ten bytes, all with the continuation bit: no varint is that long
+        final byte[] tenContinuations = bytes(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
+        assertThrows(DataEncodingException.class, () -> BufferedData.wrap(tenContinuations)
+                .readVarLong(false));
+        // exactly ten bytes left, and more after them: both take the fast path
+        for (final int padding : new int[] {0, 5}) {
+            final byte[] padded = new byte[tenContinuations.length + padding];
+            System.arraycopy(tenContinuations, 0, padded, 0, tenContinuations.length);
+            assertThrows(DataEncodingException.class, () -> cursor(padded).varint());
+            assertThrows(DataEncodingException.class, () -> cursor(padded).tag());
+        }
+        // fewer than ten bytes left, all with the continuation bit: the input ends inside the varint
+        assertThrows(BufferUnderflowException.class, () -> new ArrayCursor(tenContinuations, 0, 9).varint());
     }
 
     @Test
@@ -153,6 +171,11 @@ final class ArrayCursorTest {
         assertThrows(IOException.class, () -> cursor(input).unknownField(9 << 3, true, false, false, null, 1));
         assertThrows(IOException.class, () -> cursor(input).unknownField(0, false, false, false, null, 1));
         assertThrows(IOException.class, () -> cursor(input).unknownField(9 << 3 | 6, false, false, false, null, 1));
+        // wire types above 5 are errors in strict mode too
+        for (final int wireType : new int[] {6, 7}) {
+            assertThrows(IOException.class, () -> cursor(input)
+                    .unknownField(9 << 3 | wireType, false, true, false, null, 1));
+        }
         assertThrows(ParseException.class, () -> cursor(bytes(5, 1, 2, 3, 4, 5))
                 .unknownField(1 << 3 | 2, false, false, false, null, 4));
     }

@@ -57,6 +57,8 @@ final class CodecParseArrayMethodGenerator {
             final int tag = Common.getTag(wireType, field.fieldNumber());
             final String read = readCode(field, lookupHelper);
             final int[] tagBytes = InlineFieldCodeGenerator.tagBytes(field.fieldNumber(), wireType);
+            // Tags of three or more bytes (field numbers above 2047) are left out of the fast path. That is safe: the
+            // general loop that follows reads any field, in any order.
             if (tagBytes.length <= 2) {
                 fastPath.append("if (input.at(%s)) {%n%s}%n"
                         .formatted(
