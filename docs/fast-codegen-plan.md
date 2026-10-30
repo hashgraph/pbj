@@ -403,7 +403,9 @@ The reverse writer visits each object graph last field first, the opposite of th
 in. Out of cache that costs 2-4× on EPYC (JFR shows trivial getters such as `OneOf.kind()` at the top of the profile);
 on Apple Silicon the same jar shows reverse about equal to forward. In cache it saves the measuring pass, so it is
 9-20% faster than step 1 on freshly built objects and 24-29% slower when sizes are already cached. It meets the 10%
-bar only for objects encoded right after they are built, so #1003 is parked.
+bar only for objects encoded right after they are built, so #1003 stays a tier B option, off by default: it is not
+used by `toBytes` or the other `write` methods, and its documentation tells users to measure on their own data.
+Finding out why HAPI is slow out of cache is follow-up work and does not block merging.
 
 ### 6.5 Step 4: zero-copy views (tier C, `pbj.views`)
 
