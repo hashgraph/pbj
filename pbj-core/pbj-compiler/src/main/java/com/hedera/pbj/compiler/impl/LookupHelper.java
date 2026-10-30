@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -326,8 +327,15 @@ public final class LookupHelper {
         return message != null && hasReverseWriter(messageDefinitions.get(message));
     }
 
-    /** Whether each message gets a view, by fully qualified proto name, computed on demand. */
-    private final Map<String, Boolean> views = new HashMap<>();
+    /** The messages that get a view, by fully qualified proto name, computed on first use. */
+    private Set<String> views;
+
+    /**
+     * Why each message that asks for a view in its own or its file's comments gets none, by fully qualified proto name.
+     * Messages that have {@code pbj.views} only from the project are left out, so turning everything on doesn't report
+     * every message with a map.
+     */
+    private final Map<String, String> viewDenials = new HashMap<>();
 
     /**
      * Whether a message gets a zero-copy view class: it has {@code pbj.views} (from its comments, its file's, or the
@@ -338,16 +346,125 @@ public final class LookupHelper {
      * @return true if a view is generated for it
      */
     public boolean hasView(MessageDefContext message) {
-        final String name = getFullyQualifiedProtoNameForContext(message);
-        final Boolean known = views.get(name);
-        if (known != null) {
-            return known;
+        return views().contains(getFullyQualifiedProtoNameForContext(message));
+    }
+
+    /**
+     * Why a message that has {@code pbj.views} gets no view.
+     *
+     * @param message the message
+     * @return the reason, or null if the message gets a view or does not ask for one
+     */
+    public String viewDenial(MessageDefContext message) {
+        views();
+        return viewDenials.get(getFullyQualifiedProtoNameForContext(message));
+    }
+
+    /**
+     * Compute which messages get views, as a greatest fixed point: start with every message that asks for a view and
+     * supports one on its own, then drop those with a message-typed field whose type was dropped, until nothing
+     * changes. Messages that contain each other, directly or through others, keep their views only if all of them can.
+     */
+    private Set<String> views() {
+        if (views != null) {
+            return views;
         }
-        // provisionally true, so messages that contain each other don't recurse forever
-        views.put(name, Boolean.TRUE);
-        final boolean result = option(name, message, PerformanceOptions::views) && viewSupports(name, message);
-        views.put(name, result);
-        return result;
+        final Set<String> generated = new HashSet<>(messagesByModelClass.values());
+        // each candidate's message-typed fields: field name and type, which must get views too
+        final Map<String, Map<String, String>> candidates = new HashMap<>();
+        for (Map.Entry<String, MessageDefContext> entry : messageDefinitions.entrySet()) {
+            final String name = entry.getKey();
+            if (generated.contains(name) && option(name, entry.getValue(), PerformanceOptions::views)) {
+                final Map<String, String> nested = viewNestedTypes(name, entry.getValue(), generated);
+                if (nested != null) {
+                    candidates.put(name, nested);
+                }
+            }
+        }
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (var it = candidates.entrySet().iterator(); it.hasNext(); ) {
+                final var candidate = it.next();
+                for (Map.Entry<String, String> field : candidate.getValue().entrySet()) {
+                    if (!candidates.containsKey(field.getValue())) {
+                        viewDenials.put(
+                                candidate.getKey(),
+                                "field '%s' has type %s, which gets no view"
+                                        .formatted(field.getKey(), field.getValue()));
+                        it.remove();
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+        }
+        viewDenials
+                .keySet()
+                .removeIf(denied -> !PerformanceOptions.resolve(
+                        levels(denied, messageDefinitions.get(denied)).subList(0, 2),
+                        PerformanceOptions::views,
+                        true,
+                        false));
+        views = candidates.keySet();
+        return views;
+    }
+
+    /**
+     * The message-typed fields of a message that asks for a view, by field name, with their types' proto names; or
+     * null, with the reason recorded, if the message can't have a view whatever its nested types get.
+     */
+    private Map<String, String> viewNestedTypes(String name, MessageDefContext message, Set<String> generated) {
+        final Map<String, String> nested = new HashMap<>();
+        for (MessageElementContext element : message.messageBody().messageElement()) {
+            if (element.mapField() != null) {
+                viewDenials.put(
+                        name,
+                        "map field '%s' (maps are not supported by views)"
+                                .formatted(element.mapField().mapName().getText()));
+                return null;
+            }
+            final List<Map.Entry<String, Protobuf3Parser.Type_Context>> fields = new ArrayList<>();
+            if (element.oneof() != null) {
+                for (var alternative : element.oneof().oneofField()) {
+                    fields.add(Map.entry(alternative.fieldName().getText(), alternative.type_()));
+                }
+            }
+            final var field = element.field();
+            if (field != null && field.fieldName() != null) {
+                // repeated wrapper types are not supported
+                final var type = field.type_().messageType();
+                if (field.REPEATED() != null
+                        && type != null
+                        && WRAPPER_TYPES.contains(type.messageName().getText())) {
+                    viewDenials.put(
+                            name,
+                            "repeated wrapper type field '%s' (not supported by views)"
+                                    .formatted(field.fieldName().getText()));
+                    return null;
+                }
+                fields.add(Map.entry(field.fieldName().getText(), field.type_()));
+            }
+            for (Map.Entry<String, Protobuf3Parser.Type_Context> f : fields) {
+                final var type = f.getValue().messageType();
+                if (type == null || WRAPPER_TYPES.contains(type.messageName().getText())) {
+                    continue;
+                }
+                final String nestedName = getFullyQualifiedProtoName(messageFiles.get(name), type);
+                if (enumNames.contains(nestedName)) {
+                    continue;
+                }
+                if (!generated.contains(nestedName)) {
+                    viewDenials.put(
+                            name,
+                            "field '%s' has type %s, which is not generated in this build"
+                                    .formatted(f.getKey(), nestedName));
+                    return null;
+                }
+                nested.put(f.getKey(), nestedName);
+            }
+        }
+        return nested;
     }
 
     /**
@@ -374,52 +491,6 @@ public final class LookupHelper {
             "DoubleValue",
             "BytesValue");
 
-    private boolean viewSupports(String name, MessageDefContext message) {
-        for (MessageElementContext element : message.messageBody().messageElement()) {
-            if (element.mapField() != null) {
-                return false;
-            }
-            if (element.oneof() != null) {
-                for (var alternative : element.oneof().oneofField()) {
-                    if (!viewSupportsType(name, alternative.type_())) {
-                        return false;
-                    }
-                }
-            }
-            final var field = element.field();
-            if (field != null && field.fieldName() != null) {
-                if (!viewSupportsType(name, field.type_())) {
-                    return false;
-                }
-                // repeated wrapper types are not supported
-                final var type = field.type_().messageType();
-                if (field.REPEATED() != null
-                        && type != null
-                        && WRAPPER_TYPES.contains(type.messageName().getText())) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    /** Whether a field type is supported by views: anything but messages without views. */
-    private boolean viewSupportsType(String name, Protobuf3Parser.Type_Context typeContext) {
-        final var type = typeContext.messageType();
-        if (type == null) {
-            return true;
-        }
-        if (WRAPPER_TYPES.contains(type.messageName().getText())) {
-            return true;
-        }
-        final String nestedName = getFullyQualifiedProtoName(messageFiles.get(name), type);
-        if (enumNames.contains(nestedName)) {
-            return true;
-        }
-        final MessageDefContext nested = messageDefinitions.get(nestedName);
-        return nested != null && messagesByModelClass.containsValue(nestedName) && hasView(nested);
-    }
-
     /** Whether a message has {@code pbj.fast_parse}, from its comments, its file's, or the project. */
     private boolean fastParse(String name, MessageDefContext message) {
         return option(name, message, PerformanceOptions::fastParse);
@@ -427,14 +498,18 @@ public final class LookupHelper {
 
     /** Resolve a boolean fast code generation option for a message, from its comments, its file's, or the project. */
     private boolean option(String name, MessageDefContext message, Function<PerformanceOptions, Boolean> option) {
+        return PerformanceOptions.resolve(levels(name, message), option, true, false);
+    }
+
+    /** The options that apply to a message, in order of precedence: its comments, its file's, and the project's. */
+    private List<PerformanceOptions> levels(String name, MessageDefContext message) {
         final File file = messageFiles.get(name);
-        final List<PerformanceOptions> levels = List.of(
+        return List.of(
                 PerformanceOptions.fromComments(message.optionComment(), "message " + name),
                 file == null
                         ? PerformanceOptions.NONE
                         : fileOptions.getOrDefault(file.getAbsolutePath(), PerformanceOptions.NONE),
                 projectOptions);
-        return PerformanceOptions.resolve(levels, option, true, false);
     }
 
     /** Read a boolean PBJ message option from its special comments, defaulting to false. */

@@ -7,8 +7,10 @@ import com.hedera.pbj.compiler.impl.Common;
 import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.OneOfField;
+import com.hedera.pbj.compiler.impl.PbjCompilerException;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageElementContext;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -51,7 +53,22 @@ final class ViewGenerator {
             final String schemaClass,
             final ContextualLookupHelper lookupHelper) {
         if (!lookupHelper.getLookupHelper().hasView(msgDef)) {
+            final String denial = lookupHelper.getLookupHelper().viewDenial(msgDef);
+            if (denial != null) {
+                System.err.printf("PBJ: no view for message %s: %s%n", modelClass, denial);
+            }
             return "";
+        }
+        for (final MessageElementContext element : msgDef.messageBody().messageElement()) {
+            final String nested = element.messageDef() != null
+                    ? element.messageDef().messageName().getText()
+                    : element.enumDef() != null ? element.enumDef().enumName().getText() : null;
+            if ("View".equals(nested)) {
+                throw new PbjCompilerException(("Message %s has pbj.views but declares its own nested type named View, "
+                                + "which would clash with the generated view class: rename it, or turn pbj.views off "
+                                + "for this message with a <<<pbj.views = false>>> comment")
+                        .formatted(modelClass));
+            }
         }
         final Parts parts = new Parts(
                 new StringBuilder(),
@@ -72,34 +89,61 @@ final class ViewGenerator {
         return """
                 /**
                  * A reusable, zero-copy view of an encoded {@link $model}: reads its fields in place, without parsing it into
-                 * a model object. {@link #wrap} indexes the encoded message, validating it as parsing does; accessors return
-                 * fields' defaults when they are absent. Nested messages are returned as child views, created once and
-                 * re-wrapped, and repeated fields are read with reusable cursors, so after the first use wrapping and
-                 * reading numbers, enums, nested views and the offsets and lengths of strings and bytes allocate nothing.
-                 * A view is valid until it is wrapped again, and reads the wrapped bytes directly, so they must not change.
-                 * Not thread safe.
+                 * a model object. Accessors return fields' defaults when they are absent. Nested messages are returned as
+                 * child views, created once and re-wrapped, and repeated fields are read with reusable cursors, so after the
+                 * first use wrapping and reading numbers, enums, nested views and the offsets and lengths of strings and
+                 * bytes allocate nothing.
+                 *
+                 * <p>{@link #wrap} indexes this message and validates it as parsing does, with the same limits and strict
+                 * mode: tags, wire types, lengths, bools, UTF-8 strings, unknown fields and, in strict mode, repeated
+                 * singular messages. Nested messages, repeated message elements and wrapper type values are validated
+                 * when they are read, so a malformed one throws from its accessor or cursor rather than from {@code wrap}.
+                 *
+                 * <p>A view is valid until it is wrapped again, and reads the wrapped bytes directly, so they must not
+                 * change. Child views and cursors are reused: the view a nested accessor or a cursor's {@code value()}
+                 * returns changes on the next call, so copy what you need, or call {@code toModel()}, before reading
+                 * further. Not thread safe.
                  */
                 public static final class View {
                     private final ArrayCursor cursor = new ArrayCursor(new byte[0], 0, 0);
                     private byte[] in;
                     private int start;
                     private int end;
-                    private int depth;
+                    private boolean strictMode;
+                    private int maxDepth;
+                    private int maxSize;
                 $state
                     /**
-                     * Wrap an encoded $model.
+                     * Wrap an encoded $model, with the defaults of {@link Codec#parse(Bytes)}.
                      *
                      * @param bytes the encoded message
                      * @return this view
                      * @throws ParseException if the message is malformed
                      */
                     public View wrap(@NonNull final Bytes bytes) throws ParseException {
-                        cursor.reset(bytes);
-                        return index(0);
+                        return wrap(bytes, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE);
                     }
 
                     /**
-                     * Wrap an encoded $model in {@code in[offset, offset + length)}.
+                     * Wrap an encoded $model, validating it as {@link Codec#parse} does with the same arguments.
+                     *
+                     * @param bytes the encoded message
+                     * @param strictMode when {@code true}, unknown fields and repeated singular messages are errors
+                     * @param maxDepth the maximum depth of nested messages
+                     * @param maxSize the maximum length of a field, nested message or unknown field
+                     * @return this view
+                     * @throws ParseException if the message is malformed
+                     */
+                    public View wrap(
+                            @NonNull final Bytes bytes, final boolean strictMode, final int maxDepth, final int maxSize)
+                            throws ParseException {
+                        cursor.reset(bytes);
+                        return index(strictMode, maxDepth, maxSize);
+                    }
+
+                    /**
+                     * Wrap an encoded $model in {@code in[offset, offset + length)}, with the defaults of
+                     * {@link Codec#parse(Bytes)}.
                      *
                      * @param in the bytes
                      * @param offset where the message starts
@@ -108,33 +152,58 @@ final class ViewGenerator {
                      * @throws ParseException if the message is malformed
                      */
                     public View wrap(@NonNull final byte[] in, final int offset, final int length) throws ParseException {
-                        return wrap(in, offset, length, 0);
+                        return wrap(in, offset, length, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE);
                     }
 
                     /**
-                     * Wrap an encoded $model nested {@code depth} messages deep, for the views that contain it.
+                     * Wrap an encoded $model in {@code in[offset, offset + length)}, validating it as {@link Codec#parse}
+                     * does with the same arguments. Views also use it for the messages they contain.
                      *
                      * @param in the bytes
                      * @param offset where the message starts
                      * @param length the message's length
-                     * @param depth how deep the message is nested
+                     * @param strictMode when {@code true}, unknown fields and repeated singular messages are errors
+                     * @param maxDepth the maximum depth of nested messages below this one
+                     * @param maxSize the maximum length of a field, nested message or unknown field
                      * @return this view
                      * @throws ParseException if the message is malformed or nested too deep
                      */
-                    public View wrap(@NonNull final byte[] in, final int offset, final int length, final int depth)
+                    public View wrap(
+                            @NonNull final byte[] in,
+                            final int offset,
+                            final int length,
+                            final boolean strictMode,
+                            final int maxDepth,
+                            final int maxSize)
                             throws ParseException {
                         cursor.reset(in, offset, offset + length);
-                        return index(depth);
+                        return index(strictMode, maxDepth, maxSize);
                     }
 
-                    private View index(final int depth) throws ParseException {
-                        if (depth > Codec.DEFAULT_MAX_DEPTH) {
+                    /**
+                     * Whether this view wraps exactly {@code in[offset, offset + length)}, so a containing view can return
+                     * it again without indexing it again.
+                     *
+                     * @param in the bytes
+                     * @param offset where the message starts
+                     * @param length the message's length
+                     * @return true if this view is valid and wraps those bytes
+                     */
+                    public boolean wraps(@NonNull final byte[] in, final int offset, final int length) {
+                        return this.in == in && start == offset && end == offset + length;
+                    }
+
+                    private View index(final boolean strictMode, final int maxDepth, final int maxSize)
+                            throws ParseException {
+                        if (maxDepth < 0) {
                             throw new ParseException("Reached maximum allowed depth of nested messages");
                         }
-                        this.depth = depth;
-                        in = cursor.array();
-                        start = cursor.position();
-                        end = cursor.limit();
+                        // invalid until indexing succeeds
+                        in = null;
+                        this.strictMode = strictMode;
+                        this.maxDepth = maxDepth;
+                        this.maxSize = maxSize;
+                        final int start = cursor.position();
                 $resets
                         try {
                             // in-order fast path, then anything else in any order, as parsing does
@@ -146,7 +215,7 @@ final class ViewGenerator {
                 $cases
                                     default -> cursor.unknownField(
                                             tag, $schema.getField(tag >>> 3) != null,
-                                            false, false, null, Codec.DEFAULT_MAX_SIZE);
+                                            strictMode, false, null, maxSize);
                                 }
                             }
                         } catch (final ParseException e) {
@@ -154,6 +223,9 @@ final class ViewGenerator {
                         } catch (final Exception e) {
                             throw new ParseException(e);
                         }
+                        this.start = start;
+                        end = cursor.limit();
+                        in = cursor.array();
                         return this;
                     }
 
@@ -231,19 +303,30 @@ final class ViewGenerator {
             parts.state().append("private int %sOffset = -1;%nprivate int %sLength;%n".formatted(name, name));
             parts.resets().append("%sOffset = -1;%n".formatted(name));
             // strings are checked to be valid UTF-8 while wrapping, as parsing does
-            record =
-                    "%sLength = cursor.%s(Codec.DEFAULT_MAX_SIZE, \"%s\");%n%sOffset = cursor.position();%ncursor.skip(%sLength);%n"
-                            .formatted(
-                                    name,
-                                    field.type() == Field.FieldType.STRING ? "stringLength" : "length",
-                                    field.name(),
-                                    name,
-                                    name);
+            record = "%sLength = cursor.%s(maxSize, \"%s\");%n%sOffset = cursor.position();%ncursor.skip(%sLength);%n"
+                    .formatted(
+                            name,
+                            field.type() == Field.FieldType.STRING ? "stringLength" : "length",
+                            field.name(),
+                            name,
+                            name);
         } else {
             // numbers are decoded once, while wrapping; absent fields keep their default, 0
             parts.state().append("private long %sValue;%n".formatted(name));
             parts.resets().append("%sValue = 0;%n".formatted(name));
             record = "%sValue = %s;%n".formatted(name, decode(field.type(), "cursor"));
+        }
+        if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType()) {
+            // as in parsing, strict mode rejects a singular message, or a oneof with a message alternative, seen twice
+            record = """
+                    if (strictMode && %s) {
+                        throw new ParseException("A non-repeated %s encountered more than once");
+                    }
+                    """.formatted(
+                            oneOfKind == null ? name + "Offset >= 0" : oneOfKind + " != 0",
+                            oneOfKind == null ? field.name() : field.parent().name())
+                    + record;
+            parts.resets().append("%sViewCurrent = false;%n".formatted(name));
         }
         if (oneOfKind != null) {
             record += "%s = %d;%n".formatted(oneOfKind, field.fieldNumber());
@@ -299,7 +382,8 @@ final class ViewGenerator {
                         .formatted(name, name, field.nameCamelFirstUpper(), name));
         parts.resets().append("%sFirst = -1;%n%sCount = 0;%n".formatted(name, name));
         final String element = delimited
-                ? "cursor.skip(cursor.length(Codec.DEFAULT_MAX_SIZE, \"%s\"));%n".formatted(field.name())
+                ? "cursor.skip(cursor.%s(maxSize, \"%s\"));%n"
+                        .formatted(field.type() == Field.FieldType.STRING ? "stringLength" : "length", field.name())
                 : "%s;%n".formatted(skipValue(field.type(), "cursor"));
         final String unpacked = """
                 if ($nameFirst < 0) {
@@ -326,7 +410,7 @@ final class ViewGenerator {
                     if ($nameFirst < 0) {
                         $nameFirst = $tagStart;
                     }
-                    final int packedLength = cursor.length(Codec.DEFAULT_MAX_SIZE, "$field");
+                    final int packedLength = cursor.length(maxSize, "$field");
                     final int packedEnd = cursor.position() + packedLength;
                     while (cursor.position() < packedEnd) {
                         $decode;
@@ -353,16 +437,16 @@ final class ViewGenerator {
         final String read =
                 switch (field.type()) {
                     case MESSAGE -> """
-                    length = c.length(Codec.DEFAULT_MAX_SIZE, "$field");
+                    length = c.length(maxSize, "$field");
                     offset = c.position();
                     c.skip(length);
                     if (child == null) {
                         child = new $elem.View();
                     }
-                    child.wrap(in, offset, length, depth + 1);
+                    child.wrap(in, offset, length, strictMode, maxDepth - 1, maxSize);
                     """.replace("$elem", field.javaFieldTypeBase());
                     case STRING, BYTES -> """
-                    length = c.length(Codec.DEFAULT_MAX_SIZE, "$field");
+                    length = c.length(maxSize, "$field");
                     offset = c.position();
                     c.skip(length);
                     """;
@@ -379,7 +463,7 @@ final class ViewGenerator {
                 """.replace("$decode", decode(field.type(), "c"));
         final String packedTagCase = delimited ? "" : """
                 if (tag == $packedTag) {
-                    final int packedLength = c.length(Codec.DEFAULT_MAX_SIZE, "$field");
+                    final int packedLength = c.length(maxSize, "$field");
                     packedEnd = c.position() + packedLength;
                     continue;
                 }
@@ -442,7 +526,7 @@ final class ViewGenerator {
                                     return true;
                                 }
                 $packedTagCase
-                                c.unknownField(tag, false, false, false, null, Codec.DEFAULT_MAX_SIZE);
+                                c.unknownField(tag, false, false, false, null, maxSize);
                             }
                         } catch (final ParseException e) {
                             throw e;
@@ -623,6 +707,7 @@ final class ViewGenerator {
                 """
 
                     private $type.View $nameView;
+                    private boolean $nameViewCurrent;
 
                     /** @return true if {@code $field} is present */
                     public boolean has$Name() {
@@ -630,7 +715,8 @@ final class ViewGenerator {
                     }
 
                     /**
-                     * @return a view of {@code $field}, or null when absent; the same child view is re-wrapped on each call
+                     * @return a view of {@code $field}, or null when absent; the same child view, wrapped again only when this
+                     *     view has been
                      * @throws ParseException if the nested message is malformed
                      */
                     public $type.View $name() throws ParseException {
@@ -639,8 +725,13 @@ final class ViewGenerator {
                         }
                         if ($nameView == null) {
                             $nameView = new $type.View();
+                        } else if ($nameViewCurrent && $nameView.wraps(in, $nameOffset, $nameLength)) {
+                            // already wrapped over this field since this view was wrapped: don't index it again
+                            return $nameView;
                         }
-                        return $nameView.wrap(in, $nameOffset, $nameLength, depth + 1);
+                        $nameView.wrap(in, $nameOffset, $nameLength, strictMode, maxDepth - 1, maxSize);
+                        $nameViewCurrent = true;
+                        return $nameView;
                     }
                     """.replace("$absent", absent(name, guard))
                         .replace("$type", field.javaFieldTypeBase())
@@ -658,8 +749,8 @@ final class ViewGenerator {
     private static String wrapperAccessor(final SingleField field, final String name, final String guard) {
         final String[] typeReadDefault =
                 switch (field.messageType()) {
-                    case "StringValue" -> new String[] {"String", "cursor.string(Codec.DEFAULT_MAX_SIZE)", "\"\""};
-                    case "BytesValue" -> new String[] {"Bytes", "cursor.bytes(Codec.DEFAULT_MAX_SIZE)", "Bytes.EMPTY"};
+                    case "StringValue" -> new String[] {"String", "cursor.string(maxSize)", "\"\""};
+                    case "BytesValue" -> new String[] {"Bytes", "cursor.bytes(maxSize)", "Bytes.EMPTY"};
                     case "Int32Value", "UInt32Value" -> new String[] {"Integer", "(int) cursor.varint()", "0"};
                     case "Int64Value", "UInt64Value" -> new String[] {"Long", "cursor.varint()", "0L"};
                     case "FloatValue" -> new String[] {"Float", "Float.intBitsToFloat(cursor.fixed32())", "0f"};

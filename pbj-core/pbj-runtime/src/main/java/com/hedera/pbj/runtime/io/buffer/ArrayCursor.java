@@ -131,46 +131,6 @@ public final class ArrayCursor {
         return in;
     }
 
-    /**
-     * Read an unsigned varint at an index already validated by a cursor, without bounds checks beyond the array's.
-     *
-     * @param in the bytes
-     * @param offset the varint's first byte
-     * @return the value
-     */
-    public static long varintAt(@NonNull final byte[] in, final int offset) {
-        long value = 0;
-        for (int shift = 0, i = offset; ; shift += 7) {
-            final byte b = in[i++];
-            value |= (long) (b & 0x7F) << shift;
-            if (b >= 0) {
-                return value;
-            }
-        }
-    }
-
-    /**
-     * Read a little-endian 32-bit value at an index.
-     *
-     * @param in the bytes
-     * @param q the value's first byte
-     * @return the value
-     */
-    public static int fixed32At(@NonNull final byte[] in, final int q) {
-        return (in[q] & 0xFF) | (in[q + 1] & 0xFF) << 8 | (in[q + 2] & 0xFF) << 16 | (in[q + 3] & 0xFF) << 24;
-    }
-
-    /**
-     * Read a little-endian 64-bit value at an index.
-     *
-     * @param in the bytes
-     * @param q the value's first byte
-     * @return the value
-     */
-    public static long fixed64At(@NonNull final byte[] in, final int q) {
-        return (fixed32At(in, q) & 0xFFFFFFFFL) | ((long) fixed32At(in, q + 4)) << 32;
-    }
-
     /** @return the number of bytes read since this cursor was created */
     public int consumed() {
         return p - start;
