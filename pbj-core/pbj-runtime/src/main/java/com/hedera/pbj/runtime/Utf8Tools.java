@@ -4,6 +4,7 @@ package com.hedera.pbj.runtime;
 import static java.lang.Character.*;
 
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 
@@ -76,8 +77,8 @@ public final class Utf8Tools {
     }
 
     /**
-     * Encodes the input character sequence to a {@link WritableSequentialData} using the same algorithm as protoc, so we are
-     * byte for byte the same.
+     * Encodes the input character sequence to a {@link WritableSequentialData} using the same
+     * algorithm as protoc, so we are byte for byte the same.
      */
     static void encodeUtf8(final CharSequence in, final WritableSequentialData out) throws IOException {
         final int inLength = in.length();
@@ -113,6 +114,45 @@ public final class Utf8Tools {
                         (byte) (0x80 | (0x3F & codePoint)));
             }
         }
+    }
+
+    /**
+     * Encodes the input character sequence to a {@link RandomAccessData} at the given offset
+     * using the same algorithm as protoc, so we are byte for byte the same.
+     */
+    static int encodeUtf8(final CharSequence in, final RandomAccessData out, final long offset) throws IOException {
+        int bytesWritten = 0;
+        final int inLength = in.length();
+        for (int inIx = 0; inIx < inLength; ++inIx) {
+            final char c = in.charAt(inIx);
+            if (c < 0x80) {
+                // One byte (0xxx xxxx)
+                bytesWritten += out.putByte(offset + bytesWritten, (byte) c);
+            } else if (c < 0x800) {
+                // Two bytes (110x xxxx 10xx xxxx)
+                bytesWritten += out.putByte(offset + bytesWritten, (byte) (0xC0 | (c >>> 6)));
+                bytesWritten += out.putByte(offset + bytesWritten, (byte) (0x80 | (0x3F & c)));
+            } else if (c < MIN_SURROGATE || MAX_SURROGATE < c) {
+                // Three bytes (1110 xxxx 10xx xxxx 10xx xxxx)
+                // Maximum single-char code point is 0xFFFF, 16 bits.
+                bytesWritten += out.putByte(offset + bytesWritten, (byte) (0xE0 | (c >>> 12)));
+                bytesWritten += out.putByte(offset + bytesWritten, (byte) (0x80 | (0x3F & (c >>> 6))));
+                bytesWritten += out.putByte(offset + bytesWritten, (byte) (0x80 | (0x3F & c)));
+            } else {
+                // Four bytes (1111 xxxx 10xx xxxx 10xx xxxx 10xx xxxx)
+                // Minimum code point represented by a surrogate pair is 0x10000, 17 bits, four UTF-8 bytes
+                final char low;
+                if (inIx + 1 == inLength || !isSurrogatePair(c, (low = in.charAt(++inIx)))) {
+                    throw new MalformedProtobufException("Unpaired surrogate at index " + inIx + " of " + inLength);
+                }
+                int codePoint = toCodePoint(c, low);
+                bytesWritten += out.putByte(offset + bytesWritten, (byte) ((0xF << 4) | (codePoint >>> 18)));
+                bytesWritten += out.putByte(offset + bytesWritten, (byte) (0x80 | (0x3F & (codePoint >>> 12))));
+                bytesWritten += out.putByte(offset + bytesWritten, (byte) (0x80 | (0x3F & (codePoint >>> 6))));
+                bytesWritten += out.putByte(offset + bytesWritten, (byte) (0x80 | (0x3F & codePoint)));
+            }
+        }
+        return bytesWritten;
     }
 
     /**

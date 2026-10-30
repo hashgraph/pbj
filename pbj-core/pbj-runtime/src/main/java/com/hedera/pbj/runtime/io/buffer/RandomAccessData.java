@@ -157,6 +157,33 @@ public interface RandomAccessData {
         return pos;
     }
 
+    ///
+    /// Writes the entire content of the given {@link RandomAccessData} to the current object
+    /// at a specified offset.
+    ///
+    /// @return The number of bytes written.
+    /// @throws BufferOverflowException if the number of available bytes in the input
+    /// is greater than the remaining bytes after the offset in this object
+    ///
+    default long putBytes(final long offset, @NonNull final RandomAccessData src) {
+        if (src instanceof Bytes bytesSrc) {
+            return bytesSrc.writeTo(this, Math.toIntExact(offset));
+        } else if (src instanceof BufferedData bufDataSrc) {
+            return bufDataSrc.writeTo(this, offset);
+        } else {
+            checkOffset(offset);
+            if (offset + length() > src.length()) {
+                throw new BufferOverflowException();
+            }
+            long bytesWritten = 0;
+            for (int i = 0; i < src.length(); i++) {
+                putByte(offset + bytesWritten, src.getByte(i));
+                bytesWritten++;
+            }
+            return bytesWritten;
+        }
+    }
+
     /**
      * Get bytes starting at the given {@code offset} into the destination {@link ByteBuffer}, up to
      * {@link ByteBuffer#remaining()} number of bytes. If {@link ByteBuffer#remaining()} is larger than the number
@@ -312,6 +339,32 @@ public interface RandomAccessData {
         }
     }
 
+    /// Puts a given int `value` as big-endian 4 bytes at a given `offset`.
+    /// @return the number of bytes written
+    default int putInt(final long offset, final int value) {
+        checkOffsetToWrite(offset, length(), Integer.BYTES);
+        putByte(offset, (byte) (value >>> 24));
+        putByte(offset + 1, (byte) (value >>> 16));
+        putByte(offset + 2, (byte) (value >>> 8));
+        putByte(offset + 3, (byte) value);
+        return Integer.BYTES;
+    }
+
+    /// Puts a given int `value` as 4 bytes at a given `offset`.
+    /// @return the number of bytes written
+    default int putInt(final long offset, final int value, final ByteOrder byteOrder) {
+        if (byteOrder == ByteOrder.BIG_ENDIAN) {
+            return putInt(offset, value);
+        } else {
+            checkOffsetToWrite(offset, length(), Integer.BYTES);
+            putByte(offset, (byte) (value));
+            putByte(offset + 1, (byte) (value >>> 8));
+            putByte(offset + 2, (byte) (value >>> 16));
+            putByte(offset + 3, (byte) (value >>> 24));
+            return Integer.BYTES;
+        }
+    }
+
     /**
      * Gets four bytes at the given {@code offset}, composing them into an unsigned int value according to the
      * Java standard big-endian byte order.
@@ -373,19 +426,38 @@ public interface RandomAccessData {
                 + (b8 & 255));
     }
 
-    /// Puts a given long `value` as a big-endian 8 bytes at a given `offset`.
+    /// Puts a given long `value` as big-endian 8 bytes at a given `offset`.
     /// @return the number of bytes written
     default int putLong(final long offset, final long value) {
         checkOffsetToWrite(offset, length(), Long.BYTES);
-        putByte(offset, (byte) ((value >>> 56) & 0xFF));
-        putByte(offset + 1, (byte) ((value >>> 48) & 0xFF));
-        putByte(offset + 2, (byte) ((value >>> 40) & 0xFF));
-        putByte(offset + 3, (byte) ((value >>> 32) & 0xFF));
-        putByte(offset + 4, (byte) ((value >>> 24) & 0xFF));
-        putByte(offset + 5, (byte) ((value >>> 16) & 0xFF));
-        putByte(offset + 6, (byte) ((value >>> 8) & 0xFF));
-        putByte(offset + 7, (byte) (value & 0xFF));
-        return 8;
+        putByte(offset, (byte) (value >>> 56));
+        putByte(offset + 1, (byte) (value >>> 48));
+        putByte(offset + 2, (byte) (value >>> 40));
+        putByte(offset + 3, (byte) (value >>> 32));
+        putByte(offset + 4, (byte) (value >>> 24));
+        putByte(offset + 5, (byte) (value >>> 16));
+        putByte(offset + 6, (byte) (value >>> 8));
+        putByte(offset + 7, (byte) value);
+        return Long.BYTES;
+    }
+
+    /// Puts a given long `value` as 8 bytes at a given `offset`.
+    /// @return the number of bytes written
+    default int putLong(final long offset, final long value, final ByteOrder byteOrder) {
+        if (byteOrder == ByteOrder.BIG_ENDIAN) {
+            return putLong(offset, value);
+        } else {
+            checkOffsetToWrite(offset, length(), Long.BYTES);
+            putByte(offset, (byte) value);
+            putByte(offset + 1, (byte) (value >>> 8));
+            putByte(offset + 2, (byte) (value >>> 16));
+            putByte(offset + 3, (byte) (value >>> 24));
+            putByte(offset + 4, (byte) (value >>> 32));
+            putByte(offset + 5, (byte) (value >>> 40));
+            putByte(offset + 6, (byte) (value >>> 48));
+            putByte(offset + 7, (byte) (value >>> 56));
+            return Long.BYTES;
+        }
     }
 
     /**
@@ -494,6 +566,10 @@ public interface RandomAccessData {
         return (int) getVarLong(Math.toIntExact(offset), zigZag);
     }
 
+    default int putVarInt(final long offset, final int value, final boolean zigZag) {
+        return putVarLong(offset, value, zigZag);
+    }
+
     /**
      * Get a 64bit protobuf varint at given {@code offset}.
      *
@@ -583,6 +659,15 @@ public interface RandomAccessData {
     /// Puts a given long `value` as a no-zigZag varint at a given `offset`.
     /// @return the number of bytes written
     default int putVarLong(final long offset, long value) {
+        return putVarLong(offset, value, false);
+    }
+
+    /// Puts a given long `value` as a varInt at a given `offset`.
+    /// @return the number of bytes written
+    default int putVarLong(final long offset, long value, final boolean zigZag) {
+        if (zigZag) {
+            value = (value << 1) ^ (value >> 63);
+        }
         long pos = offset;
         while (true) {
             if ((value & ~0x7FL) == 0) {
@@ -593,6 +678,31 @@ public interface RandomAccessData {
                 value >>>= 7;
             }
         }
+    }
+
+    default int putFloat(final long offset, final float value) {
+        return putInt(offset, Float.floatToIntBits(value));
+    }
+
+    default int putFloat(final long offset, final float value, final ByteOrder byteOrder) {
+        return putInt(offset, Float.floatToIntBits(value), byteOrder);
+    }
+
+    default int putDouble(final long offset, final double value) {
+        return putLong(offset, Double.doubleToLongBits(value));
+    }
+
+    default int putDouble(final long offset, final double value, final ByteOrder byteOrder) {
+        return putLong(offset, Double.doubleToLongBits(value), byteOrder);
+    }
+
+    /**
+     * Write a string as UTF8 bytes to this {@link RandomAccessData} at a given offset.
+     *
+     * @param value The string to write, can not be null
+     */
+    default int putUTF8(@NonNull final String value, final long offset) {
+        return putBytes(offset, value.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

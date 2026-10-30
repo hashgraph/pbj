@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -259,7 +260,7 @@ public abstract class Codec<T> {
      * CodecWriteByteArrayMethodGenerator.java generates this method for Codecs but not JsonCodecs
      * We provide a default implementation here so hand written codecs don't need to
      *
-     * The actual byte-array writing logic for a specific codec, invoked by the {@link #write(Object, byte[], int)}
+     * <p>The actual byte-array writing logic for a specific codec, invoked by the {@link #write(Object, byte[], int)}
      * methods through a single, consistent entry point. Generated codecs override this method with a
      * performance-focused implementation; this default implementation delegates to
      * {@link #writeImpl(Object, WritableSequentialData)} so that hand-written codecs don't need to provide one.
@@ -275,6 +276,33 @@ public abstract class Codec<T> {
         }
         return (int) bufferedData.position();
     }
+
+    /**
+     * Writes an item to the given random access output at a specified offset.
+     *
+     * @param item The item to write. Must not be null
+     * @param output The output to write to
+     * @param offset The offset in the output to write at
+     * @return The number of bytes written
+     * @throws IOException If an I/O error occurs
+     */
+    public final long write(@NonNull T item, @NonNull RandomAccessData output, final long offset) throws IOException {
+        return writeImpl(item, output, offset);
+    }
+
+    /**
+     * The actual logic to write items to random access outputs. This method is called from
+     * {@link #write(Object, RandomAccessData, long)}, similar to write / writeImpl for
+     * sequential writes.
+     *
+     * <p>Subclasses implement this method rather than {@link write(Object, RandomAccessData, long)}
+     * directly, since that method may perform additional work before and after delegating to
+     * this implementation.
+     *
+     * @see #write(Object, RandomAccessData, long) for a description
+     */
+    protected abstract long writeImpl(@NonNull T item, @NonNull RandomAccessData output, long offset)
+            throws IOException;
 
     /**
      * Compute number of bytes that would be written when calling {@code write()} method.

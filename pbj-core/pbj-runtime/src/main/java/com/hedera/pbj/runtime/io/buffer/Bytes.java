@@ -304,10 +304,12 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * The destination buffers position is updated.
      * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
-     * @param dstBuffer the buffer to copy into
+     * @param dst the buffer to copy into
+     * @return the number of bytes copied
      */
-    public void writeTo(@NonNull final ByteBuffer dstBuffer) {
-        dstBuffer.put(buffer, start, length);
+    public int writeTo(@NonNull final ByteBuffer dst) {
+        dst.put(buffer, start, length);
+        return length;
     }
 
     /**
@@ -315,12 +317,14 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * The destination buffers position is updated.
      * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
-     * @param dstBuffer the buffer to copy into
-     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
+     * @param dst the buffer to copy into
+     * @param dstOffset The offset from the start of this {@link Bytes} object to get the bytes from.
      * @param length The number of bytes to extract.
+     * @return the number of bytes copied
      */
-    public void writeTo(@NonNull final ByteBuffer dstBuffer, final int offset, final int length) {
-        dstBuffer.put(buffer, Math.toIntExact(start + offset), length);
+    public int writeTo(@NonNull final ByteBuffer dst, final int dstOffset, final int length) {
+        dst.put(buffer, start + dstOffset, length);
+        return length;
     }
 
     /**
@@ -377,12 +381,12 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
      * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
-     * @param wsd The OutputStream to copy into.
-     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
+     * @param dst The OutputStream to copy into.
+     * @param dstOffset The offset from the start of this {@link Bytes} object to get the bytes from.
      * @param length The number of bytes to extract.
      */
-    public void writeTo(@NonNull final WritableSequentialData wsd, final int offset, final int length) {
-        wsd.writeBytes(buffer, Math.toIntExact(start + offset), length);
+    public void writeTo(@NonNull final WritableSequentialData dst, final int dstOffset, final int length) {
+        dst.writeBytes(buffer, Math.toIntExact(start + dstOffset), length);
     }
 
     @Override
@@ -392,13 +396,16 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     }
 
     /**
-     * A helper method for efficient copy of our data into a MemorySegment starting at a given `position`
+     * A helper method for efficient copy of our data into a MemorySegment starting at a given offset
      * without creating a defensive copy of the data or writing each byte one at a time.
-     * @param segment a destination MemorySegment
-     * @param position a position at the destination `segment` to write data at
+     *
+     * @param dst a destination MemorySegment
+     * @param dstOffset a position at the destination `segment` to write data at
+     * @return the number of bytes copied
      */
-    public void writeTo(@NonNull MemorySegment segment, final long position) {
-        MemorySegment.copy(buffer, start, segment, ValueLayout.JAVA_BYTE, position, length);
+    public long writeTo(@NonNull MemorySegment dst, final long dstOffset) {
+        MemorySegment.copy(buffer, start, dst, ValueLayout.JAVA_BYTE, dstOffset, length);
+        return length;
     }
 
     /**
