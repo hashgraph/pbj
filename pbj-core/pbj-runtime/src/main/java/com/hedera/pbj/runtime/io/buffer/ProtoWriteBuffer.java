@@ -40,18 +40,8 @@ public final class ProtoWriteBuffer {
     /** Writes little-endian ints into byte arrays, for fixed32 values. */
     private static final VarHandle INT_LE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
 
-    /**
-     * Free bytes {@link #ensure} always keeps past the bytes asked for. Everything after the write position belongs to
-     * the buffer, so a varint can be written with one 8-byte store and the position advanced by its real length.
-     */
+    /** Free bytes {@link #ensure} keeps past the bytes asked for, so the common cases need no exact room check. */
     static final int SLACK = Long.BYTES;
-
-    /**
-     * Whether varints of 2 to 8 bytes are written with one 8-byte store, which the slack makes safe, instead of the
-     * exact-size stores of {@link ProtoArrayWriterTools#writeVarInt}. A constant, so the JIT removes the other branch;
-     * the system property {@code pbj.protoWriteBuffer.singleStoreVarint} exists to benchmark the two.
-     */
-    private static final boolean SINGLE_STORE_VARINT = Boolean.getBoolean("pbj.protoWriteBuffer.singleStoreVarint");
 
     /** The size of a varint of up to 56 bits, by its number of leading zeros. */
     private static final byte[] VARINT_SIZES = new byte[65];
@@ -741,29 +731,13 @@ public final class ProtoWriteBuffer {
     }
 
     /**
-     * Write an unsigned varint of two to ten bytes, with room for an 8-byte store.
+     * Write an unsigned varint of two to ten bytes.
      *
      * @return the position after it
      */
     static int varintWide(final byte[] b, final int p, final long value) {
-        if (SINGLE_STORE_VARINT && (value >>> 56) == 0) {
-            final int size = VARINT_SIZES[Long.numberOfLeadingZeros(value)];
-            LONG_LE.set(b, p, spread(value) | (0x8080808080808080L & ((1L << ((size - 1) << 3)) - 1)));
-            return p + size;
-        }
+        // exact-size stores: a single 8-byte store into the slack was slower on AMD EPYC, for writing block items
         return p + ProtoArrayWriterTools.writeVarInt(b, p, b.length, value);
-    }
-
-    /** Spread the low 56 bits of a value into eight 7-bit groups, one per byte. */
-    private static long spread(final long v) {
-        return (v & 0x7FL)
-                | ((v & 0x3F80L) << 1)
-                | ((v & 0x1FC000L) << 2)
-                | ((v & 0xFE00000L) << 3)
-                | ((v & 0x7F0000000L) << 4)
-                | ((v & 0x3F800000000L) << 5)
-                | ((v & 0x1FC0000000000L) << 6)
-                | ((v & 0xFE000000000000L) << 7);
     }
 
     /** Write a little-endian 32-bit value. */

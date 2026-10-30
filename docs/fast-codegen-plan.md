@@ -615,4 +615,7 @@ Each PR description covers:
 - **Writers pay per nested message, codecs don't.** With cached sizes a codec writes a nested message's tag and length
   and calls its static `writeTo`. A flyweight writer opens a child, checks every field, and patches the length when the
   child ends; that bookkeeping, not inlining or length moves, is most of the difference on deeply nested state changes.
+- **The single-store varint lost again in the writers' buffer**, where the slack after the write position makes the
+  8-byte store safe without any guard: writing block items from values took 356 ns against 317 ns with exact-size
+  stores on EPYC (#1018). Exact-size stores stay.
 
