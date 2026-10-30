@@ -58,16 +58,20 @@ final class CodecParseArrayMethodGenerator {
                 .toList();
         final StringBuilder fastPath = new StringBuilder();
         final StringBuilder cases = new StringBuilder();
+        final StringBuilder helpers = new StringBuilder();
         for (final Field field : sorted) {
             if (field instanceof MapField map) {
                 cases.append(caseCode(map, Common.TYPE_LENGTH_DELIMITED, mapEntry(map, schemaClassName, lookupHelper)));
             } else if (field.parent() != null) {
-                cases.append(caseCode(field, wireType(field), oneOfAlternative((SingleField) field, lookupHelper)));
+                cases.append(
+                        caseCode(field, wireType(field), oneOfAlternative((SingleField) field, lookupHelper, helpers)));
             } else if (field.repeated()) {
-                repeated((SingleField) field, lookupHelper, fastPath, cases);
+                repeated((SingleField) field, lookupHelper, fastPath, cases, helpers);
             } else {
                 final SingleField single = (SingleField) field;
-                final String read = readInto(single, "temp_" + field.name(), true, lookupHelper);
+                final String read = needsHelper(single)
+                        ? "temp_%s = %s;%n".formatted(field.name(), valueHelper(single, true, lookupHelper, helpers))
+                        : readInto(single, "temp_" + field.name(), true, lookupHelper);
                 fastPath.append(fastPathCode(field, wireType(field), "if", read));
                 final String strictCheck = single.type() == Field.FieldType.MESSAGE && !single.optionalValueType()
                         ? """
@@ -139,6 +143,7 @@ final class CodecParseArrayMethodGenerator {
                         throw new ParseException(anyException);
                     }
                 }
+                $helpers
                 """
                 .replace("$fieldDefs", fields.stream()
                         .map(field -> "%s temp_%s = %s;".formatted(
@@ -156,6 +161,7 @@ final class CodecParseArrayMethodGenerator {
                         .map(field -> "if (temp_" + field.name() + " instanceof UnmodifiableArrayList ual) ual.makeReadOnly();")
                         .collect(Collectors.joining("\n"))
                         .indent(DEFAULT_INDENT * 2))
+                .replace("$helpers", helpers.toString())
                 .replace("$construct", isCacheable
                         ? CodecParseMethodGenerator.generateCacheableSupport(modelClassName, fields)
                         : "return new $modelClassName($fieldsList);".indent(DEFAULT_INDENT * 2))
@@ -216,19 +222,29 @@ final class CodecParseArrayMethodGenerator {
             final SingleField field,
             final ContextualLookupHelper lookupHelper,
             final StringBuilder fastPath,
-            final StringBuilder cases) {
+            final StringBuilder cases,
+            final StringBuilder helpers) {
         final String temp = "temp_" + field.name();
-        final String addOne = """
-                if ($temp.size() >= $maxSize) {
-                    throw new ParseException("$name size %d is greater than max $maxSize".formatted($temp.size()));
+        final String listType = field.type() == Field.FieldType.ENUM ? "List" : field.javaFieldType();
+        helpers.append("""
+                /** Reads one $name element for {@link #parseArray} and adds it to the list. */
+                private static $listType addArray_$name(final ArrayCursor input, final $listType list,
+                        final boolean strictMode, final boolean parseUnknownFields, final int maxDepth, final int maxSize)
+                        throws ParseException, IOException {
+                    if (list.size() >= $maxSize) {
+                        throw new ParseException("$name size %d is greater than max $maxSize".formatted(list.size()));
+                    }
+                    final $type value;
+                $read    return addToList(list, value);
                 }
-                final $type value;
-                $read$temp = addToList($temp, value);
-                """.replace("$temp", temp)
+
+                """.replace("$listType", listType)
+                .replace("$read", readInto(field, "value", false, lookupHelper).indent(DEFAULT_INDENT))
                 .replace("$maxSize", maxSize(field))
                 .replace("$name", field.name())
-                .replace("$type", valueType(field))
-                .replace("$read", readInto(field, "value", false, lookupHelper));
+                .replace("$type", valueType(field)));
+        final String addOne = "%s = addArray_%s(input, %s, strictMode, parseUnknownFields, maxDepth, maxSize);%n"
+                .formatted(temp, field.name(), temp);
         final int wireType = field.type().wireType();
         if (wireType == Common.TYPE_LENGTH_DELIMITED) {
             fastPath.append(fastPathCode(field, wireType, "while", addOne));
@@ -240,26 +256,34 @@ final class CodecParseArrayMethodGenerator {
                 ? """
                 final int enumOrdinal = (int) input.varint();
                 final Object value = $enum.fromProtobufOrdinal(enumOrdinal);
-                $temp = addToList($temp, value != $enum.UNRECOGNIZED ? value : Integer.valueOf(enumOrdinal));
+                list = addToList(list, value != $enum.UNRECOGNIZED ? value : Integer.valueOf(enumOrdinal));
                 """.replace("$enum", Common.snakeToCamel(field.messageType(), true))
-                        .replace("$temp", temp)
-                : "%s = addToList(%s, %s);\n".formatted(temp, temp, valueExpression(field));
-        final String packed = """
-                final int length = input.length($maxSize, "$name");
-                final int limitBefore = input.pushLimit(length);
-                while (input.hasRemaining()) {
-                $element}
-                input.popLimit(limitBefore);
-                """.replace("$maxSize", maxSize(field))
+                : "list = addToList(list, %s);\n".formatted(valueExpression(field));
+        helpers.append("""
+                /** Reads a packed run of $name elements for {@link #parseArray} and adds them to the list. */
+                private static $listType addPackedArray_$name(final ArrayCursor input, $listType list, final int maxSize)
+                        throws ParseException, IOException {
+                    final int length = input.length($maxSize, "$name");
+                    final int limitBefore = input.pushLimit(length);
+                    while (input.hasRemaining()) {
+                $element    }
+                    input.popLimit(limitBefore);
+                    return list;
+                }
+
+                """.replace("$listType", listType)
+                .replace("$maxSize", maxSize(field))
                 .replace("$name", field.name())
-                .replace("$element", element.indent(DEFAULT_INDENT));
+                .replace("$element", element.indent(DEFAULT_INDENT * 2)));
+        final String packed = "%s = addPackedArray_%s(input, %s, maxSize);%n".formatted(temp, field.name(), temp);
         fastPath.append(fastPathCode(field, Common.TYPE_LENGTH_DELIMITED, "if", packed));
         cases.append(caseCode(field, wireType, addOne));
         cases.append(caseCode(field, Common.TYPE_LENGTH_DELIMITED, packed));
     }
 
     /** A oneof alternative, which replaces whatever the oneof held before (last one wins). */
-    private static String oneOfAlternative(final SingleField field, final ContextualLookupHelper lookupHelper) {
+    private static String oneOfAlternative(
+            final SingleField field, final ContextualLookupHelper lookupHelper, final StringBuilder helpers) {
         final OneOfField oneOf = field.parent();
         final String strictCheck = field.type() == Field.FieldType.MESSAGE && !field.optionalValueType()
                 ? """
@@ -268,6 +292,16 @@ final class CodecParseArrayMethodGenerator {
                 }
                 """.replace("$oneOf", oneOf.name()).replace("$unset", oneOf.javaDefault())
                 : "";
+        if (needsHelper(field)) {
+            return strictCheck
+                    + "temp_%s = new %s<>(%s.%s, %s);%n"
+                            .formatted(
+                                    oneOf.name(),
+                                    oneOf.className(),
+                                    oneOf.getEnumClassRef(),
+                                    Common.camelToUpperSnake(field.name()),
+                                    valueHelper(field, false, lookupHelper, helpers));
+        }
         return strictCheck
                 + """
                 final $type value;
@@ -327,6 +361,35 @@ final class CodecParseArrayMethodGenerator {
                 .replace("$maxSize", maxSize(map))
                 .replace("$name", map.name())
                 .replace("$schemaClassName", schemaClassName);
+    }
+
+    /**
+     * Whether a field's value is read in its own method: nested messages and wrapper types, whose reads are the longest.
+     * Calling one small method from both the fast path and the general loop keeps {@code parseArray} well under
+     * HotSpot's 8000-byte limit for compiling a method at all, and the JIT still inlines the helper where it is hot.
+     */
+    private static boolean needsHelper(final SingleField field) {
+        return field.type() == Field.FieldType.MESSAGE || field.optionalValueType();
+    }
+
+    /** Generate a method reading one value of a field, and return the code calling it. */
+    private static String valueHelper(
+            final SingleField field,
+            final boolean recognizedOnly,
+            final ContextualLookupHelper lookupHelper,
+            final StringBuilder helpers) {
+        helpers.append("""
+                /** Reads one $name value for {@link #parseArray}. */
+                private static $type readArray_$name(final ArrayCursor input, final boolean strictMode,
+                        final boolean parseUnknownFields, final int maxDepth, final int maxSize)
+                        throws ParseException, IOException {
+                    final $type value;
+                $read    return value;
+                }
+
+                """.replace("$type", valueType(field)).replace("$name", field.name()).replace(
+                "$read", readInto(field, "value", recognizedOnly, lookupHelper).indent(DEFAULT_INDENT)));
+        return "readArray_%s(input, strictMode, parseUnknownFields, maxDepth, maxSize)".formatted(field.name());
     }
 
     /** The declared type of a local holding one value of a field. */
