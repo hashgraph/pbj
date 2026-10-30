@@ -276,30 +276,46 @@ in the integration tests compares both writers on HAPI block items.
 ### Zero-Copy Views (`pbj.views`)
 
 The model gets a nested, reusable `View` class that reads fields in place from encoded bytes instead of parsing them
-into objects:
+into objects. [usage-guide.md](usage-guide.md#zero-copy-views) shows how to use one and the reuse pitfall.
 
 ```java
 final Order.View view = new Order.View();
 for (Bytes bytes : orders) {
-    view.wrap(bytes);          // or wrap(byte[], offset, length)
+    view.wrap(bytes);          // or wrap(bytes, strictMode, maxDepth, maxSize), as for parse()
     total += view.amount();    // numbers and enums are decoded once, by wrap
     if (view.hasCustomer()) {
         names.add(view.customer().name());   // a child view, re-wrapped with the parent
+    }
+    for (var line = view.lines(); line.next(); ) {
+        count += line.value().quantity();
     }
 }
 ```
 
 `wrap` indexes the message in one pass, with the same in-order fast path and the same checks of tags, wire types,
-lengths, bools and UTF-8 as parsing; a malformed message throws `ParseException`. Numbers are decoded into fields of
-the view, and strings, bytes and nested messages are recorded as offsets and lengths. String and bytes fields also have
-`xxxArray()`, `xxxOffset()`, `xxxLength()` and `xxxEquals(byte[])`, which read them without allocating; `xxx()` builds a
-`String` or `Bytes`. An enum field's `xxxProtoOrdinal()` returns the raw number. `toModel()` parses the wrapped bytes
-into a model object. Wrapping and reading numbers, enums, nested views and offsets allocate nothing.
+lengths, bools and UTF-8 as parsing; a malformed message throws `ParseException`. `wrap(bytes, strictMode, maxDepth,
+maxSize)` applies the same limits and strict mode as `parse` with those arguments, and passes them down to nested
+views. Nested messages, repeated message elements and wrapper type values are validated when they are read, so a
+malformed one throws from its accessor or cursor rather than from `wrap`.
 
-A view and its child views are reused, so a child view returned earlier reads whatever its parent was last wrapped
-over. The wrapped bytes must not change while a view reads them.
+What a view has for each kind of field:
 
-A message gets a view only if every field is a singular scalar, string, bytes, enum or message, and every message
-field's type also gets a view. Messages with repeated fields, maps, oneofs or `google.protobuf` wrapper types get no
-view.
+| Field | Accessors |
+|---|---|
+| Number, bool | `xxx()`, decoded by `wrap` |
+| Enum | `xxx()`, and `xxxProtoOrdinal()` for the raw number |
+| String, bytes | `xxx()` builds a `String` or `Bytes`; `xxxArray()`, `xxxOffset()`, `xxxLength()` and `xxxEquals(byte[])` read it without allocating |
+| Message | `xxx()` returns a child view, created once and re-wrapped with the parent |
+| `google.protobuf` wrapper type | `xxx()` returns the value, or null when absent |
+| Repeated | `xxxCount()`, and `xxx()` returns a reusable cursor: `next()` moves to each element, `value()` reads it (and `valueOffset()`, `valueLength()`, `valueEquals(byte[])` for strings and bytes) |
+| Oneof | `xxxKind()` returns which alternative is set; each alternative has the accessors of a singular field |
 
+Message and wrapper type fields also have `hasXxx()`. `toModel()` parses the wrapped bytes into a model object. Wrapping
+and reading numbers, enums, nested views, cursors and offsets allocate nothing.
+
+A view and its child views and cursors are reused, so a child view returned earlier reads whatever its parent was
+last wrapped over. The wrapped bytes must not change while a view reads them.
+
+A message gets a view only if it has no maps or repeated wrapper types, and every message field's type also gets a
+view (messages may contain each other). When a message asks for a view in its own or its file's comments and gets
+none, the build prints why. A message with a view that declares its own nested message or enum named `View` fails the build.
