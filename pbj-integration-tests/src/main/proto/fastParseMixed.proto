@@ -43,6 +43,39 @@ message MixedFastInner {
   string far = 20;
 }
 
+/**
+ * Repeated fields, a oneof and maps of messages with and without fast_parse, in a message with it. The maps come first:
+ * the generated hashCode() repeats the code for every field before a map (a separate, pre-existing bug), which doesn't
+ * compile after a repeated field.
+ */
+// <<<pbj.fast_parse = true>>>
+message MixedFastCollections {
+  map<string, MixedSlowInner> slow_by_name = 1;
+  map<int64, MixedFastInner> fast_by_id = 2;
+  repeated MixedSlowInner slows = 3;
+  repeated MixedFastInner fasts = 4;
+  oneof choice {
+    MixedSlowInner slow_choice = 5;
+    MixedFastInner fast_choice = 6;
+    string text_choice = 7;
+  }
+  repeated uint32 counts = 8;
+}
+
+/**
+ * The same, in a message without fast_parse. It doesn't contain MixedFastCollections: the JSON writer indents a map
+ * inside a nested message differently from protoc (a separate, pre-existing bug).
+ */
+// <<<pbj.fast_parse = false>>>
+message MixedSlowCollections {
+  map<string, MixedFastInner> fast_by_name = 1;
+  repeated MixedFastInner fasts = 2;
+  oneof choice {
+    MixedFastInner fast_choice = 3;
+    int64 number_choice = 4;
+  }
+}
+
 /** No comment: fast_parse only from the project setting. */
 message MixedPlain {
   MixedFastOuter outer = 1;
