@@ -4,6 +4,7 @@ package com.hedera.pbj.integration.jmh;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -86,6 +87,9 @@ public class BlockItemBench {
 
     static final int TRANSACTION_COUNT;
 
+    /** The transaction bodies of {@link #TRANSACTION_BYTES}, as Hiero parses them: from a SignedTransaction's Bytes. */
+    private static final List<Bytes> BODY_BYTES = new ArrayList<>();
+
     static {
         for (final String file : BLOCK_FILES) {
             try (var in = new BufferedInputStream(
@@ -99,6 +103,13 @@ public class BlockItemBench {
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
+            } catch (ParseException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        for (final Bytes transaction : TRANSACTION_BYTES) {
+            try {
+                BODY_BYTES.add(SignedTransaction.PROTOBUF.parse(transaction).bodyBytes());
             } catch (ParseException e) {
                 throw new IllegalStateException(e);
             }
@@ -326,6 +337,34 @@ public class BlockItemBench {
     public void transactionParseBytes(final Blackhole bh) throws ParseException {
         for (final Bytes bytes : TRANSACTION_BYTES) {
             bh.consume(SignedTransaction.PROTOBUF.parse(bytes));
+        }
+    }
+
+    /** Parses each transaction as Hiero often does: through the Bytes' sequential view, with every parse argument. */
+    @Benchmark
+    @OperationsPerInvocation(TRANSACTIONS)
+    public void transactionParseSequential(final Blackhole bh) throws ParseException {
+        for (final Bytes bytes : TRANSACTION_BYTES) {
+            bh.consume(SignedTransaction.PROTOBUF.parse(
+                    bytes.toReadableSequentialData(), false, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE));
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(TRANSACTIONS)
+    public void bodyParseBytes(final Blackhole bh) throws ParseException {
+        for (final Bytes bytes : BODY_BYTES) {
+            bh.consume(TransactionBody.PROTOBUF.parse(bytes));
+        }
+    }
+
+    /** Parses each transaction body as Hiero does: through the body Bytes' sequential view. */
+    @Benchmark
+    @OperationsPerInvocation(TRANSACTIONS)
+    public void bodyParseSequential(final Blackhole bh) throws ParseException {
+        for (final Bytes bytes : BODY_BYTES) {
+            bh.consume(TransactionBody.PROTOBUF.parse(
+                    bytes.toReadableSequentialData(), false, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE));
         }
     }
 }
