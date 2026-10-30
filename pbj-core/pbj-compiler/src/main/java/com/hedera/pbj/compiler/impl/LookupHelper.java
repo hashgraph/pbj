@@ -331,8 +331,8 @@ public final class LookupHelper {
 
     /**
      * Whether a message gets a zero-copy view class: it has {@code pbj.views} (from its comments, its file's, or the
-     * project), every field is singular (repeated fields, maps and oneofs are not supported yet), and every message-typed
-     * field's type, if generated in this build, gets a view too.
+     * project), it has no maps or repeated {@code google.protobuf} wrapper types (not supported yet), and every message-typed
+     * field's type is generated in this build and gets a view too.
      *
      * @param message the message
      * @return true if a view is generated for it
@@ -362,7 +362,7 @@ public final class LookupHelper {
         return message != null && hasView(messageDefinitions.get(message));
     }
 
-    /** The {@code google.protobuf} wrapper types, which views do not support yet. */
+    /** The {@code google.protobuf} wrapper types, which views read as boxed values. */
     private static final Set<String> WRAPPER_TYPES = Set.of(
             "StringValue",
             "BoolValue",
@@ -376,33 +376,48 @@ public final class LookupHelper {
 
     private boolean viewSupports(String name, MessageDefContext message) {
         for (MessageElementContext element : message.messageBody().messageElement()) {
-            if (element.oneof() != null || element.mapField() != null) {
+            if (element.mapField() != null) {
                 return false;
+            }
+            if (element.oneof() != null) {
+                for (var alternative : element.oneof().oneofField()) {
+                    if (!viewSupportsType(name, alternative.type_())) {
+                        return false;
+                    }
+                }
             }
             final var field = element.field();
-            if (field == null || field.fieldName() == null) {
-                continue;
-            }
-            if (field.REPEATED() != null) {
-                return false;
-            }
-            final var type = field.type_().messageType();
-            if (type == null) {
-                continue;
-            }
-            if (WRAPPER_TYPES.contains(type.messageName().getText())) {
-                return false;
-            }
-            final String nestedName = getFullyQualifiedProtoName(messageFiles.get(name), type);
-            if (enumNames.contains(nestedName)) {
-                continue;
-            }
-            final MessageDefContext nested = messageDefinitions.get(nestedName);
-            if (nested == null || !messagesByModelClass.containsValue(nestedName) || !hasView(nested)) {
-                return false;
+            if (field != null && field.fieldName() != null) {
+                if (!viewSupportsType(name, field.type_())) {
+                    return false;
+                }
+                // repeated wrapper types are not supported
+                final var type = field.type_().messageType();
+                if (field.REPEATED() != null
+                        && type != null
+                        && WRAPPER_TYPES.contains(type.messageName().getText())) {
+                    return false;
+                }
             }
         }
         return true;
+    }
+
+    /** Whether a field type is supported by views: anything but messages without views. */
+    private boolean viewSupportsType(String name, Protobuf3Parser.Type_Context typeContext) {
+        final var type = typeContext.messageType();
+        if (type == null) {
+            return true;
+        }
+        if (WRAPPER_TYPES.contains(type.messageName().getText())) {
+            return true;
+        }
+        final String nestedName = getFullyQualifiedProtoName(messageFiles.get(name), type);
+        if (enumNames.contains(nestedName)) {
+            return true;
+        }
+        final MessageDefContext nested = messageDefinitions.get(nestedName);
+        return nested != null && messagesByModelClass.containsValue(nestedName) && hasView(nested);
     }
 
     /** Whether a message has {@code pbj.fast_parse}, from its comments, its file's, or the project. */

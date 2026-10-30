@@ -101,6 +101,11 @@ require(pbjPerformance == "default" || pbjPerformance == "max") {
     "pbjPerformance must be \"default\" or \"max\", not \"$pbjPerformance\""
 }
 
+// Benchmarks of APIs that exist only with every option on, such as views of HAPI messages
+if (pbjPerformance == "max") {
+    sourceSets.named("jmh") { java.srcDir("src/jmhMax/java") }
+}
+
 // Tests can tell which configuration they run in
 tasks.withType<Test>().configureEach { systemProperties["pbj.performance"] = pbjPerformance }
 
