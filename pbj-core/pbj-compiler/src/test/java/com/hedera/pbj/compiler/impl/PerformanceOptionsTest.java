@@ -264,7 +264,7 @@ class PerformanceOptionsTest {
     }
 
     @Test
-    void fastParseAddsAnArrayParserOnlyWhereEnabledAndSupported() throws Exception {
+    void fastParseAddsAnArrayParserOnlyWhereEnabled() throws Exception {
         final Path proto = directory.resolve("model.proto");
         Files.writeString(proto, """
                 syntax = "proto3";
@@ -298,8 +298,8 @@ class PerformanceOptionsTest {
         // a message comment opts out of the project setting
         assertFalse(Files.readString(max.resolve("example/codec/OptedOutProtoCodec.java"))
                 .contains("parseArray("));
-        // repeated fields are not supported by the array parser yet
-        assertFalse(Files.readString(max.resolve("example/codec/WithListProtoCodec.java"))
+        // every kind of field is supported, including repeated fields
+        assertTrue(Files.readString(max.resolve("example/codec/WithListProtoCodec.java"))
                 .contains("parseArray("));
         // models are unchanged
         assertEquals(
