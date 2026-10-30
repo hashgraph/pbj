@@ -20,8 +20,12 @@ import java.util.stream.Stream;
  * and each value is written before its length and tag, so a nested message's length is the number of bytes written
  * since it began and nothing is measured first. The result is byte-identical to the forward writers.
  *
- * <p>Messages with maps or {@code google.protobuf} wrapper types write themselves forward into the buffer instead,
- * which measures only that message.
+ * <p>Maps are written as their entries in reverse of the sorted key order, each entry value first, and
+ * {@code google.protobuf} wrapper types as the inner value, then its length and tag. Messages with maps of enums write
+ * themselves forward into the buffer instead, which measures only that message.
+ *
+ * <p>A run of adjacent scalar fields makes room for its largest encoded size once, with {@code ReverseBuffer.ensure},
+ * then writes every tag and value without checking for room.
  */
 final class CodecWriteReverseMethodGenerator {
 
@@ -45,10 +49,10 @@ final class CodecWriteReverseMethodGenerator {
             return "";
         }
         final boolean supported = fields.stream()
-                .flatMap(field -> field instanceof OneOfField oneOf ? oneOf.fields().stream() : Stream.of(field))
-                .noneMatch(field -> field instanceof MapField || field.optionalValueType());
+                .noneMatch(field ->
+                        field instanceof MapField map && map.valueField().type() == Field.FieldType.ENUM);
         final String body = supported ? fieldsInReverse(fields, lookupHelper) : """
-                // maps and wrapper types are written forward, which measures only this message
+                // maps of enums are written forward, which measures only this message
                 final int size = data.protobufSize();
                 final int offset = out.reserve(size);
                 writeTo(data, out.array(), offset, offset + size);
@@ -97,8 +101,28 @@ final class CodecWriteReverseMethodGenerator {
         while (i < sorted.size()) {
             final Field field = sorted.get(i);
             final OneOfField oneOf = field.parent();
+            if (field instanceof MapField map) {
+                sb.append(map(map, lookupHelper));
+                i++;
+                continue;
+            }
+            if (scalar(field)) {
+                // a run of adjacent scalar fields checks for room once, for the largest size they can take
+                int maxSize = 0;
+                final StringBuilder run = new StringBuilder();
+                while (i < sorted.size() && scalar(sorted.get(i))) {
+                    final SingleField single = (SingleField) sorted.get(i);
+                    maxSize += InlineFieldCodeGenerator.tagSize(
+                                    single.fieldNumber(), single.type().wireType())
+                            + maxValueSize(single.type());
+                    run.append(field(single, lookupHelper, true));
+                    i++;
+                }
+                sb.append("out.ensure(%d);%n".formatted(maxSize)).append(run);
+                continue;
+            }
             if (oneOf == null) {
-                sb.append(field((SingleField) field, lookupHelper));
+                sb.append(field((SingleField) field, lookupHelper, false));
                 i++;
                 continue;
             }
@@ -113,7 +137,8 @@ final class CodecWriteReverseMethodGenerator {
                         """.replace("$number", Integer.toString(alternative.fieldNumber()))
                         .replace("$name", alternative.name())
                         .replace("$kind", Common.camelToUpperSnake(alternative.name()))
-                        .replace("$body", field(alternative, lookupHelper).indent(DEFAULT_INDENT)));
+                        .replace(
+                                "$body", field(alternative, lookupHelper, false).indent(DEFAULT_INDENT)));
                 i++;
             }
             sb.append("""
@@ -126,34 +151,158 @@ final class CodecWriteReverseMethodGenerator {
         return sb.toString();
     }
 
-    /** Code writing a field's tag, after its value. */
-    private static String tag(final int fieldNumber, final int wireType) {
+    /** Whether a field is a singular scalar outside a oneof, written in a run that checks for room once. */
+    private static boolean scalar(final Field field) {
+        return field instanceof SingleField
+                && field.parent() == null
+                && !field.repeated()
+                && !field.optionalValueType()
+                && switch (field.type()) {
+                    case MESSAGE, STRING, BYTES, MAP, ONE_OF -> false;
+                    default -> true;
+                };
+    }
+
+    /** The largest encoded size of one scalar value. */
+    private static int maxValueSize(final Field.FieldType type) {
+        return switch (type) {
+            case BOOL -> 1;
+            case FIXED32, SFIXED32, FLOAT -> Integer.BYTES;
+            case FIXED64, SFIXED64, DOUBLE -> Long.BYTES;
+            case UINT32, SINT32 -> 5;
+            default -> 10;
+        };
+    }
+
+    /** Code writing a field's tag, after its value, without checking for room if {@code unchecked}. */
+    private static String tag(final int fieldNumber, final int wireType, final boolean unchecked) {
         final int[] bytes = InlineFieldCodeGenerator.tagBytes(fieldNumber, wireType);
         final String comment = " // tag: field %d, wire type %d\n".formatted(fieldNumber, wireType);
+        final String suffix = unchecked ? "Unchecked" : "";
         return switch (bytes.length) {
-            case 1 -> "out.writeByte(0x%02X);".formatted(bytes[0]) + comment;
-            case 2 -> "out.writeBytes(0x%02X, 0x%02X);".formatted(bytes[0], bytes[1]) + comment;
-            default -> "out.varint(%dL);".formatted(((long) fieldNumber << 3) | wireType) + comment;
+            case 1 -> "out.writeByte%s(0x%02X);".formatted(suffix, bytes[0]) + comment;
+            case 2 -> "out.writeBytes%s(0x%02X, 0x%02X);".formatted(suffix, bytes[0], bytes[1]) + comment;
+            default -> "out.varint%s(%dL);".formatted(suffix, ((long) fieldNumber << 3) | wireType) + comment;
         };
+    }
+
+    /** Code writing a field's tag, after its value. */
+    private static String tag(final int fieldNumber, final int wireType) {
+        return tag(fieldNumber, wireType, false);
     }
 
     /** Code writing one value of a non-message field held in {@code v}, before its tag. */
     private static String value(final Field.FieldType type, final String v, final boolean inOneOf) {
+        return value(type, v, inOneOf, false);
+    }
+
+    /**
+     * Code writing one value of a non-message field held in {@code v}, before its tag, without checking for room if
+     * {@code unchecked} (scalars only).
+     */
+    private static String value(
+            final Field.FieldType type, final String v, final boolean inOneOf, final boolean unchecked) {
+        final String u = unchecked ? "Unchecked" : "";
         return switch (type) {
-                    case INT32, ENUM, INT64, UINT64 -> "out.varint(%s);".formatted(v);
-                    case UINT32 -> "out.varint(Integer.toUnsignedLong(%s));".formatted(v);
-                    case SINT32 -> "out.varint(Integer.toUnsignedLong((%s << 1) ^ (%s >> 31)));".formatted(v, v);
-                    case SINT64 -> "out.varint((%s << 1) ^ (%s >> 63));".formatted(v, v);
-                    case FIXED32, SFIXED32 -> "out.fixed32(%s);".formatted(v);
-                    case FLOAT -> "out.fixed32(Float.floatToIntBits(%s));".formatted(v);
-                    case FIXED64, SFIXED64 -> "out.fixed64(%s);".formatted(v);
-                    case DOUBLE -> "out.fixed64(Double.doubleToLongBits(%s));".formatted(v);
-                    case BOOL -> inOneOf ? "out.writeByte(%s ? 1 : 0);".formatted(v) : "out.writeByte(1);";
+                    case INT32, ENUM, INT64, UINT64 -> "out.varint%s(%s);".formatted(u, v);
+                    case UINT32 -> "out.varint%s(Integer.toUnsignedLong(%s));".formatted(u, v);
+                    case SINT32 -> "out.varint%s(Integer.toUnsignedLong((%s << 1) ^ (%s >> 31)));".formatted(u, v, v);
+                    case SINT64 -> "out.varint%s((%s << 1) ^ (%s >> 63));".formatted(u, v, v);
+                    case FIXED32, SFIXED32 -> "out.fixed32%s(%s);".formatted(u, v);
+                    case FLOAT -> "out.fixed32%s(Float.floatToIntBits(%s));".formatted(u, v);
+                    case FIXED64, SFIXED64 -> "out.fixed64%s(%s);".formatted(u, v);
+                    case DOUBLE -> "out.fixed64%s(Double.doubleToLongBits(%s));".formatted(u, v);
+                    case BOOL ->
+                        inOneOf ? "out.writeByte%s(%s ? 1 : 0);".formatted(u, v) : "out.writeByte%s(1);".formatted(u);
                     case STRING -> "out.string(%s);".formatted(v);
                     case BYTES -> "out.bytes(%s);".formatted(v);
                     default -> throw new IllegalArgumentException(type.toString());
                 }
                 + "\n";
+    }
+
+    /**
+     * Code writing a map: its entries in reverse of the sorted key order, each as a nested message with the value
+     * (field 2) before the key (field 1), as the forward writers do, which write both even when they are defaults.
+     */
+    private static String map(final MapField map, final ContextualLookupHelper lookupHelper) {
+        final SingleField key = (SingleField) map.keyField();
+        final SingleField value = (SingleField) map.valueField();
+        final String writeValue = value.type() == Field.FieldType.MESSAGE
+                ? nested(value, "mapValue", lookupHelper) + tag(2, Common.TYPE_LENGTH_DELIMITED)
+                : value(value.type(), "mapValue", true) + tag(2, value.type().wireType());
+        return """
+                // [$number] - $name
+                if (!data.$getter().isEmpty()) {
+                    final PbjMap$generic map = (PbjMap$generic) data.$getter();
+                    final List<$keyType> keys = map.getSortedKeys();
+                    for (int i = keys.size() - 1; i >= 0; i--) {
+                        final $keyType mapKey = keys.get(i);
+                        final $valueType mapValue = map.get(mapKey);
+                        final int entryMark = out.mark();
+                $writeValue$writeKey        out.lengthSince(entryMark);
+                        $tag    }
+                }
+                """.replace(
+                        "$writeValue",
+                        writeValue
+                                .replace("final int mark", "final int valueMark")
+                                .replace("(mark)", "(valueMark)")
+                                .indent(DEFAULT_INDENT * 2))
+                .replace(
+                        "$writeKey",
+                        (value(key.type(), "mapKey", true) + tag(1, key.type().wireType())).indent(DEFAULT_INDENT * 2))
+                .replace("$tag", tag(map.fieldNumber(), Common.TYPE_LENGTH_DELIMITED))
+                .replace("$generic", map.javaGenericType())
+                .replace("$keyType", key.type().boxedType)
+                .replace(
+                        "$valueType",
+                        map.javaGenericType()
+                                .substring(
+                                        map.javaGenericType().indexOf(", ") + 2,
+                                        map.javaGenericType().length() - 1))
+                .replace("$getter", map.nameCamelFirstLower())
+                .replace("$number", Integer.toString(map.fieldNumber()))
+                .replace("$name", map.name());
+    }
+
+    /**
+     * Code writing a {@code google.protobuf} wrapper type held in {@code v}, if not null: the wrapped value as field 1,
+     * unless it is the default, then the length and the tag, as the forward writers do.
+     */
+    private static String wrapper(final SingleField field, final String v, final String tag) {
+        final Field.FieldType inner =
+                switch (field.messageType()) {
+                    case "StringValue" -> Field.FieldType.STRING;
+                    case "BytesValue" -> Field.FieldType.BYTES;
+                    case "Int32Value" -> Field.FieldType.INT32;
+                    case "UInt32Value" -> Field.FieldType.UINT32;
+                    case "Int64Value" -> Field.FieldType.INT64;
+                    case "UInt64Value" -> Field.FieldType.UINT64;
+                    case "FloatValue" -> Field.FieldType.FLOAT;
+                    case "DoubleValue" -> Field.FieldType.DOUBLE;
+                    case "BoolValue" -> Field.FieldType.BOOL;
+                    default -> throw new IllegalArgumentException("Not a wrapper type: " + field);
+                };
+        final String notDefault =
+                switch (inner) {
+                    case STRING -> "!%s.isEmpty()".formatted(v);
+                    case BYTES -> "%s.length() != 0".formatted(v);
+                    case BOOL -> v;
+                    default -> "%s != 0".formatted(v);
+                };
+        return """
+                if ($local != null) {
+                    final int mark = out.mark();
+                    if ($notDefault) {
+                $value$innerTag    }
+                    out.lengthSince(mark);
+                $tag}
+                """.replace("$notDefault", notDefault)
+                .replace("$value", value(inner, v, false).indent(DEFAULT_INDENT * 2))
+                .replace("$innerTag", tag(1, inner.wireType()).indent(DEFAULT_INDENT * 2))
+                .replace("$tag", tag.indent(DEFAULT_INDENT))
+                .replace("$local", v);
     }
 
     /** Code writing a nested message held in {@code v}, then its length, before its tag. */
@@ -172,8 +321,12 @@ final class CodecWriteReverseMethodGenerator {
                 """.replace("$write", write);
     }
 
-    /** Code writing one field, in reverse: value, then length if delimited, then tag. */
-    private static String field(final SingleField field, final ContextualLookupHelper lookupHelper) {
+    /**
+     * Code writing one field, in reverse: value, then length if delimited, then tag. Scalars are written without
+     * checking for room if {@code unchecked}, after the caller has made room.
+     */
+    private static String field(
+            final SingleField field, final ContextualLookupHelper lookupHelper, final boolean unchecked) {
         final boolean inOneOf = field.parent() != null;
         final String name = field.nameCamelFirstLower();
         final String local = "v_" + name;
@@ -244,6 +397,9 @@ final class CodecWriteReverseMethodGenerator {
                         ? "((%s) %s).protoOrdinal()".formatted(field.javaFieldType(), oneOfValue)
                         : oneOfValue;
         final String declaration = "final %s %s = %s;\n".formatted(javaType, local, read);
+        if (field.optionalValueType()) {
+            return (inOneOf ? "" : prefix) + declaration + wrapper(field, local, tag);
+        }
         if (field.type() == Field.FieldType.MESSAGE) {
             if (inOneOf) {
                 // oneof members are written even when null, as an empty message
@@ -270,18 +426,26 @@ final class CodecWriteReverseMethodGenerator {
                                     nested(field, local, lookupHelper).indent(DEFAULT_INDENT))
                             .replace("$tag", tag.indent(DEFAULT_INDENT));
         }
-        final String value = value(field.type(), local, inOneOf);
+        final String value = value(field.type(), local, inOneOf, unchecked);
+        if (unchecked) {
+            return prefix + declaration + "if (" + condition(field, local) + ") {\n"
+                    + (value + tag(field.fieldNumber(), wireType, true)).indent(DEFAULT_INDENT) + "}\n";
+        }
         if (inOneOf) {
             // oneof members are always written, even with the default value
             return declaration + value + tag;
         }
-        final String condition =
-                switch (field.type()) {
-                    case STRING -> "%s != null && !%s.isEmpty()".formatted(local, local);
-                    case BYTES -> "%s.length() != 0".formatted(local);
-                    case BOOL -> local;
-                    default -> "%s != 0".formatted(local);
-                };
-        return prefix + declaration + "if (" + condition + ") {\n" + (value + tag).indent(DEFAULT_INDENT) + "}\n";
+        return prefix + declaration + "if (" + condition(field, local) + ") {\n" + (value + tag).indent(DEFAULT_INDENT)
+                + "}\n";
+    }
+
+    /** The condition for a field outside a oneof not holding its default, so it is written. */
+    private static String condition(final SingleField field, final String local) {
+        return switch (field.type()) {
+            case STRING -> "%s != null && !%s.isEmpty()".formatted(local, local);
+            case BYTES -> "%s.length() != 0".formatted(local);
+            case BOOL -> local;
+            default -> "%s != 0".formatted(local);
+        };
     }
 }
