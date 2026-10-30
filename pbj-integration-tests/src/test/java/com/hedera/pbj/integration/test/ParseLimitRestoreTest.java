@@ -7,10 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.codec.TransactionIDProtoCodec;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.test.proto.pbj.MessageWithMaps;
+import com.hedera.pbj.test.proto.pbj.codec.MessageWithMapsProtoCodec;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -53,6 +56,35 @@ final class ParseLimitRestoreTest {
         final BufferedData input = BufferedData.wrap(padded);
         input.limit(message.length);
         assertThrows(ParseException.class, () -> MessageWithMaps.PROTOBUF.parse(input));
+        assertEquals(message.length, input.limit());
+    }
+
+    @Test
+    void parseFromRestoresTheLimitWhenANestedParseFails() {
+        // generated codecs call each other's public static parseFrom, so it must not leave the limit narrowed either
+        final byte[] message = corruptNestedMessage();
+        final byte[] padded = new byte[message.length + 16];
+        System.arraycopy(message, 0, padded, 0, message.length);
+        final BufferedData input = BufferedData.wrap(padded);
+        input.limit(message.length);
+        assertThrows(
+                ParseException.class,
+                () -> TransactionIDProtoCodec.parseFrom(
+                        input, false, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE));
+        assertEquals(message.length, input.limit());
+    }
+
+    @Test
+    void parseFromRestoresTheLimitWhenAMapEntryFails() {
+        final byte[] message = {0x0A, 0x04, 0x08, 0x01, 0x0F, 0x00};
+        final byte[] padded = new byte[message.length + 16];
+        System.arraycopy(message, 0, padded, 0, message.length);
+        final BufferedData input = BufferedData.wrap(padded);
+        input.limit(message.length);
+        assertThrows(
+                ParseException.class,
+                () -> MessageWithMapsProtoCodec.parseFrom(
+                        input, false, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE));
         assertEquals(message.length, input.limit());
     }
 
