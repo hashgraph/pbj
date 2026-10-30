@@ -30,6 +30,7 @@ message MixedSlowInner {
 }
 
 // <<<pbj.fast_parse = true>>>
+// <<<pbj.views = true>>>
 message MixedFastInner {
   sint64 delta = 1;
   bool flag = 2;

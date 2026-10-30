@@ -377,6 +377,10 @@ public final class ModelGenerator implements Generator {
                 fieldsNoPrecomputed, schemaClassName, lookupHelper);
         bodyContent += "\n";
 
+        // zero-copy view, for messages with pbj.views
+        bodyContent +=
+                ViewGenerator.generateView(msgDef, fieldsNoPrecomputed, javaRecordName, schemaClassName, lookupHelper);
+
         if (lookupHelper.hasDiffApis(msgDef)) {
             bodyContent += DiffGenerator.generate(
                     javaRecordName,

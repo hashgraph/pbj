@@ -869,4 +869,21 @@ public final class Common {
         packagePath.mkdirs();
         return new File(packagePath, className + ".java");
     }
+
+    /**
+     * The bytes of a field's tag varint, in wire order.
+     *
+     * @param fieldNumber the field number
+     * @param wireType the wire type
+     * @return the tag's bytes
+     */
+    public static int[] tagBytes(final int fieldNumber, final int wireType) {
+        long tag = ((long) fieldNumber << TAG_TYPE_BITS) | wireType;
+        final int[] bytes = new int[(Long.SIZE - Long.numberOfLeadingZeros(tag) + 6) / 7];
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (tag >>> 7) == 0 ? (int) tag : (int) ((tag & 0x7F) | 0x80);
+            tag >>>= 7;
+        }
+        return bytes;
+    }
 }
