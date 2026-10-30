@@ -142,10 +142,12 @@ final class CodecWriteReverseMethodGenerator {
                 i++;
             }
             sb.append("""
-                    switch (data.$oneOf().kind()) {
+                    switch (data.$kind) {
                     $cases    default -> {}
                     }
-                    """.replace("$oneOf", oneOf.nameCamelFirstLower())
+                    """.replace(
+                            "$kind",
+                            oneOf.unboxed() ? oneOf.kindName() + "()" : oneOf.nameCamelFirstLower() + "().kind()")
                     .replace("$cases", cases.toString().indent(DEFAULT_INDENT)));
         }
         return sb.toString();
@@ -387,14 +389,19 @@ final class CodecWriteReverseMethodGenerator {
                                             .indent(DEFAULT_INDENT));
         }
         final String javaType = !inOneOf ? "var" : field.type() == Field.FieldType.ENUM ? "int" : field.javaFieldType();
-        final String oneOfValue =
-                inOneOf ? "data.%s().as()".formatted(field.parent().nameCamelFirstLower()) : "";
+        final String oneOfValue = !inOneOf
+                ? ""
+                : field.parent().unboxed()
+                        ? "data.%s()".formatted(name)
+                        : "data.%s().as()".formatted(field.parent().nameCamelFirstLower());
         final String read = !inOneOf
                 ? field.type() == Field.FieldType.ENUM
                         ? "data.%sProtoOrdinal()".formatted(name)
                         : "data.%s()".formatted(name)
                 : field.type() == Field.FieldType.ENUM
-                        ? "((%s) %s).protoOrdinal()".formatted(field.javaFieldType(), oneOfValue)
+                        ? (field.parent().unboxed()
+                                ? "%s.protoOrdinal()".formatted(oneOfValue)
+                                : "((%s) %s).protoOrdinal()".formatted(field.javaFieldType(), oneOfValue))
                         : oneOfValue;
         final String declaration = "final %s %s = %s;\n".formatted(javaType, local, read);
         if (field.optionalValueType()) {

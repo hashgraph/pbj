@@ -119,9 +119,13 @@ public class LazyGetProtobufSizeMethodGenerator {
             final String oneOfType = modelClassName == null
                     ? oneOfField.nameCamelFirstUpper() + "OneOfType"
                     : modelClassName + "." + oneOfField.nameCamelFirstUpper() + "OneOfType";
-            getValueCode = oneOfField.nameCamelFirstLower() + ".as()";
+            getValueCode = oneOfField.unboxed()
+                    ? field.nameCamelFirstLower() + "()"
+                    : oneOfField.nameCamelFirstLower() + ".as()";
             if (oneOfGuard) {
-                prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
+                prefix += "if ("
+                        + (oneOfField.unboxed() ? oneOfField.kindName() : oneOfField.nameCamelFirstLower() + ".kind()")
+                        + " == " + oneOfType + "."
                         + Common.camelToUpperSnake(field.name()) + ")";
                 prefix += "\n";
                 // The statement below is the (unbraced) body of the "if" above, so indent it one level

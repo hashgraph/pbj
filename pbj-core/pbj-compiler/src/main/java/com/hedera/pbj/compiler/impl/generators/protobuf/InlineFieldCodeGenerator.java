@@ -159,11 +159,13 @@ final class InlineFieldCodeGenerator {
                 i++;
             }
             sb.append("""
-                    switch ($receiver$oneOf().kind()) {
+                    switch ($receiver$kind) {
                     $cases    default -> {}
                     }
                     """.replace("$receiver", receiver)
-                    .replace("$oneOf", oneOf.nameCamelFirstLower())
+                    .replace(
+                            "$kind",
+                            oneOf.unboxed() ? oneOf.kindName() + "()" : oneOf.nameCamelFirstLower() + "().kind()")
                     .replace("$cases", cases.toString().indent(DEFAULT_INDENT)));
         }
         return sb.toString();
@@ -344,12 +346,18 @@ final class InlineFieldCodeGenerator {
         final String local = localName(field);
         // outside a oneof, var avoids naming the type; inside, the type is needed to read the OneOf's value
         final String javaType = !inOneOf ? "var" : field.type() == Field.FieldType.ENUM ? "int" : field.javaFieldType();
-        final String oneOfValue =
-                inOneOf ? "%s%s().as()".formatted(receiver, field.parent().nameCamelFirstLower()) : "";
+        // an unboxed oneof's value is read with the alternative's typed getter, which allocates nothing
+        final String oneOfValue = !inOneOf
+                ? ""
+                : field.parent().unboxed()
+                        ? "%s%s()".formatted(receiver, field.nameCamelFirstLower())
+                        : "%s%s().as()".formatted(receiver, field.parent().nameCamelFirstLower());
         final String read = !inOneOf
                 ? read(field)
                 : field.type() == Field.FieldType.ENUM
-                        ? "((%s) %s).protoOrdinal()".formatted(field.javaFieldType(), oneOfValue)
+                        ? (field.parent().unboxed()
+                                ? "%s.protoOrdinal()".formatted(oneOfValue)
+                                : "((%s) %s).protoOrdinal()".formatted(field.javaFieldType(), oneOfValue))
                         : oneOfValue;
         final int tagSize = tagSize(field.fieldNumber(), field.type().wireType());
         final String tag = tagCode(field.fieldNumber(), field.type().wireType());

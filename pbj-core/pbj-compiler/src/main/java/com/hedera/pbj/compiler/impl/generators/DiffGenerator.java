@@ -50,7 +50,7 @@ final class DiffGenerator {
         final String comparisons = IntStream.range(0, fields.size())
                 .mapToObj(i -> {
                     final Field field = fields.get(i);
-                    final String name = field.nameCamelFirstLower();
+                    final String name = access(field);
                     return """
                             if ($candidate && $different) {
                                 $resultWord |= $bit;
@@ -112,7 +112,7 @@ final class DiffGenerator {
     private static String generatePartial(String model, List<Field> fields, String maskType, boolean wide) {
         final List<String> arguments = IntStream.range(0, fields.size())
                 .mapToObj(i -> {
-                    final String name = fields.get(i).nameCamelFirstLower();
+                    final String name = access(fields.get(i));
                     return isSet("mask", i, wide) + " ? next." + name + " : DEFAULT." + name;
                 })
                 .toList();
@@ -212,7 +212,7 @@ final class DiffGenerator {
         final List<Clear> clears = new ArrayList<>();
         for (int i = 0; i < fields.size(); i++) {
             final Field field = fields.get(i);
-            final String name = field.nameCamelFirstLower();
+            final String name = access(field);
             if (field instanceof OneOfField group) {
                 for (Field alt : group.fields()) {
                     clears.add(new Clear(
@@ -286,7 +286,7 @@ final class DiffGenerator {
         final StringBuilder clearCases = new StringBuilder();
         final StringBuilder oneofChecks = new StringBuilder();
         for (Field field : fields) {
-            final String name = field.nameCamelFirstLower();
+            final String name = access(field);
             if (field instanceof OneOfField group) {
                 for (Field alt : group.fields()) {
                     clearCases.append("""
@@ -331,7 +331,7 @@ final class DiffGenerator {
         }
         final List<String> arguments = fields.stream()
                 .map(field -> {
-                    final String name = field.nameCamelFirstLower();
+                    final String name = access(field);
                     return present(field, "partial." + name) + " ? partial." + name + " : " + clearFlag(field)
                             + " ? DEFAULT." + name + " : prior." + name;
                 })
@@ -377,10 +377,20 @@ final class DiffGenerator {
                 """.replace("$replaced", replaced);
     }
 
+    /**
+     * How generated code reads a field of a model: the field itself, or for a oneof stored unboxed, which has no
+     * {@code OneOf} field, its getter, which builds one.
+     */
+    private static String access(final Field field) {
+        return field instanceof OneOfField oneOf && oneOf.unboxed()
+                ? field.nameCamelFirstLower() + "()"
+                : field.nameCamelFirstLower();
+    }
+
     static String generateEqualsForDiff(String model, List<Field> fields) {
         final String comparisons = fields.stream()
                 .map(field -> {
-                    final String name = field.nameCamelFirstLower();
+                    final String name = access(field);
                     return """
                             if ($different) {
                                 return false;
