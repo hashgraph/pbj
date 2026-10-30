@@ -58,7 +58,14 @@ class CodecParseMethodGenerator {
             final ContextualLookupHelper lookupHelper) {
 
         ParseAndDefaultBody parseAndDefaultBodyPair = generateParseLoop(
-                generateCaseStatements(sbFunc, fields, schemaClassName, lookupHelper, ""), "", schemaClassName);
+                generateCaseStatements(
+                        sbFunc,
+                        fields,
+                        schemaClassName,
+                        lookupHelper,
+                        Common.fieldCount(fields) > Common.MAX_INLINE_FIELDS ? "" : null),
+                "",
+                schemaClassName);
         // spotless:off
         return """
                 /**
@@ -279,8 +286,9 @@ class CodecParseMethodGenerator {
     /**
      * Generate the switch cases for fields.
      *
-     * @param helperPrefix prefixed to the names of the helper methods reading the fields' values, to keep them unique:
-     *     empty for a message's fields, the map's name for a map entry's key and value
+     * @param helperPrefix prefixed to the names of the helper methods reading nested message and wrapper type values,
+     *     to keep them unique: empty for a message's fields, the map's name for a map entry's key and value; null to
+     *     read them inline, in messages with at most {@link Common#MAX_INLINE_FIELDS} fields
      */
     private static String generateCaseStatements(
             StringBuilder sbFunc,
@@ -379,7 +387,8 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
      * @param field field to generate case statement for
      * @param sbCase code written in case statement
      * @param sbFunc code written in class scope, used to create functions
-     * @param helperPrefix prefixed to the name of the helper method reading the field's value
+     * @param helperPrefix prefixed to the name of the helper method reading the field's value, or null to read it
+     *     inline
      */
     private static void generateFieldCaseStatement(
             StringBuilder sbCase,
@@ -437,8 +446,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                                 case "DoubleValue" -> Common.TYPE_FIXED64;
                                 default -> throw new PbjCompilerException("Unexpected and unknown field type " + field.type() + " cannot be parsed");
                             }));
-            sbCase.append(("final var value = " + valueHelper(sbFunc, field, helperPrefix, read) + ";\n")
-                    .indent(DEFAULT_INDENT));
+            sbCase.append(readValue(sbFunc, field, helperPrefix, read).indent(DEFAULT_INDENT));
             // spotless:on
         } else if (field.type() == Field.FieldType.MESSAGE) {
             final String strictNonRepeatedCheck;
@@ -490,7 +498,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                     .replace("$fieldName", field.name())
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
             sbCase.append((strictNonRepeatedCheck.replace("$fieldName", field.name())
-                            + "final var value = " + valueHelper(sbFunc, field, helperPrefix, read) + ";\n")
+                            + readValue(sbFunc, field, helperPrefix, read))
                     .indent(DEFAULT_INDENT));
             // spotless:on
         } else if (field.type() == Field.FieldType.MAP) {
@@ -499,7 +507,12 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
             final MapField mapField = (MapField) field;
             final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
             ParseAndDefaultBody parseAndDefaultBodyPair = generateParseLoop(
-                    generateCaseStatements(sbFunc, mapEntryFields, schemaClassName, lookupHelper, field.name() + "_"),
+                    generateCaseStatements(
+                            sbFunc,
+                            mapEntryFields,
+                            schemaClassName,
+                            lookupHelper,
+                            helperPrefix == null ? null : helperPrefix + field.name() + "_"),
                     "map_entry_",
                     schemaClassName);
             // spotless:off
@@ -600,18 +613,22 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
     }
 
     /**
-     * Put the code reading one value of a nested message or wrapper type field in its own method, and return the code
-     * calling it. Those reads are the longest, and a message with many of them, such as a large oneof, would otherwise
-     * go over HotSpot's 8000-byte limit for compiling a method at all. The JIT still inlines the helper where it is hot.
+     * The code reading one value of a nested message or wrapper type field into {@code value}. Those reads are the
+     * longest, and a message with many of them, such as a large oneof, would go over HotSpot's 8000-byte limit for
+     * compiling a method at all, so in messages with more than {@link Common#MAX_INLINE_FIELDS} fields each is put in
+     * its own method. The JIT still inlines the helper where it is hot. Smaller messages read inline.
      *
      * @param sbFunc code written in class scope
      * @param field the field
-     * @param helperPrefix prefixed to the helper's name to keep it unique
+     * @param helperPrefix prefixed to the helper's name to keep it unique, or null to read inline
      * @param read code declaring and assigning {@code value}
-     * @return the call
+     * @return the code to use
      */
-    private static String valueHelper(
+    private static String readValue(
             final StringBuilder sbFunc, final Field field, final String helperPrefix, final String read) {
+        if (helperPrefix == null) {
+            return read;
+        }
         final String name = "readField_" + helperPrefix + field.name();
         // spotless:off
         sbFunc.append("""
@@ -628,7 +645,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                 .replace("$read", read.indent(DEFAULT_INDENT))
                 .indent(DEFAULT_INDENT));
         // spotless:on
-        return name + "(input, strictMode, parseUnknownFields, maxDepth, maxSize)";
+        return "final var value = %s(input, strictMode, parseUnknownFields, maxDepth, maxSize);%n".formatted(name);
     }
 
     static String readMethod(Field field, ContextualLookupHelper lookupHelper) {

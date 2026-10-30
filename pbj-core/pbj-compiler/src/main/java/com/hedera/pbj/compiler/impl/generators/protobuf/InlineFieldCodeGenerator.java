@@ -68,14 +68,6 @@ final class InlineFieldCodeGenerator {
     /** The Java names of all fields of the message being generated, so renamed locals don't clash with them. */
     private Set<String> fieldNames = Set.of();
 
-    /**
-     * The most alternatives a oneof can have with all of them written inline. In larger oneofs, such as HAPI's
-     * {@code TransactionBody} and {@code StateValue}, each message alternative is written in its own small method, to
-     * keep the writer well under HotSpot's 8000-byte limit for compiling a method at all. Only one alternative is
-     * written per message, so the extra call costs little, and the JIT still inlines it where it is hot.
-     */
-    static final int MAX_INLINE_ONEOF_ALTERNATIVES = 32;
-
     /** The model class, for the writers' helper methods; null for {@link Target#SIZE}, which has none. */
     private final String modelClass;
     /** Helper methods the generated code calls, to add to the class after the method. */
@@ -132,6 +124,13 @@ final class InlineFieldCodeGenerator {
                         : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .toList();
+        // In messages with more than MAX_INLINE_FIELDS fields, such as HAPI's TransactionBody and StateValue, each
+        // message
+        // alternative of a oneof is written in its own small method, to keep the writer well under HotSpot's 8000-byte
+        // limit for compiling a method at all. Only one alternative is written per message, so the extra call costs
+        // little, and the JIT still inlines it where it is hot.
+        final boolean helpersForMessages =
+                target != Target.SIZE && modelClass != null && Common.fieldCount(fields) > Common.MAX_INLINE_FIELDS;
         final StringBuilder sb = new StringBuilder();
         int i = 0;
         while (i < sorted.size()) {
@@ -144,9 +143,6 @@ final class InlineFieldCodeGenerator {
             }
             // a run of adjacent alternatives of the same oneof becomes one switch
             final StringBuilder cases = new StringBuilder();
-            final boolean helpersForMessages = target != Target.SIZE
-                    && modelClass != null
-                    && oneOf.fields().size() > MAX_INLINE_ONEOF_ALTERNATIVES;
             while (i < sorted.size() && sorted.get(i).parent() == oneOf) {
                 final Field alternative = sorted.get(i);
                 final String body = helpersForMessages && alternative.type() == Field.FieldType.MESSAGE

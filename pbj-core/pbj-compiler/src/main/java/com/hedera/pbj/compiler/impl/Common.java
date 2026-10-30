@@ -871,6 +871,27 @@ public final class Common {
     }
 
     /**
+     * The most fields, counting each oneof alternative, a message can have with all of them parsed, written and indexed
+     * inline. Larger messages, such as HAPI's {@code TransactionBody} and {@code StateValue}, put the code for nested
+     * messages and oneof alternatives in small helper methods, to keep each generated method well under HotSpot's
+     * 8000-byte limit for compiling a method at all. Smaller messages keep everything inline.
+     */
+    public static final int MAX_INLINE_FIELDS = 32;
+
+    /**
+     * The number of fields of a message, counting each oneof alternative.
+     *
+     * @param fields the message's fields
+     * @return the count
+     */
+    public static long fieldCount(final List<Field> fields) {
+        return fields.stream()
+                .mapToLong(field ->
+                        field instanceof OneOfField oneOf ? oneOf.fields().size() : 1)
+                .sum();
+    }
+
+    /**
      * The bytes of a field's tag varint, in wire order.
      *
      * @param fieldNumber the field number

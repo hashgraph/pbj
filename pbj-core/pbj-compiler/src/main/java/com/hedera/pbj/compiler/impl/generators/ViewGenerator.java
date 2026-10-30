@@ -28,14 +28,6 @@ final class ViewGenerator {
 
     private ViewGenerator() {}
 
-    /**
-     * The most fields and oneof alternatives a message can have with all of them indexed inline in {@code index}. In
-     * larger messages, such as HAPI's {@code TransactionBody} and {@code StateValue}, each field is indexed in its own
-     * small method, called from both the fast path and the general loop, to keep {@code index} well under HotSpot's
-     * 8000-byte limit for compiling a method at all. The JIT still inlines them where they are hot.
-     */
-    private static final int MAX_INLINE_FIELDS = 32;
-
     /** The code generated for the view, built field by field. */
     private record Parts(
             StringBuilder state,
@@ -105,10 +97,10 @@ final class ViewGenerator {
                         .formatted(modelClass));
             }
         }
-        final long fieldCount = fields.stream()
-                .mapToLong(field ->
-                        field instanceof OneOfField oneOf ? oneOf.fields().size() : 1)
-                .sum();
+        // In messages with more than MAX_INLINE_FIELDS fields, each field is indexed in its own small method, called
+        // from
+        // both the fast path and the general loop, to keep index() well under HotSpot's 8000-byte limit for compiling a
+        // method at all. The JIT still inlines them where they are hot.
         final Parts parts = new Parts(
                 new StringBuilder(),
                 new StringBuilder(),
@@ -116,7 +108,7 @@ final class ViewGenerator {
                 new StringBuilder(),
                 new StringBuilder(),
                 new StringBuilder(),
-                fieldCount > MAX_INLINE_FIELDS);
+                Common.fieldCount(fields) > Common.MAX_INLINE_FIELDS);
         for (final Field field : fields) {
             if (field instanceof OneOfField oneOf) {
                 oneOf(oneOf, parts);
