@@ -5,6 +5,9 @@ import com.hedera.pbj.runtime.ProtoArrayWriterTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.Utf8Tools;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 /**
@@ -20,6 +23,9 @@ import java.util.Arrays;
  * <p>Not thread safe.
  */
 public final class ReverseBuffer {
+    private static final VarHandle LONG_LITTLE_ENDIAN =
+            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
+
     private byte[] buf;
     /** Index of the first written byte: {@code buf[pos..]} is the output. */
     private int pos;
@@ -123,10 +129,41 @@ public final class ReverseBuffer {
     }
 
     private void varintWide(final long value) {
+        if (pos >= Long.BYTES && (value >>> 56) == 0) {
+            pos -= varintStore(buf, pos, value);
+            return;
+        }
         final int size = ProtoWriterTools.sizeOfUnsignedVarInt64(value);
         ensure(size);
         pos -= size;
         ProtoArrayWriterTools.writeUnsignedVarInt(buf, pos, value);
+    }
+
+    /**
+     * Write a varint of 2 to 8 bytes, ending just before {@code end}, with one 8-byte store. The store also covers
+     * the bytes below the varint, which are free space in this buffer: the output is only ever extended downward, so
+     * nothing written is overwritten. A forward writer would need a guard against writing past its end instead.
+     *
+     * @param buf the buffer
+     * @param end the index after the varint's last byte, at least 8
+     * @param value the value, at least 128 and less than 2<sup>56</sup>
+     * @return the varint's size in bytes
+     */
+    private static int varintStore(final byte[] buf, final int end, final long value) {
+        final int size = (70 - Long.numberOfLeadingZeros(value)) / 7;
+        // each 7-bit group in its own byte, with the continuation bit on every byte but the last
+        final long groups = (value & 0x7FL)
+                | (value << 1 & 0x7F00L)
+                | (value << 2 & 0x7F0000L)
+                | (value << 3 & 0x7F000000L)
+                | (value << 4 & 0x7F00000000L)
+                | (value << 5 & 0x7F0000000000L)
+                | (value << 6 & 0x7F000000000000L)
+                | (value << 7 & 0x7F00000000000000L);
+        final long word = groups | (0x8080808080808080L >>> ((9 - size) << 3));
+        // little-endian, so the varint's first byte is at end - size and its last at end - 1
+        LONG_LITTLE_ENDIAN.set(buf, end - Long.BYTES, word << ((8 - size) << 3));
+        return size;
     }
 
     /**
@@ -205,6 +242,10 @@ public final class ReverseBuffer {
     public void varintUnchecked(final long value) {
         if ((value >>> 7) == 0) {
             buf[--pos] = (byte) value;
+            return;
+        }
+        if (pos >= Long.BYTES && (value >>> 56) == 0) {
+            pos -= varintStore(buf, pos, value);
             return;
         }
         pos -= ProtoWriterTools.sizeOfUnsignedVarInt64(value);
