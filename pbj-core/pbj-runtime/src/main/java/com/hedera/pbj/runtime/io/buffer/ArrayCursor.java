@@ -123,6 +123,65 @@ public final class ArrayCursor {
     }
 
     /**
+     * Point this cursor at {@code in[offset, limit)}, part of {@code source} if it is not null, so {@link #bytes}
+     * returns views of {@code source} instead of copies. Views use it for the messages they contain.
+     *
+     * @param source the {@link Bytes} holding {@code in[offset, limit)}, or null if they are a plain array
+     * @param in the bytes
+     * @param offset index of the first byte to read
+     * @param limit index after the last byte to read
+     * @return this cursor
+     * @throws IllegalArgumentException if {@code source} does not hold {@code in[offset, limit)}
+     */
+    public ArrayCursor reset(
+            @Nullable final Bytes source, @NonNull final byte[] in, final int offset, final int limit) {
+        reset(in, offset, limit);
+        if (source != null) {
+            checkHolds(source, in, offset, limit - offset);
+            this.source = source;
+        }
+        return this;
+    }
+
+    /** @return the {@link Bytes} this cursor reads, or null if it reads a plain array */
+    public @Nullable Bytes source() {
+        return source;
+    }
+
+    /**
+     * The bytes {@code in[offset, offset + length)}, as the stream parser returns them: a view of {@code source}, which
+     * is immutable, or a copy if they are part of a plain array, which could change.
+     *
+     * @param source the {@link Bytes} holding the bytes, or null if they are part of a plain array
+     * @param in the array holding the bytes
+     * @param offset index of the first byte
+     * @param length the number of bytes
+     * @return the bytes
+     * @throws IllegalArgumentException if {@code source} does not hold the bytes
+     */
+    public static @NonNull Bytes bytes(
+            @Nullable final Bytes source, @NonNull final byte[] in, final int offset, final int length) {
+        if (length == 0) {
+            return Bytes.EMPTY;
+        }
+        if (source != null) {
+            checkHolds(source, in, offset, length);
+            return source.getBytes(offset - source.backingOffset(), length);
+        }
+        return Bytes.wrap(Arrays.copyOfRange(in, offset, offset + length));
+    }
+
+    private static void checkHolds(
+            @NonNull final Bytes source, @NonNull final byte[] in, final int offset, final int length) {
+        if (source.backingArray() != in
+                || offset < source.backingOffset()
+                || length < 0
+                || offset + length > source.backingOffset() + source.length()) {
+            throw new IllegalArgumentException("The bytes are not part of the given source");
+        }
+    }
+
+    /**
      * The array this cursor reads. Views use it to decode fields at the offsets they recorded; it must not be modified.
      *
      * @return the array
@@ -230,7 +289,9 @@ public final class ArrayCursor {
                         ^ (~0L << 42)
                         ^ (~0L << 49)
                         ^ (~0L << 56);
-                if (v < 0L && in[q++] < 0L) {
+                // a tenth byte: only its lowest bit fits in a long and the chain above already set it, so, as
+                // ByteArrayBufferedData does, reject a tenth byte that continues or leaves that bit clear
+                if (v < 0L && isBadTenthByte(in[q++])) {
                     throw new DataEncodingException("Malformed var int");
                 }
             }
@@ -251,6 +312,14 @@ public final class ArrayCursor {
             }
         }
         throw new DataEncodingException("Malformed var int");
+    }
+
+    /**
+     * @param b the tenth byte of a varint
+     * @return true if it has the continuation bit, or does not set bit 63, so no long can hold the varint
+     */
+    private static boolean isBadTenthByte(final byte b) {
+        return b < 0 || (b & 1) == 0;
     }
 
     /** @return a field tag, as the stream parser reads it ({@code readVarInt(false)}) */

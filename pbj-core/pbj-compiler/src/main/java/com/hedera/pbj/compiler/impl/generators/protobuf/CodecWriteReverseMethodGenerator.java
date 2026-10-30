@@ -55,7 +55,9 @@ final class CodecWriteReverseMethodGenerator {
                 // maps of enums are written forward, which measures only this message
                 final int size = data.protobufSize();
                 final int offset = out.reserve(size);
-                writeTo(data, out.array(), offset, offset + size);
+                if (writeTo(data, out.array(), offset, offset + size) != size) {
+                    throw new IllegalStateException("Wrote a different number of bytes than protobufSize()");
+                }
                 """;
         // spotless:off
         return """

@@ -104,8 +104,8 @@ class CodecParseMethodGenerator {
 
                 /**
                  * Parses a $modelClassName object, as {@link #parseImpl} does. Generated codecs call this directly for nested
-                 * messages, so the call is static and can be inlined. If parsing fails, the input's limit may be left
-                 * narrowed to a nested message; {@link Codec#parse} restores it for callers.
+                 * messages, so the call is static and can be inlined. If parsing fails, the input's limit is restored to
+                 * what it was when this method was called.
                  *
                  * @see #parseImpl(ReadableSequentialData, boolean, boolean, int, int)
                  */
@@ -118,6 +118,8 @@ class CodecParseMethodGenerator {
                     if (maxDepth < 0) {
                         throw new ParseException("Reached maximum allowed depth of nested messages");
                     }
+                    // nested messages narrow the limit and only restore it on success, so restore it here on failure
+                    final long callerLimit = input.limit();
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
                 $fieldDefs
@@ -131,13 +133,14 @@ class CodecParseMethodGenerator {
                         }
                 $cacheableSupport
                     } catch (final Exception anyException) {
+                        input.limit(callerLimit);
                         if (anyException instanceof ParseException parseException) {
                             throw parseException;
                         }
                         throw new ParseException(anyException);
                     }
                 }
-                
+
                 private static List<UnknownField> defaultCase(int tag, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, ReadableSequentialData input, int maxSize) throws ParseException, IOException {
                 $defaultCaseBody
                     return $unknownFields;
@@ -483,7 +486,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                                 throw new BufferUnderflowException();
                             }
                             input.limit(end);
-                            // If this throws, the limit stays narrowed: Codec.parse restores the caller's limit
+                            // If this throws, the limit stays narrowed: parseFrom restores its caller's limit
                             value = $readMethod;
                             input.limit(limitBefore);
                             // Make sure we read the full number of bytes
@@ -530,7 +533,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                                 throw new BufferUnderflowException();
                             }
                             input.limit(__map_end);
-                            // If this throws, the limit stays narrowed: Codec.parse restores the caller's limit
+                            // If this throws, the limit stays narrowed: parseFrom restores its caller's limit
                         $mapParseLoop
                             input.limit(__map_limitBefore);
                             // Make sure we read the full number of bytes

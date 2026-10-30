@@ -304,8 +304,10 @@ for (Bytes bytes : orders) {
 `wrap` indexes the message in one pass, with the same in-order fast path and the same checks of tags, wire types,
 lengths, bools and UTF-8 as parsing; a malformed message throws `ParseException`. `wrap(bytes, strictMode, maxDepth,
 maxSize)` applies the same limits and strict mode as `parse` with those arguments, and passes them down to nested
-views. Nested messages, repeated message elements and wrapper type values are validated when they are read, so a
-malformed one throws from its accessor or cursor rather than from `wrap`.
+views. In strict mode `wrap` also validates every nested message, repeated message element and wrapper type value, at
+any depth, so it fails fast on whatever `parseStrict` rejects. Otherwise they are validated when they are read, so a
+malformed one throws from its accessor or cursor rather than from `wrap`, and one that is never read is never
+validated: **a non-strict `wrap` is not a validation of untrusted input**; use strict mode or `parse` for that.
 
 What a view has for each kind of field:
 
@@ -313,17 +315,19 @@ What a view has for each kind of field:
 |---|---|
 | Number, bool | `xxx()`, decoded by `wrap` |
 | Enum | `xxx()`, and `xxxProtoOrdinal()` for the raw number |
-| String, bytes | `xxx()` builds a `String` or `Bytes`; `xxxArray()`, `xxxOffset()`, `xxxLength()` and `xxxEquals(byte[])` read it without allocating |
+| String, bytes | `xxx()` builds a `String` or `Bytes` (a view of the wrapped `Bytes`, or a copy when wrapping an array); `xxxLength()`, `xxxEquals(byte[])` and `xxxCopyTo(byte[], int)` read it without allocating |
 | Message | `xxx()` returns a child view, created once and re-wrapped with the parent |
 | `google.protobuf` wrapper type | `xxx()` returns the value, or null when absent |
-| Repeated | `xxxCount()`, and `xxx()` returns a reusable cursor: `next()` moves to each element, `value()` reads it (and `valueOffset()`, `valueLength()`, `valueEquals(byte[])` for strings and bytes) |
+| Repeated | `xxxCount()`, and `xxx()` returns a reusable cursor: `next()` moves to each element, `value()` reads it (and `valueLength()`, `valueEquals(byte[])`, `valueCopyTo(byte[], int)` for strings and bytes) |
 | Oneof | `xxxKind()` returns which alternative is set; each alternative has the accessors of a singular field |
 
 Message and wrapper type fields also have `hasXxx()`. `toModel()` parses the wrapped bytes into a model object. Wrapping
 and reading numbers, enums, nested views, cursors and offsets allocate nothing.
 
 A view and its child views and cursors are reused, so a child view returned earlier reads whatever its parent was
-last wrapped over. The wrapped bytes must not change while a view reads them.
+last wrapped over. The wrapped bytes must not change while a view reads them. Views never hand out the wrapped array:
+`Bytes` they return, and `toModel()`, share the wrapped `Bytes`, which is immutable, or copy from a wrapped array, so
+they stay the same when a caller reuses its array.
 
 A message gets a view only if it has no maps or repeated wrapper types, and every message field's type also gets a
 view (messages may contain each other). When a message asks for a view in its own or its file's comments and gets
