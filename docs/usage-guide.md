@@ -389,9 +389,10 @@ for (Bytes bytes : orders) {
 }
 ```
 
-`wrap` validates the message as `parse` does, with the same limits and strict mode. Nested messages, repeated message
-elements and wrapper type values are validated when they are read, so a malformed one throws from its accessor or
-cursor rather than from `wrap`. Messages with maps, or that contain a message without a view, get no view; the build
+`wrap` validates the message as `parse` does, with the same limits and strict mode. In strict mode it validates
+nested messages, repeated message elements and wrapper type values too, at any depth, before returning. Otherwise they
+are validated when they are read, so a malformed one throws from its accessor or cursor rather than from `wrap`, and
+one that is never read is never validated: to validate untrusted input, wrap it in strict mode or parse it. Messages with maps, or that contain a message without a view, get no view; the build
 says why for messages that ask for one in their comments.
 
 **Views and cursors are reused, so what they return changes under you.** A nested accessor returns the same child view

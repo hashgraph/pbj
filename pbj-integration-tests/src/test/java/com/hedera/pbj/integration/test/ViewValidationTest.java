@@ -148,6 +148,151 @@ final class ViewValidationTest {
     }
 
     @Test
+    void strictWrapEnforcesMaxDepthBeforeAnythingIsRead() {
+        final Bytes bytes = new Fields().delimited(1, inner(4)).bytes();
+        assertThrows(
+                ParseException.class,
+                () -> ViewCheckOuter.PROTOBUF.parse(
+                        bytes.toReadableSequentialData(), true, false, 1, Codec.DEFAULT_MAX_SIZE));
+        assertThrows(
+                ParseException.class, () -> new ViewCheckOuter.View().wrap(bytes, true, 1, Codec.DEFAULT_MAX_SIZE));
+    }
+
+    /** Messages strict parsing rejects only because of something nested, which a non-strict view reads lazily. */
+    private static List<Bytes> nestedStrictViolations() {
+        final byte[] unknownField =
+                new Fields().tag(1000, VARINT).varint(1).bytes().toByteArray();
+        final Bytes innerWithUnknown =
+                new Fields().tag(1, VARINT).varint(5).bytes().append(Bytes.wrap(unknownField));
+        final Bytes leafWithUnknown = new Fields()
+                .delimited(2, new Fields().tag(1, VARINT).varint(6).bytes().append(Bytes.wrap(unknownField)))
+                .bytes();
+        return List.of(
+                // an unknown field in a nested message, and in one nested two deep
+                new Fields().delimited(1, innerWithUnknown).bytes(),
+                new Fields().delimited(1, leafWithUnknown).bytes(),
+                // in a oneof alternative, and in the second element of a repeated message
+                new Fields().delimited(2, innerWithUnknown).bytes(),
+                new Fields()
+                        .delimited(7, inner(1))
+                        .delimited(7, innerWithUnknown)
+                        .bytes(),
+                // malformed UTF-8 in a wrapper type value
+                new Fields()
+                        .delimited(
+                                10,
+                                new Fields()
+                                        .delimited(1, new byte[] {(byte) 0xFF})
+                                        .bytes())
+                        .bytes());
+    }
+
+    @Test
+    void strictWrapValidatesNestedMessagesAtAnyDepth() throws Exception {
+        for (final Bytes bytes : nestedStrictViolations()) {
+            assertThrows(ParseException.class, () -> ViewCheckOuter.PROTOBUF.parseStrict(bytes), bytes::toHex);
+            // strict mode fails fast, from wrap, even though nothing nested has been read
+            final ViewCheckOuter.View view = new ViewCheckOuter.View();
+            assertThrows(
+                    ParseException.class,
+                    () -> view.wrap(bytes, true, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE),
+                    bytes::toHex);
+            final byte[] array = bytes.toByteArray();
+            assertThrows(
+                    ParseException.class,
+                    () -> view.wrap(array, 0, array.length, true, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE),
+                    bytes::toHex);
+        }
+    }
+
+    @Test
+    void nonStrictWrapLeavesUnreadNestedMessagesToTheirAccessors() throws Exception {
+        // documented: without strict mode only what is read is validated, as parsing would validate it
+        for (final Bytes bytes : nestedStrictViolations()) {
+            new ViewCheckOuter.View().wrap(bytes);
+        }
+    }
+
+    @Test
+    void strictWrapStillReturnsNestedValues() throws Exception {
+        final ViewCheckOuter outer = ViewCheckOuter.newBuilder()
+                .inner(new ViewCheckInner(1, new ViewCheckLeaf(2)))
+                .innerChoice(new ViewCheckInner(3, null))
+                .inners(List.of(new ViewCheckInner(4, null), new ViewCheckInner(5, new ViewCheckLeaf(6))))
+                .memo("memo")
+                .build();
+        final Bytes bytes = ViewCheckOuter.PROTOBUF.toBytes(outer);
+        final ViewCheckOuter.View view =
+                new ViewCheckOuter.View().wrap(bytes, true, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE);
+        assertEquals(2, view.inner().leaf().value());
+        assertEquals(3, view.innerChoice().value());
+        assertEquals("memo", view.memo());
+        final List<Integer> values = new ArrayList<>();
+        for (final var it = view.inners(); it.next(); ) {
+            values.add(it.value().value());
+        }
+        assertEquals(List.of(4, 5), values);
+        assertEquals(outer, view.toModel());
+    }
+
+    @Test
+    void bytesFromAViewOverAnArrayAreCopies() throws Exception {
+        final ViewCheckOuter outer = ViewCheckOuter.newBuilder()
+                .payload(Bytes.wrap(new byte[] {1, 2, 3}))
+                .payloads(List.of(Bytes.wrap(new byte[] {4, 5})))
+                .build();
+        final byte[] array = ViewCheckOuter.PROTOBUF.toBytes(outer).toByteArray();
+        final ViewCheckOuter.View view = new ViewCheckOuter.View().wrap(array, 0, array.length);
+        final Bytes payload = view.payload();
+        final var payloads = view.payloads();
+        assertTrue(payloads.next());
+        final Bytes element = payloads.value();
+        final ViewCheckOuter model = view.toModel();
+        // the caller reuses its array: what the view returned must not change
+        java.util.Arrays.fill(array, (byte) 0x7F);
+        assertEquals(Bytes.wrap(new byte[] {1, 2, 3}), payload);
+        assertEquals(Bytes.wrap(new byte[] {4, 5}), element);
+        assertEquals(outer, model);
+    }
+
+    @Test
+    void bytesFromAViewOverBytesAreReadWithoutTheArray() throws Exception {
+        final ViewCheckOuter outer = ViewCheckOuter.newBuilder()
+                .inner(new ViewCheckInner(1, null))
+                .payload(Bytes.wrap(new byte[] {1, 2, 3}))
+                .payloads(List.of(Bytes.wrap(new byte[] {4, 5})))
+                .build();
+        final ViewCheckOuter.View view = new ViewCheckOuter.View().wrap(ViewCheckOuter.PROTOBUF.toBytes(outer));
+        assertEquals(outer.payload(), view.payload());
+        assertEquals(3, view.payloadLength());
+        assertTrue(view.payloadEquals(new byte[] {1, 2, 3}));
+        final byte[] copy = new byte[5];
+        assertEquals(3, view.payloadCopyTo(copy, 2));
+        assertArrayEquals(new byte[] {0, 0, 1, 2, 3}, copy);
+        final var payloads = view.payloads();
+        assertTrue(payloads.next());
+        assertEquals(Bytes.wrap(new byte[] {4, 5}), payloads.value());
+        final byte[] elementCopy = new byte[2];
+        assertEquals(2, payloads.valueCopyTo(elementCopy, 0));
+        assertArrayEquals(new byte[] {4, 5}, elementCopy);
+        // an absent bytes field
+        final ViewCheckOuter.View empty = new ViewCheckOuter.View().wrap(Bytes.EMPTY);
+        assertEquals(Bytes.EMPTY, empty.payload());
+        assertTrue(empty.payloadEquals(new byte[0]));
+        assertEquals(0, empty.payloadCopyTo(new byte[0], 0));
+    }
+
+    @Test
+    void aSourceMustHoldTheWrappedBytes() {
+        final Bytes bytes = ViewCheckOuter.PROTOBUF.toBytes(
+                ViewCheckOuter.newBuilder().name("name").build());
+        final byte[] other = bytes.toByteArray();
+        // a Bytes that does not hold the array cannot be passed off as its source
+        assertThrows(IllegalArgumentException.class, () -> new ViewCheckOuter.View()
+                .wrap(bytes, other, 0, other.length, false, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE));
+    }
+
+    @Test
     void packedAndUnpackedElementsMixInOneRepeatedField() throws Exception {
         // packed [1, -2], then 3 unpacked, then packed [-4], then 5 unpacked
         final Bytes bytes = new Fields()

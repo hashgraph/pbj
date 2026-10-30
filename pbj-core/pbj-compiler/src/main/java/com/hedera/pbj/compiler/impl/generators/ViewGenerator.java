@@ -34,7 +34,8 @@ final class ViewGenerator {
             StringBuilder resets,
             StringBuilder fastPath,
             StringBuilder cases,
-            StringBuilder accessors) {}
+            StringBuilder accessors,
+            StringBuilder validations) {}
 
     /**
      * Generate the view class for a message, or nothing if it has no view.
@@ -75,6 +76,7 @@ final class ViewGenerator {
                 new StringBuilder(),
                 new StringBuilder(),
                 new StringBuilder(),
+                new StringBuilder(),
                 new StringBuilder());
         for (final Field field : fields) {
             if (field instanceof OneOfField oneOf) {
@@ -96,17 +98,23 @@ final class ViewGenerator {
                  *
                  * <p>{@link #wrap} indexes this message and validates it as parsing does, with the same limits and strict
                  * mode: tags, wire types, lengths, bools, UTF-8 strings, unknown fields and, in strict mode, repeated
-                 * singular messages. Nested messages, repeated message elements and wrapper type values are validated
-                 * when they are read, so a malformed one throws from its accessor or cursor rather than from {@code wrap}.
+                 * singular messages. In strict mode it also validates every nested message, repeated message element and
+                 * wrapper type value, at any depth, so it fails fast on anything strict parsing rejects. Otherwise they
+                 * are only validated when they are read, and a malformed one throws from its accessor or cursor: a
+                 * non-strict {@code wrap} does not validate nested messages that are never read, so use strict mode, or
+                 * parse, to validate untrusted input.
                  *
                  * <p>A view is valid until it is wrapped again, and reads the wrapped bytes directly, so they must not
-                 * change. Child views and cursors are reused: the view a nested accessor or a cursor's {@code value()}
-                 * returns changes on the next call, so copy what you need, or call {@code toModel()}, before reading
-                 * further. Not thread safe.
+                 * change while it is used. Bytes it returns are views of the wrapped {@link Bytes}, which is immutable,
+                 * or copies when it wraps a plain array. Child views and cursors are reused: the view a nested accessor
+                 * or a cursor's {@code value()} returns changes on the next call, so copy what you need, or call
+                 * {@code toModel()}, before reading further. Not thread safe.
                  */
                 public static final class View {
                     private final ArrayCursor cursor = new ArrayCursor(new byte[0], 0, 0);
                     private byte[] in;
+                    /** The Bytes holding {@code in}, if this view wraps one, so bytes fields need not be copied */
+                    private Bytes source;
                     private int start;
                     private int end;
                     private boolean strictMode;
@@ -157,7 +165,7 @@ final class ViewGenerator {
 
                     /**
                      * Wrap an encoded $model in {@code in[offset, offset + length)}, validating it as {@link Codec#parse}
-                     * does with the same arguments. Views also use it for the messages they contain.
+                     * does with the same arguments. Bytes fields are returned as copies, since the array could change.
                      *
                      * @param in the bytes
                      * @param offset where the message starts
@@ -176,7 +184,35 @@ final class ViewGenerator {
                             final int maxDepth,
                             final int maxSize)
                             throws ParseException {
-                        cursor.reset(in, offset, offset + length);
+                        return wrap(null, in, offset, length, strictMode, maxDepth, maxSize);
+                    }
+
+                    /**
+                     * Wrap an encoded $model in {@code in[offset, offset + length)}, part of {@code source} if it is not
+                     * null, validating it as {@link Codec#parse} does with the same arguments. Views use it for the
+                     * messages they contain, so bytes fields are views of {@code source} rather than copies.
+                     *
+                     * @param source the {@link Bytes} holding the message, or null if it is part of a plain array
+                     * @param in the bytes
+                     * @param offset where the message starts
+                     * @param length the message's length
+                     * @param strictMode when {@code true}, unknown fields and repeated singular messages are errors
+                     * @param maxDepth the maximum depth of nested messages below this one
+                     * @param maxSize the maximum length of a field, nested message or unknown field
+                     * @return this view
+                     * @throws ParseException if the message is malformed or nested too deep
+                     * @throws IllegalArgumentException if {@code source} does not hold the message
+                     */
+                    public View wrap(
+                            @Nullable final Bytes source,
+                            @NonNull final byte[] in,
+                            final int offset,
+                            final int length,
+                            final boolean strictMode,
+                            final int maxDepth,
+                            final int maxSize)
+                            throws ParseException {
+                        cursor.reset(source, in, offset, offset + length);
                         return index(strictMode, maxDepth, maxSize);
                     }
 
@@ -225,9 +261,23 @@ final class ViewGenerator {
                         }
                         this.start = start;
                         end = cursor.limit();
+                        source = cursor.source();
                         in = cursor.array();
+                        if (strictMode) {
+                            // strict mode fails fast: validate nested messages now, not when they are read
+                            try {
+                                validateNested();
+                            } catch (final ParseException e) {
+                                in = null;
+                                throw e;
+                            }
+                        }
                         return this;
                     }
+
+                    /** Validates every nested message, repeated message element and wrapper value, at any depth. */
+                    private void validateNested() throws ParseException {
+                $validations    }
 
                     /**
                      * Parse the wrapped message into a model object.
@@ -236,7 +286,7 @@ final class ViewGenerator {
                      * @throws ParseException if the message is malformed
                      */
                     public $model toModel() throws ParseException {
-                        return $model.PROTOBUF.parse(Bytes.wrap(in, start, end - start));
+                        return $model.PROTOBUF.parse(ArrayCursor.bytes(source, in, start, end - start));
                     }
                 $accessors
                 }
@@ -246,6 +296,7 @@ final class ViewGenerator {
                 .replace("$fastPath", parts.fastPath().toString().indent(DEFAULT_INDENT * 3))
                 .replace("$cases", parts.cases().toString().indent(DEFAULT_INDENT * 5))
                 .replace("$accessors", parts.accessors().toString().indent(DEFAULT_INDENT))
+                .replace("$validations", parts.validations().toString().indent(DEFAULT_INDENT * 2))
                 .replace("$model", modelClass)
                 .replace("$schema", schemaClass)
                 .indent(DEFAULT_INDENT);
@@ -337,6 +388,10 @@ final class ViewGenerator {
         final String guard = oneOfKind == null ? "" : "%s == %d".formatted(oneOfKind, field.fieldNumber());
         parts.accessors()
                 .append(field.optionalValueType() ? wrapperAccessor(field, name, guard) : accessor(field, name, guard));
+        if (field.type() == Field.FieldType.MESSAGE) {
+            // reading a nested message or wrapper value validates it; absent ones are skipped by the accessor
+            parts.validations().append("%s();%n".formatted(name));
+        }
     }
 
     /** A oneof: each alternative is recorded like a singular field, and the oneof remembers the last one seen. */
@@ -443,7 +498,7 @@ final class ViewGenerator {
                     if (child == null) {
                         child = new $elem.View();
                     }
-                    child.wrap(in, offset, length, strictMode, maxDepth - 1, maxSize);
+                    child.wrap(source, in, offset, length, strictMode, maxDepth - 1, maxSize);
                     """.replace("$elem", field.javaFieldTypeBase());
                     case STRING, BYTES -> """
                     length = c.length(maxSize, "$field");
@@ -452,6 +507,12 @@ final class ViewGenerator {
                     """;
                     default -> "value = %s;%n".formatted(decode(field.type(), "c"));
                 };
+        if (field.type() == Field.FieldType.MESSAGE) {
+            // moving the cursor to each element wraps, and so validates, it
+            parts.validations()
+                    .append("for (final var elements = %s(); elements.next(); ) {%n    // validated by next()%n}%n"
+                            .formatted(name));
+        }
         final String packedStep = delimited ? "" : """
                 if (packedEnd >= 0) {
                     if (c.position() < packedEnd) {
@@ -566,13 +627,20 @@ final class ViewGenerator {
             case STRING, BYTES ->
                 """
 
-                    /** @return the offset of the current element in the wrapped array */
-                    public int valueOffset() {
-                        return offset;
-                    }
-
                     /** @return the length in bytes of the current element */
                     public int valueLength() {
+                        return length;
+                    }
+
+                    /**
+                     * Copy the current element's bytes, without allocating.
+                     *
+                     * @param dst the array to copy to
+                     * @param dstOffset where in {@code dst} to copy to
+                     * @return the number of bytes copied, {@link #valueLength()}
+                     */
+                    public int valueCopyTo(@NonNull final byte[] dst, final int dstOffset) {
+                        System.arraycopy(in, offset, dst, dstOffset, length);
                         return length;
                     }
 
@@ -592,13 +660,13 @@ final class ViewGenerator {
                                 "$returns",
                                 field.type() == Field.FieldType.STRING
                                         ? "decoded as a new String"
-                                        : "as a view of the wrapped bytes")
+                                        : "as a view of the wrapped Bytes, or a copy when wrapping an array")
                         .replace("$type", field.type() == Field.FieldType.STRING ? "String" : "Bytes")
                         .replace(
                                 "$value",
                                 field.type() == Field.FieldType.STRING
                                         ? "new String(in, offset, length, java.nio.charset.StandardCharsets.UTF_8)"
-                                        : "Bytes.wrap(in, offset, length)");
+                                        : "ArrayCursor.bytes(source, in, offset, length)");
             case MESSAGE -> """
 
                     /** @return a view of the current element, re-wrapped by each {@code next()} */
@@ -660,19 +728,24 @@ final class ViewGenerator {
             case STRING, BYTES ->
                 """
 
-                    /** @return the offset of {@code $field} in {@link #$nameArray()}, 0 when absent */
-                    public int $nameOffset() {
-                        return $absent ? 0 : $nameOffset;
-                    }
-
                     /** @return the length in bytes of {@code $field}, 0 when absent */
                     public int $nameLength() {
                         return $absent ? 0 : $nameLength;
                     }
 
-                    /** @return the wrapped array, which holds {@code $field}; do not modify it */
-                    public byte[] $nameArray() {
-                        return in;
+                    /**
+                     * Copy the bytes of {@code $field}, without allocating.
+                     *
+                     * @param dst the array to copy to
+                     * @param dstOffset where in {@code dst} to copy to
+                     * @return the number of bytes copied, {@link #$nameLength()}
+                     */
+                    public int $nameCopyTo(@NonNull final byte[] dst, final int dstOffset) {
+                        final int length = $nameLength();
+                        if (length > 0) {
+                            System.arraycopy(in, $nameOffset, dst, dstOffset, length);
+                        }
+                        return length;
                     }
 
                     /**
@@ -680,8 +753,11 @@ final class ViewGenerator {
                      * @return true if {@code $field} is exactly {@code other}, compared without allocating
                      */
                     public boolean $nameEquals(@NonNull final byte[] other) {
-                        return java.util.Arrays.equals(
-                                in, $nameOffset(), $nameOffset() + $nameLength(), other, 0, other.length);
+                        final int length = $nameLength();
+                        return length == 0
+                                ? other.length == 0
+                                : java.util.Arrays.equals(
+                                        in, $nameOffset, $nameOffset + length, other, 0, other.length);
                     }
 
                     /** @return {@code $field}, $returns */
@@ -693,14 +769,14 @@ final class ViewGenerator {
                                 "$returns",
                                 field.type() == Field.FieldType.STRING
                                         ? "decoded as a new String"
-                                        : "as a view of the wrapped bytes")
+                                        : "as a view of the wrapped Bytes, or a copy when wrapping an array")
                         .replace("$type", field.type() == Field.FieldType.STRING ? "String" : "Bytes")
                         .replace("$default", field.type() == Field.FieldType.STRING ? "\"\"" : "Bytes.EMPTY")
                         .replace(
                                 "$value",
                                 field.type() == Field.FieldType.STRING
                                         ? "new String(in, $nameOffset, $nameLength, java.nio.charset.StandardCharsets.UTF_8)"
-                                        : "Bytes.wrap(in, $nameOffset, $nameLength)")
+                                        : "ArrayCursor.bytes(source, in, $nameOffset, $nameLength)")
                         .replace("$name", name)
                         .replace("$field", field.name());
             case MESSAGE ->
@@ -729,7 +805,7 @@ final class ViewGenerator {
                             // already wrapped over this field since this view was wrapped: don't index it again
                             return $nameView;
                         }
-                        $nameView.wrap(in, $nameOffset, $nameLength, strictMode, maxDepth - 1, maxSize);
+                        $nameView.wrap(source, in, $nameOffset, $nameLength, strictMode, maxDepth - 1, maxSize);
                         $nameViewCurrent = true;
                         return $nameView;
                     }
@@ -777,7 +853,7 @@ final class ViewGenerator {
                         return $default;
                     }
                     try {
-                        cursor.reset(in, $nameOffset, $nameOffset + $nameLength);
+                        cursor.reset(source, in, $nameOffset, $nameOffset + $nameLength);
                         // the wrapper's one field: its tag, then the value
                         cursor.tag();
                         return $read;
