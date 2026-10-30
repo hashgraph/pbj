@@ -6,6 +6,8 @@ package proto;
 option java_package = "com.hedera.pbj.test.proto.java";
 option java_multiple_files = true;
 
+import "google/protobuf/wrappers.proto";
+
 /**
  * Messages for ViewValidationTest: views validate as parsing does, with the caller's limits and strict mode, and are
  * denied to messages that can't have them.
@@ -22,6 +24,9 @@ message ViewCheckOuter {
   repeated string names = 5;
   string name = 6;
   repeated ViewCheckInner inners = 7;
+  bytes payload = 8;
+  repeated bytes payloads = 9;
+  google.protobuf.StringValue memo = 10;
 }
 
 // <<<pbj.views = true>>>
