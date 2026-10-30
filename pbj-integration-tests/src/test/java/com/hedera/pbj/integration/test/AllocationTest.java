@@ -10,9 +10,14 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.ProtoWriteBuffer;
 import com.hedera.pbj.runtime.io.buffer.ReverseBuffer;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.MixedFastInner;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.MixedKind;
+import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterChoice;
+import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterColor;
+import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterLeaf;
+import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterRoot;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
@@ -247,6 +252,46 @@ final class AllocationTest {
         });
         assertEquals(0L, bytesPerOperation, "view wrap and reading every field");
         assertTrue(sink[0] != 0);
+    }
+
+    /**
+     * Writing a message tree through generated writers, from values and with {@code writeFrom}, allocates nothing once
+     * the child writers exist. Block items are measured the same way in {@code BlockWriterTest}, with every option on.
+     */
+    @Test
+    void writersDoNotAllocate() {
+        final ProtoWriteBuffer buffer = new ProtoWriteBuffer(16);
+        final WriterRoot.Writer writer = new WriterRoot.Writer();
+        final byte[] utf8 = "memo".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        final long[] numbers = {1, 2, 300, -4};
+        final long fromValues = allocatedPerOperation(i -> {
+            buffer.reset();
+            final WriterRoot.Writer root = writer.start(buffer);
+            root.scalars()
+                    .int32Value(i)
+                    .sint64Value(-i)
+                    .doubleValue(1.5)
+                    .stringValue(utf8, 0, utf8.length)
+                    .color(WriterColor.WRITER_COLOR_RED);
+            final var repeated = root.repeated().int64Values(numbers, 0, numbers.length);
+            for (int j = 0; j < 3; j++) {
+                repeated.addLeaves().id(j).stamp(i);
+            }
+            root.maps().putIntToString(1, "one").putStringToLeaf("a").id(i);
+            root.choice().before(1).leafChoice().id(2);
+            root.end();
+        });
+        final WriterRoot object = WriterRoot.newBuilder()
+                .choice(WriterChoice.newBuilder()
+                        .leafChoice(WriterLeaf.newBuilder().id(3).build())
+                        .build())
+                .build();
+        final long fromObjects = allocatedPerOperation(i -> {
+            buffer.reset();
+            writer.start(buffer).writeFrom(object).end();
+        });
+        assertEquals(0L, fromValues, "writing a message tree from values");
+        assertEquals(0L, fromObjects, "writing a message tree with writeFrom");
     }
 
     @Test

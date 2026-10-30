@@ -101,9 +101,11 @@ require(pbjPerformance == "default" || pbjPerformance == "max") {
     "pbjPerformance must be \"default\" or \"max\", not \"$pbjPerformance\""
 }
 
-// Benchmarks of APIs that exist only with every option on, such as views of HAPI messages
+// Benchmarks and tests of APIs that exist only with every option on, such as views and writers of
+// HAPI messages
 if (pbjPerformance == "max") {
     sourceSets.named("jmh") { java.srcDir("src/jmhMax/java") }
+    sourceSets.named("test") { java.srcDir("src/testMax/java") }
 }
 
 // `-PpbjOneofStorage=boxed` (or `unboxed`) overrides the oneof storage of the configuration above,
@@ -124,6 +126,13 @@ tasks.withType<Test>().configureEach {
 // Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
 pbj {
     performance = pbjPerformance
+    // `performance = "max"` leaves writers off, as they add API; the options-on configuration tests
+    // them too, for every
+    // message, so writing every test object, HAPI included, through its writer must match the
+    // model's encoding
+    if (pbjPerformance == "max") {
+        generateWriters = true
+    }
     if (pbjOneofStorage != null) {
         oneofStorage = pbjOneofStorage
     }

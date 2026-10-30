@@ -12,20 +12,25 @@ import java.util.function.Function;
  * option is {@code null} when the level does not set it.
  *
  * <p>Options resolve, for each message, from the message's comments, then its file's comments, then the project, then
- * the built-in default. At each level a specific option wins over {@code performance}, which sets all of them: to their
- * fastest values for {@link Performance#MAX}, and to their defaults for {@link Performance#DEFAULT}.
+ * the built-in default. At each level a specific option wins over {@code performance}, which sets all of them except
+ * {@code writers}: to their fastest values for {@link Performance#MAX}, and to their defaults for
+ * {@link Performance#DEFAULT}. Writers are additive API with a real code-size cost, so they are only ever on when
+ * {@code pbj.writers} says so, and then also for every message reachable from one that has them.
  *
  * @param fastParse generate a byte-array parser with in-order fast paths ({@code pbj.fast_parse})
  * @param fastWrite generate a back-to-front writer into a reusable buffer ({@code pbj.fast_write})
  * @param views generate zero-copy views over encoded bytes ({@code pbj.views})
  * @param oneofStorage how the model stores oneof fields ({@code pbj.oneof_storage})
- * @param performance shorthand for all four ({@code pbj.performance})
+ * @param writers generate zero-allocation message writers for the message and every message reachable from it
+ *     ({@code pbj.writers}); not part of {@code performance}, which leaves it unset, since writers add API and code
+ * @param performance shorthand for the first four ({@code pbj.performance})
  */
 public record PerformanceOptions(
         @Nullable Boolean fastParse,
         @Nullable Boolean fastWrite,
         @Nullable Boolean views,
         @Nullable OneofStorage oneofStorage,
+        @Nullable Boolean writers,
         @Nullable Performance performance) {
 
     /** Comment option name for {@link #fastParse()}. */
@@ -36,11 +41,13 @@ public record PerformanceOptions(
     public static final String VIEWS = "pbj.views";
     /** Comment option name for {@link #oneofStorage()}. */
     public static final String ONEOF_STORAGE = "pbj.oneof_storage";
+    /** Comment option name for {@link #writers()}. */
+    public static final String WRITERS = "pbj.writers";
     /** Comment option name for {@link #performance()}. */
     public static final String PERFORMANCE = "pbj.performance";
 
     /** A level that sets nothing. */
-    public static final PerformanceOptions NONE = new PerformanceOptions(null, null, null, null, null);
+    public static final PerformanceOptions NONE = new PerformanceOptions(null, null, null, null, null, null);
 
     /** How a model stores oneof fields. */
     public enum OneofStorage {
@@ -73,6 +80,7 @@ public record PerformanceOptions(
                 values.get(FAST_WRITE),
                 values.get(VIEWS),
                 values.get(ONEOF_STORAGE),
+                values.get(WRITERS),
                 values.get(PERFORMANCE),
                 where);
     }
@@ -97,11 +105,37 @@ public record PerformanceOptions(
             @Nullable final String oneofStorage,
             @Nullable final String performance,
             final String where) {
+        return of(fastParse, fastWrite, views, oneofStorage, null, performance, where);
+    }
+
+    /**
+     * Parse options from their text values, as written in comments or the Gradle {@code pbj { }} block. A
+     * {@code null} value leaves that option unset.
+     *
+     * @param fastParse "true", "false" or null
+     * @param fastWrite "true", "false" or null
+     * @param views "true", "false" or null
+     * @param oneofStorage "boxed", "unboxed" or null
+     * @param writers "true", "false" or null
+     * @param performance "default", "max" or null
+     * @param where the file, message or project the values come from, for error messages
+     * @return the options
+     * @throws PbjCompilerException if a value is invalid
+     */
+    public static PerformanceOptions of(
+            @Nullable final String fastParse,
+            @Nullable final String fastWrite,
+            @Nullable final String views,
+            @Nullable final String oneofStorage,
+            @Nullable final String writers,
+            @Nullable final String performance,
+            final String where) {
         return new PerformanceOptions(
                 bool(FAST_PARSE, fastParse, where),
                 bool(FAST_WRITE, fastWrite, where),
                 bool(VIEWS, views, where),
                 choice(ONEOF_STORAGE, oneofStorage, OneofStorage.class, where),
+                bool(WRITERS, writers, where),
                 choice(PERFORMANCE, performance, Performance.class, where));
     }
 
@@ -149,6 +183,25 @@ public record PerformanceOptions(
             final T value = option.apply(level);
             if (value != null) return value;
             if (level.performance() != null) return level.performance() == Performance.MAX ? max : builtIn;
+        }
+        return builtIn;
+    }
+
+    /**
+     * Resolve an option that {@code performance} does not set, such as {@link #writers()}, over levels, most specific
+     * first: the first level that sets it decides it.
+     *
+     * @param levels the levels, most specific first
+     * @param option reads the option from a level
+     * @param builtIn the option's default
+     * @return the resolved value
+     * @param <T> the option's type
+     */
+    public static <T> T resolveExplicit(
+            final List<PerformanceOptions> levels, final Function<PerformanceOptions, T> option, final T builtIn) {
+        for (final PerformanceOptions level : levels) {
+            final T value = option.apply(level);
+            if (value != null) return value;
         }
         return builtIn;
     }

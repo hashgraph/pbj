@@ -1,0 +1,134 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+
+import "google/protobuf/wrappers.proto";
+
+/**
+ * Messages for WriterTest: every kind of field a writer writes, and field names that clash with the writer's own
+ * methods. Writers are on for WriterRoot, and so for every message reachable from it. Messages that contain each other
+ * are in customMessageProto.proto, as the generated tests can't build test objects for them.
+ */
+
+enum WriterColor {
+  WRITER_COLOR_NONE = 0;
+  WRITER_COLOR_RED = 1;
+  WRITER_COLOR_BLUE = 2;
+}
+
+// <<<pbj.writers = true>>>
+message WriterRoot {
+  WriterScalars scalars = 1;
+  WriterRepeated repeated = 2;
+  WriterMaps maps = 3;
+  WriterChoice choice = 4;
+  WriterWrappers wrappers = 5;
+  WriterNames names = 6;
+}
+
+/** Every singular scalar type, and an enum. */
+message WriterScalars {
+  int32 int32_value = 1;
+  int64 int64_value = 2;
+  uint32 uint32_value = 3;
+  uint64 uint64_value = 4;
+  sint32 sint32_value = 5;
+  sint64 sint64_value = 6;
+  fixed32 fixed32_value = 7;
+  fixed64 fixed64_value = 8;
+  sfixed32 sfixed32_value = 9;
+  sfixed64 sfixed64_value = 10;
+  float float_value = 11;
+  double double_value = 12;
+  bool bool_value = 13;
+  string string_value = 14;
+  bytes bytes_value = 15;
+  WriterColor color = 16;
+  // a five-byte tag
+  int32 far_value = 536870911;
+}
+
+/** Every repeated type: scalars are packed. */
+message WriterRepeated {
+  repeated int32 int32_values = 1;
+  repeated int64 int64_values = 2;
+  repeated uint32 uint32_values = 3;
+  repeated uint64 uint64_values = 4;
+  repeated sint32 sint32_values = 5;
+  repeated sint64 sint64_values = 6;
+  repeated fixed32 fixed32_values = 7;
+  repeated fixed64 fixed64_values = 8;
+  repeated sfixed32 sfixed32_values = 9;
+  repeated sfixed64 sfixed64_values = 10;
+  repeated float float_values = 11;
+  repeated double double_values = 12;
+  repeated bool bool_values = 13;
+  repeated string string_values = 14;
+  repeated bytes bytes_values = 15;
+  repeated WriterColor colors = 16;
+  repeated WriterLeaf leaves = 17;
+}
+
+/** A small message whose encoding is always under 128 bytes, so its length prefix is reserved as one byte. */
+message WriterLeaf {
+  int32 id = 1;
+  fixed64 stamp = 2;
+}
+
+/** Maps with keys of several types, and scalar, string, bytes and message values. */
+message WriterMaps {
+  map<int32, string> int_to_string = 1;
+  map<string, WriterLeaf> string_to_leaf = 2;
+  map<bool, double> bool_to_double = 3;
+  map<uint64, bytes> uint64_to_bytes = 4;
+  map<sint64, float> sint64_to_float = 5;
+  map<string, string> string_to_string = 6;
+  map<fixed32, int64> fixed32_to_int64 = 7;
+  map<int64, bool> int64_to_bool = 8;
+}
+
+/** A oneof with an alternative of every kind, between two plain fields. */
+message WriterChoice {
+  int32 before = 1;
+  oneof value {
+    int32 int_choice = 2;
+    string string_choice = 3;
+    bytes bytes_choice = 4;
+    WriterLeaf leaf_choice = 5;
+    WriterColor color_choice = 6;
+    google.protobuf.Int64Value boxed_choice = 7;
+    bool bool_choice = 8;
+    double double_choice = 9;
+  }
+  int32 after = 10;
+  oneof second {
+    WriterLeaf second_leaf = 11;
+    sint64 second_number = 12;
+  }
+}
+
+/** Every google.protobuf wrapper type. */
+message WriterWrappers {
+  google.protobuf.StringValue string_value = 1;
+  google.protobuf.BytesValue bytes_value = 2;
+  google.protobuf.Int32Value int32_value = 3;
+  google.protobuf.UInt32Value uint32_value = 4;
+  google.protobuf.Int64Value int64_value = 5;
+  google.protobuf.UInt64Value uint64_value = 6;
+  google.protobuf.FloatValue float_value = 7;
+  google.protobuf.DoubleValue double_value = 8;
+  google.protobuf.BoolValue bool_value = 9;
+}
+
+/** Fields named like the writer's own methods, which get methods with the suffix Field. */
+message WriterNames {
+  int64 length = 1;
+  WriterLeaf offset = 2;
+  WriterLeaf end = 3;
+  repeated int32 start = 4;
+  string field = 5;
+}
