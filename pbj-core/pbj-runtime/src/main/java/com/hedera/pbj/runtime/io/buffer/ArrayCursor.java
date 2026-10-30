@@ -144,61 +144,64 @@ public final class ArrayCursor {
      */
     public long varint() {
         final int q = p;
-        if (q < limit) {
-            final byte b = in[q];
-            if (b >= 0) {
-                p = q + 1;
-                return b;
-            }
+        final byte b;
+        if (q < limit && (b = in[q]) >= 0) {
+            p = q + 1;
+            return b;
         }
         return varintWide();
     }
 
-    /** The multi-byte varint read: the XOR chain of {@code ByteArrayBufferedData}, with limit checks. */
+    /**
+     * The multi-byte varint read: the XOR chain of {@code ByteArrayBufferedData} for varints of up to 8 bytes, with
+     * at least 8 bytes left. It is kept under HotSpot's 325-byte inlining limit for hot methods, so callers inline
+     * it: the rare 9- and 10-byte varints, varints near the limit and malformed ones go to {@link #varintSlow}.
+     */
     private long varintWide() {
         int q = p;
-        if (limit - q >= 10) {
-            long v = in[q++];
-            if ((v ^= (long) in[q++] << 7) < 0L) {
-                v ^= (~0L << 7);
-            } else if ((v ^= (long) in[q++] << 14) >= 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14);
-            } else if ((v ^= (long) in[q++] << 21) < 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21);
-            } else if ((v ^= (long) in[q++] << 28) >= 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
-            } else if ((v ^= (long) in[q++] << 35) < 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
-            } else if ((v ^= (long) in[q++] << 42) >= 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
-            } else if ((v ^= (long) in[q++] << 49) < 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
-            } else {
-                v ^= (long) in[q++] << 56;
-                v ^= (~0L << 7)
-                        ^ (~0L << 14)
-                        ^ (~0L << 21)
-                        ^ (~0L << 28)
-                        ^ (~0L << 35)
-                        ^ (~0L << 42)
-                        ^ (~0L << 49)
-                        ^ (~0L << 56);
-                // a tenth byte: only its lowest bit fits in a long and the chain above already set it, so, as
-                // ByteArrayBufferedData does, reject a tenth byte that continues or leaves that bit clear
-                if (v < 0L && isBadTenthByte(in[q++])) {
-                    throw new DataEncodingException("Malformed var int");
-                }
-            }
-            p = q;
-            return v;
+        if (limit - q < 8) {
+            return varintSlow();
         }
-        // near the limit: one byte at a time
+        long v = in[q++];
+        if ((v ^= (long) in[q++] << 7) < 0L) {
+            v ^= (~0L << 7);
+        } else if ((v ^= (long) in[q++] << 14) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14);
+        } else if ((v ^= (long) in[q++] << 21) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21);
+        } else if ((v ^= (long) in[q++] << 28) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+        } else if ((v ^= (long) in[q++] << 35) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+        } else if ((v ^= (long) in[q++] << 42) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+        } else if ((v ^= (long) in[q++] << 49) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
+        } else {
+            // 9 or 10 bytes
+            return varintSlow();
+        }
+        p = q;
+        return v;
+    }
+
+    /**
+     * Read a varint one byte at a time from the current position: varints of 9 or 10 bytes, varints near the limit,
+     * and malformed ones.
+     */
+    private long varintSlow() {
+        int q = p;
         long value = 0;
         for (int shift = 0; shift < 64; shift += 7) {
             if (q >= limit) {
                 throw new BufferUnderflowException();
             }
             final byte b = in[q++];
+            // a tenth byte: only its lowest bit fits in a long, so, as ByteArrayBufferedData does, reject a tenth
+            // byte that continues or leaves that bit clear
+            if (shift == 63 && isBadTenthByte(b)) {
+                throw new DataEncodingException("Malformed var int");
+            }
             value |= (long) (b & 0x7F) << shift;
             if (b >= 0) {
                 p = q;
