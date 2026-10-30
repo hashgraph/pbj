@@ -31,12 +31,12 @@ final class ByteArrayBufferedData extends BufferedData {
         ArrayInputsAccess.install();
     }
 
-    /** The backing array, for {@link ArrayCursor}. */
+    /** The backing array, for {@link ArrayInputsAccess}. */
     byte[] backingArray() {
         return array;
     }
 
-    /** This buffer's offset into the backing array, for {@link ArrayCursor}. */
+    /** This buffer's offset into the backing array, for {@link ArrayInputsAccess}. */
     int arrayOffset() {
         return arrayOffset;
     }
