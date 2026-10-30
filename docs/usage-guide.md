@@ -149,15 +149,18 @@ per message, per proto file or for the whole project:
 | `// <<<pbj.fast_write = true>>>` | `fastWrite` | true / false | false |
 | `// <<<pbj.views = true>>>` | `generateViews` | true / false | false |
 | `// <<<pbj.oneof_storage = "unboxed">>>` | `oneofStorage` | `"boxed"` / `"unboxed"` | `"boxed"` |
+| `// <<<pbj.writers = true>>>` | `generateWriters` | true / false | false |
 | `// <<<pbj.performance = "max">>>` | `performance` | `"default"` / `"max"` | `"default"` |
 
-`performance` is shorthand: `"max"` turns the other four on, and `"default"` sets them to their defaults. `"max"`
-includes `fast_write`, which is not always faster; the example below turns it off. What each option generates is
-described in [codec-protobuf.md](codec-protobuf.md#performance-options).
+`performance` is shorthand: `"max"` turns the first four on, and `"default"` sets them to their defaults. `"max"`
+includes `fast_write`, which is not always faster; the example below turns it off. `"max"` leaves `pbj.writers` alone:
+writers are additive API with a real code-size cost, so they are on only where `pbj.writers` says so. What each option
+generates is described in [codec-protobuf.md](codec-protobuf.md#performance-options).
 
 For each message, an option comes from the first of these that sets it: the message's comments, the file's comments,
 the Gradle project, the built-in default. At each level a specific option wins over `performance`. A message's
-options apply to that message only, not to messages nested in it.
+options apply to that message only, not to messages nested in it, with one exception: `pbj.writers` on a message also
+gives writers to every message reachable from it (see [Zero-Allocation Writers](#zero-allocation-writers)).
 
 Option comments directly before a `message` belong to that message. Put file options before another statement, such
 as `package`:
@@ -427,6 +430,72 @@ for (var line = view.lines(); line.next(); ) {
 ```
 
 The wrapped bytes must not change while a view reads them.
+
+### Zero-Allocation Writers
+
+With `pbj.writers`, each message gets a nested `Writer` class: a reusable flyweight that encodes fields straight into a
+`ProtoWriteBuffer` as you give them, with no model objects. Its output is byte-identical to `PROTOBUF.toBytes(…)` of a
+model object with the same values, so hashes of items written either way match. Turning writers on for a message turns
+them on for every message reachable from it, in any file of the build, so one comment on `Block` covers a whole block.
+A reachable message with an explicit `<<<pbj.writers = false>>>` is a build error naming the path to it.
+
+Use writers on hot output paths, where objects would be built only to be encoded once, such as block items emitted as
+transactions execute. Use model objects wherever messages are shared, compared, cached or kept.
+
+```java
+final ProtoWriteBuffer buffer = new ProtoWriteBuffer(64 * 1024);   // reuse it; it grows as needed
+final StateChanges.Writer changes = new StateChanges.Writer();      // reuse writers too
+
+buffer.reset();
+changes.start(buffer);
+changes.consensusTimestamp().seconds(seconds).nanos(nanos);
+final MapUpdateChange.Writer update = changes.addStateChanges().stateId(stateId).mapUpdate();
+update.key().accountIdKey().accountNum(accountNum);
+final Account.Writer account = update.value().accountValue();
+account.accountId().accountNum(accountNum);
+account.tinybarBalance(balance).memo(memo);
+changes.end();
+final Bytes encoded = buffer.bytes();                               // a view, valid until the buffer is written to
+```
+
+- **Order.** Write fields in field-number order. Each singular field may be written once, the elements of a repeated
+  field one after another, one alternative per oneof, and map entries in ascending key order (the order `toBytes`
+  writes). Anything else throws `IllegalStateException` before writing anything. As in the model, fields outside
+  oneofs with default values are skipped, and oneof alternatives are always written.
+- **Nested messages and auto-close.** A method for a nested message, such as `consensusTimestamp()`, opens it and
+  returns its writer. Calling any method on the parent ends every message still open inside it, so `end()` on a child
+  is optional. Ending a parent ends its children too.
+- **Aliasing.** Child writers are created once per field and reused. A writer a method returns is valid only until
+  the next call on its parent; after that it has ended, or is reused for the next element of a repeated field. Don't
+  keep references to child writers.
+- **Objects and pre-encoded bytes.** A nested message can also be written from a model object, `price(Price)`, or as
+  pre-encoded bytes, `priceRaw(Bytes)`, which must be the canonical encoding of the field's type. Fields whose types
+  come from other modules (dependency jars) have only these two forms. `writeFrom(object)` writes every field of an
+  object, and allocates nothing.
+- **Item byte ranges.** After a nested message ends, `offset()` and `length()` locate its encoded bytes (without tag
+  and length) in `buffer.array()`. You can hash or send a block item as soon as it ends, before the block is finished:
+
+  ```java
+  final Block.Writer block = new Block.Writer().start(buffer);
+  for (…) {
+      final BlockItem.Writer item = block.addItems();
+      …                                                  // write the item
+      item.end();
+      digest.update(buffer.array(), item.offset(), item.length());
+  }
+  block.end();
+  ```
+
+  The direct children of a top-level message never move. When a deeper nested message ends, its length prefix may need
+  a different number of bytes than was reserved, and then its bytes, and those of messages inside it, move: read a
+  deeper message's range right after it ends.
+- **Allocation.** Once the buffer has grown to fit and every child writer exists, writing allocates nothing. Writers
+  and buffers are not thread safe: use one of each per thread.
+
+`ProtoWriteBuffer` guesses the size of each nested message's length prefix before writing the message, and moves the
+message's bytes when the guess was wrong, so output stays canonical. By default the guess is the size used last time
+for the same field; `new ProtoWriteBuffer(capacity, LengthReservation.PER_TYPE)` or `ONE_BYTE` choose others, and
+`shiftCount()` reports how many moves there were.
 
 ### Streaming I/O
 
