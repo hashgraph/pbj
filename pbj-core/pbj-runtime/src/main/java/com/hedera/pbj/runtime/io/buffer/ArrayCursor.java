@@ -270,7 +270,9 @@ public final class ArrayCursor {
                         ^ (~0L << 42)
                         ^ (~0L << 49)
                         ^ (~0L << 56);
-                if (v < 0L && in[q++] < 0L) {
+                // a tenth byte: only its lowest bit fits in a long and the chain above already set it, so, as
+                // ByteArrayBufferedData does, reject a tenth byte that continues or leaves that bit clear
+                if (v < 0L && isBadTenthByte(in[q++])) {
                     throw new DataEncodingException("Malformed var int");
                 }
             }
@@ -291,6 +293,14 @@ public final class ArrayCursor {
             }
         }
         throw new DataEncodingException("Malformed var int");
+    }
+
+    /**
+     * @param b the tenth byte of a varint
+     * @return true if it has the continuation bit, or does not set bit 63, so no long can hold the varint
+     */
+    private static boolean isBadTenthByte(final byte b) {
+        return b < 0 || (b & 1) == 0;
     }
 
     /** @return a field tag, as the stream parser reads it ({@code readVarInt(false)}) */
