@@ -40,9 +40,17 @@ import org.openjdk.jmh.infra.Blackhole;
  * and the time includes measuring, as when a block item is built and written once. Their {@code gc.alloc.rate.norm}
  * includes that setup parse; use the {@code Cached} benchmarks for allocation per write. Report {@code gc.count} and
  * {@code gc.time} from {@code -prof gc} too: collections in the timed region change the results.
+ *
+ * <p>Compare like with like: fresh objects were parsed just before each invocation, so they are in the CPU caches,
+ * while cached ones may not be. Check that a fresh write costs about a cached write plus {@code itemSizeFresh}.
  */
 @SuppressWarnings("unused")
-@Fork(3)
+// A young generation big enough that collections are rare in every benchmark. Otherwise the fresh benchmarks' untimed
+// setup triggers most collections outside their timed region, while cached ones collect inside it (cached toBytes
+// measured 1,349 against 928 ns fresh with default G1 on AMD EPYC, 1,199 against 1,127 with no collector at all).
+@Fork(
+        value = 3,
+        jvmArgsAppend = {"-Xms32g", "-Xmx32g", "-Xmn24g"})
 @Warmup(iterations = 5, time = 2)
 @Measurement(iterations = 5, time = 2)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -106,14 +114,7 @@ public class BlockItemBench {
         }
     }
 
-    /**
-     * Model objects whose sizes are cached, and a reusable output array big enough for any of them.
-     *
-     * <p>Before every invocation this state parses the items again and drops them, untimed, as {@link FreshItems} does.
-     * Without that, the fresh benchmarks' setup triggers most young collections outside the timed region, while the
-     * cached benchmarks collect inside it, which made cached {@code toBytes} look slower than fresh (1,349 against
-     * 928 ns with G1 on AMD EPYC; 1,199 against 1,127 ns with the no-op Epsilon collector).
-     */
+    /** Model objects whose sizes are cached, and a reusable output array big enough for any of them. */
     @State(Scope.Thread)
     public static class Cached {
         List<BlockItem> items;
@@ -128,12 +129,6 @@ public class BlockItemBench {
             // measure once so every size is cached
             items.forEach(BlockItem.PROTOBUF::measureRecord);
             transactions.forEach(SignedTransaction.PROTOBUF::measureRecord);
-        }
-
-        /** Allocate as much as the fresh benchmarks' setup does, so collections fall in the same place. */
-        @Setup(Level.Invocation)
-        public void allocateLikeFresh(final Blackhole bh) throws ParseException {
-            bh.consume(parseAll(ITEM_BYTES, BlockItem.PROTOBUF));
         }
     }
 
