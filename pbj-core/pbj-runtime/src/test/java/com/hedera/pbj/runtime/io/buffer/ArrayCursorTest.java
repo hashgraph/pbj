@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
@@ -87,6 +88,31 @@ final class ArrayCursorTest {
         }
         // fewer than ten bytes left, all with the continuation bit: the input ends inside the varint
         assertThrows(BufferUnderflowException.class, () -> new ArrayCursor(tenContinuations, 0, 9).varint());
+    }
+
+    @Test
+    void tenthVarintByteIsCheckedLikeTheStreamParser() {
+        // nine continuation bytes, then every possible tenth byte: only bit 63 is left for the tenth byte, so the
+        // cursor must accept and reject exactly what the stream parser does
+        for (int tenth = 0; tenth < 256; tenth++) {
+            final byte[] varint = new byte[10];
+            Arrays.fill(varint, 0, 9, (byte) 0x80);
+            varint[9] = (byte) tenth;
+            Long expected;
+            try {
+                expected = BufferedData.wrap(varint).readVarLong(false);
+            } catch (final RuntimeException e) {
+                expected = null;
+            }
+            for (final int padding : new int[] {0, 5}) {
+                final ArrayCursor cursor = cursor(Arrays.copyOf(varint, varint.length + padding));
+                if (expected == null) {
+                    assertThrows(DataEncodingException.class, cursor::varint, "tenth byte " + tenth);
+                } else {
+                    assertEquals(expected, cursor.varint(), "tenth byte " + tenth);
+                }
+            }
+        }
     }
 
     @Test
