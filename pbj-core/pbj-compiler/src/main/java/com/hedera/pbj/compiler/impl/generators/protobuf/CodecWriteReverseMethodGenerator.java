@@ -87,7 +87,9 @@ final class CodecWriteReverseMethodGenerator {
                 final List<UnknownField> unknownFields = data.getUnknownFields();
                 for (int i = unknownFields.size() - 1; i >= 0; i--) {
                     final UnknownField uf = unknownFields.get(i);
-                    uf.bytes().writeTo(out.array(), out.reserve((int) uf.bytes().length()));
+                    // reserve first: it can grow the buffer and replace its array
+                    final int at = out.reserve((int) uf.bytes().length());
+                    uf.bytes().writeTo(out.array(), at);
                     out.varint((uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal());
                 }
                 """);
