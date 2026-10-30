@@ -90,6 +90,45 @@ final class ArrayCursorTest {
         assertThrows(BufferUnderflowException.class, () -> new ArrayCursor(tenContinuations, 0, 9).varint());
     }
 
+    /** @return {@code value} as an unsigned varint */
+    private static byte[] encodeVarint(final long value) {
+        final byte[] out = new byte[10];
+        int i = 0;
+        long v = value;
+        while ((v & ~0x7FL) != 0) {
+            out[i++] = (byte) ((v & 0x7F) | 0x80);
+            v >>>= 7;
+        }
+        out[i++] = (byte) v;
+        return Arrays.copyOf(out, i);
+    }
+
+    @Test
+    void everyVarintLengthReadsTheSameAtEveryDistanceFromTheLimit() {
+        // the fast path needs 8 bytes left and handles up to 8-byte varints; the rest take the slow path
+        for (int length = 1; length <= 10; length++) {
+            for (final long value : new long[] {
+                length == 1 ? 0 : 1L << (7 * (length - 1)),
+                length == 10 ? -1L : (1L << (7 * length)) - 1,
+                length == 10 ? Long.MIN_VALUE : 1L << (7 * (length - 1)) | 0x55
+            }) {
+                final byte[] varint = encodeVarint(value);
+                assertEquals(length, varint.length, "length of " + value);
+                for (int after = 0; after <= 12; after++) {
+                    final byte[] padded = Arrays.copyOf(varint, varint.length + after);
+                    final ArrayCursor cursor = cursor(padded);
+                    assertEquals(value, cursor.varint(), "value " + value + " with " + after + " bytes after it");
+                    assertEquals(varint.length, cursor.position(), "end of " + value);
+                }
+                // and cut short by the limit, at every byte
+                for (int cut = 0; cut < varint.length; cut++) {
+                    final ArrayCursor cursor = new ArrayCursor(Arrays.copyOf(varint, 20), 0, cut);
+                    assertThrows(BufferUnderflowException.class, cursor::varint, "cut at " + cut);
+                }
+            }
+        }
+    }
+
     @Test
     void tenthVarintByteIsCheckedLikeTheStreamParser() {
         // nine continuation bytes, then every possible tenth byte: only bit 63 is left for the tenth byte, so the
