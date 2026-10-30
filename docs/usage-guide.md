@@ -329,6 +329,17 @@ HelloRequest parsed = HelloRequest.PROTOBUF.parse(bytes);
 HelloRequest parsed = HelloRequest.PROTOBUF.parse(readableData);
 ```
 
+`writeReverse` writes into a reusable `ReverseBuffer` instead of a new `Bytes`. It produces the same bytes as `toBytes`,
+and messages generated with `pbj.fast_write` write themselves back to front without measuring first (see
+[codec-protobuf.md](codec-protobuf.md#reverse-writer-pbjfast_write)):
+
+```java
+ReverseBuffer buffer = new ReverseBuffer(4096);
+buffer.reset();
+HelloRequest.PROTOBUF.writeReverse(request, buffer);
+Bytes written = buffer.bytes();  // valid until the buffer is reset or written to again
+```
+
 ### JSON
 
 Every generated class has a `JSON` codec:
