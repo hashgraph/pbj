@@ -319,7 +319,8 @@ public abstract class Codec<T> {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return (int) bufferedData.position();
+        // the wrapped buffer's position counts from the start of the array, not from startOffset
+        return (int) bufferedData.position() - startOffset;
     }
 
     /**
@@ -335,7 +336,12 @@ public abstract class Codec<T> {
     public void writeReverse(@NonNull final T item, @NonNull final ReverseBuffer buffer) {
         final int size = measureRecord(item);
         final int offset = buffer.reserve(size);
-        write(item, buffer.array(), offset);
+        // the array holds output after the reserved bytes, so a writer that disagrees with measureRecord must fail
+        // rather than return output with bytes overwritten or left over from an earlier message
+        final int written = write(item, buffer.array(), offset);
+        if (written != size) {
+            throw new IllegalStateException("Wrote " + written + " bytes, but measured " + size);
+        }
     }
 
     /**
