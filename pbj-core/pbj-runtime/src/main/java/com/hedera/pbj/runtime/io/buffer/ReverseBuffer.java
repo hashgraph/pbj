@@ -63,8 +63,14 @@ public final class ReverseBuffer {
         varint(buf.length - pos - mark);
     }
 
-    /** Make room for {@code n} more bytes before the output. */
-    private void ensure(final int n) {
+    /**
+     * Make room for at least {@code n} more bytes before the output, so that many bytes can then be written with the
+     * unchecked methods. Generated reverse writers call it once for a run of fields whose largest encoded size they
+     * know, instead of checking before every tag and value.
+     *
+     * @param n the number of bytes
+     */
+    public void ensure(final int n) {
         if (pos < n) {
             grow(n);
         }
@@ -169,6 +175,60 @@ public final class ReverseBuffer {
         pos -= length;
         value.writeTo(buf, pos);
         varint(length);
+    }
+
+    /**
+     * Write one byte without checking for room: call {@link #ensure} first.
+     *
+     * @param b the byte
+     */
+    public void writeByteUnchecked(final int b) {
+        buf[--pos] = (byte) b;
+    }
+
+    /**
+     * Write a two-byte tag, given in wire order, without checking for room: call {@link #ensure} first.
+     *
+     * @param b0 the tag's first byte
+     * @param b1 the tag's second byte
+     */
+    public void writeBytesUnchecked(final int b0, final int b1) {
+        buf[--pos] = (byte) b1;
+        buf[--pos] = (byte) b0;
+    }
+
+    /**
+     * Write an unsigned varint without checking for room: call {@link #ensure} first, for up to 10 bytes.
+     *
+     * @param value the value
+     */
+    public void varintUnchecked(final long value) {
+        if ((value >>> 7) == 0) {
+            buf[--pos] = (byte) value;
+            return;
+        }
+        pos -= ProtoWriterTools.sizeOfUnsignedVarInt64(value);
+        ProtoArrayWriterTools.writeUnsignedVarInt(buf, pos, value);
+    }
+
+    /**
+     * Write a little-endian 32-bit value without checking for room: call {@link #ensure} first.
+     *
+     * @param value the value
+     */
+    public void fixed32Unchecked(final int value) {
+        pos -= Integer.BYTES;
+        ProtoArrayWriterTools.writeFixed32NoTag(buf, pos, value);
+    }
+
+    /**
+     * Write a little-endian 64-bit value without checking for room: call {@link #ensure} first.
+     *
+     * @param value the value
+     */
+    public void fixed64Unchecked(final long value) {
+        pos -= Long.BYTES;
+        ProtoArrayWriterTools.writeFixed64NoTag(buf, pos, value);
     }
 
     /**
