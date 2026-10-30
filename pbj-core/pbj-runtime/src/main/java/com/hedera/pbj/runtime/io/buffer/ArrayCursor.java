@@ -364,6 +364,31 @@ public final class ArrayCursor {
     }
 
     /**
+     * Read a string field's length and check its UTF-8 bytes without decoding them, for views. The position is left at
+     * the start of the string. Malformed UTF-8 is an error, as in parsing.
+     *
+     * @param maxSize the largest allowed length
+     * @param fieldName the field's name, for the error message
+     * @return the length in bytes
+     * @throws ParseException if the length is greater than {@code maxSize}
+     * @throws MalformedProtobufException if the bytes are not valid UTF-8
+     */
+    public int stringLength(final long maxSize, @NonNull final String fieldName)
+            throws ParseException, MalformedProtobufException {
+        final int length = length(maxSize, fieldName);
+        final int end = p + length;
+        for (int i = p; i < end; i++) {
+            if (in[i] < 0) {
+                if (!Utf8Tools.isWellFormedUtf8(in, i, end)) {
+                    throw new MalformedProtobufException("Malformed UTF-8 in " + fieldName);
+                }
+                break;
+            }
+        }
+        return length;
+    }
+
+    /**
      * Read a string field's length and UTF-8 bytes. Malformed UTF-8 is an error, as in the stream parser.
      *
      * @param maxSize the largest allowed length

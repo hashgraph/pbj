@@ -56,9 +56,15 @@ final class ViewGenerator {
             if (wireType == Common.TYPE_LENGTH_DELIMITED) {
                 state.append("private int %sOffset = -1;%nprivate int %sLength;%n".formatted(name, name));
                 resets.append("%sOffset = -1;%n".formatted(name));
+                // strings are checked to be valid UTF-8 while wrapping, as parsing does
                 record =
-                        "%sLength = cursor.length(Codec.DEFAULT_MAX_SIZE, \"%s\");%n%sOffset = cursor.position();%ncursor.skip(%sLength);%n"
-                                .formatted(name, field.name(), name, name);
+                        "%sLength = cursor.%s(Codec.DEFAULT_MAX_SIZE, \"%s\");%n%sOffset = cursor.position();%ncursor.skip(%sLength);%n"
+                                .formatted(
+                                        name,
+                                        field.type() == Field.FieldType.STRING ? "stringLength" : "length",
+                                        field.name(),
+                                        name,
+                                        name);
             } else {
                 // numbers are decoded once, while wrapping; absent fields keep their default, 0
                 state.append("private long %sValue;%n".formatted(name));
