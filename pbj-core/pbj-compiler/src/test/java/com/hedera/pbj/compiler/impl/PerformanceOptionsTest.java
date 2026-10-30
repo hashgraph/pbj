@@ -301,9 +301,8 @@ class PerformanceOptionsTest {
         // every kind of field is supported, including repeated fields
         assertTrue(Files.readString(max.resolve("example/codec/WithListProtoCodec.java"))
                 .contains("parseArray("));
-        // models are unchanged
-        assertEquals(
-                Files.readString(plain.resolve("example/Simple.java")),
-                Files.readString(max.resolve("example/Simple.java")));
+        // models change only with pbj.views, which adds a nested View
+        assertFalse(Files.readString(plain.resolve("example/Simple.java")).contains("class View"));
+        assertTrue(Files.readString(max.resolve("example/Simple.java")).contains("public static final class View"));
     }
 }
