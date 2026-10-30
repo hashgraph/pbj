@@ -88,6 +88,7 @@ final class CodecWriteByteArrayMethodGenerator {
             final String schemaClassName,
             final List<Field> fields,
             final ContextualLookupHelper lookupHelper) {
+        final Set<String> names = fieldNames(fields);
         final List<Field> sorted = fields.stream()
                 .flatMap(field -> field.type() == Field.FieldType.ONE_OF
                         ? ((OneOfField) field).fields().stream()
@@ -100,7 +101,7 @@ final class CodecWriteByteArrayMethodGenerator {
             final Field field = sorted.get(i);
             final OneOfField oneOf = field.parent();
             if (oneOf == null) {
-                sb.append(generateInlineFieldWrite(field, modelClassName, schemaClassName, lookupHelper));
+                sb.append(generateInlineFieldWrite(field, modelClassName, schemaClassName, lookupHelper, names));
                 i++;
                 continue;
             }
@@ -117,7 +118,8 @@ final class CodecWriteByteArrayMethodGenerator {
                         .replace("$kind", Common.camelToUpperSnake(alternative.name()))
                         .replace(
                                 "$body",
-                                generateInlineFieldWrite(alternative, modelClassName, schemaClassName, lookupHelper)
+                                generateInlineFieldWrite(
+                                                alternative, modelClassName, schemaClassName, lookupHelper, names)
                                         .indent(DEFAULT_INDENT)));
                 i++;
             }
@@ -158,9 +160,25 @@ final class CodecWriteByteArrayMethodGenerator {
     }
 
     /** The Java name of a local holding a field's value, avoiding the names the write method uses itself. */
-    private static String localName(final Field field) {
+    private static String localName(final Field field, final Set<String> fieldNames) {
         final String name = field.nameCamelFirstLower();
-        return RESERVED_NAMES.contains(name) ? name + "Value" : name;
+        if (!RESERVED_NAMES.contains(name)) {
+            return name;
+        }
+        // a new name, clashing with neither the method's own names nor another field's local
+        String local = name + "Value";
+        for (int i = 2; RESERVED_NAMES.contains(local) || fieldNames.contains(local); i++) {
+            local = name + "Value" + i;
+        }
+        return local;
+    }
+
+    /** The Java names of all fields of a message, including oneof alternatives. */
+    private static Set<String> fieldNames(final List<Field> fields) {
+        return fields.stream()
+                .flatMap(field -> field instanceof OneOfField oneOf ? oneOf.fields().stream() : Stream.of(field))
+                .map(Field::nameCamelFirstLower)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -187,7 +205,8 @@ final class CodecWriteByteArrayMethodGenerator {
             final Field field,
             final String modelClassName,
             final String schemaClassName,
-            final ContextualLookupHelper lookupHelper) {
+            final ContextualLookupHelper lookupHelper,
+            final Set<String> fieldNames) {
         final boolean inOneOf = field.parent() != null;
         final String prefix = inOneOf ? "" : "// [%d] - %s%n".formatted(field.fieldNumber(), field.name());
         if (!(field instanceof SingleField single)
@@ -196,7 +215,7 @@ final class CodecWriteByteArrayMethodGenerator {
             // maps, google.protobuf wrapper types and repeated scalars, strings and bytes keep their helpers
             return fallback(field, modelClassName, schemaClassName);
         }
-        final String local = localName(field);
+        final String local = localName(field, fieldNames);
         // outside a oneof, var avoids naming the type; inside, the type is needed to read the OneOf's value
         final String javaType = !inOneOf ? "var" : field.type() == Field.FieldType.ENUM ? "int" : field.javaFieldType();
         final String read = inOneOf
