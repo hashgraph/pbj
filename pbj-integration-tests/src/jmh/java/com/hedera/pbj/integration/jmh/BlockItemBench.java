@@ -37,7 +37,8 @@ import org.openjdk.jmh.infra.Blackhole;
  * <p>PBJ caches {@code protobufSize()} in each model object, so writing the same objects again only times the write.
  * The {@code Fresh} benchmarks write objects parsed again before every invocation, so their sizes are not cached yet
  * and the time includes measuring, as when a block item is built and written once. Their {@code gc.alloc.rate.norm}
- * includes that setup parse; use the {@code Cached} benchmarks for allocation per write.
+ * includes that setup parse; use the {@code Cached} benchmarks for allocation per write. Report {@code gc.count} and
+ * {@code gc.time} from {@code -prof gc} too: collections in the timed region change the results.
  */
 @SuppressWarnings("unused")
 @Fork(3)
@@ -104,7 +105,14 @@ public class BlockItemBench {
         }
     }
 
-    /** Model objects whose sizes are cached, and a reusable output array big enough for any of them. */
+    /**
+     * Model objects whose sizes are cached, and a reusable output array big enough for any of them.
+     *
+     * <p>Before every invocation this state parses the items again and drops them, untimed, as {@link FreshItems} does.
+     * Without that, the fresh benchmarks' setup triggers most young collections outside the timed region, while the
+     * cached benchmarks collect inside it, which made cached {@code toBytes} look slower than fresh (1,349 against
+     * 928 ns with G1 on AMD EPYC; 1,199 against 1,127 ns with the no-op Epsilon collector).
+     */
     @State(Scope.Thread)
     public static class Cached {
         List<BlockItem> items;
@@ -119,6 +127,12 @@ public class BlockItemBench {
             // measure once so every size is cached
             items.forEach(BlockItem.PROTOBUF::measureRecord);
             transactions.forEach(SignedTransaction.PROTOBUF::measureRecord);
+        }
+
+        /** Allocate as much as the fresh benchmarks' setup does, so collections fall in the same place. */
+        @Setup(Level.Invocation)
+        public void allocateLikeFresh(final Blackhole bh) throws ParseException {
+            bh.consume(parseAll(ITEM_BYTES, BlockItem.PROTOBUF));
         }
     }
 
