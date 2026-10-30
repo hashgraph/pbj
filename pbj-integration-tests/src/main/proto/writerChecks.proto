@@ -24,7 +24,8 @@ enum WriterColor {
 message WriterRoot {
   WriterScalars scalars = 1;
   WriterRepeated repeated = 2;
-  WriterMaps maps = 3;
+  // 3 was a WriterMaps: PBJ's JSON codec indents maps in nested messages differently from protoc, which the generated
+  // JSON test would report, so WriterMaps has writers of its own instead
   WriterChoice choice = 4;
   WriterWrappers wrappers = 5;
   WriterNames names = 6;
@@ -80,6 +81,7 @@ message WriterLeaf {
 }
 
 /** Maps with keys of several types, and scalar, string, bytes and message values. */
+// <<<pbj.writers = true>>>
 message WriterMaps {
   map<int32, string> int_to_string = 1;
   map<string, WriterLeaf> string_to_leaf = 2;

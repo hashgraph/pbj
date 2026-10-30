@@ -557,7 +557,10 @@ public final class BlockItemValues {
         return switch (c.i()) {
             case 2 -> BlockItem.newBuilder().eventHeader(buildEventHeader(c)).build();
             case 4 -> BlockItem.newBuilder().signedTransaction(c.bytes()).build();
-            case 5 -> BlockItem.newBuilder().transactionResult(buildTransactionResult(c)).build();
+            case 5 ->
+                BlockItem.newBuilder()
+                        .transactionResult(buildTransactionResult(c))
+                        .build();
             default -> BlockItem.newBuilder().stateChanges(buildStateChanges(c)).build();
         };
     }
@@ -610,7 +613,10 @@ public final class BlockItemValues {
 
     private static NftID buildNftId(final Cursor c) {
         return c.z()
-                ? NftID.newBuilder().tokenId(buildTokenId(c)).serialNumber(c.l()).build()
+                ? NftID.newBuilder()
+                        .tokenId(buildTokenId(c))
+                        .serialNumber(c.l())
+                        .build()
                 : null;
     }
 
@@ -748,7 +754,10 @@ public final class BlockItemValues {
                                 .nextKey(c.bytes())
                                 .build())
                         .build();
-            case 12 -> MapChangeValue.newBuilder().tokenRelationValue(buildTokenRelation(c)).build();
+            case 12 ->
+                MapChangeValue.newBuilder()
+                        .tokenRelationValue(buildTokenRelation(c))
+                        .build();
             default -> MapChangeValue.newBuilder().topicValue(buildTopic(c)).build();
         };
     }
@@ -766,9 +775,8 @@ public final class BlockItemValues {
                         .identical(c.z())
                         .build());
             } else {
-                change.mapDelete(MapDeleteChange.newBuilder()
-                        .key(buildMapChangeKey(c))
-                        .build());
+                change.mapDelete(
+                        MapDeleteChange.newBuilder().key(buildMapChangeKey(c)).build());
             }
             changes.add(change.build());
         }

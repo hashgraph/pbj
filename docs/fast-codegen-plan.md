@@ -31,6 +31,7 @@ including zero-allocation write and read paths.
 | 3 | Back-to-front ("reverse") writer into a reusable buffer: no measuring pass, zero allocation | B (additive API on `Codec`) | `pbj.fast_write` / `fastWrite` |
 | 4 | Zero-copy, zero-allocation views over encoded bytes | C (new classes) | `pbj.views` / `generateViews` |
 | 5 | Unboxed oneof storage: no `OneOf` object per oneof on parse or construction | C (changes model semantics) | `pbj.oneof_storage = "unboxed"` / `oneofStorage` |
+| 6 | Zero-allocation flyweight writers: encode fields straight into a reusable buffer, with no model objects | C (new classes) | `pbj.writers` / `generateWriters` (not part of `performance`) |
 
 ## 2. Why PBJ is slower than it needs to be
 
@@ -446,6 +447,26 @@ and builders take it. With the flag, the model stores a kind field and a value f
 API impact: the identity and allocation behaviour of `kind()` changes, and accessors and constructors are added, so
 this step is opt-in. Measure allocation per operation and parse time.
 
+### 6.7 Step 6: zero-allocation writers (tier C, `pbj.writers`, #1018)
+
+The write-side counterpart of the views: after steps 1-5, what still allocates on the output path is building the
+model objects that get encoded. A generated `Xxx.Writer` encodes fields into a `ProtoWriteBuffer` as the caller gives
+them, byte-identical to `toBytes`. The option spreads to every message reachable from one that has it, computed as a
+worklist over a visited set, so cycles are reached once; an explicit `false` on a reachable message is an error.
+
+- **Checks, always on.** Each field method checks order with one compare against a `guard` field: the last field
+  number while nothing is open inside the message, `Integer.MAX_VALUE` while a child is open or the writer is not,
+  which sends the check to a slow path that ends the child (auto-close) or throws.
+- **Nested lengths.** The parent writes the tag and reserves 1 or 2 bytes, per type or adaptively; the child's
+  `close` patches the length, moving the body only when the guess was wrong. `writeFrom` reserves exactly, from the
+  object's cached `protobufSize()`.
+- **One buffer call per field.** `tagVarint`, `tagFixed32`, `tagString`, … make room, write the tag and the value.
+  Their common case is a few stores inline and everything else out of line: C2 stops inlining a compile at 8,000
+  bytes of inlined bytecode (`DesiredMethodLimit`), and a writer method for a 40-field message such as `Account` ran
+  out of budget halfway when each field inlined about 150 bytes, leaving the rest of the fields as calls.
+
+Results are in the pull request for #1018.
+
 ## 7. Testing and measurement protocol
 
 ### 7.1 Correctness, every PR
@@ -543,6 +564,7 @@ Small, reviewable PRs, each with its own tests and numbers. They stack: each bra
 | 9 | Step 4 part 1: views for scalars, bytes, strings, enums and nested messages | C | read every field, 0 B/op |
 | 10 | Step 4 part 2: views for repeated fields, maps and oneofs, plus `toModel()` | C | read every field, 0 B/op |
 | 11 | Step 5: unboxed oneof storage | C | parse time, B/op |
+| 12 | Step 6: zero-allocation writers, `ProtoWriteBuffer`, `writeFrom` | C | writing from values against building objects, 0 B/op, code size |
 
 Each PR description covers:
 - what changed and why;
@@ -590,3 +612,7 @@ Each PR description covers:
 - **Unboxed oneofs pay off on parse allocation:** 12-24% less per block item, 13% less per block (#1016).
 - **After all of this, most of the remaining parse cost is multi-byte varints of large values** (ids, amounts). That
   is a schema decision (`fixed64` for such fields), not something PBJ can change.
+- **Writers pay per nested message, codecs don't.** With cached sizes a codec writes a nested message's tag and length
+  and calls its static `writeTo`. A flyweight writer opens a child, checks every field, and patches the length when the
+  child ends; that bookkeeping, not inlining or length moves, is most of the difference on deeply nested state changes.
+

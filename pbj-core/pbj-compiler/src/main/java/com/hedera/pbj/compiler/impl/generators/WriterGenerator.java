@@ -228,7 +228,7 @@ final class WriterGenerator {
                 singular(single, parts);
             }
         }
-        writeFrom(sorted, parts);
+        writeFrom(sorted, parts, Common.fieldCount(fields) > Common.MAX_INLINE_FIELDS);
         // spotless:off
         return """
                 /**
@@ -925,8 +925,12 @@ final class WriterGenerator {
 
     // --------------------------------------------------------------------------------------------- writeFrom
 
-    /** Generate the body of {@code writeFrom}: every field from the model's getters, in field-number order. */
-    private static void writeFrom(final List<Field> sorted, final Parts parts) {
+    /**
+     * Generate the body of {@code writeFrom}: every field from the model's getters, in field-number order. In messages
+     * with many fields, such as HAPI's {@code TransactionBody}, each message alternative of a oneof is written by its
+     * own small method, to keep {@code writeFrom} well under HotSpot's 8,000-byte limit for compiling a method.
+     */
+    private static void writeFrom(final List<Field> sorted, final Parts parts, final boolean helpers) {
         final StringBuilder sb = parts.writeFrom();
         int i = 0;
         while (i < sorted.size()) {
@@ -948,8 +952,17 @@ final class WriterGenerator {
                 final String javaType = alternative.type() == FieldType.ENUM
                         ? alternative.javaFieldTypeBase()
                         : alternative.javaFieldType();
-                final String body = "final %s value = %s;%n".formatted(javaType, read)
+                String body = "final %s value = %s;%n".formatted(javaType, read)
                         + writeFromField(alternative, "value", parts);
+                if (helpers && alternative.type() == FieldType.MESSAGE) {
+                    final String helper = "writeFrom_" + alternative.name();
+                    parts.methods()
+                            .append("%n/** Writes the oneof alternative {@code %s}, for {@link #writeFrom}. */%n"
+                                    .formatted(alternative.name()))
+                            .append("private void %s(final %s data) {%n%s}%n"
+                                    .formatted(helper, parts.modelClass(), body.indent(DEFAULT_INDENT)));
+                    body = "%s(data);%n".formatted(helper);
+                }
                 cases.append("case %s -> {%n%s}%n"
                         .formatted(Common.camelToUpperSnake(alternative.name()), body.indent(DEFAULT_INDENT)));
                 i++;

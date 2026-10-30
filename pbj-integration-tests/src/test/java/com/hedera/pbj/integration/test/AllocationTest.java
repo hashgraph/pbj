@@ -17,6 +17,7 @@ import com.hedera.pbj.test.proto.java.pbj.integration.tests.MixedKind;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterChoice;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterColor;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterLeaf;
+import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterMaps;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterRoot;
 import java.io.IOException;
 import java.io.InputStream;
@@ -262,6 +263,7 @@ final class AllocationTest {
     void writersDoNotAllocate() {
         final ProtoWriteBuffer buffer = new ProtoWriteBuffer(16);
         final WriterRoot.Writer writer = new WriterRoot.Writer();
+        final WriterMaps.Writer maps = new WriterMaps.Writer();
         final byte[] utf8 = "memo".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         final long[] numbers = {1, 2, 300, -4};
         final long fromValues = allocatedPerOperation(i -> {
@@ -277,9 +279,11 @@ final class AllocationTest {
             for (int j = 0; j < 3; j++) {
                 repeated.addLeaves().id(j).stamp(i);
             }
-            root.maps().putIntToString(1, "one").putStringToLeaf("a").id(i);
             root.choice().before(1).leafChoice().id(2);
             root.end();
+            buffer.reset();
+            maps.start(buffer).putIntToString(1, "one").putStringToLeaf("a").id(i);
+            maps.end();
         });
         final WriterRoot object = WriterRoot.newBuilder()
                 .choice(WriterChoice.newBuilder()
