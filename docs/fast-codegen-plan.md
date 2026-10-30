@@ -390,6 +390,21 @@ once), and gives a zero-allocation write path with a caller-owned buffer. Expect
 deeply nested messages. Keep this step only if it shows at least 10% over step 1 on the decision platform (section
 7.3); otherwise drop it from the series.
 
+**Measured (#1003, AMD EPYC, HAPI block items).** On the whole sample block the reverse writer was 1.9× slower than
+step 1 even after maps and wrapper types were written in reverse and capacity checks batched, so the fallbacks were
+not the cause. Per kind of item, and with the items limited to 200 so they fit in the CPU caches:
+
+| `STATE_CHANGES` | Forward, sizes cached | Reverse | Forward, fresh objects | Reverse |
+|---|---:|---:|---:|---:|
+| 200 items, in cache | 63 µs | 81 µs (+29%) | 89 µs | 72 µs (−20%) |
+| all 21,986 items | 9.2 ms | 39.1 ms (+325%) | 13.8 ms | 39.3 ms (+184%) |
+
+The reverse writer visits each object graph last field first, the opposite of the order the objects were allocated
+in. Out of cache that costs 2-4× on EPYC (JFR shows trivial getters such as `OneOf.kind()` at the top of the profile);
+on Apple Silicon the same jar shows reverse about equal to forward. In cache it saves the measuring pass, so it is
+9-20% faster than step 1 on freshly built objects and 24-29% slower when sizes are already cached. It meets the 10%
+bar only for objects encoded right after they are built, so #1003 is parked.
+
 ### 6.5 Step 4: zero-copy views (tier C, `pbj.views`)
 
 Generate `XxxView` for each flagged message: a reusable flyweight over encoded bytes that reads fields in place.
@@ -562,5 +577,14 @@ Each PR description covers:
   shifted the message when it was wrong needed two-byte reservations for large messages to be competitive (about
   12% faster). Writing in reverse then removed that work entirely (another 15-20%).
 - **SIMD is not the lever** for small, branchy messages. Per-field dispatch is the cost.
+- **Walking an object graph backward is slow out of cache.** Reverse writing reads fields last first, against the
+  allocation order of the objects; on AMD EPYC, with block items that don't fit in the caches, that made it 2-4×
+  slower than forward writing. Benchmark object-graph walks both in cache (a few hundred items) and out of it.
+- **Don't trust one platform for memory-bound results.** The reverse writer's slowdown didn't reproduce on Apple
+  Silicon at all.
+- **HotSpot never compiles a method over 8,000 bytes of bytecode.** `TransactionBody`'s stream parser was 15 KB and
+  always ran interpreted; splitting messages with more than 32 fields into per-field helpers made it 3.3× faster
+  (#1015). `GeneratedMethodSizeTest` keeps every generated method under 7,000 bytes.
+- **Unboxed oneofs pay off on parse allocation:** 12-24% less per block item, 13% less per block (#1016).
 - **After all of this, most of the remaining parse cost is multi-byte varints of large values** (ids, amounts). That
   is a schema decision (`fixed64` for such fields), not something PBJ can change.
