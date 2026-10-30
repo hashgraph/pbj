@@ -153,7 +153,10 @@ final class JsonCodecWriteMethodGenerator {
             final MapField mapField = (MapField) field;
             final String vComposerMethod = generateBasicFieldLines(
                     mapField.valueField(),
-                    "v",
+                    // a map's enum values are stored as their ordinals
+                    mapField.valueField().type() == Field.FieldType.ENUM
+                            ? mapField.valueField().javaFieldType() + ".fromProtobufOrdinal(v)"
+                            : "v",
                     Common.camelToUpperSnake(mapField.valueField().name()),
                     "n",
                     "indent");

@@ -39,6 +39,21 @@ public record MapField(
         boolean deprecated)
         implements Field {
 
+    /** The name of the synthetic value field of a map's entries, formatted with the map's name. */
+    private static final String VALUE_FIELD_NAME = "___%s__value";
+
+    /**
+     * Whether a field is the synthetic value field of a map's entries. A map's enum values are stored as their
+     * protobuf ordinals, as {@code Integer}s, so unrecognized values are kept; code for an enum value field must
+     * read and write ordinals rather than enum constants.
+     *
+     * @param field the field
+     * @return true if it is the value field of a map's entries
+     */
+    public static boolean isEntryValue(final Field field) {
+        return field.name().startsWith("___") && field.name().endsWith("__value");
+    }
+
     /**
      * Construct a MapField instance out of a MapFieldContext and a lookup helper.
      */
@@ -63,7 +78,7 @@ public record MapField(
                         false,
                         FieldType.of(mapContext.type_(), lookupHelper),
                         2,
-                        "___%s__value".formatted(mapContext.mapName().getText()),
+                        VALUE_FIELD_NAME.formatted(mapContext.mapName().getText()),
                         Field.extractMessageTypeName(mapContext.type_()),
                         Field.isMessageComparable(mapContext.type_(), lookupHelper),
                         Field.extractCompleteClassName(mapContext.type_(), FileType.MODEL, lookupHelper),

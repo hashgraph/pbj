@@ -1175,6 +1175,51 @@ class ProtoWriterToolsTest {
     }
 
     @Test
+    void testEnumDefaultIsWrittenWhenNotSkipped() {
+        // map entries write their value even when it is the default, as protoc does
+        final FieldDefinition definition = createFieldDefinition(ENUM);
+        assertEquals(0, sizeOfEnum(definition, 0, true));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE, sizeOfEnum(definition, 0, false));
+        ProtoWriterTools.writeEnumProtoOrdinal(bufferedData, definition, 0, true);
+        assertEquals(0, bufferedData.position());
+        ProtoWriterTools.writeEnumProtoOrdinal(bufferedData, definition, 0, false);
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE, bufferedData.position());
+
+        final byte[] array = new byte[10];
+        assertEquals(0, ProtoArrayWriterTools.writeEnumProtoOrdinal(array, 0, definition, 0, true));
+        assertEquals(
+                TAG_SIZE + MIN_LENGTH_VAR_SIZE,
+                ProtoArrayWriterTools.writeEnumProtoOrdinal(array, 0, definition, 0, false));
+        // an unrecognized ordinal, stored as an Integer, is sized like any other
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE, sizeOfEnum(definition, 99, false));
+    }
+
+    @Test
+    void testFloatingPointDefaultIsWrittenWhenNotSkipped() {
+        // map entries write their value even when it is the default, as protoc does
+        final FieldDefinition floatField = createFieldDefinition(FLOAT);
+        final FieldDefinition doubleField = createFieldDefinition(DOUBLE);
+        assertEquals(0, ProtoWriterTools.sizeOfFloat(floatField, 0f, true));
+        assertEquals(TAG_SIZE + Float.BYTES, ProtoWriterTools.sizeOfFloat(floatField, 0f, false));
+        assertEquals(0, ProtoWriterTools.sizeOfDouble(doubleField, 0d, true));
+        assertEquals(TAG_SIZE + Double.BYTES, ProtoWriterTools.sizeOfDouble(doubleField, 0d, false));
+
+        ProtoWriterTools.writeFloat(bufferedData, floatField, 0f, true);
+        ProtoWriterTools.writeDouble(bufferedData, doubleField, 0d, true);
+        assertEquals(0, bufferedData.position());
+        ProtoWriterTools.writeFloat(bufferedData, floatField, 0f, false);
+        assertEquals(TAG_SIZE + Float.BYTES, bufferedData.position());
+        ProtoWriterTools.writeDouble(bufferedData, doubleField, 0d, false);
+        assertEquals(2 * TAG_SIZE + Float.BYTES + Double.BYTES, bufferedData.position());
+
+        final byte[] array = new byte[20];
+        assertEquals(0, ProtoArrayWriterTools.writeFloat(array, 0, floatField, 0f, true));
+        assertEquals(TAG_SIZE + Float.BYTES, ProtoArrayWriterTools.writeFloat(array, 0, floatField, 0f, false));
+        assertEquals(0, ProtoArrayWriterTools.writeDouble(array, 0, doubleField, 0d, true));
+        assertEquals(TAG_SIZE + Double.BYTES, ProtoArrayWriterTools.writeDouble(array, 0, doubleField, 0d, false));
+    }
+
+    @Test
     void testSizeOfString() {
         final FieldDefinition definition = createFieldDefinition(STRING);
         final String str = randomVarSizeString();
