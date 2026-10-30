@@ -153,6 +153,7 @@ public final class CodecGenerator implements Generator {
 
                 $unsetOneOfConstants
                 $parseMethod
+                $parseArrayMethod
                 $writeMethod
                 $writeByteArrayMethod
                 $measureRecordMethod
@@ -168,6 +169,7 @@ public final class CodecGenerator implements Generator {
                 .replace("$cacheableSupport", cacheableSupport)
                 .replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
                 .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(sbFunc, modelClassName, schemaClassName, fields, !cacheableSupport.isBlank(), lookupHelper))
+                .replace("$parseArrayMethod", CodecParseArrayMethodGenerator.generateParseArrayMethod(msgDef, modelClassName, schemaClassName, fields, !cacheableSupport.isBlank(), lookupHelper))
                 .replace("$writeMethod", writeMethod)
                 .replace("$writeByteArrayMethod", writeByteArrayMethod)
                 .replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))

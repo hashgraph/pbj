@@ -27,6 +27,16 @@ final class ByteArrayBufferedData extends BufferedData {
     // This data buffer's offset into the backing array. See ByteBuffer.arrayOffset() for details
     private final int arrayOffset;
 
+    /** The backing array, for {@link ArrayCursor}. */
+    byte[] backingArray() {
+        return array;
+    }
+
+    /** This buffer's offset into the backing array, for {@link ArrayCursor}. */
+    int arrayOffset() {
+        return arrayOffset;
+    }
+
     ByteArrayBufferedData(final ByteBuffer buffer) {
         super(buffer);
         if (!buffer.hasArray()) {
