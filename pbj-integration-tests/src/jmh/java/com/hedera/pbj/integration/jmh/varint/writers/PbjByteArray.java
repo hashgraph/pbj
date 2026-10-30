@@ -8,7 +8,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
-/** PBJ's byte-array varint writers: the unrolled {@code writeUnsignedVarInt} and the single-store {@code writeVarInt}. */
+/** PBJ's byte-array varint writers: the unrolled {@code writeUnsignedVarInt}, and {@code writeVarInt} (exact-size bulk stores). */
 @State(Scope.Benchmark)
 public class PbjByteArray {
     private byte[] buffer;
