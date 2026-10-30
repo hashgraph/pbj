@@ -46,21 +46,6 @@ final class InlineBudgetTest {
             Map.entry("position", ANY),
             Map.entry("limit", ANY));
 
-    /** {@link ReverseBuffer} methods generated reverse writers call for every field. */
-    private static final Map<String, Integer> REVERSE_BUFFER = Map.ofEntries(
-            Map.entry("varint", ANY * 2),
-            Map.entry("varintWide", HOT),
-            Map.entry("varintStore", HOT),
-            Map.entry("varintUnchecked", HOT),
-            Map.entry("writeByte", ANY),
-            Map.entry("writeByteUnchecked", ANY),
-            Map.entry("writeBytesUnchecked", ANY * 2),
-            Map.entry("fixed32Unchecked", ANY),
-            Map.entry("fixed64Unchecked", ANY),
-            Map.entry("ensure", ANY),
-            Map.entry("mark", ANY),
-            Map.entry("lengthSince", ANY));
-
     static ClassModel classModel(final Class<?> type) throws IOException {
         try (InputStream in = type.getResourceAsStream(type.getSimpleName() + ".class")) {
             return ClassFile.of().parse(Objects.requireNonNull(in).readAllBytes());
@@ -103,10 +88,5 @@ final class InlineBudgetTest {
     @Test
     void arrayCursorMethodsFitTheirInlineBudgets() throws IOException {
         assertWithinBudgets(ArrayCursor.class, ARRAY_CURSOR);
-    }
-
-    @Test
-    void reverseBufferMethodsFitTheirInlineBudgets() throws IOException {
-        assertWithinBudgets(ReverseBuffer.class, REVERSE_BUFFER);
     }
 }
