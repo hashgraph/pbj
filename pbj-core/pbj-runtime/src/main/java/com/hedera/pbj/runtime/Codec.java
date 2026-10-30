@@ -86,8 +86,8 @@ public abstract class Codec<T> {
             int maxDepth,
             int maxSize)
             throws ParseException {
-        // Generated parsers narrow the input's limit to each nested message and, for speed, do not restore it when
-        // parsing fails part way. Restore it here, so callers see the same limit after a failure as before the call.
+        // Parsers narrow the input's limit to each nested message. Generated parsers restore it when parsing fails
+        // part way, but other codecs may not, so restore it here too: callers see the same limit after a failure.
         final long limit = input.limit();
         try {
             return parseImpl(input, strictMode, parseUnknownFields, maxDepth, maxSize);
