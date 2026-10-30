@@ -25,6 +25,13 @@ final class CodecWriteByteArrayMethodGenerator {
             final String schemaClassName,
             final List<Field> fields,
             final ContextualLookupHelper lookupHelper) {
+        final InlineFieldCodeGenerator inline = new InlineFieldCodeGenerator(
+                InlineFieldCodeGenerator.Target.BYTE_ARRAY,
+                "data.",
+                lookupHelper,
+                field -> fallback(field, modelClassName, schemaClassName),
+                modelClassName);
+        final String fieldWriteLines = inline.fieldsInOrder(fields);
         // spotless:off
         return
             """
@@ -67,10 +74,8 @@ final class CodecWriteByteArrayMethodGenerator {
             }
             """
             .replace("$modelClass", modelClassName)
-            .replace("$fieldWriteLines", new InlineFieldCodeGenerator(
-                    InlineFieldCodeGenerator.Target.BYTE_ARRAY, "data.", lookupHelper,
-                    field -> fallback(field, modelClassName, schemaClassName))
-                    .fieldsInOrder(fields).indent(DEFAULT_INDENT))
+            .replace("$fieldWriteLines", fieldWriteLines.indent(DEFAULT_INDENT))
+            .concat(inline.helpers())
             .indent(DEFAULT_INDENT);
         // spotless:on
     }

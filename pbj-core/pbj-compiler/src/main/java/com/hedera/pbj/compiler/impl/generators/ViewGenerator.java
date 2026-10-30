@@ -28,13 +28,48 @@ final class ViewGenerator {
 
     private ViewGenerator() {}
 
+    /**
+     * The most fields and oneof alternatives a message can have with all of them indexed inline in {@code index}. In
+     * larger messages, such as HAPI's {@code TransactionBody} and {@code StateValue}, each field is indexed in its own
+     * small method, called from both the fast path and the general loop, to keep {@code index} well under HotSpot's
+     * 8000-byte limit for compiling a method at all. The JIT still inlines them where they are hot.
+     */
+    private static final int MAX_INLINE_FIELDS = 32;
+
     /** The code generated for the view, built field by field. */
     private record Parts(
             StringBuilder state,
             StringBuilder resets,
             StringBuilder fastPath,
             StringBuilder cases,
-            StringBuilder accessors) {}
+            StringBuilder accessors,
+            StringBuilder helpers,
+            boolean useHelpers) {
+
+        /**
+         * The code indexing one field: inline, or in a large message a call to a method holding it.
+         *
+         * @param method the method's name
+         * @param code the code, which may use {@code $tagStart}, the position of the field's tag
+         * @param tagStart the expression for {@code $tagStart} where the code is used
+         * @param declare true the first time the code is used, to generate the method
+         * @return the code to use
+         */
+        String index(final String method, final String code, final String tagStart, final boolean declare) {
+            if (!useHelpers) {
+                return code.replace("$tagStart", tagStart);
+            }
+            final boolean usesTagStart = code.contains("$tagStart");
+            if (declare) {
+                helpers.append("%nprivate void %s(%s) throws java.io.IOException, ParseException {%n%s}%n"
+                        .formatted(
+                                method,
+                                usesTagStart ? "final int tagStart" : "",
+                                code.replace("$tagStart", "tagStart").indent(DEFAULT_INDENT)));
+            }
+            return "%s(%s);%n".formatted(method, usesTagStart ? tagStart : "");
+        }
+    }
 
     /**
      * Generate the view class for a message, or nothing if it has no view.
@@ -70,12 +105,18 @@ final class ViewGenerator {
                         .formatted(modelClass));
             }
         }
+        final long fieldCount = fields.stream()
+                .mapToLong(field ->
+                        field instanceof OneOfField oneOf ? oneOf.fields().size() : 1)
+                .sum();
         final Parts parts = new Parts(
                 new StringBuilder(),
                 new StringBuilder(),
                 new StringBuilder(),
                 new StringBuilder(),
-                new StringBuilder());
+                new StringBuilder(),
+                new StringBuilder(),
+                fieldCount > MAX_INLINE_FIELDS);
         for (final Field field : fields) {
             if (field instanceof OneOfField oneOf) {
                 oneOf(oneOf, parts);
@@ -228,7 +269,7 @@ final class ViewGenerator {
                         in = cursor.array();
                         return this;
                     }
-
+                $helpers
                     /**
                      * Parse the wrapped message into a model object.
                      *
@@ -246,6 +287,7 @@ final class ViewGenerator {
                 .replace("$fastPath", parts.fastPath().toString().indent(DEFAULT_INDENT * 3))
                 .replace("$cases", parts.cases().toString().indent(DEFAULT_INDENT * 5))
                 .replace("$accessors", parts.accessors().toString().indent(DEFAULT_INDENT))
+                .replace("$helpers", parts.helpers().toString().indent(DEFAULT_INDENT))
                 .replace("$model", modelClass)
                 .replace("$schema", schemaClass)
                 .indent(DEFAULT_INDENT);
@@ -331,9 +373,11 @@ final class ViewGenerator {
         if (oneOfKind != null) {
             record += "%s = %d;%n".formatted(oneOfKind, field.fieldNumber());
         } else {
-            parts.fastPath().append(fastPath("if", field.fieldNumber(), wireType, record));
+            parts.fastPath()
+                    .append(fastPath(
+                            "if", field.fieldNumber(), wireType, parts.index("index_" + name, record, "", false)));
         }
-        parts.cases().append(caseCode(field, wireType, record));
+        parts.cases().append(caseCode(field, wireType, parts.index("index_" + name, record, "", true)));
         final String guard = oneOfKind == null ? "" : "%s == %d".formatted(oneOfKind, field.fieldNumber());
         parts.accessors()
                 .append(field.optionalValueType() ? wrapperAccessor(field, name, guard) : accessor(field, name, guard));
@@ -397,13 +441,16 @@ final class ViewGenerator {
                         "while",
                         field.fieldNumber(),
                         wireType,
-                        unpacked.replace("$tagStart", "cursor.position() - " + tagLength)
-                                .replace("$name", name)));
+                        parts.index(
+                                "index_" + name,
+                                unpacked.replace("$name", name),
+                                "cursor.position() - " + tagLength,
+                                false)));
         parts.cases()
                 .append(caseCode(
                         field,
                         wireType,
-                        unpacked.replace("$tagStart", "tagStart").replace("$name", name)));
+                        parts.index("index_" + name, unpacked.replace("$name", name), "tagStart", true)));
         if (!delimited) {
             final String packed =
                     """
@@ -426,13 +473,16 @@ final class ViewGenerator {
                             "if",
                             field.fieldNumber(),
                             Common.TYPE_LENGTH_DELIMITED,
-                            packed.replace("$tagStart", "cursor.position() - " + packedTagLength)
-                                    .replace("$name", name)));
+                            parts.index(
+                                    "indexPacked_" + name,
+                                    packed.replace("$name", name),
+                                    "cursor.position() - " + packedTagLength,
+                                    false)));
             parts.cases()
                     .append(caseCode(
                             field,
                             Common.TYPE_LENGTH_DELIMITED,
-                            packed.replace("$tagStart", "tagStart").replace("$name", name)));
+                            parts.index("indexPacked_" + name, packed.replace("$name", name), "tagStart", true)));
         }
         final String read =
                 switch (field.type()) {

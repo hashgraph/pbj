@@ -317,7 +317,7 @@ public final class Common {
                             .replace("$thatFieldName", f.nameCamelFirstLower())
                             .replace("$fieldName", fieldNamePrefix.isBlank() ? f.nameCamelFirstLower() : f.name());
                 } else if (f.type() == Field.FieldType.MAP) {
-                    generatedCodeSoFar += getMapHashCodeGeneration(generatedCodeSoFar, f, fieldNamePrefix);
+                    generatedCodeSoFar = getMapHashCodeGeneration(generatedCodeSoFar, f, fieldNamePrefix);
                 } else if (f.type() == Field.FieldType.STRING || f.parent() == null) { // process sub message
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
