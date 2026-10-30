@@ -192,8 +192,10 @@ final class CodecWriteMethodGenerator {
                         .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT));
             } else {
                 return prefix + switch(field.type()) {
-                    case ENUM -> "writeEnumProtoOrdinal(out, %s, (%s)$suffix);"
+                    case ENUM -> "writeEnumProtoOrdinal(out, %s, (%s)$suffix$skipDefault);"
                             .replace("$suffix", field.parent() == null ? "" : ".protoOrdinal()")
+                            // map entries always write their value, as protoc does
+                            .replace("$skipDefault", skipDefault ? "" : ", false")
                             .formatted(fieldDef, getValueCode);
                     case STRING -> "writeString(out, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, skipDefault);

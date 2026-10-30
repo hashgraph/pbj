@@ -1175,6 +1175,26 @@ class ProtoWriterToolsTest {
     }
 
     @Test
+    void testEnumDefaultIsWrittenWhenNotSkipped() {
+        // map entries write their value even when it is the default, as protoc does
+        final FieldDefinition definition = createFieldDefinition(ENUM);
+        assertEquals(0, sizeOfEnum(definition, 0, true));
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE, sizeOfEnum(definition, 0, false));
+        ProtoWriterTools.writeEnumProtoOrdinal(bufferedData, definition, 0, true);
+        assertEquals(0, bufferedData.position());
+        ProtoWriterTools.writeEnumProtoOrdinal(bufferedData, definition, 0, false);
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE, bufferedData.position());
+
+        final byte[] array = new byte[10];
+        assertEquals(0, ProtoArrayWriterTools.writeEnumProtoOrdinal(array, 0, definition, 0, true));
+        assertEquals(
+                TAG_SIZE + MIN_LENGTH_VAR_SIZE,
+                ProtoArrayWriterTools.writeEnumProtoOrdinal(array, 0, definition, 0, false));
+        // an unrecognized ordinal, stored as an Integer, is sized like any other
+        assertEquals(TAG_SIZE + MIN_LENGTH_VAR_SIZE, sizeOfEnum(definition, 99, false));
+    }
+
+    @Test
     void testSizeOfString() {
         final FieldDefinition definition = createFieldDefinition(STRING);
         final String str = randomVarSizeString();

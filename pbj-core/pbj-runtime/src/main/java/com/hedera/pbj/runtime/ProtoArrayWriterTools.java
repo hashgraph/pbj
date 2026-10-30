@@ -674,10 +674,30 @@ public final class ProtoArrayWriterTools {
      */
     public static int writeEnumProtoOrdinal(
             @NonNull final byte[] output, final int offset, @NonNull final FieldDefinition field, int protoOrdinal) {
+        return writeEnumProtoOrdinal(output, offset, field, protoOrdinal, true);
+    }
+
+    /**
+     * Write an enum's protobuf ordinal to the output array, assuming the field is non-repeated.
+     *
+     * @param output the array to write to
+     * @param offset the offset in the array to start writing at
+     * @param field the descriptor for the field we are writing, the field must not be repeated
+     * @param protoOrdinal the protobuf ordinal of the enum value to write
+     * @param skipDefault skip writing the field if it has the default value 0 (for non-oneOf only); map entries
+     *     write it, as protoc does
+     * @return the number of bytes written
+     */
+    public static int writeEnumProtoOrdinal(
+            @NonNull final byte[] output,
+            final int offset,
+            @NonNull final FieldDefinition field,
+            int protoOrdinal,
+            final boolean skipDefault) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert !field.repeated() : "Use writeEnumList with repeated types";
         // When not a oneOf don't write default value
-        if (!field.oneOf() && protoOrdinal == 0) {
+        if (skipDefault && !field.oneOf() && protoOrdinal == 0) {
             return 0;
         }
         int bytesWritten = 0;

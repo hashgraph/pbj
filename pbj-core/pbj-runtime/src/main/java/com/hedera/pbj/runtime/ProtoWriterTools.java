@@ -299,10 +299,24 @@ public final class ProtoWriterTools {
      * @param protoOrdinal the enum value to write
      */
     public static void writeEnumProtoOrdinal(WritableSequentialData out, FieldDefinition field, int protoOrdinal) {
+        writeEnumProtoOrdinal(out, field, protoOrdinal, true);
+    }
+
+    /**
+     * Write an enum's protobuf ordinal to data output, assuming the field is non-repeated.
+     *
+     * @param out The data output to write to
+     * @param field the descriptor for the field we are writing, the field must not be repeated
+     * @param protoOrdinal the protobuf ordinal of the enum value to write
+     * @param skipDefault skip writing the field if it has the default value 0 (for non-oneOf only); map entries
+     *     write it, as protoc does
+     */
+    public static void writeEnumProtoOrdinal(
+            WritableSequentialData out, FieldDefinition field, int protoOrdinal, boolean skipDefault) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert !field.repeated() : "Use writeEnumList with repeated types";
         // When not a oneOf don't write default value
-        if (!field.oneOf() && protoOrdinal == 0) {
+        if (skipDefault && !field.oneOf() && protoOrdinal == 0) {
             return;
         }
         writeTag(out, field, WIRE_TYPE_VARINT_OR_ZIGZAG);
@@ -1327,7 +1341,22 @@ public final class ProtoWriterTools {
      * @return the number of bytes for encoded value
      */
     public static int sizeOfEnum(FieldDefinition field, Object enumValue) {
-        if (!field.oneOf() && (enumValue == null || EnumWithProtoMetadata.protoOrdinal(enumValue) == 0)) {
+        return sizeOfEnum(field, enumValue, true);
+    }
+
+    /**
+     * Get number of bytes that would be needed to encode an enum field
+     *
+     * @param field descriptor of field
+     * @param enumValue enum value, or its protobuf ordinal as an {@code Integer}, to get encoded size for
+     * @param skipDefault true if the default value 0 should result in size zero (for non-oneOf only); map entries
+     *     write it, as protoc does
+     * @return the number of bytes for encoded value
+     */
+    public static int sizeOfEnum(FieldDefinition field, Object enumValue, boolean skipDefault) {
+        if (skipDefault
+                && !field.oneOf()
+                && (enumValue == null || EnumWithProtoMetadata.protoOrdinal(enumValue) == 0)) {
             return 0;
         }
         return sizeOfTag(field, WIRE_TYPE_VARINT_OR_ZIGZAG)

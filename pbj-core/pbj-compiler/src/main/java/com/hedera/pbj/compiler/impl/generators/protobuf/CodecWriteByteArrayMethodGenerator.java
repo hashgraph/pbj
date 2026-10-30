@@ -212,8 +212,10 @@ final class CodecWriteByteArrayMethodGenerator {
                         .replace("$fieldSizeOfLines", fieldSizeOfLines.indent(DEFAULT_INDENT));
             } else {
                 return prefix + switch(field.type()) {
-                    case ENUM -> "offset += ProtoArrayWriterTools.writeEnumProtoOrdinal(output, offset, %s, (%s)$suffix);"
+                    case ENUM -> "offset += ProtoArrayWriterTools.writeEnumProtoOrdinal(output, offset, %s, (%s)$suffix$skipDefault);"
                             .replace("$suffix", field.parent() == null ? "" : ".protoOrdinal()")
+                            // map entries always write their value, as protoc does
+                            .replace("$skipDefault", skipDefault ? "" : ", false")
                             .formatted(fieldDef, getValueCode);
                     case STRING -> "offset += ProtoArrayWriterTools.writeString(output, offset, %s, %s, %s);"
                             .formatted(fieldDef, getValueCode, skipDefault);

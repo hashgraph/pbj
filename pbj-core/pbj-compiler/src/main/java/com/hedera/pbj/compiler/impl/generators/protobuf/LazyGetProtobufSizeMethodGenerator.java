@@ -188,7 +188,11 @@ public class LazyGetProtobufSizeMethodGenerator {
             return prefix
                     + statementIndent
                     + switch (field.type()) {
-                        case ENUM -> "_size += sizeOfEnum(%s, %s);".formatted(fieldDef, getValueCode);
+                        case ENUM ->
+                            skipDefault
+                                    ? "_size += sizeOfEnum(%s, %s);".formatted(fieldDef, getValueCode)
+                                    // map entries always write their value, as protoc does
+                                    : "_size += sizeOfEnum(%s, %s, false);".formatted(fieldDef, getValueCode);
                         case STRING ->
                             "_size += sizeOfString(%s, %s, %s);".formatted(fieldDef, getValueCode, skipDefault);
                         case MESSAGE ->
