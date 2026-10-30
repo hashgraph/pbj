@@ -225,5 +225,21 @@ contain messages with another.
 | `pbj.views` | A zero-copy, reusable view class that reads fields in place from encoded bytes |
 | `pbj.oneof_storage = "unboxed"` | Models store each oneof as a kind and a value, so parsing allocates no `OneOf` |
 
-The option names are reserved now; the code they generate is added step by step (see
-[fast-codegen-plan.md](fast-codegen-plan.md)), and until then an option has no effect.
+The code each option generates is added step by step (see [fast-codegen-plan.md](fast-codegen-plan.md)). Each
+section below describes what an option generates today; an option without a section has no effect yet.
+
+### Byte-Array Parser (`pbj.fast_parse`)
+
+The codec gets a second parser, a static `parseArray(ArrayCursor, strictMode, parseUnknownFields, maxDepth, maxSize)`
+that reads straight from a `byte[]` instead of through `ReadableSequentialData`. Nothing changes for callers:
+`Codec.parse` uses it automatically when the input is array-backed, which means a `Bytes` or a `BufferedData` over a
+heap array (`BufferedData.wrap(byte[])`, `BufferedData.allocate(int)`). Direct buffers and streams still use the
+stream parser. Generated array parsers call each other directly for nested messages.
+
+Writers emit fields in field-number order, so the parser first tests for each field's tag in that order, one byte
+compare per field, and a repeated field loops on its tag. Oneofs and maps
+stay out of this fast path. Anything else (oneofs, maps, fields out of order or repeated, unknown fields) falls
+through to a general loop. Results and errors are the same as the stream parser's for the same input and arguments:
+strict mode, unknown-field collection, `maxDepth`, `maxSize`, malformed UTF-8 and truncated input all behave alike.
+
+Every field type is supported, so every message that asks for an array parser gets one.
