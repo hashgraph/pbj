@@ -126,7 +126,17 @@ nested message's `parse`. Document the options in `docs/codec-protobuf.md` and `
 
 The snippets below come from the prototype, adapted to PBJ names. Generated code should produce the same shape.
 
-### 5.1 Single-store varint write
+### 5.1 Varint writes for byte arrays
+
+**Measured outcome (AMD EPYC, HAPI block items).** The single 8-byte store below, bounded by the message end, lost to
+PBJ's unrolled writer by 4-9% in a forward writer; its only win came from writing one-byte varints inline. Exact-size
+bulk stores (2, 4 or 8 bytes, or 2 + 1, 4 + 1, 4 + 2, 4 + 2 + 1, as in draft PR #795's `SteinbornBulkByteArray`) beat
+both: against the unrolled writer, 23% faster for writes of block items with cached sizes, 15% for freshly built ones
+and 12% for `toBytes`; signed transactions were unchanged. They never write past the varint, so they need no `end`
+guard. `ProtoArrayWriterTools.writeVarInt` ships them, with the one-byte case inline. The single store is kept below
+as "tried; rejected for forward writes", and `VarIntSingleStoreVariantsBench` records the comparison.
+
+Tried and rejected for forward writes:
 
 ```java
 private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
@@ -313,7 +323,13 @@ Change `CodecWriteByteArrayMethodGenerator`, `CodecWriteMethodGenerator`, `Codec
    via `out.writeByte`, inline defaults, direct calls.
 
 Do not change field order, default skipping, map ordering, unknown-field writing or `protobufSize` caching. API
-impact: none. Expected gain: about 2× for `write(T, byte[])` and `toBytes` on deeply nested messages.
+impact: none.
+
+**Measured (AMD EPYC, PRs #994-#996):** on HAPI block items `write(T, byte[])` became about 30% faster and `toBytes` of
+freshly built items 2.1× faster (the plan expected about 2× for both). Block items carry large opaque byte fields
+(signed transactions) whose copy cost doesn't change, so deeply nested messages gain more than byte-heavy ones. The
+exact-size bulk varint stores (5.1) added 12-23% on top for block items. Code size: tier A grew `*ProtoCodec` classes
+by about 10% and all generated classes by about 1.3%, within the 15% limit, instead of the predicted shrink.
 
 ### 6.2 Step 2a: parser clean-ups (tier A, always on)
 
@@ -333,8 +349,27 @@ For messages with `fast_parse`, generate `static T parseArray(ArrayCursor c, …
 position by what it consumed. Streams and direct buffers keep today's `parseImpl`.
 
 `bytes` fields keep PBJ's current semantics: a `Bytes` view or a copy, whichever PBJ produces today. API impact:
-none, since the results are the same objects. Code size: about double the parse code of flagged messages. Expected
-gain: about 2.5-3× for parsing nested messages into objects.
+none, since the results are the same objects. Code size: about double the parse code of flagged messages.
+
+Also:
+
+- **Nested calls follow #993's rule.** A nested message generated in the same build with an array parser is called
+  directly (a static call); otherwise its byte range is wrapped and parsed through its codec. A generated-code test
+  checks both, as it does for the writers and `parseFrom`.
+- **String fields** use the runtime's shared strict decoder (#1008): `""` for zero length, a Latin-1 string for ASCII,
+  otherwise a validating scan, then decoding, with no per-call decoder or buffers.
+- **Sparse messages.** Many HAPI messages have many optional fields, few of them present (`TransactionBody`'s wide
+  oneof, records, receipts). The in-order fast path pays one failed compare per absent field. Limit it to the leading
+  N fields (start with 16), or generate it only where the benchmark data shows a high present-field ratio; measure
+  both on block items, transactions and records.
+- **Access to the backing array** of `ByteArrayBufferedData` and `Bytes` goes through package-private accessors and
+  an internal, unexported bridge, not new public API.
+- **Method size.** HotSpot does not JIT-compile methods over 8,000 bytes of bytecode. Put each nested message, repeated
+  element and packed-run read in its own small method, called from the fast path and the loop, so large messages stay
+  under it.
+- **Expected gain, per workload.** Parsing a HAPI block item from `Bytes` was 566 ns; #993 gave 5-11%. Set the target
+  from a quick prototype of the array path on `BlockItem` before writing the full generator. (Measured in #1002: block
+  items 1.9× faster, whole blocks 2.3×.)
 
 ### 6.4 Step 3: reverse writer (tier B, `pbj.fast_write`)
 
@@ -345,6 +380,10 @@ gain: about 2.5-3× for parsing nested messages into objects.
   Codecs without the flag implement it by measuring and writing forward into the buffer.
 - **`toBytes(T)`** may use it internally (reverse write into a pooled buffer, then copy into an exact-size array),
   but only if that measures faster.
+
+In the reverse writer the single 8-byte varint store (5.1) needs no guard: it writes into free space below the cursor,
+in a buffer the writer owns. That is where it won in the prototype. Re-measure it there against the exact-size bulk
+stores; don't assume either way.
 
 This skips `protobufSize` entirely for objects that are encoded once (for example block items built and written
 once), and gives a zero-allocation write path with a caller-owned buffer. Expected gain: 15-20% over step 1 for
@@ -445,7 +484,18 @@ Report before (the previous PR's branch) against after:
 
    Also parse and write the signed transactions found in those blocks on their own. This is the main benchmark for
    the series, because block items are Hiero's hottest serialization path.
-3. **Profiles when a step underperforms.** async-profiler's `ann` option labels frames `_[j]` (compiled), `_[i]`
+3. **GC bias.** Benchmarks that rebuild objects in `@Setup(Level.Invocation)` allocate heavily outside the timed
+   region, so young collections tend to happen there, while benchmarks without that setup collect inside it. In
+   `BlockItemBench` this made cached `toBytes` look slower than fresh (1,349 against 928 ns with G1; 1,199 against
+   1,127 ns with the no-op Epsilon collector). The cached states now allocate in their setup too. Compare like with
+   like (cached against cached for write-path changes), check that a fresh write costs about a cached write plus
+   `itemSizeFresh`, and always report `gc.count` and `gc.time` from `-prof gc` next to `gc.alloc.rate.norm`.
+4. **protoc columns.** Report protoc next to PBJ: `BlockItemBench`'s `*ProtoC*` cases, `ProtobufObjectBench` and
+   `ProtobufObjectArrayBench`.
+5. **Block files.** Block `…497558` was written with an older `BlockHeader` layout and no longer parses with the
+   current HAPI schema, so `BlockItemBench` uses block `…030221` (67,869 items, every kind, 21,981 signed
+   transactions).
+6. **Profiles when a step underperforms.** async-profiler's `ann` option labels frames `_[j]` (compiled), `_[i]`
    (inlined), `_[1]` (C1) and `_[0]` (interpreted), which shows directly which per-field calls were not inlined.
    `-XX:+UnlockDiagnosticVMOptions -XX:+PrintInlining` explains why.
 
@@ -486,9 +536,12 @@ Each PR description covers:
 
 - **PBJ's varint reader is good.** The XOR chain beat an 8-byte-load-and-mask reader on both x86-64 and Apple
   Silicon. Keep it; call it without interface dispatch and inline the one-byte case.
-- **Single-store varint writes beat the unrolled writer** on both platforms (12-23% for encode). They need
-  8 bytes of headroom inside the message (or inside a buffer the writer owns); fall back to the unrolled writer
-  otherwise.
+- **Varint writes:** in the prototype, single-store varint writes beat the unrolled writer (12-23% for encode). In
+  PBJ's forward writer, bounded by the message end, they lost to it by 4-9% on HAPI block items on EPYC, confirmed on
+  another workload; the win came only from writing one-byte varints inline. Exact-size bulk stores beat both (5.1).
+  The 8-byte store may still win in the reverse writer, where it needs no guard (6.4).
+- **HotSpot does not compile methods over 8,000 bytes of bytecode** (`DontCompileHugeMethods`). Generated parsers of
+  large messages crossed it and ran interpreted; split per-field work into small methods.
 - **HotSpot's inlining limits matter more than micro-optimising arithmetic.**
   - Per-field helpers over 35 bytecodes were not inlined at most call sites ("too big").
   - Large generated methods hit `DesiredMethodLimit`.
