@@ -273,3 +273,33 @@ against the order they sit in memory, so for large batches of objects that are n
 already cached, the forward writer can be faster. Measure with your own data before switching; `BlockItemKindBench`
 in the integration tests compares both writers on HAPI block items.
 
+### Zero-Copy Views (`pbj.views`)
+
+The model gets a nested, reusable `View` class that reads fields in place from encoded bytes instead of parsing them
+into objects:
+
+```java
+final Order.View view = new Order.View();
+for (Bytes bytes : orders) {
+    view.wrap(bytes);          // or wrap(byte[], offset, length)
+    total += view.amount();    // numbers and enums are decoded once, by wrap
+    if (view.hasCustomer()) {
+        names.add(view.customer().name());   // a child view, re-wrapped with the parent
+    }
+}
+```
+
+`wrap` indexes the message in one pass, with the same in-order fast path and the same checks of tags, wire types,
+lengths, bools and UTF-8 as parsing; a malformed message throws `ParseException`. Numbers are decoded into fields of
+the view, and strings, bytes and nested messages are recorded as offsets and lengths. String and bytes fields also have
+`xxxArray()`, `xxxOffset()`, `xxxLength()` and `xxxEquals(byte[])`, which read them without allocating; `xxx()` builds a
+`String` or `Bytes`. An enum field's `xxxProtoOrdinal()` returns the raw number. `toModel()` parses the wrapped bytes
+into a model object. Wrapping and reading numbers, enums, nested views and offsets allocate nothing.
+
+A view and its child views are reused, so a child view returned earlier reads whatever its parent was last wrapped
+over. The wrapped bytes must not change while a view reads them.
+
+A message gets a view only if every field is a singular scalar, string, bytes, enum or message, and every message
+field's type also gets a view. Messages with repeated fields, maps, oneofs or `google.protobuf` wrapper types get no
+view.
+
