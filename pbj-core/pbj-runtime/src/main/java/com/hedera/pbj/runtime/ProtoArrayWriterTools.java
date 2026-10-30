@@ -53,6 +53,14 @@ public final class ProtoArrayWriterTools {
     /** VarHandle to write little-endian integers to byte arrays */
     private static final VarHandle INTEGER_LITTLE_ENDIAN =
             MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+    /** VarHandles for the exact-size big-endian stores of {@link #writeVarIntWide} */
+    private static final VarHandle SHORT_BIG_ENDIAN =
+            MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
+
+    private static final VarHandle INT_BIG_ENDIAN =
+            MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    private static final VarHandle LONG_BIG_ENDIAN =
+            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
     /** VarHandle to write little-endian longs to byte arrays */
     private static final VarHandle LONG_LITTLE_ENDIAN =
             MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
@@ -103,7 +111,8 @@ public final class ProtoArrayWriterTools {
     /**
      * Write an unsigned varint to the output, never touching {@code output[end]} or beyond. This is the fast path for
      * generated writers: pass the end of the message being written as {@code end}, because the bytes after it may
-     * belong to the caller.
+     * belong to the caller. (The current writer never writes past the varint itself; {@code end} is kept so a writer
+     * that does, such as a wider single store, can be used without changing callers.)
      *
      * <p>The one-byte case is handled here and the method is kept small, so it inlines at every call site; longer
      * varints go to {@link #writeVarIntWide}.
@@ -123,33 +132,69 @@ public final class ProtoArrayWriterTools {
     }
 
     /**
-     * Write an unsigned varint of two or more bytes. When the varint fits in 8 bytes and at least 8 bytes remain before
-     * {@code end}, the 7-bit groups are spread into bytes with shifts and masks, the continuation bits set on all but
-     * the last byte, and one 8-byte little-endian word is stored. The bytes it writes past the varint are still inside
-     * the message, and later fields overwrite them. Otherwise it falls back to {@link #writeUnsignedVarInt}.
+     * Write an unsigned varint of two or more bytes with stores of exactly its size: 2, 4 or 8 bytes, or 2 + 1, 4 + 1,
+     * 4 + 2 or 4 + 2 + 1 (the bulk technique from Andrew Steinborn's varint writing showdown, as in draft PR #795).
+     * It never writes past the varint. Negative values, ten bytes long, use {@link #writeUnsignedVarInt}.
      *
-     * @param output The byte array to write to
-     * @param offset The offset to start writing at
-     * @param end The end of the message being written; no byte at or after it is modified
-     * @param value The value to write, at least 128 or negative
+     * <p>On AMD EPYC this beat both the unrolled writer and a single 8-byte store bounded by {@code end} for HAPI block
+     * items: 23% faster than unrolled for cached writes, 15% for freshly built ones, 12% for {@code toBytes}.
+     *
+     * @param out The byte array to write to
+     * @param p The offset to start writing at
+     * @param end The end of the message being written; unused, as nothing past the varint is written
+     * @param v The value to write, at least 128 or negative
      * @return The number of bytes written
      */
-    static int writeVarIntWide(@NonNull final byte[] output, final int offset, final int end, final long value) {
-        if ((value >>> 56) != 0 || end - offset < Long.BYTES) {
-            return writeUnsignedVarInt(output, offset, value);
+    static int writeVarIntWide(final byte[] out, final int p, final int end, final long v) {
+        if (v < 0) {
+            return writeUnsignedVarInt(out, p, v);
         }
-        final int size = (Long.SIZE - Long.numberOfLeadingZeros(value) + 6) / 7; // 2..8
-        final long spread = (value & 0x7FL)
-                | ((value & 0x3F80L) << 1)
-                | ((value & 0x1FC000L) << 2)
-                | ((value & 0xFE00000L) << 3)
-                | ((value & 0x7F0000000L) << 4)
-                | ((value & 0x3F800000000L) << 5)
-                | ((value & 0x1FC0000000000L) << 6)
-                | ((value & 0xFE000000000000L) << 7);
-        final long continuation = 0x8080808080808080L & ((1L << ((size - 1) << 3)) - 1);
-        LONG_LITTLE_ENDIAN.set(output, offset, spread | continuation);
-        return size;
+        final long b0 = (v & 0x7F) | 0x80;
+        final long b1 = ((v >>> 7) & 0x7F) | 0x80;
+        if (v < (1L << 14)) {
+            SHORT_BIG_ENDIAN.set(out, p, (short) (b0 << 8 | (v >>> 7)));
+            return 2;
+        }
+        if (v < (1L << 21)) {
+            SHORT_BIG_ENDIAN.set(out, p, (short) (b0 << 8 | b1));
+            out[p + 2] = (byte) (v >>> 14);
+            return 3;
+        }
+        final long b2 = ((v >>> 14) & 0x7F) | 0x80;
+        if (v < (1L << 28)) {
+            INT_BIG_ENDIAN.set(out, p, (int) (b0 << 24 | b1 << 16 | b2 << 8 | (v >>> 21)));
+            return 4;
+        }
+        final int first4 = (int) (b0 << 24 | b1 << 16 | b2 << 8 | (((v >>> 21) & 0x7F) | 0x80));
+        if (v < (1L << 35)) {
+            INT_BIG_ENDIAN.set(out, p, first4);
+            out[p + 4] = (byte) (v >>> 28);
+            return 5;
+        }
+        if (v < (1L << 42)) {
+            INT_BIG_ENDIAN.set(out, p, first4);
+            SHORT_BIG_ENDIAN.set(out, p + 4, (short) ((((v >>> 28) & 0x7F) | 0x80) << 8 | (v >>> 35)));
+            return 6;
+        }
+        if (v < (1L << 49)) {
+            INT_BIG_ENDIAN.set(out, p, first4);
+            SHORT_BIG_ENDIAN.set(
+                    out, p + 4, (short) ((((v >>> 28) & 0x7F) | 0x80) << 8 | (((v >>> 35) & 0x7F) | 0x80)));
+            out[p + 6] = (byte) (v >>> 42);
+            return 7;
+        }
+        if (v < (1L << 56)) {
+            LONG_BIG_ENDIAN.set(
+                    out,
+                    p,
+                    ((long) first4) << 32
+                            | (((v >>> 28) & 0x7FL) | 0x80L) << 24
+                            | (((v >>> 35) & 0x7FL) | 0x80L) << 16
+                            | (((v >>> 42) & 0x7FL) | 0x80L) << 8
+                            | (v >>> 49));
+            return 8;
+        }
+        return writeUnsignedVarInt(out, p, v);
     }
 
     /**

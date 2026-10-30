@@ -28,7 +28,8 @@ import org.openjdk.jmh.annotations.Warmup;
  * real messages, so the unrolled writer's branch is not perfectly predicted.
  *
  * <p>On AMD EPYC (Zen 5) every single-store variant was slower than the unrolled writer for 2- to 8-byte varints; only
- * the inline one-byte case was faster. Encoding HAPI block items confirmed it (see the pull request for #988).
+ * the inline one-byte case was faster. Encoding HAPI block items confirmed it, and showed exact-size bulk stores, (f),
+ * beating both: that is what ships (see the pull request for #988).
  */
 @SuppressWarnings("unused")
 @State(Scope.Benchmark)
@@ -114,11 +115,33 @@ public class VarIntSingleStoreVariantsBench {
         return p;
     }
 
-    /** (a) as in ProtoArrayWriterTools.writeVarInt. */
+    /** (a) the first version of ProtoArrayWriterTools.writeVarInt: size by divide, one 8-byte store. */
+    static int wideDivide(final byte[] out, final int offset, final int end, final long v) {
+        if ((v >>> 56) != 0 || end - offset < 8) return ProtoArrayWriterTools.writeUnsignedVarInt(out, offset, v);
+        final int size = (64 - Long.numberOfLeadingZeros(v) + 6) / 7;
+        LONG_LE.set(out, offset, spread(v) | (0x8080808080808080L & ((1L << ((size - 1) << 3)) - 1)));
+        return size;
+    }
+
     @Benchmark
     @CompilerControl(CompilerControl.Mode.DONT_INLINE)
     @OperationsPerInvocation(COUNT)
     public int singleStore() {
+        int p = 0;
+        final int end = buffer.length;
+        for (int i = 0; i < COUNT; i++) {
+            final long v = numbers[i];
+            if ((v >>> 7) == 0) buffer[p++] = (byte) v;
+            else p += wideDivide(buffer, p, end, v);
+        }
+        return p;
+    }
+
+    /** (f) what ProtoArrayWriterTools.writeVarInt ships: the one-byte case inline, then exact-size bulk stores. */
+    @Benchmark
+    @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+    @OperationsPerInvocation(COUNT)
+    public int exactSizeBulk() {
         int p = 0;
         final int end = buffer.length;
         for (int i = 0; i < COUNT; i++) p += ProtoArrayWriterTools.writeVarInt(buffer, p, end, numbers[i]);
