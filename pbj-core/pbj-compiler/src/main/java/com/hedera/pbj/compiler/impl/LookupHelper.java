@@ -302,8 +302,37 @@ public final class LookupHelper {
         return message != null && hasArrayParser(messageDefinitions.get(message));
     }
 
+    /**
+     * Whether a message's codec writes in reverse ({@code pbj.fast_write}, from its comments, its file's, or the
+     * project), so it has a static {@code writeReverseTo}.
+     *
+     * @param message the message
+     * @return true if the codec generated for it has a reverse writer
+     */
+    public boolean hasReverseWriter(MessageDefContext message) {
+        return option(getFullyQualifiedProtoNameForContext(message), message, PerformanceOptions::fastWrite);
+    }
+
+    /**
+     * Whether the codec of a message generated in this build has a static {@code writeReverseTo}, so generated reverse
+     * writers can call it directly for a nested message.
+     *
+     * @param modelPackage the Java package of the message's model class
+     * @param completeClass the model's complete class name, including outer classes
+     * @return true if the message is generated in this build with a reverse writer
+     */
+    public boolean hasReverseWriter(String modelPackage, String completeClass) {
+        final String message = messagesByModelClass.get(modelPackage + "." + completeClass);
+        return message != null && hasReverseWriter(messageDefinitions.get(message));
+    }
+
     /** Whether a message has {@code pbj.fast_parse}, from its comments, its file's, or the project. */
     private boolean fastParse(String name, MessageDefContext message) {
+        return option(name, message, PerformanceOptions::fastParse);
+    }
+
+    /** Resolve a boolean fast code generation option for a message, from its comments, its file's, or the project. */
+    private boolean option(String name, MessageDefContext message, Function<PerformanceOptions, Boolean> option) {
         final File file = messageFiles.get(name);
         final List<PerformanceOptions> levels = List.of(
                 PerformanceOptions.fromComments(message.optionComment(), "message " + name),
@@ -311,7 +340,7 @@ public final class LookupHelper {
                         ? PerformanceOptions.NONE
                         : fileOptions.getOrDefault(file.getAbsolutePath(), PerformanceOptions.NONE),
                 projectOptions);
-        return PerformanceOptions.resolve(levels, PerformanceOptions::fastParse, true, false);
+        return PerformanceOptions.resolve(levels, option, true, false);
     }
 
     /** Read a boolean PBJ message option from its special comments, defaulting to false. */

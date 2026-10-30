@@ -6,6 +6,7 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.ArrayCursor;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.ReverseBuffer;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -319,6 +320,22 @@ public abstract class Codec<T> {
             throw new UncheckedIOException(e);
         }
         return (int) bufferedData.position();
+    }
+
+    /**
+     * Write an item back to front into a reusable {@link ReverseBuffer}. The output, {@code buffer.bytes()}, is the same
+     * bytes {@link #toBytes} returns. Codecs generated with {@code pbj.fast_write} write in reverse, so nothing is
+     * measured first; this default implementation measures the item and writes it forward into the buffer.
+     *
+     * <p>The buffer is not reset: call {@link ReverseBuffer#reset()} first to write one item on its own.
+     *
+     * @param item the item to write
+     * @param buffer the buffer to write into
+     */
+    public void writeReverse(@NonNull final T item, @NonNull final ReverseBuffer buffer) {
+        final int size = measureRecord(item);
+        final int offset = buffer.reserve(size);
+        write(item, buffer.array(), offset);
     }
 
     /**
