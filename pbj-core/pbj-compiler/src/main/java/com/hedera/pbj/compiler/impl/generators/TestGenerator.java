@@ -111,6 +111,7 @@ public final class TestGenerator implements Generator {
                 $testMethod
                 $nonCanonicalOrderTest
                 $viewTest
+                $writerTest
                 $testArguments
                 $diffTests
                 """
@@ -119,6 +120,7 @@ public final class TestGenerator implements Generator {
                 .replace("$testClassName", testClassName)
                 .replace("$testMethod", generateTestMethod(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, lookupHelper.getCompleteClass(msgDef)).indent(DEFAULT_INDENT))
                 .replace("$viewTest", lookupHelper.getLookupHelper().hasView(msgDef) ? generateViewTest(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), lookupHelper.getCompleteClass(msgDef), fields, unusedFieldNumber(fields)).indent(DEFAULT_INDENT) : "")
+                .replace("$writerTest", lookupHelper.getLookupHelper().hasWriter(msgDef) ? generateWriterTest(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), lookupHelper.getCompleteClass(msgDef)).indent(DEFAULT_INDENT) : "")
                 .replace("$nonCanonicalOrderTest", generateNonCanonicalOrderTest(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, lookupHelper.getCompleteClass(msgDef), unusedFieldNumber(fields)).indent(DEFAULT_INDENT))
                 .replace("$testArguments", generateModelTestArgumentsMethod(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), fields, lookupHelper.getCompleteClass(msgDef)).indent(DEFAULT_INDENT))
                 .replace("$diffTests", lookupHelper.hasDiffApis(msgDef) ? generateDiffTests(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, fields, lookupHelper.generateCopyBuilderTracking(msgDef)) : "")
@@ -298,6 +300,38 @@ public final class TestGenerator implements Generator {
                 .replace("$simpleModelClassName", testName.replace(".", ""))
                 .replace("$modelClassName", modelClassName)
                 .replace("$unknownField", Integer.toString(unknownFieldNumber));
+        // spotless:on
+    }
+
+    /**
+     * Generate a test that writes every test object through the message's writer with {@code writeFrom}, into a buffer
+     * that starts small enough to grow mid-message, with each way of reserving length prefixes, and checks the bytes
+     * are exactly the model's encoding and parse back to the object.
+     */
+    private static String generateWriterTest(final String modelClassName, final String testName) {
+        // spotless:off
+        return """
+                @ParameterizedTest
+                @MethodSource("createModelTestArguments")
+                public void test$simpleModelClassNameWriter(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
+                    final $modelClassName modelObj = modelObjWrapper.getValue();
+                    final Bytes expected = $modelClassName.PROTOBUF.toBytes(modelObj);
+                    final $modelClassName.Writer writer = new $modelClassName.Writer();
+                    for (final ProtoWriteBuffer.LengthReservation reservation : ProtoWriteBuffer.LengthReservation.values()) {
+                        final ProtoWriteBuffer buffer = new ProtoWriteBuffer(1, reservation);
+                        assertEquals(expected.length(), writer.start(buffer).writeFrom(modelObj).end());
+                        assertEquals(expected, buffer.bytes());
+                        assertEquals(0, writer.offset());
+                        assertEquals(modelObj, $modelClassName.PROTOBUF.parse(buffer.bytes()));
+                        // the same writer and buffer again, after a reset
+                        buffer.reset();
+                        writer.start(buffer).writeFrom(modelObj).end();
+                        assertEquals(expected, buffer.bytes());
+                    }
+                }
+                """
+                .replace("$simpleModelClassName", testName.replace(".", ""))
+                .replace("$modelClassName", modelClassName);
         // spotless:on
     }
 

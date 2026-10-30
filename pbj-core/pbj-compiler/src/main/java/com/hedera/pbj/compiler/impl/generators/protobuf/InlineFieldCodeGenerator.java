@@ -30,7 +30,7 @@ import java.util.stream.Stream;
  * Maps, {@code google.protobuf} wrapper types, repeated scalars, strings and bytes, and messages from dependency jars
  * use the target's existing helper code, given as {@code fallback}.
  */
-final class InlineFieldCodeGenerator {
+public final class InlineFieldCodeGenerator {
 
     /** What the generated code does with each field. */
     enum Target {
@@ -289,7 +289,7 @@ final class InlineFieldCodeGenerator {
      * The fully qualified codec class of a message field's type, or null when that message is not generated in this
      * build and so must be reached through its {@code Codec} instance.
      */
-    static String directCodecClass(final SingleField field, final ContextualLookupHelper lookupHelper) {
+    public static String directCodecClass(final SingleField field, final ContextualLookupHelper lookupHelper) {
         if (!lookupHelper
                 .getLookupHelper()
                 .isGeneratedInThisBuild(field.messageTypeModelPackage(), field.completeClassName())) {

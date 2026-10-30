@@ -120,6 +120,7 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
                     pbjTask.getFastWrite().set(pbj.getFastWrite());
                     pbjTask.getGenerateViews().set(pbj.getGenerateViews());
                     pbjTask.getOneofStorage().set(pbj.getOneofStorage());
+                    pbjTask.getGenerateWriters().set(pbj.getGenerateWriters());
                     pbjTask.getPerformance().set(pbj.getPerformance());
                 });
 
