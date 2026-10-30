@@ -487,9 +487,12 @@ Report before (the previous PR's branch) against after:
 3. **GC bias.** Benchmarks that rebuild objects in `@Setup(Level.Invocation)` allocate heavily outside the timed
    region, so young collections tend to happen there, while benchmarks without that setup collect inside it. In
    `BlockItemBench` this made cached `toBytes` look slower than fresh (1,349 against 928 ns with G1; 1,199 against
-   1,127 ns with the no-op Epsilon collector). The cached states now allocate in their setup too. Compare like with
-   like (cached against cached for write-path changes), check that a fresh write costs about a cached write plus
-   `itemSizeFresh`, and always report `gc.count` and `gc.time` from `-prof gc` next to `gc.alloc.rate.norm`.
+   1,127 ns with the no-op Epsilon collector). `BlockItemBench` now forks with a 24 GB young generation, so no
+   collection happens during measurement (cached 1,183 against fresh 1,147 ns). Allocating in the cached states'
+   setup instead was tried and made it worse: it evicts the cached objects from the CPU caches, while fresh objects
+   were just parsed and are cache-hot. Compare like with like (cached against cached for write-path changes), check
+   that a fresh write costs about a cached write plus `itemSizeFresh`, and always report `gc.count` and `gc.time`
+   from `-prof gc` next to `gc.alloc.rate.norm`.
 4. **protoc columns.** Report protoc next to PBJ: `BlockItemBench`'s `*ProtoC*` cases, `ProtobufObjectBench` and
    `ProtobufObjectArrayBench`.
 5. **Block files.** Block `…497558` was written with an older `BlockHeader` layout and no longer parses with the
