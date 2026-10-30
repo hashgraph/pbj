@@ -33,6 +33,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
@@ -569,12 +570,23 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
+        protected void writeImpl(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
                 throws IOException {
             final String value = item.getValue();
             if (value != null) {
                 ProtoWriterTools.writeString(out, VALUE_FIELD, value);
             }
+        }
+
+        @Override
+        protected long writeImpl(
+                @NonNull final TestMessage item, @NonNull final RandomAccessData out, final long offset)
+                throws IOException {
+            final String value = item.getValue();
+            if (value != null) {
+                return ProtoWriterTools.writeString(out, offset, VALUE_FIELD, value, true);
+            }
+            return 0;
         }
 
         @Override
