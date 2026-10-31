@@ -378,8 +378,19 @@ final class ViewGenerator {
         return type == Field.FieldType.BOOL ? cursor + ".bool()" : decode(type, cursor);
     }
 
-    /** A singular field, or a oneof alternative when {@code oneOfKind} names the oneof's kind field. */
-    private static void singular(final SingleField field, final String oneOfKind, final Parts parts) {
+    /**
+     * The most alternatives a oneof can have to be in the in-order fast path: wider ones, such as a transaction body's,
+     * would make {@code index()} too large for the JIT to compile well, and are read by the tag switch.
+     */
+    private static final int MAX_FAST_PATH_ALTERNATIVES = 4;
+
+    /**
+     * A singular field, or a oneof alternative when {@code oneOfKind} names the oneof's kind field.
+     *
+     * @return for a oneof alternative, its in-order fast path ({@code if (cursor.at(…)) {…}}), or empty if its tag is
+     * too long for one; for a singular field, which adds its own, null
+     */
+    private static String singular(final SingleField field, final String oneOfKind, final Parts parts) {
         final String name = field.nameCamelFirstLower();
         final int wireType = field.optionalValueType()
                 ? Common.TYPE_LENGTH_DELIMITED
@@ -414,9 +425,12 @@ final class ViewGenerator {
                     + record;
             parts.resets().append("%sViewCurrent = false;%n".formatted(name));
         }
+        final String fast;
         if (oneOfKind != null) {
             record += "%s = %d;%n".formatted(oneOfKind, field.fieldNumber());
+            fast = fastPath("if", field.fieldNumber(), wireType, parts.index("index_" + name, record, "", false));
         } else {
+            fast = null;
             parts.fastPath()
                     .append(fastPath(
                             "if", field.fieldNumber(), wireType, parts.index("index_" + name, record, "", false)));
@@ -429,6 +443,7 @@ final class ViewGenerator {
             // reading a nested message or wrapper value validates it; absent ones are skipped by the accessor
             parts.validations().append("%s();%n".formatted(name));
         }
+        return fast;
     }
 
     /** A oneof: each alternative is recorded like a singular field, and the oneof remembers the last one seen. */
@@ -437,14 +452,23 @@ final class ViewGenerator {
         parts.state().append("private int %s;%n".formatted(kind));
         parts.resets().append("%s = 0;%n".formatted(kind));
         final StringBuilder kinds = new StringBuilder();
+        // a small oneof is read in order too, when its first alternative in field order is set: one at() per
+        // alternative, chained, as at most one is set. Ids, keys and timestamps are mostly such oneofs.
+        final boolean fast = oneOf.fields().size() <= MAX_FAST_PATH_ALTERNATIVES;
+        final StringBuilder chain = new StringBuilder();
         for (final Field alternative : oneOf.fields()) {
-            singular((SingleField) alternative, kind, parts);
+            final String alternativeFastPath = singular((SingleField) alternative, kind, parts);
+            if (fast && !alternativeFastPath.isEmpty()) {
+                chain.append(chain.isEmpty() ? "" : "else ").append(alternativeFastPath);
+            }
             kinds.append("case %d -> %s.%s;%n"
                     .formatted(
                             alternative.fieldNumber(),
                             oneOf.getEnumClassRef(),
                             Common.camelToUpperSnake(alternative.name())));
         }
+        // "} else if" rather than a new statement after each "}"
+        parts.fastPath().append(chain.toString().replace("}\nelse ", "} else "));
         parts.accessors().append("""
 
                 /** @return which alternative of {@code $name} is set, as in the model */
