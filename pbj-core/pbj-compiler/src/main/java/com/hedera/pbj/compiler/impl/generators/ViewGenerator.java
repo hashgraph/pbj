@@ -901,6 +901,62 @@ final class ViewGenerator {
                     case "BoolValue" -> new String[] {"Boolean", "cursor.varint() != 0", "false"};
                     default -> throw new IllegalArgumentException("Not a wrapper type: " + field);
                 };
+        final String primitive =
+                switch (typeReadDefault[0]) {
+                    case "Integer" -> "int";
+                    case "Long" -> "long";
+                    case "Float" -> "float";
+                    case "Double" -> "double";
+                    case "Boolean" -> "boolean";
+                    default -> null;
+                };
+        if (primitive != null) {
+            // numbers and bools also have an unboxed accessor, so reading them allocates nothing
+            return """
+
+                /** @return true if {@code $field} is present */
+                public boolean has$Name() {
+                    return !($absent);
+                }
+
+                /**
+                 * @return {@code $field}: null when absent, as in the model; {@link #$nameOrElse} does not box
+                 * @throws ParseException if the wrapper is malformed
+                 */
+                public $type $name() throws ParseException {
+                    return $absent ? null : $nameOrElse($default);
+                }
+
+                /**
+                 * @param defaultValue the value to return when {@code $field} is absent
+                 * @return {@code $field}, or {@code defaultValue} when absent
+                 * @throws ParseException if the wrapper is malformed
+                 */
+                public $primitive $nameOrElse(final $primitive defaultValue) throws ParseException {
+                    if ($absent) {
+                        return defaultValue;
+                    }
+                    if ($nameLength == 0) {
+                        return $default;
+                    }
+                    try {
+                        cursor.reset(source, in, $nameOffset, $nameOffset + $nameLength);
+                        // the wrapper's one field: its tag, then the value
+                        cursor.tag();
+                        return $read;
+                    } catch (final RuntimeException e) {
+                        throw new ParseException(e);
+                    }
+                }
+                """.replace("$absent", absent(name, guard))
+                    .replace("$primitive", primitive)
+                    .replace("$type", typeReadDefault[0])
+                    .replace("$read", typeReadDefault[1])
+                    .replace("$default", typeReadDefault[2])
+                    .replace("$Name", field.nameCamelFirstUpper())
+                    .replace("$name", name)
+                    .replace("$field", field.name());
+        }
         return """
 
                 /** @return true if {@code $field} is present */

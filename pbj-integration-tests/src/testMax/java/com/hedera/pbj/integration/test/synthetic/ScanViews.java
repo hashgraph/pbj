@@ -238,7 +238,7 @@ public final class ScanViews {
             case SINGLETON_UPDATE -> {
                 final var singleton = c.singletonUpdate();
                 // the wrapper's value is only available boxed, which allocates for values over 127
-                sum += singleton.newValueKind().protoOrdinal() + singleton.entityNumberValue();
+                sum += singleton.newValueKind().protoOrdinal() + singleton.entityNumberValueOrElse(0);
             }
             case QUEUE_PUSH -> {
                 final var push = c.queuePush();
