@@ -11,6 +11,8 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.ReverseBuffer;
+import com.hedera.pbj.test.proto.java.pbj.integration.tests.MixedFastInner;
+import com.hedera.pbj.test.proto.java.pbj.integration.tests.MixedKind;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
@@ -193,6 +195,38 @@ final class AllocationTest {
         System.out.println("writeReverse into a warm buffer, bytes per operation: " + figures);
         figures.forEach(
                 (kind, bytes) -> assertEquals(0L, bytes, kind + " allocated " + bytes + " bytes per reverse write"));
+    }
+
+    @Test
+    void viewWrapAndReadEveryField() {
+        final MixedFastInner message = MixedFastInner.newBuilder()
+                .delta(-123_456_789L)
+                .flag(true)
+                .ratio(0.25)
+                .fixed(42)
+                .kind(MixedKind.MIXED_B)
+                .big(Long.MIN_VALUE)
+                .scale(1.5f)
+                .offset(-7)
+                .far("far away")
+                .build();
+        final Bytes bytes = MixedFastInner.PROTOBUF.toBytes(message);
+        final MixedFastInner.View view = new MixedFastInner.View();
+        final long[] sink = new long[1];
+        final long bytesPerOperation = allocatedPerOperation(i -> {
+            view.wrap(bytes);
+            sink[0] += view.delta()
+                    + (view.flag() ? 1 : 0)
+                    + (long) view.ratio()
+                    + view.fixed()
+                    + view.kindProtoOrdinal()
+                    + view.big()
+                    + (long) view.scale()
+                    + view.offset()
+                    + view.farLength();
+        });
+        assertEquals(0L, bytesPerOperation, "view wrap and reading every field");
+        assertTrue(sink[0] != 0);
     }
 
     @Test

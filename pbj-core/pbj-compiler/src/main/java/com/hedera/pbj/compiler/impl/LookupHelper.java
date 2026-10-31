@@ -326,6 +326,85 @@ public final class LookupHelper {
         return message != null && hasReverseWriter(messageDefinitions.get(message));
     }
 
+    /** Whether each message gets a view, by fully qualified proto name, computed on demand. */
+    private final Map<String, Boolean> views = new HashMap<>();
+
+    /**
+     * Whether a message gets a zero-copy view class: it has {@code pbj.views} (from its comments, its file's, or the
+     * project), every field is singular (repeated fields, maps and oneofs are not supported yet), and every message-typed
+     * field's type, if generated in this build, gets a view too.
+     *
+     * @param message the message
+     * @return true if a view is generated for it
+     */
+    public boolean hasView(MessageDefContext message) {
+        final String name = getFullyQualifiedProtoNameForContext(message);
+        final Boolean known = views.get(name);
+        if (known != null) {
+            return known;
+        }
+        // provisionally true, so messages that contain each other don't recurse forever
+        views.put(name, Boolean.TRUE);
+        final boolean result = option(name, message, PerformanceOptions::views) && viewSupports(name, message);
+        views.put(name, result);
+        return result;
+    }
+
+    /**
+     * Whether the model of a message generated in this build has a view, so another view can return it.
+     *
+     * @param modelPackage the Java package of the message's model class
+     * @param completeClass the model's complete class name, including outer classes
+     * @return true if the message is generated in this build with a view
+     */
+    public boolean hasView(String modelPackage, String completeClass) {
+        final String message = messagesByModelClass.get(modelPackage + "." + completeClass);
+        return message != null && hasView(messageDefinitions.get(message));
+    }
+
+    /** The {@code google.protobuf} wrapper types, which views do not support yet. */
+    private static final Set<String> WRAPPER_TYPES = Set.of(
+            "StringValue",
+            "BoolValue",
+            "Int32Value",
+            "UInt32Value",
+            "Int64Value",
+            "UInt64Value",
+            "FloatValue",
+            "DoubleValue",
+            "BytesValue");
+
+    private boolean viewSupports(String name, MessageDefContext message) {
+        for (MessageElementContext element : message.messageBody().messageElement()) {
+            if (element.oneof() != null || element.mapField() != null) {
+                return false;
+            }
+            final var field = element.field();
+            if (field == null || field.fieldName() == null) {
+                continue;
+            }
+            if (field.REPEATED() != null) {
+                return false;
+            }
+            final var type = field.type_().messageType();
+            if (type == null) {
+                continue;
+            }
+            if (WRAPPER_TYPES.contains(type.messageName().getText())) {
+                return false;
+            }
+            final String nestedName = getFullyQualifiedProtoName(messageFiles.get(name), type);
+            if (enumNames.contains(nestedName)) {
+                continue;
+            }
+            final MessageDefContext nested = messageDefinitions.get(nestedName);
+            if (nested == null || !messagesByModelClass.containsValue(nestedName) || !hasView(nested)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** Whether a message has {@code pbj.fast_parse}, from its comments, its file's, or the project. */
     private boolean fastParse(String name, MessageDefContext message) {
         return option(name, message, PerformanceOptions::fastParse);

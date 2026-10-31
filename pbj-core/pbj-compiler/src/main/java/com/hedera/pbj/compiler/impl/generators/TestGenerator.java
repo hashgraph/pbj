@@ -110,6 +110,7 @@ public final class TestGenerator implements Generator {
                 public final class $testClassName {
                 $testMethod
                 $nonCanonicalOrderTest
+                $viewTest
                 $testArguments
                 $diffTests
                 """
@@ -117,6 +118,7 @@ public final class TestGenerator implements Generator {
                 .replace("$modelClass", modelClassName)
                 .replace("$testClassName", testClassName)
                 .replace("$testMethod", generateTestMethod(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, lookupHelper.getCompleteClass(msgDef)).indent(DEFAULT_INDENT))
+                .replace("$viewTest", lookupHelper.getLookupHelper().hasView(msgDef) ? generateViewTest(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), lookupHelper.getCompleteClass(msgDef), fields, unusedFieldNumber(fields)).indent(DEFAULT_INDENT) : "")
                 .replace("$nonCanonicalOrderTest", generateNonCanonicalOrderTest(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, lookupHelper.getCompleteClass(msgDef), unusedFieldNumber(fields)).indent(DEFAULT_INDENT))
                 .replace("$testArguments", generateModelTestArgumentsMethod(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), fields, lookupHelper.getCompleteClass(msgDef)).indent(DEFAULT_INDENT))
                 .replace("$diffTests", lookupHelper.hasDiffApis(msgDef) ? generateDiffTests(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, fields, lookupHelper.generateCopyBuilderTracking(msgDef)) : "")
@@ -194,6 +196,70 @@ public final class TestGenerator implements Generator {
                 .replace("$simpleModelClassName", testName.replace(".", ""))
                 .replace("$modelClassName", modelClassName)
                 .replace("$protocModelClass", protoCJavaFullQualifiedClass)
+                .replace("$unknownField", Integer.toString(unknownFieldNumber));
+        // spotless:on
+    }
+
+    /**
+     * Generate a test that reads every test object through its zero-copy view, from canonical bytes and from bytes in
+     * reverse field order with an unknown field, and checks each field and {@code toModel()} against the model.
+     */
+    private static String generateViewTest(
+            final String modelClassName,
+            final String testName,
+            final List<Field> fields,
+            final int unknownFieldNumber) {
+        final StringBuilder checks = new StringBuilder();
+        for (final Field field : fields) {
+            final String name = field.nameCamelFirstLower();
+            checks.append(
+                    switch (field.type()) {
+                        case ENUM ->
+                            "assertEquals(modelObj.%sProtoOrdinal(), view.%sProtoOrdinal());%n".formatted(name, name);
+                        case MESSAGE ->
+                            "assertEquals(modelObj.%s(), view.%s() == null ? null : view.%s().toModel());%n"
+                                    .formatted(name, name, name);
+                        default -> "assertEquals(modelObj.%s(), view.%s());%n".formatted(name, name);
+                    });
+        }
+        // each string field holding the single byte 0xFF, which is not UTF-8
+        final String malformedStrings = fields.stream()
+                .filter(field -> field.type() == Field.FieldType.STRING)
+                .map(field -> java.util.Arrays.stream(
+                                Common.tagBytes(field.fieldNumber(), Common.TYPE_LENGTH_DELIMITED))
+                        .mapToObj(b -> "(byte) 0x%02X, ".formatted(b))
+                        .collect(Collectors.joining("", "{", "1, (byte) 0xFF}")))
+                .collect(Collectors.joining(", "));
+        // spotless:off
+        final String malformedTest = malformedStrings.isEmpty() ? "" : """
+
+                @Test
+                public void test$simpleModelClassNameViewRejectsMalformedUtf8() {
+                    for (final byte[] malformed : new byte[][] {$malformedStrings}) {
+                        final Bytes bytes = Bytes.wrap(malformed);
+                        assertThrows(com.hedera.pbj.runtime.ParseException.class, () -> $modelClassName.PROTOBUF.parse(bytes));
+                        assertThrows(com.hedera.pbj.runtime.ParseException.class, () -> new $modelClassName.View().wrap(bytes));
+                    }
+                }
+                """.replace("$malformedStrings", malformedStrings);
+        return """
+                @ParameterizedTest
+                @MethodSource("createModelTestArguments")
+                public void test$simpleModelClassNameView(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
+                    final $modelClassName modelObj = modelObjWrapper.getValue();
+                    final Bytes bytes = $modelClassName.PROTOBUF.toBytes(modelObj);
+                    final $modelClassName.View view = new $modelClassName.View().wrap(bytes);
+                $checks
+                    assertEquals(modelObj, view.toModel());
+                    // the same view, re-wrapped over the fields in reverse order followed by an unknown field
+                    view.wrap(appendVarIntField(reverseTopLevelFieldOrder(bytes), $unknownField));
+                $checks
+                }
+                $malformedTest"""
+                .replace("$malformedTest", malformedTest)
+                .replace("$checks", checks.toString().indent(DEFAULT_INDENT))
+                .replace("$simpleModelClassName", testName.replace(".", ""))
+                .replace("$modelClassName", modelClassName)
                 .replace("$unknownField", Integer.toString(unknownFieldNumber));
         // spotless:on
     }

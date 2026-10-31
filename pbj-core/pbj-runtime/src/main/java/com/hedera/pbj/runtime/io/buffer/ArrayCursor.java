@@ -29,18 +29,18 @@ import java.util.List;
  * exception the stream parser throws, so generated parsers wrap it in a {@link ParseException} the same way.
  */
 public final class ArrayCursor {
-    private final byte[] in;
+    private byte[] in;
     /** Index in {@link #in} of the next byte to read. */
     private int p;
     /** Index in {@link #in} after the last byte that may be read. */
     private int limit;
     /** Index of the first byte, to report how many were consumed. */
-    private final int start;
+    private int start;
     /**
      * The {@link Bytes} this cursor reads, if it was created from one. Like the stream parser over {@link Bytes},
      * {@link #bytes} then returns views of it instead of copies, since {@link Bytes} is immutable.
      */
-    private final @Nullable Bytes source;
+    private @Nullable Bytes source;
 
     /**
      * Create a cursor over {@code in[offset, limit)}.
@@ -77,8 +77,9 @@ public final class ArrayCursor {
             return new ArrayCursor(data.backingArray(), offset, offset + Math.toIntExact(data.remaining()));
         }
         if (input instanceof RandomAccessSequenceAdapter adapter && adapter.delegate() instanceof Bytes bytes) {
+            // like the stream parser over Bytes, bytes fields are then views of the Bytes rather than copies
             final int offset = bytes.backingOffset() + Math.toIntExact(adapter.absolutePosition());
-            return new ArrayCursor(bytes.backingArray(), offset, offset + Math.toIntExact(adapter.remaining()));
+            return new ArrayCursor(bytes.backingArray(), offset, offset + Math.toIntExact(adapter.remaining()), bytes);
         }
         return null;
     }
@@ -92,6 +93,88 @@ public final class ArrayCursor {
     public static @NonNull ArrayCursor of(@NonNull final Bytes bytes) {
         return new ArrayCursor(
                 bytes.backingArray(), bytes.backingOffset(), bytes.backingOffset() + (int) bytes.length(), bytes);
+    }
+
+    /**
+     * Point this cursor at {@code in[offset, limit)}, so one cursor can be reused, for example by a view's
+     * {@code wrap}.
+     *
+     * @param in the bytes
+     * @param offset index of the first byte to read
+     * @param limit index after the last byte to read
+     * @return this cursor
+     */
+    public ArrayCursor reset(@NonNull final byte[] in, final int offset, final int limit) {
+        if (offset < 0 || limit < offset || limit > in.length) {
+            throw new IndexOutOfBoundsException("offset " + offset + ", limit " + limit + ", length " + in.length);
+        }
+        this.in = in;
+        this.p = offset;
+        this.limit = limit;
+        this.start = offset;
+        this.source = null;
+        return this;
+    }
+
+    /**
+     * Point this cursor at all of a {@link Bytes}, so one cursor can be reused.
+     *
+     * @param bytes the bytes
+     * @return this cursor
+     */
+    public ArrayCursor reset(@NonNull final Bytes bytes) {
+        reset(bytes.backingArray(), bytes.backingOffset(), bytes.backingOffset() + (int) bytes.length());
+        this.source = bytes;
+        return this;
+    }
+
+    /**
+     * The array this cursor reads. Views use it to decode fields at the offsets they recorded; it must not be modified.
+     *
+     * @return the array
+     */
+    public byte[] array() {
+        return in;
+    }
+
+    /**
+     * Read an unsigned varint at an index already validated by a cursor, without bounds checks beyond the array's.
+     *
+     * @param in the bytes
+     * @param offset the varint's first byte
+     * @return the value
+     */
+    public static long varintAt(@NonNull final byte[] in, final int offset) {
+        long value = 0;
+        for (int shift = 0, i = offset; ; shift += 7) {
+            final byte b = in[i++];
+            value |= (long) (b & 0x7F) << shift;
+            if (b >= 0) {
+                return value;
+            }
+        }
+    }
+
+    /**
+     * Read a little-endian 32-bit value at an index.
+     *
+     * @param in the bytes
+     * @param q the value's first byte
+     * @return the value
+     */
+    public static int fixed32At(@NonNull final byte[] in, final int q) {
+        return (in[q] & 0xFF) | (in[q + 1] & 0xFF) << 8 | (in[q + 2] & 0xFF) << 16 | (in[q + 3] & 0xFF) << 24;
+    }
+
+    /**
+     * Read a little-endian 64-bit value at an index.
+     *
+     * @param in the bytes
+     * @param q the value's first byte
+     * @return the value
+     */
+    public static long fixed64At(@NonNull final byte[] in, final int q) {
+        return (fixed32At(in, q) & 0xFFFFFFFFL) | ((long) fixed32At(in, q + 4)) << 32;
     }
 
     /** @return the number of bytes read since this cursor was created */
@@ -297,6 +380,31 @@ public final class ArrayCursor {
     }
 
     /**
+     * Read a string field's length and check its UTF-8 bytes without decoding them, for views. The position is left at
+     * the start of the string. Malformed UTF-8 is an error, as in parsing.
+     *
+     * @param maxSize the largest allowed length
+     * @param fieldName the field's name, for the error message
+     * @return the length in bytes
+     * @throws ParseException if the length is greater than {@code maxSize}
+     * @throws MalformedProtobufException if the bytes are not valid UTF-8
+     */
+    public int stringLength(final long maxSize, @NonNull final String fieldName)
+            throws ParseException, MalformedProtobufException {
+        final int length = length(maxSize, fieldName);
+        final int end = p + length;
+        for (int i = p; i < end; i++) {
+            if (in[i] < 0) {
+                if (!Utf8Tools.isWellFormedUtf8(in, i, end)) {
+                    throw new MalformedProtobufException("Malformed UTF-8 in " + fieldName);
+                }
+                break;
+            }
+        }
+        return length;
+    }
+
+    /**
      * Read a string field's length and UTF-8 bytes. Malformed UTF-8 is an error, as in the stream parser.
      *
      * @param maxSize the largest allowed length
@@ -471,7 +579,12 @@ public final class ArrayCursor {
         return list;
     }
 
-    private void skip(final int length) {
+    /**
+     * Skip bytes already checked to be before the limit, or throw if they are not.
+     *
+     * @param length the number of bytes to skip
+     */
+    public void skip(final int length) {
         if (length > limit - p) {
             throw new BufferUnderflowException();
         }
