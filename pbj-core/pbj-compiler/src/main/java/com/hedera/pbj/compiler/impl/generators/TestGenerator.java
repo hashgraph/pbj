@@ -212,13 +212,50 @@ public final class TestGenerator implements Generator {
         final StringBuilder checks = new StringBuilder();
         for (final Field field : fields) {
             final String name = field.nameCamelFirstLower();
+            if (field instanceof OneOfField oneOf) {
+                checks.append("assertEquals(modelObj.%s().kind(), view.%sKind());%n".formatted(name, name));
+                for (final Field alternative : oneOf.fields()) {
+                    final String alt = alternative.nameCamelFirstLower();
+                    final String check =
+                            alternative.type() == Field.FieldType.MESSAGE && !alternative.optionalValueType()
+                                    ? "assertEquals(modelObj.%s(), view.%s().toModel());".formatted(alt, alt)
+                                    : "assertEquals(modelObj.%s(), view.%s());".formatted(alt, alt);
+                    checks.append("if (modelObj.%s().kind() == %s.%s) {%n    %s%n}%n"
+                            .formatted(
+                                    name,
+                                    oneOf.getEnumClassRef(),
+                                    Common.camelToUpperSnake(alternative.name()),
+                                    check));
+                }
+                continue;
+            }
+            if (field.repeated()) {
+                checks.append(
+                        """
+                        {
+                            final List<Object> elements = new ArrayList<>();
+                            for (var it = view.$name(); it.next(); ) {
+                                elements.add($element);
+                            }
+                            assertEquals(modelObj.$getter(), elements);
+                            assertEquals(elements.size(), view.$nameCount());
+                        }
+                        """.replace("$getter", field.type() == Field.FieldType.ENUM ? name + "ProtoOrdinals" : name)
+                                .replace(
+                                        "$element",
+                                        field.type() == Field.FieldType.MESSAGE ? "it.value().toModel()" : "it.value()")
+                                .replace("$name", name));
+                continue;
+            }
             checks.append(
                     switch (field.type()) {
                         case ENUM ->
                             "assertEquals(modelObj.%sProtoOrdinal(), view.%sProtoOrdinal());%n".formatted(name, name);
                         case MESSAGE ->
-                            "assertEquals(modelObj.%s(), view.%s() == null ? null : view.%s().toModel());%n"
-                                    .formatted(name, name, name);
+                            field.optionalValueType()
+                                    ? "assertEquals(modelObj.%s(), view.%s());%n".formatted(name, name)
+                                    : "assertEquals(modelObj.%s(), view.%s() == null ? null : view.%s().toModel());%n"
+                                            .formatted(name, name, name);
                         default -> "assertEquals(modelObj.%s(), view.%s());%n".formatted(name, name);
                     });
         }

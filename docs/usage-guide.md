@@ -373,6 +373,48 @@ HelloRequest msg = HelloRequest.PROTOBUF.parse(
 
 Strict mode throws `UnknownFieldException` on unrecognized fields — useful for validation.
 
+### Zero-Copy Views
+
+With `pbj.views`, a model gets a nested `View` class that reads fields in place from the encoded bytes, without
+parsing them into objects. A view is reusable: wrap it again for the next message.
+
+```java
+final Order.View view = new Order.View();
+for (Bytes bytes : orders) {
+    view.wrap(bytes);   // or wrap(bytes, strictMode, maxDepth, maxSize), as for parse()
+    total += view.amount();
+    for (var line = view.lines(); line.next(); ) {
+        count += line.value().quantity();
+    }
+}
+```
+
+`wrap` validates the message as `parse` does, with the same limits and strict mode. In strict mode it validates
+nested messages, repeated message elements and wrapper type values too, at any depth, before returning. Otherwise they
+are validated when they are read, so a malformed one throws from its accessor or cursor rather than from `wrap`, and
+one that is never read is never validated: to validate untrusted input, wrap it in strict mode or parse it. Messages with maps, or that contain a message without a view, get no view; the build
+says why for messages that ask for one in their comments.
+
+**Views and cursors are reused, so what they return changes under you.** A nested accessor returns the same child view
+every time, re-wrapped when the parent is, and a repeated field's cursor re-wraps one child view for each element.
+Keeping a reference and reading it later reads whatever the view was last wrapped over:
+
+```java
+// Wrong: every element of the list is the same child view, wrapped over the last line
+List<OrderLine.View> lines = new ArrayList<>();
+for (var line = view.lines(); line.next(); ) {
+    lines.add(line.value());
+}
+
+// Right: copy what you need, or parse the element into a model object
+List<OrderLine> lines = new ArrayList<>();
+for (var line = view.lines(); line.next(); ) {
+    lines.add(line.value().toModel());
+}
+```
+
+The wrapped bytes must not change while a view reads them.
+
 ### Streaming I/O
 
 Use `ReadableStreamingData` and `WritableStreamingData` for file or network I/O:

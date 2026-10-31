@@ -129,52 +129,71 @@ public final class ArrayCursor {
     }
 
     /**
+     * Point this cursor at {@code in[offset, limit)}, part of {@code source} if it is not null, so {@link #bytes}
+     * returns views of {@code source} instead of copies. Views use it for the messages they contain.
+     *
+     * @param source the {@link Bytes} holding {@code in[offset, limit)}, or null if they are a plain array
+     * @param in the bytes
+     * @param offset index of the first byte to read
+     * @param limit index after the last byte to read
+     * @return this cursor
+     * @throws IllegalArgumentException if {@code source} does not hold {@code in[offset, limit)}
+     */
+    public ArrayCursor reset(
+            @Nullable final Bytes source, @NonNull final byte[] in, final int offset, final int limit) {
+        reset(in, offset, limit);
+        if (source != null) {
+            checkHolds(source, in, offset, limit - offset);
+            this.source = source;
+        }
+        return this;
+    }
+
+    /** @return the {@link Bytes} this cursor reads, or null if it reads a plain array */
+    public @Nullable Bytes source() {
+        return source;
+    }
+
+    /**
+     * The bytes {@code in[offset, offset + length)}, as the stream parser returns them: a view of {@code source}, which
+     * is immutable, or a copy if they are part of a plain array, which could change.
+     *
+     * @param source the {@link Bytes} holding the bytes, or null if they are part of a plain array
+     * @param in the array holding the bytes
+     * @param offset index of the first byte
+     * @param length the number of bytes
+     * @return the bytes
+     * @throws IllegalArgumentException if {@code source} does not hold the bytes
+     */
+    public static @NonNull Bytes bytes(
+            @Nullable final Bytes source, @NonNull final byte[] in, final int offset, final int length) {
+        if (length == 0) {
+            return Bytes.EMPTY;
+        }
+        if (source != null) {
+            checkHolds(source, in, offset, length);
+            return source.getBytes(offset - source.backingOffset(), length);
+        }
+        return Bytes.wrap(Arrays.copyOfRange(in, offset, offset + length));
+    }
+
+    private static void checkHolds(
+            @NonNull final Bytes source, @NonNull final byte[] in, final int offset, final int length) {
+        if (source.backingArray() != in
+                || offset < source.backingOffset()
+                || length < 0
+                || offset + length > source.backingOffset() + source.length()) {
+            throw new IllegalArgumentException("The bytes are not part of the given source");
+        }
+    }
+
+    /**
      * The array this cursor reads. Views use it to decode fields at the offsets they recorded; it must not be modified.
      *
      * @return the array
      */
     public byte[] array() {
         return in;
-    }
-
-    /**
-     * Read an unsigned varint at an index already validated by a cursor, without bounds checks beyond the array's.
-     *
-     * @param in the bytes
-     * @param offset the varint's first byte
-     * @return the value
-     */
-    public static long varintAt(@NonNull final byte[] in, final int offset) {
-        long value = 0;
-        for (int shift = 0, i = offset; ; shift += 7) {
-            final byte b = in[i++];
-            value |= (long) (b & 0x7F) << shift;
-            if (b >= 0) {
-                return value;
-            }
-        }
-    }
-
-    /**
-     * Read a little-endian 32-bit value at an index.
-     *
-     * @param in the bytes
-     * @param q the value's first byte
-     * @return the value
-     */
-    public static int fixed32At(@NonNull final byte[] in, final int q) {
-        return (in[q] & 0xFF) | (in[q + 1] & 0xFF) << 8 | (in[q + 2] & 0xFF) << 16 | (in[q + 3] & 0xFF) << 24;
-    }
-
-    /**
-     * Read a little-endian 64-bit value at an index.
-     *
-     * @param in the bytes
-     * @param q the value's first byte
-     * @return the value
-     */
-    public static long fixed64At(@NonNull final byte[] in, final int q) {
-        return (fixed32At(in, q) & 0xFFFFFFFFL) | ((long) fixed32At(in, q + 4)) << 32;
     }
 
     /** @return the number of bytes read since this cursor was created */
