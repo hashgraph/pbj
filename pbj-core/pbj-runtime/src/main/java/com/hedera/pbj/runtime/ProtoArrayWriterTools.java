@@ -198,6 +198,62 @@ public final class ProtoArrayWriterTools {
     }
 
     /**
+     * Write a fixed32, sfixed32 or float value's bits, little-endian, without a tag.
+     *
+     * @param output The byte array to write to
+     * @param offset The offset to start writing at
+     * @param value The value to write
+     * @return The number of bytes written, always 4
+     */
+    public static int writeFixed32NoTag(@NonNull final byte[] output, final int offset, final int value) {
+        INTEGER_LITTLE_ENDIAN.set(output, offset, value);
+        return Integer.BYTES;
+    }
+
+    /**
+     * Write a fixed64, sfixed64 or double value's bits, little-endian, without a tag.
+     *
+     * @param output The byte array to write to
+     * @param offset The offset to start writing at
+     * @param value The value to write
+     * @return The number of bytes written, always 8
+     */
+    public static int writeFixed64NoTag(@NonNull final byte[] output, final int offset, final long value) {
+        LONG_LITTLE_ENDIAN.set(output, offset, value);
+        return Long.BYTES;
+    }
+
+    /**
+     * Write a string's length and UTF-8 bytes, without a tag.
+     *
+     * @param output The byte array to write to
+     * @param offset The offset to start writing at
+     * @param end The end of the message being written; no byte at or after it is modified
+     * @param value The string to write
+     * @return The number of bytes written
+     */
+    public static int writeStringNoTag(
+            @NonNull final byte[] output, final int offset, final int end, @Nullable final String value) {
+        final int lengthSize = writeVarInt(output, offset, end, sizeOfStringNoTag(value));
+        return lengthSize + Utf8Tools.encodeUtf8(output, offset + lengthSize, value);
+    }
+
+    /**
+     * Write a bytes value's length and contents, without a tag.
+     *
+     * @param output The byte array to write to
+     * @param offset The offset to start writing at
+     * @param end The end of the message being written; no byte at or after it is modified
+     * @param value The bytes to write
+     * @return The number of bytes written
+     */
+    public static int writeBytesNoTag(
+            @NonNull final byte[] output, final int offset, final int end, @NonNull final Bytes value) {
+        final int lengthSize = writeVarInt(output, offset, end, value.length());
+        return lengthSize + value.writeTo(output, offset + lengthSize);
+    }
+
+    /**
      * Write a signed zigzag encoded varint32 to the output.
      *
      * @param output The byte array to write to

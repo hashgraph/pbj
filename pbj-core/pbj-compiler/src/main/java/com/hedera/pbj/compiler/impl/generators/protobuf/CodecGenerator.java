@@ -62,8 +62,8 @@ public final class CodecGenerator implements Generator {
         }
         final String writeMethod =
                 CodecWriteMethodGenerator.generateWriteMethod(modelClassName, schemaClassName, fields);
-        final String writeByteArrayMethod =
-                CodecWriteByteArrayMethodGenerator.generateWriteMethod(modelClassName, schemaClassName, fields);
+        final String writeByteArrayMethod = CodecWriteByteArrayMethodGenerator.generateWriteMethod(
+                modelClassName, schemaClassName, fields, lookupHelper);
 
         final String staticModifier = Generator.isInner(msgDef) ? " static" : "";
 
