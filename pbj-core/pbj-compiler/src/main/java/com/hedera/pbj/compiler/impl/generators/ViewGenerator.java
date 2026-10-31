@@ -143,7 +143,7 @@ final class ViewGenerator {
                  * or a cursor's {@code value()} returns changes on the next call, so copy what you need, or call
                  * {@code toModel()}, before reading further. Not thread safe.
                  */
-                public static final class View {
+                public static final class View implements com.hedera.pbj.runtime.MessageView {
                     private final ArrayCursor cursor = new ArrayCursor(new byte[0], 0, 0);
                     /** Counts wraps: a child view wrapped in the current one is returned again without indexing it. */
                     private long generation;
@@ -238,6 +238,7 @@ final class ViewGenerator {
                      * @throws ParseException if the message is malformed or nested too deep
                      * @throws IllegalArgumentException if {@code source} does not hold the message
                      */
+                    @Override
                     public View wrap(
                             @Nullable final Bytes source,
                             @NonNull final byte[] in,
@@ -719,6 +720,16 @@ final class ViewGenerator {
                     }
 
                     /**
+                     * @param index the index of a byte of the current element, from 0
+                     * @return that byte, read in place
+                     * @throws IndexOutOfBoundsException if {@code index} is not less than {@link #valueLength()}
+                     */
+                    public byte valueByteAt(final int index) {
+                        java.util.Objects.checkIndex(index, length);
+                        return in[offset + index];
+                    }
+
+                    /**
                      * @param other bytes to compare with
                      * @return true if the current element is exactly {@code other}, compared without allocating
                      */
@@ -839,20 +850,21 @@ final class ViewGenerator {
                         return $absent ? $default : $value;
                     }
                     """.replace("$absent", absent(name, guard))
-                        .replace(
-                                "$returns",
-                                field.type() == Field.FieldType.STRING
-                                        ? "decoded as a new String"
-                                        : "as a view of the wrapped Bytes, or a copy when wrapping an array")
-                        .replace("$type", field.type() == Field.FieldType.STRING ? "String" : "Bytes")
-                        .replace("$default", field.type() == Field.FieldType.STRING ? "\"\"" : "Bytes.EMPTY")
-                        .replace(
-                                "$value",
-                                field.type() == Field.FieldType.STRING
-                                        ? "new String(in, $nameOffset, $nameLength, java.nio.charset.StandardCharsets.UTF_8)"
-                                        : "ArrayCursor.bytes(source, in, $nameOffset, $nameLength)")
-                        .replace("$name", name)
-                        .replace("$field", field.name());
+                                .replace(
+                                        "$returns",
+                                        field.type() == Field.FieldType.STRING
+                                                ? "decoded as a new String"
+                                                : "as a view of the wrapped Bytes, or a copy when wrapping an array")
+                                .replace("$type", field.type() == Field.FieldType.STRING ? "String" : "Bytes")
+                                .replace("$default", field.type() == Field.FieldType.STRING ? "\"\"" : "Bytes.EMPTY")
+                                .replace(
+                                        "$value",
+                                        field.type() == Field.FieldType.STRING
+                                                ? "new String(in, $nameOffset, $nameLength, java.nio.charset.StandardCharsets.UTF_8)"
+                                                : "ArrayCursor.bytes(source, in, $nameOffset, $nameLength)")
+                                .replace("$name", name)
+                                .replace("$field", field.name())
+                        + (field.type() == Field.FieldType.BYTES ? bytesExtras(name, field) : "");
             case MESSAGE ->
                 """
 
@@ -1002,6 +1014,38 @@ final class ViewGenerator {
                 .replace("$Name", field.nameCamelFirstUpper())
                 .replace("$name", name)
                 .replace("$field", field.name());
+    }
+
+    /** A bytes field's accessors that read it in place: one byte, or as an encoded message through its view. */
+    private static String bytesExtras(final String name, final SingleField field) {
+        return """
+
+                /**
+                 * @param index the index of a byte of {@code $field}, from 0
+                 * @return that byte, read in place
+                 * @throws IndexOutOfBoundsException if {@code index} is not less than {@link #$nameLength()}
+                 */
+                public byte $nameByteAt(final int index) {
+                    java.util.Objects.checkIndex(index, $nameLength());
+                    return in[$nameOffset + index];
+                }
+
+                /**
+                 * Read {@code $field}, an encoded message, through its view without copying it: wrap {@code view} over
+                 * it, with this view's strict mode and limits, one level deeper.
+                 *
+                 * @param view the view of the message type {@code $field} holds
+                 * @param <V> the view's type
+                 * @return {@code view}, wrapped over {@code $field}, empty when absent
+                 * @throws ParseException if the bytes are not a well-formed message
+                 */
+                public <V extends com.hedera.pbj.runtime.MessageView> V $nameAs(@NonNull final V view)
+                        throws ParseException {
+                    final int length = $nameLength();
+                    view.wrap(source, in, length == 0 ? start : $nameOffset, length, strictMode, maxDepth - 1, maxSize);
+                    return view;
+                }
+                """.replace("$name", name).replace("$field", field.name());
     }
 
     /** The condition for a delimited field being absent: no offset recorded, or another oneof alternative set. */
