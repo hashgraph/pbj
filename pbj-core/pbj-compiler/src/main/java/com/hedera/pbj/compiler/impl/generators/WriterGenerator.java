@@ -605,11 +605,10 @@ final class WriterGenerator {
                                     : "openChild(%s, 2, %s);%n".formatted(writerField, tag))
                             + "return %s;%n".formatted(writerField));
         }
-        final List<LookupHelper.InlineField> inline = repeated
-                ? null
-                : parts.lookup().inlineFields(field.messageTypeModelPackage(), field.completeClassName());
+        final List<LookupHelper.InlineField> inline =
+                parts.lookup().inlineFields(field.messageTypeModelPackage(), field.completeClassName());
         if (inline != null) {
-            inlineSetter(field, type, method, check, number, inline, parts);
+            inlineSetter(field, ("Write " + element).trim(), method, check, number, inline, parts);
         }
         final String writeObject = writeObject(field, tag, "value", parts);
         final String body;
@@ -647,12 +646,13 @@ final class WriterGenerator {
     }
 
     /**
-     * Write a small message field, whose fields are all integers or bools, in one call from its fields' values: the tag,
+     * Write a small message field, or an element of a repeated one, whose fields are all integers, bools or enums, in one
+     * call from its fields' values: the tag,
      * the length computed from the values, and the fields, as the model writes them, without opening its writer.
      */
     private static void inlineSetter(
             final SingleField field,
-            final String type,
+            final String verb,
             final String method,
             final String check,
             final int number,
@@ -685,7 +685,7 @@ final class WriterGenerator {
         }
         parts.method(
                 field,
-                about(field, "Write")
+                about(field, verb)
                         + " From its fields' values, in one call: without opening its writer, which makes this cheaper"
                         + " for small messages such as ids and timestamps."
                         + docs

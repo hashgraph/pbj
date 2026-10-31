@@ -283,10 +283,11 @@ class WriterGenerationTest {
                 outer.contains("public Writer order(final long id, final int sideProtoOrdinal, final long time,"
                         + " final boolean open, final int qty, final long px)"),
                 outer);
-        // too many fields, a string, two integer alternatives of a oneof, or a repeated field: opened as before
+        // an element of a repeated field too
+        assertTrue(outer.contains("public Writer addIds(final long shard, final long realm, final long num)"), outer);
+        // too many fields, a string, or two integer alternatives of a oneof: opened as before
         assertFalse(outer.contains("public Writer big(final long"), outer);
         assertFalse(outer.contains("public Writer mixed(final long"), outer);
         assertFalse(outer.contains("public Writer two(final long"), outer);
-        assertFalse(outer.contains("public Writer addIds(final long"), outer);
     }
 }
