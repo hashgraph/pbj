@@ -145,6 +145,8 @@ final class ViewGenerator {
                  */
                 public static final class View {
                     private final ArrayCursor cursor = new ArrayCursor(new byte[0], 0, 0);
+                    /** Counts wraps: a child view wrapped in the current one is returned again without indexing it. */
+                    private long generation;
                     private byte[] in;
                     /** The Bytes holding {@code in}, if this view wraps one, so bytes fields need not be copied */
                     private Bytes source;
@@ -272,6 +274,7 @@ final class ViewGenerator {
                         this.strictMode = strictMode;
                         this.maxDepth = maxDepth;
                         this.maxSize = maxSize;
+                        generation++;
                         final int start = cursor.position();
                 $resets
                         try {
@@ -398,7 +401,10 @@ final class ViewGenerator {
         String record;
         if (wireType == Common.TYPE_LENGTH_DELIMITED) {
             parts.state().append("private int %sOffset = -1;%nprivate int %sLength;%n".formatted(name, name));
-            parts.resets().append("%sOffset = -1;%n".formatted(name));
+            if (oneOfKind == null) {
+                // a oneof alternative's offset is only read while the oneof's kind says it is set: no reset
+                parts.resets().append("%sOffset = -1;%n".formatted(name));
+            }
             // strings are checked to be valid UTF-8 while wrapping, as parsing does
             record = "%sLength = cursor.%s(maxSize, \"%s\");%n%sOffset = cursor.position();%ncursor.skip(%sLength);%n"
                     .formatted(
@@ -410,7 +416,9 @@ final class ViewGenerator {
         } else {
             // numbers are decoded once, while wrapping; absent fields keep their default, 0
             parts.state().append("private long %sValue;%n".formatted(name));
-            parts.resets().append("%sValue = 0;%n".formatted(name));
+            if (oneOfKind == null) {
+                parts.resets().append("%sValue = 0;%n".formatted(name));
+            }
             record = "%sValue = %s;%n".formatted(name, decode(field.type(), "cursor"));
         }
         if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType()) {
@@ -423,7 +431,6 @@ final class ViewGenerator {
                             oneOfKind == null ? name + "Offset >= 0" : oneOfKind + " != 0",
                             oneOfKind == null ? field.name() : field.parent().name())
                     + record;
-            parts.resets().append("%sViewCurrent = false;%n".formatted(name));
         }
         final String fast;
         if (oneOfKind != null) {
@@ -850,7 +857,7 @@ final class ViewGenerator {
                 """
 
                     private $type.View $nameView;
-                    private boolean $nameViewCurrent;
+                    private long $nameViewGeneration;
 
                     /** @return true if {@code $field} is present */
                     public boolean has$Name() {
@@ -868,12 +875,12 @@ final class ViewGenerator {
                         }
                         if ($nameView == null) {
                             $nameView = new $type.View();
-                        } else if ($nameViewCurrent && $nameView.wraps(in, $nameOffset, $nameLength)) {
+                        } else if ($nameViewGeneration == generation && $nameView.wraps(in, $nameOffset, $nameLength)) {
                             // already wrapped over this field since this view was wrapped: don't index it again
                             return $nameView;
                         }
                         $nameView.wrap(source, in, $nameOffset, $nameLength, strictMode, maxDepth - 1, maxSize);
-                        $nameViewCurrent = true;
+                        $nameViewGeneration = generation;
                         return $nameView;
                     }
                     """.replace("$absent", absent(name, guard))
@@ -999,6 +1006,7 @@ final class ViewGenerator {
 
     /** The condition for a delimited field being absent: no offset recorded, or another oneof alternative set. */
     private static String absent(final String name, final String guard) {
-        return guard.isEmpty() ? name + "Offset < 0" : "!(" + guard + ") || " + name + "Offset < 0";
+        // a oneof alternative's offset is recorded whenever its kind is set
+        return guard.isEmpty() ? name + "Offset < 0" : "!(" + guard + ")";
     }
 }
