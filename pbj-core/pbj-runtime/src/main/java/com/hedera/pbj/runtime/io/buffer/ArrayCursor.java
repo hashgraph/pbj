@@ -312,52 +312,47 @@ public final class ArrayCursor {
     }
 
     /**
-     * The multi-byte varint read: the XOR chain of {@code ByteArrayBufferedData}, with limit checks. The chain may
-     * read past the limit, but not past the array: a small message's limit is usually less than ten bytes away, while
-     * the array goes on. A varint that ends past the limit is an underflow, as it is when read a byte at a time.
+     * The multi-byte varint read: the XOR chain of {@code ByteArrayBufferedData} for two to eight bytes, with limit
+     * checks. The chain may read past the limit, but not past the array: a small message's limit is usually less than
+     * ten bytes away, while the array goes on. Everything else, and every error, is {@link #varintSlow}, so this stays
+     * small enough for the JIT to inline into parsers (under {@code FreqInlineSize}).
      */
     private long varintWide() {
         int q = p;
-        if (in.length - q >= 10) {
-            long v = in[q++];
-            if ((v ^= (long) in[q++] << 7) < 0L) {
-                v ^= (~0L << 7);
-            } else if ((v ^= (long) in[q++] << 14) >= 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14);
-            } else if ((v ^= (long) in[q++] << 21) < 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21);
-            } else if ((v ^= (long) in[q++] << 28) >= 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
-            } else if ((v ^= (long) in[q++] << 35) < 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
-            } else if ((v ^= (long) in[q++] << 42) >= 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
-            } else if ((v ^= (long) in[q++] << 49) < 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
-            } else {
-                v ^= (long) in[q++] << 56;
-                v ^= (~0L << 7)
-                        ^ (~0L << 14)
-                        ^ (~0L << 21)
-                        ^ (~0L << 28)
-                        ^ (~0L << 35)
-                        ^ (~0L << 42)
-                        ^ (~0L << 49)
-                        ^ (~0L << 56);
-                // a tenth byte: only its lowest bit fits in a long and the chain above already set it, so, as
-                // ByteArrayBufferedData does, reject a tenth byte that continues or leaves that bit clear
-                if (v < 0L && isBadTenthByte(in[q++])) {
-                    // past the limit, it is an underflow first, as when read a byte at a time
-                    throw q > limit ? new BufferUnderflowException() : new DataEncodingException("Malformed var int");
-                }
-            }
-            if (q > limit) {
-                throw new BufferUnderflowException();
-            }
-            p = q;
-            return v;
+        if (in.length - q < 10) {
+            // the array, not the limit: a small message's limit is usually only a few bytes away
+            return varintSlow();
         }
-        // near the limit: one byte at a time
+        long v = in[q++];
+        if ((v ^= (long) in[q++] << 7) < 0L) {
+            v ^= (~0L << 7);
+        } else if ((v ^= (long) in[q++] << 14) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14);
+        } else if ((v ^= (long) in[q++] << 21) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21);
+        } else if ((v ^= (long) in[q++] << 28) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+        } else if ((v ^= (long) in[q++] << 35) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+        } else if ((v ^= (long) in[q++] << 42) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+        } else if ((v ^= (long) in[q++] << 49) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
+        } else {
+            // 9 or 10 bytes: rare, and read a byte at a time
+            return varintSlow();
+        }
+        if (q > limit) {
+            // ends past the limit: read a byte at a time, which throws the underflow
+            return varintSlow();
+        }
+        p = q;
+        return v;
+    }
+
+    /** Any varint one byte at a time: near the limit, 9-10 byte values, and every malformed or truncated case. */
+    private long varintSlow() {
+        int q = p;
         long value = 0;
         for (int shift = 0; shift < 64; shift += 7) {
             if (q >= limit) {
@@ -366,6 +361,9 @@ public final class ArrayCursor {
             final byte b = in[q++];
             value |= (long) (b & 0x7F) << shift;
             if (b >= 0) {
+                if (shift == 63 && isBadTenthByte(b)) {
+                    throw new DataEncodingException("Malformed var int");
+                }
                 p = q;
                 return value;
             }

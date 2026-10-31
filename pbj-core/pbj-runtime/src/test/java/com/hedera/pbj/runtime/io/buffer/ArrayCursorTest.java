@@ -148,6 +148,40 @@ final class ArrayCursorTest {
     }
 
     @Test
+    void varintsReadTheSameNearTheLimitAndNearTheArraysEnd() {
+        for (int length = 2; length <= 10; length++) {
+            final long value = length == 10 ? Long.MIN_VALUE | 0x55 : (1L << (7 * (length - 1))) | 0x55;
+            final byte[] varint = encodeVarint(value);
+            for (int before = 0; before <= 3; before++) {
+                for (int after = 0; after <= 12; after++) {
+                    final byte[] in = new byte[before + varint.length + after];
+                    System.arraycopy(varint, 0, in, before, varint.length);
+                    // the limit at the varint's end, with "after" more bytes in the array; and at the array's end
+                    for (final int limit : new int[] {before + varint.length, in.length}) {
+                        final ArrayCursor cursor = new ArrayCursor(in, before, limit);
+                        assertEquals(value, cursor.varint(), length + " bytes, limit " + limit + " of " + in.length);
+                        assertEquals(before + varint.length, cursor.position());
+                    }
+                    // a limit inside the varint is an underflow, whatever follows in the array
+                    final ArrayCursor cut = new ArrayCursor(in, before, before + varint.length - 1);
+                    assertThrows(BufferUnderflowException.class, cut::varint, length + " bytes, cut");
+                }
+            }
+        }
+    }
+
+    @Test
+    void aBadTenthByteIsAnUnderflowWhenPastTheLimit() {
+        final byte[] in = new byte[20];
+        Arrays.fill(in, 0, 9, (byte) 0x80);
+        in[9] = 2; // bit 63 clear: malformed
+        assertThrows(DataEncodingException.class, () -> new ArrayCursor(in, 0, 10).varint());
+        assertThrows(BufferUnderflowException.class, () -> new ArrayCursor(in, 0, 9).varint());
+        in[9] = 1;
+        assertEquals(Long.MIN_VALUE, new ArrayCursor(in, 0, 10).varint());
+    }
+
+    @Test
     void tenthVarintByteIsCheckedLikeTheStreamParser() {
         // nine continuation bytes, then every possible tenth byte: only bit 63 is left for the tenth byte, so the
         // cursor must accept and reject exactly what the stream parser does
