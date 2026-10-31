@@ -119,7 +119,7 @@ final class ArrayCursorTest {
 
     @Test
     void everyVarintLengthReadsTheSameAtEveryDistanceFromTheLimit() {
-        // the fast path needs 8 bytes left and handles up to 8-byte varints; the rest take the slow path
+        // the fast path needs ten bytes left in the array, whatever the limit; near the array's end the slow path
         for (int length = 1; length <= 10; length++) {
             for (final long value : new long[] {
                 length == 1 ? 0 : 1L << (7 * (length - 1)),
@@ -134,7 +134,11 @@ final class ArrayCursorTest {
                     assertEquals(value, cursor.varint(), "value " + value + " with " + after + " bytes after it");
                     assertEquals(varint.length, cursor.position(), "end of " + value);
                 }
-                // and cut short by the limit, at every byte
+                // ending at the limit, with more of the array after it, as for the last field of a nested message
+                final ArrayCursor atLimit = new ArrayCursor(Arrays.copyOf(varint, 20), 0, varint.length);
+                assertEquals(value, atLimit.varint(), "value " + value + " ending at the limit");
+                assertEquals(varint.length, atLimit.position(), "end of " + value + " at the limit");
+                // and cut short by the limit, at every byte, with the rest of it, and more, in the array
                 for (int cut = 0; cut < varint.length; cut++) {
                     final ArrayCursor cursor = new ArrayCursor(Arrays.copyOf(varint, 20), 0, cut);
                     assertThrows(BufferUnderflowException.class, cursor::varint, "cut at " + cut);

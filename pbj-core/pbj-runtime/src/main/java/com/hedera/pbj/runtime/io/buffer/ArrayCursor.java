@@ -266,10 +266,14 @@ public final class ArrayCursor {
         return varintWide();
     }
 
-    /** The multi-byte varint read: the XOR chain of {@code ByteArrayBufferedData}, with limit checks. */
+    /**
+     * The multi-byte varint read: the XOR chain of {@code ByteArrayBufferedData}, with limit checks. The chain may
+     * read past the limit, but not past the array: a small message's limit is usually less than ten bytes away, while
+     * the array goes on. A varint that ends past the limit is an underflow, as it is when read a byte at a time.
+     */
     private long varintWide() {
         int q = p;
-        if (limit - q >= 10) {
+        if (in.length - q >= 10) {
             long v = in[q++];
             if ((v ^= (long) in[q++] << 7) < 0L) {
                 v ^= (~0L << 7);
@@ -298,8 +302,12 @@ public final class ArrayCursor {
                 // a tenth byte: only its lowest bit fits in a long and the chain above already set it, so, as
                 // ByteArrayBufferedData does, reject a tenth byte that continues or leaves that bit clear
                 if (v < 0L && isBadTenthByte(in[q++])) {
-                    throw new DataEncodingException("Malformed var int");
+                    // past the limit, it is an underflow first, as when read a byte at a time
+                    throw q > limit ? new BufferUnderflowException() : new DataEncodingException("Malformed var int");
                 }
+            }
+            if (q > limit) {
+                throw new BufferUnderflowException();
             }
             p = q;
             return v;
