@@ -384,8 +384,8 @@ pre-encoded forms.
 
 **Output.** Fields are written as the model writes them: the same defaults skipped, canonical varints, packed repeated
 numbers, map keys in their Java order (signed, for unsigned types too), float and double map values of zero left out.
-Two wrapper values the model's own writer encodes wrongly, `FloatValue` and `DoubleValue` of `-0.0` and `UInt32Value`
-of 2^31 or more, are written as protoc writes them.
+Wrapper values are written as the model writes them too: `UInt32Value` of 2^31 or more as protoc does, and
+`FloatValue` and `DoubleValue` of `-0.0` as the default, an empty wrapper (#1020).
 
 **Nested lengths.** A nested message's length comes before it, so the writer reserves bytes for it and writes it when
 the message ends. The guess is one byte when the message's largest encoding is under 128 bytes (only bounded fields),

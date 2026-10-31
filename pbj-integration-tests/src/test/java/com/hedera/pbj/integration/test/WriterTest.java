@@ -438,26 +438,38 @@ final class WriterTest {
     }
 
     /**
-     * Two wrapper values the model can't encode, because its size and its writer disagree: {@code FloatValue} and
-     * {@code DoubleValue} of -0.0, and {@code UInt32Value} of 2^31 or more. Writers write them canonically, as protoc
-     * does, and they parse back to the same values.
+     * The wrapper values the model's byte-array writer used to get wrong (#1024): {@code FloatValue} and
+     * {@code DoubleValue} of -0.0, and {@code UInt32Value} of 2^31 or more. Writers write them as the model does: the
+     * unsigned value as protoc does, and -0.0 as the default, as everywhere in the model (#1020).
      */
     @Test
-    void wrapperValuesTheModelMeasuresWrongAreWrittenAsProtocDoes() throws Exception {
+    void wrapperEdgeValuesAreWrittenAsTheModelDoes() throws Exception {
         final Bytes written = write(
                 new WriterWrappers.Writer(),
                 w -> w.uint32Value(-1).floatValue(-0.0f).doubleValue(-0.0));
+        assertEquals(
+                WriterWrappers.PROTOBUF.toBytes(WriterWrappers.newBuilder()
+                        .uint32Value(-1)
+                        .floatValue(-0.0f)
+                        .doubleValue(-0.0)
+                        .build()),
+                written);
+        // -0.0 reads back as 0.0
+        assertWrites(
+                WriterWrappers.PROTOBUF,
+                WriterWrappers.newBuilder()
+                        .uint32Value(-1)
+                        .floatValue(0.0f)
+                        .doubleValue(0.0)
+                        .build(),
+                written);
         final byte[] protoc = com.hedera.pbj.test.proto.java.WriterWrappers.newBuilder()
                 .setUint32Value(com.google.protobuf.UInt32Value.of(-1))
-                .setFloatValue(com.google.protobuf.FloatValue.of(-0.0f))
-                .setDoubleValue(com.google.protobuf.DoubleValue.of(-0.0))
+                .setFloatValue(com.google.protobuf.FloatValue.of(0.0f))
+                .setDoubleValue(com.google.protobuf.DoubleValue.of(0.0))
                 .build()
                 .toByteArray();
         assertArrayEquals(protoc, written.toByteArray());
-        final WriterWrappers parsed = WriterWrappers.PROTOBUF.parse(written);
-        assertEquals(-1, parsed.uint32Value());
-        assertEquals(Float.floatToIntBits(-0.0f), Float.floatToIntBits(parsed.floatValue()));
-        assertEquals(Double.doubleToLongBits(-0.0), Double.doubleToLongBits(parsed.doubleValue()));
     }
 
     // ------------------------------------------------------------------------------------------------- names
