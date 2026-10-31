@@ -156,6 +156,7 @@ public final class CodecGenerator implements Generator {
                 $parseArrayMethod
                 $writeMethod
                 $writeByteArrayMethod
+                $writeReverseMethod
                 $measureRecordMethod
                 $getDefaultInstanceMethod
                 $diffMethods
@@ -172,6 +173,7 @@ public final class CodecGenerator implements Generator {
                 .replace("$parseArrayMethod", CodecParseArrayMethodGenerator.generateParseArrayMethod(msgDef, modelClassName, schemaClassName, fields, !cacheableSupport.isBlank(), lookupHelper))
                 .replace("$writeMethod", writeMethod)
                 .replace("$writeByteArrayMethod", writeByteArrayMethod)
+                .replace("$writeReverseMethod", CodecWriteReverseMethodGenerator.generateWriteReverseMethod(msgDef, modelClassName, fields, lookupHelper))
                 .replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
                 .replace("$getDefaultInstanceMethod", generateGetDefaultInstanceMethod(modelClassName))
         );

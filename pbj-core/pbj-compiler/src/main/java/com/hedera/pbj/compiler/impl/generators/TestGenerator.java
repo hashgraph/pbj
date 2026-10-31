@@ -589,6 +589,14 @@ public final class TestGenerator implements Generator {
                     byte[] readBytes = new byte[(int)dataBuffer3.length()];
                     dataBuffer3.getBytes(0, readBytes);
                     assertArrayEquals(bytes.toByteArray(), readBytes);
+
+                    // Test writeReverse(), which must write the same bytes as toBytes(), also into a reused buffer
+                    final ReverseBuffer reverseBuffer = new ReverseBuffer(16);
+                    $modelClassName.PROTOBUF.writeReverse(modelObj, reverseBuffer);
+                    assertEquals(bytes, reverseBuffer.toBytes());
+                    reverseBuffer.reset();
+                    $modelClassName.PROTOBUF.writeReverse(modelObj, reverseBuffer);
+                    assertEquals(bytes, reverseBuffer.bytes());
                 
                     // Test JSON Writing
                     final CharBufferToWritableSequentialData charBufferToWritableSequentialData = new CharBufferToWritableSequentialData(charBuffer);

@@ -243,3 +243,42 @@ through to a general loop. Results and errors are the same as the stream parser'
 strict mode, unknown-field collection, `maxDepth`, `maxSize`, malformed UTF-8 and truncated input all behave alike.
 
 Every field type is supported, so every message that asks for an array parser gets one.
+
+### Reverse Writer (`pbj.fast_write`)
+
+The codec gets a static `writeReverseTo(item, ReverseBuffer)` and overrides `Codec.writeReverse(item, buffer)` to use
+it. `toBytes` and the other `write` methods are unchanged. The reverse writer writes the message back to front into a
+reusable `ReverseBuffer`: fields, list elements and unknown fields in reverse order, and each value before its length
+and tag. A nested message's length is then just the number of bytes written since it began, so nothing is measured
+first, and once the buffer has grown to fit the largest message, writing allocates nothing. The output is
+byte-identical to `toBytes`.
+
+```java
+final ReverseBuffer buffer = new ReverseBuffer(4096);
+for (Order order : orders) {
+    buffer.reset();
+    Order.PROTOBUF.writeReverse(order, buffer);
+    send(buffer.bytes());   // a view, valid until the next reset or write; toBytes() or copyTo() copy it
+}
+```
+
+Maps are written as entries in reverse sorted-key order, and `google.protobuf` wrapper types as the wrapped value, then
+its length and tag. A message with a map of enums writes itself forward into the buffer instead, measuring only that
+message. `writeReverse` works for every codec: one without a reverse writer measures the item and writes it forward
+into the buffer.
+
+**When it pays: measure on your own data.** `pbj.fast_write` is off by default, and `toBytes` and the other `write`
+methods never use the reverse writer; only `writeReverse` does. Skipping the measuring pass helps for objects encoded
+right after they are built, while they are still in the CPU caches. But the reverse writer reads each object's fields
+last first, against the order they were allocated in, which costs a lot once objects are out of cache. On AMD EPYC,
+with HAPI block items:
+
+| `STATE_CHANGES` items | Forward, fresh | Reverse, fresh | Forward, sizes cached | Reverse, sizes cached |
+|---|---:|---:|---:|---:|
+| 200 items, in cache | 89 µs | 72 µs (−20%) | 63 µs | 81 µs (+29%) |
+| all 21,986 items, out of cache | 13.8 ms | 39.3 ms (2.8× slower) | 9.2 ms | 39.1 ms (4.3× slower) |
+
+So it wins for small objects encoded straight after building, and loses for large workloads like HAPI's blocks and
+whenever sizes are already cached. On Apple Silicon the two writers are about equal. Compare both writers on your
+own messages before turning it on; `BlockItemKindBench` in the integration tests shows how.
+

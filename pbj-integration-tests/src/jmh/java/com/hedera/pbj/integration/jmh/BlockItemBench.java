@@ -8,6 +8,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.ReverseBuffer;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -176,6 +177,12 @@ public class BlockItemBench {
         }
     }
 
+    /** A reusable reverse-write buffer, grown to fit by the first writes. */
+    @State(Scope.Thread)
+    public static class ReverseState {
+        final ReverseBuffer buffer = new ReverseBuffer(64 * 1024);
+    }
+
     /** Protoc block items parsed again before every invocation, so protoc's memoized sizes are not cached yet. */
     @State(Scope.Thread)
     public static class FreshProtoCItems {
@@ -284,6 +291,26 @@ public class BlockItemBench {
 
     @Benchmark
     @OperationsPerInvocation(ITEMS)
+    public void itemWriteReverseFresh(final FreshItems state, final ReverseState out, final Blackhole bh) {
+        for (final BlockItem item : state.items) {
+            out.buffer.reset();
+            BlockItem.PROTOBUF.writeReverse(item, out.buffer);
+            bh.consume(out.buffer.length());
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(ITEMS)
+    public void itemWriteReverseCached(final Cached state, final ReverseState out, final Blackhole bh) {
+        for (final BlockItem item : state.items) {
+            out.buffer.reset();
+            BlockItem.PROTOBUF.writeReverse(item, out.buffer);
+            bh.consume(out.buffer.length());
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(ITEMS)
     public void itemParseBytes(final Blackhole bh) throws ParseException {
         for (final Bytes bytes : ITEM_BYTES) {
             bh.consume(BlockItem.PROTOBUF.parse(bytes));
@@ -313,6 +340,17 @@ public class BlockItemBench {
     public void transactionToBytesFresh(final FreshTransactions state, final Blackhole bh) {
         for (final SignedTransaction transaction : state.transactions) {
             bh.consume(SignedTransaction.PROTOBUF.toBytes(transaction));
+        }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(TRANSACTIONS)
+    public void transactionWriteReverseFresh(
+            final FreshTransactions state, final ReverseState out, final Blackhole bh) {
+        for (final SignedTransaction transaction : state.transactions) {
+            out.buffer.reset();
+            SignedTransaction.PROTOBUF.writeReverse(transaction, out.buffer);
+            bh.consume(out.buffer.length());
         }
     }
 

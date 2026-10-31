@@ -10,6 +10,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.ReverseBuffer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
@@ -175,6 +176,23 @@ final class AllocationTest {
         System.out.println(
                 "protobufSize() and write(T, byte[], int) of fresh objects, bytes per operation: " + bytesPerOperation);
         assertEquals(0L, bytesPerOperation, "measuring and writing a fresh object");
+    }
+
+    @Test
+    void writeReverseIntoAWarmBuffer() {
+        final ReverseBuffer buffer = new ReverseBuffer(16);
+        final Map<String, Long> figures = new TreeMap<>();
+        ITEMS_BY_KIND.forEach((kind, items) -> figures.put(kind, allocatedPerOperation(i -> {
+            buffer.reset();
+            BlockItem.PROTOBUF.writeReverse(items.get(i % items.size()), buffer);
+        })));
+        figures.put("SignedTransaction", allocatedPerOperation(i -> {
+            buffer.reset();
+            SignedTransaction.PROTOBUF.writeReverse(TRANSACTIONS.get(i % TRANSACTIONS.size()), buffer);
+        }));
+        System.out.println("writeReverse into a warm buffer, bytes per operation: " + figures);
+        figures.forEach(
+                (kind, bytes) -> assertEquals(0L, bytes, kind + " allocated " + bytes + " bytes per reverse write"));
     }
 
     @Test
