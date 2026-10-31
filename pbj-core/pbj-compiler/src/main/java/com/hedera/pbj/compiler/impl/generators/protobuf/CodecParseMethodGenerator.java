@@ -4,10 +4,12 @@ package com.hedera.pbj.compiler.impl.generators.protobuf;
 import static com.hedera.pbj.compiler.impl.Common.DEFAULT_INDENT;
 
 import com.hedera.pbj.compiler.impl.Common;
+import com.hedera.pbj.compiler.impl.ContextualLookupHelper;
 import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.PbjCompilerException;
+import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.generators.ModelGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -52,10 +54,11 @@ class CodecParseMethodGenerator {
             final String modelClassName,
             final String schemaClassName,
             final List<Field> fields,
-            final boolean isCacheable) {
+            final boolean isCacheable,
+            final ContextualLookupHelper lookupHelper) {
 
-        ParseAndDefaultBody parseAndDefaultBodyPair =
-                generateParseLoop(generateCaseStatements(sbFunc, fields, schemaClassName), "", schemaClassName);
+        ParseAndDefaultBody parseAndDefaultBodyPair = generateParseLoop(
+                generateCaseStatements(sbFunc, fields, schemaClassName, lookupHelper), "", schemaClassName);
         // spotless:off
         return """
                 /**
@@ -88,9 +91,27 @@ class CodecParseMethodGenerator {
                         final boolean parseUnknownFields,
                         final int maxDepth,
                         final int maxSize) throws ParseException {
+                    return parseFrom(input, strictMode, parseUnknownFields, maxDepth, maxSize);
+                }
+
+                /**
+                 * Parses a $modelClassName object, as {@link #parseImpl} does. Generated codecs call this directly for nested
+                 * messages, so the call is static and can be inlined. If parsing fails, the input's limit is restored to
+                 * what it was when this method was called.
+                 *
+                 * @see #parseImpl(ReadableSequentialData, boolean, boolean, int, int)
+                 */
+                public static @NonNull $modelClassName parseFrom(
+                        @NonNull final ReadableSequentialData input,
+                        final boolean strictMode,
+                        final boolean parseUnknownFields,
+                        final int maxDepth,
+                        final int maxSize) throws ParseException {
                     if (maxDepth < 0) {
                         throw new ParseException("Reached maximum allowed depth of nested messages");
                     }
+                    // nested messages narrow the limit and only restore it on success, so restore it here on failure
+                    final long callerLimit = input.limit();
                     try {
                         // -- TEMP STATE FIELDS --------------------------------------
                 $fieldDefs
@@ -104,14 +125,15 @@ class CodecParseMethodGenerator {
                         }
                 $cacheableSupport
                     } catch (final Exception anyException) {
+                        input.limit(callerLimit);
                         if (anyException instanceof ParseException parseException) {
                             throw parseException;
                         }
                         throw new ParseException(anyException);
                     }
                 }
-                
-                private List<UnknownField> defaultCase(int tag, int field, FieldDefinition f, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, ReadableSequentialData input, int maxSize) throws ParseException, IOException {
+
+                private static List<UnknownField> defaultCase(int tag, boolean strictMode, boolean parseUnknownFields, List<UnknownField> $unknownFields, ReadableSequentialData input, int maxSize) throws ParseException, IOException {
                 $defaultCaseBody
                     return $unknownFields;
                 }
@@ -197,19 +219,18 @@ class CodecParseMethodGenerator {
                                 break;
                             }
 
-                            // The field is the top 5 bits of the byte. Read this off
-                            final int $prefixfield = $prefixtag >>> TAG_FIELD_OFFSET;
-
-                            // Ask the Schema to inform us what field this represents.
-                            final var $prefixf = $schemaClassName.getField($prefixfield);
-
-                            // Given the wire type and the field type, parse the field
+                            // Given the wire type and the field type, parse the field. Fields this parser does not know,
+                            // and known fields with an unexpected wire type, go to defaultCase.
                             switch ($prefixtag) {
                         $caseStatements
-                                default -> $unknownFields = defaultCase(tag, field, f, strictMode, parseUnknownFields, $unknownFields, input, maxSize);
+                                default -> $unknownFields = defaultCase($prefixtag, strictMode, parseUnknownFields, $unknownFields, input, maxSize);
                             }
                         }""");
         list.add("""
+                        // The field is the top 5 bits of the byte. Read this off
+                        final int $prefixfield = $prefixtag >>> TAG_FIELD_OFFSET;
+                        // Ask the Schema to inform us what field this represents.
+                        final var $prefixf = $schemaClassName.getField($prefixfield);
                         // The wire type is the bottom 3 bits of the byte. Read that off
                         final int wireType = $prefixtag & TAG_WIRE_TYPE_MASK;
                         // handle error cases here, so we do not do if statements in normal loop
@@ -258,20 +279,21 @@ class CodecParseMethodGenerator {
         return new ParseAndDefaultBody(list.get(0), list.get(1));
     }
 
-    private static String generateCaseStatements(StringBuilder sbFunc, List<Field> fields, String schemaClassName) {
+    private static String generateCaseStatements(
+            StringBuilder sbFunc, List<Field> fields, String schemaClassName, ContextualLookupHelper lookupHelper) {
         StringBuilder sb = new StringBuilder();
         for (Field field : fields) {
             if (field instanceof final OneOfField oneOfField) {
                 for (final Field subField : oneOfField.fields()) {
-                    generateFieldCaseStatement(sb, sbFunc, subField, schemaClassName);
+                    generateFieldCaseStatement(sb, sbFunc, subField, schemaClassName, lookupHelper);
                 }
             } else if (field.repeated() && field.type().wireType() != Common.TYPE_LENGTH_DELIMITED) {
                 // for repeated fields that are not length encoded there are 2 forms they can be stored in file.
                 // "packed" and repeated primitive fields
-                generateFieldCaseStatement(sb, sbFunc, field, schemaClassName);
+                generateFieldCaseStatement(sb, sbFunc, field, schemaClassName, lookupHelper);
                 generateFieldCaseStatementPacked(sb, sbFunc, field);
             } else {
-                generateFieldCaseStatement(sb, sbFunc, field, schemaClassName);
+                generateFieldCaseStatement(sb, sbFunc, field, schemaClassName, lookupHelper);
             }
         }
         return sb.toString();
@@ -298,7 +320,7 @@ class CodecParseMethodGenerator {
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         sbCase.append("%s = case%d(input, maxSize, %s);%n".formatted(tempFieldName, tag, tempFieldName));
         sbFunc.append("""
-%s case%d(ReadableSequentialData input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
+private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throws ParseException, IOException {""".formatted(fieldType, tag, fieldType, tempFieldName));
         final String preRead;
         if (field.type() == Field.FieldType.ENUM) {
             preRead = """
@@ -315,7 +337,7 @@ class CodecParseMethodGenerator {
             preRead = "";
         }
         final String loopBody = preRead + "%s = addToList(%s,%s);"
-                .formatted(tempFieldName, tempFieldName, field.type() == Field.FieldType.ENUM ? "value" : readMethod(field));
+                .formatted(tempFieldName, tempFieldName, field.type() == Field.FieldType.ENUM ? "value" : readMethod(field, null));
         sbFunc.append("""
                 // Read the length of packed repeated field data
                 final long length = input.readVarInt(false);
@@ -352,7 +374,11 @@ class CodecParseMethodGenerator {
      * @param sbFunc code written in class scope, used to create functions
      */
     private static void generateFieldCaseStatement(
-            StringBuilder sbCase, StringBuilder sbFunc, final Field field, final String schemaClassName) {
+            StringBuilder sbCase,
+            StringBuilder sbFunc,
+            final Field field,
+            final String schemaClassName,
+            final ContextualLookupHelper lookupHelper) {
         final int wireType = field.optionalValueType()
                 ? Common.TYPE_LENGTH_DELIMITED
                 : field.type().wireType();
@@ -382,7 +408,7 @@ class CodecParseMethodGenerator {
                                 value = $defaultValue;
                             }"""
                     .replace("$fieldType", field.javaFieldType())
-                    .replace("$readMethod", readMethod(field))
+                    .replace("$readMethod", readMethod(field, lookupHelper))
                     .replace("$defaultValue",
                             switch (field.messageType()) {
                                 case "Int32Value", "UInt32Value" -> "0";
@@ -437,28 +463,23 @@ class CodecParseMethodGenerator {
                                 throw new ParseException("$fieldName size " + messageLength + " is greater than max " + $maxSize);
                             }
                             final var limitBefore = input.limit();
-                            // Make sure that we have enough bytes in the message
-                            // to read the subObject.
-                            // If the buffer is truncated on the boundary of a subObject,
-                            // we will not throw.
-                            final var startPos = input.position();
-                            try {
-                                if ((startPos + messageLength) > limitBefore) {
-                                    throw new BufferUnderflowException();
-                                }
-                                input.limit(startPos + messageLength);
-                                value = $readMethod;
-                                // Make sure we read the full number of bytes. for the types
-                                if ((startPos + messageLength) != input.position()) {
-                                    throw new BufferOverflowException();
-                                }
-                            } finally {
-                                input.limit(limitBefore);
+                            // Make sure that we have enough bytes in the message to read the subObject.
+                            final var end = input.position() + messageLength;
+                            if (end > limitBefore) {
+                                throw new BufferUnderflowException();
+                            }
+                            input.limit(end);
+                            // If this throws, the limit stays narrowed: parseFrom restores its caller's limit
+                            value = $readMethod;
+                            input.limit(limitBefore);
+                            // Make sure we read the full number of bytes
+                            if (input.position() != end) {
+                                throw new BufferOverflowException();
                             }
                         }
                         """
                     .replace("$strictNonRepeatedCheck", strictNonRepeatedCheck)
-                    .replace("$readMethod", readMethod(field))
+                    .replace("$readMethod", readMethod(field, lookupHelper))
                     .replace("$fieldType", field.javaFieldTypeBase())
                     .replace("$fieldName", field.name())
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
@@ -471,7 +492,9 @@ class CodecParseMethodGenerator {
             final MapField mapField = (MapField) field;
             final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
             ParseAndDefaultBody parseAndDefaultBodyPair = generateParseLoop(
-                    generateCaseStatements(sbFunc, mapEntryFields, schemaClassName), "map_entry_", schemaClassName);
+                    generateCaseStatements(sbFunc, mapEntryFields, schemaClassName, lookupHelper),
+                    "map_entry_",
+                    schemaClassName);
             // spotless:off
             sbCase.append("""
                         final var __map_messageLength = input.readVarInt(false);
@@ -482,23 +505,18 @@ class CodecParseMethodGenerator {
                                 throw new ParseException("$fieldName size " + __map_messageLength + " is greater than max " + $maxSize);
                             }
                             final var __map_limitBefore = input.limit();
-                            // Make sure that we have enough bytes in the message
-                            // to read the subObject.
-                            // If the buffer is truncated on the boundary of a subObject,
-                            // we will not throw.
-                            final var __map_startPos = input.position();
-                            try {
-                                if ((__map_startPos + __map_messageLength) > __map_limitBefore) {
-                                    throw new BufferUnderflowException();
-                                }
-                                input.limit(__map_startPos + __map_messageLength);
+                            // Make sure that we have enough bytes in the message to read the entry.
+                            final var __map_end = input.position() + __map_messageLength;
+                            if (__map_end > __map_limitBefore) {
+                                throw new BufferUnderflowException();
+                            }
+                            input.limit(__map_end);
+                            // If this throws, the limit stays narrowed: parseFrom restores its caller's limit
                         $mapParseLoop
-                                // Make sure we read the full number of bytes. for the types
-                                if ((__map_startPos + __map_messageLength) != input.position()) {
-                                    throw new BufferOverflowException();
-                                }
-                            } finally {
-                                input.limit(__map_limitBefore);
+                            input.limit(__map_limitBefore);
+                            // Make sure we read the full number of bytes
+                            if (input.position() != __map_end) {
+                                throw new BufferOverflowException();
                             }
                         }
                         """
@@ -507,7 +525,7 @@ class CodecParseMethodGenerator {
                             "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
                             mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
                     .replace("$mapParseLoop", parseAndDefaultBodyPair.parseBody()
-                            .indent(DEFAULT_INDENT * 2).stripTrailing())
+                            .indent(DEFAULT_INDENT).stripTrailing())
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                     .indent(DEFAULT_INDENT)
             );
@@ -524,7 +542,7 @@ class CodecParseMethodGenerator {
             );
             // spotless:on
         } else {
-            sbCase.append(("final var value = " + readMethod(field) + ";\n").indent(DEFAULT_INDENT));
+            sbCase.append(("final var value = " + readMethod(field, lookupHelper) + ";\n").indent(DEFAULT_INDENT));
         }
         // set value to temp var
         // spotless:off
@@ -574,7 +592,7 @@ class CodecParseMethodGenerator {
         // spotless:on
     }
 
-    static String readMethod(Field field) {
+    static String readMethod(Field field, ContextualLookupHelper lookupHelper) {
         if (field.optionalValueType()) {
             return switch (field.messageType()) {
                 case "StringValue" ->
@@ -616,7 +634,13 @@ class CodecParseMethodGenerator {
             case BOOL -> "readBool(input)";
             case BYTES ->
                 "readBytes(input, %s)".formatted(field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
-            case MESSAGE -> field.parseCode();
+            case MESSAGE -> {
+                // nested messages generated in this build are parsed with a direct, static call
+                final String codec = InlineFieldCodeGenerator.directCodecClass((SingleField) field, lookupHelper);
+                yield codec == null
+                        ? field.parseCode()
+                        : codec + ".parseFrom(input, strictMode, parseUnknownFields, maxDepth - 1, maxSize)";
+            }
             case ENUM -> throw new PbjCompilerException("Should never happen, enum handled elsewhere");
             case ONE_OF -> throw new PbjCompilerException("Should never happen, oneOf handled elsewhere");
             case MAP -> throw new PbjCompilerException("Should never happen, map handled elsewhere");
