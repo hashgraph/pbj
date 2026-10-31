@@ -55,6 +55,7 @@ class CodecParseMethodGenerator {
             final String schemaClassName,
             final List<Field> fields,
             final boolean isCacheable,
+            final boolean unboxedConstructor,
             final ContextualLookupHelper lookupHelper) {
 
         ParseAndDefaultBody parseAndDefaultBodyPair = generateParseLoop(
@@ -145,15 +146,13 @@ class CodecParseMethodGenerator {
                     return $unknownFields;
                 }
                 """
-        .replace("$cacheableSupport", isCacheable ? generateCacheableSupport(modelClassName, fields) : "return new $modelClassName($fieldsList);")
+        .replace("$cacheableSupport", (unboxedConstructor ? "" : ParseTemps.box(fields))
+                + (isCacheable ? generateCacheableSupport(modelClassName, fields) : "return new $modelClassName($fieldsList);"))
         .replace("$modelClassName",modelClassName)
-        .replace("$fieldDefs",fields.stream().map(field -> {
-            final String javaFieldType = field.type() == Field.FieldType.ENUM ? field.repeated() ? "List" :  "Object" : field.javaFieldType();
-            return "%s temp_%s = %s;"
-                    .formatted(javaFieldType, field.name(), field.javaDefault());
-        }).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2).stripTrailing())
+        .replace("$fieldDefs",fields.stream().map(ParseTemps::declare)
+                .collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2).stripTrailing())
         .replace("$fieldsList",
-                fields.stream().map(field -> "temp_"+field.name()).collect(Collectors.joining(", "))
+                ParseTemps.arguments(fields, unboxedConstructor)
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields"
         )
         .replace("$parseLoop", parseAndDefaultBodyPair.parseBody().indent(DEFAULT_INDENT * 2).stripTrailing())
@@ -458,11 +457,11 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
             } else if (field.parent() != null) {
                 final var oneOfField = field.parent();
                 strictNonRepeatedCheck = """
-                        if (strictMode && !temp_$oneOfFieldName.equals($defaultOneOfValue)) {
+                        if (strictMode && $isSet) {
                             throw new ParseException("A non-repeated $oneOfFieldName encountered more than once");
                         }
-                        """.replace("$oneOfFieldName", oneOfField.name())
-                        .replace("$defaultOneOfValue", oneOfField.javaDefault());
+                        """.replace("$isSet", ParseTemps.isSet(oneOfField))
+                        .replace("$oneOfFieldName", oneOfField.name());
             } else {
                 strictNonRepeatedCheck = """
                         if (strictMode && temp_$fieldName != null) {
@@ -572,10 +571,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
         if (field.parent() != null && field.repeated()) {
             throw new PbjCompilerException("Fields can not be oneof and repeated ["+field+"]");
         } else if (field.parent() != null) {
-            final var oneOfField = field.parent();
-            sbCase.append(Common.FIELD_INDENT + "temp_%s =  new %s<>(%s.%s, value);%n"
-                    .formatted(oneOfField.name(), oneOfField.className(), oneOfField.getEnumClassRef(),
-                            Common.camelToUpperSnake(field.name())));
+            sbCase.append(ParseTemps.set(field, "value").indent(DEFAULT_INDENT));
         } else if (field.repeated()) {
             sbCase.append(
                 """

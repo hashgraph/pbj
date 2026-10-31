@@ -190,6 +190,13 @@ public final class ModelGenerator implements Generator {
                         fieldComment = "// Enum \"Object\" is either " + field.javaFieldTypeBase()
                                 + " or Integer representing its protoOrdinal value:\n" + fieldComment;
                     }
+                    if (field instanceof OneOfField oneOf && oneOf.unboxed()) {
+                        // pbj.oneof_storage = "unboxed": the kind and the value, without a OneOf object
+                        return fieldComment
+                                + "private final %s %s;%n/** The value of the %s oneof, of the type its kind says */%n"
+                                        .formatted(oneOf.getEnumClassRef(), oneOf.kindName(), oneOf.name())
+                                + "private final Object %s;".formatted(oneOf.valueName());
+                    }
                     return fieldComment
                             + "private "
                             + (field.fieldNumber() != -1 ? "final " : "")
@@ -264,6 +271,22 @@ public final class ModelGenerator implements Generator {
                     msgDef,
                     lookupHelper,
                     publicTracking);
+            bodyContent += "\n";
+        }
+        if (hasUnboxedConstructor(msgDef, fieldsNoPrecomputed, lookupHelper)) {
+            // for the parsers: each unboxed oneof as its kind and value, with enums as Object like their temporaries
+            bodyContent += generateConstructor(
+                    javaRecordName,
+                    fields,
+                    true,
+                    false,
+                    hasEnums(fieldsNoPrecomputed),
+                    fieldsNoPrecomputed,
+                    true,
+                    msgDef,
+                    lookupHelper,
+                    publicTracking,
+                    true);
             bodyContent += "\n";
         }
         // And if the model is cacheable, then also ctors w/ $hashCode
@@ -343,7 +366,7 @@ public final class ModelGenerator implements Generator {
         }
 
         // record style getters
-        bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed, false);
+        bodyContent += generateRecordStyleGetters(fieldsNoPrecomputed, false, true);
         bodyContent += "\n";
 
         bodyContent += """
@@ -527,11 +550,16 @@ public final class ModelGenerator implements Generator {
      *
      * @param fields the fields to use for the code generation
      * @param guardBuildFieldName if true and the field name is "build", then prefix the getter with "_"
+     * @param inModel true for the model, false for its builder, which keeps oneofs as {@code OneOf} objects
      * @return the generated code
      */
-    private static String generateRecordStyleGetters(final List<Field> fields, final boolean guardBuildFieldName) {
+    private static String generateRecordStyleGetters(
+            final List<Field> fields, final boolean guardBuildFieldName, final boolean inModel) {
         return fields.stream()
                 .map(field -> {
+                    if (inModel && field instanceof OneOfField oneOf && oneOf.unboxed()) {
+                        return unboxedOneOfGetters(oneOf);
+                    }
                     String fieldComment = field.comment();
                     String fieldCommentLowerFirst =
                             fieldComment.substring(0, 1).toLowerCase() + fieldComment.substring(1);
@@ -608,6 +636,49 @@ public final class ModelGenerator implements Generator {
                             .indent(DEFAULT_INDENT);
                 })
                 .collect(Collectors.joining("\n"));
+    }
+
+    /**
+     * The getters of a oneof stored unboxed: the kind, and the {@code OneOf}, built on each call.
+     *
+     * @param oneOf the oneof
+     * @return the generated code
+     */
+    private static String unboxedOneOfGetters(final OneOfField oneOf) {
+        // spotless:off
+        return """
+                /**
+                 * Get the kind of the $name oneof: which of its fields is set, or {@code UNSET}. Switch on this in hot code
+                 * rather than on {@link #$getter()}, which allocates.
+                 *
+                 * @return the kind of the $name oneof
+                 */
+                public $enum $kind() {
+                    return $kind;
+                }
+
+                /**
+                 * Get the $name oneof as a {@link $className}. This model stores the oneof's kind and value directly
+                 * ({@code pbj.oneof_storage = "unboxed"}), so this builds a new object on every call: its identity is not
+                 * stable, and it allocates unless the JIT removes the allocation. Prefer {@link #$kind()} and the typed
+                 * getters.
+                 *
+                 * @return the $name oneof
+                 */
+                public $type $getter() {
+                    return new $className<>($kind, $cast$value);
+                }
+                """
+                .replace("$className", oneOf.className())
+                .replace("$cast", oneOf.comparable() ? "(Comparable) " : "")
+                .replace("$type", oneOf.javaFieldType())
+                .replace("$enum", oneOf.getEnumClassRef())
+                .replace("$kind", oneOf.kindName())
+                .replace("$value", oneOf.valueName())
+                .replace("$getter", oneOf.nameCamelFirstLower())
+                .replace("$name", oneOf.name())
+                .indent(DEFAULT_INDENT);
+        // spotless:on
     }
 
     /**
@@ -872,8 +943,9 @@ public final class ModelGenerator implements Generator {
         // spotless:on
         for (int i = 0; i < fields.size(); i++) {
             Field f = fields.get(i);
-            bodyContent +=
-                    FIELD_INDENT + FIELD_INDENT + "+ \"" + f.nameCamelFirstLower() + "=\" + " + f.nameCamelFirstLower();
+            // an unboxed oneof prints as its OneOf, as a boxed one does
+            bodyContent += FIELD_INDENT + FIELD_INDENT + "+ \"" + f.nameCamelFirstLower() + "=\" + "
+                    + f.nameCamelFirstLower() + (f instanceof OneOfField oneOf && oneOf.unboxed() ? "()" : "");
             if (i < fields.size() - 1) {
                 bodyContent += " + \", \"";
             }
@@ -915,6 +987,39 @@ public final class ModelGenerator implements Generator {
             final MessageDefContext msgDef,
             final ContextualLookupHelper lookupHelper,
             final ConstructorTracking tracking) {
+        return generateConstructor(
+                constructorName,
+                fields,
+                initUnknownFields,
+                initHashCode,
+                objectForEnum,
+                fieldsNoPrecomputed,
+                shouldThrowOnOneOfNull,
+                msgDef,
+                lookupHelper,
+                tracking,
+                false);
+    }
+
+    /**
+     * Generates a pre-populated constructor for a class.
+     * @param fields the fields to use for the code generation
+     * @param tracking how the constructor initializes copy-builder provenance
+     * @param unboxedParams true to take each unboxed oneof as its kind and value instead of a {@code OneOf}
+     * @return the generated code
+     */
+    private static String generateConstructor(
+            final String constructorName,
+            final List<Field> fields,
+            final boolean initUnknownFields,
+            final boolean initHashCode,
+            final boolean objectForEnum,
+            final List<Field> fieldsNoPrecomputed,
+            final boolean shouldThrowOnOneOfNull,
+            final MessageDefContext msgDef,
+            final ContextualLookupHelper lookupHelper,
+            final ConstructorTracking tracking,
+            final boolean unboxedParams) {
         if (fields.isEmpty() && !initUnknownFields) {
             return "";
         }
@@ -930,7 +1035,10 @@ public final class ModelGenerator implements Generator {
             $constructorCode    }
             """
                 .replace("$constructorParamDocs",fieldsNoPrecomputed.stream().map(field ->
-                        "\n     * @param "+field.nameCamelFirstLower()+" "+
+                        unboxedParams && field instanceof OneOfField oneOf && oneOf.unboxed()
+                                ? "\n     * @param %s which field of the %s oneof is set\n     * @param %s its value"
+                                        .formatted(oneOf.kindName(), oneOf.name(), oneOf.valueName())
+                                : "\n     * @param "+field.nameCamelFirstLower()+" "+
                                 field.comment().replaceAll("\n", "\n     *         "+" ".repeat(field.nameCamelFirstLower().length()))
                 ).collect(Collectors.joining(" ")))
                 .replace("$constructorName", constructorName)
@@ -943,6 +1051,9 @@ public final class ModelGenerator implements Generator {
                         : "\n" + CopyBuilderGenerator.constructorAssignments(fieldsNoPrecomputed, tracking)
                                 .indent(DEFAULT_INDENT * 2).stripTrailing())
                 .replace("$constructorParams",fieldsNoPrecomputed.stream().map(field -> {
+                    if (unboxedParams && field instanceof OneOfField oneOf && oneOf.unboxed()) {
+                        return "%s %s, Object %s".formatted(oneOf.getEnumClassRef(), oneOf.kindName(), oneOf.valueName());
+                    }
                     if (field.type() == FieldType.ENUM && field.repeated()) {
                         return "List<?>" + " " + field.nameCamelFirstLower();
                     }
@@ -966,6 +1077,10 @@ public final class ModelGenerator implements Generator {
                         : "")
                 .replace("$constructorCode",fieldsNoPrecomputed.stream().map(field -> {
                     StringBuilder sb = new StringBuilder();
+                    // the builder keeps oneofs as OneOf objects
+                    if (field instanceof OneOfField oneOf && oneOf.unboxed() && !constructorName.equals("Builder")) {
+                        return unboxedOneOfConstructorCode(oneOf, unboxedParams);
+                    }
                     if (shouldThrowOnOneOfNull && field instanceof OneOfField) {
                         sb.append(generateConstructorCodeForField(field)).append('\n');
                     }
@@ -995,6 +1110,67 @@ public final class ModelGenerator implements Generator {
                     return sb.toString();
                 }).collect(Collectors.joining("\n")).indent(DEFAULT_INDENT * 2));
         // spotless:on
+    }
+
+    /**
+     * The constructor code storing an unboxed oneof, given as a {@code OneOf} or as its kind and value. As for boxed
+     * oneofs, a wrapper type alternative with a null value is stored as unset, since protobuf can't tell them apart.
+     *
+     * @param oneOf the oneof
+     * @param unboxedParams true if the constructor takes the kind and value
+     * @return the generated code
+     */
+    private static String unboxedOneOfConstructorCode(final OneOfField oneOf, final boolean unboxedParams) {
+        final String kind = unboxedParams ? oneOf.kindName() : oneOf.nameCamelFirstLower() + ".kind()";
+        final String value = unboxedParams ? oneOf.valueName() : oneOf.nameCamelFirstLower() + ".value()";
+        final String param = unboxedParams ? oneOf.kindName() : oneOf.nameCamelFirstLower();
+        final String wrapperKinds = oneOf.fields().stream()
+                .filter(Field::optionalValueType)
+                .map(alternative ->
+                        "%s == %s.%s".formatted(kind, oneOf.getEnumClassRef(), camelToUpperSnake(alternative.name())))
+                .collect(Collectors.joining(" || "));
+        // spotless:off
+        return """
+                if ($param == null) {
+                    throw new NullPointerException("Parameter '$param' must be supplied and can not be null");
+                }
+                """.replace("$param", param)
+                + (wrapperKinds.isEmpty()
+                        ? "this.%s = %s;%nthis.%s = %s;".formatted(oneOf.kindName(), kind, oneOf.valueName(), value)
+                        : """
+                        // protobuf can't tell a wrapper type alternative with a null value from an unset oneof
+                        final boolean $nameEmptyWrapper = $value == null && ($wrapperKinds);
+                        this.$kindName = $nameEmptyWrapper ? $enum.UNSET : $kind;
+                        this.$valueName = $value;"""
+                                .replace("$wrapperKinds", wrapperKinds)
+                                .replace("$kindName", oneOf.kindName())
+                                .replace("$valueName", oneOf.valueName())
+                                .replace("$kind", kind)
+                                .replace("$value", value)
+                                .replace("$enum", oneOf.getEnumClassRef())
+                                .replace("$name", oneOf.nameCamelFirstLower()));
+        // spotless:on
+    }
+
+    /**
+     * Whether a model has the constructor that takes each unboxed oneof as its kind and value, which parsers use so
+     * they don't allocate a {@code OneOf}. Models with copy-builder tracking or a parse cache don't, and their parsers
+     * build the {@code OneOf}.
+     *
+     * @param msgDef the message
+     * @param fields the message's fields
+     * @param lookupHelper the lookup helper
+     * @return true if the model has the constructor
+     */
+    public static boolean hasUnboxedConstructor(
+            final MessageDefContext msgDef, final List<Field> fields, final ContextualLookupHelper lookupHelper) {
+        return fields.stream().anyMatch(field -> field instanceof OneOfField oneOf && oneOf.unboxed())
+                && !lookupHelper.generateCopyBuilderTracking(msgDef)
+                && lookupHelper
+                                .getLookupHelper()
+                                .getCacheableMessageCacheSize(
+                                        lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef))
+                        == null;
     }
 
     /**
@@ -1166,7 +1342,7 @@ public final class ModelGenerator implements Generator {
                      * @return one of value or null if one of is not set or a different one of value
                      */
                     public @Nullable $javaFieldType $fieldName() {
-                        return $oneOfField.kind() == $enumName.$enumValue ? ($javaFieldType)$oneOfField.value() : null;
+                        return $oneOfKind == $enumName.$enumValue ? ($javaFieldType)$oneOfValue : null;
                     }
                     
                     /**
@@ -1175,7 +1351,7 @@ public final class ModelGenerator implements Generator {
                      * @return true of the one of kind is $enumValue
                      */
                     public boolean has$fieldNameUpperFirst() {
-                        return $oneOfField.kind() == $enumName.$enumValue;
+                        return $oneOfKind == $enumName.$enumValue;
                     }
                     
                     /**
@@ -1202,6 +1378,10 @@ public final class ModelGenerator implements Generator {
                     .replace("$fieldNameUpperFirst",field.nameCamelFirstUpper())
                     .replace("$fieldName",field.nameCamelFirstLower())
                     .replace("$javaFieldType",javaFieldType)
+                    .replace("$oneOfKind", oneOfField.unboxed()
+                            ? oneOfField.kindName() : oneOfField.nameCamelFirstLower() + ".kind()")
+                    .replace("$oneOfValue", oneOfField.unboxed()
+                            ? oneOfField.valueName() : oneOfField.nameCamelFirstLower() + ".value()")
                     .replace("$oneOfField",oneOfField.nameCamelFirstLower())
                     .replace("$enumName",enumName)
                     .replace("$enumValue",camelToUpperSnake(field.name()))
@@ -1493,7 +1673,7 @@ public final class ModelGenerator implements Generator {
                 .replace("$recordParams", CopyBuilderGenerator.constructorArguments(fields)
                         + (lookupHelper.generateCopyBuilderTracking(msgDef) ? ", $copyBuilderOrigin, $copyBuilderChanged" : ""))
                 .replace("$builderMethods", String.join("\n", builderMethods))
-                .replace("$getterMethods", generateRecordStyleGetters(fields, true))
+                .replace("$getterMethods", generateRecordStyleGetters(fields, true, false))
                 .indent(DEFAULT_INDENT);
         // spotless:on
     }

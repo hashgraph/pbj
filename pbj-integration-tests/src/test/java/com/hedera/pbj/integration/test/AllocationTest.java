@@ -73,6 +73,26 @@ final class AllocationTest {
             Map.entry("TRANSACTION_OUTPUT", 480L),
             Map.entry("TRANSACTION_RESULT", 928L));
 
+    /**
+     * The same ceilings with every fast code generation option on ({@code -PpbjPerformance=max}), which stores oneofs
+     * unboxed, so parsing allocates no {@code OneOf}. With max options but boxed oneofs
+     * ({@code -PpbjOneofStorage=boxed}) the figures were BLOCK_FOOTER 224, BLOCK_HEADER 416, BLOCK_PROOF 216,
+     * EVENT_HEADER 434, ROUND_HEADER 120, SIGNED_TRANSACTION 120, STATE_CHANGES 3554, SignedTransaction 378,
+     * TRACE_DATA 5674, TRANSACTION_OUTPUT 458 and TRANSACTION_RESULT 911: every ceiling here is below them.
+     */
+    private static final Map<String, Long> UNBOXED_PARSE_CEILINGS = Map.ofEntries(
+            Map.entry("BLOCK_FOOTER", 200L),
+            Map.entry("BLOCK_HEADER", 392L),
+            Map.entry("BLOCK_PROOF", 168L),
+            Map.entry("EVENT_HEADER", 368L),
+            Map.entry("ROUND_HEADER", 96L),
+            Map.entry("SIGNED_TRANSACTION", 96L),
+            Map.entry("STATE_CHANGES", 3016L),
+            Map.entry("SignedTransaction", 360L),
+            Map.entry("TRACE_DATA", 4592L),
+            Map.entry("TRANSACTION_OUTPUT", 352L),
+            Map.entry("TRANSACTION_RESULT", 808L));
+
     private static final Map<String, List<BlockItem>> ITEMS_BY_KIND = new TreeMap<>();
     private static final List<SignedTransaction> TRANSACTIONS = new ArrayList<>();
 
@@ -235,9 +255,14 @@ final class AllocationTest {
         ITEMS_BY_KIND.forEach((kind, items) -> figures.put(kind, parsePerOperation(items, BlockItem.PROTOBUF)));
         figures.put("SignedTransaction", parsePerOperation(TRANSACTIONS, SignedTransaction.PROTOBUF));
         System.out.println("parse(Bytes), bytes per operation: " + figures);
-        assertEquals(PARSE_CEILINGS.keySet(), figures.keySet(), "a ceiling for every kind in the sample blocks");
+        // the build says which configuration generated the code; oneofs are unboxed in max unless overridden
+        final boolean unboxed = "max".equals(System.getProperty("pbj.performance"))
+                        && !"boxed".equals(System.getProperty("pbj.oneofStorage"))
+                || "unboxed".equals(System.getProperty("pbj.oneofStorage"));
+        final Map<String, Long> ceilings = unboxed ? UNBOXED_PARSE_CEILINGS : PARSE_CEILINGS;
+        assertEquals(ceilings.keySet(), figures.keySet(), "a ceiling for every kind in the sample blocks");
         figures.forEach((kind, bytes) -> assertTrue(
-                bytes <= PARSE_CEILINGS.get(kind),
-                kind + " allocated " + bytes + " bytes per parse, ceiling " + PARSE_CEILINGS.get(kind)));
+                bytes <= ceilings.get(kind),
+                kind + " allocated " + bytes + " bytes per parse, ceiling " + ceilings.get(kind)));
     }
 }

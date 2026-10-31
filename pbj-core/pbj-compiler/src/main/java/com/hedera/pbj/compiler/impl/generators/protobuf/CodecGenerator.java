@@ -12,6 +12,7 @@ import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.generators.Generator;
+import com.hedera.pbj.compiler.impl.generators.ModelGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -169,7 +170,7 @@ public final class CodecGenerator implements Generator {
                 .replace("$codecClass", codecClassName)
                 .replace("$cacheableSupport", cacheableSupport)
                 .replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
-                .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(sbFunc, modelClassName, schemaClassName, fields, !cacheableSupport.isBlank(), lookupHelper))
+                .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(sbFunc, modelClassName, schemaClassName, fields, !cacheableSupport.isBlank(), ModelGenerator.hasUnboxedConstructor(msgDef, fields, lookupHelper), lookupHelper))
                 .replace("$parseArrayMethod", CodecParseArrayMethodGenerator.generateParseArrayMethod(msgDef, modelClassName, schemaClassName, fields, !cacheableSupport.isBlank(), lookupHelper))
                 .replace("$writeMethod", writeMethod)
                 .replace("$writeByteArrayMethod", writeByteArrayMethod)

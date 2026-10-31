@@ -225,6 +225,16 @@ public final class Common {
                 final OneOfField oneOfField = f.parent();
                 generatedCodeSoFar +=
                         getFieldsHashCode(modelClassName, oneOfField.fields(), fieldNamePrefix, generatedCodeSoFar);
+            } else if (f instanceof OneOfField oneOf && oneOf.unboxed() && fieldNamePrefix.isBlank()) {
+                // the same as OneOf.hashCode(), for a oneof that is not unset
+                generatedCodeSoFar += """
+                        if ($kind != $enum.UNSET || $value != null) {
+                           result = 31 * result + ((31 + Integer.hashCode($kind.protoOrdinal())) * 31
+                                   + ($value == null ? 0 : $value.hashCode()));
+                        }
+                        """.replace("$kind", oneOf.kindName())
+                        .replace("$value", oneOf.valueName())
+                        .replace("$enum", oneOf.getEnumClassRef());
             } else if (f.optionalValueType()) {
                 generatedCodeSoFar = getPrimitiveWrapperHashCodeGeneration(
                         generatedCodeSoFar, modelClassName, f, fieldNamePrefix, suffix);
@@ -513,7 +523,14 @@ public final class Common {
                         getFieldsEqualsStatements(oneOfField.fields(), generatedCodeSoFar, prefixFieldName);
             }
 
-            if (f.optionalValueType()) {
+            if (f instanceof OneOfField oneOf && oneOf.unboxed() && prefixFieldName.isBlank()) {
+                // the same as OneOf.equals()
+                generatedCodeSoFar += """
+                        if ($kind != thatObj.$kind || !java.util.Objects.equals($value, thatObj.$value)) {
+                            return false;
+                        }
+                        """.replace("$kind", oneOf.kindName()).replace("$value", oneOf.valueName());
+            } else if (f.optionalValueType()) {
                 generatedCodeSoFar =
                         getPrimitiveWrapperEqualsGeneration(generatedCodeSoFar, f, prefixFieldName, suffix);
             } else if (f.repeated()) {
@@ -739,6 +756,15 @@ public final class Common {
                         || f.type() == Field.FieldType.BYTES
                         || f.type() == Field.FieldType.ENUM) {
                     generatedCodeSoFar += generateCompareToForObject(f);
+                } else if (f instanceof OneOfField oneOf && oneOf.unboxed()) {
+                    verifyComparable(f);
+                    // compare the OneOf objects, built from the kind and value, as for boxed oneofs; never null
+                    generatedCodeSoFar += """
+                            result = $name().compareTo(thatObj.$name());
+                            if (result != 0) {
+                                return result;
+                            }
+                            """.replace("$name", oneOf.nameCamelFirstLower());
                 } else if (f.type() == Field.FieldType.MESSAGE || f.type() == Field.FieldType.ONE_OF) {
                     verifyComparable(f);
                     generatedCodeSoFar += generateCompareToForObject(f);

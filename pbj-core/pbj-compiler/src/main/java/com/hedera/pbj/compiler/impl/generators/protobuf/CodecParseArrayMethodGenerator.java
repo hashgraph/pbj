@@ -9,6 +9,7 @@ import com.hedera.pbj.compiler.impl.Field;
 import com.hedera.pbj.compiler.impl.MapField;
 import com.hedera.pbj.compiler.impl.OneOfField;
 import com.hedera.pbj.compiler.impl.SingleField;
+import com.hedera.pbj.compiler.impl.generators.ModelGenerator;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -52,6 +53,7 @@ final class CodecParseArrayMethodGenerator {
         if (!lookupHelper.getLookupHelper().hasArrayParser(msgDef)) {
             return "";
         }
+        final boolean unboxedConstructor = ModelGenerator.hasUnboxedConstructor(msgDef, fields, lookupHelper);
         final List<Field> sorted = fields.stream()
                 .flatMap(field -> field instanceof OneOfField oneOf ? oneOf.fields().stream() : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
@@ -147,12 +149,7 @@ final class CodecParseArrayMethodGenerator {
                 $helpers
                 """
                 .replace("$fieldDefs", fields.stream()
-                        .map(field -> "%s temp_%s = %s;".formatted(
-                                field.type() == Field.FieldType.ENUM
-                                        ? field.repeated() ? "List" : "Object"
-                                        : field.javaFieldType(),
-                                field.name(),
-                                field.javaDefault()))
+                        .map(ParseTemps::declare)
                         .collect(Collectors.joining("\n"))
                         .indent(DEFAULT_INDENT * 2))
                 .replace("$fastPath", fastPath.toString().indent(DEFAULT_INDENT * 2))
@@ -163,11 +160,12 @@ final class CodecParseArrayMethodGenerator {
                         .collect(Collectors.joining("\n"))
                         .indent(DEFAULT_INDENT * 2))
                 .replace("$helpers", helpers.toString())
-                .replace("$construct", isCacheable
-                        ? CodecParseMethodGenerator.generateCacheableSupport(modelClassName, fields)
-                        : "return new $modelClassName($fieldsList);".indent(DEFAULT_INDENT * 2))
-                .replace("$fieldsList", fields.stream().map(field -> "temp_" + field.name())
-                        .collect(Collectors.joining(", ")) + (fields.isEmpty() ? "" : ", ") + "$unknownFields")
+                .replace("$construct", (unboxedConstructor ? "" : ParseTemps.box(fields)).indent(DEFAULT_INDENT * 2)
+                        + (isCacheable
+                                ? CodecParseMethodGenerator.generateCacheableSupport(modelClassName, fields)
+                                : "return new $modelClassName($fieldsList);".indent(DEFAULT_INDENT * 2)))
+                .replace("$fieldsList", ParseTemps.arguments(fields, unboxedConstructor)
+                        + (fields.isEmpty() ? "" : ", ") + "$unknownFields")
                 .replace("$modelClassName", modelClassName)
                 .replace("$schemaClassName", schemaClassName)
                 .indent(DEFAULT_INDENT);
@@ -288,31 +286,19 @@ final class CodecParseArrayMethodGenerator {
         final OneOfField oneOf = field.parent();
         final String strictCheck = field.type() == Field.FieldType.MESSAGE && !field.optionalValueType()
                 ? """
-                if (strictMode && !temp_$oneOf.equals($unset)) {
+                if (strictMode && $isSet) {
                     throw new ParseException("A non-repeated $oneOf encountered more than once");
                 }
-                """.replace("$oneOf", oneOf.name()).replace("$unset", oneOf.javaDefault())
+                """.replace("$isSet", ParseTemps.isSet(oneOf)).replace("$oneOf", oneOf.name())
                 : "";
         if (needsHelper(field)) {
-            return strictCheck
-                    + "temp_%s = new %s<>(%s.%s, %s);%n"
-                            .formatted(
-                                    oneOf.name(),
-                                    oneOf.className(),
-                                    oneOf.getEnumClassRef(),
-                                    Common.camelToUpperSnake(field.name()),
-                                    valueHelper(field, false, lookupHelper, helpers));
+            return strictCheck + ParseTemps.set(field, valueHelper(field, false, lookupHelper, helpers));
         }
         return strictCheck
                 + """
                 final $type value;
-                $readtemp_$oneOf = new $className<>($enumRef.$kind, value);
-                """.replace("$type", valueType(field))
-                        .replace("$read", readInto(field, "value", false, lookupHelper))
-                        .replace("$oneOf", oneOf.name())
-                        .replace("$className", oneOf.className())
-                        .replace("$enumRef", oneOf.getEnumClassRef())
-                        .replace("$kind", Common.camelToUpperSnake(field.name()));
+                $read""".replace("$type", valueType(field)).replace("$read", readInto(field, "value", false, lookupHelper))
+                + ParseTemps.set(field, "value");
     }
 
     /**

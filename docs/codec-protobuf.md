@@ -225,8 +225,8 @@ contain messages with another.
 | `pbj.views` | A zero-copy, reusable view class that reads fields in place from encoded bytes |
 | `pbj.oneof_storage = "unboxed"` | Models store each oneof as a kind and a value, so parsing allocates no `OneOf` |
 
-The code each option generates is added step by step (see [fast-codegen-plan.md](fast-codegen-plan.md)). Each
-section below describes what an option generates today; an option without a section has no effect yet.
+The sections below describe what each option generates. [fast-codegen-plan.md](fast-codegen-plan.md) has the design
+and the measurements behind them.
 
 ### Byte-Array Parser (`pbj.fast_parse`)
 
@@ -332,3 +332,22 @@ they stay the same when a caller reuses its array.
 A message gets a view only if it has no maps or repeated wrapper types, and every message field's type also gets a
 view (messages may contain each other). When a message asks for a view in its own or its file's comments and gets
 none, the build prints why. A message with a view that declares its own nested message or enum named `View` fails the build.
+
+### Unboxed Oneofs (`pbj.oneof_storage = "unboxed"`)
+
+The model stores each oneof as two fields, its kind and its value, instead of a `OneOf` object, so the binary parser
+allocates no `OneOf` per oneof. The model also gets:
+
+- `xxxKind()`, which returns which alternative is set without allocating;
+- a constructor taking each oneof as its kind and value, which the parsers use. The constructor taking a `OneOf` is
+  still there.
+
+Everything else behaves as for a boxed oneof: the typed getters (`hasXxx()`, `xxx()`), `equals`, `hashCode`,
+`toString`, `compareTo`, the wire format and JSON. Only the oneof's own getter differs: `xxx()` builds a new, equal
+`OneOf` on every call, so use `xxxKind()` and the typed getters on hot paths. The binary writers read the kind and
+value directly. Builders, diffs and the JSON codec still go through `xxx()` and allocate a `OneOf`; unboxed storage is
+meant for the binary parse and write paths.
+
+Models with copy-builder tracking or a parse cache (`pbj.cacheable`) don't get the kind-and-value constructor, so
+their parsers still build a `OneOf`.
+
