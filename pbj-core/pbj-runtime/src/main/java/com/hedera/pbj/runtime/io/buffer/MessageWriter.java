@@ -29,13 +29,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * no length prefix. Read a deeper message's range when it ends, or once its top-level ancestor's child has ended.
  *
  * <p><b>Cost.</b> Checking a field costs one compare against {@link #guard}, which is the last field number written
- * while nothing is open inside this message, and {@link Integer#MAX_VALUE} while a child is open or this writer is not:
- * then the check takes a slow path that ends the child, or throws. The methods generated writers call are
- * {@code protected}. Not thread safe.
+ * while nothing is open inside this message, and above every field number while a child is open or this writer is not:
+ * then the check takes a slow path that ends the child (a few stores, inlined), or throws. The methods generated
+ * writers call are {@code protected}. Not thread safe.
  */
 public abstract class MessageWriter {
-    /** {@link #guard} while the field check must take the slow path: a child is open, or this writer is not. */
+    /** {@link #guard} while this writer is not open, or is written by {@code writeFrom}: every field check throws. */
     private static final int SLOW = Integer.MAX_VALUE;
+    /** {@link #guard} while a nested message is open inside this one: the next field check ends it first. */
+    private static final int CHILD = Integer.MAX_VALUE - 1;
 
     /** Not started yet. */
     private static final byte NEW = 0;
@@ -48,9 +50,9 @@ public abstract class MessageWriter {
 
     /** The buffer being written to, while open; generated field methods write to it directly. */
     protected ProtoWriteBuffer out;
-    /** The last field number written, or {@link #SLOW}: every field check compares with it, and nothing else. */
+    /** The last field number written, or {@link #CHILD} or {@link #SLOW}: every field check compares with it only. */
     private int guard = SLOW;
-    /** The last field number written, kept while a child is open and {@link #guard} is {@link #SLOW}. */
+    /** The last field number written, kept while a child is open and {@link #guard} is {@link #CHILD}. */
     private int lastField;
     /** One bit per oneof of the message, set once one of its alternatives has been written. */
     private long oneofs;
@@ -130,7 +132,7 @@ public abstract class MessageWriter {
     private void open(final MessageWriter child, final int reserve, final int tag) {
         // the parent's next field check takes the slow path, which ends the child
         lastField = guard;
-        guard = SLOW;
+        guard = CHILD;
         if (this.child != child) {
             this.child = child;
         }
@@ -179,25 +181,27 @@ public abstract class MessageWriter {
      * @throws IllegalStateException if the writer is not open
      */
     public final int end() {
-        if (guard == SLOW && state != WRITTEN) {
-            if (state != OPEN) {
+        if (guard >= CHILD) {
+            if (guard == CHILD) {
+                endChild();
+            } else if (state != WRITTEN) {
                 throw new IllegalStateException(notOpen());
             }
-            closeInside();
         }
         close();
         return length;
     }
 
-    /** End the message open inside this one, if there is one, and any open inside it. */
-    private void closeInside() {
+    /**
+     * End the message open inside this one, and any open inside it: called while {@link #guard} is {@link #CHILD}, so
+     * the child is open. Kept small, so the JIT inlines it into the field checks.
+     */
+    private void endChild() {
         final MessageWriter c = child;
-        if (c != null && (c.state == OPEN || c.state == WRITTEN)) {
-            if (c.guard == SLOW) {
-                c.closeInside();
-            }
-            c.close();
+        if (c.guard == CHILD) {
+            c.endChild();
         }
+        c.close();
     }
 
     /** Close this message, once nothing is open inside it. */
@@ -315,7 +319,7 @@ public abstract class MessageWriter {
      * @return true if the last field written was not this one
      */
     protected final boolean isFirstElement(final int number) {
-        return (guard == SLOW ? lastField : guard) != number;
+        return (guard == CHILD ? lastField : guard) != number;
     }
 
     /**
@@ -330,19 +334,11 @@ public abstract class MessageWriter {
     }
 
     private void checkSlow(final int number, final boolean repeated) {
-        int last = guard;
-        if (last == SLOW && state == OPEN) {
-            // a nested message was opened: end it, if it is still open, first. Usually it has nothing open inside
-            // it, and ending it is all this call does.
-            final MessageWriter c = child;
-            if (c.state == OPEN && c.guard != SLOW) {
-                c.close();
-            } else {
-                closeInside();
-            }
-            last = lastField;
-            guard = last;
+        if (guard == CHILD) {
+            // a nested message is open: end it first, which restores the guard
+            endChild();
         }
+        final int last = guard;
         if (number < last || (number == last && !repeated)) {
             throw fieldError(number, repeated, last);
         }
@@ -392,8 +388,8 @@ public abstract class MessageWriter {
 
     /** Finish writing every field from a model object: end any open nested message, and allow no more fields. */
     protected final void finishWriteFrom() {
-        if (guard == SLOW) {
-            closeInside();
+        if (guard == CHILD) {
+            endChild();
         }
         guard = SLOW;
         state = WRITTEN;
