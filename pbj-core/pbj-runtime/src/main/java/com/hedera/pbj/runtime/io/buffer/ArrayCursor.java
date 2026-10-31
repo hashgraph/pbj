@@ -278,6 +278,26 @@ public final class ArrayCursor {
     }
 
     /**
+     * If the next byte is the one-byte tag of a length-delimited field whose number is in {@code fieldMask}, consume it
+     * and return it: generated views use it for a oneof's message alternatives, any one of which comes next.
+     *
+     * @param fieldMask bit {@code n} set for each field number {@code n}, from 1 to 15, to match
+     * @return the tag, or 0 if the next byte is not such a tag
+     */
+    public int atField(final int fieldMask) {
+        final int q = p;
+        if (q < limit) {
+            final int b = in[q];
+            // a one-byte tag (no continuation bit) of wire type 2, for one of the fields
+            if ((b & 0x87) == 2 && ((fieldMask >>> (b >>> 3)) & 1) != 0) {
+                p = q + 1;
+                return b;
+            }
+        }
+        return 0;
+    }
+
+    /**
      * If the next two bytes are a two-byte tag, consume them and return true.
      *
      * @param tag0 the tag's first byte
