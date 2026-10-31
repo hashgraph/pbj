@@ -18,6 +18,20 @@ import java.util.function.UnaryOperator;
 public class UnmodifiableArrayList<E> extends ArrayList<E> {
     private boolean isReadOnly = false;
 
+    /** Create an empty list with the default capacity. */
+    public UnmodifiableArrayList() {
+        super();
+    }
+
+    /**
+     * Create an empty list with room for {@code initialCapacity} elements.
+     *
+     * @param initialCapacity the number of elements the list can hold before it grows
+     */
+    public UnmodifiableArrayList(final int initialCapacity) {
+        super(initialCapacity);
+    }
+
     /**
      * Mark this list as read-only.
      * After this call, any mutating methods will throw the `UnsupportedOperationException`.

@@ -173,6 +173,49 @@ final class ArrayCursorTest {
     }
 
     @Test
+    void runsOfDelimitedFieldsAreCountedWithoutReading() {
+        // three field-1 messages of 0, 2 and 200 bytes, then field 2, then field 1 again
+        final byte[] big = new byte[200];
+        final byte[] in = concat(
+                new byte[] {0x0A, 0},
+                new byte[] {0x0A, 2, 7, 7},
+                new byte[] {0x0A, (byte) 0xC8, 1},
+                big,
+                new byte[] {0x12, 0},
+                new byte[] {0x0A, 0});
+        final ArrayCursor cursor = cursor(in);
+        assertEquals(3, cursor.run((byte) 0x0A));
+        assertEquals(0, cursor.position(), "nothing read");
+        assertEquals(0, cursor.run((byte) 0x12));
+        // cut short: a length past the limit, or a length that does not end, stops the count
+        assertEquals(1, new ArrayCursor(in, 0, 5).run((byte) 0x0A));
+        assertEquals(2, new ArrayCursor(in, 0, 7).run((byte) 0x0A));
+        assertEquals(
+                0,
+                cursor(new byte[] {0x0A, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, 1})
+                        .run((byte) 0x0A));
+        assertEquals(0, cursor(new byte[0]).run((byte) 0x0A));
+        // long runs are not counted: too many fields, or too many bytes
+        final byte[] many = new byte[2 * (ArrayCursor.MAX_RUN + 1)];
+        for (int i = 0; i < many.length; i += 2) {
+            many[i] = 0x0A;
+        }
+        assertEquals(0, cursor(many).run((byte) 0x0A));
+        assertEquals(ArrayCursor.MAX_RUN, new ArrayCursor(many, 0, 2 * ArrayCursor.MAX_RUN).run((byte) 0x0A));
+        final byte[] large = concat(new byte[] {0x0A, (byte) 0xFF, (byte) 0xFF, 0x03}, new byte[0xFFFF]);
+        assertEquals(1, cursor(large).run((byte) 0x0A));
+        assertEquals(0, cursor(concat(large, new byte[] {0x0A, 0})).run((byte) 0x0A));
+    }
+
+    private static byte[] concat(final byte[]... parts) {
+        final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        for (final byte[] part : parts) {
+            out.writeBytes(part);
+        }
+        return out.toByteArray();
+    }
+
+    @Test
     void fixedValuesAreLittleEndian() {
         assertEquals(0x04030201, cursor(bytes(1, 2, 3, 4)).fixed32());
         assertEquals(0x0807060504030201L, cursor(bytes(1, 2, 3, 4, 5, 6, 7, 8)).fixed64());

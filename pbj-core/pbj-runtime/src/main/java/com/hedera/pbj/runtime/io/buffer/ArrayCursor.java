@@ -232,6 +232,51 @@ public final class ArrayCursor {
         return false;
     }
 
+    /** The most fields {@link #run} counts. */
+    static final int MAX_RUN = 4096;
+    /** The most bytes {@link #run} looks through. */
+    static final int MAX_RUN_BYTES = 64 * 1024;
+
+    /**
+     * Count the length-delimited fields with a one-byte tag that follow one another from here, as the elements of a
+     * repeated field do, without reading them: so a parser can size their list once. Stops at anything malformed, which
+     * reading the fields then reports. Only short runs are counted, which are still in cache when they are read: for a
+     * longer one, such as a block's items, counting first was slower than letting the list grow.
+     *
+     * @param tag the fields' one-byte tag, wire type 2
+     * @return the number of such fields before any other byte, or 0 if the next byte is not {@code tag} or the run is
+     *     longer than {@value #MAX_RUN} fields or {@value #MAX_RUN_BYTES} bytes
+     */
+    public int run(final byte tag) {
+        final int end = p + Math.min(limit - p, MAX_RUN_BYTES);
+        int q = p;
+        int count = 0;
+        while (q < limit && in[q] == tag) {
+            if (count == MAX_RUN || q >= end) {
+                return 0;
+            }
+            q++;
+            // the length: a varint of at most five bytes
+            int length = 0;
+            int shift = 0;
+            byte b;
+            do {
+                if (q >= limit || shift > 28) {
+                    return count;
+                }
+                b = in[q++];
+                length |= (b & 0x7F) << shift;
+                shift += 7;
+            } while (b < 0);
+            if (length < 0 || length > limit - q) {
+                return count;
+            }
+            q += length;
+            count++;
+        }
+        return count;
+    }
+
     /**
      * If the next two bytes are a two-byte tag, consume them and return true.
      *
