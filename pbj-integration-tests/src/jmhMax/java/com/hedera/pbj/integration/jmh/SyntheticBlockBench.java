@@ -237,7 +237,9 @@ public class SyntheticBlockBench {
     public void referenceProduce(final Blackhole bh) {
         cursor.reset();
         for (int i = 0; i < BLOCK.items; i++) {
-            bh.consume(reference.encodeItem(cursor));
+            // the reverse-write result, in the buffer the codec owns; no copy to offset 0 (encodeItem does that,
+            // for callers that need it)
+            bh.consume(reference.encodeItemReverse(cursor));
         }
     }
 

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.test.synthetic;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -12,27 +16,35 @@ import java.util.List;
  * validation" below.
  *
  * <h2>Encoding strategy</h2>
- * Protobuf needs a nested message's length before its tag can be written, but {@link SyntheticBlock.Cursor} only
- * reads forward, once. For every nested message whose size cannot be computed directly from already-read values
- * (because it has a dynamic number of repeated elements: a transfer list, a token transfer list, or a block of state
- * changes) this codec writes the elements into a small reusable {@link ByteBuilder} scratch buffer first; once that
- * buffer holds the element's complete bytes, its length is just {@link ByteBuilder#length}, so the parent can write
- * the element's tag and length and then copy the bytes in. Everything else (identifiers, timestamps, amounts, and
- * every state-change operation, which all have a fixed shape once their discriminant is known) is sized with a small
- * closed-form formula and written directly, field by field, in ascending field order, with no buffering at all. Both
- * techniques produce exactly the same bytes as the forward (measure-then-write) and reverse generated writers.
+ * Every item is written back to front (upb's and PBJ's {@code ReverseBuffer} technique), into a {@link RevBuf} this
+ * codec owns: a nested message's content is written before its length and tag, so the length is just the number of
+ * bytes written since it began, with no measuring pass, no scratch buffer per nesting level and no copy between
+ * levels. Fields are written in descending field order so that, read forward, they come out in ascending order,
+ * byte-identical to protoc and to PBJ's forward and reverse writers. Varints of two to eight bytes use a single
+ * 8-byte little-endian store into the free space below the write position: unlike a forward writer, that store never
+ * needs an end guard, because the space below the write position is free until written. Because {@link
+ * SyntheticBlock.Cursor} only reads its flat value stream forward, once, a message or list element's values are read
+ * into locals (or, for a repeated field, into small reusable primitive arrays, grown as needed and then reused) before
+ * any of it is written, so the write order can run backward over already-read data. One copy remains: {@link
+ * #encodeItem} and {@link #encodeBlock} place the result at offset 0 of a buffer this codec owns, for callers that
+ * need that; {@link #encodeItemReverse} skips it, for the per-item benchmark.
  *
- * <h2>Scanning</h2>
- * {@link #scanItem}, {@link #scanBlock} and {@link #scanTransaction} are a conventional recursive-descent protobuf
- * parser reading directly from a {@code byte[]}: for every field read, decode the value and recurse into length-
- * delimited content with a nested call; for every field not in this subset, skip it by wire type. No objects are
- * allocated.
- *
- * <h2>Decoding into objects</h2>
- * {@link #decodeBlock} and {@link #decodeTransaction} build a lightweight hand-written object model for the same
- * subset (small records and sealed interfaces below), allocating only the objects the data actually needs: arrays
- * sized to the repeated field's count, one record per message. {@link #scan(RBlock)} and {@link #scan(RSignedTx)} sum
- * the decoded objects' fields, and must return the sums {@link ScanObjects} does.
+ * <h2>Scanning and decoding</h2>
+ * {@link #scanItem}, {@link #scanBlock}, {@link #scanTransaction}, {@link #decodeBlock}, {@link #decodeItem} and
+ * {@link #decodeTransaction} (and the private methods they call, for every message in the subset) parse in order with
+ * a general fallback, PBJ's "fast parse" technique: a message's fields are tested one at a time, in ascending field
+ * number order, against the single byte a canonically-encoded field's tag would be; a sequence of plain fields is a
+ * sequence of such one-byte compares, each consuming its field when it matches. Once a check fails to match (an
+ * out-of-order, repeated beyond a fast-pathed prefix, oneof or unknown field) a conventional tag-then-switch loop
+ * reads everything that is left, so the result is identical regardless of field order and strict about nothing this
+ * reference does not validate. Varints are read with PBJ's XOR-chain algorithm, with the one-byte case inlined at the
+ * read call so the common case never calls out to the multi-byte path. Oneof members stay in the general loop rather
+ * than the fast path, as PBJ's generator does, because copying every alternative into the fast path only grows the
+ * method without saving a compare. {@link #scanItem}, {@link #scanBlock} and {@link #scanTransaction} read directly
+ * from a {@code byte[]} and allocate nothing; {@link #decodeBlock} and {@link #decodeTransaction} build a lightweight
+ * hand-written object model for the same subset (small records and sealed interfaces below), allocating only the
+ * objects the data actually needs. {@link #scan(RBlock)} and {@link #scan(RSignedTx)} sum the decoded objects' fields,
+ * and must return the sums {@link ScanObjects} does.
  *
  * <h2>Correctness over validation</h2>
  * This is a benchmark reference, not a hardened parser: there is no strict-mode length/UTF-8/bounds checking, and
@@ -73,281 +85,9 @@ public final class ReferenceCodec {
         return varintSize(((long) fieldNumber << 3) | wireType);
     }
 
-    /** The size of a message field wrapping {@code contentSize} bytes, always written (oneof, or known present). */
-    private static int sizeMsgField(final int fieldNumber, final int contentSize) {
-        return tagSize(fieldNumber, WT_LEN) + varintSize(contentSize) + contentSize;
-    }
-
-    /** The size of a plain (non-oneof) varint-ish field, omitted when {@code value} is the default (zero). */
-    private static int sizeVarintField(final int fieldNumber, final long value) {
-        return value == 0 ? 0 : tagSize(fieldNumber, WT_VARINT) + varintSize(value);
-    }
-
-    private static int sizeBoolField(final int fieldNumber, final boolean value) {
-        return value ? tagSize(fieldNumber, WT_VARINT) + 1 : 0;
-    }
-
-    // =================================================================================================== ByteBuilder
-
-    /** A small reusable, growable, forward-appending byte buffer: a hand-written {@code ByteArrayOutputStream}. */
-    static final class ByteBuilder {
-        byte[] array;
-        int length;
-
-        ByteBuilder(final int initialCapacity) {
-            array = new byte[initialCapacity];
-        }
-
-        void reset() {
-            length = 0;
-        }
-
-        private void ensure(final int more) {
-            if (length + more > array.length) {
-                array = java.util.Arrays.copyOf(array, Math.max(array.length * 2, length + more));
-            }
-        }
-
-        void varint(long value) {
-            ensure(10);
-            while (true) {
-                if ((value & ~0x7FL) == 0) {
-                    array[length++] = (byte) value;
-                    return;
-                }
-                array[length++] = (byte) ((value & 0x7F) | 0x80);
-                value >>>= 7;
-            }
-        }
-
-        void tag(final int fieldNumber, final int wireType) {
-            varint(((long) fieldNumber << 3) | wireType);
-        }
-
-        void raw(final byte[] src, final int offset, final int len) {
-            ensure(len);
-            System.arraycopy(src, offset, array, length, len);
-            length += len;
-        }
-    }
-
-    /** Write {@code child}'s bytes as the content of a length-delimited field, always (oneof, or known present). */
-    private static void appendMsgField(final ByteBuilder parent, final int fieldNumber, final ByteBuilder child) {
-        parent.tag(fieldNumber, WT_LEN);
-        parent.varint(child.length);
-        parent.raw(child.array, 0, child.length);
-    }
-
-    private static void appendVarintField(final ByteBuilder b, final int fieldNumber, final long value) {
-        if (value != 0) {
-            b.tag(fieldNumber, WT_VARINT);
-            b.varint(value);
-        }
-    }
-
-    private static void appendBoolField(final ByteBuilder b, final int fieldNumber, final boolean value) {
-        if (value) {
-            b.tag(fieldNumber, WT_VARINT);
-            b.varint(1);
-        }
-    }
-
-    private static void appendBytesField(
-            final ByteBuilder b, final int fieldNumber, final byte[] src, final int offset, final int length) {
-        if (length != 0) {
-            b.tag(fieldNumber, WT_LEN);
-            b.varint(length);
-            b.raw(src, offset, length);
-        }
-    }
-
-    // ------------------------------------------------------------------------------------------- leaf message types
-
-    /** {@code AccountID}: shard/realm are always 0 (mainnet); {@code accountNum} is a oneof member, always written. */
-    private static int sizeAccountIdContent(final long accountNum) {
-        return tagSize(3, WT_VARINT) + varintSize(accountNum);
-    }
-
-    private static void appendAccountIdField(final ByteBuilder b, final int fieldNumber, final long accountNum) {
-        b.tag(fieldNumber, WT_LEN);
-        b.varint(sizeAccountIdContent(accountNum));
-        b.tag(3, WT_VARINT);
-        b.varint(accountNum);
-    }
-
-    /** {@code TokenID}: shard/realm always 0; {@code tokenNum} is a plain field, omitted only if ever 0. */
-    private static int sizeTokenIdContent(final long tokenNum) {
-        return sizeVarintField(3, tokenNum);
-    }
-
-    private static void appendTokenIdField(final ByteBuilder b, final int fieldNumber, final long tokenNum) {
-        b.tag(fieldNumber, WT_LEN);
-        b.varint(sizeTokenIdContent(tokenNum));
-        appendVarintField(b, 3, tokenNum);
-    }
-
-    private static int sizeTimestampContent(final long seconds, final int nanos) {
-        return sizeVarintField(1, seconds) + sizeVarintField(2, nanos);
-    }
-
-    private static void appendTimestampField(
-            final ByteBuilder b, final int fieldNumber, final long seconds, final int nanos) {
-        b.tag(fieldNumber, WT_LEN);
-        b.varint(sizeTimestampContent(seconds, nanos));
-        appendVarintField(b, 1, seconds);
-        appendVarintField(b, 2, nanos);
-    }
-
-    private static int sizeNftIdContent(final long tokenNum, final long serial) {
-        return sizeMsgField(1, sizeTokenIdContent(tokenNum)) + sizeVarintField(2, serial);
-    }
-
-    private static void appendNftIdField(
-            final ByteBuilder b, final int fieldNumber, final long tokenNum, final long serial) {
-        b.tag(fieldNumber, WT_LEN);
-        b.varint(sizeNftIdContent(tokenNum, serial));
-        appendTokenIdField(b, 1, tokenNum);
-        appendVarintField(b, 2, serial);
-    }
-
-    private static int sizeAccountAmountContent(final long accountNum, final long amount) {
-        return sizeMsgField(1, sizeAccountIdContent(accountNum)) + sizeVarintField(2, zigzag(amount));
-    }
-
-    private static void appendAccountAmountField(
-            final ByteBuilder b, final int fieldNumber, final long accountNum, final long amount) {
-        b.tag(fieldNumber, WT_LEN);
-        b.varint(sizeAccountAmountContent(accountNum, amount));
-        appendAccountIdField(b, 1, accountNum);
-        appendVarintField(b, 2, zigzag(amount));
-    }
-
-    // ================================================================================================ ENCODE: items
-
-    private static final byte[] SEMVER_CONTENT = {0x10, 0x42}; // SemanticVersion{minor=66}: tag(2,VARINT), 66
-
-    private static void appendSemanticVersionConst(final ByteBuilder b, final int fieldNumber) {
-        b.tag(fieldNumber, WT_LEN);
-        b.varint(SEMVER_CONTENT.length);
-        b.raw(SEMVER_CONTENT, 0, SEMVER_CONTENT.length);
-    }
-
-    /** Growable output of the last {@link #encodeItem} or {@link #encodeBlock} call. Reused; copy out before reuse. */
-    private byte[] out = new byte[1 << 16];
-
-    private int outPos;
-
-    private final ByteBuilder content = new ByteBuilder(512);
-    private final ByteBuilder pairsBuf = new ByteBuilder(64);
-    private final ByteBuilder oneListBuf = new ByteBuilder(64);
-    private final ByteBuilder listsBuf = new ByteBuilder(64);
-    private final ByteBuilder changesBuf = new ByteBuilder(2048);
-    private final ByteBuilder changeContentBuf = new ByteBuilder(96);
-    private final ByteBuilder nestA = new ByteBuilder(64);
-    private final ByteBuilder nestB = new ByteBuilder(64);
-    private final ByteBuilder nestC = new ByteBuilder(64);
-
-    /** The buffer written by {@link #encodeItem} and {@link #encodeBlock}, valid for {@code [0, length)}. */
-    public byte[] buffer() {
-        return out;
-    }
-
-    private void ensureOut(final int capacity) {
-        if (out.length < capacity) {
-            out = java.util.Arrays.copyOf(out, Math.max(capacity, out.length * 2));
-        }
-    }
-
-    /**
-     * Encode the next item from {@code c} as one {@code BlockItem} (the message body, not the outer {@code Block}
-     * field tag), into {@link #buffer()}.
-     *
-     * @return the number of bytes written
-     */
-    public int encodeItem(final SyntheticBlock.Cursor c) {
-        outPos = 0;
-        writeItem(c);
-        return outPos;
-    }
-
-    /**
-     * Encode every item of {@code block} as a whole {@code Block} (repeated field 1), into {@link #buffer()}.
-     *
-     * @return the number of bytes written
-     */
-    public int encodeBlock(final SyntheticBlock block) {
-        outPos = 0;
-        final SyntheticBlock.Cursor c = block.cursor();
-        for (int i = 0; i < block.items; i++) {
-            final int start = outPos;
-            // reserve room for the outer tag + a worst-case varint length, then shift the item down if it is smaller
-            ensureOut(outPos + 1 + 10);
-            outPos += 1 + 10;
-            writeItem(c);
-            final int itemLength = outPos - (start + 1 + 10);
-            final int lengthSize = varintSize(itemLength);
-            // shift the item bytes left so the tag + exact-size length sit immediately before them
-            System.arraycopy(out, start + 1 + 10, out, start + 1 + lengthSize, itemLength);
-            out[start] = 0x0A; // tag(1, LEN)
-            int p = start + 1;
-            long v = itemLength;
-            while (true) {
-                if ((v & ~0x7FL) == 0) {
-                    out[p++] = (byte) v;
-                    break;
-                }
-                out[p++] = (byte) ((v & 0x7F) | 0x80);
-                v >>>= 7;
-            }
-            outPos = start + 1 + lengthSize + itemLength;
-        }
-        return outPos;
-    }
-
-    private void writeItem(final SyntheticBlock.Cursor c) {
-        content.reset();
-        final int kind = c.i();
-        final int fieldNumber =
-                switch (kind) {
-                    case SyntheticBlock.KIND_BLOCK_HEADER -> {
-                        encodeBlockHeader(c, content);
-                        yield 1;
-                    }
-                    case SyntheticBlock.KIND_SIGNED_TRANSACTION -> {
-                        final int offset = c.i();
-                        final int length = c.i();
-                        ensureOut(outPos + tagSize(4, WT_LEN) + varintSize(length) + length);
-                        outPos = appendTag(out, outPos, 4, WT_LEN);
-                        outPos = appendVarint(out, outPos, length);
-                        System.arraycopy(c.heap(), offset, out, outPos, length);
-                        outPos += length;
-                        yield 0; // already written directly; nothing more to do
-                    }
-                    case SyntheticBlock.KIND_TRANSACTION_RESULT -> {
-                        encodeTransactionResult(c, content);
-                        yield 5;
-                    }
-                    case SyntheticBlock.KIND_STATE_CHANGES -> {
-                        encodeStateChanges(c, content);
-                        yield 7;
-                    }
-                    case SyntheticBlock.KIND_BLOCK_FOOTER -> {
-                        encodeBlockFooter(c, content);
-                        yield 12;
-                    }
-                    case SyntheticBlock.KIND_BLOCK_PROOF -> {
-                        encodeBlockProof(c, content);
-                        yield 9;
-                    }
-                    default -> throw new IllegalStateException("Unknown item kind");
-                };
-        if (fieldNumber != 0) {
-            ensureOut(outPos + tagSize(fieldNumber, WT_LEN) + varintSize(content.length) + content.length);
-            outPos = appendTag(out, outPos, fieldNumber, WT_LEN);
-            outPos = appendVarint(out, outPos, content.length);
-            System.arraycopy(content.array, 0, out, outPos, content.length);
-            outPos += content.length;
-        }
+    /** The one-byte tag of a field in this subset (every field number used here is at most 15, or part of a oneof). */
+    private static byte tagByte(final int fieldNumber, final int wireType) {
+        return (byte) ((fieldNumber << 3) | wireType);
     }
 
     private static int appendVarint(final byte[] buf, int pos, long value) {
@@ -365,212 +105,691 @@ public final class ReferenceCodec {
         return appendVarint(buf, pos, ((long) fieldNumber << 3) | wireType);
     }
 
-    private static void encodeBlockHeader(final SyntheticBlock.Cursor c, final ByteBuilder content) {
-        final long number = c.l();
-        final long seconds = c.l();
-        final int nanos = c.i();
-        appendSemanticVersionConst(content, 1);
-        appendSemanticVersionConst(content, 2);
-        appendVarintField(content, 3, number);
-        appendTimestampField(content, 4, seconds, nanos);
-        // field 5 (hash_algorithm) is SHA2_384 == 0, the default: omitted
-    }
+    // ===================================================================================================== RevBuf
 
-    private static void encodeBlockFooter(final SyntheticBlock.Cursor c, final ByteBuilder content) {
-        appendBytesField(content, 1, c.heap(), c.i(), c.i());
-        appendBytesField(content, 2, c.heap(), c.i(), c.i());
-        appendBytesField(content, 3, c.heap(), c.i(), c.i());
-    }
+    /**
+     * A reusable buffer this codec writes a message into back to front, from its end toward its start (5.4 of
+     * {@code docs/fast-codegen-plan.md}: upb's and PBJ's {@code ReverseBuffer} technique). A nested message's content
+     * is written before its length and tag, so the length is simply the bytes written since it began: no measuring
+     * pass, and nothing is ever shifted. Fields and list elements are written in descending order, so the result
+     * reads front to back in ascending field order, byte-identical to a forward writer.
+     *
+     * <p>{@link #varint} writes two- to eight-byte varints with a single 8-byte little-endian store (5.1) into the
+     * free space below the write position. A forward writer bounds that store by the message end, because the bytes
+     * past it may belong to the caller; here the bytes below the write position are always free (not yet written),
+     * so the store needs no such guard, only enough headroom, which {@link #ensure} provides.
+     */
+    private static final class RevBuf {
+        private static final VarHandle LONG_LE =
+                MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
-    private static void encodeBlockProof(final SyntheticBlock.Cursor c, final ByteBuilder content) {
-        final long block = c.l();
-        final int offset = c.i();
-        final int length = c.i();
-        appendVarintField(content, 1, block);
-        // signed_block_proof (field 2, oneof member, always written) wraps TssSignedBlockProof{block_signature=1}
-        final int innerSize = length == 0 ? 0 : tagSize(1, WT_LEN) + varintSize(length) + length;
-        content.tag(2, WT_LEN);
-        content.varint(innerSize);
-        if (length != 0) {
-            content.tag(1, WT_LEN);
-            content.varint(length);
-            content.raw(c.heap(), offset, length);
+        byte[] buf;
+        int pos;
+
+        RevBuf(final int initialCapacity) {
+            buf = new byte[initialCapacity];
+            pos = buf.length;
+        }
+
+        /** Discard the output, ready to write another message. */
+        void reset() {
+            pos = buf.length;
+        }
+
+        /** @return the number of bytes written since the last {@link #reset} */
+        int length() {
+            return buf.length - pos;
+        }
+
+        /** @return the current mark, to pass to {@link #lengthSince} after writing a nested message */
+        int mark() {
+            return buf.length - pos;
+        }
+
+        /** Write, as a varint before it, the length of everything written since {@code mark}. */
+        void lengthSince(final int mark) {
+            varint(buf.length - pos - mark);
+        }
+
+        /** Make room for at least {@code n} more bytes below the write position. */
+        void ensure(final int n) {
+            if (pos < n) {
+                grow(n);
+            }
+        }
+
+        private void grow(final int n) {
+            final int used = buf.length - pos;
+            final byte[] bigger = new byte[Math.max(buf.length * 2, used + n + 16)];
+            System.arraycopy(buf, pos, bigger, bigger.length - used, used);
+            buf = bigger;
+            pos = bigger.length - used;
+        }
+
+        /** Write a field's tag. */
+        void tag(final int fieldNumber, final int wireType) {
+            varint(((long) fieldNumber << 3) | wireType);
+        }
+
+        /** Write an unsigned varint; see the class doc for the single-store technique. */
+        void varint(final long v) {
+            ensure(8);
+            if ((v & ~0x7FL) == 0) {
+                buf[--pos] = (byte) v;
+                return;
+            }
+            if ((v >>> 56) != 0) {
+                varintSlow(v);
+                return;
+            }
+            final int size = (64 - Long.numberOfLeadingZeros(v) + 6) / 7; // 2..8
+            final long spread = (v & 0x7FL)
+                    | ((v & 0x3F80L) << 1)
+                    | ((v & 0x1FC000L) << 2)
+                    | ((v & 0xFE00000L) << 3)
+                    | ((v & 0x7F0000000L) << 4)
+                    | ((v & 0x3F800000000L) << 5)
+                    | ((v & 0x1FC0000000000L) << 6)
+                    | ((v & 0xFE000000000000L) << 7);
+            final long continuation = 0x8080808080808080L & ((1L << ((size - 1) << 3)) - 1);
+            // the word's low (8 - size) bytes are free space below the final position; shift the varint up to the
+            // word's top `size` bytes, which land exactly at [pos - size, pos) once pos is decremented
+            LONG_LE.set(buf, pos - 8, (spread | continuation) << ((8 - size) << 3));
+            pos -= size;
+        }
+
+        /** A 9- or 10-byte varint (value at least 2^56): outside this workload, but handled for correctness. */
+        private void varintSlow(long v) {
+            int size = 1;
+            for (long t = v >>> 7; t != 0; t >>>= 7) {
+                size++;
+            }
+            ensure(size);
+            pos -= size;
+            int p = pos;
+            while (true) {
+                if ((v & ~0x7FL) == 0) {
+                    buf[p] = (byte) v;
+                    return;
+                }
+                buf[p++] = (byte) ((v & 0x7F) | 0x80);
+                v >>>= 7;
+            }
+        }
+
+        /** Write {@code length} raw bytes, ending at the current position. */
+        void raw(final byte[] src, final int offset, final int length) {
+            ensure(length);
+            pos -= length;
+            System.arraycopy(src, offset, buf, pos, length);
+        }
+
+        /** Copy the output to {@code dst[offset..]}, forward order; @return the number of bytes copied */
+        int copyTo(final byte[] dst, final int offset) {
+            final int length = buf.length - pos;
+            System.arraycopy(buf, pos, dst, offset, length);
+            return length;
         }
     }
 
-    private void encodeTransactionResult(final SyntheticBlock.Cursor c, final ByteBuilder content) {
+    // ============================================================================================ ENCODE: leaves
+
+    private static final byte[] SEMVER_CONTENT = {0x10, 0x42}; // SemanticVersion{minor=66}: tag(2,VARINT), 66
+
+    private static void writeSemanticVersionConstReverse(final RevBuf b, final int fieldNumber) {
+        final int m = b.mark();
+        b.raw(SEMVER_CONTENT, 0, SEMVER_CONTENT.length);
+        b.lengthSince(m);
+        b.tag(fieldNumber, WT_LEN);
+    }
+
+    /** {@code AccountID}: shard/realm are always 0 (mainnet); {@code accountNum} is a oneof member, always written. */
+    private static void writeAccountIdReverse(final RevBuf b, final int fieldNumber, final long accountNum) {
+        final int m = b.mark();
+        b.varint(accountNum);
+        b.tag(3, WT_VARINT);
+        b.lengthSince(m);
+        b.tag(fieldNumber, WT_LEN);
+    }
+
+    /** {@code TokenID}: shard/realm always 0; {@code tokenNum} is a plain field, omitted only if ever 0. */
+    private static void writeTokenIdReverse(final RevBuf b, final int fieldNumber, final long tokenNum) {
+        final int m = b.mark();
+        if (tokenNum != 0) {
+            b.varint(tokenNum);
+            b.tag(3, WT_VARINT);
+        }
+        b.lengthSince(m);
+        b.tag(fieldNumber, WT_LEN);
+    }
+
+    private static void writeTimestampReverse(
+            final RevBuf b, final int fieldNumber, final long seconds, final int nanos) {
+        final int m = b.mark();
+        if (nanos != 0) {
+            b.varint(nanos);
+            b.tag(2, WT_VARINT);
+        }
+        if (seconds != 0) {
+            b.varint(seconds);
+            b.tag(1, WT_VARINT);
+        }
+        b.lengthSince(m);
+        b.tag(fieldNumber, WT_LEN);
+    }
+
+    private static void writeNftIdReverse(
+            final RevBuf b, final int fieldNumber, final long tokenNum, final long serial) {
+        final int m = b.mark();
+        if (serial != 0) {
+            b.varint(serial);
+            b.tag(2, WT_VARINT);
+        }
+        writeTokenIdReverse(b, 1, tokenNum); // always written, even if the content is empty
+        b.lengthSince(m);
+        b.tag(fieldNumber, WT_LEN);
+    }
+
+    private static void writeAccountAmountReverse(
+            final RevBuf b, final int fieldNumber, final long accountNum, final long amount) {
+        final int m = b.mark();
+        final long z = zigzag(amount);
+        if (z != 0) {
+            b.varint(z);
+            b.tag(2, WT_VARINT);
+        }
+        writeAccountIdReverse(b, 1, accountNum); // always written
+        b.lengthSince(m);
+        b.tag(fieldNumber, WT_LEN);
+    }
+
+    private static void writeBytesFieldReverse(
+            final RevBuf b, final int fieldNumber, final byte[] src, final int offset, final int length) {
+        if (length != 0) {
+            b.raw(src, offset, length);
+            b.varint(length);
+            b.tag(fieldNumber, WT_LEN);
+        }
+    }
+
+    // ============================================================================================= ENCODE: items
+
+    /** Growable output of the last {@link #encodeItem} or {@link #encodeBlock} call. Reused; copy out before reuse. */
+    private byte[] out = new byte[1 << 16];
+
+    private int outPos;
+
+    /** The message this codec is currently writing, back to front. */
+    private final RevBuf rev = new RevBuf(1 << 12);
+
+    // reusable scratch for a transaction result's balance-change list (field 7) and token transfer lists (field 8);
+    // grown as needed and then reused, so a steady state of items this size or smaller allocates nothing
+    private long[] taAccount = new long[8];
+    private long[] taAmount = new long[8];
+    private long[] ttlToken = new long[4];
+    private int[] ttlStart = new int[4];
+    private int[] ttlCount = new int[4];
+    private long[] ttAccount = new long[16];
+    private long[] ttAmount = new long[16];
+
+    // reusable scratch for a state changes item's list of changes: stride 8 (stateId, op, up to 6 values; unused
+    // slots depend on the op and are never read back)
+    private long[] scVals = new long[8 * 16];
+
+    /** The buffer written by {@link #encodeItem} and {@link #encodeBlock}, valid for {@code [0, length)}. */
+    public byte[] buffer() {
+        return out;
+    }
+
+    private void ensureOut(final int capacity) {
+        if (out.length < capacity) {
+            out = Arrays.copyOf(out, Math.max(capacity, out.length * 2));
+        }
+    }
+
+    private static long[] ensureCap(long[] a, final int n) {
+        return a.length < n ? Arrays.copyOf(a, Math.max(n, a.length * 2)) : a;
+    }
+
+    private static int[] ensureCap(int[] a, final int n) {
+        return a.length < n ? Arrays.copyOf(a, Math.max(n, a.length * 2)) : a;
+    }
+
+    /**
+     * Encode the next item from {@code c} back to front into the buffer {@link #reverseArray()} owns, with no copy:
+     * the per-item benchmark path.
+     *
+     * @return the number of bytes written
+     */
+    public int encodeItemReverse(final SyntheticBlock.Cursor c) {
+        rev.reset();
+        writeItemReverse(c, rev);
+        return rev.length();
+    }
+
+    /** @return the offset in {@link #reverseArray()} of the bytes the last {@link #encodeItemReverse} call wrote */
+    public int reverseOffset() {
+        return rev.pos;
+    }
+
+    /** @return the buffer {@link #encodeItemReverse} wrote into, valid at {@code [reverseOffset(), +length)} */
+    public byte[] reverseArray() {
+        return rev.buf;
+    }
+
+    /**
+     * Encode the next item from {@code c} as one {@code BlockItem} (the message body, not the outer {@code Block}
+     * field tag), into {@link #buffer()} at offset 0.
+     *
+     * @return the number of bytes written
+     */
+    public int encodeItem(final SyntheticBlock.Cursor c) {
+        final int length = encodeItemReverse(c);
+        ensureOut(length);
+        rev.copyTo(out, 0);
+        return length;
+    }
+
+    /**
+     * Encode every item of {@code block} as a whole {@code Block} (repeated field 1), into {@link #buffer()}. Each
+     * item's content is produced back to front (so its exact length is known with no measuring pass) and then copied
+     * once into {@link #buffer()}; items themselves stay in forward order because {@link SyntheticBlock.Cursor} reads
+     * its value stream forward, once, so they cannot be produced back to front across the whole block.
+     *
+     * @return the number of bytes written
+     */
+    public int encodeBlock(final SyntheticBlock block) {
+        outPos = 0;
+        final SyntheticBlock.Cursor c = block.cursor();
+        for (int i = 0; i < block.items; i++) {
+            final int length = encodeItemReverse(c);
+            ensureOut(outPos + tagSize(1, WT_LEN) + varintSize(length) + length);
+            outPos = appendTag(out, outPos, 1, WT_LEN);
+            outPos = appendVarint(out, outPos, length);
+            rev.copyTo(out, outPos);
+            outPos += length;
+        }
+        return outPos;
+    }
+
+    private void writeItemReverse(final SyntheticBlock.Cursor c, final RevBuf b) {
+        final int kind = c.i();
+        switch (kind) {
+            case SyntheticBlock.KIND_BLOCK_HEADER -> {
+                final int m = b.mark();
+                writeBlockHeaderReverse(c, b);
+                b.lengthSince(m);
+                b.tag(1, WT_LEN);
+            }
+            case SyntheticBlock.KIND_SIGNED_TRANSACTION -> {
+                final int offset = c.i();
+                final int length = c.i();
+                b.raw(c.heap(), offset, length);
+                b.varint(length);
+                b.tag(4, WT_LEN);
+            }
+            case SyntheticBlock.KIND_TRANSACTION_RESULT -> {
+                final int m = b.mark();
+                writeTransactionResultReverse(c, b);
+                b.lengthSince(m);
+                b.tag(5, WT_LEN);
+            }
+            case SyntheticBlock.KIND_STATE_CHANGES -> {
+                final int m = b.mark();
+                writeStateChangesReverse(c, b);
+                b.lengthSince(m);
+                b.tag(7, WT_LEN);
+            }
+            case SyntheticBlock.KIND_BLOCK_FOOTER -> {
+                final int m = b.mark();
+                writeBlockFooterReverse(c, b);
+                b.lengthSince(m);
+                b.tag(12, WT_LEN);
+            }
+            case SyntheticBlock.KIND_BLOCK_PROOF -> {
+                final int m = b.mark();
+                writeBlockProofReverse(c, b);
+                b.lengthSince(m);
+                b.tag(9, WT_LEN);
+            }
+            default -> throw new IllegalStateException("Unknown item kind");
+        }
+    }
+
+    private static void writeBlockHeaderReverse(final SyntheticBlock.Cursor c, final RevBuf b) {
+        // read every value first (the cursor reads forward, once), then write the fields in descending order
+        final long number = c.l();
+        final long seconds = c.l();
+        final int nanos = c.i();
+        writeTimestampReverse(b, 4, seconds, nanos);
+        if (number != 0) {
+            b.varint(number);
+            b.tag(3, WT_VARINT);
+        }
+        writeSemanticVersionConstReverse(b, 2);
+        writeSemanticVersionConstReverse(b, 1);
+        // field 5 (hash_algorithm) is SHA2_384 == 0, the default: omitted
+    }
+
+    private static void writeBlockFooterReverse(final SyntheticBlock.Cursor c, final RevBuf b) {
+        final int o1 = c.i();
+        final int l1 = c.i();
+        final int o2 = c.i();
+        final int l2 = c.i();
+        final int o3 = c.i();
+        final int l3 = c.i();
+        final byte[] heap = c.heap();
+        writeBytesFieldReverse(b, 3, heap, o3, l3);
+        writeBytesFieldReverse(b, 2, heap, o2, l2);
+        writeBytesFieldReverse(b, 1, heap, o1, l1);
+    }
+
+    private static void writeBlockProofReverse(final SyntheticBlock.Cursor c, final RevBuf b) {
+        final long block = c.l();
+        final int offset = c.i();
+        final int length = c.i();
+        // signed_block_proof (field 2, oneof member, always written) wraps TssSignedBlockProof{block_signature=1}
+        final int m = b.mark();
+        writeBytesFieldReverse(b, 1, c.heap(), offset, length);
+        b.lengthSince(m);
+        b.tag(2, WT_LEN);
+        if (block != 0) {
+            b.varint(block);
+            b.tag(1, WT_VARINT);
+        }
+    }
+
+    private void writeTransactionResultReverse(final SyntheticBlock.Cursor c, final RevBuf b) {
         final int status = c.i();
         final long seconds = c.l();
         final int nanos = c.i();
         final long fee = c.l();
         final int transfers = c.i();
-        pairsBuf.reset();
+        taAccount = ensureCap(taAccount, transfers);
+        taAmount = ensureCap(taAmount, transfers);
         for (int i = 0; i < transfers; i++) {
-            final long account = c.l();
-            final long amount = c.l();
-            appendAccountAmountField(pairsBuf, 1, account, amount);
-        }
-        appendVarintField(content, 1, status);
-        appendTimestampField(content, 2, seconds, nanos);
-        appendVarintField(content, 6, fee);
-        if (transfers > 0) {
-            appendMsgField(content, 7, pairsBuf);
+            taAccount[i] = c.l();
+            taAmount[i] = c.l();
         }
         final int lists = c.i();
-        listsBuf.reset();
+        ttlToken = ensureCap(ttlToken, lists);
+        ttlStart = ensureCap(ttlStart, lists);
+        ttlCount = ensureCap(ttlCount, lists);
+        int innerCount = 0;
         for (int j = 0; j < lists; j++) {
             final long token = c.l();
             final int count = c.i();
-            pairsBuf.reset();
+            ttlToken[j] = token;
+            ttlStart[j] = innerCount;
+            ttlCount[j] = count;
+            ttAccount = ensureCap(ttAccount, innerCount + count);
+            ttAmount = ensureCap(ttAmount, innerCount + count);
             for (int k = 0; k < count; k++) {
-                final long account = c.l();
-                final long amount = c.l();
-                appendAccountAmountField(pairsBuf, 2, account, amount);
+                ttAccount[innerCount] = c.l();
+                ttAmount[innerCount] = c.l();
+                innerCount++;
             }
-            oneListBuf.reset();
-            appendTokenIdField(oneListBuf, 1, token);
-            oneListBuf.raw(pairsBuf.array, 0, pairsBuf.length);
-            appendMsgField(listsBuf, 8, oneListBuf);
         }
-        content.raw(listsBuf.array, 0, listsBuf.length);
+        // write in descending field order: 8 (reverse list order), 7, 6, 2, 1
+        for (int j = lists - 1; j >= 0; j--) {
+            final int m = b.mark();
+            final int start = ttlStart[j];
+            final int count = ttlCount[j];
+            for (int k = count - 1; k >= 0; k--) {
+                writeAccountAmountReverse(b, 2, ttAccount[start + k], ttAmount[start + k]);
+            }
+            writeTokenIdReverse(b, 1, ttlToken[j]);
+            b.lengthSince(m);
+            b.tag(8, WT_LEN);
+        }
+        if (transfers > 0) {
+            final int m = b.mark();
+            for (int i = transfers - 1; i >= 0; i--) {
+                writeAccountAmountReverse(b, 1, taAccount[i], taAmount[i]);
+            }
+            b.lengthSince(m);
+            b.tag(7, WT_LEN);
+        }
+        if (fee != 0) {
+            b.varint(fee);
+            b.tag(6, WT_VARINT);
+        }
+        writeTimestampReverse(b, 2, seconds, nanos);
+        if (status != 0) {
+            b.varint(status);
+            b.tag(1, WT_VARINT);
+        }
     }
 
-    private void encodeStateChanges(final SyntheticBlock.Cursor c, final ByteBuilder content) {
+    private void writeStateChangesReverse(final SyntheticBlock.Cursor c, final RevBuf b) {
         final long seconds = c.l();
         final int nanos = c.i();
         final int count = c.i();
-        changesBuf.reset();
+        scVals = ensureCap(scVals, count * 8);
         for (int i = 0; i < count; i++) {
+            final int base = i * 8;
             final int stateId = c.i();
             final int op = c.i();
-            changeContentBuf.reset();
-            appendVarintField(changeContentBuf, 1, stateId);
+            scVals[base] = stateId;
+            scVals[base + 1] = op;
             switch (op) {
-                case SyntheticBlock.OP_TOKEN_REL -> appendTokenRelChange(c, changeContentBuf);
-                case SyntheticBlock.OP_ACCOUNT -> appendAccountChange(c, changeContentBuf);
-                case SyntheticBlock.OP_NFT -> appendNftChange(c, changeContentBuf, true);
-                case SyntheticBlock.OP_NFT_PRIVATE -> appendNftChange(c, changeContentBuf, false);
-                case SyntheticBlock.OP_NFT_DELETE -> appendNftDeleteChange(c, changeContentBuf);
-                case SyntheticBlock.OP_SINGLETON -> appendSingletonChange(c, changeContentBuf);
-                case SyntheticBlock.OP_RECEIPT_PUSH -> appendReceiptPushChange(c, changeContentBuf);
-                default -> appendMsgField(changeContentBuf, 8, nestAEmpty()); // OP_QUEUE_POP
+                case SyntheticBlock.OP_TOKEN_REL -> {
+                    scVals[base + 2] = c.l(); // account
+                    scVals[base + 3] = c.l(); // token
+                    scVals[base + 4] = c.l(); // balance
+                    scVals[base + 5] = c.l(); // automatic association (0/1)
+                }
+                case SyntheticBlock.OP_ACCOUNT -> {
+                    scVals[base + 2] = c.l(); // account
+                    scVals[base + 3] = c.l(); // balance
+                }
+                case SyntheticBlock.OP_NFT -> {
+                    scVals[base + 2] = c.l(); // token
+                    scVals[base + 3] = c.l(); // serial
+                    scVals[base + 4] = c.l(); // owner
+                    scVals[base + 5] = c.l(); // spender
+                    scVals[base + 6] = c.l(); // mint seconds
+                    scVals[base + 7] = c.i(); // mint nanos
+                }
+                case SyntheticBlock.OP_NFT_PRIVATE -> {
+                    // no spender (base + 5): leave it unused so mint time lines up with OP_NFT's slots, which
+                    // writeNftChangeReverse always reads from base + 6 / base + 7 regardless of `full`
+                    scVals[base + 2] = c.l(); // token
+                    scVals[base + 3] = c.l(); // serial
+                    scVals[base + 4] = c.l(); // owner
+                    scVals[base + 6] = c.l(); // mint seconds
+                    scVals[base + 7] = c.i(); // mint nanos
+                }
+                case SyntheticBlock.OP_NFT_DELETE -> {
+                    scVals[base + 2] = c.l(); // token
+                    scVals[base + 3] = c.l(); // serial
+                }
+                case SyntheticBlock.OP_SINGLETON -> scVals[base + 2] = c.l(); // value
+                case SyntheticBlock.OP_RECEIPT_PUSH -> {
+                    scVals[base + 2] = c.l(); // node id
+                    scVals[base + 3] = c.l(); // valid start seconds
+                    scVals[base + 4] = c.i(); // valid start nanos
+                    scVals[base + 5] = c.l(); // payer account
+                    scVals[base + 6] = c.i(); // status
+                }
+                default -> {} // OP_QUEUE_POP: nothing more
             }
-            appendMsgField(changesBuf, 2, changeContentBuf);
         }
-        appendTimestampField(content, 1, seconds, nanos);
-        content.raw(changesBuf.array, 0, changesBuf.length);
+        // field 2 (changes), reverse element order, then field 1 (timestamp)
+        for (int i = count - 1; i >= 0; i--) {
+            final int base = i * 8;
+            final int m = b.mark();
+            writeStateChangeContentReverse(b, base);
+            b.lengthSince(m);
+            b.tag(2, WT_LEN);
+        }
+        writeTimestampReverse(b, 1, seconds, nanos);
     }
 
-    private ByteBuilder nestAEmpty() {
-        nestA.reset();
-        return nestA;
+    private void writeStateChangeContentReverse(final RevBuf b, final int base) {
+        final int op = (int) scVals[base + 1];
+        switch (op) {
+            case SyntheticBlock.OP_TOKEN_REL -> writeTokenRelChangeReverse(b, base);
+            case SyntheticBlock.OP_ACCOUNT -> writeAccountChangeReverse(b, base);
+            case SyntheticBlock.OP_NFT -> writeNftChangeReverse(b, base, true);
+            case SyntheticBlock.OP_NFT_PRIVATE -> writeNftChangeReverse(b, base, false);
+            case SyntheticBlock.OP_NFT_DELETE -> writeNftDeleteChangeReverse(b, base);
+            case SyntheticBlock.OP_SINGLETON -> writeSingletonChangeReverse(b, base);
+            case SyntheticBlock.OP_RECEIPT_PUSH -> writeReceiptPushChangeReverse(b, base);
+            default -> { // OP_QUEUE_POP: field 8, an empty QueuePopChange
+                final int m = b.mark();
+                b.lengthSince(m);
+                b.tag(8, WT_LEN);
+            }
+        }
+        final int stateId = (int) scVals[base];
+        if (stateId != 0) {
+            b.varint(stateId);
+            b.tag(1, WT_VARINT);
+        }
     }
 
-    private void appendTokenRelChange(final SyntheticBlock.Cursor c, final ByteBuilder out) {
-        final long account = c.l();
-        final long token = c.l();
-        final long balance = c.l();
-        final boolean auto = c.l() != 0;
-        nestC.reset(); // MapUpdateChange content
-        nestA.reset();
-        appendAccountIdField(nestA, 1, account);
-        appendTokenIdField(nestA, 2, token);
-        nestB.reset();
-        appendMsgField(nestB, 25, nestA); // MapChangeKey{token_relationship_key=25}
-        appendMsgField(nestC, 1, nestB); // key field
-        nestA.reset();
-        appendTokenIdField(nestA, 1, token);
-        appendAccountIdField(nestA, 2, account);
-        appendVarintField(nestA, 3, balance);
-        appendBoolField(nestA, 6, auto);
-        nestB.reset();
-        appendMsgField(nestB, 12, nestA); // MapChangeValue{token_relation_value=12}
-        appendMsgField(nestC, 2, nestB); // value field
-        appendMsgField(out, 5, nestC); // map_update field of StateChange
+    private void writeTokenRelChangeReverse(final RevBuf b, final int base) {
+        final long account = scVals[base + 2];
+        final long token = scVals[base + 3];
+        final long balance = scVals[base + 4];
+        final boolean auto = scVals[base + 5] != 0;
+        final int m5 = b.mark(); // StateChange.map_update = field 5
+        final int mv = b.mark(); // MapUpdateChange.value = field 2
+        final int mtr = b.mark(); // MapChangeValue.token_relation_value = field 12
+        if (auto) {
+            b.varint(1);
+            b.tag(6, WT_VARINT);
+        }
+        if (balance != 0) {
+            b.varint(balance);
+            b.tag(3, WT_VARINT);
+        }
+        writeAccountIdReverse(b, 2, account);
+        writeTokenIdReverse(b, 1, token);
+        b.lengthSince(mtr);
+        b.tag(12, WT_LEN);
+        b.lengthSince(mv);
+        b.tag(2, WT_LEN);
+        final int mk = b.mark(); // MapUpdateChange.key = field 1
+        final int mata = b.mark(); // MapChangeKey.token_relationship_key = field 25
+        writeTokenIdReverse(b, 2, token);
+        writeAccountIdReverse(b, 1, account);
+        b.lengthSince(mata);
+        b.tag(25, WT_LEN);
+        b.lengthSince(mk);
+        b.tag(1, WT_LEN);
+        b.lengthSince(m5);
+        b.tag(5, WT_LEN);
     }
 
-    private void appendAccountChange(final SyntheticBlock.Cursor c, final ByteBuilder out) {
-        final long account = c.l();
-        final long balance = c.l();
-        nestC.reset();
-        nestB.reset();
-        appendAccountIdField(nestB, 1, account); // MapChangeKey{account_id_key=1}
-        appendMsgField(nestC, 1, nestB);
-        nestA.reset();
-        appendVarintField(nestA, 3, balance); // TokenRelation{balance=3} only
-        nestB.reset();
-        appendMsgField(nestB, 12, nestA); // MapChangeValue{token_relation_value=12}
-        appendMsgField(nestC, 2, nestB);
-        appendMsgField(out, 5, nestC);
+    private void writeAccountChangeReverse(final RevBuf b, final int base) {
+        final long account = scVals[base + 2];
+        final long balance = scVals[base + 3];
+        final int m5 = b.mark(); // StateChange.map_update = field 5
+        final int mv = b.mark(); // MapUpdateChange.value = field 2
+        final int mtr = b.mark(); // MapChangeValue.token_relation_value = field 12 (balance only)
+        if (balance != 0) {
+            b.varint(balance);
+            b.tag(3, WT_VARINT);
+        }
+        b.lengthSince(mtr);
+        b.tag(12, WT_LEN);
+        b.lengthSince(mv);
+        b.tag(2, WT_LEN);
+        final int mk = b.mark(); // MapUpdateChange.key = field 1
+        writeAccountIdReverse(b, 1, account); // MapChangeKey.account_id_key = field 1
+        b.lengthSince(mk);
+        b.tag(1, WT_LEN);
+        b.lengthSince(m5);
+        b.tag(5, WT_LEN);
     }
 
-    private void appendNftChange(final SyntheticBlock.Cursor c, final ByteBuilder out, final boolean full) {
-        final long token = c.l();
-        final long serial = c.l();
-        final long owner = c.l();
-        final long spender = full ? c.l() : 0;
-        final long mintSeconds = c.l();
-        final int mintNanos = c.i();
-        nestC.reset();
-        nestB.reset();
-        appendNftIdField(nestB, 5, token, serial); // MapChangeKey{nft_id_key=5}
-        appendMsgField(nestC, 1, nestB);
-        nestA.reset();
+    private void writeNftChangeReverse(final RevBuf b, final int base, final boolean full) {
+        final long token = scVals[base + 2];
+        final long serial = scVals[base + 3];
+        final long owner = scVals[base + 4];
+        final long spender = full ? scVals[base + 5] : 0;
+        final long mintSeconds = scVals[base + 6];
+        final int mintNanos = (int) scVals[base + 7];
+        final int m5 = b.mark(); // StateChange.map_update = field 5
+        final int mv = b.mark(); // MapUpdateChange.value = field 2
+        final int mnft = b.mark(); // MapChangeValue.nft_value = field 5
+        writeTimestampReverse(b, 4, mintSeconds, mintNanos);
         if (full) {
-            appendNftIdField(nestA, 1, token, serial);
+            writeAccountIdReverse(b, 3, spender);
         }
-        appendAccountIdField(nestA, 2, owner);
+        writeAccountIdReverse(b, 2, owner);
         if (full) {
-            appendAccountIdField(nestA, 3, spender);
+            writeNftIdReverse(b, 1, token, serial);
         }
-        appendTimestampField(nestA, 4, mintSeconds, mintNanos);
-        nestB.reset();
-        appendMsgField(nestB, 5, nestA); // MapChangeValue{nft_value=5}
-        appendMsgField(nestC, 2, nestB);
-        appendMsgField(out, 5, nestC);
+        b.lengthSince(mnft);
+        b.tag(5, WT_LEN);
+        b.lengthSince(mv);
+        b.tag(2, WT_LEN);
+        final int mk = b.mark(); // MapUpdateChange.key = field 1
+        writeNftIdReverse(b, 5, token, serial); // MapChangeKey.nft_id_key = field 5
+        b.lengthSince(mk);
+        b.tag(1, WT_LEN);
+        b.lengthSince(m5);
+        b.tag(5, WT_LEN);
     }
 
-    private void appendNftDeleteChange(final SyntheticBlock.Cursor c, final ByteBuilder out) {
-        final long token = c.l();
-        final long serial = c.l();
-        nestB.reset();
-        appendNftIdField(nestB, 5, token, serial); // MapChangeKey{nft_id_key=5}
-        nestC.reset();
-        appendMsgField(nestC, 1, nestB); // MapDeleteChange{key=1}
-        appendMsgField(out, 6, nestC); // map_delete field of StateChange
+    private void writeNftDeleteChangeReverse(final RevBuf b, final int base) {
+        final long token = scVals[base + 2];
+        final long serial = scVals[base + 3];
+        final int m6 = b.mark(); // StateChange.map_delete = field 6
+        final int mk = b.mark(); // MapDeleteChange.key = field 1
+        writeNftIdReverse(b, 5, token, serial); // MapChangeKey.nft_id_key = field 5
+        b.lengthSince(mk);
+        b.tag(1, WT_LEN);
+        b.lengthSince(m6);
+        b.tag(6, WT_LEN);
     }
 
-    private void appendSingletonChange(final SyntheticBlock.Cursor c, final ByteBuilder out) {
-        final long value = c.l();
-        nestA.reset();
-        appendVarintField(nestA, 1, value); // UInt64Value{value=1}
-        nestB.reset();
-        appendMsgField(nestB, 3, nestA); // SingletonUpdateChange{entity_number_value=3}, oneof: always written
-        appendMsgField(out, 4, nestB); // singleton_update field of StateChange
+    private void writeSingletonChangeReverse(final RevBuf b, final int base) {
+        final long value = scVals[base + 2];
+        final int m4 = b.mark(); // StateChange.singleton_update = field 4
+        final int m3 = b.mark(); // SingletonUpdateChange.entity_number_value = field 3, oneof: always written
+        if (value != 0) {
+            b.varint(value);
+            b.tag(1, WT_VARINT); // UInt64Value.value = field 1
+        }
+        b.lengthSince(m3);
+        b.tag(3, WT_LEN);
+        b.lengthSince(m4);
+        b.tag(4, WT_LEN);
     }
 
-    private void appendReceiptPushChange(final SyntheticBlock.Cursor c, final ByteBuilder out) {
-        final long node = c.l();
-        final long validSeconds = c.l();
-        final int validNanos = c.i();
-        final long payer = c.l();
-        final int status = c.i();
-        nestA.reset();
-        appendTimestampField(nestA, 1, validSeconds, validNanos);
-        appendAccountIdField(nestA, 2, payer);
-        // nestA = TransactionID content
-        nestB.reset();
-        appendVarintField(nestB, 1, node);
-        appendMsgField(nestB, 2, nestA);
-        appendVarintField(nestB, 3, status);
-        // nestB = TransactionReceiptEntry content
-        nestA.reset();
-        appendMsgField(nestA, 1, nestB); // entries=1 (single element)
-        // nestA = TransactionReceiptEntries content
-        nestB.reset();
-        appendMsgField(nestB, 3, nestA); // transaction_receipt_entries_element=3 of QueuePushChange, always written
-        // nestB = QueuePushChange content
-        appendMsgField(out, 7, nestB); // queue_push field of StateChange
+    private void writeReceiptPushChangeReverse(final RevBuf b, final int base) {
+        final long node = scVals[base + 2];
+        final long validSeconds = scVals[base + 3];
+        final int validNanos = (int) scVals[base + 4];
+        final long payer = scVals[base + 5];
+        final int status = (int) scVals[base + 6];
+        final int m7 = b.mark(); // StateChange.queue_push = field 7
+        final int mqpc = b.mark(); // QueuePushChange.transaction_receipt_entries_element = field 3
+        final int mtre = b.mark(); // TransactionReceiptEntries.entries = field 1 (a single element)
+        final int mentry = b.mark(); // TransactionReceiptEntry content
+        if (status != 0) {
+            b.varint(status);
+            b.tag(3, WT_VARINT);
+        }
+        final int mtxid = b.mark(); // TransactionReceiptEntry.transaction_id = field 2
+        writeAccountIdReverse(b, 2, payer);
+        writeTimestampReverse(b, 1, validSeconds, validNanos);
+        b.lengthSince(mtxid);
+        b.tag(2, WT_LEN);
+        if (node != 0) {
+            b.varint(node);
+            b.tag(1, WT_VARINT);
+        }
+        b.lengthSince(mentry);
+        b.tag(1, WT_LEN);
+        b.lengthSince(mtre);
+        b.tag(3, WT_LEN);
+        b.lengthSince(mqpc);
+        b.tag(7, WT_LEN);
     }
 
     // ==================================================================================================== SCAN
@@ -578,15 +797,74 @@ public final class ReferenceCodec {
     private byte[] sBuf;
     private int sPos;
 
+    /** If the next byte before {@code limit} is {@code tag}, consume it and return true (the in-order fast path). */
+    private boolean sAt(final int limit, final byte tag) {
+        final int q = sPos;
+        if (q < limit && sBuf[q] == tag) {
+            sPos = q + 1;
+            return true;
+        }
+        return false;
+    }
+
     private long readVarint() {
-        long result = 0;
-        int shift = 0;
-        byte b;
-        do {
-            b = sBuf[sPos++];
-            result |= (long) (b & 0x7F) << shift;
-            shift += 7;
-        } while (b < 0);
+        final byte b = sBuf[sPos];
+        if (b >= 0) {
+            sPos++;
+            return b;
+        }
+        return sVarintWide();
+    }
+
+    /** PBJ's XOR-chain varint reader ({@code ByteArrayBufferedData.readVar} / {@code ArrayCursor.varintWide}). */
+    private long sVarintWide() {
+        final byte[] a = sBuf;
+        int p = sPos;
+        int vi = a[p++];
+        long result;
+        if ((vi ^= a[p++] << 7) < 0) {
+            vi ^= (~0 << 7);
+            result = vi;
+        } else if ((vi ^= a[p++] << 14) >= 0) {
+            vi ^= (~0 << 7) ^ (~0 << 14);
+            result = vi;
+        } else if ((vi ^= a[p++] << 21) < 0) {
+            vi ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+            result = vi;
+        } else {
+            long vl = vi;
+            if ((vl ^= (long) a[p++] << 28) >= 0L) {
+                vl ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+            } else if ((vl ^= (long) a[p++] << 35) < 0L) {
+                vl ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+            } else if ((vl ^= (long) a[p++] << 42) >= 0L) {
+                vl ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+            } else if ((vl ^= (long) a[p++] << 49) < 0L) {
+                vl ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
+            } else if ((vl ^= (long) a[p++] << 56) >= 0L) {
+                vl ^= (~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56);
+            } else {
+                vl ^= (long) a[p++] << 63;
+                vl ^= (~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56)
+                        ^ (~0L << 63);
+            }
+            result = vl;
+        }
+        sPos = p;
         return result;
     }
 
@@ -620,6 +898,12 @@ public final class ReferenceCodec {
         sPos = offset;
         final int limit = offset + length;
         long sum = 0;
+        while (sAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) readVarint();
+            final int itemLimit = sPos + len;
+            sum += scanItemContent(itemLimit);
+            sPos = itemLimit;
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -636,6 +920,7 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** The {@code item} oneof: every branch stays in the general loop, so there is no in-order fast path here. */
     private long scanItemContent(final int limit) {
         long sum = 0;
         while (sPos < limit) {
@@ -914,6 +1199,18 @@ public final class ReferenceCodec {
 
     private long scanBlockHeader(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanSemanticVersionField();
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanSemanticVersionField();
+        }
+        if (sAt(limit, tagByte(3, WT_VARINT))) {
+            sum += readVarint();
+        }
+        if (sAt(limit, tagByte(4, WT_LEN))) {
+            sum += scanTimestampField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -930,6 +1227,15 @@ public final class ReferenceCodec {
 
     private long scanSemanticVersion(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_VARINT))) {
+            sum += readVarint();
+        }
+        if (sAt(limit, tagByte(2, WT_VARINT))) {
+            sum += readVarint();
+        }
+        if (sAt(limit, tagByte(3, WT_VARINT))) {
+            sum += readVarint();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -949,6 +1255,12 @@ public final class ReferenceCodec {
 
     private long scanTimestamp(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_VARINT))) {
+            sum += readVarint();
+        }
+        if (sAt(limit, tagByte(2, WT_VARINT))) {
+            sum += readVarint();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -961,8 +1273,15 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** {@code account} is a oneof (accountNum=3, alias=4): no fast path past the never-present shard/realm. */
     private long scanAccountId(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_VARINT))) {
+            sum += readVarint();
+        }
+        if (sAt(limit, tagByte(2, WT_VARINT))) {
+            sum += readVarint();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -983,6 +1302,15 @@ public final class ReferenceCodec {
 
     private long scanTokenId(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_VARINT))) {
+            sum += readVarint();
+        }
+        if (sAt(limit, tagByte(2, WT_VARINT))) {
+            sum += readVarint();
+        }
+        if (sAt(limit, tagByte(3, WT_VARINT))) {
+            sum += readVarint();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -998,6 +1326,12 @@ public final class ReferenceCodec {
 
     private long scanNftId(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanTokenIdField();
+        }
+        if (sAt(limit, tagByte(2, WT_VARINT))) {
+            sum += readVarint();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1013,6 +1347,15 @@ public final class ReferenceCodec {
 
     private long scanAccountAmount(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanAccountIdField();
+        }
+        if (sAt(limit, tagByte(2, WT_VARINT))) {
+            sum += unzigzag(readVarint());
+        }
+        if (sAt(limit, tagByte(3, WT_VARINT))) {
+            sum += readVarint(); // is_approval
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1029,6 +1372,9 @@ public final class ReferenceCodec {
 
     private long scanAccountAmounts(final int limit) {
         long sum = 0;
+        while (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanAccountAmountField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1044,6 +1390,12 @@ public final class ReferenceCodec {
 
     private long scanTokenTransferList(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanTokenIdField();
+        }
+        while (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanAccountAmountField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1059,6 +1411,21 @@ public final class ReferenceCodec {
 
     private long scanTransactionResult(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_VARINT))) {
+            sum += readVarint(); // status (enum ordinal)
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanTimestampField();
+        }
+        if (sAt(limit, tagByte(6, WT_VARINT))) {
+            sum += readVarint();
+        }
+        if (sAt(limit, tagByte(7, WT_LEN))) {
+            sum += scanAccountAmountsField();
+        }
+        while (sAt(limit, tagByte(8, WT_LEN))) {
+            sum += scanTokenTransferListField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1077,6 +1444,12 @@ public final class ReferenceCodec {
 
     private long scanAccountTokenAssociation(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanAccountIdField();
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanTokenIdField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1090,6 +1463,7 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** {@code keyChoice} is entirely a oneof (1, 5, 25): no leading plain field, so no fast path. */
     private long scanMapChangeKey(final int limit) {
         long sum = 0;
         while (sPos < limit) {
@@ -1108,6 +1482,15 @@ public final class ReferenceCodec {
 
     private long scanTokenRelation(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanTokenIdField();
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanAccountIdField();
+        }
+        if (sAt(limit, tagByte(3, WT_VARINT))) {
+            sum += readVarint();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1126,6 +1509,12 @@ public final class ReferenceCodec {
 
     private long scanNft(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanNftIdField();
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanAccountIdField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1146,6 +1535,7 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** {@code valueChoice} is entirely a oneof (5, 12): no leading plain field, so no fast path. */
     private long scanMapChangeValue(final int limit) {
         long sum = 0;
         while (sPos < limit) {
@@ -1163,6 +1553,12 @@ public final class ReferenceCodec {
 
     private long scanTransactionId(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanTimestampField();
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanAccountIdField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1179,6 +1575,15 @@ public final class ReferenceCodec {
 
     private long scanTransactionReceiptEntry(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_VARINT))) {
+            sum += readVarint();
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanTransactionIdField();
+        }
+        if (sAt(limit, tagByte(3, WT_VARINT))) {
+            sum += readVarint();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1195,6 +1600,9 @@ public final class ReferenceCodec {
 
     private long scanTransactionReceiptEntries(final int limit) {
         long sum = 0;
+        while (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanTransactionReceiptEntryField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1208,8 +1616,12 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** {@code change_operation} is a oneof: the fast path handles only the leading plain {@code state_id}. */
     private long scanStateChange(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_VARINT))) {
+            sum += readVarint(); // state_id
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1230,8 +1642,18 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** {@code key} and {@code value} are plain fields of {@code MapUpdateChange} itself (their content is a oneof). */
     private long scanMapUpdateChange(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanMapChangeKeyField();
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanMapChangeValueField();
+        }
+        if (sAt(limit, tagByte(3, WT_VARINT))) {
+            sum += readVarint(); // identical
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1248,6 +1670,9 @@ public final class ReferenceCodec {
 
     private long scanMapDeleteChange(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanMapChangeKeyField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1261,6 +1686,7 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** {@code newValue} is a one-branch oneof (field 3): no leading plain field, so no fast path. */
     private long scanSingletonUpdateChange(final int limit) {
         long sum = 0;
         while (sPos < limit) {
@@ -1288,6 +1714,7 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** {@code value} is a one-branch oneof (field 3): no leading plain field, so no fast path. */
     private long scanQueuePushChange(final int limit) {
         long sum = 0;
         while (sPos < limit) {
@@ -1305,6 +1732,12 @@ public final class ReferenceCodec {
 
     private long scanStateChanges(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanTimestampField();
+        }
+        while (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanStateChangeField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1320,6 +1753,21 @@ public final class ReferenceCodec {
 
     private long scanBlockFooter(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) readVarint();
+            sum += bytesSum(sPos, len);
+            sPos += len;
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            final int len = (int) readVarint();
+            sum += bytesSum(sPos, len);
+            sPos += len;
+        }
+        if (sAt(limit, tagByte(3, WT_LEN))) {
+            final int len = (int) readVarint();
+            sum += bytesSum(sPos, len);
+            sPos += len;
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1335,8 +1783,12 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** {@code proof} is a oneof: the fast path handles only the leading plain {@code block}. */
     private long scanBlockProof(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_VARINT))) {
+            sum += readVarint();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1352,6 +1804,11 @@ public final class ReferenceCodec {
 
     private long scanTssSignedBlockProof(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) readVarint();
+            sum += bytesSum(sPos, len);
+            sPos += len;
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1381,6 +1838,19 @@ public final class ReferenceCodec {
         long sum = 0;
         int bodyOffset = -1;
         int bodyLength = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) readVarint();
+            bodyOffset = sPos;
+            bodyLength = len;
+            sum += bytesSum(sPos, len);
+            sPos += len;
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanSignatureMapField();
+        }
+        if (sAt(limit, tagByte(3, WT_VARINT))) {
+            sum += readVarint();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1408,6 +1878,9 @@ public final class ReferenceCodec {
 
     private long scanSignatureMap(final int limit) {
         long sum = 0;
+        while (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanSignaturePairField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1421,8 +1894,14 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** {@code signature} is a oneof (3, 6): the fast path handles only the leading plain {@code pubKeyPrefix}. */
     private long scanSignaturePair(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) readVarint();
+            sum += bytesSum(sPos, len);
+            sPos += len;
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1444,8 +1923,18 @@ public final class ReferenceCodec {
         return sum;
     }
 
+    /** {@code data} is a oneof (14, 74): the fast path handles only the leading plain fields. */
     private long scanTransactionBody(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanTransactionIdField();
+        }
+        if (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanAccountIdField();
+        }
+        if (sAt(limit, tagByte(3, WT_VARINT))) {
+            sum += readVarint();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1464,6 +1953,12 @@ public final class ReferenceCodec {
 
     private long scanCryptoTransfer(final int limit) {
         long sum = 0;
+        if (sAt(limit, tagByte(1, WT_LEN))) {
+            sum += scanAccountAmountsField();
+        }
+        while (sAt(limit, tagByte(2, WT_LEN))) {
+            sum += scanTokenTransferListField();
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1479,6 +1974,11 @@ public final class ReferenceCodec {
 
     private long scanAtomicBatch(final int limit) {
         long sum = 0;
+        while (sAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) readVarint();
+            sum += bytesSum(sPos, len);
+            sPos += len;
+        }
         while (sPos < limit) {
             final long tag = readVarint();
             final int field = (int) (tag >>> 3);
@@ -1726,18 +2226,79 @@ public final class ReferenceCodec {
 
     // ================================================================================================= DECODE: parse
 
+    private static final RTimestamp ZERO_TIMESTAMP = new RTimestamp(0, 0);
+
     private byte[] dBuf;
     private int dPos;
 
+    /** If the next byte before {@code limit} is {@code tag}, consume it and return true (the in-order fast path). */
+    private boolean dAt(final int limit, final byte tag) {
+        final int q = dPos;
+        if (q < limit && dBuf[q] == tag) {
+            dPos = q + 1;
+            return true;
+        }
+        return false;
+    }
+
     private long dVarint() {
-        long result = 0;
-        int shift = 0;
-        byte b;
-        do {
-            b = dBuf[dPos++];
-            result |= (long) (b & 0x7F) << shift;
-            shift += 7;
-        } while (b < 0);
+        final byte b = dBuf[dPos];
+        if (b >= 0) {
+            dPos++;
+            return b;
+        }
+        return dVarintWide();
+    }
+
+    /** PBJ's XOR-chain varint reader, as {@link #sVarintWide()} but over the decode position. */
+    private long dVarintWide() {
+        final byte[] a = dBuf;
+        int p = dPos;
+        int vi = a[p++];
+        long result;
+        if ((vi ^= a[p++] << 7) < 0) {
+            vi ^= (~0 << 7);
+            result = vi;
+        } else if ((vi ^= a[p++] << 14) >= 0) {
+            vi ^= (~0 << 7) ^ (~0 << 14);
+            result = vi;
+        } else if ((vi ^= a[p++] << 21) < 0) {
+            vi ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+            result = vi;
+        } else {
+            long vl = vi;
+            if ((vl ^= (long) a[p++] << 28) >= 0L) {
+                vl ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+            } else if ((vl ^= (long) a[p++] << 35) < 0L) {
+                vl ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+            } else if ((vl ^= (long) a[p++] << 42) >= 0L) {
+                vl ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+            } else if ((vl ^= (long) a[p++] << 49) < 0L) {
+                vl ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
+            } else if ((vl ^= (long) a[p++] << 56) >= 0L) {
+                vl ^= (~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56);
+            } else {
+                vl ^= (long) a[p++] << 63;
+                vl ^= (~0L << 7)
+                        ^ (~0L << 14)
+                        ^ (~0L << 21)
+                        ^ (~0L << 28)
+                        ^ (~0L << 35)
+                        ^ (~0L << 42)
+                        ^ (~0L << 49)
+                        ^ (~0L << 56)
+                        ^ (~0L << 63);
+            }
+            result = vl;
+        }
+        dPos = p;
         return result;
     }
 
@@ -1766,6 +2327,10 @@ public final class ReferenceCodec {
         dPos = offset;
         final int limit = offset + length;
         final List<RBlockItem> items = new ArrayList<>();
+        while (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            items.add(decodeItemContent(dPos + len));
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -1787,6 +2352,7 @@ public final class ReferenceCodec {
         return decodeItemContent(offset + length);
     }
 
+    /** The {@code item} oneof: every branch stays in the general loop, so there is no in-order fast path here. */
     private RBlockItem decodeItemContent(final int limit) {
         RBlockItem result = null;
         while (dPos < limit) {
@@ -1827,6 +2393,12 @@ public final class ReferenceCodec {
     private RTimestamp decodeTimestamp(final int limit) {
         long seconds = 0;
         int nanos = 0;
+        if (dAt(limit, tagByte(1, WT_VARINT))) {
+            seconds = dVarint();
+        }
+        if (dAt(limit, tagByte(2, WT_VARINT))) {
+            nanos = (int) dVarint();
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -1842,6 +2414,7 @@ public final class ReferenceCodec {
         return new RTimestamp(seconds, nanos);
     }
 
+    /** {@code account} is a oneof (accountNum=3, alias=4): no fast path past the never-present shard/realm. */
     private long decodeAccountId(final int limit) {
         long accountNum = 0;
         while (dPos < limit) {
@@ -1859,6 +2432,9 @@ public final class ReferenceCodec {
 
     private long decodeTokenId(final int limit) {
         long tokenNum = 0;
+        if (dAt(limit, tagByte(3, WT_VARINT))) {
+            tokenNum = dVarint();
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -1874,7 +2450,20 @@ public final class ReferenceCodec {
 
     private RBlockHeader decodeBlockHeader(final int limit) {
         long number = 0;
-        RTimestamp timestamp = new RTimestamp(0, 0);
+        RTimestamp timestamp = ZERO_TIMESTAMP;
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            dSkip(WT_LEN); // version constant, not stored
+        }
+        if (dAt(limit, tagByte(2, WT_LEN))) {
+            dSkip(WT_LEN); // version constant, not stored
+        }
+        if (dAt(limit, tagByte(3, WT_VARINT))) {
+            number = dVarint();
+        }
+        if (dAt(limit, tagByte(4, WT_LEN))) {
+            final int len = (int) dVarint();
+            timestamp = decodeTimestamp(dPos + len);
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -1896,6 +2485,15 @@ public final class ReferenceCodec {
         Range a = new Range(dBuf, 0, 0);
         Range b = a;
         Range c = a;
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            a = dRange((int) dVarint());
+        }
+        if (dAt(limit, tagByte(2, WT_LEN))) {
+            b = dRange((int) dVarint());
+        }
+        if (dAt(limit, tagByte(3, WT_LEN))) {
+            c = dRange((int) dVarint());
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -1917,9 +2515,13 @@ public final class ReferenceCodec {
         return new RBlockFooter(a, b, c);
     }
 
+    /** {@code proof} is a oneof: the fast path handles only the leading plain {@code block}. */
     private RBlockProof decodeBlockProof(final int limit) {
         long block = 0;
         Range signature = new Range(dBuf, 0, 0);
+        if (dAt(limit, tagByte(1, WT_VARINT))) {
+            block = dVarint();
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -1938,6 +2540,9 @@ public final class ReferenceCodec {
 
     private Range decodeTssSignedBlockProof(final int limit) {
         Range signature = new Range(dBuf, 0, 0);
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            signature = dRange((int) dVarint());
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -1955,6 +2560,13 @@ public final class ReferenceCodec {
     private RAccountAmount decodeAccountAmount(final int limit) {
         long accountNum = 0;
         long amount = 0;
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            accountNum = decodeAccountId(dPos + len);
+        }
+        if (dAt(limit, tagByte(2, WT_VARINT))) {
+            amount = unzigzag(dVarint());
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -1973,6 +2585,10 @@ public final class ReferenceCodec {
 
     private List<RAccountAmount> decodeAccountAmounts(final int limit) {
         final List<RAccountAmount> list = new ArrayList<>();
+        while (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            list.add(decodeAccountAmount(dPos + len));
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -1990,6 +2606,14 @@ public final class ReferenceCodec {
     private RTokenTransferList decodeTokenTransferList(final int limit) {
         long tokenNum = 0;
         final List<RAccountAmount> transfers = new ArrayList<>();
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            tokenNum = decodeTokenId(dPos + len);
+        }
+        while (dAt(limit, tagByte(2, WT_LEN))) {
+            final int len = (int) dVarint();
+            transfers.add(decodeAccountAmount(dPos + len));
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2009,10 +2633,28 @@ public final class ReferenceCodec {
 
     private RTransactionResult decodeTransactionResult(final int limit) {
         int status = 0;
-        RTimestamp timestamp = new RTimestamp(0, 0);
+        RTimestamp timestamp = ZERO_TIMESTAMP;
         long fee = 0;
         List<RAccountAmount> transferList = List.of();
         final List<RTokenTransferList> tokenTransferLists = new ArrayList<>();
+        if (dAt(limit, tagByte(1, WT_VARINT))) {
+            status = (int) dVarint();
+        }
+        if (dAt(limit, tagByte(2, WT_LEN))) {
+            final int len = (int) dVarint();
+            timestamp = decodeTimestamp(dPos + len);
+        }
+        if (dAt(limit, tagByte(6, WT_VARINT))) {
+            fee = dVarint();
+        }
+        if (dAt(limit, tagByte(7, WT_LEN))) {
+            final int len = (int) dVarint();
+            transferList = decodeAccountAmounts(dPos + len);
+        }
+        while (dAt(limit, tagByte(8, WT_LEN))) {
+            final int len = (int) dVarint();
+            tokenTransferLists.add(decodeTokenTransferList(dPos + len));
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2046,6 +2688,14 @@ public final class ReferenceCodec {
     private long[] decodeAccountTokenAssociation(final int limit) {
         long account = 0;
         long token = 0;
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            account = decodeAccountId(dPos + len);
+        }
+        if (dAt(limit, tagByte(2, WT_LEN))) {
+            final int len = (int) dVarint();
+            token = decodeTokenId(dPos + len);
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2066,6 +2716,13 @@ public final class ReferenceCodec {
     private long[] decodeNftId(final int limit) {
         long token = 0;
         long serial = 0;
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            token = decodeTokenId(dPos + len);
+        }
+        if (dAt(limit, tagByte(2, WT_VARINT))) {
+            serial = dVarint();
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2082,9 +2739,13 @@ public final class ReferenceCodec {
         return new long[] {token, serial};
     }
 
+    /** {@code change_operation} is a oneof: the fast path handles only the leading plain {@code state_id}. */
     private RStateChange decodeStateChange(final int limit) {
         int stateId = 0;
         RChange change = new RQueuePopChange();
+        if (dAt(limit, tagByte(1, WT_VARINT))) {
+            stateId = (int) dVarint();
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2118,6 +2779,7 @@ public final class ReferenceCodec {
         return new RStateChange(stateId, change);
     }
 
+    /** {@code newValue} is a one-branch oneof (field 3): no leading plain field, so no fast path. */
     private RChange decodeSingletonUpdateChange(final int limit) {
         long value = 0;
         while (dPos < limit) {
@@ -2143,6 +2805,11 @@ public final class ReferenceCodec {
     }
 
     private RChange decodeMapDeleteChange(final int limit) {
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            final long[] nft = decodeMapChangeKeyAsNft(dPos + len);
+            return new RNftDelete(nft[0], nft[1]);
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2175,179 +2842,217 @@ public final class ReferenceCodec {
         return nft;
     }
 
+    // scratch for decodeMapUpdateChange, set by decodeMapChangeKeyInto/decodeMapChangeValueInto and read immediately
+    // after: avoids both a per-call allocation and duplicating the (oneof-dispatching) content loops in a fast path
+    private int muKeyKind;
+    private long muKeyAccount;
+    private long muKeyToken;
+    private long muKeySerial;
+    private int muValueKind;
+    private long muBalance;
+    private boolean muAutoAssoc;
+    private long muNftOwner;
+    private long muNftSpender;
+    private RTimestamp muMintTime;
+    private boolean muNftHasId;
+
+    /** {@code MapChangeKey}'s branches (1, 5, 25) are a oneof: a plain tag-then-switch loop, no fast path. */
+    private void decodeMapChangeKeyInto(final int keyLimit) {
+        while (dPos < keyLimit) {
+            final long kt = dVarint();
+            final int kf = (int) (kt >>> 3);
+            final int kw = (int) (kt & 7);
+            if (kf == 1) {
+                muKeyKind = 1;
+                final int l2 = (int) dVarint();
+                muKeyAccount = decodeAccountId(dPos + l2);
+            } else if (kf == 5) {
+                muKeyKind = 5;
+                final int l2 = (int) dVarint();
+                final long[] nft = decodeNftId(dPos + l2);
+                muKeyToken = nft[0];
+                muKeySerial = nft[1];
+            } else if (kf == 25) {
+                muKeyKind = 25;
+                final int l2 = (int) dVarint();
+                final long[] assoc = decodeAccountTokenAssociation(dPos + l2);
+                muKeyAccount = assoc[0];
+                muKeyToken = assoc[1];
+            } else {
+                dSkip(kw);
+            }
+        }
+    }
+
+    /** {@code MapChangeValue}'s branches (5, 12) are a oneof: a plain tag-then-switch loop, no fast path. */
+    private void decodeMapChangeValueInto(final int valueLimit) {
+        while (dPos < valueLimit) {
+            final long vt = dVarint();
+            final int vf = (int) (vt >>> 3);
+            final int vw = (int) (vt & 7);
+            if (vf == 12) {
+                muValueKind = 12;
+                final int l2 = (int) dVarint();
+                final int trLimit = dPos + l2;
+                while (dPos < trLimit) {
+                    final long tt = dVarint();
+                    final int tf = (int) (tt >>> 3);
+                    final int tw = (int) (tt & 7);
+                    if (tf == 2) {
+                        final int l3 = (int) dVarint();
+                        muKeyAccount = decodeAccountId(dPos + l3);
+                    } else if (tf == 3) {
+                        muBalance = dVarint();
+                    } else if (tf == 6) {
+                        muAutoAssoc = dVarint() != 0;
+                    } else {
+                        dSkip(tw);
+                    }
+                }
+            } else if (vf == 5) {
+                muValueKind = 5;
+                final int l2 = (int) dVarint();
+                final int nftLimit = dPos + l2;
+                while (dPos < nftLimit) {
+                    final long nt = dVarint();
+                    final int nf = (int) (nt >>> 3);
+                    final int nw = (int) (nt & 7);
+                    if (nf == 1) {
+                        muNftHasId = true;
+                        dSkip(nw);
+                    } else if (nf == 2) {
+                        final int l3 = (int) dVarint();
+                        muNftOwner = decodeAccountId(dPos + l3);
+                    } else if (nf == 3) {
+                        final int l3 = (int) dVarint();
+                        muNftSpender = decodeAccountId(dPos + l3);
+                    } else if (nf == 4) {
+                        final int l3 = (int) dVarint();
+                        muMintTime = decodeTimestamp(dPos + l3);
+                    } else {
+                        dSkip(nw);
+                    }
+                }
+            } else {
+                dSkip(vw);
+            }
+        }
+    }
+
+    /** {@code key} and {@code value} are plain fields of {@code MapUpdateChange} itself (their content is a oneof). */
     private RChange decodeMapUpdateChange(final int limit) {
-        int keyKind = 0;
-        long keyAccount = 0;
-        long keyToken = 0;
-        long keySerial = 0;
-        int valueKind = 0;
-        long balance = 0;
-        boolean autoAssoc = false;
-        long nftOwner = 0;
-        long nftSpender = 0;
-        RTimestamp mintTime = new RTimestamp(0, 0);
-        boolean nftHasId = false;
+        muKeyKind = 0;
+        muKeyAccount = 0;
+        muKeyToken = 0;
+        muKeySerial = 0;
+        muValueKind = 0;
+        muBalance = 0;
+        muAutoAssoc = false;
+        muNftOwner = 0;
+        muNftSpender = 0;
+        muMintTime = ZERO_TIMESTAMP;
+        muNftHasId = false;
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            decodeMapChangeKeyInto(dPos + len);
+        }
+        if (dAt(limit, tagByte(2, WT_LEN))) {
+            final int len = (int) dVarint();
+            decodeMapChangeValueInto(dPos + len);
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
             final int wireType = (int) (tag & 7);
             if (field == 1) {
                 final int len = (int) dVarint();
-                final int keyLimit = dPos + len;
-                while (dPos < keyLimit) {
-                    final long kt = dVarint();
-                    final int kf = (int) (kt >>> 3);
-                    final int kw = (int) (kt & 7);
-                    if (kf == 1) {
-                        keyKind = 1;
-                        final int l2 = (int) dVarint();
-                        keyAccount = decodeAccountId(dPos + l2);
-                    } else if (kf == 5) {
-                        keyKind = 5;
-                        final int l2 = (int) dVarint();
-                        final long[] nft = decodeNftId(dPos + l2);
-                        keyToken = nft[0];
-                        keySerial = nft[1];
-                    } else if (kf == 25) {
-                        keyKind = 25;
-                        final int l2 = (int) dVarint();
-                        final long[] assoc = decodeAccountTokenAssociation(dPos + l2);
-                        keyAccount = assoc[0];
-                        keyToken = assoc[1];
-                    } else {
-                        dSkip(kw);
-                    }
-                }
+                decodeMapChangeKeyInto(dPos + len);
             } else if (field == 2) {
                 final int len = (int) dVarint();
-                final int valueLimit = dPos + len;
-                while (dPos < valueLimit) {
-                    final long vt = dVarint();
-                    final int vf = (int) (vt >>> 3);
-                    final int vw = (int) (vt & 7);
-                    if (vf == 12) {
-                        valueKind = 12;
-                        final int l2 = (int) dVarint();
-                        final int trLimit = dPos + l2;
-                        while (dPos < trLimit) {
-                            final long tt = dVarint();
-                            final int tf = (int) (tt >>> 3);
-                            final int tw = (int) (tt & 7);
-                            if (tf == 2) {
-                                final int l3 = (int) dVarint();
-                                keyAccount = decodeAccountId(dPos + l3);
-                            } else if (tf == 3) {
-                                balance = dVarint();
-                            } else if (tf == 6) {
-                                autoAssoc = dVarint() != 0;
-                            } else {
-                                dSkip(tw);
-                            }
-                        }
-                    } else if (vf == 5) {
-                        valueKind = 5;
-                        final int l2 = (int) dVarint();
-                        final int nftLimit = dPos + l2;
-                        while (dPos < nftLimit) {
-                            final long nt = dVarint();
-                            final int nf = (int) (nt >>> 3);
-                            final int nw = (int) (nt & 7);
-                            if (nf == 1) {
-                                nftHasId = true;
-                                dSkip(nw);
-                            } else if (nf == 2) {
-                                final int l3 = (int) dVarint();
-                                nftOwner = decodeAccountId(dPos + l3);
-                            } else if (nf == 3) {
-                                final int l3 = (int) dVarint();
-                                nftSpender = decodeAccountId(dPos + l3);
-                            } else if (nf == 4) {
-                                final int l3 = (int) dVarint();
-                                mintTime = decodeTimestamp(dPos + l3);
-                            } else {
-                                dSkip(nw);
-                            }
-                        }
-                    } else {
-                        dSkip(vw);
-                    }
-                }
+                decodeMapChangeValueInto(dPos + len);
             } else {
                 dSkip(wireType);
             }
         }
-        if (valueKind == 5) {
-            return nftHasId
-                    ? new RNftFull(keyToken, keySerial, nftOwner, nftSpender, mintTime)
-                    : new RNftPrivate(keyToken, keySerial, nftOwner, mintTime);
+        if (muValueKind == 5) {
+            return muNftHasId
+                    ? new RNftFull(muKeyToken, muKeySerial, muNftOwner, muNftSpender, muMintTime)
+                    : new RNftPrivate(muKeyToken, muKeySerial, muNftOwner, muMintTime);
         }
         // valueKind == 12 (token_relation_value): distinguish OP_TOKEN_REL (key = token_relationship_key, 25) from
         // OP_ACCOUNT (key = account_id_key, 1) by which MapChangeKey branch was present.
-        return keyKind == 25
-                ? new RTokenRelChange(keyAccount, keyToken, balance, autoAssoc)
-                : new RAccountChange(keyAccount, balance);
+        return muKeyKind == 25
+                ? new RTokenRelChange(muKeyAccount, muKeyToken, muBalance, muAutoAssoc)
+                : new RAccountChange(muKeyAccount, muBalance);
     }
 
+    /** {@code value} is a one-branch oneof (field 3): no leading plain field, so no fast path. */
     private RChange decodeQueuePushChange(final int limit) {
         long nodeId = 0;
-        RTimestamp validStart = new RTimestamp(0, 0);
+        RTimestamp validStart = ZERO_TIMESTAMP;
         long payer = 0;
         int status = 0;
         while (dPos < limit) {
-            final long tag = dVarint();
-            final int field = (int) (tag >>> 3);
-            final int wireType = (int) (tag & 7);
-            if (field == 3) {
-                final int len = (int) dVarint();
-                final int entriesLimit = dPos + len;
-                while (dPos < entriesLimit) {
-                    final long et = dVarint();
-                    if ((int) (et >>> 3) == 1) {
-                        final int l2 = (int) dVarint();
-                        final int entryLimit = dPos + l2;
-                        while (dPos < entryLimit) {
-                            final long rt = dVarint();
-                            final int rf = (int) (rt >>> 3);
-                            final int rw = (int) (rt & 7);
-                            if (rf == 1) {
-                                nodeId = dVarint();
-                            } else if (rf == 2) {
-                                final int l3 = (int) dVarint();
-                                final int idLimit = dPos + l3;
-                                while (dPos < idLimit) {
-                                    final long it = dVarint();
-                                    final int iff = (int) (it >>> 3);
-                                    final int iw = (int) (it & 7);
-                                    if (iff == 1) {
-                                        final int l4 = (int) dVarint();
-                                        validStart = decodeTimestamp(dPos + l4);
-                                    } else if (iff == 2) {
-                                        final int l4 = (int) dVarint();
-                                        payer = decodeAccountId(dPos + l4);
-                                    } else {
-                                        dSkip(iw);
-                                    }
+            final long et = dVarint();
+            if ((int) (et >>> 3) != 3) {
+                dSkip((int) (et & 7));
+                continue;
+            }
+            final int len = (int) dVarint();
+            final int entriesLimit = dPos + len;
+            while (dPos < entriesLimit) {
+                final long et2 = dVarint();
+                if ((int) (et2 >>> 3) == 1) {
+                    final int l2 = (int) dVarint();
+                    final int entryLimit = dPos + l2;
+                    while (dPos < entryLimit) {
+                        final long rt = dVarint();
+                        final int rf = (int) (rt >>> 3);
+                        final int rw = (int) (rt & 7);
+                        if (rf == 1) {
+                            nodeId = dVarint();
+                        } else if (rf == 2) {
+                            final int l3 = (int) dVarint();
+                            final int idLimit = dPos + l3;
+                            while (dPos < idLimit) {
+                                final long it = dVarint();
+                                final int iff = (int) (it >>> 3);
+                                final int iw = (int) (it & 7);
+                                if (iff == 1) {
+                                    final int l4 = (int) dVarint();
+                                    validStart = decodeTimestamp(dPos + l4);
+                                } else if (iff == 2) {
+                                    final int l4 = (int) dVarint();
+                                    payer = decodeAccountId(dPos + l4);
+                                } else {
+                                    dSkip(iw);
                                 }
-                            } else if (rf == 3) {
-                                status = (int) dVarint();
-                            } else {
-                                dSkip(rw);
                             }
+                        } else if (rf == 3) {
+                            status = (int) dVarint();
+                        } else {
+                            dSkip(rw);
                         }
-                    } else {
-                        dSkip((int) (et & 7));
                     }
+                } else {
+                    dSkip((int) (et2 & 7));
                 }
-            } else {
-                dSkip(wireType);
             }
         }
         return new RReceiptPushChange(nodeId, validStart, payer, status);
     }
 
     private RStateChanges decodeStateChanges(final int limit) {
-        RTimestamp timestamp = new RTimestamp(0, 0);
+        RTimestamp timestamp = ZERO_TIMESTAMP;
         final List<RStateChange> changes = new ArrayList<>();
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            timestamp = decodeTimestamp(dPos + len);
+        }
+        while (dAt(limit, tagByte(2, WT_LEN))) {
+            final int len = (int) dVarint();
+            changes.add(decodeStateChange(dPos + len));
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2375,6 +3080,17 @@ public final class ReferenceCodec {
         final int limit = offset + length;
         Range bodyBytes = new Range(buf, offset, 0);
         final List<RSignaturePair> pairs = new ArrayList<>();
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            bodyBytes = dRange(len);
+        }
+        if (dAt(limit, tagByte(2, WT_LEN))) {
+            final int len = (int) dVarint();
+            decodeSignaturePairsInto(dPos + len, pairs);
+        }
+        if (dAt(limit, tagByte(3, WT_VARINT))) {
+            dVarint();
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2386,16 +3102,7 @@ public final class ReferenceCodec {
                 }
                 case 2 -> {
                     final int len = (int) dVarint();
-                    final int mapLimit = dPos + len;
-                    while (dPos < mapLimit) {
-                        final long pt = dVarint();
-                        if ((int) (pt >>> 3) == 1) {
-                            final int l2 = (int) dVarint();
-                            pairs.add(decodeSignaturePair(dPos + l2));
-                        } else {
-                            dSkip((int) (pt & 7));
-                        }
-                    }
+                    decodeSignaturePairsInto(dPos + len, pairs);
                 }
                 case 3 -> dVarint();
                 default -> dSkip(wireType);
@@ -2405,10 +3112,31 @@ public final class ReferenceCodec {
         return new RSignedTx(bodyBytes, pairs.toArray(RSignaturePair[]::new), body);
     }
 
+    private void decodeSignaturePairsInto(final int mapLimit, final List<RSignaturePair> pairs) {
+        while (dAt(mapLimit, tagByte(1, WT_LEN))) {
+            final int l2 = (int) dVarint();
+            pairs.add(decodeSignaturePair(dPos + l2));
+        }
+        while (dPos < mapLimit) {
+            final long pt = dVarint();
+            if ((int) (pt >>> 3) == 1) {
+                final int l2 = (int) dVarint();
+                pairs.add(decodeSignaturePair(dPos + l2));
+            } else {
+                dSkip((int) (pt & 7));
+            }
+        }
+    }
+
+    /** {@code signature} is a oneof (3, 6): the fast path handles only the leading plain {@code pubKeyPrefix}. */
     private RSignaturePair decodeSignaturePair(final int limit) {
         Range prefix = new Range(dBuf, 0, 0);
         int kind = 0;
         Range signature = new Range(dBuf, 0, 0);
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            prefix = dRange(len);
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2427,14 +3155,26 @@ public final class ReferenceCodec {
         return new RSignaturePair(prefix, kind, signature);
     }
 
+    /** {@code data} is a oneof (14, 74): the fast path handles only the leading plain fields. */
     private RTransactionBody decodeTransactionBody(final Range bodyBytes) {
         dBuf = bodyBytes.array();
         dPos = bodyBytes.offset();
         final int limit = bodyBytes.offset() + bodyBytes.length();
-        RTransactionId transactionId = new RTransactionId(new RTimestamp(0, 0), 0);
+        RTransactionId transactionId = new RTransactionId(ZERO_TIMESTAMP, 0);
         long nodeAccountNum = 0;
         long fee = 0;
         RTxData data = new RCryptoTransfer(new RAccountAmount[0], new RTokenTransferList[0]);
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            transactionId = decodeTransactionId(dPos + len);
+        }
+        if (dAt(limit, tagByte(2, WT_LEN))) {
+            final int len = (int) dVarint();
+            nodeAccountNum = decodeAccountId(dPos + len);
+        }
+        if (dAt(limit, tagByte(3, WT_VARINT))) {
+            fee = dVarint();
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2464,8 +3204,16 @@ public final class ReferenceCodec {
     }
 
     private RTransactionId decodeTransactionId(final int limit) {
-        RTimestamp validStart = new RTimestamp(0, 0);
+        RTimestamp validStart = ZERO_TIMESTAMP;
         long accountNum = 0;
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            validStart = decodeTimestamp(dPos + len);
+        }
+        if (dAt(limit, tagByte(2, WT_LEN))) {
+            final int len = (int) dVarint();
+            accountNum = decodeAccountId(dPos + len);
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2486,6 +3234,14 @@ public final class ReferenceCodec {
     private RCryptoTransfer decodeCryptoTransfer(final int limit) {
         List<RAccountAmount> transfers = List.of();
         final List<RTokenTransferList> tokenTransfers = new ArrayList<>();
+        if (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            transfers = decodeAccountAmounts(dPos + len);
+        }
+        while (dAt(limit, tagByte(2, WT_LEN))) {
+            final int len = (int) dVarint();
+            tokenTransfers.add(decodeTokenTransferList(dPos + len));
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
@@ -2506,6 +3262,10 @@ public final class ReferenceCodec {
 
     private RAtomicBatch decodeAtomicBatch(final int limit) {
         final List<Range> transactions = new ArrayList<>();
+        while (dAt(limit, tagByte(1, WT_LEN))) {
+            final int len = (int) dVarint();
+            transactions.add(dRange(len));
+        }
         while (dPos < limit) {
             final long tag = dVarint();
             final int field = (int) (tag >>> 3);
