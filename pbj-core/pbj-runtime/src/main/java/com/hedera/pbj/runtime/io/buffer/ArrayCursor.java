@@ -411,6 +411,63 @@ public final class ArrayCursor {
     }
 
     /**
+     * Read an unsigned varint of up to 64 bits, for a 64-bit field: {@link #varint} with the multi-byte read in the same
+     * method, under the JIT's limit for inlining a hot call. Its values are often large (balances, ids, timestamps), so
+     * where it is called, the multi-byte read is hot, and inlined with it; {@link #varint}'s call to it is not, where
+     * most values, tags and lengths among them, are one byte.
+     *
+     * @return the value
+     * @throws BufferUnderflowException if the input ends inside the varint
+     */
+    public long varint64() {
+        int q = p;
+        if (q < limit) {
+            final byte b = in[q];
+            if (b >= 0) {
+                p = q + 1;
+                return b;
+            }
+        }
+        if (in.length - q < 10) {
+            return varintSlow();
+        }
+        long v = in[q++];
+        if ((v ^= (long) in[q++] << 7) < 0L) {
+            v ^= (~0L << 7);
+        } else if ((v ^= (long) in[q++] << 14) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14);
+        } else if ((v ^= (long) in[q++] << 21) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21);
+        } else if ((v ^= (long) in[q++] << 28) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+        } else if ((v ^= (long) in[q++] << 35) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+        } else if ((v ^= (long) in[q++] << 42) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+        } else if ((v ^= (long) in[q++] << 49) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
+        } else {
+            return varintSlow();
+        }
+        if (q > limit) {
+            return varintSlow();
+        }
+        p = q;
+        return v;
+    }
+
+    /**
+     * Read a zigzag-encoded varint of up to 64 bits, for a {@code sint64} field, with {@link #varint64}.
+     *
+     * @return the value
+     * @throws BufferUnderflowException if the input ends inside the varint
+     */
+    public long varint64ZigZag() {
+        final long v = varint64();
+        return (v >>> 1) ^ -(v & 1);
+    }
+
+    /**
      * @return a bool, which must be encoded as 0 or 1
      * @throws IOException if it is neither
      */

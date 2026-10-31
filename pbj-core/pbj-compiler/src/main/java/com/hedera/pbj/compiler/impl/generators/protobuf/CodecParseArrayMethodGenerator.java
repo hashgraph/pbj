@@ -445,8 +445,9 @@ final class CodecParseArrayMethodGenerator {
         return switch (field.type()) {
             case INT32, UINT32 -> "(int) input.varint()";
             case SINT32 -> "(int) input.varintZigZag()";
-            case INT64, UINT64 -> "input.varint()";
-            case SINT64 -> "input.varintZigZag()";
+            // 64-bit fields' values are often large: a read that is inlined whole where it is called
+            case INT64, UINT64 -> "input.varint64()";
+            case SINT64 -> "input.varint64ZigZag()";
             case BOOL -> "input.bool()";
             case FIXED32, SFIXED32 -> "input.fixed32()";
             case FLOAT -> "Float.intBitsToFloat(input.fixed32())";

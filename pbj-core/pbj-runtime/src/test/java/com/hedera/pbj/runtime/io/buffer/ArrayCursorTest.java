@@ -171,6 +171,40 @@ final class ArrayCursorTest {
     }
 
     @Test
+    void varint64ReadsExactlyAsVarintDoes() {
+        // every length, every tenth byte, the limit at the varint's end or before it, and 0 to 12 bytes after it
+        final Random random = new Random(64);
+        for (int length = 1; length <= 10; length++) {
+            for (int sample = 0; sample < 40; sample++) {
+                final byte[] varint = new byte[length];
+                for (int i = 0; i < length; i++) {
+                    varint[i] = (byte) (random.nextInt(128) | (i < length - 1 ? 0x80 : 0));
+                }
+                if (length == 10) {
+                    varint[9] = (byte) random.nextInt(256);
+                }
+                for (int after = 0; after <= 12; after++) {
+                    final byte[] in = Arrays.copyOf(varint, length + after);
+                    for (int limit = 0; limit <= in.length; limit++) {
+                        final Object expected = read(new ArrayCursor(in, 0, limit), false);
+                        assertEquals(expected, read(new ArrayCursor(in, 0, limit), true), "limit " + limit);
+                    }
+                }
+            }
+        }
+    }
+
+    /** The value and end position a varint read gives, or the exception's class it throws. */
+    private static Object read(final ArrayCursor cursor, final boolean varint64) {
+        try {
+            final long value = varint64 ? cursor.varint64() : cursor.varint();
+            return value + "@" + cursor.position();
+        } catch (final RuntimeException e) {
+            return e.getClass();
+        }
+    }
+
+    @Test
     void aBadTenthByteIsAnUnderflowWhenPastTheLimit() {
         final byte[] in = new byte[20];
         Arrays.fill(in, 0, 9, (byte) 0x80);
