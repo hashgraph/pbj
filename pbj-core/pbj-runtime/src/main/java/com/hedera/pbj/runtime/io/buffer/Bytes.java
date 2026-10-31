@@ -73,6 +73,16 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      */
     private final int length;
 
+    /** The backing array, for {@link ArrayInputsAccess}. */
+    byte[] backingArray() {
+        return buffer;
+    }
+
+    /** The index of this value's first byte in the backing array, for {@link ArrayInputsAccess}. */
+    int backingOffset() {
+        return start;
+    }
+
     /**
      * The hash code of this {@link Bytes}. This is cached to avoid recomputing it multiple times.
      */
