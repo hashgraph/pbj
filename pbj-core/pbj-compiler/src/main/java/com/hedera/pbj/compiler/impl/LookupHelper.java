@@ -605,17 +605,18 @@ public final class LookupHelper {
     }
 
     /**
-     * A field of a small message a parent writer can write in one call, from its values: its proto name, number and
+     * A field of a small message a parent writer can write in one call, from its values (an enum as its ordinal): its
+     * proto name, number and
      * type, and whether it is written even when 0, as a oneof alternative is.
      */
     public record InlineField(String name, int number, Field.FieldType type, boolean alwaysWritten) {}
 
     /** The most fields a message can have for parent writers to write it in one call. */
-    private static final int MAX_INLINE_FIELDS = 4;
+    private static final int MAX_INLINE_FIELDS = 6;
 
     /**
      * The fields to write a message of this type with, in one call on a parent writer, without opening its own writer:
-     * a message whose fields are all integers or bools, at most {@value #MAX_INLINE_FIELDS} of them, such as an id or a
+     * a message whose fields are all integers, bools or enums, at most {@value #MAX_INLINE_FIELDS} of them, such as an id or a
      * timestamp. A oneof may have one integer alternative, which is written, and others that are not offered.
      *
      * @param modelPackage the Java package of the message's model class
@@ -635,7 +636,7 @@ public final class LookupHelper {
                 return null;
             }
             if (element.field() != null && element.field().fieldName() != null) {
-                final Field.FieldType type = inlineType(element.field().type_());
+                final Field.FieldType type = inlineType(message, element.field().type_());
                 if (element.field().REPEATED() != null || type == null) {
                     return null;
                 }
@@ -647,7 +648,7 @@ public final class LookupHelper {
             } else if (element.oneof() != null) {
                 InlineField alternative = null;
                 for (var field : element.oneof().oneofField()) {
-                    final Field.FieldType type = inlineType(field.type_());
+                    final Field.FieldType type = inlineType(message, field.type_());
                     if (type != null) {
                         if (alternative != null) {
                             return null;
@@ -671,9 +672,15 @@ public final class LookupHelper {
         return fields;
     }
 
-    /** The type of an integer or bool field, or null for any other. */
+    /** The type of an integer, bool or enum field of a message, or null for any other. */
     @Nullable
-    private static Field.FieldType inlineType(final Protobuf3Parser.Type_Context type) {
+    private Field.FieldType inlineType(final String message, final Protobuf3Parser.Type_Context type) {
+        if (type.enumType() != null
+                || (type.messageType() != null
+                        && enumNames.contains(
+                                getFullyQualifiedProtoName(messageFiles.get(message), type.messageType())))) {
+            return Field.FieldType.ENUM;
+        }
         final Map<Field.FieldType, org.antlr.v4.runtime.tree.TerminalNode> tokens =
                 new java.util.EnumMap<>(Field.FieldType.class);
         tokens.put(Field.FieldType.INT32, type.INT32());

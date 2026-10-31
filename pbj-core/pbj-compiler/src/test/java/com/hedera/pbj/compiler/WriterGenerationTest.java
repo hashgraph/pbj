@@ -264,10 +264,12 @@ class WriterGenerationTest {
                 package example;
                 // <<<pbj.writers = true>>>
                 message Outer { Id id = 1; Time time = 2; Big big = 3; Mixed mixed = 4; Two two = 5;
-                    oneof choice { Time at = 6; string name = 7; } repeated Id ids = 8; }
+                    oneof choice { Time at = 6; string name = 7; } repeated Id ids = 8; Order order = 9; }
                 message Id { int64 shard = 1; int64 realm = 2; oneof account { int64 num = 3; bytes alias = 4; } }
                 message Time { int64 seconds = 1; int32 nanos = 2; }
-                message Big { int64 a = 1; int64 b = 2; int64 c = 3; int64 d = 4; int64 e = 5; }
+                message Big { int64 a = 1; int64 b = 2; int64 c = 3; int64 d = 4; int64 e = 5; int64 f = 6; int64 g = 7; }
+                message Order { int64 id = 1; Side side = 2; fixed64 time = 3; bool open = 4; uint32 qty = 5; sint64 px = 6; }
+                enum Side { BUY = 0; SELL = 1; }
                 message Mixed { int64 a = 1; string s = 2; }
                 message Two { oneof v { int64 a = 1; sint32 b = 2; } }
                 """);
@@ -276,6 +278,11 @@ class WriterGenerationTest {
         assertTrue(outer.contains("public Writer id(final long shard, final long realm, final long num)"), outer);
         assertTrue(outer.contains("public Writer time(final long seconds, final int nanos)"), outer);
         assertTrue(outer.contains("public Writer at(final long seconds, final int nanos)"), outer);
+        // up to six fields, with enums as their ordinals
+        assertTrue(
+                outer.contains("public Writer order(final long id, final int sideProtoOrdinal, final long time,"
+                        + " final boolean open, final int qty, final long px)"),
+                outer);
         // too many fields, a string, two integer alternatives of a oneof, or a repeated field: opened as before
         assertFalse(outer.contains("public Writer big(final long"), outer);
         assertFalse(outer.contains("public Writer mixed(final long"), outer);

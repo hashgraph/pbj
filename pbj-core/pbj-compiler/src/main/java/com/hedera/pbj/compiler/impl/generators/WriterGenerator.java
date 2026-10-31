@@ -663,7 +663,7 @@ final class WriterGenerator {
         final StringBuilder sizes = new StringBuilder();
         final StringBuilder writes = new StringBuilder();
         for (final LookupHelper.InlineField f : inline) {
-            final String v = Common.snakeToCamel(f.name(), false);
+            final String v = Common.snakeToCamel(f.name(), false) + (f.type() == FieldType.ENUM ? "ProtoOrdinal" : "");
             if (v.equals("out") || v.equals("size")) {
                 // would hide the writer's buffer, or the size computed here
                 return;
@@ -671,8 +671,12 @@ final class WriterGenerator {
             final String fieldTag = tag(f.number(), f.type().wireType());
             final int tagLength = Common.tagBytes(f.number(), f.type().wireType()).length;
             parameters.append(parameters.isEmpty() ? "" : ", ").append("final %s %s".formatted(javaType(f.type()), v));
-            docs.append(
-                    "\n@param %s {@code %s}%s".formatted(v, f.name(), f.alwaysWritten() ? ", written even if 0" : ""));
+            docs.append("\n@param %s {@code %s}%s%s"
+                    .formatted(
+                            v,
+                            f.name(),
+                            f.type() == FieldType.ENUM ? ", the enum's ordinal" : "",
+                            f.alwaysWritten() ? ", written even if 0" : ""));
             final String fieldSize = "%d + %s".formatted(tagLength, valueSize(f.type(), v));
             final String when = f.alwaysWritten() ? null : notDefault(f.type(), v);
             sizes.append(sizes.isEmpty() ? "" : "\n        + ")
