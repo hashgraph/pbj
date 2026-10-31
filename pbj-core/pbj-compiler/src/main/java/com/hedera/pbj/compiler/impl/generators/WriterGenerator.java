@@ -528,14 +528,14 @@ final class WriterGenerator {
             }
             case "FloatValue" -> {
                 javaType = "float";
-                // the wrapped value is left out when its bits are zero, so -0.0 is written
-                content = "final int bits = Float.floatToIntBits(value);\nfinal int content = bits == 0 ? 0 : 5;\n";
-                write = guarded("bits != 0", "out.tagFixed32(0x0D, bits);\n");
+                // as in the model, the wrapped value is left out when it is 0.0 or -0.0, and NaN is written
+                content = "final int content = value == 0 ? 0 : 5;\n";
+                write = guarded("value != 0", "out.tagFixed32(0x0D, Float.floatToIntBits(value));\n");
             }
             case "DoubleValue" -> {
                 javaType = "double";
-                content = "final long bits = Double.doubleToLongBits(value);\nfinal int content = bits == 0 ? 0 : 9;\n";
-                write = guarded("bits != 0", "out.tagFixed64(9, bits);\n");
+                content = "final int content = value == 0 ? 0 : 9;\n";
+                write = guarded("value != 0", "out.tagFixed64(9, Double.doubleToLongBits(value));\n");
             }
             default -> {
                 final FieldType inner =
