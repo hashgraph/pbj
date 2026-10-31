@@ -65,7 +65,8 @@ public final class ArrayCursor {
     }
 
     /**
-     * A cursor over the remaining bytes of an array-backed input, or null if the input is not backed by an array.
+     * A cursor over the remaining bytes of an array-backed input, or null if the input is not backed by an array:
+     * an array-backed {@link BufferedData}, or the input {@link Bytes#toReadableSequentialData()} returns.
      *
      * @param input the input
      * @return a cursor from the input's position to its limit, or null
@@ -74,6 +75,11 @@ public final class ArrayCursor {
         if (input instanceof ByteArrayBufferedData data) {
             final int offset = data.arrayOffset() + Math.toIntExact(data.position());
             return new ArrayCursor(data.backingArray(), offset, offset + Math.toIntExact(data.remaining()));
+        }
+        if (input instanceof RandomAccessSequenceAdapter adapter && adapter.delegate() instanceof Bytes bytes) {
+            // like the stream parser over Bytes, bytes fields are then views of the Bytes rather than copies
+            final int offset = bytes.backingOffset() + Math.toIntExact(adapter.absolutePosition());
+            return new ArrayCursor(bytes.backingArray(), offset, offset + Math.toIntExact(adapter.remaining()), bytes);
         }
         return null;
     }
