@@ -264,12 +264,15 @@ class PerformanceOptionsTest {
     }
 
     @Test
-    void optionsDoNotChangeGeneratedCodeYet() throws Exception {
+    void fastParseAddsAnArrayParserOnlyWhereEnabledAndSupported() throws Exception {
         final Path proto = directory.resolve("model.proto");
         Files.writeString(proto, """
                 syntax = "proto3";
                 package example;
-                message Value { int64 count = 1; oneof choice { string name = 4; int64 number = 7; } }
+                message Simple { int64 count = 1; string name = 2; }
+                // <<<pbj.fast_parse = false>>>
+                message OptedOut { int64 count = 1; }
+                message WithList { repeated int64 counts = 1; }
                 """);
         final Path plain = directory.resolve("plain");
         final Path max = directory.resolve("max");
@@ -288,8 +291,19 @@ class PerformanceOptionsTest {
                     Set.of(),
                     run.getValue());
         }
-        for (String file : List.of("example/Value.java", "example/codec/ValueProtoCodec.java")) {
-            assertEquals(Files.readString(plain.resolve(file)), Files.readString(max.resolve(file)), file);
-        }
+        final String simple = Files.readString(max.resolve("example/codec/SimpleProtoCodec.java"));
+        assertTrue(simple.contains("public static @NonNull Simple parseArray("), simple);
+        assertFalse(Files.readString(plain.resolve("example/codec/SimpleProtoCodec.java"))
+                .contains("parseArray("));
+        // a message comment opts out of the project setting
+        assertFalse(Files.readString(max.resolve("example/codec/OptedOutProtoCodec.java"))
+                .contains("parseArray("));
+        // repeated fields are not supported by the array parser yet
+        assertFalse(Files.readString(max.resolve("example/codec/WithListProtoCodec.java"))
+                .contains("parseArray("));
+        // models are unchanged
+        assertEquals(
+                Files.readString(plain.resolve("example/Simple.java")),
+                Files.readString(max.resolve("example/Simple.java")));
     }
 }
