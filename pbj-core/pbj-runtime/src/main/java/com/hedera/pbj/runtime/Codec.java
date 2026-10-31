@@ -295,12 +295,8 @@ public abstract class Codec<T> {
     public Bytes toBytes(@NonNull T item) {
         // it is cheaper performance wise to measure the size of the object first than grow a buffer as needed
         final byte[] bytes = new byte[measureRecord(item)];
-        final BufferedData bufferedData = BufferedData.wrap(bytes);
-        try {
-            write(item, bufferedData);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        // the byte array writer, which generated codecs implement with their fastest code
+        write(item, bytes, 0);
         return Bytes.wrap(bytes);
     }
 
