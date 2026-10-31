@@ -173,6 +173,23 @@ final class ArrayCursorTest {
     }
 
     @Test
+    void delimitedFieldsAreMatchedByMask() {
+        final int fields2And8 = (1 << 2) | (1 << 8);
+        final ArrayCursor cursor = cursor(new byte[] {0x12, 0x42, 0x1A, 0x10, (byte) 0x82, 0x01});
+        assertEquals(0x12, cursor.atField(fields2And8));
+        assertEquals(1, cursor.position());
+        assertEquals(0x42, cursor.atField(fields2And8));
+        // field 3, wire type 2: not in the mask; field 2, wire type 0; a two-byte tag
+        assertEquals(0, cursor.atField(fields2And8));
+        cursor.skip(1);
+        assertEquals(0, cursor.atField(fields2And8));
+        cursor.skip(1);
+        assertEquals(0, cursor.atField(-1));
+        assertEquals(4, cursor.position());
+        assertEquals(0, new ArrayCursor(new byte[] {0x12}, 0, 0).atField(fields2And8));
+    }
+
+    @Test
     void fixedValuesAreLittleEndian() {
         assertEquals(0x04030201, cursor(bytes(1, 2, 3, 4)).fixed32());
         assertEquals(0x0807060504030201L, cursor(bytes(1, 2, 3, 4, 5, 6, 7, 8)).fixed64());

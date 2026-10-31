@@ -117,7 +117,7 @@ final class ViewGenerator {
             } else if (field.repeated()) {
                 repeated((SingleField) field, parts);
             } else {
-                singular((SingleField) field, null, parts);
+                singular((SingleField) field, null, null, parts);
             }
         }
         // spotless:off
@@ -391,14 +391,32 @@ final class ViewGenerator {
     /**
      * A singular field, or a oneof alternative when {@code oneOfKind} names the oneof's kind field.
      *
+     * @param slot for a oneof alternative indexed with others into one shared offset and length, the slot's name;
+     *     otherwise null
      * @return for a oneof alternative, its in-order fast path ({@code if (cursor.at(…)) {…}}), or empty if its tag is
-     * too long for one; for a singular field, which adds its own, null
+     * too long for one or it is in a shared slot; for a singular field, which adds its own, null
      */
-    private static String singular(final SingleField field, final String oneOfKind, final Parts parts) {
+    private static String singular(
+            final SingleField field, final String oneOfKind, final String slot, final Parts parts) {
         final String name = field.nameCamelFirstLower();
         final int wireType = field.optionalValueType()
                 ? Common.TYPE_LENGTH_DELIMITED
                 : field.type().wireType();
+        final String guard = oneOfKind == null ? "" : "%s == %d".formatted(oneOfKind, field.fieldNumber());
+        if (slot != null) {
+            // indexed by the oneof's shared method; its accessors read the shared offset and length
+            parts.accessors()
+                    .append(slotted(
+                            field.optionalValueType()
+                                    ? wrapperAccessor(field, name, guard)
+                                    : accessor(field, name, guard),
+                            name,
+                            slot));
+            if (field.type() == Field.FieldType.MESSAGE) {
+                parts.validations().append("%s();%n".formatted(name));
+            }
+            return "";
+        }
         String record;
         if (wireType == Common.TYPE_LENGTH_DELIMITED) {
             parts.state().append("private int %sOffset = -1;%nprivate int %sLength;%n".formatted(name, name));
@@ -444,7 +462,6 @@ final class ViewGenerator {
                             "if", field.fieldNumber(), wireType, parts.index("index_" + name, record, "", false)));
         }
         parts.cases().append(caseCode(field, wireType, parts.index("index_" + name, record, "", true)));
-        final String guard = oneOfKind == null ? "" : "%s == %d".formatted(oneOfKind, field.fieldNumber());
         parts.accessors()
                 .append(field.optionalValueType() ? wrapperAccessor(field, name, guard) : accessor(field, name, guard));
         if (field.type() == Field.FieldType.MESSAGE) {
@@ -454,18 +471,98 @@ final class ViewGenerator {
         return fast;
     }
 
+    /**
+     * The alternatives of a oneof that share one offset and length: their state, the method indexing any of them, its
+     * call in the in-order fast path when the next field is one of them, and its call from the tag switch.
+     */
+    private static void sharedSlot(
+            final OneOfField oneOf,
+            final List<SingleField> shared,
+            final String kind,
+            final String slot,
+            final Parts parts) {
+        int mask = 0;
+        final String[] names = new String[16];
+        boolean message = false;
+        final StringBuilder tags = new StringBuilder();
+        for (final SingleField alternative : shared) {
+            mask |= 1 << alternative.fieldNumber();
+            names[alternative.fieldNumber()] = alternative.name();
+            message |= alternative.type() == Field.FieldType.MESSAGE && !alternative.optionalValueType();
+            tags.append(tags.isEmpty() ? "" : ", ")
+                    .append(Common.getTag(Common.TYPE_LENGTH_DELIMITED, alternative.fieldNumber()));
+        }
+        final String namesConstant = Common.camelToUpperSnake(slot) + "_NAMES";
+        parts.state()
+                .append("private int %sOffset = -1;%nprivate int %sLength;%n".formatted(slot, slot))
+                .append("/** The field names of {@code %s}'s shared alternatives, by field number. */%n"
+                        .formatted(oneOf.name()))
+                .append("private static final String[] %s = {%s};%n"
+                        .formatted(
+                                namesConstant,
+                                Arrays.stream(names)
+                                        .map(n -> n == null ? "null" : "\"" + n + "\"")
+                                        .collect(Collectors.joining(", "))));
+        final String strict = message ? """
+                    if (strictMode && $kind != 0) {
+                        throw new ParseException("A non-repeated $oneOf encountered more than once");
+                    }
+                """ : "";
+        parts.helpers().append("""
+
+                        /** Index whichever message or bytes alternative of {@code $oneOf} this is, from its tag. */
+                        private void index_$slot(final int tag) throws java.io.IOException, ParseException {
+                        $strict    $slotLength = cursor.length(maxSize, $NAMES[tag >>> 3]);
+                            $slotOffset = cursor.position();
+                            cursor.skip($slotLength);
+                            $kind = tag >>> 3;
+                        }
+                        """.replace("$strict", strict)
+                .replace("$NAMES", namesConstant)
+                .replace("$slot", slot)
+                .replace("$kind", kind)
+                .replace("$oneOf", oneOf.name()));
+        parts.fastPath().append("""
+                        final int $slotTag = cursor.atField(0x$mask);
+                        if ($slotTag != 0) {
+                            index_$slot($slotTag);
+                        }
+                        """.replace("$mask", Integer.toHexString(mask).toUpperCase(java.util.Locale.ROOT))
+                .replace("$slot", slot));
+        parts.cases().append("case %s /* %s */ -> index_%s(tag);%n".formatted(tags, oneOf.name(), slot));
+    }
+
+    /** An accessor's code reading a shared oneof slot's offset and length instead of the alternative's own. */
+    private static String slotted(final String code, final String name, final String slot) {
+        return code.replace(name + "Offset", slot + "Offset")
+                .replaceAll("\\b" + name + "Length\\b(?!\\()", slot + "Length");
+    }
+
     /** A oneof: each alternative is recorded like a singular field, and the oneof remembers the last one seen. */
     private static void oneOf(final OneOfField oneOf, final Parts parts) {
         final String kind = oneOf.nameCamelFirstLower() + "Kind";
         parts.state().append("private int %s;%n".formatted(kind));
         parts.resets().append("%s = 0;%n".formatted(kind));
         final StringBuilder kinds = new StringBuilder();
-        // a small oneof is read in order too, when its first alternative in field order is set: one at() per
-        // alternative, chained, as at most one is set. Ids, keys and timestamps are mostly such oneofs.
+        // The alternatives that are messages or bytes, with one-byte tags, share one offset and length, as at most one
+        // is set, and are indexed by one method: one compare in the in-order fast path for all of them, and one call
+        // in the tag switch, so index() stays small, which it must for the JIT to inline the cursor's reads into it.
+        final List<SingleField> shared = oneOf.fields().stream()
+                .map(f -> (SingleField) f)
+                .filter(f -> f.type() == Field.FieldType.MESSAGE || f.type() == Field.FieldType.BYTES)
+                .filter(f -> Common.tagBytes(f.fieldNumber(), Common.TYPE_LENGTH_DELIMITED).length == 1)
+                .toList();
+        final String slot = shared.isEmpty() ? null : oneOf.nameCamelFirstLower();
+        if (slot != null) {
+            sharedSlot(oneOf, shared, kind, slot, parts);
+        }
+        // a small oneof's other alternatives are read in order too, when its first alternative in field order is set:
+        // one at() per alternative, chained, as at most one is set. Ids are mostly such oneofs.
         final boolean fast = oneOf.fields().size() <= MAX_FAST_PATH_ALTERNATIVES;
         final StringBuilder chain = new StringBuilder();
         for (final Field alternative : oneOf.fields()) {
-            final String alternativeFastPath = singular((SingleField) alternative, kind, parts);
+            final String alternativeFastPath =
+                    singular((SingleField) alternative, kind, shared.contains(alternative) ? slot : null, parts);
             if (fast && !alternativeFastPath.isEmpty()) {
                 chain.append(chain.isEmpty() ? "" : "else ").append(alternativeFastPath);
             }
