@@ -57,7 +57,10 @@ public abstract class MessageWriter {
     private MessageWriter child;
     /** The writer of the message this one is nested in, while open, or null for a top-level message. */
     private MessageWriter parent;
-    /** Where this message's bytes start, after the bytes reserved for its length prefix. */
+    /**
+     * Where this message's bytes start, after the bytes reserved for its length prefix; once it has ended, after its
+     * length prefix, as the bytes move when the prefix is a different size than was reserved.
+     */
     private int start;
     /** The number of bytes reserved for the length prefix, 0 for a top-level message. */
     private int reserved;
@@ -66,7 +69,7 @@ public abstract class MessageWriter {
     /** The size of the last length prefix written for this writer, the adaptive guess for the next one; 0 if none. */
     private int lastLengthSize;
 
-    private int offset = -1;
+    /** The message's length once it has ended; -1 before, or once abandoned. */
     private int length = -1;
 
     /** Create a writer, which must be started, or opened by its parent, before use. */
@@ -203,15 +206,12 @@ public abstract class MessageWriter {
         if (size == 0 && tagStart >= 0) {
             // an empty packed field is not written at all, as the model writes it
             out.pos = tagStart;
-            offset = tagStart;
+            start = tagStart;
         } else if (reserved == 1 && size < 0x80) {
-            // the common case: a one-byte length, guessed right
+            // the common case: a one-byte length, guessed right. The adaptive guess stays one byte, so it needs no
+            // update: one was reserved because it was the guess, or because the length was known.
             out.buf[start - 1] = (byte) size;
-            offset = start;
-            lastLengthSize = 1;
-        } else if (reserved == 0) {
-            offset = start;
-        } else {
+        } else if (reserved != 0) {
             closeLength(size);
         }
         length = size;
@@ -228,10 +228,9 @@ public abstract class MessageWriter {
         if (reserved == 2 && size >= 0x80 && size < 0x4000) {
             out.buf[start - 2] = (byte) (size | 0x80);
             out.buf[start - 1] = (byte) (size >>> 7);
-            offset = start;
             lastLengthSize = 2;
         } else {
-            offset = out.moveAndWriteLength(start, reserved, size);
+            start = out.moveAndWriteLength(start, reserved, size);
             lastLengthSize = ProtoWriteBuffer.varintSize(size);
         }
     }
@@ -243,7 +242,6 @@ public abstract class MessageWriter {
                 child.abandon();
             }
             guard = SLOW;
-            offset = -1;
             length = -1;
         }
     }
@@ -261,7 +259,7 @@ public abstract class MessageWriter {
         if (guard != SLOW || length < 0) {
             throw new IllegalStateException("A message's offset is known once it has ended");
         }
-        return offset;
+        return start;
     }
 
     /**
