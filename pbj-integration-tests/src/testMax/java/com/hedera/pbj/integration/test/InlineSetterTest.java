@@ -76,6 +76,29 @@ final class InlineSetterTest {
     }
 
     @Test
+    void repeatedElementsAreWrittenAsTheModelWritesThem() {
+        final ProtoWriteBuffer buffer = new ProtoWriteBuffer(256);
+        final com.hedera.hapi.node.token.TokenAssociateTransactionBody.Writer writer =
+                new com.hedera.hapi.node.token.TokenAssociateTransactionBody.Writer();
+        final java.util.List<com.hedera.hapi.node.base.TokenID> tokens = new java.util.ArrayList<>();
+        writer.start(buffer).account(0, 0, 1001);
+        for (final long num : LONGS) {
+            tokens.add(com.hedera.hapi.node.base.TokenID.newBuilder()
+                    .realmNum(num)
+                    .tokenNum(num)
+                    .build());
+            writer.addTokens(0, num, num);
+        }
+        writer.end();
+        final var model = com.hedera.hapi.node.token.TokenAssociateTransactionBody.newBuilder()
+                .account(AccountID.newBuilder().accountNum(1001).build())
+                .tokens(tokens)
+                .build();
+        assertEquals(
+                com.hedera.hapi.node.token.TokenAssociateTransactionBody.PROTOBUF.toBytes(model), buffer.toBytes());
+    }
+
+    @Test
     void theFieldOrderIsChecked() {
         final ProtoWriteBuffer buffer = new ProtoWriteBuffer(64);
         final AccountAmount.Writer writer =
