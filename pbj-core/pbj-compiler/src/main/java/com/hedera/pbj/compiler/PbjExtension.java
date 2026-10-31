@@ -68,8 +68,17 @@ public interface PbjExtension {
     Property<String> getOneofStorage();
 
     /**
-     * Project default for {@code pbj.performance}, shorthand for the four options above: {@code "max"} turns them all
-     * on, {@code "default"} leaves them at their defaults. Unset by default. The specific properties above win over it.
+     * Project default for {@code pbj.writers}: generate zero-allocation message writers ({@code Xxx.Writer}) for every
+     * message, and so for every message reachable from one. Unset by default (off), and not turned on by
+     * {@code performance = "max"}. A file or message comment overrides it.
+     * @return the writers property
+     */
+    Property<Boolean> getGenerateWriters();
+
+    /**
+     * Project default for {@code pbj.performance}, shorthand for the four options above other than writers:
+     * {@code "max"} turns them all on, {@code "default"} leaves them at their defaults. Unset by default. The specific
+     * properties above win over it.
      * @return the performance property
      */
     Property<String> getPerformance();

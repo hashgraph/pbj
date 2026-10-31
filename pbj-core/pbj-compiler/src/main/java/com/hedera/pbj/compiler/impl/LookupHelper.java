@@ -479,6 +479,234 @@ public final class LookupHelper {
         return message != null && hasView(messageDefinitions.get(message));
     }
 
+    /** The messages that get writers, by fully qualified proto name, computed on first use. */
+    private Set<String> writers;
+
+    /** The largest encoded size of each message, or -1 if it is unbounded, by fully qualified proto name. */
+    private final Map<String, Long> maxEncodedSizes = new HashMap<>();
+
+    /**
+     * Whether a message gets a writer class ({@code Xxx.Writer}): it is generated in this build, and it has
+     * {@code pbj.writers} (from its comments, its file's, or the project), or it is reachable from a message that does,
+     * through message-typed fields of any kind.
+     *
+     * @param message the message
+     * @return true if a writer is generated for it
+     * @throws PbjCompilerException if a message reachable from one with writers turns them off explicitly
+     */
+    public boolean hasWriter(MessageDefContext message) {
+        return writers().contains(getFullyQualifiedProtoNameForContext(message));
+    }
+
+    /**
+     * Whether the model of a message generated in this build has a writer, so another writer can open it as a child.
+     *
+     * @param modelPackage the Java package of the message's model class
+     * @param completeClass the model's complete class name, including outer classes
+     * @return true if the message is generated in this build with a writer
+     */
+    public boolean hasWriter(String modelPackage, String completeClass) {
+        final String message = messagesByModelClass.get(modelPackage + "." + completeClass);
+        return message != null && writers().contains(message);
+    }
+
+    /**
+     * Compute which messages get writers: the transitive closure of the messages that ask for them, over their
+     * message-typed fields (singular, repeated, oneof alternatives and map values) in this build. The closure is a
+     * worklist over a visited set, so cycles of any length are reached once. Messages from dependency jars are not
+     * regenerated, so they get no writer; fields of their types are written from objects or pre-encoded bytes.
+     */
+    private Set<String> writers() {
+        if (writers != null) {
+            return writers;
+        }
+        final Set<String> generated = new HashSet<>(messagesByModelClass.values());
+        // each reached message, with the message and field it was reached through; roots have none
+        final Map<String, String[]> reachedFrom = new HashMap<>();
+        final ArrayDeque<String> pending = new ArrayDeque<>();
+        messageDefinitions.keySet().stream()
+                .filter(generated::contains)
+                .sorted()
+                .filter(name -> PerformanceOptions.resolveExplicit(
+                        levels(name, messageDefinitions.get(name)), PerformanceOptions::writers, false))
+                .forEach(root -> {
+                    reachedFrom.put(root, null);
+                    pending.add(root);
+                });
+        while (!pending.isEmpty()) {
+            final String name = pending.removeFirst();
+            for (Map.Entry<String, String> field : messageFields(name).entrySet()) {
+                final String type = field.getValue();
+                if (!generated.contains(type) || reachedFrom.containsKey(type)) {
+                    continue;
+                }
+                reachedFrom.put(type, new String[] {name, field.getKey()});
+                if (Boolean.FALSE.equals(PerformanceOptions.resolveExplicit(
+                        levels(type, messageDefinitions.get(type)).subList(0, 2), PerformanceOptions::writers, null))) {
+                    throw new PbjCompilerException(("Message %s has <<<pbj.writers = false>>>, but is reachable from a"
+                                    + " message with writers: %s. Every message reachable from one with writers gets"
+                                    + " them: remove the option, or turn writers off where the path starts")
+                            .formatted(type, writerPath(type, reachedFrom)));
+                }
+                pending.add(type);
+            }
+        }
+        writers = reachedFrom.keySet();
+        return writers;
+    }
+
+    /** The path a message was reached by, from a root that asked for writers, for error messages. */
+    private static String writerPath(final String message, final Map<String, String[]> reachedFrom) {
+        final List<String> steps = new ArrayList<>();
+        String current = message;
+        while (reachedFrom.get(current) != null) {
+            final String[] from = reachedFrom.get(current);
+            steps.addFirst("." + from[1] + " -> " + current);
+            current = from[0];
+        }
+        return current + String.join("", steps);
+    }
+
+    /**
+     * The message-typed fields of a message, by field name, with their types' fully qualified proto names: singular and
+     * repeated fields, oneof alternatives and map values. {@code google.protobuf} wrapper types and enums are left out.
+     */
+    private Map<String, String> messageFields(final String name) {
+        final Map<String, String> fields = new java.util.LinkedHashMap<>();
+        for (MessageElementContext element :
+                messageDefinitions.get(name).messageBody().messageElement()) {
+            final List<Map.Entry<String, Protobuf3Parser.Type_Context>> types = new ArrayList<>();
+            if (element.field() != null && element.field().fieldName() != null) {
+                types.add(Map.entry(
+                        element.field().fieldName().getText(), element.field().type_()));
+            }
+            if (element.mapField() != null) {
+                types.add(Map.entry(
+                        element.mapField().mapName().getText(),
+                        element.mapField().type_()));
+            }
+            if (element.oneof() != null) {
+                for (var alternative : element.oneof().oneofField()) {
+                    types.add(Map.entry(alternative.fieldName().getText(), alternative.type_()));
+                }
+            }
+            for (Map.Entry<String, Protobuf3Parser.Type_Context> field : types) {
+                final MessageTypeContext type = field.getValue().messageType();
+                if (type == null || WRAPPER_TYPES.contains(type.messageName().getText())) {
+                    continue;
+                }
+                final String typeName = getFullyQualifiedProtoName(messageFiles.get(name), type);
+                if (!enumNames.contains(typeName)) {
+                    fields.put(field.getKey(), typeName);
+                }
+            }
+        }
+        return fields;
+    }
+
+    /**
+     * The number of bytes a writer reserves for the length prefix of a nested message of this type, before it knows the
+     * message's length: one when the message's largest encoding is under 128 bytes, which needs only bounded fields,
+     * otherwise two.
+     *
+     * @param modelPackage the Java package of the message's model class
+     * @param completeClass the model's complete class name, including outer classes
+     * @return 1 or 2
+     */
+    public int writerLengthReserve(String modelPackage, String completeClass) {
+        final String message = messagesByModelClass.get(modelPackage + "." + completeClass);
+        if (message == null) {
+            return 2;
+        }
+        final long max = maxEncodedSize(message, new HashSet<>());
+        return max >= 0 && max < 128 ? 1 : 2;
+    }
+
+    /**
+     * The largest size a message can encode to, with each field written once, or -1 if it has strings, bytes, repeated
+     * fields, maps, or messages that do, or is part of a cycle.
+     */
+    private long maxEncodedSize(final String name, final Set<String> visiting) {
+        final Long known = maxEncodedSizes.get(name);
+        if (known != null) {
+            return known;
+        }
+        if (!visiting.add(name) || !messageDefinitions.containsKey(name)) {
+            return -1;
+        }
+        long total = 0;
+        for (MessageElementContext element :
+                messageDefinitions.get(name).messageBody().messageElement()) {
+            long size = 0;
+            if (element.mapField() != null) {
+                size = -1;
+            } else if (element.field() != null && element.field().fieldName() != null) {
+                size = element.field().REPEATED() != null
+                        ? -1
+                        : maxFieldSize(
+                                name,
+                                Integer.parseInt(element.field().fieldNumber().getText()),
+                                element.field().type_(),
+                                visiting);
+            } else if (element.oneof() != null) {
+                for (var alternative : element.oneof().oneofField()) {
+                    final long alternativeSize = maxFieldSize(
+                            name, Integer.parseInt(alternative.fieldNumber().getText()), alternative.type_(), visiting);
+                    size = alternativeSize < 0 || size < 0 ? -1 : Math.max(size, alternativeSize);
+                }
+            }
+            if (size < 0) {
+                total = -1;
+                break;
+            }
+            total += size;
+        }
+        visiting.remove(name);
+        maxEncodedSizes.put(name, total);
+        return total;
+    }
+
+    /** The largest size of one field, tag included, or -1 if it is unbounded. */
+    private long maxFieldSize(
+            final String owner, final int number, final Protobuf3Parser.Type_Context type, final Set<String> visiting) {
+        final long tag = (Long.SIZE - Long.numberOfLeadingZeros(((long) number << 3) | 7) + 6) / 7;
+        final long value;
+        if (type.BOOL() != null) {
+            value = 1;
+        } else if (type.FIXED32() != null || type.SFIXED32() != null || type.FLOAT() != null) {
+            value = 4;
+        } else if (type.FIXED64() != null || type.SFIXED64() != null || type.DOUBLE() != null) {
+            value = 8;
+        } else if (type.UINT32() != null || type.SINT32() != null) {
+            value = 5;
+        } else if (type.STRING() != null || type.BYTES() != null) {
+            value = -1;
+        } else if (type.messageType() != null || type.enumType() != null) {
+            final String typeName = type.messageType() != null
+                    ? getFullyQualifiedProtoName(messageFiles.get(owner), type.messageType())
+                    : null;
+            if (type.enumType() != null || enumNames.contains(typeName)) {
+                value = 10;
+            } else if (WRAPPER_TYPES.contains(type.messageType().messageName().getText())) {
+                value = switch (type.messageType().messageName().getText()) {
+                    case "StringValue", "BytesValue" -> -1;
+                    // the length, then the wrapped value's one-byte tag and value
+                    case "BoolValue" -> 1 + 1 + 1;
+                    case "FloatValue" -> 1 + 1 + 4;
+                    case "DoubleValue" -> 1 + 1 + 8;
+                    default -> 1 + 1 + 10;
+                };
+            } else {
+                final long nested = maxEncodedSize(typeName, visiting);
+                value = nested < 0 ? -1 : (Long.SIZE - Long.numberOfLeadingZeros(nested | 1) + 6) / 7 + nested;
+            }
+        } else {
+            // int32, int64, uint64, sint64: up to ten bytes
+            value = 10;
+        }
+        return value < 0 ? -1 : tag + value;
+    }
+
     /** The {@code google.protobuf} wrapper types, which views read as boxed values. */
     private static final Set<String> WRAPPER_TYPES = Set.of(
             "StringValue",

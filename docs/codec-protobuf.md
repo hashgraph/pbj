@@ -215,7 +215,7 @@ data.getUnknownFields().forEach(uf -> {
 
 Generated codecs can include extra fast paths, chosen per message with the options in
 [usage-guide.md](usage-guide.md#performance-options). All are off by default; `pbj.performance = "max"` turns them
-all on. Generated code stays byte-identical to protoc with any combination, and a message with one setting can
+all on except `pbj.writers`, which is only on where it is set. Generated code stays byte-identical to protoc with any combination, and a message with one setting can
 contain messages with another.
 
 | Option | What it generates |
@@ -224,6 +224,7 @@ contain messages with another.
 | `pbj.fast_write` | A back-to-front writer into a reusable buffer: no measuring pass, no allocation |
 | `pbj.views` | A zero-copy, reusable view class that reads fields in place from encoded bytes |
 | `pbj.oneof_storage = "unboxed"` | Models store each oneof as a kind and a value, so parsing allocates no `OneOf` |
+| `pbj.writers` | A reusable writer class that encodes fields into a buffer as they are given, with no model objects |
 
 The sections below describe what each option generates. [fast-codegen-plan.md](fast-codegen-plan.md) has the design
 and the measurements behind them.
@@ -350,4 +351,44 @@ meant for the binary parse and write paths.
 
 Models with copy-builder tracking or a parse cache (`pbj.cacheable`) don't get the kind-and-value constructor, so
 their parsers still build a `OneOf`.
+
+### Message Writers (`pbj.writers`)
+
+The model gets a nested `Writer` class extending the runtime's `MessageWriter`, which writes into a
+`ProtoWriteBuffer`. How to use it is in [usage-guide.md](usage-guide.md#zero-allocation-writers). Per field kind it has:
+
+| Field kind | Methods |
+|---|---|
+| Numbers, `bool` | `x(value)`; skipped at the default outside a oneof |
+| Enum | `x(Enum)`, `xProtoOrdinal(int)` |
+| `string` | `x(String)`, `x(byte[] utf8, offset, length)`, checked to be well-formed UTF-8 |
+| `bytes` | `x(Bytes)`, `x(byte[], offset, length)` |
+| Message | `X.Writer x()` opens it; `x(X object)` writes an object with its codec; `xRaw(Bytes)` copies its encoding |
+| Repeated message | `addX()`, `addX(X object)`, `addXRaw(Bytes)` |
+| Repeated number or enum (packed) | `x(long[] / int[] / …, offset, count)` in one call, or `PackedXxxWriter x()` then `add(v)` |
+| Repeated `string` or `bytes` | `addX(value)`, `addX(byte[], offset, length)` |
+| Map | `putX(key, value)`, and `X.Writer putX(key)` for message values; keys in ascending order |
+| Oneof alternative | The methods of its kind; a second alternative throws |
+| `google.protobuf` wrapper | `x(value)` writes the wrapper; leave the field out for null |
+
+Methods whose names would clash with the writer's own (`start`, `end`, `offset`, `length`, …) get the suffix `Field`,
+for example `lengthField(long)`. Repeated wrapper types are not supported: a message with writers that has one fails
+the build, as does a message with writers declaring its own nested type named `Writer`.
+
+**Which messages get writers.** `pbj.writers` resolves like the other options, from the message's comments, its file's,
+then the project, but it then spreads: every message reachable from one with writers, through singular, repeated,
+oneof and map-value fields, in any file of the build, gets them too. Cycles are fine. A reachable message whose own or
+whose file's comments say `pbj.writers = false` fails the build, with the path that reaches it. Messages from
+dependency jars are not regenerated, so they get no writer, and fields of their types have only the object and
+pre-encoded forms.
+
+**Output.** Fields are written as the model writes them: the same defaults skipped, canonical varints, packed repeated
+numbers, map keys in their Java order (signed, for unsigned types too), float and double map values of zero left out.
+Wrapper values are written as the model writes them too: `UInt32Value` of 2^31 or more as protoc does, and
+`FloatValue` and `DoubleValue` of `-0.0` as the default, an empty wrapper (#1020).
+
+**Nested lengths.** A nested message's length comes before it, so the writer reserves bytes for it and writes it when
+the message ends. The guess is one byte when the message's largest encoding is under 128 bytes (only bounded fields),
+two otherwise, and by default afterwards the size used last time for the same field. A wrong guess moves the message's
+bytes. `writeFrom` sizes each nested message from the object's `protobufSize()`, so it never moves bytes.
 

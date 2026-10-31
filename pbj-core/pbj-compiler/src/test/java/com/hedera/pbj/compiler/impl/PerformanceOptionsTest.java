@@ -205,6 +205,38 @@ class PerformanceOptionsTest {
     }
 
     @Test
+    void writersAreReadFromCommentsAndNotSetByPerformance() {
+        final Parsed parsed = parse("""
+                syntax = "proto3";
+                // <<<pbj.performance = "max">>>
+                package example;
+                // <<<pbj.writers = true>>>
+                message On { int64 a = 1; }
+                message Plain { int64 a = 1; }
+                """, PerformanceOptions.NONE);
+        final PerformanceOptions on =
+                PerformanceOptions.fromComments(parsed.message("On").optionComment(), "On");
+        assertEquals(Boolean.TRUE, on.writers());
+        assertEquals(
+                null,
+                PerformanceOptions.fromComments(parsed.message("Plain").optionComment(), "Plain")
+                        .writers());
+        // performance at a more specific level doesn't hide writers set at a less specific one
+        final List<PerformanceOptions> levels = List.of(
+                PerformanceOptions.of(null, null, null, null, null, "max", "file"),
+                PerformanceOptions.of(null, null, null, null, "true", null, "project"));
+        assertTrue(PerformanceOptions.resolveExplicit(levels, PerformanceOptions::writers, false));
+        assertFalse(PerformanceOptions.resolveExplicit(
+                List.of(PerformanceOptions.of(null, null, null, null, null, "max", "project")),
+                PerformanceOptions::writers,
+                false));
+        final var bad = assertThrows(
+                PbjCompilerException.class,
+                () -> PerformanceOptions.of(null, null, null, null, "yes", null, "test project"));
+        assertTrue(bad.getMessage().contains("pbj.writers must be true or false"), bad.getMessage());
+    }
+
+    @Test
     void invalidValuesAreRejected() {
         final var badBoolean = assertThrows(
                 PbjCompilerException.class, () -> PerformanceOptions.of("yes", null, null, null, null, "test project"));
