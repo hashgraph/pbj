@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler;
 
+import com.hedera.pbj.compiler.impl.PerformanceOptions;
 import java.io.File;
 import java.util.LinkedHashSet;
 import javax.inject.Inject;
@@ -82,6 +83,31 @@ public abstract class PbjCompilerTask extends SourceTask {
     @Input
     public abstract SetProperty<String> getDiffMessageContainers();
 
+    /** Project default for {@code pbj.fast_parse}; unset unless configured. */
+    @Optional
+    @Input
+    public abstract Property<Boolean> getFastParse();
+
+    /** Project default for {@code pbj.fast_write}; unset unless configured. */
+    @Optional
+    @Input
+    public abstract Property<Boolean> getFastWrite();
+
+    /** Project default for {@code pbj.views}; unset unless configured. */
+    @Optional
+    @Input
+    public abstract Property<Boolean> getGenerateViews();
+
+    /** Project default for {@code pbj.oneof_storage}; unset unless configured. */
+    @Optional
+    @Input
+    public abstract Property<String> getOneofStorage();
+
+    /** Project default for {@code pbj.performance}; unset unless configured. */
+    @Optional
+    @Input
+    public abstract Property<String> getPerformance();
+
     /** Src folders to determine the relative path of files to resolve import statements. */
     @Internal
     public abstract SetProperty<File> getSourceRoots();
@@ -109,6 +135,17 @@ public abstract class PbjCompilerTask extends SourceTask {
                 getGenerateTestClasses().getOrElse(Boolean.FALSE),
                 getGenerateCopyBuilderTracking().getOrElse(Boolean.FALSE),
                 getDiffMessages().getOrElse(java.util.Set.of()),
-                getDiffMessageContainers().getOrElse(java.util.Set.of()));
+                getDiffMessageContainers().getOrElse(java.util.Set.of()),
+                PerformanceOptions.of(
+                        text(getFastParse()),
+                        text(getFastWrite()),
+                        text(getGenerateViews()),
+                        text(getOneofStorage()),
+                        text(getPerformance()),
+                        "the pbj { } settings of " + getPath()));
+    }
+
+    private static String text(final Property<?> property) {
+        return property.isPresent() ? String.valueOf(property.get()) : null;
     }
 }

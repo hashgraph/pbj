@@ -22,9 +22,15 @@ public class ContextualLookupHelper {
 
     private final boolean generateCopyBuilderTracking;
 
+    /** Fast code generation options set by the source file's option comments */
+    private final PerformanceOptions fileOptions;
+
+    /** Fast code generation options set for the whole project in Gradle */
+    private final PerformanceOptions projectOptions;
+
     /**
      * Create a new ContextualLookupHelper delegating to {@code  lookupHelper} with the context of
-     * {@code srcProtoFileContext}.
+     * {@code srcProtoFileContext}, with no fast code generation options set for the file or project.
      *
      * @param lookupHelper Lookup helper that we are delegating to
      * @param srcProtoFileContext The proto source file for context
@@ -32,9 +38,85 @@ public class ContextualLookupHelper {
      */
     public ContextualLookupHelper(
             LookupHelper lookupHelper, File srcProtoFileContext, boolean generateCopyBuilderTracking) {
+        this(
+                lookupHelper,
+                srcProtoFileContext,
+                generateCopyBuilderTracking,
+                PerformanceOptions.NONE,
+                PerformanceOptions.NONE);
+    }
+
+    /**
+     * Create a new ContextualLookupHelper delegating to {@code  lookupHelper} with the context of
+     * {@code srcProtoFileContext}.
+     *
+     * @param lookupHelper Lookup helper that we are delegating to
+     * @param srcProtoFileContext The proto source file for context
+     * @param generateCopyBuilderTracking whether generated models include copy-builder provenance
+     * @param fileOptions fast code generation options set by the source file's option comments
+     * @param projectOptions fast code generation options set for the whole project
+     */
+    public ContextualLookupHelper(
+            LookupHelper lookupHelper,
+            File srcProtoFileContext,
+            boolean generateCopyBuilderTracking,
+            PerformanceOptions fileOptions,
+            PerformanceOptions projectOptions) {
         this.lookupHelper = lookupHelper;
         this.srcProtoFileContext = srcProtoFileContext;
         this.generateCopyBuilderTracking = generateCopyBuilderTracking;
+        this.fileOptions = fileOptions;
+        this.projectOptions = projectOptions;
+    }
+
+    /**
+     * The fast code generation option levels for a message, most specific first: its own option comments, its file's,
+     * then the project's. A message's options apply to that message only, not to messages nested in it.
+     */
+    private List<PerformanceOptions> optionLevels(MessageDefContext message) {
+        final PerformanceOptions messageOptions = PerformanceOptions.fromComments(
+                message.optionComment(),
+                "message " + message.messageName().getText() + " in " + srcProtoFileContext.getName());
+        return List.of(messageOptions, fileOptions, projectOptions);
+    }
+
+    /**
+     * Check the fast code generation option comments of a message and every message nested in it, so an invalid value
+     * fails the build even where no generator reads the option.
+     *
+     * @throws PbjCompilerException if an option has an invalid value
+     */
+    public void checkOptions(MessageDefContext message) {
+        optionLevels(message);
+        for (var element : message.messageBody().messageElement()) {
+            if (element.messageDef() != null) {
+                checkOptions(element.messageDef());
+            }
+        }
+    }
+
+    /** Whether to generate a byte-array parser with in-order fast paths for this message ({@code pbj.fast_parse}). */
+    public boolean fastParse(MessageDefContext message) {
+        return PerformanceOptions.resolve(optionLevels(message), PerformanceOptions::fastParse, true, false);
+    }
+
+    /** Whether to generate a back-to-front writer for this message ({@code pbj.fast_write}). */
+    public boolean fastWrite(MessageDefContext message) {
+        return PerformanceOptions.resolve(optionLevels(message), PerformanceOptions::fastWrite, true, false);
+    }
+
+    /** Whether to generate a zero-copy view for this message ({@code pbj.views}). */
+    public boolean generateViews(MessageDefContext message) {
+        return PerformanceOptions.resolve(optionLevels(message), PerformanceOptions::views, true, false);
+    }
+
+    /** How this message's model stores oneof fields ({@code pbj.oneof_storage}). */
+    public PerformanceOptions.OneofStorage oneofStorage(MessageDefContext message) {
+        return PerformanceOptions.resolve(
+                optionLevels(message),
+                PerformanceOptions::oneofStorage,
+                PerformanceOptions.OneofStorage.UNBOXED,
+                PerformanceOptions.OneofStorage.BOXED);
     }
 
     /**
