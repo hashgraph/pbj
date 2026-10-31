@@ -176,7 +176,12 @@ final class ArrayCursorTest {
         final byte[] source = bytes(3, 7, 8, 9);
         final Bytes copy = cursor(source).bytes(10);
         source[1] = 0;
-        assertArrayEquals(bytes(7, 8, 9), copy.toByteArray(), "bytes are a copy, as the stream parser returns");
+        assertArrayEquals(bytes(7, 8, 9), copy.toByteArray(), "bytes from an array are a copy");
+        // from a Bytes, which is immutable, they are views, as the stream parser returns them
+        final Bytes input = Bytes.wrap(bytes(0, 0, 3, 7, 8, 9)).slice(2, 4);
+        final Bytes view = ArrayCursor.of(input).bytes(10);
+        assertEquals(Bytes.wrap(bytes(7, 8, 9)), view);
+        assertTrue(view.backingArray() == input.backingArray(), "a view of the input");
         assertEquals(Bytes.EMPTY, cursor(bytes(0)).bytes(10));
     }
 

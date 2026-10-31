@@ -143,12 +143,6 @@ public final class LookupHelper {
     /** Fully qualified proto message names of the models in {@link #modelClassesInThisBuild}, by model class. */
     private final Map<String, String> messagesByModelClass = new HashMap<>();
 
-    /** Fully qualified proto message names generated in this build. */
-    private final Set<String> messagesInThisBuild = new HashSet<>();
-
-    /** Whether each message's codec has an array parser, by fully qualified proto name, computed on demand. */
-    private final Map<String, Boolean> arrayParsers = new HashMap<>();
-
     /** Fast code generation options set by each proto file's option comments, by absolute path. */
     private final Map<String, PerformanceOptions> fileOptions = new HashMap<>();
 
@@ -258,7 +252,6 @@ public final class LookupHelper {
                 final String modelClass = pbjPackageMap.get(message) + "." + pbjCompleteClassMap.get(message);
                 modelClassesInThisBuild.add(modelClass);
                 messagesByModelClass.put(modelClass, message);
-                messagesInThisBuild.add(message);
             }
         });
     }
@@ -286,60 +279,14 @@ public final class LookupHelper {
     }
 
     /**
-     * Whether a message's codec has a byte-array parser: the message has {@code pbj.fast_parse} (from its comments, its
-     * file's, or the project) and every field is of a kind the array parser supports.
+     * Whether a message's codec has a byte-array parser: the message has {@code pbj.fast_parse}, from its comments, its
+     * file's, or the project.
      *
      * @param message the message
      * @return true if the codec generated for it has an array parser
      */
     public boolean hasArrayParser(MessageDefContext message) {
-        final String name = getFullyQualifiedProtoNameForContext(message);
-        final Boolean known = arrayParsers.get(name);
-        if (known != null) {
-            return known;
-        }
-        // provisionally true, so messages that contain each other don't recurse forever
-        arrayParsers.put(name, Boolean.TRUE);
-        final boolean result =
-                fastParse(name, message) && arrayParserSupports(message) && nestedArrayParsersAvailable(name, message);
-        arrayParsers.put(name, result);
-        return result;
-    }
-
-    /** Whether a message has {@code pbj.fast_parse}, from its comments, its file's, or the project. */
-    private boolean fastParse(String name, MessageDefContext message) {
-        final File file = messageFiles.get(name);
-        final List<PerformanceOptions> levels = List.of(
-                PerformanceOptions.fromComments(message.optionComment(), "message " + name),
-                file == null
-                        ? PerformanceOptions.NONE
-                        : fileOptions.getOrDefault(file.getAbsolutePath(), PerformanceOptions.NONE),
-                projectOptions);
-        return PerformanceOptions.resolve(levels, PerformanceOptions::fastParse, true, false);
-    }
-
-    /**
-     * Whether every nested message that has {@code pbj.fast_parse} too also gets an array parser. Without it, the array
-     * parser would parse that nested message through a wrapping {@code BufferedData}, allocating more than the stream
-     * parser does. Nested messages without {@code fast_parse} (a deliberate mix) and from dependencies are fine.
-     */
-    private boolean nestedArrayParsersAvailable(String name, MessageDefContext message) {
-        for (MessageElementContext element : message.messageBody().messageElement()) {
-            final var field = element.field();
-            if (field == null || field.fieldName() == null || field.type_().messageType() == null) {
-                continue;
-            }
-            final String nestedName = getFullyQualifiedProtoName(
-                    messageFiles.get(name), field.type_().messageType());
-            final MessageDefContext nested = messageDefinitions.get(nestedName);
-            if (nested != null
-                    && messagesInThisBuild.contains(nestedName)
-                    && fastParse(nestedName, nested)
-                    && !hasArrayParser(nested)) {
-                return false;
-            }
-        }
-        return true;
+        return fastParse(getFullyQualifiedProtoNameForContext(message), message);
     }
 
     /**
@@ -355,39 +302,16 @@ public final class LookupHelper {
         return message != null && hasArrayParser(messageDefinitions.get(message));
     }
 
-    /** The {@code google.protobuf} wrapper types, which the array parser does not support yet. */
-    private static final Set<String> WRAPPER_TYPES = Set.of(
-            "StringValue",
-            "BoolValue",
-            "Int32Value",
-            "UInt32Value",
-            "Int64Value",
-            "UInt64Value",
-            "FloatValue",
-            "DoubleValue",
-            "BytesValue");
-
-    /**
-     * Whether the array parser supports every field of a message: singular scalars, strings, bytes, enums and messages,
-     * not repeated fields, maps, oneofs or {@code google.protobuf} wrapper types.
-     */
-    static boolean arrayParserSupports(MessageDefContext message) {
-        for (MessageElementContext element : message.messageBody().messageElement()) {
-            if (element.oneof() != null || element.mapField() != null) {
-                return false;
-            }
-            final var field = element.field();
-            if (field != null && field.fieldName() != null) {
-                if (field.REPEATED() != null) {
-                    return false;
-                }
-                final var type = field.type_().messageType();
-                if (type != null && WRAPPER_TYPES.contains(type.messageName().getText())) {
-                    return false;
-                }
-            }
-        }
-        return true;
+    /** Whether a message has {@code pbj.fast_parse}, from its comments, its file's, or the project. */
+    private boolean fastParse(String name, MessageDefContext message) {
+        final File file = messageFiles.get(name);
+        final List<PerformanceOptions> levels = List.of(
+                PerformanceOptions.fromComments(message.optionComment(), "message " + name),
+                file == null
+                        ? PerformanceOptions.NONE
+                        : fileOptions.getOrDefault(file.getAbsolutePath(), PerformanceOptions.NONE),
+                projectOptions);
+        return PerformanceOptions.resolve(levels, PerformanceOptions::fastParse, true, false);
     }
 
     /** Read a boolean PBJ message option from its special comments, defaulting to false. */

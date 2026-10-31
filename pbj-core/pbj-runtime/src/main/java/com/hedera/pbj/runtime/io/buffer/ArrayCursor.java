@@ -36,6 +36,11 @@ public final class ArrayCursor {
     private int limit;
     /** Index of the first byte, to report how many were consumed. */
     private final int start;
+    /**
+     * The {@link Bytes} this cursor reads, if it was created from one. Like the stream parser over {@link Bytes},
+     * {@link #bytes} then returns views of it instead of copies, since {@link Bytes} is immutable.
+     */
+    private final @Nullable Bytes source;
 
     /**
      * Create a cursor over {@code in[offset, limit)}.
@@ -45,6 +50,10 @@ public final class ArrayCursor {
      * @param limit index after the last byte to read
      */
     public ArrayCursor(@NonNull final byte[] in, final int offset, final int limit) {
+        this(in, offset, limit, null);
+    }
+
+    private ArrayCursor(@NonNull final byte[] in, final int offset, final int limit, @Nullable final Bytes source) {
         if (offset < 0 || limit < offset || limit > in.length) {
             throw new IndexOutOfBoundsException("offset " + offset + ", limit " + limit + ", length " + in.length);
         }
@@ -52,6 +61,7 @@ public final class ArrayCursor {
         this.p = offset;
         this.limit = limit;
         this.start = offset;
+        this.source = source;
     }
 
     /**
@@ -81,7 +91,7 @@ public final class ArrayCursor {
      */
     public static @NonNull ArrayCursor of(@NonNull final Bytes bytes) {
         return new ArrayCursor(
-                bytes.backingArray(), bytes.backingOffset(), bytes.backingOffset() + (int) bytes.length());
+                bytes.backingArray(), bytes.backingOffset(), bytes.backingOffset() + (int) bytes.length(), bytes);
     }
 
     /** @return the number of bytes read since this cursor was created */
@@ -303,7 +313,8 @@ public final class ArrayCursor {
     }
 
     /**
-     * Read a bytes field's length and contents, as a copy, which is what the stream parser returns for array input.
+     * Read a bytes field's length and contents, as the stream parser returns them: a view if this cursor reads a
+     * {@link Bytes}, which is immutable, otherwise a copy.
      *
      * @param maxSize the largest allowed length
      * @return the bytes
@@ -316,6 +327,9 @@ public final class ArrayCursor {
         }
         final int q = p;
         p = q + length;
+        if (source != null) {
+            return source.getBytes(q - source.backingOffset(), length);
+        }
         return Bytes.wrap(Arrays.copyOfRange(in, q, q + length));
     }
 
@@ -329,6 +343,30 @@ public final class ArrayCursor {
         final int old = limit;
         limit = p + length;
         return old;
+    }
+
+    /**
+     * Check that a length read without {@link #length} fits before the limit.
+     *
+     * @param length the length
+     * @return the length
+     * @throws BufferUnderflowException if it is negative or longer than the bytes left
+     */
+    public int checkedLength(final int length) {
+        if (length < 0 || length > limit - p) {
+            throw new BufferUnderflowException();
+        }
+        return length;
+    }
+
+    /**
+     * Restore an enclosing limit without checking that the nested range was read to its end, as the stream parser does
+     * for {@code google.protobuf} wrapper types.
+     *
+     * @param oldLimit the value {@link #pushLimit} returned
+     */
+    public void restoreLimit(final int oldLimit) {
+        limit = oldLimit;
     }
 
     /**

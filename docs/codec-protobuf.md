@@ -237,9 +237,9 @@ heap array (`BufferedData.wrap(byte[])`, `BufferedData.allocate(int)`). Direct b
 stream parser. Generated array parsers call each other directly for nested messages.
 
 Writers emit fields in field-number order, so the parser first tests for each field's tag in that order, one byte
-compare per field. Anything else (fields out of order or repeated, unknown fields) falls through to a general loop.
-Results and errors are the same as the stream parser's for the same input and arguments: strict mode, unknown-field
-collection, `maxDepth`, `maxSize`, malformed UTF-8 and truncated input all behave alike.
+compare per field, and a repeated field loops on its tag. Oneofs and maps
+stay out of this fast path. Anything else (oneofs, maps, fields out of order or repeated, unknown fields) falls
+through to a general loop. Results and errors are the same as the stream parser's for the same input and arguments:
+strict mode, unknown-field collection, `maxDepth`, `maxSize`, malformed UTF-8 and truncated input all behave alike.
 
-A message gets an array parser only if it asks for one and every field is a singular scalar, string, bytes, enum or
-message. Messages with repeated fields, maps, oneofs or `google.protobuf` wrapper types keep only the stream parser.
+Every field type is supported, so every message that asks for an array parser gets one.
