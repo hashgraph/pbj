@@ -96,6 +96,46 @@ public final class EnumGenerator {
     }
 
     /**
+     * The most constants {@code fromString} handles with a string switch, which takes about 50 bytes of bytecode per
+     * constant: larger enums look names up in a map instead, to stay well under HotSpot's 8000-byte limit for compiling
+     * a method at all.
+     */
+    private static final int MAX_FROM_STRING_SWITCH = 100;
+
+    // spotless:off
+    private static final String FROM_STRING_SWITCH = """
+            public static $enumName fromString(String name) {
+                return switch(name) {
+                    $fromStringCaseStatements
+                    default -> throw new IllegalArgumentException("Unknown token kyc status "+name);
+                };
+            }""";
+
+    private static final String FROM_STRING_MAP = """
+            public static $enumName fromString(String name) {
+                final $enumName value = BY_NAME.get(name);
+                if (value == null) {
+                    throw new IllegalArgumentException("Unknown token kyc status "+name);
+                }
+                return value;
+            }
+
+            /** The constants by protobuf and enum name, for {@link #fromString}. */
+            private static final java.util.Map<String, $enumName> BY_NAME = byName();
+
+            private static java.util.Map<String, $enumName> byName() {
+                final java.util.Map<String, $enumName> byName = new java.util.HashMap<>();
+                for (final $enumName value : values()) {
+                    if (value != $unknownValue) {
+                        byName.put(value.protoName, value);
+                        byName.put(value.name(), value);
+                    }
+                }
+                return java.util.Map.copyOf(byName);
+            }""";
+    // spotless:on
+
+    /**
      * Generate code for a enum
      *
      * @param javaDocComment either enum javadoc comment or empty string
@@ -220,12 +260,7 @@ public final class EnumGenerator {
                      * @param name the enum or protobuf format name
                      * @return enum for matching name
                      */
-                    public static $enumName fromString(String name) {
-                        return switch(name) {
-                            $fromStringCaseStatements
-                            default -> throw new IllegalArgumentException("Unknown token kyc status "+name);
-                        };
-                    }
+                    $fromString
 
                     /**
                      * Get enum from an $enumName or an unrecognized object (likely an Integer, but we don't check here.)
@@ -317,7 +352,12 @@ public final class EnumGenerator {
                         return Integer.compare(i1, i2);
                     }
                 }
-                """.replace("$javaDocComment", javaDocComment)
+                """.replace(
+                        "$fromString",
+                        (enumValues.size() > MAX_FROM_STRING_SWITCH ? FROM_STRING_MAP : FROM_STRING_SWITCH)
+                                .indent(DEFAULT_INDENT)
+                                .strip())
+                .replace("$javaDocComment", javaDocComment)
                 .replace("$deprecated$", deprecated)
                 .replace("$enumName", enumName)
                 .replace("$enumValues", String.join(",\n\n", enumValuesCode).indent(DEFAULT_INDENT))

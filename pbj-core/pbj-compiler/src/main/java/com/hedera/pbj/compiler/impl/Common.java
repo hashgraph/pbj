@@ -317,7 +317,7 @@ public final class Common {
                             .replace("$thatFieldName", f.nameCamelFirstLower())
                             .replace("$fieldName", fieldNamePrefix.isBlank() ? f.nameCamelFirstLower() : f.name());
                 } else if (f.type() == Field.FieldType.MAP) {
-                    generatedCodeSoFar += getMapHashCodeGeneration(generatedCodeSoFar, f, fieldNamePrefix);
+                    generatedCodeSoFar = getMapHashCodeGeneration(generatedCodeSoFar, f, fieldNamePrefix);
                 } else if (f.type() == Field.FieldType.STRING || f.parent() == null) { // process sub message
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
@@ -868,6 +868,27 @@ public final class Common {
         //noinspection ResultOfMethodCallIgnored
         packagePath.mkdirs();
         return new File(packagePath, className + ".java");
+    }
+
+    /**
+     * The most fields, counting each oneof alternative, a message can have with all of them parsed, written and indexed
+     * inline. Larger messages, such as HAPI's {@code TransactionBody} and {@code StateValue}, put the code for nested
+     * messages and oneof alternatives in small helper methods, to keep each generated method well under HotSpot's
+     * 8000-byte limit for compiling a method at all. Smaller messages keep everything inline.
+     */
+    public static final int MAX_INLINE_FIELDS = 32;
+
+    /**
+     * The number of fields of a message, counting each oneof alternative.
+     *
+     * @param fields the message's fields
+     * @return the count
+     */
+    public static long fieldCount(final List<Field> fields) {
+        return fields.stream()
+                .mapToLong(field ->
+                        field instanceof OneOfField oneOf ? oneOf.fields().size() : 1)
+                .sum();
     }
 
     /**

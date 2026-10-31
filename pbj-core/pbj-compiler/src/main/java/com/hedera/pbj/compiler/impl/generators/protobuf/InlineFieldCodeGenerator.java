@@ -68,6 +68,11 @@ final class InlineFieldCodeGenerator {
     /** The Java names of all fields of the message being generated, so renamed locals don't clash with them. */
     private Set<String> fieldNames = Set.of();
 
+    /** The model class, for the writers' helper methods; null for {@link Target#SIZE}, which has none. */
+    private final String modelClass;
+    /** Helper methods the generated code calls, to add to the class after the method. */
+    private final StringBuilder helpers = new StringBuilder();
+
     /**
      * @param target what the generated code does with each field
      * @param receiver the prefix for calling the model's getters, {@code "data."} or empty
@@ -79,6 +84,23 @@ final class InlineFieldCodeGenerator {
             final String receiver,
             final ContextualLookupHelper lookupHelper,
             final Function<Field, String> fallback) {
+        this(target, receiver, lookupHelper, fallback, null);
+    }
+
+    /**
+     * @param target what the generated code does with each field
+     * @param receiver the prefix for calling the model's getters, {@code "data."} or empty
+     * @param lookupHelper to find which nested messages are generated in this build
+     * @param fallback the target's existing code for a field, without a oneof guard
+     * @param modelClass the model class, for the writers' helper methods
+     */
+    InlineFieldCodeGenerator(
+            final Target target,
+            final String receiver,
+            final ContextualLookupHelper lookupHelper,
+            final Function<Field, String> fallback,
+            final String modelClass) {
+        this.modelClass = modelClass;
         this.target = target;
         this.receiver = receiver;
         this.lookupHelper = lookupHelper;
@@ -102,6 +124,13 @@ final class InlineFieldCodeGenerator {
                         : Stream.of(field))
                 .sorted(Comparator.comparingInt(Field::fieldNumber))
                 .toList();
+        // In messages with more than MAX_INLINE_FIELDS fields, such as HAPI's TransactionBody and StateValue, each
+        // message
+        // alternative of a oneof is written in its own small method, to keep the writer well under HotSpot's 8000-byte
+        // limit for compiling a method at all. Only one alternative is written per message, so the extra call costs
+        // little, and the JIT still inlines it where it is hot.
+        final boolean helpersForMessages =
+                target != Target.SIZE && modelClass != null && Common.fieldCount(fields) > Common.MAX_INLINE_FIELDS;
         final StringBuilder sb = new StringBuilder();
         int i = 0;
         while (i < sorted.size()) {
@@ -116,6 +145,9 @@ final class InlineFieldCodeGenerator {
             final StringBuilder cases = new StringBuilder();
             while (i < sorted.size() && sorted.get(i).parent() == oneOf) {
                 final Field alternative = sorted.get(i);
+                final String body = helpersForMessages && alternative.type() == Field.FieldType.MESSAGE
+                        ? helper(alternative, field(alternative))
+                        : field(alternative);
                 cases.append("""
                         // [$number] - $name
                         case $kind -> {
@@ -123,7 +155,7 @@ final class InlineFieldCodeGenerator {
                         """.replace("$number", Integer.toString(alternative.fieldNumber()))
                         .replace("$name", alternative.name())
                         .replace("$kind", Common.camelToUpperSnake(alternative.name()))
-                        .replace("$body", field(alternative).indent(DEFAULT_INDENT)));
+                        .replace("$body", body.indent(DEFAULT_INDENT)));
                 i++;
             }
             sb.append("""
@@ -135,6 +167,42 @@ final class InlineFieldCodeGenerator {
                     .replace("$cases", cases.toString().indent(DEFAULT_INDENT)));
         }
         return sb.toString();
+    }
+
+    /** @return the helper methods the generated code calls, to add to the class after the method */
+    String helpers() {
+        return helpers.toString();
+    }
+
+    /** Put the code writing one oneof alternative in a helper method, and return the code calling it. */
+    private String helper(final Field alternative, final String body) {
+        // spotless:off
+        if (target == Target.BYTE_ARRAY) {
+            helpers.append("""
+
+                    /** Writes the oneof alternative {@code $field}, for {@link #writeTo(%s, byte[], int, int)}. */
+                    private static int writeArray_$field(
+                            final $model data, final byte[] output, int offset, final int end) {
+                    $body    return offset;
+                    }
+                    """.formatted(modelClass)
+                    .replace("$model", modelClass)
+                    .replace("$field", alternative.name())
+                    .replace("$body", body.indent(DEFAULT_INDENT)));
+            return "offset = writeArray_%s(data, output, offset, end);%n".formatted(alternative.name());
+        }
+        helpers.append("""
+
+                /** Writes the oneof alternative {@code $field}, for {@link #writeTo(%s, WritableSequentialData)}. */
+                private static void writeStream_$field(final $model data, final WritableSequentialData out)
+                        throws IOException {
+                $body}
+                """.formatted(modelClass)
+                .replace("$model", modelClass)
+                .replace("$field", alternative.name())
+                .replace("$body", body.indent(DEFAULT_INDENT)));
+        return "writeStream_%s(data, out);%n".formatted(alternative.name());
+        // spotless:on
     }
 
     /** The number of bytes in a field's tag. */

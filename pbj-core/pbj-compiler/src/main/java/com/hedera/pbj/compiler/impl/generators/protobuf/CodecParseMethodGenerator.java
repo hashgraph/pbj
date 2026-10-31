@@ -58,7 +58,14 @@ class CodecParseMethodGenerator {
             final ContextualLookupHelper lookupHelper) {
 
         ParseAndDefaultBody parseAndDefaultBodyPair = generateParseLoop(
-                generateCaseStatements(sbFunc, fields, schemaClassName, lookupHelper), "", schemaClassName);
+                generateCaseStatements(
+                        sbFunc,
+                        fields,
+                        schemaClassName,
+                        lookupHelper,
+                        Common.fieldCount(fields) > Common.MAX_INLINE_FIELDS ? "" : null),
+                "",
+                schemaClassName);
         // spotless:off
         return """
                 /**
@@ -279,21 +286,32 @@ class CodecParseMethodGenerator {
         return new ParseAndDefaultBody(list.get(0), list.get(1));
     }
 
+    /**
+     * Generate the switch cases for fields.
+     *
+     * @param helperPrefix prefixed to the names of the helper methods reading nested message and wrapper type values,
+     *     to keep them unique: empty for a message's fields, the map's name for a map entry's key and value; null to
+     *     read them inline, in messages with at most {@link Common#MAX_INLINE_FIELDS} fields
+     */
     private static String generateCaseStatements(
-            StringBuilder sbFunc, List<Field> fields, String schemaClassName, ContextualLookupHelper lookupHelper) {
+            StringBuilder sbFunc,
+            List<Field> fields,
+            String schemaClassName,
+            ContextualLookupHelper lookupHelper,
+            String helperPrefix) {
         StringBuilder sb = new StringBuilder();
         for (Field field : fields) {
             if (field instanceof final OneOfField oneOfField) {
                 for (final Field subField : oneOfField.fields()) {
-                    generateFieldCaseStatement(sb, sbFunc, subField, schemaClassName, lookupHelper);
+                    generateFieldCaseStatement(sb, sbFunc, subField, schemaClassName, lookupHelper, helperPrefix);
                 }
             } else if (field.repeated() && field.type().wireType() != Common.TYPE_LENGTH_DELIMITED) {
                 // for repeated fields that are not length encoded there are 2 forms they can be stored in file.
                 // "packed" and repeated primitive fields
-                generateFieldCaseStatement(sb, sbFunc, field, schemaClassName, lookupHelper);
+                generateFieldCaseStatement(sb, sbFunc, field, schemaClassName, lookupHelper, helperPrefix);
                 generateFieldCaseStatementPacked(sb, sbFunc, field);
             } else {
-                generateFieldCaseStatement(sb, sbFunc, field, schemaClassName, lookupHelper);
+                generateFieldCaseStatement(sb, sbFunc, field, schemaClassName, lookupHelper, helperPrefix);
             }
         }
         return sb.toString();
@@ -372,13 +390,16 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
      * @param field field to generate case statement for
      * @param sbCase code written in case statement
      * @param sbFunc code written in class scope, used to create functions
+     * @param helperPrefix prefixed to the name of the helper method reading the field's value, or null to read it
+     *     inline
      */
     private static void generateFieldCaseStatement(
             StringBuilder sbCase,
             StringBuilder sbFunc,
             final Field field,
             final String schemaClassName,
-            final ContextualLookupHelper lookupHelper) {
+            final ContextualLookupHelper lookupHelper,
+            final String helperPrefix) {
         final int wireType = field.optionalValueType()
                 ? Common.TYPE_LENGTH_DELIMITED
                 : field.type().wireType();
@@ -388,7 +409,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
         sbCase.append("case %d /* type=%d [%s] field=%d [%s] */ -> {%n"
                 .formatted(tag, wireType, field.type(), fieldNum, field.name()));
         if (field.optionalValueType()) {
-            sbCase.append("""
+            final String read = """
                             // Read the message size, it is not needed
                             final var valueTypeMessageSize = input.readVarInt(false);
                             final $fieldType value;
@@ -427,10 +448,8 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                                 case "FloatValue" -> Common.TYPE_FIXED32;
                                 case "DoubleValue" -> Common.TYPE_FIXED64;
                                 default -> throw new PbjCompilerException("Unexpected and unknown field type " + field.type() + " cannot be parsed");
-                            }))
-                    .indent(DEFAULT_INDENT)
-            );
-            sbCase.append('\n');
+                            }));
+            sbCase.append(readValue(sbFunc, field, helperPrefix, read).indent(DEFAULT_INDENT));
             // spotless:on
         } else if (field.type() == Field.FieldType.MESSAGE) {
             final String strictNonRepeatedCheck;
@@ -452,8 +471,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                         """;
             }
             // spotless:off
-            sbCase.append("""
-                        $strictNonRepeatedCheck
+            final String read = """
                         final var messageLength = input.readVarInt(false);
                         final $fieldType value;
                         if (messageLength == 0) {
@@ -478,13 +496,13 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                             }
                         }
                         """
-                    .replace("$strictNonRepeatedCheck", strictNonRepeatedCheck)
                     .replace("$readMethod", readMethod(field, lookupHelper))
                     .replace("$fieldType", field.javaFieldTypeBase())
                     .replace("$fieldName", field.name())
-                    .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
-                    .indent(DEFAULT_INDENT)
-            );
+                    .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize");
+            sbCase.append((strictNonRepeatedCheck.replace("$fieldName", field.name())
+                            + readValue(sbFunc, field, helperPrefix, read))
+                    .indent(DEFAULT_INDENT));
             // spotless:on
         } else if (field.type() == Field.FieldType.MAP) {
             // This is almost like reading a message above because that's how Protobuf encodes map entries.
@@ -492,7 +510,12 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
             final MapField mapField = (MapField) field;
             final List<Field> mapEntryFields = List.of(mapField.keyField(), mapField.valueField());
             ParseAndDefaultBody parseAndDefaultBodyPair = generateParseLoop(
-                    generateCaseStatements(sbFunc, mapEntryFields, schemaClassName, lookupHelper),
+                    generateCaseStatements(
+                            sbFunc,
+                            mapEntryFields,
+                            schemaClassName,
+                            lookupHelper,
+                            helperPrefix == null ? null : helperPrefix + field.name() + "_"),
                     "map_entry_",
                     schemaClassName);
             // spotless:off
@@ -590,6 +613,42 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
         }
         sbCase.append("}\n");
         // spotless:on
+    }
+
+    /**
+     * The code reading one value of a nested message or wrapper type field into {@code value}. Those reads are the
+     * longest, and a message with many of them, such as a large oneof, would go over HotSpot's 8000-byte limit for
+     * compiling a method at all, so in messages with more than {@link Common#MAX_INLINE_FIELDS} fields each is put in
+     * its own method. The JIT still inlines the helper where it is hot. Smaller messages read inline.
+     *
+     * @param sbFunc code written in class scope
+     * @param field the field
+     * @param helperPrefix prefixed to the helper's name to keep it unique, or null to read inline
+     * @param read code declaring and assigning {@code value}
+     * @return the code to use
+     */
+    private static String readValue(
+            final StringBuilder sbFunc, final Field field, final String helperPrefix, final String read) {
+        if (helperPrefix == null) {
+            return read;
+        }
+        final String name = "readField_" + helperPrefix + field.name();
+        // spotless:off
+        sbFunc.append("""
+
+                /** Reads one {@code $field} value for {@link #parseFrom}. */
+                private static $type $name(final ReadableSequentialData input, final boolean strictMode,
+                        final boolean parseUnknownFields, final int maxDepth, final int maxSize)
+                        throws ParseException, IOException {
+                $read    return value;
+                }
+                """.replace("$type", field.optionalValueType() ? field.javaFieldType() : field.javaFieldTypeBase())
+                .replace("$name", name)
+                .replace("$field", field.name())
+                .replace("$read", read.indent(DEFAULT_INDENT))
+                .indent(DEFAULT_INDENT));
+        // spotless:on
+        return "final var value = %s(input, strictMode, parseUnknownFields, maxDepth, maxSize);%n".formatted(name);
     }
 
     static String readMethod(Field field, ContextualLookupHelper lookupHelper) {

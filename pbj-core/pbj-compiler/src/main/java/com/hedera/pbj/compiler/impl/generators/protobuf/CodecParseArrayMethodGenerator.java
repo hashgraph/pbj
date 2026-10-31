@@ -61,7 +61,8 @@ final class CodecParseArrayMethodGenerator {
         final StringBuilder helpers = new StringBuilder();
         for (final Field field : sorted) {
             if (field instanceof MapField map) {
-                cases.append(caseCode(map, Common.TYPE_LENGTH_DELIMITED, mapEntry(map, schemaClassName, lookupHelper)));
+                cases.append(caseCode(
+                        map, Common.TYPE_LENGTH_DELIMITED, mapEntry(map, schemaClassName, lookupHelper, helpers)));
             } else if (field.parent() != null) {
                 cases.append(
                         caseCode(field, wireType(field), oneOfAlternative((SingleField) field, lookupHelper, helpers)));
@@ -320,9 +321,16 @@ final class CodecParseArrayMethodGenerator {
      * message's unknown fields.
      */
     private static String mapEntry(
-            final MapField map, final String schemaClassName, final ContextualLookupHelper lookupHelper) {
+            final MapField map,
+            final String schemaClassName,
+            final ContextualLookupHelper lookupHelper,
+            final StringBuilder helpers) {
         final SingleField key = (SingleField) map.keyField();
         final SingleField value = (SingleField) map.valueField();
+        // message and wrapper values are read in a helper, as for other fields, to keep parseArray small
+        final String readValue = needsHelper(value)
+                ? "mapValue = %s;%n".formatted(valueHelper(value, map.name() + "_value", true, lookupHelper, helpers))
+                : readInto(value, "mapValue", true, lookupHelper);
         return """
                 final int entryLength = input.length($maxSize, "$name");
                 $keyType mapKey = $keyDefault;
@@ -349,9 +357,7 @@ final class CodecParseArrayMethodGenerator {
                 }
                 """.replace(
                         "$readKey", readInto(key, "mapKey", true, lookupHelper).indent(DEFAULT_INDENT * 4))
-                .replace(
-                        "$readValue",
-                        readInto(value, "mapValue", true, lookupHelper).indent(DEFAULT_INDENT * 4))
+                .replace("$readValue", readValue.indent(DEFAULT_INDENT * 4))
                 .replace("$keyTag", Integer.toString(Common.getTag(wireType(key), key.fieldNumber())))
                 .replace("$valueTag", Integer.toString(Common.getTag(wireType(value), value.fieldNumber())))
                 .replace("$keyType", key.javaFieldType())
@@ -378,6 +384,16 @@ final class CodecParseArrayMethodGenerator {
             final boolean recognizedOnly,
             final ContextualLookupHelper lookupHelper,
             final StringBuilder helpers) {
+        return valueHelper(field, field.name(), recognizedOnly, lookupHelper, helpers);
+    }
+
+    /** Generate a method named after {@code name} reading one value of a field, and return the code calling it. */
+    private static String valueHelper(
+            final SingleField field,
+            final String name,
+            final boolean recognizedOnly,
+            final ContextualLookupHelper lookupHelper,
+            final StringBuilder helpers) {
         helpers.append("""
                 /** Reads one $name value for {@link #parseArray}. */
                 private static $type readArray_$name(final ArrayCursor input, final boolean strictMode,
@@ -387,9 +403,9 @@ final class CodecParseArrayMethodGenerator {
                 $read    return value;
                 }
 
-                """.replace("$type", valueType(field)).replace("$name", field.name()).replace(
+                """.replace("$type", valueType(field)).replace("$name", name).replace(
                 "$read", readInto(field, "value", recognizedOnly, lookupHelper).indent(DEFAULT_INDENT)));
-        return "readArray_%s(input, strictMode, parseUnknownFields, maxDepth, maxSize)".formatted(field.name());
+        return "readArray_%s(input, strictMode, parseUnknownFields, maxDepth, maxSize)".formatted(name);
     }
 
     /** The declared type of a local holding one value of a field. */
