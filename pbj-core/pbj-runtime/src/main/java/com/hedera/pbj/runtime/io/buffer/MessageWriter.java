@@ -34,30 +34,25 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * writers call are {@code protected}. Not thread safe.
  */
 public abstract class MessageWriter {
-    /** {@link #guard} while this writer is not open, or is written by {@code writeFrom}: every field check throws. */
+    /** {@link #guard} while this writer is not open: not started yet, ended, or abandoned. Every field check throws. */
     private static final int SLOW = Integer.MAX_VALUE;
     /** {@link #guard} while a nested message is open inside this one: the next field check ends it first. */
     private static final int CHILD = Integer.MAX_VALUE - 1;
-
-    /** Not started yet. */
-    private static final byte NEW = 0;
-    /** Started, or opened by a parent, and not ended. */
-    private static final byte OPEN = 1;
-    /** Open, with every field written by {@code writeFrom}: only {@link #end()} may follow. */
-    private static final byte WRITTEN = 2;
-    /** Ended, or abandoned by a buffer reset. */
-    private static final byte ENDED = 3;
+    /** {@link #guard} while open with every field written by {@code writeFrom}: only {@link #end()} may follow. */
+    private static final int WRITTEN = Integer.MAX_VALUE - 2;
 
     /** The buffer being written to, while open; generated field methods write to it directly. */
     protected ProtoWriteBuffer out;
-    /** The last field number written, or {@link #CHILD} or {@link #SLOW}: every field check compares with it only. */
+    /**
+     * The last field number written while open, or {@link #CHILD}, {@link #WRITTEN} or {@link #SLOW}: every field check
+     * compares with it, and nothing else. It is also the writer's state: open unless {@link #SLOW}.
+     */
     private int guard = SLOW;
     /** The last field number written, kept while a child is open and {@link #guard} is {@link #CHILD}. */
     private int lastField;
     /** One bit per oneof of the message, set once one of its alternatives has been written. */
     private long oneofs;
 
-    private byte state = NEW;
     /** The writer of the nested message opened last, which may still be open, or null. */
     private MessageWriter child;
     /** The writer of the message this one is nested in, while open, or null for a top-level message. */
@@ -98,7 +93,6 @@ public abstract class MessageWriter {
         start = out.pos;
         guard = 0;
         oneofs = 0;
-        state = OPEN;
     }
 
     /**
@@ -159,7 +153,6 @@ public abstract class MessageWriter {
         child.start = p;
         child.guard = 0;
         child.oneofs = 0;
-        child.state = OPEN;
     }
 
     /**
@@ -181,10 +174,10 @@ public abstract class MessageWriter {
      * @throws IllegalStateException if the writer is not open
      */
     public final int end() {
-        if (guard >= CHILD) {
+        if (guard >= WRITTEN) {
             if (guard == CHILD) {
                 endChild();
-            } else if (state != WRITTEN) {
+            } else if (guard == SLOW) {
                 throw new IllegalStateException(notOpen());
             }
         }
@@ -223,7 +216,6 @@ public abstract class MessageWriter {
         }
         length = size;
         guard = SLOW;
-        state = ENDED;
         // the parent can write its next field without checking for an open child
         final MessageWriter p = parent;
         if (p != null) {
@@ -246,12 +238,11 @@ public abstract class MessageWriter {
 
     /** Drop this writer's message, and any open inside it, which the buffer has discarded. */
     final void abandon() {
-        if (state == OPEN || state == WRITTEN) {
+        if (guard != SLOW) {
             if (child != null) {
                 child.abandon();
             }
             guard = SLOW;
-            state = ENDED;
             offset = -1;
             length = -1;
         }
@@ -259,7 +250,7 @@ public abstract class MessageWriter {
 
     /** @return true if this writer has been started or opened and has not ended */
     public final boolean isOpen() {
-        return state == OPEN || state == WRITTEN;
+        return guard != SLOW;
     }
 
     /**
@@ -267,7 +258,7 @@ public abstract class MessageWriter {
      * @throws IllegalStateException if the message has not ended
      */
     public final int offset() {
-        if (state != ENDED || length < 0) {
+        if (guard != SLOW || length < 0) {
             throw new IllegalStateException("A message's offset is known once it has ended");
         }
         return offset;
@@ -278,7 +269,7 @@ public abstract class MessageWriter {
      * @throws IllegalStateException if the message has not ended
      */
     public final int length() {
-        if (state != ENDED || length < 0) {
+        if (guard != SLOW || length < 0) {
             throw new IllegalStateException("A message's length is known once it has ended");
         }
         return length;
@@ -328,7 +319,7 @@ public abstract class MessageWriter {
      * @throws IllegalStateException if this writer is not open
      */
     protected final void checkOpen() {
-        if (state != OPEN) {
+        if (guard >= WRITTEN) {
             throw new IllegalStateException(notOpen());
         }
     }
@@ -345,10 +336,10 @@ public abstract class MessageWriter {
     }
 
     private IllegalStateException fieldError(final int number, final boolean repeated, final int last) {
-        if (state == WRITTEN) {
+        if (last == WRITTEN) {
             return new IllegalStateException("No field can be written after writeFrom, which writes every field");
         }
-        if (state != OPEN) {
+        if (last == SLOW) {
             return new IllegalStateException(notOpen());
         }
         return new IllegalStateException(("Field %d written after field %d: fields must be written in field-number"
@@ -379,7 +370,7 @@ public abstract class MessageWriter {
      */
     protected final void beginWriteFrom() {
         if (guard != 0) {
-            if (state != OPEN) {
+            if (guard == SLOW) {
                 throw new IllegalStateException(notOpen());
             }
             throw new IllegalStateException("writeFrom writes every field, so it must be called before any other");
@@ -391,12 +382,11 @@ public abstract class MessageWriter {
         if (guard == CHILD) {
             endChild();
         }
-        guard = SLOW;
-        state = WRITTEN;
+        guard = WRITTEN;
     }
 
     private String notOpen() {
-        return state == NEW
+        return out == null
                 ? "This writer has not been started: call start(buffer), or get it from its parent writer"
                 : "This writer's message has ended (or its buffer was reset): a child writer is valid until the next"
                         + " call on its parent";
