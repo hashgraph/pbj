@@ -115,6 +115,17 @@ public abstract class MessageWriter {
     }
 
     /**
+     * Open a nested message whose largest encoding is under 128 bytes, such as an id or a timestamp: its length is one
+     * byte, whatever the buffer's {@link ProtoWriteBuffer.LengthReservation}, so none is guessed.
+     *
+     * @param child the nested message's writer
+     * @param tag the field's tag, wire type 2
+     */
+    protected final void openSmallChild(@NonNull final MessageWriter child, final int tag) {
+        open(child, 1, tag);
+    }
+
+    /**
      * Open a nested message whose encoded length is known, such as a model object's {@code protobufSize()}, so the
      * length prefix is reserved exactly and the message's bytes never move.
      *

@@ -596,14 +596,20 @@ final class WriterGenerator {
                     "",
                     check
                             + guarded(writerField + " == null", "%s = new %s.Writer();%n".formatted(writerField, type))
-                            + "openChild(%s, %d, %s);%n"
-                                    .formatted(
-                                            writerField,
-                                            parts.lookup()
+                            + (parts.lookup()
                                                     .writerLengthReserve(
-                                                            field.messageTypeModelPackage(), field.completeClassName()),
-                                            tag)
+                                                            field.messageTypeModelPackage(), field.completeClassName())
+                                            == 1
+                                    // always under 128 bytes: a one-byte length, whatever the buffer's reservation
+                                    ? "openSmallChild(%s, %s);%n".formatted(writerField, tag)
+                                    : "openChild(%s, 2, %s);%n".formatted(writerField, tag))
                             + "return %s;%n".formatted(writerField));
+        }
+        final List<LookupHelper.InlineField> inline = repeated
+                ? null
+                : parts.lookup().inlineFields(field.messageTypeModelPackage(), field.completeClassName());
+        if (inline != null) {
+            inlineSetter(field, type, method, check, number, inline, parts);
         }
         final String writeObject = writeObject(field, tag, "value", parts);
         final String body;
@@ -638,6 +644,56 @@ final class WriterGenerator {
                 method + "Raw",
                 "@NonNull final Bytes encoded",
                 check + "out.tagBytes(%s, encoded);%nreturn this;%n".formatted(tag));
+    }
+
+    /**
+     * Write a small message field, whose fields are all integers or bools, in one call from its fields' values: the tag,
+     * the length computed from the values, and the fields, as the model writes them, without opening its writer.
+     */
+    private static void inlineSetter(
+            final SingleField field,
+            final String type,
+            final String method,
+            final String check,
+            final int number,
+            final List<LookupHelper.InlineField> inline,
+            final Parts parts) {
+        final StringBuilder parameters = new StringBuilder();
+        final StringBuilder docs = new StringBuilder();
+        final StringBuilder sizes = new StringBuilder();
+        final StringBuilder writes = new StringBuilder();
+        for (final LookupHelper.InlineField f : inline) {
+            final String v = Common.snakeToCamel(f.name(), false);
+            if (v.equals("out") || v.equals("size")) {
+                // would hide the writer's buffer, or the size computed here
+                return;
+            }
+            final String fieldTag = tag(f.number(), f.type().wireType());
+            final int tagLength = Common.tagBytes(f.number(), f.type().wireType()).length;
+            parameters.append(parameters.isEmpty() ? "" : ", ").append("final %s %s".formatted(javaType(f.type()), v));
+            docs.append(
+                    "\n@param %s {@code %s}%s".formatted(v, f.name(), f.alwaysWritten() ? ", written even if 0" : ""));
+            final String fieldSize = "%d + %s".formatted(tagLength, valueSize(f.type(), v));
+            final String when = f.alwaysWritten() ? null : notDefault(f.type(), v);
+            sizes.append(sizes.isEmpty() ? "" : "\n        + ")
+                    .append(when == null ? "(%s)".formatted(fieldSize) : "(%s ? %s : 0)".formatted(when, fieldSize));
+            writes.append(guarded(when, writeField(f.type(), fieldTag, v)));
+        }
+        parts.method(
+                field,
+                about(field, "Write")
+                        + " From its fields' values, in one call: without opening its writer, which makes this cheaper"
+                        + " for small messages such as ids and timestamps."
+                        + docs
+                        + "\n@return this writer",
+                "Writer",
+                method,
+                parameters.toString(),
+                check
+                        + "final int size = %s;%n".formatted(sizes)
+                        + "out.tagVarint(%s, size);%n".formatted(tag(number, Common.TYPE_LENGTH_DELIMITED))
+                        + writes
+                        + "return this;\n");
     }
 
     /** A repeated scalar, enum, string or bytes field: packed, except strings and bytes. */

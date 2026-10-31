@@ -250,10 +250,36 @@ class WriterGenerationTest {
                 message Self { Self next = 1; }
                 """);
         final String outer = model("Outer");
-        assertTrue(outer.contains("openChild(smallWriter, 1, "), outer);
+        assertTrue(outer.contains("openSmallChild(smallWriter, "), outer);
         assertTrue(outer.contains("openChild(largeWriter, 2, "), outer);
         assertTrue(outer.contains("openChild(textWriter, 2, "), outer);
         assertTrue(outer.contains("openChild(manyWriter, 2, "), outer);
         assertTrue(outer.contains("openChild(selfWriter, 2, "), outer);
+    }
+
+    @Test
+    void smallIntegerMessagesAreWrittenInOneCall() throws Exception {
+        compile("""
+                syntax = "proto3";
+                package example;
+                // <<<pbj.writers = true>>>
+                message Outer { Id id = 1; Time time = 2; Big big = 3; Mixed mixed = 4; Two two = 5;
+                    oneof choice { Time at = 6; string name = 7; } repeated Id ids = 8; }
+                message Id { int64 shard = 1; int64 realm = 2; oneof account { int64 num = 3; bytes alias = 4; } }
+                message Time { int64 seconds = 1; int32 nanos = 2; }
+                message Big { int64 a = 1; int64 b = 2; int64 c = 3; int64 d = 4; int64 e = 5; }
+                message Mixed { int64 a = 1; string s = 2; }
+                message Two { oneof v { int64 a = 1; sint32 b = 2; } }
+                """);
+        final String outer = model("Outer");
+        // ids and timestamps, with a oneof's one integer alternative, which is always written
+        assertTrue(outer.contains("public Writer id(final long shard, final long realm, final long num)"), outer);
+        assertTrue(outer.contains("public Writer time(final long seconds, final int nanos)"), outer);
+        assertTrue(outer.contains("public Writer at(final long seconds, final int nanos)"), outer);
+        // too many fields, a string, two integer alternatives of a oneof, or a repeated field: opened as before
+        assertFalse(outer.contains("public Writer big(final long"), outer);
+        assertFalse(outer.contains("public Writer mixed(final long"), outer);
+        assertFalse(outer.contains("public Writer two(final long"), outer);
+        assertFalse(outer.contains("public Writer addIds(final long"), outer);
     }
 }
