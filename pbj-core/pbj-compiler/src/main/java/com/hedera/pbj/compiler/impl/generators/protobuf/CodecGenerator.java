@@ -123,9 +123,10 @@ public final class CodecGenerator implements Generator {
         writer.addImport("edu.umd.cs.findbugs.annotations.NonNull");
         writer.addImport(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef));
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
-        writer.addImport("static com.hedera.pbj.runtime.ProtoWriterTools.*");
-        writer.addImport("static com.hedera.pbj.runtime.ProtoParserTools.*");
         writer.addImport("static com.hedera.pbj.runtime.ProtoConstants.*");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoParserTools.*");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoRandomAccessWriterTools.*");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoWriterTools.*");
         writer.addImport("static com.hedera.pbj.runtime.Utf8Tools.*");
 
         var sbFunc = new StringBuilder();

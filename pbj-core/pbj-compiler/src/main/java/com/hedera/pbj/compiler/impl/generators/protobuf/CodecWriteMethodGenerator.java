@@ -36,13 +36,12 @@ final class CodecWriteMethodGenerator {
              */
             protected final void writeImpl(@NonNull $modelClass data, @NonNull final WritableSequentialData out) throws IOException {
                 $fieldWriteLines
-                // Check if not-empty to avoid creating a lambda if there's nothing to write.
-                if (!data.getUnknownFields().isEmpty()) {
-                    data.getUnknownFields().forEach(uf -> {
-                        final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
-                        out.writeVarInt(tag, false);
-                        uf.bytes().writeTo(out);
-                    });
+                final List<UnknownField> unknownFields = data.getUnknownFields();
+                for (int i = 0; i < unknownFields.size(); i++) {
+                    final UnknownField uf = unknownFields.get(i);
+                    final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
+                    out.writeVarInt(tag, false);
+                    uf.bytes().writeTo(out);
                 }
             }
             """
@@ -210,7 +209,6 @@ final class CodecWriteMethodGenerator {
             protected final long writeImpl(@NonNull $modelClass data, @NonNull final RandomAccessData out, final long offset) throws IOException {
                 long bytesWritten = 0;
                 $fieldWriteLines
-                // Check if not-empty to avoid creating a lambda if there's nothing to write.
                 final List<UnknownField> unknownFields = data.getUnknownFields();
                 for (int i = 0; i < unknownFields.size(); i++) {
                     final UnknownField uf = unknownFields.get(i);

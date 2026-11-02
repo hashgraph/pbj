@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io.buffer;
 
+import com.hedera.pbj.runtime.Utf8Tools;
 import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.SequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
@@ -701,8 +703,8 @@ public interface RandomAccessData {
      *
      * @param value The string to write, can not be null
      */
-    default int putUTF8(@NonNull final String value, final long offset) {
-        return putBytes(offset, value.getBytes(StandardCharsets.UTF_8));
+    default int putUTF8(@NonNull final String value, final long offset) throws IOException {
+        return Utf8Tools.encodeUtf8(value, this, offset);
     }
 
     /**

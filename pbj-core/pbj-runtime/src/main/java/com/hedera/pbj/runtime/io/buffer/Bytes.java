@@ -323,7 +323,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * @return the number of bytes copied
      */
     public int writeTo(@NonNull final ByteBuffer dst, final int dstOffset, final int length) {
-        dst.put(buffer, start + dstOffset, length);
+        dst.put(buffer, Math.toIntExact(start + dstOffset), length);
         return length;
     }
 
