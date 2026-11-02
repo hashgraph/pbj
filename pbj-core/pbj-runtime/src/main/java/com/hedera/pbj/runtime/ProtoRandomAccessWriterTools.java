@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
 import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
@@ -47,10 +48,7 @@ public class ProtoRandomAccessWriterTools {
     }
 
     public static int writeInteger(
-            final RandomAccessData out,
-            final long offset,
-            final FieldDefinition field,
-            final int value) {
+            final RandomAccessData out, final long offset, final FieldDefinition field, final int value) {
         return writeInteger(out, offset, field, value, true);
     }
 
@@ -100,16 +98,12 @@ public class ProtoRandomAccessWriterTools {
                 bytesWritten += out.putInt(offset + bytesWritten, value, ByteOrder.LITTLE_ENDIAN);
             }
             default -> throw new RuntimeException("Unsupported field type: " + field);
-
         }
         return bytesWritten;
     }
 
     public static int writeLong(
-            final RandomAccessData out,
-            final long offset,
-            final FieldDefinition field,
-            final long value) {
+            final RandomAccessData out, final long offset, final FieldDefinition field, final long value) {
         return writeLong(out, offset, field, value, true);
     }
 
@@ -206,10 +200,7 @@ public class ProtoRandomAccessWriterTools {
     }
 
     public static int writeBoolean(
-            final RandomAccessData out,
-            final long offset,
-            final FieldDefinition field,
-            final boolean value) {
+            final RandomAccessData out, final long offset, final FieldDefinition field, final boolean value) {
         return writeBoolean(out, offset, field, value, true);
     }
 
@@ -429,7 +420,8 @@ public class ProtoRandomAccessWriterTools {
         if (value != null) {
             bytesWritten += writeTag(out, offset + bytesWritten, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            bytesWritten += out.putVarInt(offset + bytesWritten, ProtoWriterTools.sizeOfInteger(newField, value), false);
+            bytesWritten +=
+                    out.putVarInt(offset + bytesWritten, ProtoWriterTools.sizeOfInteger(newField, value), false);
             bytesWritten += writeInteger(out, offset + bytesWritten, newField, value, true);
         }
         return bytesWritten;
@@ -513,7 +505,8 @@ public class ProtoRandomAccessWriterTools {
         if (value != null) {
             bytesWritten += writeTag(out, offset + bytesWritten, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
-            bytesWritten += out.putVarInt(offset + bytesWritten, ProtoWriterTools.sizeOfBoolean(newField, value), false);
+            bytesWritten +=
+                    out.putVarInt(offset + bytesWritten, ProtoWriterTools.sizeOfBoolean(newField, value), false);
             bytesWritten += writeBoolean(out, offset + bytesWritten, newField, value, true);
         }
         return bytesWritten;
@@ -640,7 +633,8 @@ public class ProtoRandomAccessWriterTools {
                 // The bytes in protobuf are in little-endian order -- backwards for Java.
                 // Smallest byte first.
                 bytesWritten += writeTag(out, offset + bytesWritten, field, WIRE_TYPE_DELIMITED);
-                bytesWritten += out.putVarLong(offset + bytesWritten, (long) list.size() * ProtoWriterTools.FIXED32_SIZE, false);
+                bytesWritten += out.putVarLong(
+                        offset + bytesWritten, (long) list.size() * ProtoWriterTools.FIXED32_SIZE, false);
                 for (int i = 0; i < listSize; i++) {
                     final int val = list.get(i);
                     bytesWritten += out.putInt(offset + bytesWritten, val, ByteOrder.LITTLE_ENDIAN);
@@ -707,7 +701,8 @@ public class ProtoRandomAccessWriterTools {
                 // The bytes in protobuf are in little-endian order -- backwards for Java.
                 // Smallest byte first.
                 bytesWritten += writeTag(out, offset + bytesWritten, field, WIRE_TYPE_DELIMITED);
-                bytesWritten += out.putVarLong(offset + bytesWritten, (long) list.size() * ProtoWriterTools.FIXED64_SIZE, false);
+                bytesWritten += out.putVarLong(
+                        offset + bytesWritten, (long) list.size() * ProtoWriterTools.FIXED64_SIZE, false);
                 for (int i = 0; i < listSize; i++) {
                     final long val = list.get(i);
                     bytesWritten += out.putLong(offset + bytesWritten, val, ByteOrder.LITTLE_ENDIAN);
@@ -949,6 +944,4 @@ public class ProtoRandomAccessWriterTools {
         bytesWritten += writer.apply(out, offset + bytesWritten);
         return bytesWritten;
     }
-
-
 }

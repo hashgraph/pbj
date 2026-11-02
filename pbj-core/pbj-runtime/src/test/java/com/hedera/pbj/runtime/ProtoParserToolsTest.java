@@ -210,7 +210,11 @@ class ProtoParserToolsTest {
                 randomString::nextString,
                 (d, v) -> {
                     d.writeVarInt(length, false); // write the size first
-                    d.writeUTF8(v);
+                    try {
+                        d.writeUTF8(v);
+                    } catch (final IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 },
                 new UncheckedThrowingFunction<>(ProtoParserTools::readString),
                 length + 1);
@@ -584,7 +588,7 @@ class ProtoParserToolsTest {
                 throws IOException {
             final String value = item.getValue();
             if (value != null) {
-                return ProtoWriterTools.writeString(out, offset, VALUE_FIELD, value, true);
+                return ProtoRandomAccessWriterTools.writeString(out, offset, VALUE_FIELD, value, true);
             }
             return 0;
         }

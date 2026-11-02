@@ -120,7 +120,8 @@ public final class Utf8Tools {
      * Encodes the input character sequence to a {@link RandomAccessData} at the given offset
      * using the same algorithm as protoc, so we are byte for byte the same.
      */
-    public static int encodeUtf8(final CharSequence in, final RandomAccessData out, final long offset) throws IOException {
+    public static int encodeUtf8(final CharSequence in, final RandomAccessData out, final long offset)
+            throws IOException {
         int bytesWritten = 0;
         final int inLength = in.length();
         for (int inIx = 0; inIx < inLength; ++inIx) {
