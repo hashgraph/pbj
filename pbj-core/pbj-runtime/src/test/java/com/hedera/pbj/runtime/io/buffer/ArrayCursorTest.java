@@ -104,6 +104,27 @@ final class ArrayCursorTest {
     }
 
     @Test
+    void aCursorNarrowedFromAnotherReadsInsideItOnly() throws Exception {
+        final byte[] array = {0, 0, 2, 7, 8, 0};
+        final Bytes source = Bytes.wrap(array);
+        final ArrayCursor outer = new ArrayCursor(new byte[0], 0, 0).reset(source, array, 1, 5);
+        outer.skip(2);
+        // the array and the Bytes holding it come from the outer cursor, whatever its position
+        final ArrayCursor inner = new ArrayCursor(new byte[0], 0, 0).reset(outer, 3, 2);
+        assertEquals(3, inner.position());
+        assertEquals(7, inner.varint());
+        assertEquals(source, inner.source());
+        assertEquals(8, inner.varint());
+        assertFalse(inner.hasRemaining());
+        // it can cover the whole outer range, but not a byte outside it
+        new ArrayCursor(new byte[0], 0, 0).reset(outer, 1, 4);
+        assertThrows(IndexOutOfBoundsException.class, () -> inner.reset(outer, 0, 2));
+        assertThrows(IndexOutOfBoundsException.class, () -> inner.reset(outer, 4, 2));
+        assertThrows(IndexOutOfBoundsException.class, () -> inner.reset(outer, 2, -1));
+        assertThrows(IndexOutOfBoundsException.class, () -> inner.reset(outer, 3, Integer.MAX_VALUE));
+    }
+
+    @Test
     void bytesReadThroughTheSequentialViewOfBytesAreViews() throws Exception {
         // a length-prefixed bytes value, after one byte the caller has already read
         final byte[] array = {9, 3, 1, 2, 3};
