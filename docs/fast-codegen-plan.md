@@ -624,6 +624,8 @@ Each PR description covers:
   made block encoding 5-9% and transaction encoding 9% slower on EPYC, in two runs on an external block workload
   (#1029): at every varint site of the large generated write methods, the code size cost more than the call. On the
   write side, call overhead isn't the cost, so a profile frame the JIT didn't inline is not, by itself, a lever.
+  Writing only nine-byte values inline, in one store, was neutral on both that workload, full of int64 nanosecond
+  times, and the HAPI one.
 - **Writers find their open child through the parent, not the buffer.** Tracking the innermost open writer in the
   buffer, so a field check needn't look for an open child, added a load and a compare to every field and made writing
   block items 12% slower on EPYC (#1029). The guard sentinel already folds that check into the field-order compare.

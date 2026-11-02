@@ -339,16 +339,11 @@ final class ProtoWriteBufferTest {
     @Test
     void varintsOfEverySize() {
         final ProtoWriteBuffer buffer = new ProtoWriteBuffer(1);
-        final long[] values = new long[64 * 3 + 100];
+        final long[] values = new long[64 * 3];
         for (int bit = 0; bit < 64; bit++) {
             values[bit * 3] = 1L << bit;
             values[bit * 3 + 1] = (1L << bit) - 1;
             values[bit * 3 + 2] = -(1L << bit);
-        }
-        // and mixed bits in every group, at every size, as nine-byte values are written with one 8-byte store
-        final java.util.Random random = new java.util.Random(56);
-        for (int i = 64 * 3; i < values.length; i++) {
-            values[i] = random.nextLong() >>> random.nextInt(64);
         }
         final ByteArrayOutputStream expected = new ByteArrayOutputStream();
         for (final long value : values) {
