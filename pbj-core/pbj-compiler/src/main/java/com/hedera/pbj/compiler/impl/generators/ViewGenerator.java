@@ -421,6 +421,8 @@ final class ViewGenerator {
             case BOOL -> cursor + ".bool() ? 1 : 0";
             case FIXED32, SFIXED32, FLOAT -> cursor + ".fixed32()";
             case FIXED64, SFIXED64, DOUBLE -> cursor + ".fixed64()";
+            // 64-bit fields' values are often large: a read that is inlined whole where it is called
+            case INT64, UINT64, SINT64 -> cursor + ".varint64()";
             default -> cursor + ".varint()";
         };
     }

@@ -169,6 +169,74 @@ final class ArrayCursorTest {
     }
 
     @Test
+    void varintsReadTheSameNearTheLimitAndNearTheArraysEnd() {
+        for (int length = 2; length <= 10; length++) {
+            final long value = length == 10 ? Long.MIN_VALUE | 0x55 : (1L << (7 * (length - 1))) | 0x55;
+            final byte[] varint = encodeVarint(value);
+            for (int before = 0; before <= 3; before++) {
+                for (int after = 0; after <= 12; after++) {
+                    final byte[] in = new byte[before + varint.length + after];
+                    System.arraycopy(varint, 0, in, before, varint.length);
+                    // the limit at the varint's end, with "after" more bytes in the array; and at the array's end
+                    for (final int limit : new int[] {before + varint.length, in.length}) {
+                        final ArrayCursor cursor = new ArrayCursor(in, before, limit);
+                        assertEquals(value, cursor.varint(), length + " bytes, limit " + limit + " of " + in.length);
+                        assertEquals(before + varint.length, cursor.position());
+                    }
+                    // a limit inside the varint is an underflow, whatever follows in the array
+                    final ArrayCursor cut = new ArrayCursor(in, before, before + varint.length - 1);
+                    assertThrows(BufferUnderflowException.class, cut::varint, length + " bytes, cut");
+                }
+            }
+        }
+    }
+
+    @Test
+    void varint64ReadsExactlyAsVarintDoes() {
+        // every length, every tenth byte, the limit at the varint's end or before it, and 0 to 12 bytes after it
+        final Random random = new Random(64);
+        for (int length = 1; length <= 10; length++) {
+            for (int sample = 0; sample < 40; sample++) {
+                final byte[] varint = new byte[length];
+                for (int i = 0; i < length; i++) {
+                    varint[i] = (byte) (random.nextInt(128) | (i < length - 1 ? 0x80 : 0));
+                }
+                if (length == 10) {
+                    varint[9] = (byte) random.nextInt(256);
+                }
+                for (int after = 0; after <= 12; after++) {
+                    final byte[] in = Arrays.copyOf(varint, length + after);
+                    for (int limit = 0; limit <= in.length; limit++) {
+                        final Object expected = read(new ArrayCursor(in, 0, limit), false);
+                        assertEquals(expected, read(new ArrayCursor(in, 0, limit), true), "limit " + limit);
+                    }
+                }
+            }
+        }
+    }
+
+    /** The value and end position a varint read gives, or the exception's class it throws. */
+    private static Object read(final ArrayCursor cursor, final boolean varint64) {
+        try {
+            final long value = varint64 ? cursor.varint64() : cursor.varint();
+            return value + "@" + cursor.position();
+        } catch (final RuntimeException e) {
+            return e.getClass();
+        }
+    }
+
+    @Test
+    void aBadTenthByteIsAnUnderflowWhenPastTheLimit() {
+        final byte[] in = new byte[20];
+        Arrays.fill(in, 0, 9, (byte) 0x80);
+        in[9] = 2; // bit 63 clear: malformed
+        assertThrows(DataEncodingException.class, () -> new ArrayCursor(in, 0, 10).varint());
+        assertThrows(BufferUnderflowException.class, () -> new ArrayCursor(in, 0, 9).varint());
+        in[9] = 1;
+        assertEquals(Long.MIN_VALUE, new ArrayCursor(in, 0, 10).varint());
+    }
+
+    @Test
     void tenthVarintByteIsCheckedLikeTheStreamParser() {
         // nine continuation bytes, then every possible tenth byte: only bit 63 is left for the tenth byte, so the
         // cursor must accept and reject exactly what the stream parser does
@@ -191,6 +259,49 @@ final class ArrayCursorTest {
                 }
             }
         }
+    }
+
+    @Test
+    void runsOfDelimitedFieldsAreCountedWithoutReading() {
+        // three field-1 messages of 0, 2 and 200 bytes, then field 2, then field 1 again
+        final byte[] big = new byte[200];
+        final byte[] in = concat(
+                new byte[] {0x0A, 0},
+                new byte[] {0x0A, 2, 7, 7},
+                new byte[] {0x0A, (byte) 0xC8, 1},
+                big,
+                new byte[] {0x12, 0},
+                new byte[] {0x0A, 0});
+        final ArrayCursor cursor = cursor(in);
+        assertEquals(3, cursor.run((byte) 0x0A));
+        assertEquals(0, cursor.position(), "nothing read");
+        assertEquals(0, cursor.run((byte) 0x12));
+        // cut short: a length past the limit, or a length that does not end, stops the count
+        assertEquals(1, new ArrayCursor(in, 0, 5).run((byte) 0x0A));
+        assertEquals(2, new ArrayCursor(in, 0, 7).run((byte) 0x0A));
+        assertEquals(
+                0,
+                cursor(new byte[] {0x0A, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, 1})
+                        .run((byte) 0x0A));
+        assertEquals(0, cursor(new byte[0]).run((byte) 0x0A));
+        // long runs are not counted: too many fields, or too many bytes
+        final byte[] many = new byte[2 * (ArrayCursor.MAX_RUN + 1)];
+        for (int i = 0; i < many.length; i += 2) {
+            many[i] = 0x0A;
+        }
+        assertEquals(0, cursor(many).run((byte) 0x0A));
+        assertEquals(ArrayCursor.MAX_RUN, new ArrayCursor(many, 0, 2 * ArrayCursor.MAX_RUN).run((byte) 0x0A));
+        final byte[] large = concat(new byte[] {0x0A, (byte) 0xFF, (byte) 0xFF, 0x03}, new byte[0xFFFF]);
+        assertEquals(1, cursor(large).run((byte) 0x0A));
+        assertEquals(0, cursor(concat(large, new byte[] {0x0A, 0})).run((byte) 0x0A));
+    }
+
+    private static byte[] concat(final byte[]... parts) {
+        final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        for (final byte[] part : parts) {
+            out.writeBytes(part);
+        }
+        return out.toByteArray();
     }
 
     @Test

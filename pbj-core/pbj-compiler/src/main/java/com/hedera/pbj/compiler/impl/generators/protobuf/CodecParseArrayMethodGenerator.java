@@ -14,6 +14,7 @@ import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,8 +24,10 @@ import java.util.stream.Stream;
  * the stream parser {@code parseImpl}.
  *
  * <p>Writers emit fields in field-number order, so the parser first tests for each field's tag in that order, one byte
- * compare per field (the in-order fast path); repeated fields loop on their tag. Oneofs and maps stay out of the fast
- * path: copying every oneof alternative into it doubles the method and made parsing slower in the prototype. A general
+ * compare per field (the in-order fast path); repeated fields loop on their tag. Small oneofs, of at most
+ * {@value #MAX_FAST_PATH_ALTERNATIVES} alternatives such as an id's, are in it as one chain of compares; wider oneofs and
+ * maps stay out of it: copying every alternative of a wide oneof into it doubles the method and made parsing slower in
+ * the prototype. A general
  * loop then handles anything else exactly as {@code parseImpl} does: fields out of order or repeated, oneofs, maps,
  * unknown fields, and strict mode.
  */
@@ -61,13 +64,27 @@ final class CodecParseArrayMethodGenerator {
         final StringBuilder fastPath = new StringBuilder();
         final StringBuilder cases = new StringBuilder();
         final StringBuilder helpers = new StringBuilder();
+        // each small oneof's chain of compares, put in the fast path where its first alternative is in field order
+        final Map<OneOfField, StringBuilder> chains = new java.util.IdentityHashMap<>();
         for (final Field field : sorted) {
             if (field instanceof MapField map) {
                 cases.append(caseCode(
                         map, Common.TYPE_LENGTH_DELIMITED, mapEntry(map, schemaClassName, lookupHelper, helpers)));
             } else if (field.parent() != null) {
-                cases.append(
-                        caseCode(field, wireType(field), oneOfAlternative((SingleField) field, lookupHelper, helpers)));
+                final String read = oneOfAlternative((SingleField) field, lookupHelper, helpers);
+                cases.append(caseCode(field, wireType(field), read));
+                final OneOfField oneOf = field.parent();
+                if (oneOf.fields().size() <= MAX_FAST_PATH_ALTERNATIVES) {
+                    final StringBuilder chain = chains.computeIfAbsent(oneOf, o -> {
+                        fastPath.append(chainMarker(o));
+                        return new StringBuilder();
+                    });
+                    final String test = fastPathCode(field, wireType(field), "if", read);
+                    if (!test.isEmpty()) {
+                        // at most one alternative is set: "} else if" after the first
+                        chain.append(chain.isEmpty() ? "" : "else ").append(test);
+                    }
+                }
             } else if (field.repeated()) {
                 repeated((SingleField) field, lookupHelper, fastPath, cases, helpers);
             } else {
@@ -86,6 +103,12 @@ final class CodecParseArrayMethodGenerator {
                 cases.append(caseCode(field, wireType(field), strictCheck + read));
             }
         }
+        String fast = fastPath.toString();
+        for (final Map.Entry<OneOfField, StringBuilder> chain : chains.entrySet()) {
+            fast = fast.replace(
+                    chainMarker(chain.getKey()), chain.getValue().toString().replace("}\nelse ", "} else "));
+        }
+        final String fastPathCode = fast;
         // spotless:off
         return """
                 @Override
@@ -152,7 +175,7 @@ final class CodecParseArrayMethodGenerator {
                         .map(ParseTemps::declare)
                         .collect(Collectors.joining("\n"))
                         .indent(DEFAULT_INDENT * 2))
-                .replace("$fastPath", fastPath.toString().indent(DEFAULT_INDENT * 2))
+                .replace("$fastPath", fastPathCode.indent(DEFAULT_INDENT * 2))
                 .replace("$cases", cases.toString().indent(DEFAULT_INDENT * 4))
                 .replace("$listFieldsWriteProtection", fields.stream()
                         .filter(Field::repeated)
@@ -246,6 +269,12 @@ final class CodecParseArrayMethodGenerator {
                 .formatted(temp, field.name(), temp);
         final int wireType = field.type().wireType();
         if (wireType == Common.TYPE_LENGTH_DELIMITED) {
+            final int[] tagBytes = Common.tagBytes(field.fieldNumber(), wireType);
+            if (tagBytes.length == 1) {
+                // count the elements that follow one another, then read them into a list of exactly that size
+                fastPath.append("%s = presize(%s, input.run((byte) 0x%02X), %s);%n"
+                        .formatted(temp, temp, tagBytes[0], maxSize(field)));
+            }
             fastPath.append(fastPathCode(field, wireType, "while", addOne));
             cases.append(caseCode(field, wireType, addOne));
             return;
@@ -278,6 +307,14 @@ final class CodecParseArrayMethodGenerator {
         fastPath.append(fastPathCode(field, Common.TYPE_LENGTH_DELIMITED, "if", packed));
         cases.append(caseCode(field, wireType, addOne));
         cases.append(caseCode(field, Common.TYPE_LENGTH_DELIMITED, packed));
+    }
+
+    /** The most alternatives a oneof can have to be in the in-order fast path. */
+    private static final int MAX_FAST_PATH_ALTERNATIVES = 4;
+
+    /** Where a small oneof's chain goes in the fast path, until it is complete. */
+    private static String chainMarker(final OneOfField oneOf) {
+        return "$chain:" + oneOf.name() + "$\n";
     }
 
     /** A oneof alternative, which replaces whatever the oneof held before (last one wins). */
@@ -408,8 +445,9 @@ final class CodecParseArrayMethodGenerator {
         return switch (field.type()) {
             case INT32, UINT32 -> "(int) input.varint()";
             case SINT32 -> "(int) input.varintZigZag()";
-            case INT64, UINT64 -> "input.varint()";
-            case SINT64 -> "input.varintZigZag()";
+            // 64-bit fields' values are often large: a read that is inlined whole where it is called
+            case INT64, UINT64 -> "input.varint64()";
+            case SINT64 -> "input.varint64ZigZag()";
             case BOOL -> "input.bool()";
             case FIXED32, SFIXED32 -> "input.fixed32()";
             case FLOAT -> "Float.intBitsToFloat(input.fixed32())";

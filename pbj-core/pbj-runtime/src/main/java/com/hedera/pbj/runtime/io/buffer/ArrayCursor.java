@@ -256,6 +256,51 @@ public final class ArrayCursor {
         return false;
     }
 
+    /** The most fields {@link #run} counts. */
+    static final int MAX_RUN = 4096;
+    /** The most bytes {@link #run} looks through. */
+    static final int MAX_RUN_BYTES = 64 * 1024;
+
+    /**
+     * Count the length-delimited fields with a one-byte tag that follow one another from here, as the elements of a
+     * repeated field do, without reading them: so a parser can size their list once. Stops at anything malformed, which
+     * reading the fields then reports. Only short runs are counted, which are still in cache when they are read: for a
+     * longer one, such as a block's items, counting first was slower than letting the list grow.
+     *
+     * @param tag the fields' one-byte tag, wire type 2
+     * @return the number of such fields before any other byte, or 0 if the next byte is not {@code tag} or the run is
+     *     longer than {@value #MAX_RUN} fields or {@value #MAX_RUN_BYTES} bytes
+     */
+    public int run(final byte tag) {
+        final int end = p + Math.min(limit - p, MAX_RUN_BYTES);
+        int q = p;
+        int count = 0;
+        while (q < limit && in[q] == tag) {
+            if (count == MAX_RUN || q >= end) {
+                return 0;
+            }
+            q++;
+            // the length: a varint of at most five bytes
+            int length = 0;
+            int shift = 0;
+            byte b;
+            do {
+                if (q >= limit || shift > 28) {
+                    return count;
+                }
+                b = in[q++];
+                length |= (b & 0x7F) << shift;
+                shift += 7;
+            } while (b < 0);
+            if (length < 0 || length > limit - q) {
+                return count;
+            }
+            q += length;
+            count++;
+        }
+        return count;
+    }
+
     /**
      * If the next byte is the one-byte tag of a length-delimited field whose number is in {@code fieldMask}, consume it
      * and return it: generated views use it for a oneof's message alternatives, any one of which comes next.
@@ -311,52 +356,47 @@ public final class ArrayCursor {
     }
 
     /**
-     * The multi-byte varint read: the XOR chain of {@code ByteArrayBufferedData}, with limit checks. The chain may
-     * read past the limit, but not past the array: a small message's limit is usually less than ten bytes away, while
-     * the array goes on. A varint that ends past the limit is an underflow, as it is when read a byte at a time.
+     * The multi-byte varint read: the XOR chain of {@code ByteArrayBufferedData} for two to eight bytes, with limit
+     * checks. The chain may read past the limit, but not past the array: a small message's limit is usually less than
+     * ten bytes away, while the array goes on. Everything else, and every error, is {@link #varintSlow}, so this stays
+     * small enough for the JIT to inline into parsers (under {@code FreqInlineSize}).
      */
     private long varintWide() {
         int q = p;
-        if (in.length - q >= 10) {
-            long v = in[q++];
-            if ((v ^= (long) in[q++] << 7) < 0L) {
-                v ^= (~0L << 7);
-            } else if ((v ^= (long) in[q++] << 14) >= 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14);
-            } else if ((v ^= (long) in[q++] << 21) < 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21);
-            } else if ((v ^= (long) in[q++] << 28) >= 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
-            } else if ((v ^= (long) in[q++] << 35) < 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
-            } else if ((v ^= (long) in[q++] << 42) >= 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
-            } else if ((v ^= (long) in[q++] << 49) < 0L) {
-                v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
-            } else {
-                v ^= (long) in[q++] << 56;
-                v ^= (~0L << 7)
-                        ^ (~0L << 14)
-                        ^ (~0L << 21)
-                        ^ (~0L << 28)
-                        ^ (~0L << 35)
-                        ^ (~0L << 42)
-                        ^ (~0L << 49)
-                        ^ (~0L << 56);
-                // a tenth byte: only its lowest bit fits in a long and the chain above already set it, so, as
-                // ByteArrayBufferedData does, reject a tenth byte that continues or leaves that bit clear
-                if (v < 0L && isBadTenthByte(in[q++])) {
-                    // past the limit, it is an underflow first, as when read a byte at a time
-                    throw q > limit ? new BufferUnderflowException() : new DataEncodingException("Malformed var int");
-                }
-            }
-            if (q > limit) {
-                throw new BufferUnderflowException();
-            }
-            p = q;
-            return v;
+        if (in.length - q < 10) {
+            // the array, not the limit: a small message's limit is usually only a few bytes away
+            return varintSlow();
         }
-        // near the limit: one byte at a time
+        long v = in[q++];
+        if ((v ^= (long) in[q++] << 7) < 0L) {
+            v ^= (~0L << 7);
+        } else if ((v ^= (long) in[q++] << 14) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14);
+        } else if ((v ^= (long) in[q++] << 21) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21);
+        } else if ((v ^= (long) in[q++] << 28) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+        } else if ((v ^= (long) in[q++] << 35) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+        } else if ((v ^= (long) in[q++] << 42) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+        } else if ((v ^= (long) in[q++] << 49) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
+        } else {
+            // 9 or 10 bytes: rare, and read a byte at a time
+            return varintSlow();
+        }
+        if (q > limit) {
+            // ends past the limit: read a byte at a time, which throws the underflow
+            return varintSlow();
+        }
+        p = q;
+        return v;
+    }
+
+    /** Any varint one byte at a time: near the limit, 9-10 byte values, and every malformed or truncated case. */
+    private long varintSlow() {
+        int q = p;
         long value = 0;
         for (int shift = 0; shift < 64; shift += 7) {
             if (q >= limit) {
@@ -365,6 +405,9 @@ public final class ArrayCursor {
             final byte b = in[q++];
             value |= (long) (b & 0x7F) << shift;
             if (b >= 0) {
+                if (shift == 63 && isBadTenthByte(b)) {
+                    throw new DataEncodingException("Malformed var int");
+                }
                 p = q;
                 return value;
             }
@@ -388,6 +431,63 @@ public final class ArrayCursor {
     /** @return a zigzag-encoded varint, decoded */
     public long varintZigZag() {
         final long v = varint();
+        return (v >>> 1) ^ -(v & 1);
+    }
+
+    /**
+     * Read an unsigned varint of up to 64 bits, for a 64-bit field: {@link #varint} with the multi-byte read in the same
+     * method, under the JIT's limit for inlining a hot call. Its values are often large (balances, ids, timestamps), so
+     * where it is called, the multi-byte read is hot, and inlined with it; {@link #varint}'s call to it is not, where
+     * most values, tags and lengths among them, are one byte.
+     *
+     * @return the value
+     * @throws BufferUnderflowException if the input ends inside the varint
+     */
+    public long varint64() {
+        int q = p;
+        if (q < limit) {
+            final byte b = in[q];
+            if (b >= 0) {
+                p = q + 1;
+                return b;
+            }
+        }
+        if (in.length - q < 10) {
+            return varintSlow();
+        }
+        long v = in[q++];
+        if ((v ^= (long) in[q++] << 7) < 0L) {
+            v ^= (~0L << 7);
+        } else if ((v ^= (long) in[q++] << 14) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14);
+        } else if ((v ^= (long) in[q++] << 21) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21);
+        } else if ((v ^= (long) in[q++] << 28) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+        } else if ((v ^= (long) in[q++] << 35) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+        } else if ((v ^= (long) in[q++] << 42) >= 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+        } else if ((v ^= (long) in[q++] << 49) < 0L) {
+            v ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
+        } else {
+            return varintSlow();
+        }
+        if (q > limit) {
+            return varintSlow();
+        }
+        p = q;
+        return v;
+    }
+
+    /**
+     * Read a zigzag-encoded varint of up to 64 bits, for a {@code sint64} field, with {@link #varint64}.
+     *
+     * @return the value
+     * @throws BufferUnderflowException if the input ends inside the varint
+     */
+    public long varint64ZigZag() {
+        final long v = varint64();
         return (v >>> 1) ^ -(v & 1);
     }
 
