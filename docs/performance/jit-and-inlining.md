@@ -72,8 +72,10 @@ size limit then follows: 325 bytes at a hot site, 35 at a cold one. Consequences
   more than the call did. Writing nine-byte values inline (one 8-byte store plus a byte) was neutral on both workloads,
   even one full of int64 nanosecond times.
 - **An 8-byte single-store varint in the forward writer**, even with slack in the writers' buffer making it safe:
-  writing HAPI block items from values took 356 ns against 317 ns with exact-size stores on EPYC (#1023). It can only
-  win in a reverse writer, where the store can run into the bytes not yet written.
+  writing HAPI block items from values took 356 ns against 317 ns with exact-size stores on EPYC (#1023), and a later
+  prototype on the independent workload (a single store for 3-8-byte values, plus a two-store 9-10-byte path) took
+  895 ns per transaction against 875. It can only win in a reverse writer, where the store can run into the bytes not
+  yet written.
 - **Fast-path copies of every oneof alternative** in parsers: they blew the inlining budget of the parse method.
 
 The rule that came out of it: **on the write side, call overhead isn't the cost, so a frame the JIT didn't inline is not
