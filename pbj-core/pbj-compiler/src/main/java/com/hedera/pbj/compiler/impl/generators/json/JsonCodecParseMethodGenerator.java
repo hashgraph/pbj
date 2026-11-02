@@ -217,6 +217,10 @@ class JsonCodecParseMethodGenerator {
 
             generateFieldCaseStatement(keySB, mapField.keyField(), "mapKV");
             generateFieldCaseStatement(valueSB, mapField.valueField(), "mapKV.value()");
+            if (mapField.valueField().type() == Field.FieldType.ENUM) {
+                // a map's enum values are stored as their ordinals
+                valueSB.append(".protoOrdinal()");
+            }
 
             sb.append("""
                     $valueGetter.getChild(JSONParser.ObjContext.class, 0).pair().stream()

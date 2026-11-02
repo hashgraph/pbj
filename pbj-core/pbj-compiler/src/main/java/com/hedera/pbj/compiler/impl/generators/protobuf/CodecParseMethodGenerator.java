@@ -504,14 +504,21 @@ class CodecParseMethodGenerator {
                         """
                     .replace("$fieldName", field.name())
                     .replace("$fieldDefs",mapEntryFields.stream().map(mapEntryField ->
-                            "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
-                            mapEntryField.name(), mapEntryField.javaDefault())).collect(Collectors.joining("\n")))
+                            mapEntryField.type() == Field.FieldType.ENUM
+                                    // a map's enum values are kept as their ordinals, as the model stores them
+                                    ? "int temp_%s = 0;".formatted(mapEntryField.name())
+                                    : "%s temp_%s = %s;".formatted(mapEntryField.javaFieldType(),
+                                            mapEntryField.name(), mapEntryField.javaDefault()))
+                            .collect(Collectors.joining("\n")))
                     .replace("$mapParseLoop", parseAndDefaultBodyPair.parseBody()
                             .indent(DEFAULT_INDENT * 2).stripTrailing())
                     .replace("$maxSize", field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize")
                     .indent(DEFAULT_INDENT)
             );
             // spotless:on
+        } else if (field.type() == Field.FieldType.ENUM && MapField.isEntryValue(field)) {
+            // a map's enum values are kept as their ordinals, so unrecognized values are not lost
+            sbCase.append("final int enumOrdinal = readEnum(input);\n".indent(DEFAULT_INDENT));
         } else if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
             sbCase.append("""
@@ -557,6 +564,8 @@ class CodecParseMethodGenerator {
                 """.formatted(field.name(), field.maxSize() >= 0 ? String.valueOf(field.maxSize()) : "maxSize",
                         mapField.keyField().name(), mapField.valueField().name())
                         .indent(DEFAULT_INDENT));
+        } else if (field.type() == Field.FieldType.ENUM && MapField.isEntryValue(field)) {
+            sbCase.append(Common.FIELD_INDENT + "temp_%s = enumOrdinal;\n".formatted(field.name()));
         } else if (field.type() == Field.FieldType.ENUM) {
             // spotless:off
             sbCase.append("""

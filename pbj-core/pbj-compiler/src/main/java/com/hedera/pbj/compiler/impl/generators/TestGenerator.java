@@ -341,8 +341,13 @@ public final class TestGenerator implements Generator {
             final String keyOptions = getOptionsForFieldType(
                     mapField.keyField().type(), mapField.keyField().javaFieldType());
             // e.g. STRING_TESTS_LIST, or, say, CustomMessageTest.ARGUMENTS
-            final String valueOptions = getOptionsForFieldType(
-                    mapField.valueField().type(), mapField.valueField().javaFieldType());
+            final String valueOptions = mapField.valueField().type() == Field.FieldType.ENUM
+                    // a map's enum values are stored as their ordinals
+                    ? "java.util.Arrays.stream(%s.values()).filter(e -> !\"UNRECOGNIZED\".equals(e.name()))"
+                                    .formatted(mapField.valueField().javaFieldType())
+                            + ".map(e -> e.protoOrdinal()).toList()"
+                    : getOptionsForFieldType(
+                            mapField.valueField().type(), mapField.valueField().javaFieldType());
 
             // A cartesian product is nice to use, but it doesn't seem reasonable from the performance perspective.
             // Instead, we want to test three cases:
