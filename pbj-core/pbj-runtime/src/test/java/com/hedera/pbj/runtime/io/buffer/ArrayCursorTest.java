@@ -104,6 +104,27 @@ final class ArrayCursorTest {
     }
 
     @Test
+    void aCursorNarrowedFromAnotherReadsInsideItOnly() throws Exception {
+        final byte[] array = {0, 0, 2, 7, 8, 0};
+        final Bytes source = Bytes.wrap(array);
+        final ArrayCursor outer = new ArrayCursor(new byte[0], 0, 0).reset(source, array, 1, 5);
+        outer.skip(2);
+        // the array and the Bytes holding it come from the outer cursor, whatever its position
+        final ArrayCursor inner = new ArrayCursor(new byte[0], 0, 0).reset(outer, 3, 2);
+        assertEquals(3, inner.position());
+        assertEquals(7, inner.varint());
+        assertEquals(source, inner.source());
+        assertEquals(8, inner.varint());
+        assertFalse(inner.hasRemaining());
+        // it can cover the whole outer range, but not a byte outside it
+        new ArrayCursor(new byte[0], 0, 0).reset(outer, 1, 4);
+        assertThrows(IndexOutOfBoundsException.class, () -> inner.reset(outer, 0, 2));
+        assertThrows(IndexOutOfBoundsException.class, () -> inner.reset(outer, 4, 2));
+        assertThrows(IndexOutOfBoundsException.class, () -> inner.reset(outer, 2, -1));
+        assertThrows(IndexOutOfBoundsException.class, () -> inner.reset(outer, 3, Integer.MAX_VALUE));
+    }
+
+    @Test
     void bytesReadThroughTheSequentialViewOfBytesAreViews() throws Exception {
         // a length-prefixed bytes value, after one byte the caller has already read
         final byte[] array = {9, 3, 1, 2, 3};
@@ -119,7 +140,7 @@ final class ArrayCursorTest {
 
     @Test
     void everyVarintLengthReadsTheSameAtEveryDistanceFromTheLimit() {
-        // the fast path needs 8 bytes left and handles up to 8-byte varints; the rest take the slow path
+        // the fast path needs ten bytes left in the array, whatever the limit; near the array's end the slow path
         for (int length = 1; length <= 10; length++) {
             for (final long value : new long[] {
                 length == 1 ? 0 : 1L << (7 * (length - 1)),
@@ -134,7 +155,11 @@ final class ArrayCursorTest {
                     assertEquals(value, cursor.varint(), "value " + value + " with " + after + " bytes after it");
                     assertEquals(varint.length, cursor.position(), "end of " + value);
                 }
-                // and cut short by the limit, at every byte
+                // ending at the limit, with more of the array after it, as for the last field of a nested message
+                final ArrayCursor atLimit = new ArrayCursor(Arrays.copyOf(varint, 20), 0, varint.length);
+                assertEquals(value, atLimit.varint(), "value " + value + " ending at the limit");
+                assertEquals(varint.length, atLimit.position(), "end of " + value + " at the limit");
+                // and cut short by the limit, at every byte, with the rest of it, and more, in the array
                 for (int cut = 0; cut < varint.length; cut++) {
                     final ArrayCursor cursor = new ArrayCursor(Arrays.copyOf(varint, 20), 0, cut);
                     assertThrows(BufferUnderflowException.class, cursor::varint, "cut at " + cut);
@@ -166,6 +191,23 @@ final class ArrayCursorTest {
                 }
             }
         }
+    }
+
+    @Test
+    void delimitedFieldsAreMatchedByMask() {
+        final int fields2And8 = (1 << 2) | (1 << 8);
+        final ArrayCursor cursor = cursor(new byte[] {0x12, 0x42, 0x1A, 0x10, (byte) 0x82, 0x01});
+        assertEquals(0x12, cursor.atField(fields2And8));
+        assertEquals(1, cursor.position());
+        assertEquals(0x42, cursor.atField(fields2And8));
+        // field 3, wire type 2: not in the mask; field 2, wire type 0; a two-byte tag
+        assertEquals(0, cursor.atField(fields2And8));
+        cursor.skip(1);
+        assertEquals(0, cursor.atField(fields2And8));
+        cursor.skip(1);
+        assertEquals(0, cursor.atField(-1));
+        assertEquals(4, cursor.position());
+        assertEquals(0, new ArrayCursor(new byte[] {0x12}, 0, 0).atField(fields2And8));
     }
 
     @Test

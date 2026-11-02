@@ -117,7 +117,7 @@ final class ViewGenerator {
             } else if (field.repeated()) {
                 repeated((SingleField) field, parts);
             } else {
-                singular((SingleField) field, null, parts);
+                singular((SingleField) field, null, null, parts);
             }
         }
         // spotless:off
@@ -143,8 +143,10 @@ final class ViewGenerator {
                  * or a cursor's {@code value()} returns changes on the next call, so copy what you need, or call
                  * {@code toModel()}, before reading further. Not thread safe.
                  */
-                public static final class View {
+                public static final class View implements com.hedera.pbj.runtime.MessageView {
                     private final ArrayCursor cursor = new ArrayCursor(new byte[0], 0, 0);
+                    /** Counts wraps: a child view wrapped in the current one is returned again without indexing it. */
+                    private long generation;
                     private byte[] in;
                     /** The Bytes holding {@code in}, if this view wraps one, so bytes fields need not be copied */
                     private Bytes source;
@@ -236,6 +238,7 @@ final class ViewGenerator {
                      * @throws ParseException if the message is malformed or nested too deep
                      * @throws IllegalArgumentException if {@code source} does not hold the message
                      */
+                    @Override
                     public View wrap(
                             @Nullable final Bytes source,
                             @NonNull final byte[] in,
@@ -246,6 +249,34 @@ final class ViewGenerator {
                             final int maxSize)
                             throws ParseException {
                         cursor.reset(source, in, offset, offset + length);
+                        return index(strictMode, maxDepth, maxSize);
+                    }
+
+                    /**
+                     * Wrap an encoded $model in {@code length} bytes from {@code offset} within what {@code outer} reads,
+                     * validating it as {@link Codec#parse} does with the same arguments. Views use it for the messages
+                     * they contain, whose bytes they checked already.
+                     *
+                     * @param outer the cursor reading the bytes around the message
+                     * @param offset where the message starts
+                     * @param length the message's length
+                     * @param strictMode when {@code true}, unknown fields and repeated singular messages are errors
+                     * @param maxDepth the maximum depth of nested messages below this one
+                     * @param maxSize the maximum length of a field, nested message or unknown field
+                     * @return this view
+                     * @throws ParseException if the message is malformed or nested too deep
+                     * @throws IndexOutOfBoundsException if the message is not inside what {@code outer} reads
+                     */
+                    @Override
+                    public View wrap(
+                            @NonNull final ArrayCursor outer,
+                            final int offset,
+                            final int length,
+                            final boolean strictMode,
+                            final int maxDepth,
+                            final int maxSize)
+                            throws ParseException {
+                        cursor.reset(outer, offset, length);
                         return index(strictMode, maxDepth, maxSize);
                     }
 
@@ -272,6 +303,7 @@ final class ViewGenerator {
                         this.strictMode = strictMode;
                         this.maxDepth = maxDepth;
                         this.maxSize = maxSize;
+                        generation++;
                         final int start = cursor.position();
                 $resets
                         try {
@@ -331,11 +363,31 @@ final class ViewGenerator {
                 .replace("$cases", parts.cases().toString().indent(DEFAULT_INDENT * 5))
                 .replace("$accessors", parts.accessors().toString().indent(DEFAULT_INDENT))
                 .replace("$validations", parts.validations().toString().indent(DEFAULT_INDENT * 2))
-                .replace("$helpers", parts.helpers().toString().indent(DEFAULT_INDENT))
+                .replace("$helpers", helpers(parts).indent(DEFAULT_INDENT))
                 .replace("$model", modelClass)
                 .replace("$schema", schemaClass)
                 .indent(DEFAULT_INDENT);
         // spotless:on
+    }
+
+    /** The view's helper methods, with the cursor wrapper fields are read with if it has any. */
+    private static String helpers(final Parts parts) {
+        if (!parts.accessors().toString().contains("wrapperCursor(")) {
+            return parts.helpers().toString();
+        }
+        return parts.helpers() + """
+
+                /** Reads wrapper fields' values, leaving {@code cursor} over this message for its child views. */
+                private ArrayCursor wrapperCursor;
+
+                /** A cursor over the wrapper message {@code length} bytes from {@code offset}. */
+                private ArrayCursor wrapperCursor(final int offset, final int length) {
+                    if (wrapperCursor == null) {
+                        wrapperCursor = new ArrayCursor(new byte[0], 0, 0);
+                    }
+                    return wrapperCursor.reset(cursor, offset, length);
+                }
+                """;
     }
 
     /** {@code if (cursor.at(…))} or {@code while}, for a tag of at most two bytes; empty for longer tags. */
@@ -378,16 +430,48 @@ final class ViewGenerator {
         return type == Field.FieldType.BOOL ? cursor + ".bool()" : decode(type, cursor);
     }
 
-    /** A singular field, or a oneof alternative when {@code oneOfKind} names the oneof's kind field. */
-    private static void singular(final SingleField field, final String oneOfKind, final Parts parts) {
+    /**
+     * The most alternatives a oneof can have to be in the in-order fast path: wider ones, such as a transaction body's,
+     * would make {@code index()} too large for the JIT to compile well, and are read by the tag switch.
+     */
+    private static final int MAX_FAST_PATH_ALTERNATIVES = 4;
+
+    /**
+     * A singular field, or a oneof alternative when {@code oneOfKind} names the oneof's kind field.
+     *
+     * @param slot for a oneof alternative indexed with others into one shared offset and length, the slot's name;
+     *     otherwise null
+     * @return for a oneof alternative, its in-order fast path ({@code if (cursor.at(…)) {…}}), or empty if its tag is
+     * too long for one or it is in a shared slot; for a singular field, which adds its own, null
+     */
+    private static String singular(
+            final SingleField field, final String oneOfKind, final String slot, final Parts parts) {
         final String name = field.nameCamelFirstLower();
         final int wireType = field.optionalValueType()
                 ? Common.TYPE_LENGTH_DELIMITED
                 : field.type().wireType();
+        final String guard = oneOfKind == null ? "" : "%s == %d".formatted(oneOfKind, field.fieldNumber());
+        if (slot != null) {
+            // indexed by the oneof's shared method; its accessors read the shared offset and length
+            parts.accessors()
+                    .append(slotted(
+                            field.optionalValueType()
+                                    ? wrapperAccessor(field, name, guard)
+                                    : accessor(field, name, guard),
+                            name,
+                            slot));
+            if (field.type() == Field.FieldType.MESSAGE) {
+                parts.validations().append("%s();%n".formatted(name));
+            }
+            return "";
+        }
         String record;
         if (wireType == Common.TYPE_LENGTH_DELIMITED) {
             parts.state().append("private int %sOffset = -1;%nprivate int %sLength;%n".formatted(name, name));
-            parts.resets().append("%sOffset = -1;%n".formatted(name));
+            if (oneOfKind == null) {
+                // a oneof alternative's offset is only read while the oneof's kind says it is set: no reset
+                parts.resets().append("%sOffset = -1;%n".formatted(name));
+            }
             // strings are checked to be valid UTF-8 while wrapping, as parsing does
             record = "%sLength = cursor.%s(maxSize, \"%s\");%n%sOffset = cursor.position();%ncursor.skip(%sLength);%n"
                     .formatted(
@@ -399,7 +483,9 @@ final class ViewGenerator {
         } else {
             // numbers are decoded once, while wrapping; absent fields keep their default, 0
             parts.state().append("private long %sValue;%n".formatted(name));
-            parts.resets().append("%sValue = 0;%n".formatted(name));
+            if (oneOfKind == null) {
+                parts.resets().append("%sValue = 0;%n".formatted(name));
+            }
             record = "%sValue = %s;%n".formatted(name, decode(field.type(), "cursor"));
         }
         if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType()) {
@@ -412,23 +498,92 @@ final class ViewGenerator {
                             oneOfKind == null ? name + "Offset >= 0" : oneOfKind + " != 0",
                             oneOfKind == null ? field.name() : field.parent().name())
                     + record;
-            parts.resets().append("%sViewCurrent = false;%n".formatted(name));
         }
+        final String fast;
         if (oneOfKind != null) {
             record += "%s = %d;%n".formatted(oneOfKind, field.fieldNumber());
+            fast = fastPath("if", field.fieldNumber(), wireType, parts.index("index_" + name, record, "", false));
         } else {
+            fast = null;
             parts.fastPath()
                     .append(fastPath(
                             "if", field.fieldNumber(), wireType, parts.index("index_" + name, record, "", false)));
         }
         parts.cases().append(caseCode(field, wireType, parts.index("index_" + name, record, "", true)));
-        final String guard = oneOfKind == null ? "" : "%s == %d".formatted(oneOfKind, field.fieldNumber());
         parts.accessors()
                 .append(field.optionalValueType() ? wrapperAccessor(field, name, guard) : accessor(field, name, guard));
         if (field.type() == Field.FieldType.MESSAGE) {
             // reading a nested message or wrapper value validates it; absent ones are skipped by the accessor
             parts.validations().append("%s();%n".formatted(name));
         }
+        return fast;
+    }
+
+    /**
+     * The alternatives of a oneof that share one offset and length: their state, the method indexing any of them, its
+     * call in the in-order fast path when the next field is one of them, and its call from the tag switch.
+     */
+    private static void sharedSlot(
+            final OneOfField oneOf,
+            final List<SingleField> shared,
+            final String kind,
+            final String slot,
+            final Parts parts) {
+        int mask = 0;
+        final String[] names = new String[16];
+        boolean message = false;
+        final StringBuilder tags = new StringBuilder();
+        for (final SingleField alternative : shared) {
+            mask |= 1 << alternative.fieldNumber();
+            names[alternative.fieldNumber()] = alternative.name();
+            message |= alternative.type() == Field.FieldType.MESSAGE && !alternative.optionalValueType();
+            tags.append(tags.isEmpty() ? "" : ", ")
+                    .append(Common.getTag(Common.TYPE_LENGTH_DELIMITED, alternative.fieldNumber()));
+        }
+        final String namesConstant = Common.camelToUpperSnake(slot) + "_NAMES";
+        parts.state()
+                .append("private int %sOffset = -1;%nprivate int %sLength;%n".formatted(slot, slot))
+                .append("/** The field names of {@code %s}'s shared alternatives, by field number. */%n"
+                        .formatted(oneOf.name()))
+                .append("private static final String[] %s = {%s};%n"
+                        .formatted(
+                                namesConstant,
+                                Arrays.stream(names)
+                                        .map(n -> n == null ? "null" : "\"" + n + "\"")
+                                        .collect(Collectors.joining(", "))));
+        final String strict = message ? """
+                    if (strictMode && $kind != 0) {
+                        throw new ParseException("A non-repeated $oneOf encountered more than once");
+                    }
+                """ : "";
+        parts.helpers().append("""
+
+                        /** Index whichever message or bytes alternative of {@code $oneOf} this is, from its tag. */
+                        private void index_$slot(final int tag) throws java.io.IOException, ParseException {
+                        $strict    $slotLength = cursor.length(maxSize, $NAMES[tag >>> 3]);
+                            $slotOffset = cursor.position();
+                            cursor.skip($slotLength);
+                            $kind = tag >>> 3;
+                        }
+                        """.replace("$strict", strict)
+                .replace("$NAMES", namesConstant)
+                .replace("$slot", slot)
+                .replace("$kind", kind)
+                .replace("$oneOf", oneOf.name()));
+        parts.fastPath().append("""
+                        final int $slotTag = cursor.atField(0x$mask);
+                        if ($slotTag != 0) {
+                            index_$slot($slotTag);
+                        }
+                        """.replace("$mask", Integer.toHexString(mask).toUpperCase(java.util.Locale.ROOT))
+                .replace("$slot", slot));
+        parts.cases().append("case %s /* %s */ -> index_%s(tag);%n".formatted(tags, oneOf.name(), slot));
+    }
+
+    /** An accessor's code reading a shared oneof slot's offset and length instead of the alternative's own. */
+    private static String slotted(final String code, final String name, final String slot) {
+        return code.replace(name + "Offset", slot + "Offset")
+                .replaceAll("\\b" + name + "Length\\b(?!\\()", slot + "Length");
     }
 
     /** A oneof: each alternative is recorded like a singular field, and the oneof remembers the last one seen. */
@@ -437,14 +592,36 @@ final class ViewGenerator {
         parts.state().append("private int %s;%n".formatted(kind));
         parts.resets().append("%s = 0;%n".formatted(kind));
         final StringBuilder kinds = new StringBuilder();
+        // The alternatives that are messages or bytes, with one-byte tags, share one offset and length, as at most one
+        // is set, and are indexed by one method: one compare in the in-order fast path for all of them, and one call
+        // in the tag switch, so index() stays small, which it must for the JIT to inline the cursor's reads into it.
+        final List<SingleField> shared = oneOf.fields().stream()
+                .map(f -> (SingleField) f)
+                .filter(f -> f.type() == Field.FieldType.MESSAGE || f.type() == Field.FieldType.BYTES)
+                .filter(f -> Common.tagBytes(f.fieldNumber(), Common.TYPE_LENGTH_DELIMITED).length == 1)
+                .toList();
+        final String slot = shared.isEmpty() ? null : oneOf.nameCamelFirstLower();
+        if (slot != null) {
+            sharedSlot(oneOf, shared, kind, slot, parts);
+        }
+        // a small oneof's other alternatives are read in order too, when its first alternative in field order is set:
+        // one at() per alternative, chained, as at most one is set. Ids are mostly such oneofs.
+        final boolean fast = oneOf.fields().size() <= MAX_FAST_PATH_ALTERNATIVES;
+        final StringBuilder chain = new StringBuilder();
         for (final Field alternative : oneOf.fields()) {
-            singular((SingleField) alternative, kind, parts);
+            final String alternativeFastPath =
+                    singular((SingleField) alternative, kind, shared.contains(alternative) ? slot : null, parts);
+            if (fast && !alternativeFastPath.isEmpty()) {
+                chain.append(chain.isEmpty() ? "" : "else ").append(alternativeFastPath);
+            }
             kinds.append("case %d -> %s.%s;%n"
                     .formatted(
                             alternative.fieldNumber(),
                             oneOf.getEnumClassRef(),
                             Common.camelToUpperSnake(alternative.name())));
         }
+        // "} else if" rather than a new statement after each "}"
+        parts.fastPath().append(chain.toString().replace("}\nelse ", "} else "));
         parts.accessors().append("""
 
                 /** @return which alternative of {@code $name} is set, as in the model */
@@ -541,7 +718,7 @@ final class ViewGenerator {
                     if (child == null) {
                         child = new $elem.View();
                     }
-                    child.wrap(source, in, offset, length, strictMode, maxDepth - 1, maxSize);
+                    child.wrap(c, offset, length, strictMode, maxDepth - 1, maxSize);
                     """.replace("$elem", field.javaFieldTypeBase());
                     case STRING, BYTES -> """
                     length = c.length(maxSize, "$field");
@@ -605,7 +782,7 @@ final class ViewGenerator {
                         remaining = $nameCount;
                         packedEnd = -1;
                         if ($nameFirst >= 0) {
-                            c.reset(in, $nameFirst, end);
+                            c.reset(cursor, $nameFirst, end - $nameFirst);
                         }
                         return this;
                     }
@@ -685,6 +862,16 @@ final class ViewGenerator {
                     public int valueCopyTo(@NonNull final byte[] dst, final int dstOffset) {
                         System.arraycopy(in, offset, dst, dstOffset, length);
                         return length;
+                    }
+
+                    /**
+                     * @param index the index of a byte of the current element, from 0
+                     * @return that byte, read in place
+                     * @throws IndexOutOfBoundsException if {@code index} is not less than {@link #valueLength()}
+                     */
+                    public byte valueByteAt(final int index) {
+                        java.util.Objects.checkIndex(index, length);
+                        return in[offset + index];
                     }
 
                     /**
@@ -808,25 +995,26 @@ final class ViewGenerator {
                         return $absent ? $default : $value;
                     }
                     """.replace("$absent", absent(name, guard))
-                        .replace(
-                                "$returns",
-                                field.type() == Field.FieldType.STRING
-                                        ? "decoded as a new String"
-                                        : "as a view of the wrapped Bytes, or a copy when wrapping an array")
-                        .replace("$type", field.type() == Field.FieldType.STRING ? "String" : "Bytes")
-                        .replace("$default", field.type() == Field.FieldType.STRING ? "\"\"" : "Bytes.EMPTY")
-                        .replace(
-                                "$value",
-                                field.type() == Field.FieldType.STRING
-                                        ? "new String(in, $nameOffset, $nameLength, java.nio.charset.StandardCharsets.UTF_8)"
-                                        : "ArrayCursor.bytes(source, in, $nameOffset, $nameLength)")
-                        .replace("$name", name)
-                        .replace("$field", field.name());
+                                .replace(
+                                        "$returns",
+                                        field.type() == Field.FieldType.STRING
+                                                ? "decoded as a new String"
+                                                : "as a view of the wrapped Bytes, or a copy when wrapping an array")
+                                .replace("$type", field.type() == Field.FieldType.STRING ? "String" : "Bytes")
+                                .replace("$default", field.type() == Field.FieldType.STRING ? "\"\"" : "Bytes.EMPTY")
+                                .replace(
+                                        "$value",
+                                        field.type() == Field.FieldType.STRING
+                                                ? "new String(in, $nameOffset, $nameLength, java.nio.charset.StandardCharsets.UTF_8)"
+                                                : "ArrayCursor.bytes(source, in, $nameOffset, $nameLength)")
+                                .replace("$name", name)
+                                .replace("$field", field.name())
+                        + (field.type() == Field.FieldType.BYTES ? bytesExtras(name, field) : "");
             case MESSAGE ->
                 """
 
                     private $type.View $nameView;
-                    private boolean $nameViewCurrent;
+                    private long $nameViewGeneration;
 
                     /** @return true if {@code $field} is present */
                     public boolean has$Name() {
@@ -844,12 +1032,12 @@ final class ViewGenerator {
                         }
                         if ($nameView == null) {
                             $nameView = new $type.View();
-                        } else if ($nameViewCurrent && $nameView.wraps(in, $nameOffset, $nameLength)) {
+                        } else if ($nameViewGeneration == generation && $nameView.wraps(in, $nameOffset, $nameLength)) {
                             // already wrapped over this field since this view was wrapped: don't index it again
                             return $nameView;
                         }
-                        $nameView.wrap(source, in, $nameOffset, $nameLength, strictMode, maxDepth - 1, maxSize);
-                        $nameViewCurrent = true;
+                        $nameView.wrap(cursor, $nameOffset, $nameLength, strictMode, maxDepth - 1, maxSize);
+                        $nameViewGeneration = generation;
                         return $nameView;
                     }
                     """.replace("$absent", absent(name, guard))
@@ -877,6 +1065,62 @@ final class ViewGenerator {
                     case "BoolValue" -> new String[] {"Boolean", "cursor.varint() != 0", "false"};
                     default -> throw new IllegalArgumentException("Not a wrapper type: " + field);
                 };
+        final String primitive =
+                switch (typeReadDefault[0]) {
+                    case "Integer" -> "int";
+                    case "Long" -> "long";
+                    case "Float" -> "float";
+                    case "Double" -> "double";
+                    case "Boolean" -> "boolean";
+                    default -> null;
+                };
+        if (primitive != null) {
+            // numbers and bools also have an unboxed accessor, so reading them allocates nothing
+            return """
+
+                /** @return true if {@code $field} is present */
+                public boolean has$Name() {
+                    return !($absent);
+                }
+
+                /**
+                 * @return {@code $field}: null when absent, as in the model; {@link #$nameOrElse} does not box
+                 * @throws ParseException if the wrapper is malformed
+                 */
+                public $type $name() throws ParseException {
+                    return $absent ? null : $nameOrElse($default);
+                }
+
+                /**
+                 * @param defaultValue the value to return when {@code $field} is absent
+                 * @return {@code $field}, or {@code defaultValue} when absent
+                 * @throws ParseException if the wrapper is malformed
+                 */
+                public $primitive $nameOrElse(final $primitive defaultValue) throws ParseException {
+                    if ($absent) {
+                        return defaultValue;
+                    }
+                    if ($nameLength == 0) {
+                        return $default;
+                    }
+                    try {
+                        // the wrapper's one field: its tag, then the value
+                        final ArrayCursor cursor = wrapperCursor($nameOffset, $nameLength);
+                        cursor.tag();
+                        return $read;
+                    } catch (final RuntimeException e) {
+                        throw new ParseException(e);
+                    }
+                }
+                """.replace("$absent", absent(name, guard))
+                    .replace("$primitive", primitive)
+                    .replace("$type", typeReadDefault[0])
+                    .replace("$read", typeReadDefault[1])
+                    .replace("$default", typeReadDefault[2])
+                    .replace("$Name", field.nameCamelFirstUpper())
+                    .replace("$name", name)
+                    .replace("$field", field.name());
+        }
         return """
 
                 /** @return true if {@code $field} is present */
@@ -896,8 +1140,8 @@ final class ViewGenerator {
                         return $default;
                     }
                     try {
-                        cursor.reset(source, in, $nameOffset, $nameOffset + $nameLength);
                         // the wrapper's one field: its tag, then the value
+                        final ArrayCursor cursor = wrapperCursor($nameOffset, $nameLength);
                         cursor.tag();
                         return $read;
                     $catch
@@ -917,8 +1161,41 @@ final class ViewGenerator {
                 .replace("$field", field.name());
     }
 
+    /** A bytes field's accessors that read it in place: one byte, or as an encoded message through its view. */
+    private static String bytesExtras(final String name, final SingleField field) {
+        return """
+
+                /**
+                 * @param index the index of a byte of {@code $field}, from 0
+                 * @return that byte, read in place
+                 * @throws IndexOutOfBoundsException if {@code index} is not less than {@link #$nameLength()}
+                 */
+                public byte $nameByteAt(final int index) {
+                    java.util.Objects.checkIndex(index, $nameLength());
+                    return in[$nameOffset + index];
+                }
+
+                /**
+                 * Read {@code $field}, an encoded message, through its view without copying it: wrap {@code view} over
+                 * it, with this view's strict mode and limits, one level deeper.
+                 *
+                 * @param view the view of the message type {@code $field} holds
+                 * @param <V> the view's type
+                 * @return {@code view}, wrapped over {@code $field}, empty when absent
+                 * @throws ParseException if the bytes are not a well-formed message
+                 */
+                public <V extends com.hedera.pbj.runtime.MessageView> V $nameAs(@NonNull final V view)
+                        throws ParseException {
+                    final int length = $nameLength();
+                    view.wrap(cursor, length == 0 ? start : $nameOffset, length, strictMode, maxDepth - 1, maxSize);
+                    return view;
+                }
+                """.replace("$name", name).replace("$field", field.name());
+    }
+
     /** The condition for a delimited field being absent: no offset recorded, or another oneof alternative set. */
     private static String absent(final String name, final String guard) {
-        return guard.isEmpty() ? name + "Offset < 0" : "!(" + guard + ") || " + name + "Offset < 0";
+        // a oneof alternative's offset is recorded whenever its kind is set
+        return guard.isEmpty() ? name + "Offset < 0" : "!(" + guard + ")";
     }
 }

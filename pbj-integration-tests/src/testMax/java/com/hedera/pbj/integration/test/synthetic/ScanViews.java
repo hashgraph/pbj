@@ -34,20 +34,14 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 
 /**
  * Read every field of the synthetic workload's messages through views, and sum them exactly as {@link ScanObjects}
- * does. Reusable: one instance holds the views and a scratch array, so a pass allocates nothing (except where a view
- * API itself does, noted below).
- *
- * <p>Views have no allocation-free way to look at a few bytes of a bytes field, so the first and last byte are read by
- * copying the field into the scratch array, and the transaction body is parsed from such a copy.
+ * does. Reusable: one instance holds the views, so a pass allocates nothing. Bytes fields are read in place, their
+ * first and last byte with {@code xxxByteAt}, and the transaction body through its view with {@code bodyBytesAs}.
  */
 public final class ScanViews {
     private final Block.View block = new Block.View();
     private final BlockItem.View item = new BlockItem.View();
     private final SignedTransaction.View signed = new SignedTransaction.View();
     private final TransactionBody.View body = new TransactionBody.View();
-    private final byte[] scratch = new byte[1 << 20];
-    /** The copy of a transaction body that its view reads, apart from the scratch array its fields are copied to. */
-    private final byte[] bodyCopy = new byte[1 << 20];
 
     /** Sum every field of every item of an encoded block. */
     public long block(final Bytes encoded) throws ParseException {
@@ -69,8 +63,8 @@ public final class ScanViews {
         switch (item.itemKind()) {
             case BLOCK_HEADER -> sum += blockHeader(item.blockHeader());
             case SIGNED_TRANSACTION -> {
-                final int length = item.signedTransactionCopyTo(scratch, 0);
-                sum += bytes(length);
+                final int n = item.signedTransactionLength();
+                sum += n == 0 ? 0 : n + item.signedTransactionByteAt(0) + item.signedTransactionByteAt(n - 1);
             }
             case TRANSACTION_RESULT -> sum += transactionResult(item.transactionResult());
             case STATE_CHANGES -> sum += stateChanges(item.stateChanges());
@@ -81,10 +75,7 @@ public final class ScanViews {
         return sum;
     }
 
-    /** The length and first and last byte of the {@code length} bytes copied into the scratch array. */
-    private long bytes(final int length) {
-        return length == 0 ? 0 : length + scratch[0] + scratch[length - 1];
-    }
+    // Bytes fields add their length and first and last byte, 0 if empty, read in place with xxxByteAt.
 
     private static long bool(final boolean value) {
         return value ? 1 : 0;
@@ -98,7 +89,10 @@ public final class ScanViews {
         long sum = a.shardNum() + a.realmNum() + a.accountKind().protoOrdinal();
         switch (a.accountKind()) {
             case ACCOUNT_NUM -> sum += a.accountNum();
-            case ALIAS -> sum += bytes(a.aliasCopyTo(scratch, 0));
+            case ALIAS -> {
+                final int n = a.aliasLength();
+                sum += n == 0 ? 0 : n + a.aliasByteAt(0) + a.aliasByteAt(n - 1);
+            }
             default -> {}
         }
         return sum;
@@ -124,16 +118,23 @@ public final class ScanViews {
                 + h.hashAlgorithmProtoOrdinal();
     }
 
-    private long blockFooter(final BlockFooter.View f) {
-        return bytes(f.previousBlockRootHashCopyTo(scratch, 0))
-                + bytes(f.rootHashOfAllBlockHashesTreeCopyTo(scratch, 0))
-                + bytes(f.startOfBlockStateRootHashCopyTo(scratch, 0));
+    private static long blockFooter(final BlockFooter.View f) {
+        final int a = f.previousBlockRootHashLength();
+        final int b = f.rootHashOfAllBlockHashesTreeLength();
+        final int c = f.startOfBlockStateRootHashLength();
+        return (a == 0 ? 0 : a + f.previousBlockRootHashByteAt(0) + f.previousBlockRootHashByteAt(a - 1))
+                + (b == 0
+                        ? 0
+                        : b + f.rootHashOfAllBlockHashesTreeByteAt(0) + f.rootHashOfAllBlockHashesTreeByteAt(b - 1))
+                + (c == 0 ? 0 : c + f.startOfBlockStateRootHashByteAt(0) + f.startOfBlockStateRootHashByteAt(c - 1));
     }
 
     private long blockProof(final BlockProof.View p) throws ParseException {
         long sum = p.block() + p.proofKind().protoOrdinal();
         if (p.hasSignedBlockProof()) {
-            sum += bytes(p.signedBlockProof().blockSignatureCopyTo(scratch, 0));
+            final var signed = p.signedBlockProof();
+            final int n = signed.blockSignatureLength();
+            sum += n == 0 ? 0 : n + signed.blockSignatureByteAt(0) + signed.blockSignatureByteAt(n - 1);
         }
         return sum;
     }
@@ -192,11 +193,12 @@ public final class ScanViews {
     }
 
     private long nft(final Nft.View n) throws ParseException {
+        final int m = n.metadataLength();
         return (n.hasNftId() ? nftId(n.nftId()) : 0)
                 + (n.hasOwnerId() ? accountId(n.ownerId()) : 0)
                 + (n.hasSpenderId() ? accountId(n.spenderId()) : 0)
                 + (n.hasMintTime() ? timestamp(n.mintTime()) : 0)
-                + bytes(n.metadataCopyTo(scratch, 0))
+                + (m == 0 ? 0 : m + n.metadataByteAt(0) + n.metadataByteAt(m - 1))
                 + (n.hasOwnerPreviousNftId() ? nftId(n.ownerPreviousNftId()) : 0)
                 + (n.hasOwnerNextNftId() ? nftId(n.ownerNextNftId()) : 0);
     }
@@ -238,7 +240,7 @@ public final class ScanViews {
             case SINGLETON_UPDATE -> {
                 final var singleton = c.singletonUpdate();
                 // the wrapper's value is only available boxed, which allocates for values over 127
-                sum += singleton.newValueKind().protoOrdinal() + singleton.entityNumberValue();
+                sum += singleton.newValueKind().protoOrdinal() + singleton.entityNumberValueOrElse(0);
             }
             case QUEUE_PUSH -> {
                 final var push = c.queuePush();
@@ -270,19 +272,26 @@ public final class ScanViews {
         if (s.hasSigMap()) {
             for (var pairs = s.sigMap().sigPair(); pairs.next(); ) {
                 final SignaturePair.View pair = pairs.value();
-                sum += bytes(pair.pubKeyPrefixCopyTo(scratch, 0))
+                final int prefix = pair.pubKeyPrefixLength();
+                sum += (prefix == 0 ? 0 : prefix + pair.pubKeyPrefixByteAt(0) + pair.pubKeyPrefixByteAt(prefix - 1))
                         + pair.signatureKind().protoOrdinal();
                 switch (pair.signatureKind()) {
-                    case ED25519 -> sum += bytes(pair.ed25519CopyTo(scratch, 0));
-                    case ECDSA_SECP256K1 -> sum += bytes(pair.ecdsaSecp256k1CopyTo(scratch, 0));
+                    case ED25519 -> {
+                        final int n = pair.ed25519Length();
+                        sum += n == 0 ? 0 : n + pair.ed25519ByteAt(0) + pair.ed25519ByteAt(n - 1);
+                    }
+                    case ECDSA_SECP256K1 -> {
+                        final int n = pair.ecdsaSecp256k1Length();
+                        sum += n == 0 ? 0 : n + pair.ecdsaSecp256k1ByteAt(0) + pair.ecdsaSecp256k1ByteAt(n - 1);
+                    }
                     default -> throw new IllegalStateException("Not in the synthetic workload");
                 }
             }
         }
-        // the body is parsed from a copy, as a view can't be wrapped around another view's bytes field
-        final int bodyLength = s.bodyBytesCopyTo(bodyCopy, 0);
-        sum += bodyLength == 0 ? 0 : bodyLength + bodyCopy[0] + bodyCopy[bodyLength - 1];
-        return sum + transactionBody(body.wrap(bodyCopy, 0, bodyLength));
+        // the body is read in place, through its view wrapped over the bytes field
+        final int n = s.bodyBytesLength();
+        sum += n == 0 ? 0 : n + s.bodyBytesByteAt(0) + s.bodyBytesByteAt(n - 1);
+        return sum + transactionBody(s.bodyBytesAs(body));
     }
 
     private long transactionBody(final TransactionBody.View b) throws ParseException {
@@ -305,12 +314,8 @@ public final class ScanViews {
             case ATOMIC_BATCH -> {
                 final AtomicBatchTransactionBody.View batch = b.atomicBatch();
                 for (var transactions = batch.transactions(); transactions.next(); ) {
-                    final int length = transactions.valueLength();
-                    if (length > 0) {
-                        // only the first and last byte are needed, but the whole value has to be copied
-                        transactions.valueCopyTo(scratch, 0);
-                        sum += length + scratch[0] + scratch[length - 1];
-                    }
+                    final int n = transactions.valueLength();
+                    sum += n == 0 ? 0 : n + transactions.valueByteAt(0) + transactions.valueByteAt(n - 1);
                 }
             }
             default -> throw new IllegalStateException("Not in the synthetic workload: " + b.dataKind());
