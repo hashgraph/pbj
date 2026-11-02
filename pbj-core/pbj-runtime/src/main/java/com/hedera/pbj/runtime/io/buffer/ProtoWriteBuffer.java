@@ -39,6 +39,9 @@ public final class ProtoWriteBuffer {
             MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
     /** Writes little-endian ints into byte arrays, for fixed32 values. */
     private static final VarHandle INT_LE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+    /** Writes little-endian shorts into byte arrays, for varints of six and seven bytes. */
+    private static final VarHandle SHORT_LE =
+            MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.LITTLE_ENDIAN);
 
     /** Free bytes {@link #ensure} keeps past the bytes asked for, so the common cases need no exact room check. */
     static final int SLACK = Long.BYTES;
@@ -736,8 +739,8 @@ public final class ProtoWriteBuffer {
      * @return the position after it
      */
     static int varintWide(final byte[] b, final int p, final long value) {
-        // two, three and nine bytes inline, as for ids, lengths, timestamps and int64 nanosecond times; the rest
-        // exact-size stores in a call, as a single 8-byte store into the slack was slower on AMD EPYC, for writing
+        // two, three and nine bytes inline, as for ids, lengths, timestamps and int64 nanosecond times, and four to
+        // eight with exact-size stores, as a single 8-byte store into the slack was slower on AMD EPYC, for writing
         // block items
         if ((value >>> 14) == 0) {
             b[p] = (byte) (value | 0x80);
@@ -767,7 +770,54 @@ public final class ProtoWriteBuffer {
             b[p + 8] = (byte) (value >>> 56);
             return p + 9;
         }
-        return p + ProtoArrayWriterTools.writeVarInt(b, p, b.length, value);
+        if (value < 0) {
+            // ten bytes, for negative int32 and int64 values
+            return p + ProtoArrayWriterTools.writeVarInt(b, p, b.length, value);
+        }
+        return varint4To8(b, p, value);
+    }
+
+    /**
+     * Write an unsigned varint of four to eight bytes with stores of exactly its size, 4, 4 + 1, 4 + 2, 4 + 2 + 1 or 8
+     * bytes, as {@link ProtoArrayWriterTools#writeVarIntWide} does: here in a method small enough for the JIT to inline,
+     * which that one, handling every size, is not.
+     *
+     * @return the position after it
+     */
+    private static int varint4To8(final byte[] b, final int p, final long value) {
+        final long group0 = (value & 0x7F) | 0x80;
+        final long group1 = ((value >>> 7) & 0x7F) | 0x80;
+        final long group2 = ((value >>> 14) & 0x7F) | 0x80;
+        if ((value >>> 28) == 0) {
+            INT_LE.set(b, p, (int) (group0 | group1 << 8 | group2 << 16 | (value >>> 21) << 24));
+            return p + 4;
+        }
+        final int first4 = (int) (group0 | group1 << 8 | group2 << 16 | (((value >>> 21) & 0x7F) | 0x80) << 24);
+        INT_LE.set(b, p, first4);
+        if ((value >>> 35) == 0) {
+            b[p + 4] = (byte) (value >>> 28);
+            return p + 5;
+        }
+        final long group4 = ((value >>> 28) & 0x7F) | 0x80;
+        if ((value >>> 42) == 0) {
+            SHORT_LE.set(b, p + 4, (short) (group4 | (value >>> 35) << 8));
+            return p + 6;
+        }
+        final long group5 = ((value >>> 35) & 0x7F) | 0x80;
+        if ((value >>> 49) == 0) {
+            SHORT_LE.set(b, p + 4, (short) (group4 | group5 << 8));
+            b[p + 6] = (byte) (value >>> 42);
+            return p + 7;
+        }
+        LONG_LE.set(
+                b,
+                p,
+                (first4 & 0xFFFFFFFFL)
+                        | group4 << 32
+                        | group5 << 40
+                        | (((value >>> 42) & 0x7F) | 0x80) << 48
+                        | (value >>> 49) << 56);
+        return p + 8;
     }
 
     /** Write a little-endian 32-bit value. */
