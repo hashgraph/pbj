@@ -736,7 +736,19 @@ public final class ProtoWriteBuffer {
      * @return the position after it
      */
     static int varintWide(final byte[] b, final int p, final long value) {
-        // exact-size stores: a single 8-byte store into the slack was slower on AMD EPYC, for writing block items
+        // two and three bytes inline, as for ids, lengths and timestamps; the rest exact-size stores in a call, as a
+        // single 8-byte store into the slack was slower on AMD EPYC, for writing block items
+        if ((value >>> 14) == 0) {
+            b[p] = (byte) (value | 0x80);
+            b[p + 1] = (byte) (value >>> 7);
+            return p + 2;
+        }
+        if ((value >>> 21) == 0) {
+            b[p] = (byte) (value | 0x80);
+            b[p + 1] = (byte) ((value >>> 7) | 0x80);
+            b[p + 2] = (byte) (value >>> 14);
+            return p + 3;
+        }
         return p + ProtoArrayWriterTools.writeVarInt(b, p, b.length, value);
     }
 

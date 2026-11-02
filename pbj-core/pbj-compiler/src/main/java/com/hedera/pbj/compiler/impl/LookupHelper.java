@@ -605,6 +605,104 @@ public final class LookupHelper {
     }
 
     /**
+     * A field of a small message a parent writer can write in one call, from its values (an enum as its ordinal): its
+     * proto name, number and
+     * type, and whether it is written even when 0, as a oneof alternative is.
+     */
+    public record InlineField(String name, int number, Field.FieldType type, boolean alwaysWritten) {}
+
+    /** The most fields a message can have for parent writers to write it in one call. */
+    private static final int MAX_INLINE_FIELDS = 6;
+
+    /**
+     * The fields to write a message of this type with, in one call on a parent writer, without opening its own writer:
+     * a message whose fields are all integers, bools or enums, at most {@value #MAX_INLINE_FIELDS} of them, such as an id or a
+     * timestamp. A oneof may have one integer alternative, which is written, and others that are not offered.
+     *
+     * @param modelPackage the Java package of the message's model class
+     * @param completeClass the model's complete class name, including outer classes
+     * @return the fields in field-number order, or null if the message is not such a message
+     */
+    @Nullable
+    public List<InlineField> inlineFields(String modelPackage, String completeClass) {
+        final String message = messagesByModelClass.get(modelPackage + "." + completeClass);
+        if (message == null || !messageDefinitions.containsKey(message)) {
+            return null;
+        }
+        final List<InlineField> fields = new ArrayList<>();
+        for (MessageElementContext element :
+                messageDefinitions.get(message).messageBody().messageElement()) {
+            if (element.mapField() != null) {
+                return null;
+            }
+            if (element.field() != null && element.field().fieldName() != null) {
+                final Field.FieldType type = inlineType(message, element.field().type_());
+                if (element.field().REPEATED() != null || type == null) {
+                    return null;
+                }
+                fields.add(new InlineField(
+                        element.field().fieldName().getText(),
+                        Integer.parseInt(element.field().fieldNumber().getText()),
+                        type,
+                        false));
+            } else if (element.oneof() != null) {
+                InlineField alternative = null;
+                for (var field : element.oneof().oneofField()) {
+                    final Field.FieldType type = inlineType(message, field.type_());
+                    if (type != null) {
+                        if (alternative != null) {
+                            return null;
+                        }
+                        alternative = new InlineField(
+                                field.fieldName().getText(),
+                                Integer.parseInt(field.fieldNumber().getText()),
+                                type,
+                                true);
+                    }
+                }
+                if (alternative != null) {
+                    fields.add(alternative);
+                }
+            }
+        }
+        if (fields.isEmpty() || fields.size() > MAX_INLINE_FIELDS) {
+            return null;
+        }
+        fields.sort(java.util.Comparator.comparingInt(InlineField::number));
+        return fields;
+    }
+
+    /** The type of an integer, bool or enum field of a message, or null for any other. */
+    @Nullable
+    private Field.FieldType inlineType(final String message, final Protobuf3Parser.Type_Context type) {
+        if (type.enumType() != null
+                || (type.messageType() != null
+                        && enumNames.contains(
+                                getFullyQualifiedProtoName(messageFiles.get(message), type.messageType())))) {
+            return Field.FieldType.ENUM;
+        }
+        final Map<Field.FieldType, org.antlr.v4.runtime.tree.TerminalNode> tokens =
+                new java.util.EnumMap<>(Field.FieldType.class);
+        tokens.put(Field.FieldType.INT32, type.INT32());
+        tokens.put(Field.FieldType.INT64, type.INT64());
+        tokens.put(Field.FieldType.UINT32, type.UINT32());
+        tokens.put(Field.FieldType.UINT64, type.UINT64());
+        tokens.put(Field.FieldType.SINT32, type.SINT32());
+        tokens.put(Field.FieldType.SINT64, type.SINT64());
+        tokens.put(Field.FieldType.FIXED32, type.FIXED32());
+        tokens.put(Field.FieldType.FIXED64, type.FIXED64());
+        tokens.put(Field.FieldType.SFIXED32, type.SFIXED32());
+        tokens.put(Field.FieldType.SFIXED64, type.SFIXED64());
+        tokens.put(Field.FieldType.BOOL, type.BOOL());
+        for (Map.Entry<Field.FieldType, org.antlr.v4.runtime.tree.TerminalNode> token : tokens.entrySet()) {
+            if (token.getValue() != null) {
+                return token.getKey();
+            }
+        }
+        return null;
+    }
+
+    /**
      * The number of bytes a writer reserves for the length prefix of a nested message of this type, before it knows the
      * message's length: one when the message's largest encoding is under 128 bytes, which needs only bounded fields,
      * otherwise two.

@@ -29,38 +29,38 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * no length prefix. Read a deeper message's range when it ends, or once its top-level ancestor's child has ended.
  *
  * <p><b>Cost.</b> Checking a field costs one compare against {@link #guard}, which is the last field number written
- * while nothing is open inside this message, and {@link Integer#MAX_VALUE} while a child is open or this writer is not:
- * then the check takes a slow path that ends the child, or throws. The methods generated writers call are
- * {@code protected}. Not thread safe.
+ * while nothing is open inside this message, and above every field number while a child is open or this writer is not:
+ * then the check takes a slow path that ends the child (a few stores, inlined), or throws. The methods generated
+ * writers call are {@code protected}. Not thread safe.
  */
 public abstract class MessageWriter {
-    /** {@link #guard} while the field check must take the slow path: a child is open, or this writer is not. */
+    /** {@link #guard} while this writer is not open: not started yet, ended, or abandoned. Every field check throws. */
     private static final int SLOW = Integer.MAX_VALUE;
-
-    /** Not started yet. */
-    private static final byte NEW = 0;
-    /** Started, or opened by a parent, and not ended. */
-    private static final byte OPEN = 1;
-    /** Open, with every field written by {@code writeFrom}: only {@link #end()} may follow. */
-    private static final byte WRITTEN = 2;
-    /** Ended, or abandoned by a buffer reset. */
-    private static final byte ENDED = 3;
+    /** {@link #guard} while a nested message is open inside this one: the next field check ends it first. */
+    private static final int CHILD = Integer.MAX_VALUE - 1;
+    /** {@link #guard} while open with every field written by {@code writeFrom}: only {@link #end()} may follow. */
+    private static final int WRITTEN = Integer.MAX_VALUE - 2;
 
     /** The buffer being written to, while open; generated field methods write to it directly. */
     protected ProtoWriteBuffer out;
-    /** The last field number written, or {@link #SLOW}: every field check compares with it, and nothing else. */
+    /**
+     * The last field number written while open, or {@link #CHILD}, {@link #WRITTEN} or {@link #SLOW}: every field check
+     * compares with it, and nothing else. It is also the writer's state: open unless {@link #SLOW}.
+     */
     private int guard = SLOW;
-    /** The last field number written, kept while a child is open and {@link #guard} is {@link #SLOW}. */
+    /** The last field number written, kept while a child is open and {@link #guard} is {@link #CHILD}. */
     private int lastField;
     /** One bit per oneof of the message, set once one of its alternatives has been written. */
     private long oneofs;
 
-    private byte state = NEW;
     /** The writer of the nested message opened last, which may still be open, or null. */
     private MessageWriter child;
     /** The writer of the message this one is nested in, while open, or null for a top-level message. */
     private MessageWriter parent;
-    /** Where this message's bytes start, after the bytes reserved for its length prefix. */
+    /**
+     * Where this message's bytes start, after the bytes reserved for its length prefix; once it has ended, after its
+     * length prefix, as the bytes move when the prefix is a different size than was reserved.
+     */
     private int start;
     /** The number of bytes reserved for the length prefix, 0 for a top-level message. */
     private int reserved;
@@ -69,7 +69,7 @@ public abstract class MessageWriter {
     /** The size of the last length prefix written for this writer, the adaptive guess for the next one; 0 if none. */
     private int lastLengthSize;
 
-    private int offset = -1;
+    /** The message's length once it has ended; -1 before, or once abandoned. */
     private int length = -1;
 
     /** Create a writer, which must be started, or opened by its parent, before use. */
@@ -96,7 +96,6 @@ public abstract class MessageWriter {
         start = out.pos;
         guard = 0;
         oneofs = 0;
-        state = OPEN;
     }
 
     /**
@@ -116,6 +115,17 @@ public abstract class MessageWriter {
     }
 
     /**
+     * Open a nested message whose largest encoding is under 128 bytes, such as an id or a timestamp: its length is one
+     * byte, whatever the buffer's {@link ProtoWriteBuffer.LengthReservation}, so none is guessed.
+     *
+     * @param child the nested message's writer
+     * @param tag the field's tag, wire type 2
+     */
+    protected final void openSmallChild(@NonNull final MessageWriter child, final int tag) {
+        open(child, 1, tag);
+    }
+
+    /**
      * Open a nested message whose encoded length is known, such as a model object's {@code protobufSize()}, so the
      * length prefix is reserved exactly and the message's bytes never move.
      *
@@ -130,7 +140,7 @@ public abstract class MessageWriter {
     private void open(final MessageWriter child, final int reserve, final int tag) {
         // the parent's next field check takes the slow path, which ends the child
         lastField = guard;
-        guard = SLOW;
+        guard = CHILD;
         if (this.child != child) {
             this.child = child;
         }
@@ -157,7 +167,6 @@ public abstract class MessageWriter {
         child.start = p;
         child.guard = 0;
         child.oneofs = 0;
-        child.state = OPEN;
     }
 
     /**
@@ -179,25 +188,27 @@ public abstract class MessageWriter {
      * @throws IllegalStateException if the writer is not open
      */
     public final int end() {
-        if (guard == SLOW && state != WRITTEN) {
-            if (state != OPEN) {
+        if (guard >= WRITTEN) {
+            if (guard == CHILD) {
+                endChild();
+            } else if (guard == SLOW) {
                 throw new IllegalStateException(notOpen());
             }
-            closeInside();
         }
         close();
         return length;
     }
 
-    /** End the message open inside this one, if there is one, and any open inside it. */
-    private void closeInside() {
+    /**
+     * End the message open inside this one, and any open inside it: called while {@link #guard} is {@link #CHILD}, so
+     * the child is open. Kept small, so the JIT inlines it into the field checks.
+     */
+    private void endChild() {
         final MessageWriter c = child;
-        if (c != null && (c.state == OPEN || c.state == WRITTEN)) {
-            if (c.guard == SLOW) {
-                c.closeInside();
-            }
-            c.close();
+        if (c.guard == CHILD) {
+            c.endChild();
         }
+        c.close();
     }
 
     /** Close this message, once nothing is open inside it. */
@@ -206,20 +217,16 @@ public abstract class MessageWriter {
         if (size == 0 && tagStart >= 0) {
             // an empty packed field is not written at all, as the model writes it
             out.pos = tagStart;
-            offset = tagStart;
+            start = tagStart;
         } else if (reserved == 1 && size < 0x80) {
-            // the common case: a one-byte length, guessed right
+            // the common case: a one-byte length, guessed right. The adaptive guess stays one byte, so it needs no
+            // update: one was reserved because it was the guess, or because the length was known.
             out.buf[start - 1] = (byte) size;
-            offset = start;
-            lastLengthSize = 1;
-        } else if (reserved == 0) {
-            offset = start;
-        } else {
+        } else if (reserved != 0) {
             closeLength(size);
         }
         length = size;
         guard = SLOW;
-        state = ENDED;
         // the parent can write its next field without checking for an open child
         final MessageWriter p = parent;
         if (p != null) {
@@ -232,30 +239,27 @@ public abstract class MessageWriter {
         if (reserved == 2 && size >= 0x80 && size < 0x4000) {
             out.buf[start - 2] = (byte) (size | 0x80);
             out.buf[start - 1] = (byte) (size >>> 7);
-            offset = start;
             lastLengthSize = 2;
         } else {
-            offset = out.moveAndWriteLength(start, reserved, size);
+            start = out.moveAndWriteLength(start, reserved, size);
             lastLengthSize = ProtoWriteBuffer.varintSize(size);
         }
     }
 
     /** Drop this writer's message, and any open inside it, which the buffer has discarded. */
     final void abandon() {
-        if (state == OPEN || state == WRITTEN) {
+        if (guard != SLOW) {
             if (child != null) {
                 child.abandon();
             }
             guard = SLOW;
-            state = ENDED;
-            offset = -1;
             length = -1;
         }
     }
 
     /** @return true if this writer has been started or opened and has not ended */
     public final boolean isOpen() {
-        return state == OPEN || state == WRITTEN;
+        return guard != SLOW;
     }
 
     /**
@@ -263,10 +267,10 @@ public abstract class MessageWriter {
      * @throws IllegalStateException if the message has not ended
      */
     public final int offset() {
-        if (state != ENDED || length < 0) {
+        if (guard != SLOW || length < 0) {
             throw new IllegalStateException("A message's offset is known once it has ended");
         }
-        return offset;
+        return start;
     }
 
     /**
@@ -274,7 +278,7 @@ public abstract class MessageWriter {
      * @throws IllegalStateException if the message has not ended
      */
     public final int length() {
-        if (state != ENDED || length < 0) {
+        if (guard != SLOW || length < 0) {
             throw new IllegalStateException("A message's length is known once it has ended");
         }
         return length;
@@ -315,7 +319,7 @@ public abstract class MessageWriter {
      * @return true if the last field written was not this one
      */
     protected final boolean isFirstElement(final int number) {
-        return (guard == SLOW ? lastField : guard) != number;
+        return (guard == CHILD ? lastField : guard) != number;
     }
 
     /**
@@ -324,35 +328,27 @@ public abstract class MessageWriter {
      * @throws IllegalStateException if this writer is not open
      */
     protected final void checkOpen() {
-        if (state != OPEN) {
+        if (guard >= WRITTEN) {
             throw new IllegalStateException(notOpen());
         }
     }
 
     private void checkSlow(final int number, final boolean repeated) {
-        int last = guard;
-        if (last == SLOW && state == OPEN) {
-            // a nested message was opened: end it, if it is still open, first. Usually it has nothing open inside
-            // it, and ending it is all this call does.
-            final MessageWriter c = child;
-            if (c.state == OPEN && c.guard != SLOW) {
-                c.close();
-            } else {
-                closeInside();
-            }
-            last = lastField;
-            guard = last;
+        if (guard == CHILD) {
+            // a nested message is open: end it first, which restores the guard
+            endChild();
         }
+        final int last = guard;
         if (number < last || (number == last && !repeated)) {
             throw fieldError(number, repeated, last);
         }
     }
 
     private IllegalStateException fieldError(final int number, final boolean repeated, final int last) {
-        if (state == WRITTEN) {
+        if (last == WRITTEN) {
             return new IllegalStateException("No field can be written after writeFrom, which writes every field");
         }
-        if (state != OPEN) {
+        if (last == SLOW) {
             return new IllegalStateException(notOpen());
         }
         return new IllegalStateException(("Field %d written after field %d: fields must be written in field-number"
@@ -383,7 +379,7 @@ public abstract class MessageWriter {
      */
     protected final void beginWriteFrom() {
         if (guard != 0) {
-            if (state != OPEN) {
+            if (guard == SLOW) {
                 throw new IllegalStateException(notOpen());
             }
             throw new IllegalStateException("writeFrom writes every field, so it must be called before any other");
@@ -392,15 +388,14 @@ public abstract class MessageWriter {
 
     /** Finish writing every field from a model object: end any open nested message, and allow no more fields. */
     protected final void finishWriteFrom() {
-        if (guard == SLOW) {
-            closeInside();
+        if (guard == CHILD) {
+            endChild();
         }
-        guard = SLOW;
-        state = WRITTEN;
+        guard = WRITTEN;
     }
 
     private String notOpen() {
-        return state == NEW
+        return out == null
                 ? "This writer has not been started: call start(buffer), or get it from its parent writer"
                 : "This writer's message has ended (or its buffer was reset): a child writer is valid until the next"
                         + " call on its parent";

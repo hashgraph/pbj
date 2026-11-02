@@ -619,3 +619,13 @@ Each PR description covers:
   8-byte store safe without any guard: writing block items from values took 356 ns against 317 ns with exact-size
   stores on EPYC (#1018). Exact-size stores stay.
 
+- **A varint writer the JIT won't inline is not worth inlining.** `writeVarIntWide` (437 bytes) is over the 325 the
+  JIT inlines for hot methods, so every four- to eight-byte value in a writer was a call. A 316-byte copy that inlined
+  made block encoding 5-9% and transaction encoding 9% slower on EPYC, in two runs on an external block workload
+  (#1029): at every varint site of the large generated write methods, the code size cost more than the call. On the
+  write side, call overhead isn't the cost, so a profile frame the JIT didn't inline is not, by itself, a lever.
+  Writing only nine-byte values inline, in one store, was neutral on both that workload, full of int64 nanosecond
+  times, and the HAPI one.
+- **Writers find their open child through the parent, not the buffer.** Tracking the innermost open writer in the
+  buffer, so a field check needn't look for an open child, added a load and a compare to every field and made writing
+  block items 12% slower on EPYC (#1029). The guard sentinel already folds that check into the field-order compare.
