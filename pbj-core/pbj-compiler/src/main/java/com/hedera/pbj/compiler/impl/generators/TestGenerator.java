@@ -439,10 +439,30 @@ public final class TestGenerator implements Generator {
                     final var charBuffer2 = getThreadLocalCharBuffer2();
                     final byte[] bytesArray = getThreadLocalByteArray();
                 
-                    // model to bytes with PBJ
+                    long modelObjSizeInBytes = $modelClassName.PROTOBUF.measureRecord(modelObj);
+                
+                    // model to bytes with PBJ, sequential write
                     $modelClassName.PROTOBUF.write(modelObj, dataBuffer);
                     // clamp limit to bytes written
-                    dataBuffer.limit(dataBuffer.position());
+                    long sequentialBytesWritten = dataBuffer.position();
+                    dataBuffer.flip();
+                    assertEquals(modelObjSizeInBytes, sequentialBytesWritten,
+                            "measureRecord / write(WritableSequentialData) mismatch, expected=" + modelObjSizeInBytes + " written=" + sequentialBytesWritten);
+                
+                    // model to bytes with PBJ, random access write
+                    long randomAccessBytesWritten = $modelClassName.PROTOBUF.write(modelObj, dataBuffer2, 0);
+                    // random access write doesn't update position
+                    assertEquals(0, dataBuffer2.position(), "Random access write must not update current position");
+                    assertEquals(modelObjSizeInBytes, randomAccessBytesWritten,
+                            "measureRecord / write(RandomAccessData) mismatch, expected=" + modelObjSizeInBytes + " written=" + randomAccessBytesWritten);
+                    dataBuffer2.limit(randomAccessBytesWritten);
+
+                    // check sequential / random access writes produced same bytes
+                    // assertEquals() prints both objects on mismatch. BufferedData.toString() prints all
+                    // buffered data bytes, so output would be enormous on failure. Let's call equals() manually
+                    if (!dataBuffer.equals(dataBuffer2)) {
+                        fail("Sequential / random access writes must produce identical bytes");
+                    }
                 
                     java.util.Arrays.fill(bytesArray, (byte) 0);
                     $modelClassName.PROTOBUF.write(modelObj, bytesArray, 0);

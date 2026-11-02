@@ -33,6 +33,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.test.UncheckedThrowingFunction;
@@ -209,7 +210,11 @@ class ProtoParserToolsTest {
                 randomString::nextString,
                 (d, v) -> {
                     d.writeVarInt(length, false); // write the size first
-                    d.writeUTF8(v);
+                    try {
+                        d.writeUTF8(v);
+                    } catch (final IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 },
                 new UncheckedThrowingFunction<>(ProtoParserTools::readString),
                 length + 1);
@@ -569,12 +574,23 @@ class ProtoParserToolsTest {
         }
 
         @Override
-        protected final void writeImpl(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
+        protected void writeImpl(@NonNull final TestMessage item, @NonNull final WritableSequentialData out)
                 throws IOException {
             final String value = item.getValue();
             if (value != null) {
                 ProtoWriterTools.writeString(out, VALUE_FIELD, value);
             }
+        }
+
+        @Override
+        protected long writeImpl(
+                @NonNull final TestMessage item, @NonNull final RandomAccessData out, final long offset)
+                throws IOException {
+            final String value = item.getValue();
+            if (value != null) {
+                return ProtoRandomAccessWriterTools.writeString(out, offset, VALUE_FIELD, value, true);
+            }
+            return 0;
         }
 
         @Override

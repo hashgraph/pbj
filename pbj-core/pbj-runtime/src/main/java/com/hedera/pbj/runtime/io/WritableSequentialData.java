@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime.io;
 
+import com.hedera.pbj.runtime.Utf8Tools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,7 +11,6 @@ import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
@@ -224,8 +224,8 @@ public interface WritableSequentialData extends SequentialData {
      *
      * @param value The string to write, can not be null
      */
-    default void writeUTF8(@NonNull final String value) {
-        writeBytes(value.getBytes(StandardCharsets.UTF_8));
+    default void writeUTF8(@NonNull final String value) throws IOException {
+        Utf8Tools.encodeUtf8(value, this);
     }
 
     /**

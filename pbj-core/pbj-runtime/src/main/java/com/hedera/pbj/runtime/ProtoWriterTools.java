@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
 
 /**
- * Static helper methods for Writers
+ * Static helper methods to write data in protobuf format to sequential outputs.
  */
 @SuppressWarnings({"DuplicatedCode", "ForLoopReplaceableByForEach"})
 public final class ProtoWriterTools {
@@ -59,19 +59,6 @@ public final class ProtoWriterTools {
         writeTag(out, field, wireType(field));
     }
 
-    ///
-    /// Write a protobuf tag to the output at the specified offset. Field wire format is calculated
-    /// based on field type.
-    ///
-    /// @param out The data output to write to
-    /// @param offset The offset in the output to start writing at
-    /// @param field The field to write the tag for
-    /// @return The number of bytes written
-    ///
-    public static int writeTag(final RandomAccessData out, final long offset, final FieldDefinition field) {
-        return writeTag(out, offset, field, wireType(field));
-    }
-
     /**
      * Write a protobuf tag to the output.
      *
@@ -82,20 +69,6 @@ public final class ProtoWriterTools {
     public static void writeTag(
             final WritableSequentialData out, final FieldDefinition field, final ProtoConstants wireType) {
         out.writeVarInt((field.number() << TAG_TYPE_BITS) | wireType.ordinal(), false);
-    }
-
-    ///
-    /// Write a protobuf tag to the output at the specified offset.
-    ///
-    /// @param out The data output to write to
-    /// @param offset The offset in the output to start writing at
-    /// @param field The field to write the tag for
-    /// @param wireType The field wire type to include in tag
-    /// @return The number of bytes written
-    ///
-    public static int writeTag(
-            final RandomAccessData out, final long offset, final FieldDefinition field, final ProtoConstants wireType) {
-        return out.putVarLong(offset, ((long) field.number() << TAG_TYPE_BITS) | wireType.ordinal());
     }
 
     /** Create an unsupported field type exception */
@@ -118,12 +91,12 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a integer to data output
+     * Write an integer to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the int value to write
-     * @param skipDefault default value results in no-op for non-oneOf
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The int value to write
+     * @param skipDefault Default value results in no-op for non-oneOf
      */
     public static void writeInteger(WritableSequentialData out, FieldDefinition field, int value, boolean skipDefault) {
         assert switch (field.type()) {
@@ -171,14 +144,18 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a long to data output
+     * Write a long to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the long value to write
-     * @param skipDefault default value results in no-op for non-oneOf
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The long value to write
+     * @param skipDefault Default value results in no-op for non-oneOf
      */
-    public static void writeLong(WritableSequentialData out, FieldDefinition field, long value, boolean skipDefault) {
+    public static void writeLong(
+            final WritableSequentialData out,
+            final FieldDefinition field,
+            final long value,
+            final boolean skipDefault) {
         assert switch (field.type()) {
                     case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
                     default -> false;
@@ -208,13 +185,13 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a float to data output
+     * Write a float to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the float value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The float value to write
      */
-    public static void writeFloat(WritableSequentialData out, FieldDefinition field, float value) {
+    public static void writeFloat(final WritableSequentialData out, final FieldDefinition field, final float value) {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
         assert !field.repeated() : "Use writeFloatList with repeated types";
         // When not a oneOf don't write default value
@@ -226,13 +203,13 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a double to data output
+     * Write a double to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the double value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The double value to write
      */
-    public static void writeDouble(WritableSequentialData out, FieldDefinition field, double value) {
+    public static void writeDouble(final WritableSequentialData out, final FieldDefinition field, final double value) {
         assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
         assert !field.repeated() : "Use writeDoubleList with repeated types";
         // When not a oneOf don't write default value
@@ -255,12 +232,12 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a boolean to data output
+     * Write a boolean to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the boolean value to write
-     * @param skipDefault default value results in no-op for non-oneOf
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The boolean value to write
+     * @param skipDefault Default value results in no-op for non-oneOf
      */
     public static void writeBoolean(
             WritableSequentialData out, FieldDefinition field, boolean value, boolean skipDefault) {
@@ -292,11 +269,11 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a enum protoOrdinal to data output.
+     * Write a enum protoOrdinal to sequential output at its current position.
      *
      * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param protoOrdinal the enum value to write
+     * @param field The descriptor for the field we are writing
+     * @param protoOrdinal The enum value to write
      */
     public static void writeEnumProtoOrdinal(WritableSequentialData out, FieldDefinition field, int protoOrdinal) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
@@ -323,12 +300,13 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a string to data output, assuming the field is non-repeated.
+     * Write a string to sequential output at its current position, assuming the
+     * field is non-repeated.
      *
      * @param out The data output to write to
-     * @param field the descriptor for the field we are writing, the field must be non-repeated
-     * @param value the string value to write
-     * @param skipDefault default value results in no-op for non-oneOf
+     * @param field The descriptor for the field we are writing, the field must be non-repeated
+     * @param value The string value to write
+     * @param skipDefault Default value results in no-op for non-oneOf
      * @throws IOException If a I/O error occurs
      */
     public static void writeString(
@@ -406,13 +384,13 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a bytes to data output, assuming the corresponding field is non-repeated, and field type
-     * is any delimited: bytes, string, or message.
+     * Write a bytes to sequential output at its current position, assuming the corresponding
+     * field is non-repeated, and field type is any delimited: bytes, string, or message.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing, the field must not be repeated
-     * @param value the bytes value to write
-     * @param skipDefault default value results in no-op for non-oneOf
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing, the field must not be repeated
+     * @param value The bytes value to write
+     * @param skipDefault Default value results in no-op for non-oneOf
      * @throws IOException If a I/O error occurs
      */
     public static void writeBytes(
@@ -446,12 +424,12 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a bytes to data output - no validation checks.
+     * Write a bytes to sequential output - no validation checks.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the bytes value to write
-     * @param skipZeroLength this is true for normal single bytes and false for repeated lists
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The bytes value to write
+     * @param skipZeroLength This is true for normal single bytes and false for repeated lists
      * @throws IOException If a I/O error occurs
      */
     private static void writeBytesNoChecks(
@@ -475,14 +453,15 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a message to data output, assuming the corresponding field is non-repeated.
+     * Write a message to sequential output at its current position, assuming the corresponding
+     * field is non-repeated.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing, the field must not be repeated
-     * @param message the message to write
-     * @param codec the codec for the given message type
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing, the field must not be repeated
+     * @param message The message to write
+     * @param codec The codec for the given message type
      * @throws IOException If a I/O error occurs
-     * @param <T> type of message
+     * @param <T> Type of message
      */
     public static <T> void writeMessage(
             final WritableSequentialData out, final FieldDefinition field, final T message, final Codec<T> codec)
@@ -576,46 +555,48 @@ public final class ProtoWriterTools {
     // OPTIONAL VERSIONS OF WRITE METHODS
 
     /**
-     * Write an optional integer to data output
+     * Write an optional integer to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the optional integer value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The optional integer value to write
      */
     public static void writeOptionalInteger(
-            WritableSequentialData out, FieldDefinition field, @Nullable Integer value) {
+            final WritableSequentialData out, final FieldDefinition field, final @Nullable Integer value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfInteger(newField, value), false);
-            writeInteger(out, newField, value);
+            writeInteger(out, newField, value, true);
         }
     }
 
     /**
-     * Write an optional long to data output
+     * Write an optional long to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the optional long value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The optional long value to write
      */
-    public static void writeOptionalLong(WritableSequentialData out, FieldDefinition field, @Nullable Long value) {
+    public static void writeOptionalLong(
+            final WritableSequentialData out, final FieldDefinition field, final @Nullable Long value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfLong(newField, value), false);
-            writeLong(out, newField, value);
+            writeLong(out, newField, value, true);
         }
     }
 
     /**
-     * Write an optional float to data output
+     * Write an optional float to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the optional float value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The optional float value to write
      */
-    public static void writeOptionalFloat(WritableSequentialData out, FieldDefinition field, @Nullable Float value) {
+    public static void writeOptionalFloat(
+            final WritableSequentialData out, final FieldDefinition field, final @Nullable Float value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -625,13 +606,14 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write an optional double to data output
+     * Write an optional double to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the optional double value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The optional double value to write
      */
-    public static void writeOptionalDouble(WritableSequentialData out, FieldDefinition field, @Nullable Double value) {
+    public static void writeOptionalDouble(
+            final WritableSequentialData out, final FieldDefinition field, final @Nullable Double value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
@@ -641,49 +623,51 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write an optional boolean to data output
+     * Write an optional boolean to sequential output at its current position.
      *
      * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the optional boolean value to write
+     * @param field The descriptor for the field we are writing
+     * @param value The optional boolean value to write
      */
     public static void writeOptionalBoolean(
-            WritableSequentialData out, FieldDefinition field, @Nullable Boolean value) {
+            final WritableSequentialData out, final FieldDefinition field, final @Nullable Boolean value) {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfBoolean(newField, value), false);
-            writeBoolean(out, newField, value);
+            writeBoolean(out, newField, value, true);
         }
     }
 
     /**
-     * Write an optional string to data output
+     * Write an optional string to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the optional string value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The optional string value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalString(WritableSequentialData out, FieldDefinition field, @Nullable String value)
+    public static void writeOptionalString(
+            final WritableSequentialData out, final FieldDefinition field, final @Nullable String value)
             throws IOException {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             out.writeVarInt(sizeOfString(newField, value), false);
-            writeString(out, newField, value);
+            writeString(out, newField, value, true);
         }
     }
 
     /**
-     * Write an optional bytes to data output
+     * Write an optional bytes to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param value the optional bytes value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param value The optional bytes value to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeOptionalBytes(WritableSequentialData out, FieldDefinition field, @Nullable Bytes value)
+    public static void writeOptionalBytes(
+            final WritableSequentialData out, final FieldDefinition field, final @Nullable Bytes value)
             throws IOException {
         if (value != null) {
             writeTag(out, field, WIRE_TYPE_DELIMITED);
@@ -691,7 +675,7 @@ public final class ProtoWriterTools {
             final int size = sizeOfBytes(newField, value);
             out.writeVarInt(size, false);
             if (size > 0) {
-                writeBytes(out, newField, value);
+                writeBytes(out, newField, value, true);
             }
         }
     }
@@ -700,13 +684,14 @@ public final class ProtoWriterTools {
     // LIST VERSIONS OF WRITE METHODS
 
     /**
-     * Write a list of integers to data output
+     * Write a list of integers to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param list the list of integers value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param list The list of integer values to write
      */
-    public static void writeIntegerList(WritableSequentialData out, FieldDefinition field, List<Integer> list) {
+    public static void writeIntegerList(
+            final WritableSequentialData out, final FieldDefinition field, final List<Integer> list) {
         assert switch (field.type()) {
                     case INT32, UINT32, SINT32, FIXED32, SFIXED32 -> true;
                     default -> false;
@@ -775,13 +760,14 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a list of longs to data output
+     * Write a list of longs to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param list the list of longs value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param list The list of long values to write
      */
-    public static void writeLongList(WritableSequentialData out, FieldDefinition field, List<Long> list) {
+    public static void writeLongList(
+            final WritableSequentialData out, final FieldDefinition field, final List<Long> list) {
         assert switch (field.type()) {
                     case INT64, UINT64, SINT64, FIXED64, SFIXED64 -> true;
                     default -> false;
@@ -837,13 +823,14 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a list of floats to data output
+     * Write a list of floats to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param list the list of floats value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param list The list of float values to write
      */
-    public static void writeFloatList(WritableSequentialData out, FieldDefinition field, List<Float> list) {
+    public static void writeFloatList(
+            final WritableSequentialData out, final FieldDefinition field, final List<Float> list) {
         assert field.type() == FieldType.FLOAT : "Not a float type " + field;
         assert field.repeated() : "Use writeFloat with non-repeated types";
         // When not a oneOf don't write default value
@@ -860,13 +847,14 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a list of doubles to data output
+     * Write a list of doubles to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param list the list of doubles value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param list The list of double values to write
      */
-    public static void writeDoubleList(WritableSequentialData out, FieldDefinition field, List<Double> list) {
+    public static void writeDoubleList(
+            final WritableSequentialData out, final FieldDefinition field, final List<Double> list) {
         assert field.type() == FieldType.DOUBLE : "Not a double type " + field;
         assert field.repeated() : "Use writeDouble with non-repeated types";
         // When not a oneOf don't write default value
@@ -883,13 +871,14 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a list of booleans to data output
+     * Write a list of booleans to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param list the list of booleans value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param list The list of boolean values to write
      */
-    public static void writeBooleanList(WritableSequentialData out, FieldDefinition field, List<Boolean> list) {
+    public static void writeBooleanList(
+            final WritableSequentialData out, final FieldDefinition field, final List<Boolean> list) {
         assert field.type() == FieldType.BOOL : "Not a boolean type " + field;
         assert field.repeated() : "Use writeBoolean with non-repeated types";
         // When not a oneOf don't write default value
@@ -907,14 +896,14 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a list of enums to data output
+     * Write a list of enums to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param list the list of enums value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param list The list of enum values to write
      */
     public static void writeEnumListProtoOrdinals(
-            WritableSequentialData out, FieldDefinition field, List<Integer> list) {
+            final WritableSequentialData out, final FieldDefinition field, final List<Integer> list) {
         assert field.type() == FieldType.ENUM : "Not an enum type " + field;
         assert field.repeated() : "Use writeEnum with non-repeated types";
         // When not a oneOf don't write default value
@@ -934,15 +923,15 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a list of strings to data output
+     * Write a list of strings to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param list the list of strings value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param list The list of string values to write
      * @throws IOException If a I/O error occurs
      */
-    public static void writeStringList(WritableSequentialData out, FieldDefinition field, List<String> list)
-            throws IOException {
+    public static void writeStringList(
+            final WritableSequentialData out, final FieldDefinition field, final List<String> list) throws IOException {
         assert field.type() == FieldType.STRING : "Not a string type " + field;
         assert field.repeated() : "Use writeString with non-repeated types";
         // When not a oneOf don't write default value
@@ -959,17 +948,18 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a list of messages to data output
+     * Write a list of messages to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param list the list of messages value to write
-     * @param codec the codec for the message type
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param list The list of messages to write
+     * @param codec The codec for the message type
      * @throws IOException If a I/O error occurs
-     * @param <T> type of message
+     * @param <T> Type of message
      */
     public static <T> void writeMessageList(
-            WritableSequentialData out, FieldDefinition field, List<T> list, Codec<T> codec) throws IOException {
+            final WritableSequentialData out, final FieldDefinition field, final List<T> list, final Codec<T> codec)
+            throws IOException {
         assert field.type() == FieldType.MESSAGE : "Not a message type " + field;
         assert field.repeated() : "Use writeMessage with non-repeated types";
         // When not a oneOf don't write default value
@@ -983,15 +973,15 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a list of bytes objects to data output
+     * Write a list of bytes objects to sequential output at its current position.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param list the list of bytes objects value to write
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param list The list of bytes objects to write
      * @throws IOException If a I/O error occurs
      */
     public static void writeBytesList(
-            WritableSequentialData out, FieldDefinition field, List<? extends RandomAccessData> list)
+            final WritableSequentialData out, final FieldDefinition field, final List<? extends RandomAccessData> list)
             throws IOException {
         assert field.type() == FieldType.BYTES : "Not a message type " + field;
         assert field.repeated() : "Use writeBytes with non-repeated types";
@@ -1006,13 +996,14 @@ public final class ProtoWriterTools {
     }
 
     /**
-     * Write a generic delimited field by delegating to a supplied `writer` to write the actual elements.
+     * Write a generic delimited field to sequential output at its current position by
+     * delegating to a supplied `writer` to write the actual elements.
      *
-     * @param out The data output to write to
-     * @param field the descriptor for the field we are writing
-     * @param size the size of all the elements together, in bytes
-     * @param writer the Consumer that accepts the `out` and writes the actual elements
-     * @param <T> the type of the data output that extends WritableSequentialData
+     * @param out The output to write to
+     * @param field The descriptor for the field we are writing
+     * @param size The size of all the elements together, in bytes
+     * @param writer The Consumer that accepts the `out` and writes the actual elements
+     * @param <T> The type of the data output that extends WritableSequentialData
      */
     public static <T extends WritableSequentialData> void writeDelimited(
             final T out, final FieldDefinition field, final int size, final Consumer<T> writer) {

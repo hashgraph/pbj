@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.function.ToIntFunction;
@@ -14,6 +15,7 @@ import java.util.function.ToIntFunction;
  * @param <T> The type of the object to be encoded/decoded
  */
 class CodecWrapper<T> extends Codec<T> {
+
     private final ProtoWriter<T> writer;
     private final ToIntFunction<T> sizeOf;
 
@@ -31,12 +33,18 @@ class CodecWrapper<T> extends Codec<T> {
             int maxDepth,
             int maxSize)
             throws ParseException {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("CodecWrapper.parseImpl not supported");
     }
 
     @Override
-    protected void writeImpl(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
-        writer.write(item, output);
+    protected void writeImpl(@NonNull final T item, @NonNull final WritableSequentialData out) throws IOException {
+        writer.write(item, out);
+    }
+
+    @Override
+    protected long writeImpl(@NonNull final T item, @NonNull final RandomAccessData out, final long offset)
+            throws IOException {
+        throw new UnsupportedOperationException("CodecWrapper.writeImpl not supported");
     }
 
     @Override

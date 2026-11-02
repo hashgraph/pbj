@@ -710,6 +710,13 @@ public final class MemoryData
     }
 
     @Override
+    public int putInt(final long offset, final int value) {
+        checkOffsetToWrite(offset, length(), Integer.BYTES);
+        segment.set(determineIntLayout(ByteOrder.BIG_ENDIAN, offset), offset, value);
+        return Integer.BYTES;
+    }
+
+    @Override
     public long getLong(final long offset) {
         checkOffset(offset, length());
         if ((length() - offset) < Long.BYTES) {
@@ -720,9 +727,9 @@ public final class MemoryData
 
     @Override
     public int putLong(final long offset, final long value) {
-        checkOffsetToWrite(offset, length(), 8);
+        checkOffsetToWrite(offset, length(), Long.BYTES);
         segment.set(determineLongLayout(ByteOrder.BIG_ENDIAN, offset), offset, value);
-        return 8;
+        return Long.BYTES;
     }
 
     @Override

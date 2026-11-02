@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.pbj.runtime.jsonparser.JSONParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -71,11 +72,19 @@ public abstract class JsonCodec<T> extends Codec<T> {
         return parseImpl(root, strictMode, maxDepth, maxSize);
     }
 
-    /** {@inheritDoc} */
     @Override
-    protected final void writeImpl(@NonNull T item, @NonNull WritableSequentialData output) throws IOException {
-        output.writeUTF8(toJSON(item));
+    protected final void writeImpl(@NonNull final T item, @NonNull final WritableSequentialData out)
+            throws IOException {
+        out.writeUTF8(toJSON(item));
     }
+
+    @Override
+    protected final long writeImpl(@NonNull final T item, @NonNull final RandomAccessData out, final long offset)
+            throws IOException {
+        final String json = toJSON(item);
+        return out.putUTF8(json, offset);
+    }
+
     /**
      * Returns JSON string representing an item.
      *

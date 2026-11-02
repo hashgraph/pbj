@@ -476,6 +476,13 @@ public sealed class BufferedData
         }
     }
 
+    @Override
+    public int putInt(final long offset, final int value) {
+        checkOffsetToWrite(offset, length(), Integer.BYTES);
+        buffer.putInt(Math.toIntExact(offset), value);
+        return Integer.BYTES;
+    }
+
     /** {@inheritDoc} */
     @Override
     public long getLong(final long offset) {
@@ -485,9 +492,9 @@ public sealed class BufferedData
 
     @Override
     public int putLong(final long offset, final long value) {
-        checkOffsetToWrite(offset, length(), 8);
+        checkOffsetToWrite(offset, length(), Long.BYTES);
         buffer.putLong(Math.toIntExact(offset), value);
-        return 8;
+        return Long.BYTES;
     }
 
     /** {@inheritDoc} */

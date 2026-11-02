@@ -60,8 +60,10 @@ public final class CodecGenerator implements Generator {
                 System.err.printf("WriterGenerator Warning - Unknown element: %s -- %s%n", item, item.getText());
             }
         }
-        final String writeMethod =
-                CodecWriteMethodGenerator.generateWriteMethod(modelClassName, schemaClassName, fields);
+        final String writeSequentialMethod =
+                CodecWriteMethodGenerator.generateSequentialWriteMethod(modelClassName, schemaClassName, fields);
+        final String writeRandomAccessMethod =
+                CodecWriteMethodGenerator.generateRandomAccessWriteMethod(modelClassName, schemaClassName, fields);
         final String writeByteArrayMethod =
                 CodecWriteByteArrayMethodGenerator.generateWriteMethod(modelClassName, schemaClassName, fields);
 
@@ -121,9 +123,10 @@ public final class CodecGenerator implements Generator {
         writer.addImport("edu.umd.cs.findbugs.annotations.NonNull");
         writer.addImport(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef));
         writer.addImport("static " + lookupHelper.getFullyQualifiedMessageClassname(FileType.SCHEMA, msgDef) + ".*");
-        writer.addImport("static com.hedera.pbj.runtime.ProtoWriterTools.*");
-        writer.addImport("static com.hedera.pbj.runtime.ProtoParserTools.*");
         writer.addImport("static com.hedera.pbj.runtime.ProtoConstants.*");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoParserTools.*");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoRandomAccessWriterTools.*");
+        writer.addImport("static com.hedera.pbj.runtime.ProtoWriterTools.*");
         writer.addImport("static com.hedera.pbj.runtime.Utf8Tools.*");
 
         var sbFunc = new StringBuilder();
@@ -153,7 +156,8 @@ public final class CodecGenerator implements Generator {
 
                 $unsetOneOfConstants
                 $parseMethod
-                $writeMethod
+                $writeSequentialMethod
+                $writeRandomAccessMethod
                 $writeByteArrayMethod
                 $measureRecordMethod
                 $getDefaultInstanceMethod
@@ -168,7 +172,8 @@ public final class CodecGenerator implements Generator {
                 .replace("$cacheableSupport", cacheableSupport)
                 .replace("$unsetOneOfConstants", CodecParseMethodGenerator.generateUnsetOneOfConstants(fields))
                 .replace("$parseMethod", CodecParseMethodGenerator.generateParseMethod(sbFunc, modelClassName, schemaClassName, fields, !cacheableSupport.isBlank()))
-                .replace("$writeMethod", writeMethod)
+                .replace("$writeSequentialMethod", writeSequentialMethod)
+                .replace("$writeRandomAccessMethod", writeRandomAccessMethod)
                 .replace("$writeByteArrayMethod", writeByteArrayMethod)
                 .replace("$measureRecordMethod", CodecMeasureRecordMethodGenerator.generateMeasureMethod(modelClassName, fields))
                 .replace("$getDefaultInstanceMethod", generateGetDefaultInstanceMethod(modelClassName))
