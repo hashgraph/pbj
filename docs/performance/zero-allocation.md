@@ -89,19 +89,45 @@ HAPI nests a message for every id, timestamp and amount, so per-message cost dom
 
 ## What's left
 
-- **A streaming pull reader.** A cursor that yields `(field, wire type, value)` in order, with no index and no child
-  objects, would remove the view's per-message bookkeeping. It is a new API and was deferred.
-- **Generated reverse writers.** A writer that fills a buffer back to front, as the reference codec does, would never
-  guess or patch a length.
-- **A lean model.** Models still allocate a `Bytes` per bytes field, a list per repeated field, and box oneof values of
-  number types; a variant storing primitives and offsets would close most of the decode gap (8,151 against 3,750 B per
-  transaction).
+- **A streaming pull reader.** A generated reader whose `next()` returns the next field's constant, with typed reads
+  and `enter()`/`leave()` for nested messages and no per-message object state, is the only design that reaches the
+  hand-written scan. It is a new API and was deferred on 2026-11-02, as were the two below.
+- **Writers on a reverse buffer.** Filling the buffer back to front, as the reference codec does, would never guess or
+  patch a length.
+- **A lean model.** Models still carry hash and size caches, allocate a `Bytes` per bytes field and a list per repeated
+  field, and box oneof values of number types. A leaner variant (no caches, sealed oneof-only messages, primitives where
+  possible) would cut most of the decode allocation gap (8,151 against 3,750 B per transaction on HAPI).
 - **Schema choices.** After all of this, much of what remains of decoding is multi-byte varints of large values (ids,
   amounts, nanosecond times). `fixed64` for such fields is a schema decision, not something PBJ can change; see
   [format-comparison.md](format-comparison.md).
 
 ## Independent block-stream workload
 
-The same paths measured on an independent block-stream workload (deeply nested block items, state changes, map keys and
-values, oneofs at every level, signed transactions; no maps or wrapper types), with every option on, against its own
-hand-written codec: decode 1.21×, encode 1.47×, block view scan 2.25×, transaction view scan 2.0×.
+The same paths on an independent block-stream workload (deeply nested block items, state changes, map keys and values,
+oneofs at every level, signed transactions; no maps or wrapper types): AMD EPYC 9275F, ns per transaction of a
+20,000-transaction block, bytes allocated per transaction.
+
+| Path | Before | After | Notes |
+|---|---:|---:|---|
+| Array parser (#999, #1002): block decode | 2,264 | 1,084 | 0.16.4: 2,221; transaction decode 233 → 201 |
+| Varint split (#1035): block decode | 1,005 | 911 | −9%; transaction view scan −19% |
+| Decode allocation (#1016, #1035) | 6,365 B | 5,058 B | 5,423 B after unboxed oneofs; the hand-written codec allocates 2,856 B |
+| Reverse writer (#1003): block encode from objects | 1,134 | 840 | −26% |
+| Views (#1005, #1007): block read every field | 1,640 (6,396 B) | 1,311 (0 B) | transaction scan 215 → 128 |
+| Views, final (#1034, #1035) | | 1,237 (0 B) | transaction scan 117 (0 B) |
+| `varint64` (#1035): block view scan | 1,279 | 1,128 | −12%; transaction view scan 104 → 116 |
+| Inline setters (#1033): block encode with writers | 1,073 | 954 | final 948 ns, 32 B; transaction encode 98 |
+
+The producer path end to end, from values to bytes with everything timed: building PBJ objects and writing forward
+1,735 ns (3,738 B); building objects and writing in reverse 1,350 ns (3,738 B); writers 1,240 ns (0 B); the
+hand-written codec 714 ns (0 B).
+
+Final, against that workload's hand-written protobuf codec (the same bytes): block decode 1.22×, block encode 1.52×,
+block view scan 2.46×, transaction decode 1.22×, transaction encode 1.11×, transaction view scan 1.98×.
+
+Where the rest goes, from EPYC profiles:
+- **View scan:** `index` 56% (its own code 17%, varint reads 22%, `at()` 9%), wrap and reset 10%, cursor `next` 11%,
+  accessors 6.5%, oneof kind 2.5%. The hand-written scan is 42% varint decoding and little else: about 12 ns per nested
+  message for views against 6, with roughly 80 nested messages per transaction.
+- **Writer encode:** `tagVarint` 8.5%, `writeVarIntWide` as a call 8.5% (four- to eight-byte values), closing a child
+  7.8%, opening one 6.4%, field checks 2.3%.

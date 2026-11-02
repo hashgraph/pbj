@@ -35,8 +35,10 @@ reference codec in the same run:
 | Decode a transaction | 1,202 (1,323 B) 11.9× | 278 2.6× | 150 (1,073 B) 1.3× | 148 1.3× | 101-116 (701 B) |
 | Read every transaction field, views | | | | 197 (0 B) 3.8× | 50-52 (0 B) |
 
-On the independent workload, with every option on, the same ratios were 1.21× for decode, 1.47× for encode, 2.25× for
-the block view scan and 2.0× for the transaction view scan.
+On the independent workload, with every option on, the same ratios were 1.22× for block decode, 1.52× for block encode
+(writers), 2.46× for the block view scan, 1.22× for transaction decode, 1.11× for transaction encode and 1.98× for the
+transaction view scan. Against 0.16.4 there, block encode was 45% faster, decode 59%, scan 57% and transaction decode
+54%.
 
 ## The pull requests
 
