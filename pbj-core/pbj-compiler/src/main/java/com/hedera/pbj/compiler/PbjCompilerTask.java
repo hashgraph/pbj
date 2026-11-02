@@ -103,6 +103,11 @@ public abstract class PbjCompilerTask extends SourceTask {
     @Input
     public abstract Property<String> getOneofStorage();
 
+    /** Project default for {@code pbj.writers}; unset unless configured. */
+    @Optional
+    @Input
+    public abstract Property<Boolean> getGenerateWriters();
+
     /** Project default for {@code pbj.performance}; unset unless configured. */
     @Optional
     @Input
@@ -141,6 +146,7 @@ public abstract class PbjCompilerTask extends SourceTask {
                         text(getFastWrite()),
                         text(getGenerateViews()),
                         text(getOneofStorage()),
+                        text(getGenerateWriters()),
                         text(getPerformance()),
                         "the pbj { } settings of " + getPath()));
     }

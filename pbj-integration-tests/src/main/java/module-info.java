@@ -13,4 +13,7 @@ module com.hedera.pbj.integration.tests {
     requires static com.github.spotbugs.annotations;
 
     exports pbj.integ.test.enumeration.defined.pbj.integration.tests;
+    // used by the custom source set's writers, from a module of their own
+    exports pbj.integ.test.writer.shared.pbj.integration.tests;
+    exports pbj.integ.test.writer.shared.pbj.integration.tests.codec;
 }

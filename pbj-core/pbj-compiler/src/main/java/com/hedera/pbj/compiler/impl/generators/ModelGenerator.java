@@ -404,6 +404,9 @@ public final class ModelGenerator implements Generator {
         bodyContent +=
                 ViewGenerator.generateView(msgDef, fieldsNoPrecomputed, javaRecordName, schemaClassName, lookupHelper);
 
+        // zero-allocation writer, for messages with pbj.writers and every message reachable from them
+        bodyContent += WriterGenerator.generateWriter(msgDef, fieldsNoPrecomputed, javaRecordName, lookupHelper);
+
         if (lookupHelper.hasDiffApis(msgDef)) {
             bodyContent += DiffGenerator.generate(
                     javaRecordName,
