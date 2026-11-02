@@ -736,9 +736,8 @@ public final class ProtoWriteBuffer {
      * @return the position after it
      */
     static int varintWide(final byte[] b, final int p, final long value) {
-        // two, three and nine bytes inline, as for ids, lengths, timestamps and int64 nanosecond times; the rest
-        // exact-size stores in a call, as a single 8-byte store into the slack was slower on AMD EPYC, for writing
-        // block items
+        // two and three bytes inline, as for ids, lengths and timestamps; the rest exact-size stores in a call, as a
+        // single 8-byte store into the slack was slower on AMD EPYC, for writing block items
         if ((value >>> 14) == 0) {
             b[p] = (byte) (value | 0x80);
             b[p + 1] = (byte) (value >>> 7);
@@ -749,23 +748,6 @@ public final class ProtoWriteBuffer {
             b[p + 1] = (byte) ((value >>> 7) | 0x80);
             b[p + 2] = (byte) (value >>> 14);
             return p + 3;
-        }
-        if ((value >>> 56) != 0 && value > 0) {
-            // from 2^56 to 2^63: the low 56 bits as eight groups of seven, each continued, in one store, then the rest
-            LONG_LE.set(
-                    b,
-                    p,
-                    (value & 0x7FL)
-                            | ((value & 0x3F80L) << 1)
-                            | ((value & 0x1FC000L) << 2)
-                            | ((value & 0xFE00000L) << 3)
-                            | ((value & 0x7F0000000L) << 4)
-                            | ((value & 0x3F800000000L) << 5)
-                            | ((value & 0x1FC0000000000L) << 6)
-                            | ((value & 0xFE000000000000L) << 7)
-                            | 0x8080808080808080L);
-            b[p + 8] = (byte) (value >>> 56);
-            return p + 9;
         }
         return p + ProtoArrayWriterTools.writeVarInt(b, p, b.length, value);
     }
