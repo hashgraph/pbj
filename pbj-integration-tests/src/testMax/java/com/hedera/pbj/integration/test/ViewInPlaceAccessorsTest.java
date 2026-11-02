@@ -9,7 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
@@ -106,5 +109,22 @@ final class ViewInPlaceAccessorsTest {
                 .wrap(SingletonUpdateChange.PROTOBUF.toBytes(SingletonUpdateChange.DEFAULT));
         assertEquals(-1L, absent.entityNumberValueOrElse(-1));
         assertNull(absent.entityNumberValue());
+    }
+
+    @Test
+    void childViewsAreReadAfterWrapperFieldsAndBeforeThem() throws ParseException {
+        // wrapper fields are read with a cursor of their own, so the view's cursor still spans the message for the
+        // child views wrapped after them
+        final Bytes encoded = TokenUpdateTransactionBody.PROTOBUF.toBytes(TokenUpdateTransactionBody.newBuilder()
+                .token(TokenID.newBuilder().tokenNum(7).build())
+                .expiry(Timestamp.newBuilder().seconds(99).build())
+                .memo("a memo")
+                .build());
+        final TokenUpdateTransactionBody.View view = new TokenUpdateTransactionBody.View().wrap(encoded);
+        assertEquals("a memo", view.memo());
+        assertEquals(7, view.token().tokenNum());
+        assertEquals("a memo", view.memo());
+        assertEquals(99, view.expiry().seconds());
+        assertEquals(7, view.token().tokenNum());
     }
 }

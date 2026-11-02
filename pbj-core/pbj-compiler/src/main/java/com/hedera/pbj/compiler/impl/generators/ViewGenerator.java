@@ -253,6 +253,34 @@ final class ViewGenerator {
                     }
 
                     /**
+                     * Wrap an encoded $model in {@code length} bytes from {@code offset} within what {@code outer} reads,
+                     * validating it as {@link Codec#parse} does with the same arguments. Views use it for the messages
+                     * they contain, whose bytes they checked already.
+                     *
+                     * @param outer the cursor reading the bytes around the message
+                     * @param offset where the message starts
+                     * @param length the message's length
+                     * @param strictMode when {@code true}, unknown fields and repeated singular messages are errors
+                     * @param maxDepth the maximum depth of nested messages below this one
+                     * @param maxSize the maximum length of a field, nested message or unknown field
+                     * @return this view
+                     * @throws ParseException if the message is malformed or nested too deep
+                     * @throws IndexOutOfBoundsException if the message is not inside what {@code outer} reads
+                     */
+                    @Override
+                    public View wrap(
+                            @NonNull final ArrayCursor outer,
+                            final int offset,
+                            final int length,
+                            final boolean strictMode,
+                            final int maxDepth,
+                            final int maxSize)
+                            throws ParseException {
+                        cursor.reset(outer, offset, length);
+                        return index(strictMode, maxDepth, maxSize);
+                    }
+
+                    /**
                      * Whether this view wraps exactly {@code in[offset, offset + length)}, so a containing view can return
                      * it again without indexing it again.
                      *
@@ -335,11 +363,31 @@ final class ViewGenerator {
                 .replace("$cases", parts.cases().toString().indent(DEFAULT_INDENT * 5))
                 .replace("$accessors", parts.accessors().toString().indent(DEFAULT_INDENT))
                 .replace("$validations", parts.validations().toString().indent(DEFAULT_INDENT * 2))
-                .replace("$helpers", parts.helpers().toString().indent(DEFAULT_INDENT))
+                .replace("$helpers", helpers(parts).indent(DEFAULT_INDENT))
                 .replace("$model", modelClass)
                 .replace("$schema", schemaClass)
                 .indent(DEFAULT_INDENT);
         // spotless:on
+    }
+
+    /** The view's helper methods, with the cursor wrapper fields are read with if it has any. */
+    private static String helpers(final Parts parts) {
+        if (!parts.accessors().toString().contains("wrapperCursor(")) {
+            return parts.helpers().toString();
+        }
+        return parts.helpers() + """
+
+                /** Reads wrapper fields' values, leaving {@code cursor} over this message for its child views. */
+                private ArrayCursor wrapperCursor;
+
+                /** A cursor over the wrapper message {@code length} bytes from {@code offset}. */
+                private ArrayCursor wrapperCursor(final int offset, final int length) {
+                    if (wrapperCursor == null) {
+                        wrapperCursor = new ArrayCursor(new byte[0], 0, 0);
+                    }
+                    return wrapperCursor.reset(cursor, offset, length);
+                }
+                """;
     }
 
     /** {@code if (cursor.at(…))} or {@code while}, for a tag of at most two bytes; empty for longer tags. */
@@ -670,7 +718,7 @@ final class ViewGenerator {
                     if (child == null) {
                         child = new $elem.View();
                     }
-                    child.wrap(source, in, offset, length, strictMode, maxDepth - 1, maxSize);
+                    child.wrap(c, offset, length, strictMode, maxDepth - 1, maxSize);
                     """.replace("$elem", field.javaFieldTypeBase());
                     case STRING, BYTES -> """
                     length = c.length(maxSize, "$field");
@@ -734,7 +782,7 @@ final class ViewGenerator {
                         remaining = $nameCount;
                         packedEnd = -1;
                         if ($nameFirst >= 0) {
-                            c.reset(in, $nameFirst, end);
+                            c.reset(cursor, $nameFirst, end - $nameFirst);
                         }
                         return this;
                     }
@@ -988,7 +1036,7 @@ final class ViewGenerator {
                             // already wrapped over this field since this view was wrapped: don't index it again
                             return $nameView;
                         }
-                        $nameView.wrap(source, in, $nameOffset, $nameLength, strictMode, maxDepth - 1, maxSize);
+                        $nameView.wrap(cursor, $nameOffset, $nameLength, strictMode, maxDepth - 1, maxSize);
                         $nameViewGeneration = generation;
                         return $nameView;
                     }
@@ -1056,8 +1104,8 @@ final class ViewGenerator {
                         return $default;
                     }
                     try {
-                        cursor.reset(source, in, $nameOffset, $nameOffset + $nameLength);
                         // the wrapper's one field: its tag, then the value
+                        final ArrayCursor cursor = wrapperCursor($nameOffset, $nameLength);
                         cursor.tag();
                         return $read;
                     } catch (final RuntimeException e) {
@@ -1092,8 +1140,8 @@ final class ViewGenerator {
                         return $default;
                     }
                     try {
-                        cursor.reset(source, in, $nameOffset, $nameOffset + $nameLength);
                         // the wrapper's one field: its tag, then the value
+                        final ArrayCursor cursor = wrapperCursor($nameOffset, $nameLength);
                         cursor.tag();
                         return $read;
                     $catch
@@ -1139,7 +1187,7 @@ final class ViewGenerator {
                 public <V extends com.hedera.pbj.runtime.MessageView> V $nameAs(@NonNull final V view)
                         throws ParseException {
                     final int length = $nameLength();
-                    view.wrap(source, in, length == 0 ? start : $nameOffset, length, strictMode, maxDepth - 1, maxSize);
+                    view.wrap(cursor, length == 0 ? start : $nameOffset, length, strictMode, maxDepth - 1, maxSize);
                     return view;
                 }
                 """.replace("$name", name).replace("$field", field.name());

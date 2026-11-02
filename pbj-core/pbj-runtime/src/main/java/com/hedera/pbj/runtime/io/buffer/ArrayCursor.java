@@ -149,6 +149,30 @@ public final class ArrayCursor {
         return this;
     }
 
+    /**
+     * Point this cursor at {@code length} bytes from {@code offset} within what {@code outer} reads, the array and
+     * {@link Bytes} it reads included. Views use it for the messages they contain: the outer cursor's range was checked
+     * when it was set, so only that these bytes lie inside it is.
+     *
+     * @param outer the cursor reading the bytes around these
+     * @param offset index of the first byte to read
+     * @param length the number of bytes to read
+     * @return this cursor
+     * @throws IndexOutOfBoundsException if the bytes are not inside what {@code outer} reads
+     */
+    public ArrayCursor reset(@NonNull final ArrayCursor outer, final int offset, final int length) {
+        if (offset < outer.start || length < 0 || length > outer.limit - offset) {
+            throw new IndexOutOfBoundsException(
+                    "offset " + offset + ", length " + length + ", outside " + outer.start + " to " + outer.limit);
+        }
+        this.in = outer.in;
+        this.p = offset;
+        this.limit = offset + length;
+        this.start = offset;
+        this.source = outer.source;
+        return this;
+    }
+
     /** @return the {@link Bytes} this cursor reads, or null if it reads a plain array */
     public @Nullable Bytes source() {
         return source;
