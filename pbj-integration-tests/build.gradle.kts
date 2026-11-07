@@ -90,6 +90,20 @@ jmh {
     excludes = listOf(".*GrpcBench.*")
 }
 
+// `./gradlew build -PpbjPerformance=max` generates the code with every fast code generation option
+// on (see
+// docs/fast-codegen-plan.md), so the whole suite also runs against the new paths. CI runs both
+// configurations.
+// "default" leaves every option at its default.
+val pbjPerformance = providers.gradleProperty("pbjPerformance").getOrElse("default")
+
+require(pbjPerformance == "default" || pbjPerformance == "max") {
+    "pbjPerformance must be \"default\" or \"max\", not \"$pbjPerformance\""
+}
+
+// Tests can tell which configuration they run in
+tasks.withType<Test>().configureEach { systemProperties["pbj.performance"] = pbjPerformance }
+
 // Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
 pbj {
     javaPackageSuffix = ".pbj.integration.tests"
