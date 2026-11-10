@@ -368,15 +368,28 @@ class CodecParseMethodGenerator {
                             final $fieldType value;
                             if (valueTypeMessageSize > 0) {
                                 final var beforeLimit = input.limit();
-                                input.limit(input.position() + valueTypeMessageSize);
-                                // read inner tag
-                                final int valueFieldTag = input.readVarInt(false);
-                                // assert tag is as expected
-                                assert (valueFieldTag >>> TAG_FIELD_OFFSET) == 1;
-                                assert (valueFieldTag & TAG_WIRE_TYPE_MASK) == $valueTypeWireType;
-                                // read value
-                                value = $readMethod;
-                                input.limit(beforeLimit);
+                                final var startPos = input.position();
+                                try {
+                                    if ((startPos + valueTypeMessageSize) > beforeLimit) {
+                                        throw new BufferUnderflowException();
+                                    }
+                                    input.limit(startPos + valueTypeMessageSize);
+                                    // read inner tag
+                                    final int valueFieldTag = input.readVarInt(false);
+                                    if ((valueFieldTag >>> TAG_FIELD_OFFSET) != 1
+                                            || (valueFieldTag & TAG_WIRE_TYPE_MASK) != $valueTypeWireType) {
+                                        throw new ParseException("Unexpected tag " + valueFieldTag + " in wrapper");
+                                    }
+                                    // read value
+                                    value = $readMethod;
+                                    // Make sure we read the full number of bytes, otherwise the leftover bytes would
+                                    // be parsed as fields of the enclosing message
+                                    if ((startPos + valueTypeMessageSize) != input.position()) {
+                                        throw new ParseException("Unconsumed bytes in wrapper");
+                                    }
+                                } finally {
+                                    input.limit(beforeLimit);
+                                }
                             } else {
                                 // means optional is default value
                                 value = $defaultValue;
