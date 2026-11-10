@@ -23,6 +23,7 @@ defaults:
 
 permissions:
   statuses: write
+  pull-requests: read
 
 jobs:
   title-check:
