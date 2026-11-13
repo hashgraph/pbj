@@ -42,9 +42,10 @@ public class SampleBlockBench {
     private static final NonSynchronizedByteArrayInputStream PROTOBUF_INPUT_STREAM;
     // load test block from resources
     static {
-        // load the protobuf bytes
+        // load the protobuf bytes. Block 497558, used before, was written with an older BlockHeader layout and no
+        // longer parses with the current HAPI schema.
         try (var in = new BufferedInputStream(new GZIPInputStream(Objects.requireNonNull(
-                SampleBlockBench.class.getResourceAsStream("/000000000000000000000000000000497558.blk.gz"))))) {
+                SampleBlockBench.class.getResourceAsStream("/000000000000000000000000000000030221.blk.gz"))))) {
             TEST_BLOCK_PROTOBUF_BYTES = in.readAllBytes();
         } catch (IOException e) {
             throw new RuntimeException(e);

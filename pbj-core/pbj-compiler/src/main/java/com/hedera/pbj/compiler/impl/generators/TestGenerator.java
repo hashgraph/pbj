@@ -15,7 +15,9 @@ import com.hedera.pbj.compiler.impl.SingleField;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -107,6 +109,7 @@ public final class TestGenerator implements Generator {
                  */$testClassAnnotations
                 public final class $testClassName {
                 $testMethod
+                $nonCanonicalOrderTest
                 $testArguments
                 $diffTests
                 """
@@ -114,6 +117,7 @@ public final class TestGenerator implements Generator {
                 .replace("$modelClass", modelClassName)
                 .replace("$testClassName", testClassName)
                 .replace("$testMethod", generateTestMethod(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, lookupHelper.getCompleteClass(msgDef)).indent(DEFAULT_INDENT))
+                .replace("$nonCanonicalOrderTest", generateNonCanonicalOrderTest(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, lookupHelper.getCompleteClass(msgDef), unusedFieldNumber(fields)).indent(DEFAULT_INDENT))
                 .replace("$testArguments", generateModelTestArgumentsMethod(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), fields, lookupHelper.getCompleteClass(msgDef)).indent(DEFAULT_INDENT))
                 .replace("$diffTests", lookupHelper.hasDiffApis(msgDef) ? generateDiffTests(lookupHelper.getFullyQualifiedMessageClassname(FileType.MODEL, msgDef), protoCJavaFullQualifiedClass, fields, lookupHelper.generateCopyBuilderTracking(msgDef)) : "")
         );
@@ -126,6 +130,72 @@ public final class TestGenerator implements Generator {
         }
 
         writer.append("}");
+    }
+
+    /**
+     * Find a field number the message does not define, preferring 99, for the unknown field the non-canonical-order
+     * test appends.
+     *
+     * @param fields the message's fields
+     * @return an unused field number
+     */
+    static int unusedFieldNumber(final List<Field> fields) {
+        final Set<Integer> used = new HashSet<>();
+        for (final Field field : fields) {
+            if (field instanceof final OneOfField oneOf) {
+                oneOf.fields().forEach(subField -> used.add(subField.fieldNumber()));
+            } else {
+                used.add(field.fieldNumber());
+            }
+        }
+        int fieldNumber = 99;
+        while (used.contains(fieldNumber)) {
+            fieldNumber++;
+        }
+        return fieldNumber;
+    }
+
+    /**
+     * Generate a test that parses each test object from protoc's bytes with the top-level fields in reverse order and
+     * an unknown field appended. Writers always emit fields in ascending order, so this is the test that exercises a
+     * parser's handling of out-of-order fields and unknown fields after known ones.
+     *
+     * @param modelClassName the fully qualified model class
+     * @param protoCJavaFullQualifiedClass the fully qualified protoc class
+     * @param testName the complete class name, used to name the test method
+     * @param unknownFieldNumber a field number the message does not define
+     * @return code for the test method
+     */
+    private static String generateNonCanonicalOrderTest(
+            final String modelClassName,
+            final String protoCJavaFullQualifiedClass,
+            final String testName,
+            final int unknownFieldNumber) {
+        // spotless:off
+        return """
+                @ParameterizedTest
+                @MethodSource("createModelTestArguments")
+                public void test$simpleModelClassNameNonCanonicalOrder(final NoToStringWrapper<$modelClassName> modelObjWrapper) throws Exception {
+                    final $modelClassName modelObj = modelObjWrapper.getValue();
+                    // protoc's canonical bytes, then the same fields in reverse order followed by an unknown field
+                    final Bytes canonical = Bytes.wrap($protocModelClass
+                            .parseFrom($modelClassName.PROTOBUF.toBytes(modelObj).toByteArray()).toByteArray());
+                    final Bytes reordered = appendVarIntField(reverseTopLevelFieldOrder(canonical), $unknownField);
+                    // field order does not matter, and the unknown field is skipped by default
+                    assertEquals(modelObj, $modelClassName.PROTOBUF.parse(reordered));
+                    // strict mode rejects the unknown field
+                    assertThrows(com.hedera.pbj.runtime.ParseException.class, () -> $modelClassName.PROTOBUF.parseStrict(reordered));
+                    // a kept unknown field is written after the known fields, which are back in canonical order
+                    final $modelClassName withUnknown = $modelClassName.PROTOBUF.parse(reordered.toReadableSequentialData(),
+                            false, true, com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH);
+                    assertEquals(appendVarIntField(canonical, $unknownField), $modelClassName.PROTOBUF.toBytes(withUnknown));
+                }
+                """
+                .replace("$simpleModelClassName", testName.replace(".", ""))
+                .replace("$modelClassName", modelClassName)
+                .replace("$protocModelClass", protoCJavaFullQualifiedClass)
+                .replace("$unknownField", Integer.toString(unknownFieldNumber));
+        // spotless:on
     }
 
     private static String generateDiffTests(String model, String protoc, List<Field> fields, boolean tracking) {
