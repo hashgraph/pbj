@@ -140,6 +140,7 @@ public interface RandomAccessData {
 
     ///
     /// Writes a given byte buffer to the current object at a specified offset, in bytes.
+    /// The byte buffer is written starting from its current position and up to its limit.
     ///
     /// @return The number of bytes written.
     /// @throws BufferOverflowException if the number of available bytes in the source buffer
@@ -169,12 +170,15 @@ public interface RandomAccessData {
     ///
     default long putBytes(final long offset, @NonNull final RandomAccessData src) {
         if (src instanceof Bytes bytesSrc) {
-            return bytesSrc.writeTo(this, Math.toIntExact(offset));
-        } else if (src instanceof BufferedData bufDataSrc) {
-            return bufDataSrc.writeTo(this, offset);
+            return bytesSrc.writeTo(this, offset);
+        } else if (src instanceof BufferedSequentialData bufSeqSrc) {
+            // Use writeTo(RAD, long, int, int) instead of writeTo(RAD, long) to make
+            // sure the whole content of "src" is written, not limited by its
+            // current position / limit
+            return bufSeqSrc.writeTo(this, offset, 0, Math.toIntExact(bufSeqSrc.length()));
         } else {
             checkOffset(offset);
-            if (offset + length() > src.length()) {
+            if (offset + src.length() > length()) {
                 throw new BufferOverflowException();
             }
             long bytesWritten = 0;
@@ -838,16 +842,18 @@ public interface RandomAccessData {
      */
     void writeTo(@NonNull final OutputStream outStream, final int offset, final int length);
 
-    /**
-     * Writes the entire copy of the data into a given MessageDigest object.
-     * @param digest a MessageDigest to write data to
-     */
+    ///
+    /// Writes the data into a given MessageDigest object.
+    ///
+    /// @param digest a MessageDigest to write data to
+    ///
     void writeTo(@NonNull final MessageDigest digest);
 
     ///
-    /// Writes the entire copy of the data into a given random access object at a
-    /// specified offset.
+    /// Writes the data into a given random access object at a specified offset.
     ///
+    /// @param dst a RandomAccessData object to write data to
+    /// @param dstOffset an offset in the destination object to write data at
     /// @throws BufferOverflowException if there is no room in the target object to
     ///         write all bytes from this object at the specified offset
     ///
