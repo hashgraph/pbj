@@ -631,7 +631,9 @@ public final class MemoryData
         if (offset + len > limit) {
             throw new BufferOverflowException();
         }
-        MemorySegment.copy(MemorySegment.ofBuffer(src), src.position(), segment, offset, len);
+        // MemorySegment.ofBuffer() respects src's position and limit, so zero srcOffset
+        // is actually the same as src.position()
+        MemorySegment.copy(MemorySegment.ofBuffer(src), 0, segment, offset, len);
         return len;
     }
 
@@ -683,12 +685,21 @@ public final class MemoryData
 
     @Override
     public void writeTo(@NonNull MessageDigest digest) {
-        digest.update(segment.asByteBuffer().limit(Math.toIntExact(limit)));
+        final ByteBuffer bufToWrite =
+                segment.asByteBuffer().position(Math.toIntExact(position)).limit(Math.toIntExact(limit));
+        digest.update(bufToWrite);
     }
 
     @Override
     public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
-        return dst.putBytes(dstOffset, segment.asByteBuffer().limit(Math.toIntExact(limit)));
+        final ByteBuffer bufToWrite =
+                segment.asByteBuffer().position(Math.toIntExact(position)).limit(Math.toIntExact(limit));
+        return dst.putBytes(dstOffset, bufToWrite);
+    }
+
+    public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset, final int offset, final int length) {
+        final ByteBuffer bufToWrite = segment.asByteBuffer().position(offset).limit(offset + length);
+        return dst.putBytes(dstOffset, bufToWrite);
     }
 
     @Override

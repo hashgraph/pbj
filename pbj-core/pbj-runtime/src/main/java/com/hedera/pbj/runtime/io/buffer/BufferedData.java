@@ -967,7 +967,13 @@ public sealed class BufferedData
 
     @Override
     public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
+        // RandomAccessData.putBytes(long, ByteBuffer) respects buffer's position and limit
         return dst.putBytes(dstOffset, buffer);
+    }
+
+    public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset, final int offset, final int length) {
+        validateCanRead(offset, length);
+        return dst.putBytes(dstOffset, buffer.duplicate().position(offset).limit(offset + length));
     }
 
     // Helper methods

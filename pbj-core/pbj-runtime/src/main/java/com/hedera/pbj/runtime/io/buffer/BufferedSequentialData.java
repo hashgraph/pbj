@@ -2,6 +2,8 @@
 package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.SequentialData;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
 
 /**
  * Represents buffered {@link SequentialData}. The buffer may be on-heap or off-heap, backed by a byte array or a
@@ -37,4 +39,25 @@ public interface BufferedSequentialData extends SequentialData, RandomAccessData
      * read again with the existing {@link #limit()}.
      */
     void resetPosition();
+
+    ///
+    /// Writes the data starting at the current {@link #position()} and up to the
+    /// current {@link #limit()} into a given MessageDigest object .
+    ///
+    @Override
+    void writeTo(@NonNull final MessageDigest digest);
+
+    ///
+    /// Writes the data starting at the current {@link #position()} and up to the
+    /// current {@link #limit()} into a given RandomAccessData object at a
+    /// specified offset.
+    ///
+    @Override
+    long writeTo(@NonNull final RandomAccessData dst, final long dstOffset);
+
+    ///
+    /// Writes the data starting at a specified offset and of a specified length
+    /// into a given RandomAccessData object.
+    ///
+    long writeTo(@NonNull final RandomAccessData dst, final long dstOffset, final int offset, final int length);
 }
