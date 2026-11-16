@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
-import java.util.Objects;
-
 /**
  * When a protobuf schema defines a field as "oneof", it is often useful
  * for parsers to represent the field as a {@link OneOf} because there is
@@ -44,7 +42,8 @@ public record OneOf<E extends Enum<E>>(E kind, Object value) {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof OneOf<?> oneOf)) return false;
-        return kind.equals(oneOf.kind) && Objects.equals(value, oneOf.value);
+        // Intentionally ==, 'kind' is an enum so identity is equality.
+        return kind == oneOf.kind && (value == oneOf.value || (value != null && value.equals(oneOf.value)));
     }
 
     @Override
