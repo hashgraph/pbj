@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.MemoryData;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -194,6 +195,30 @@ public class WritableMessageDigestTest {
         data.position(offset);
         data.limit(offset + length);
         wmd.writeBytes(data);
+        // digest() resets the position, so check it first
+        assertEquals(length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
+
+    @Test
+    void testWriteMemoryData() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        final int offset = 2;
+        final int length = 5;
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array, offset, length);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final MemoryData data = MemoryData.wrap(array);
+        data.position(offset);
+        data.limit(offset + length);
+        wmd.writeBytes(data);
+        // digest() resets the position, so check it first
+        assertEquals(length, wmd.position());
         final byte[] digest = wmd.digest();
 
         assertArrayEquals(expectedDigest, digest);
