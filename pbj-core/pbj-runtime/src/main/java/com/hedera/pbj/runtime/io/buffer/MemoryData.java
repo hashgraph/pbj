@@ -69,7 +69,7 @@ public final class MemoryData
     // INTERNAL STATE
 
     /// The backing MemorySegment
-    private final MemorySegment segment;
+    final MemorySegment segment;
 
     /// The current read/write position.
     private long position = 0;
@@ -410,31 +410,29 @@ public final class MemoryData
     }
 
     @Override
-    public void writeBytes(@NonNull final BufferedData src) throws BufferOverflowException, UncheckedIOException {
-        final long srcRemaining = src.remaining();
-        if (remaining() < srcRemaining) {
-            throw new BufferOverflowException();
-        }
-
-        MemorySegment.copy(MemorySegment.ofBuffer(src.buffer), 0, segment, position, srcRemaining);
-        position += srcRemaining;
-        src.position(src.position() + srcRemaining);
-    }
-
-    @Override
     public void writeBytes(@NonNull final RandomAccessData src) throws BufferOverflowException, UncheckedIOException {
         if (src instanceof Bytes buf) {
-            if ((limit() - position()) < src.length()) {
+            if (remaining() < src.length()) {
                 throw new BufferOverflowException();
             }
             buf.writeTo(segment, position);
             position += buf.length();
-        } else if (src instanceof MemoryData md) {
-            if ((limit() - position()) < md.length()) {
+        } else if (src instanceof BufferedData bd) {
+            final long srcRemaining = bd.remaining();
+            if (remaining() < srcRemaining) {
                 throw new BufferOverflowException();
             }
-            MemorySegment.copy(md.segment, 0, segment, position, md.length());
-            position += md.length();
+            MemorySegment.copy(MemorySegment.ofBuffer(bd.buffer), 0, segment, position, srcRemaining);
+            position += srcRemaining;
+            bd.position(bd.position() + srcRemaining);
+        } else if (src instanceof MemoryData md) {
+            final long srcRemaining = md.remaining();
+            if (remaining() < srcRemaining) {
+                throw new BufferOverflowException();
+            }
+            MemorySegment.copy(md.segment, 0, segment, position, srcRemaining);
+            position += srcRemaining;
+            md.position(md.position() + srcRemaining);
         } else {
             WritableSequentialData.super.writeBytes(src);
         }
@@ -634,6 +632,7 @@ public final class MemoryData
         // MemorySegment.ofBuffer() respects src's position and limit, so zero srcOffset
         // is actually the same as src.position()
         MemorySegment.copy(MemorySegment.ofBuffer(src), 0, segment, offset, len);
+        src.position(src.position() + len);
         return len;
     }
 
@@ -658,17 +657,20 @@ public final class MemoryData
     }
 
     @Override
-    public void writeTo(@NonNull OutputStream outStream) {
+    public long writeTo(@NonNull OutputStream outStream) {
         try {
             final WritableByteChannel channel = Channels.newChannel(outStream);
-            channel.write(segment.asByteBuffer().limit(Math.toIntExact(limit)));
+            final long bytesWritten = channel.write(
+                    segment.asByteBuffer().position(Math.toIntExact(position)).limit(Math.toIntExact(limit)));
+            position(limit);
+            return bytesWritten;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
     @Override
-    public void writeTo(@NonNull OutputStream outStream, int offset, int length) {
+    public long writeTo(@NonNull OutputStream outStream, int offset, int length) {
         if (offset > limit - length) {
             throw new BufferUnderflowException();
         }
@@ -677,29 +679,28 @@ public final class MemoryData
         }
         try {
             final WritableByteChannel channel = Channels.newChannel(outStream);
-            channel.write(segment.asByteBuffer().position(offset).limit(Math.toIntExact(offset + length)));
+            return channel.write(segment.asByteBuffer().position(offset).limit(Math.toIntExact(offset + length)));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
     @Override
-    public void writeTo(@NonNull MessageDigest digest) {
+    public long writeTo(@NonNull MessageDigest digest) {
         final ByteBuffer bufToWrite =
                 segment.asByteBuffer().position(Math.toIntExact(position)).limit(Math.toIntExact(limit));
         digest.update(bufToWrite);
+        position(limit);
+        return limit - position;
     }
 
     @Override
     public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
         final ByteBuffer bufToWrite =
                 segment.asByteBuffer().position(Math.toIntExact(position)).limit(Math.toIntExact(limit));
-        return dst.putBytes(dstOffset, bufToWrite);
-    }
-
-    public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset, final int offset, final int length) {
-        final ByteBuffer bufToWrite = segment.asByteBuffer().position(offset).limit(offset + length);
-        return dst.putBytes(dstOffset, bufToWrite);
+        final long bytesWritten = dst.putBytes(dstOffset, bufToWrite);
+        position(limit);
+        return bytesWritten;
     }
 
     @Override

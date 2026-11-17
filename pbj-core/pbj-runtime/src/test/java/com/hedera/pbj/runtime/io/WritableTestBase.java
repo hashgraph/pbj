@@ -12,6 +12,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.MemoryData;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -219,6 +220,10 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // When we try to write a BufferedData, then we get a BufferOverflowException
             final var bufferedData = BufferedData.allocate(10);
             assertThatThrownBy(() -> seq.writeBytes(bufferedData)).isInstanceOf(BufferOverflowException.class);
+
+            // When we try to write a MemoryData, then we get a BufferOverflowException
+            final var memoryData = MemoryData.allocate(10);
+            assertThatThrownBy(() -> seq.writeBytes(memoryData)).isInstanceOf(BufferOverflowException.class);
 
             // When we try to write Bytes, then we get a BufferOverflowException
             final var bytes = Bytes.wrap("abc");

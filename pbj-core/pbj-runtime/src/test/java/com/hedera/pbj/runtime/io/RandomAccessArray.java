@@ -33,18 +33,19 @@ public class RandomAccessArray implements RandomAccessData {
     }
 
     @Override
-    public void writeTo(@NonNull final OutputStream outStream) {
+    public long writeTo(@NonNull final OutputStream outStream) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
+    public long writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void writeTo(@NonNull MessageDigest digest) {
+    public long writeTo(@NonNull MessageDigest digest) {
         digest.update(array);
+        return array.length;
     }
 
     @Override

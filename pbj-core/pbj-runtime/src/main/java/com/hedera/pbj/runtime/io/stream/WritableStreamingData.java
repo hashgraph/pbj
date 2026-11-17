@@ -2,7 +2,7 @@
 package com.hedera.pbj.runtime.io.stream;
 
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.BufferedSequentialData;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Closeable;
@@ -205,11 +205,11 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
             return;
         }
 
-        if (remaining() < src.remaining()) {
+        final long len = src.remaining();
+        if (remaining() < len) {
             throw new BufferOverflowException();
         }
 
-        final long len = src.remaining();
         if (len == 0) {
             // Nothing to do
             return;
@@ -230,28 +230,17 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
      * {@inheritDoc}
      */
     @Override
-    public void writeBytes(@NonNull BufferedData src) throws BufferOverflowException, UncheckedIOException {
-        if (remaining() < src.remaining()) {
-            throw new BufferOverflowException();
-        }
-        final int pos = Math.toIntExact(src.position());
-        final int len = Math.toIntExact(src.remaining());
-        src.writeTo(out, pos, len);
-        position += len;
-        src.position(src.position() + len);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void writeBytes(@NonNull final RandomAccessData src) {
-        final long len = src.length();
-        if (remaining() < len) {
-            throw new BufferOverflowException();
+        if (src instanceof BufferedSequentialData buf) {
+            if (remaining() < buf.remaining()) {
+                throw new BufferOverflowException();
+            }
+        } else {
+            if (remaining() < src.length()) {
+                throw new BufferOverflowException();
+            }
         }
-        src.writeTo(out);
-        position += len;
+        position += src.writeTo(out);
     }
 
     // ================================================================================================================

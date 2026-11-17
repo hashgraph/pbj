@@ -161,33 +161,14 @@ public interface RandomAccessData {
     }
 
     ///
-    /// Writes the entire content of the given {@link RandomAccessData} to the current object
-    /// at a specified offset.
+    /// Writes the given random access data to the current object at a specified offset.
     ///
     /// @return The number of bytes written.
     /// @throws BufferOverflowException if the number of available bytes in the input
     /// is greater than the remaining bytes after the offset in this object
     ///
     default long putBytes(final long offset, @NonNull final RandomAccessData src) {
-        if (src instanceof Bytes bytesSrc) {
-            return bytesSrc.writeTo(this, offset);
-        } else if (src instanceof BufferedSequentialData bufSeqSrc) {
-            // Use writeTo(RAD, long, int, int) instead of writeTo(RAD, long) to make
-            // sure the whole content of "src" is written, not limited by its
-            // current position / limit
-            return bufSeqSrc.writeTo(this, offset, 0, Math.toIntExact(bufSeqSrc.length()));
-        } else {
-            checkOffset(offset);
-            if (offset + src.length() > length()) {
-                throw new BufferOverflowException();
-            }
-            long bytesWritten = 0;
-            for (int i = 0; i < src.length(); i++) {
-                putByte(offset + bytesWritten, src.getByte(i));
-                bytesWritten++;
-            }
-            return bytesWritten;
-        }
+        return src.writeTo(this, offset);
     }
 
     /**
@@ -829,31 +810,35 @@ public interface RandomAccessData {
      * of the data. The implementation relies on a well-behaved OutputStream that doesn't modify the buffer data.
      *
      * @param outStream the OutputStream to copy into
+     * @return the number of bytes written
      */
-    void writeTo(@NonNull final OutputStream outStream);
+    long writeTo(@NonNull final OutputStream outStream);
 
     /**
      * A helper method for efficient copy of our data into an OutputStream without creating a defensive copy
      * of the data. The implementation relies on a well-behaved OutputStream that doesn't modify the buffer data.
      *
-     * @param outStream The OutputStream to copy into.
-     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
-     * @param length The number of bytes to extract.
+     * @param outStream the OutputStream to copy into.
+     * @param offset the offset from the start of this object to get the bytes from
+     * @param length the number of bytes to write
+     * @return the number of bytes written
      */
-    void writeTo(@NonNull final OutputStream outStream, final int offset, final int length);
+    long writeTo(@NonNull final OutputStream outStream, final int offset, final int length);
 
     ///
     /// Writes the data into a given MessageDigest object.
     ///
     /// @param digest a MessageDigest to write data to
+    /// @return the number of bytes written
     ///
-    void writeTo(@NonNull final MessageDigest digest);
+    long writeTo(@NonNull final MessageDigest digest);
 
     ///
     /// Writes the data into a given random access object at a specified offset.
     ///
     /// @param dst a RandomAccessData object to write data to
     /// @param dstOffset an offset in the destination object to write data at
+    /// @return the number of bytes written
     /// @throws BufferOverflowException if there is no room in the target object to
     ///         write all bytes from this object at the specified offset
     ///

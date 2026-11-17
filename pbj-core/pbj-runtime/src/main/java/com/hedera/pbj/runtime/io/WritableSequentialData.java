@@ -2,7 +2,7 @@
 package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.Utf8Tools;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.BufferedSequentialData;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -129,25 +129,6 @@ public interface WritableSequentialData extends SequentialData {
     }
 
     /**
-     * Writes the entire content of the given {@link BufferedData}, all bytes between its current
-     * {@link #position()} and {@link #limit()}. The {@link #position()} of this sequence is then incremented by
-     * the number of written bytes.
-     *
-     * @param src The source {@link BufferedData} to write
-     * @throws BufferOverflowException If there is insufficient space before {@link #limit()}
-     * @throws UncheckedIOException if an I/O error occurs
-     */
-    default void writeBytes(@NonNull final BufferedData src) throws BufferOverflowException, UncheckedIOException {
-        if (remaining() < src.remaining()) {
-            throw new BufferOverflowException();
-        }
-
-        while (src.hasRemaining()) {
-            writeByte(src.readByte());
-        }
-    }
-
-    /**
      * This method writes the entire content of the given {@link RandomAccessData}. The
      * {@link #position()} is then incremented by {@code src.length()}.
      *
@@ -156,12 +137,21 @@ public interface WritableSequentialData extends SequentialData {
      * @throws UncheckedIOException if an I/O error occurs
      */
     default void writeBytes(@NonNull final RandomAccessData src) throws BufferOverflowException, UncheckedIOException {
-        if (remaining() < src.length()) {
-            throw new BufferOverflowException();
-        }
-
-        for (int i = 0; i < src.length(); i++) {
-            writeByte(src.getByte(i));
+        if (src instanceof BufferedSequentialData buf) {
+            if (remaining() < buf.remaining()) {
+                throw new BufferOverflowException();
+            }
+            for (long i = buf.position(); i < buf.limit(); i++) {
+                writeByte(buf.getByte(i));
+            }
+            buf.position(buf.limit());
+        } else {
+            if (remaining() < src.length()) {
+                throw new BufferOverflowException();
+            }
+            for (int i = 0; i < src.length(); i++) {
+                writeByte(src.getByte(i));
+            }
         }
     }
 

@@ -178,4 +178,24 @@ public class WritableMessageDigestTest {
                 new byte[] {(byte) 0x55, (byte) 0x55},
                 Arrays.copyOfRange(output, 2 + expectedDigest.length, output.length));
     }
+
+    @Test
+    void testWriteBufferedData() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        final int offset = 2;
+        final int length = 5;
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array, offset, length);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final BufferedData data = BufferedData.wrap(array);
+        data.position(offset);
+        data.limit(offset + length);
+        wmd.writeBytes(data);
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
 }

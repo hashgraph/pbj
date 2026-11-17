@@ -45,6 +45,12 @@ public abstract class RandomAccessWriteTestBase {
         data.position(5);
         out.putBytes(1, data);
         assertArrayEquals(new byte[] {0, 5, 6, 7, 8, 9, 0, 0, 0, 0}, arr);
+        if (out instanceof BufferedSequentialData bsout) {
+            // out.position is not changed
+            assertEquals(0, bsout.position());
+        }
+        assertEquals(10, data.position());
+        assertEquals(0, data.remaining());
     }
 
     @Test
@@ -52,15 +58,35 @@ public abstract class RandomAccessWriteTestBase {
         final byte[] arr = new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
         final RandomAccessData out = randomAccessData(arr);
         final BufferedData data = BufferedData.wrap(new byte[] {0, 1, 2, 3, 4, 5});
-        // When writing arbitrary RandomAccessData, it's written in full, current
-        // BufferedData's position is ignored
-        data.position(5);
+        data.position(4);
         out.putBytes(3, data);
-        assertArrayEquals(new byte[] {0, 0, 0, 0, 1, 2, 3, 4, 5, 0}, arr);
+        assertArrayEquals(new byte[] {0, 0, 0, 4, 5, 0, 0, 0, 0, 0}, arr);
+        if (out instanceof BufferedSequentialData bsout) {
+            // out.position is not changed
+            assertEquals(0, bsout.position());
+        }
+        assertEquals(6, data.position());
+        assertEquals(0, data.remaining());
     }
 
     @Test
-    void testPutBytesBufferedDataWithPositionOverflows() {
+    void testPutBytesBufferedDataWithLimit() {
+        final byte[] arr = new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        final RandomAccessData out = randomAccessData(arr);
+        final BufferedData data = BufferedData.wrap(new byte[] {0, 1, 2, 3, 4, 5});
+        data.limit(3);
+        out.putBytes(2, data);
+        assertArrayEquals(new byte[] {0, 0, 0, 1, 2, 0, 0, 0, 0, 0}, arr);
+        if (out instanceof BufferedSequentialData bsout) {
+            // out.position is not changed
+            assertEquals(0, bsout.position());
+        }
+        assertEquals(3, data.position());
+        assertEquals(0, data.remaining());
+    }
+
+    @Test
+    void testPutBytesBufferedDataOverflows() {
         final byte[] arr = new byte[] {0, 0, 0, 0, 0, 0, 0, 0};
         final RandomAccessData out = randomAccessData(arr);
         final BufferedData data = BufferedData.wrap(new byte[] {0, 1, 2, 3, 4, 5});
@@ -72,16 +98,36 @@ public abstract class RandomAccessWriteTestBase {
     void testPutBytesMemoryDataWithPosition() {
         final byte[] arr = new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
         final RandomAccessData out = randomAccessData(arr);
-        final BufferedData data = BufferedData.wrap(new byte[] {0, 1, 2, 3, 4, 5});
-        // When writing arbitrary RandomAccessData, it's written in full, current
-        // BufferedData's position is ignored
+        final MemoryData data = MemoryData.wrap(new byte[] {0, 1, 2, 3, 4, 5});
         data.position(2);
         out.putBytes(3, data);
-        assertArrayEquals(new byte[] {0, 0, 0, 0, 1, 2, 3, 4, 5, 0}, arr);
+        assertArrayEquals(new byte[] {0, 0, 0, 2, 3, 4, 5, 0, 0, 0}, arr);
+        if (out instanceof BufferedSequentialData bsout) {
+            // out.position is not changed
+            assertEquals(0, bsout.position());
+        }
+        assertEquals(6, data.position());
+        assertEquals(0, data.remaining());
     }
 
     @Test
-    void testPutBytesMemoryDataWithPositionOverflows() {
+    void testPutBytesMemoryDataWithLimit() {
+        final byte[] arr = new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        final RandomAccessData out = randomAccessData(arr);
+        final MemoryData data = MemoryData.wrap(new byte[] {0, 1, 2, 3, 4, 5});
+        data.limit(2);
+        out.putBytes(3, data);
+        assertArrayEquals(new byte[] {0, 0, 0, 0, 1, 0, 0, 0, 0, 0}, arr);
+        if (out instanceof BufferedSequentialData bsout) {
+            // out.position is not changed
+            assertEquals(0, bsout.position());
+        }
+        assertEquals(2, data.position());
+        assertEquals(0, data.remaining());
+    }
+
+    @Test
+    void testPutBytesMemoryDataOverflows() {
         final byte[] arr = new byte[] {0, 0, 0, 0, 0, 0, 0, 0};
         final RandomAccessData out = randomAccessData(arr);
         final MemoryData data = MemoryData.wrap(new byte[] {0, 1, 2, 3, 4, 5});

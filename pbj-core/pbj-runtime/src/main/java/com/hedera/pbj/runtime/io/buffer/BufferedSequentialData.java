@@ -3,6 +3,7 @@ package com.hedera.pbj.runtime.io.buffer;
 
 import com.hedera.pbj.runtime.io.SequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.OutputStream;
 import java.security.MessageDigest;
 
 /**
@@ -42,22 +43,37 @@ public interface BufferedSequentialData extends SequentialData, RandomAccessData
 
     ///
     /// Writes the data starting at the current {@link #position()} and up to the
-    /// current {@link #limit()} into a given MessageDigest object .
+    /// current {@link #limit()} into a given output stream. The current position is
+    /// updated to the limit, so {@link #remaining()} returns zero after this call.
+    ///
+    /// @return The number of bytes written
     ///
     @Override
-    void writeTo(@NonNull final MessageDigest digest);
-
-    ///
-    /// Writes the data starting at the current {@link #position()} and up to the
-    /// current {@link #limit()} into a given RandomAccessData object at a
-    /// specified offset.
-    ///
-    @Override
-    long writeTo(@NonNull final RandomAccessData dst, final long dstOffset);
+    long writeTo(@NonNull final OutputStream outStream);
 
     ///
     /// Writes the data starting at a specified offset and of a specified length
-    /// into a given RandomAccessData object.
+    /// into a given output stream. The current position is not changed.
     ///
-    long writeTo(@NonNull final RandomAccessData dst, final long dstOffset, final int offset, final int length);
+    /// @return The number of bytes written
+    ///
+    @Override
+    long writeTo(@NonNull final OutputStream outStream, final int offset, final int length);
+
+    ///
+    /// Writes the data starting at the current {@link #position()} and up to the
+    /// current {@link #limit()} into a given message digest. The current position is
+    /// updated to the limit, so {@link #remaining()} returns zero after this call.
+    ///
+    @Override
+    long writeTo(@NonNull final MessageDigest digest);
+
+    ///
+    /// Writes the data starting at the current {@link #position()} and up to the
+    /// current {@link #limit()} into a given random access object at a specified
+    /// offset. The current position is updated to the limit, so {@link #remaining()}
+    /// returns zero after this call.
+    ///
+    @Override
+    long writeTo(@NonNull final RandomAccessData dst, final long dstOffset);
 }

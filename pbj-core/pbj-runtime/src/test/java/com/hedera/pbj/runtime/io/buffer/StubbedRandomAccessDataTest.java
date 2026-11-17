@@ -50,26 +50,29 @@ public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
         }
 
         @Override
-        public void writeTo(@NonNull OutputStream outStream) {
+        public long writeTo(@NonNull OutputStream outStream) {
             try {
                 outStream.write(bytes);
+                return bytes.length;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
 
         @Override
-        public void writeTo(@NonNull OutputStream outStream, int offset, int length) {
+        public long writeTo(@NonNull OutputStream outStream, int offset, int length) {
             try {
                 outStream.write(bytes, offset, length);
+                return length;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
 
         @Override
-        public void writeTo(@NonNull MessageDigest digest) {
+        public long writeTo(@NonNull MessageDigest digest) {
             digest.update(bytes);
+            return bytes.length;
         }
 
         @Override
