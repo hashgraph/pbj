@@ -44,7 +44,8 @@ public record OneOf<E extends Enum<E>>(E kind, Object value) {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof OneOf<?> oneOf)) return false;
-        return kind.equals(oneOf.kind) && Objects.equals(value, oneOf.value);
+        // Intentionally ==, 'kind' is an enum so identity is equality.
+        return kind == oneOf.kind && (value == oneOf.value || Objects.equals(value, oneOf.value));
     }
 
     @Override

@@ -579,10 +579,8 @@ public final class Common {
                         || f.type() == Field.FieldType.MAP
                         || f.parent() == null /* Process a sub-message */) {
                     generatedCodeSoFar += ("""
-                            if ($prefixFieldName$fieldName == null && thatObj.$thatFieldName$suffix != null) {
-                                return false;
-                            }
-                            if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals(thatObj.$thatFieldName$suffix)) {
+                            if ($prefixFieldName$fieldName != thatObj.$thatFieldName$suffix
+                                    && ($prefixFieldName$fieldName == null || !$prefixFieldName$fieldName.equals(thatObj.$thatFieldName$suffix))) {
                                 return false;
                             }
                             """)

@@ -716,6 +716,9 @@ public final class ModelGenerator implements Generator {
          */
         @Override
         public boolean equals(Object that) {
+            if (this == that) {
+                return true;
+            }
             if (that == null || this.getClass() != that.getClass()) {
                 return false;
             }
