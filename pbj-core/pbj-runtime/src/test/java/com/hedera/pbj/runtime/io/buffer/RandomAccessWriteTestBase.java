@@ -224,6 +224,34 @@ public abstract class RandomAccessWriteTestBase {
             data.limit(2);
             assertDoesNotThrow(() -> data.writeTo(out, 8));
         }
+
+        @Test
+        void bufferedDataWriteBytesTest() {
+            final byte[] arr = new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+            final BufferedData out = BufferedData.wrap(arr);
+            out.position(2);
+            final BufferedSequentialData data = bufferedSequentialData(new byte[] {0, 1, 2, 3, 4, 5});
+            data.position(1);
+            data.limit(3);
+            out.writeBytes(data);
+            assertArrayEquals(new byte[] {0, 0, 1, 2, 0, 0, 0, 0, 0, 0}, arr);
+            assertEquals(4, out.position());
+            assertEquals(3, data.position());
+        }
+
+        @Test
+        void memoryDataWriteBytesTest() {
+            final byte[] arr = new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+            final MemoryData out = MemoryData.wrap(arr);
+            out.position(2);
+            final BufferedSequentialData data = bufferedSequentialData(new byte[] {0, 1, 2, 3, 4, 5});
+            data.position(1);
+            data.limit(3);
+            out.writeBytes(data);
+            assertArrayEquals(new byte[] {0, 0, 1, 2, 0, 0, 0, 0, 0, 0}, arr);
+            assertEquals(4, out.position());
+            assertEquals(3, data.position());
+        }
     }
 
     @Nested

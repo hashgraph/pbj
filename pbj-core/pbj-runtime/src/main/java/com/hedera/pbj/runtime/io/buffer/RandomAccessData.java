@@ -148,7 +148,7 @@ public interface RandomAccessData {
     ///
     default int putBytes(final long offset, @NonNull final ByteBuffer src) {
         checkOffset(offset);
-        if (offset + length() > src.remaining()) {
+        if (offset + src.remaining() > length()) {
             throw new BufferOverflowException();
         }
 

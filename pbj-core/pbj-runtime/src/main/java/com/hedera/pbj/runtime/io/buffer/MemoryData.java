@@ -430,7 +430,7 @@ public final class MemoryData
             if (remaining() < srcRemaining) {
                 throw new BufferOverflowException();
             }
-            MemorySegment.copy(md.segment, 0, segment, position, srcRemaining);
+            MemorySegment.copy(md.segment, md.position(), segment, position, srcRemaining);
             position += srcRemaining;
             md.position(md.position() + srcRemaining);
         } else {
@@ -690,8 +690,9 @@ public final class MemoryData
         final ByteBuffer bufToWrite =
                 segment.asByteBuffer().position(Math.toIntExact(position)).limit(Math.toIntExact(limit));
         digest.update(bufToWrite);
-        position(limit);
-        return limit - position;
+        final long curPosition = position();
+        position(limit());
+        return limit() - curPosition;
     }
 
     @Override

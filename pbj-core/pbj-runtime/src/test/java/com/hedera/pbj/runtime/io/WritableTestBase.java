@@ -661,6 +661,18 @@ public abstract class WritableTestBase extends SequentialTestBase {
         }
 
         @Test
+        void writeMemoryData() {
+            final var seq = sequence();
+            final var src = MemoryData.wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+            src.position(2);
+            src.limit(6);
+            seq.writeBytes(src);
+            assertThat(seq.position()).isEqualTo(4);
+            assertThat(src.position()).isEqualTo(6);
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {2, 3, 4, 5});
+        }
+
+        @Test
         @DisplayName("Writing from a closed stream throws DataAccessException")
         void closed() throws IOException {
             // Given a sequence

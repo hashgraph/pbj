@@ -803,14 +803,17 @@ public sealed class BufferedData
             }
             buf.writeTo(buffer);
         } else if (src instanceof BufferedData bd) {
-            // No need to check remaining() against buf.remaining()
+            // No need to check remaining bytes in either buffer, put() will take care of it
             buffer.put(bd.buffer);
         } else if (src instanceof MemoryData md) {
             final long srcRemaining = md.remaining();
             if (remaining() < srcRemaining) {
                 throw new BufferOverflowException();
             }
-            MemorySegment.copy(md.segment, md.position(), MemorySegment.ofBuffer(buffer), position(), srcRemaining);
+            // MemorySegment.ofBuffer() takes buffer's current position into consideration, so dstOffset is 0
+            MemorySegment.copy(md.segment, md.position(), MemorySegment.ofBuffer(buffer), 0, srcRemaining);
+            position(position() + srcRemaining);
+            md.position(md.position() + srcRemaining);
         } else {
             WritableSequentialData.super.writeBytes(src);
         }
