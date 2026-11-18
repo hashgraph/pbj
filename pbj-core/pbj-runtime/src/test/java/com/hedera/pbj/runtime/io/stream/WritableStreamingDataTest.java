@@ -130,10 +130,9 @@ public class WritableStreamingDataTest extends WritableTestBase {
         final OutputStream out = mock(OutputStream.class);
         final RandomAccessData data = mock(RandomAccessData.class);
         doReturn(10L).when(data).length();
-        doNothing().when(data).writeTo(out);
+        doReturn(10L).when(data).writeTo(out);
 
         final WritableStreamingData seq = new WritableStreamingData(out);
-
         seq.writeBytes(data);
 
         verify(data, times(1)).length();

@@ -2,7 +2,6 @@
 package com.hedera.pbj.runtime.hashing;
 
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.UncheckedIOException;
@@ -95,21 +94,20 @@ public class WritableMessageDigest implements WritableSequentialData {
     }
 
     @Override
-    public void writeBytes(@NonNull ByteBuffer src) throws BufferOverflowException, UncheckedIOException {
+    public void writeBytes(@NonNull ByteBuffer src) throws BufferOverflowException {
         position += src.remaining();
         digest.update(src);
     }
 
     @Override
-    public void writeBytes(@NonNull BufferedData src) throws BufferOverflowException, UncheckedIOException {
-        position += src.remaining();
-        src.writeTo(digest);
+    public void writeBytes(@NonNull RandomAccessData src) throws BufferOverflowException {
+        position += src.writeTo(digest);
     }
 
     @Override
-    public void writeBytes(@NonNull RandomAccessData src) throws BufferOverflowException, UncheckedIOException {
-        position += src.length();
-        src.writeTo(digest);
+    public void writeBytes(@NonNull RandomAccessData src, final long offset, final long length)
+            throws BufferOverflowException {
+        position += src.writeTo(digest, offset, length);
     }
 
     /**

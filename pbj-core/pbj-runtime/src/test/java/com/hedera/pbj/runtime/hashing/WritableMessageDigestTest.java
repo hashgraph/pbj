@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.MemoryData;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -177,5 +178,121 @@ public class WritableMessageDigestTest {
         assertArrayEquals(
                 new byte[] {(byte) 0x55, (byte) 0x55},
                 Arrays.copyOfRange(output, 2 + expectedDigest.length, output.length));
+    }
+
+    @Test
+    void testWriteBufferedData() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final BufferedData data = BufferedData.wrap(array);
+        wmd.writeBytes(data);
+        // digest() resets the position, so check it first
+        assertEquals(array.length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
+
+    @Test
+    void testWriteBufferedDataWithPos() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        final int offset = 2;
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final BufferedData data = BufferedData.wrap(array);
+        data.position(offset); // ignored
+        wmd.writeBytes(data);
+        // digest() resets the position, so check it first
+        assertEquals(array.length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
+
+    @Test
+    void testWriteBufferedDataWithPosAndLimit() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        final int offset = 2;
+        final int length = 5;
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array, offset, length);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final BufferedData data = BufferedData.wrap(array);
+        wmd.writeBytes(data, offset, length);
+        // digest() resets the position, so check it first
+        assertEquals(length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
+
+    @Test
+    void testWriteMemoryData() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final MemoryData data = MemoryData.wrap(array);
+        wmd.writeBytes(data);
+        // digest() resets the position, so check it first
+        assertEquals(array.length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
+
+    @Test
+    void testWriteMemoryDataWithPos() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        final int offset = 2;
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final MemoryData data = MemoryData.wrap(array);
+        data.position(offset); // ignored
+        wmd.writeBytes(data);
+        // digest() resets the position, so check it first
+        assertEquals(array.length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
+
+    @Test
+    void testWriteMemoryDataWithPosAndLimit() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        final int offset = 2;
+        final int length = 5;
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array, offset, length);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final MemoryData data = MemoryData.wrap(array);
+        wmd.writeBytes(data, offset, length);
+        // digest() resets the position, so check it first
+        assertEquals(length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
     }
 }

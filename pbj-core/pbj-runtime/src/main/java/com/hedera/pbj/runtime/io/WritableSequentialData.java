@@ -2,13 +2,13 @@
 package com.hedera.pbj.runtime.io;
 
 import com.hedera.pbj.runtime.Utf8Tools;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
@@ -129,39 +129,49 @@ public interface WritableSequentialData extends SequentialData {
     }
 
     /**
-     * Writes the entire content of the given {@link BufferedData}, all bytes between its current
-     * {@link #position()} and {@link #limit()}. The {@link #position()} of this sequence is then incremented by
-     * the number of written bytes.
+     * This method writes the entire content of the given random access object. The
+     * {@link #position()} is then incremented by the number of bytes written, usually
+     * {@code src.length()}.
      *
-     * @param src The source {@link BufferedData} to write
+     * @param src The source random access object to write
      * @throws BufferOverflowException If there is insufficient space before {@link #limit()}
-     * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeBytes(@NonNull final BufferedData src) throws BufferOverflowException, UncheckedIOException {
-        if (remaining() < src.remaining()) {
+    default void writeBytes(@NonNull final RandomAccessData src) throws BufferOverflowException {
+        final long len = src.length();
+        if (remaining() < len) {
             throw new BufferOverflowException();
         }
-
-        while (src.hasRemaining()) {
-            writeByte(src.readByte());
+        for (long i = 0; i < len; i++) {
+            writeByte(src.getByte(i));
         }
     }
 
     /**
-     * This method writes the entire content of the given {@link RandomAccessData}. The
-     * {@link #position()} is then incremented by {@code src.length()}.
+     * This method writes the given random access object. Bytes starting from the specified
+     * offset and up to offset + length are written. The {@link #position()} is then incremented
+     * by the number of bytes written, usually src length.
      *
-     * @param src The source {@link RandomAccessData} with bytes to be written to this sequence
+     * @param src The source random access object to write
+     * @param offset The offset of the first byte in the source object
+     * @param length The number of bytes to write
      * @throws BufferOverflowException If there is insufficient space before {@link #limit()}
-     * @throws UncheckedIOException if an I/O error occurs
      */
-    default void writeBytes(@NonNull final RandomAccessData src) throws BufferOverflowException, UncheckedIOException {
-        if (remaining() < src.length()) {
+    default void writeBytes(@NonNull final RandomAccessData src, final long offset, final long length)
+            throws BufferOverflowException {
+        if (offset < 0) {
+            throw new IndexOutOfBoundsException("Negative offset: " + offset);
+        }
+        if (length < 0) {
+            throw new IllegalArgumentException("Negative length: " + length);
+        }
+        if (remaining() < length) {
             throw new BufferOverflowException();
         }
-
-        for (int i = 0; i < src.length(); i++) {
-            writeByte(src.getByte(i));
+        if (offset > src.length() - length) {
+            throw new BufferUnderflowException();
+        }
+        for (long i = 0; i < length; i++) {
+            writeByte(src.getByte(offset + i));
         }
     }
 

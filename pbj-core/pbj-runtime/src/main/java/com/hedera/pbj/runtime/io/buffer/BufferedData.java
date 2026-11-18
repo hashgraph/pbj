@@ -413,6 +413,7 @@ public sealed class BufferedData
             throw new BufferOverflowException();
         }
         buffer.put(Math.toIntExact(offset), src, src.position(), len);
+        src.position(src.position() + len);
         return len;
     }
 
@@ -794,26 +795,25 @@ public sealed class BufferedData
      * {@inheritDoc}
      */
     @Override
-    public void writeBytes(@NonNull final BufferedData src) {
-        if ((limit() - position()) < src.remaining()) {
+    public void writeBytes(@NonNull final RandomAccessData src) {
+        if (remaining() < src.length()) {
             throw new BufferOverflowException();
         }
-        buffer.put(src.buffer);
+        final long position = position();
+        final long bytesWritten = src.writeTo(this, position);
+        assert bytesWritten == src.length();
+        position(position + bytesWritten);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void writeBytes(@NonNull final RandomAccessData src) {
-        if (src instanceof Bytes buf) {
-            if ((limit() - position()) < src.length()) {
-                throw new BufferOverflowException();
-            }
-            buf.writeTo(buffer);
-        } else {
-            WritableSequentialData.super.writeBytes(src);
+    public void writeBytes(@NonNull final RandomAccessData src, final long offset, final long length) {
+        if (remaining() < length) {
+            throw new BufferOverflowException();
         }
+        final long position = position();
+        final long bytesWritten = src.writeTo(this, position, offset, length);
+        assert bytesWritten == length;
+        position(position + bytesWritten);
     }
 
     /**
@@ -925,49 +925,63 @@ public sealed class BufferedData
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void writeTo(@NonNull OutputStream outStream) {
+    public long writeTo(@NonNull OutputStream outStream) {
         try {
+            // Future work: both lines below are not very friendly to GC
             final WritableByteChannel channel = Channels.newChannel(outStream);
-            channel.write(buffer.duplicate().position(0).limit(buffer.limit()));
+            return channel.write(buffer.duplicate().position(0));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void writeTo(@NonNull OutputStream outStream, int offset, int length) {
+    public long writeTo(@NonNull OutputStream outStream, long offset, long length) {
         validateCanRead(offset, length);
         try {
+            // Future work: both lines below are not very friendly to GC
             final WritableByteChannel channel = Channels.newChannel(outStream);
-            channel.write(buffer.duplicate().position(offset).limit(offset + length));
+            return channel.write(
+                    buffer.duplicate().position(Math.toIntExact(offset)).limit(Math.toIntExact(offset + length)));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    /**
-     * Read all remaining bytes from this BufferedData object and write them into the given MessageDigest object.
-     * @param digest a MessageDigest object to write to
-     */
     @Override
-    public void writeTo(@NonNull final MessageDigest digest) {
+    public long writeTo(@NonNull final MessageDigest digest) {
         // The current implementation in JDK supports array-based ByteBuffers directly and efficiently,
         // and for direct buffers, it creates a temporary array and reads bytes in chunks, which seems
         // more reasonable than allocating a single large byte array to consume all the data at once.
-        // So we probably don't need faster versions of this method because this one should be the fastest.
-        digest.update(buffer);
+        // So we probably don't need faster versions of this method because this one should be the fastest
+        digest.update(buffer.duplicate().position(0));
+        return length();
+    }
+
+    @Override
+    public long writeTo(@NonNull final MessageDigest digest, final long offset, final long length) {
+        validateCanRead(offset, length);
+        // The current implementation in JDK supports array-based ByteBuffers directly and efficiently,
+        // and for direct buffers, it creates a temporary array and reads bytes in chunks, which seems
+        // more reasonable than allocating a single large byte array to consume all the data at once.
+        // So we probably don't need faster versions of this method because this one should be the fastest
+        digest.update(buffer.duplicate().position(Math.toIntExact(offset)).limit(Math.toIntExact(offset + length)));
+        return length;
     }
 
     @Override
     public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
-        return dst.putBytes(dstOffset, buffer);
+        return dst.putBytes(dstOffset, buffer.duplicate().position(0));
+    }
+
+    @Override
+    public long writeTo(
+            @NonNull final RandomAccessData dst, final long dstOffset, final long offset, final long length) {
+        validateCanRead(offset, length);
+        return dst.putBytes(
+                dstOffset,
+                buffer.duplicate().position(Math.toIntExact(offset)).limit(Math.toIntExact(offset + length)));
     }
 
     // Helper methods

@@ -410,34 +410,30 @@ public final class MemoryData
     }
 
     @Override
-    public void writeBytes(@NonNull final BufferedData src) throws BufferOverflowException, UncheckedIOException {
-        final long srcRemaining = src.remaining();
-        if (remaining() < srcRemaining) {
+    public void writeBytes(@NonNull final RandomAccessData src) throws BufferOverflowException {
+        if (remaining() < src.length()) {
             throw new BufferOverflowException();
         }
-
-        MemorySegment.copy(MemorySegment.ofBuffer(src.buffer), 0, segment, position, srcRemaining);
-        position += srcRemaining;
-        src.position(src.position() + srcRemaining);
+        final long position = position();
+        // Future work: if src is a MemoryData object, its segment can be copied without
+        // converting it to a byte buffer
+        final long bytesWritten = src.writeTo(this, position);
+        assert bytesWritten == src.length();
+        position(position + bytesWritten);
     }
 
     @Override
-    public void writeBytes(@NonNull final RandomAccessData src) throws BufferOverflowException, UncheckedIOException {
-        if (src instanceof Bytes buf) {
-            if ((limit() - position()) < src.length()) {
-                throw new BufferOverflowException();
-            }
-            buf.writeTo(segment, position);
-            position += buf.length();
-        } else if (src instanceof MemoryData md) {
-            if ((limit() - position()) < md.length()) {
-                throw new BufferOverflowException();
-            }
-            MemorySegment.copy(md.segment, 0, segment, position, md.length());
-            position += md.length();
-        } else {
-            WritableSequentialData.super.writeBytes(src);
+    public void writeBytes(@NonNull final RandomAccessData src, final long offset, final long length)
+            throws BufferOverflowException {
+        if (remaining() < length) {
+            throw new BufferOverflowException();
         }
+        // Future work: if src is a MemoryData object, its segment can be copied without
+        // converting it to a byte buffer
+        final long position = position();
+        final long bytesWritten = src.writeTo(this, position, offset, length);
+        assert bytesWritten == length;
+        position(position + bytesWritten);
     }
 
     @Override
@@ -631,7 +627,10 @@ public final class MemoryData
         if (offset + len > limit) {
             throw new BufferOverflowException();
         }
-        MemorySegment.copy(MemorySegment.ofBuffer(src), src.position(), segment, offset, len);
+        // MemorySegment.ofBuffer() respects src's position and limit, so zero srcOffset
+        // is actually the same as src.position()
+        MemorySegment.copy(MemorySegment.ofBuffer(src), 0, segment, offset, len);
+        src.position(src.position() + len);
         return len;
     }
 
@@ -656,39 +655,52 @@ public final class MemoryData
     }
 
     @Override
-    public void writeTo(@NonNull OutputStream outStream) {
+    public long writeTo(@NonNull OutputStream outStream) {
         try {
             final WritableByteChannel channel = Channels.newChannel(outStream);
-            channel.write(segment.asByteBuffer().limit(Math.toIntExact(limit)));
+            return channel.write(segment.asByteBuffer().limit(Math.toIntExact(limit)));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
     @Override
-    public void writeTo(@NonNull OutputStream outStream, int offset, int length) {
-        if (offset > limit - length) {
-            throw new BufferUnderflowException();
-        }
-        if (offset < 0 || length < 0) {
-            throw new IllegalArgumentException("offset/length cannot be negative, got " + offset + "/" + length);
-        }
+    public long writeTo(@NonNull OutputStream outStream, long offset, long length) {
+        validateCanRead(offset, length);
         try {
             final WritableByteChannel channel = Channels.newChannel(outStream);
-            channel.write(segment.asByteBuffer().position(offset).limit(Math.toIntExact(offset + length)));
+            return channel.write(
+                    segment.asByteBuffer().position(Math.toIntExact(offset)).limit(Math.toIntExact(offset + length)));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
     @Override
-    public void writeTo(@NonNull MessageDigest digest) {
+    public long writeTo(@NonNull MessageDigest digest) {
         digest.update(segment.asByteBuffer().limit(Math.toIntExact(limit)));
+        return length();
+    }
+
+    @Override
+    public long writeTo(@NonNull MessageDigest digest, final long offset, final long length) {
+        validateCanRead(offset, length);
+        digest.update(segment.asByteBuffer().position(Math.toIntExact(offset)).limit(Math.toIntExact(offset + length)));
+        return length;
     }
 
     @Override
     public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
         return dst.putBytes(dstOffset, segment.asByteBuffer().limit(Math.toIntExact(limit)));
+    }
+
+    @Override
+    public long writeTo(
+            @NonNull final RandomAccessData dst, final long dstOffset, final long offset, final long length) {
+        validateCanRead(offset, length);
+        return dst.putBytes(
+                dstOffset,
+                segment.asByteBuffer().position(Math.toIntExact(offset)).limit(Math.toIntExact(offset + length)));
     }
 
     @Override
@@ -824,6 +836,19 @@ public final class MemoryData
 
     // --------------------------------------------------------------
     // Utilities
+
+    private void validateCanRead(final long offset, final long len) {
+        if (offset < 0) {
+            throw new IndexOutOfBoundsException("Negative offset: " + offset);
+        }
+        if (len < 0) {
+            throw new IllegalArgumentException("Negative length: " + len);
+        }
+        if (offset > length() - len) {
+            // FUTURE: change to AIOOBE, too
+            throw new BufferUnderflowException();
+        }
+    }
 
     private ValueLayout.OfInt determineIntLayout(final ByteOrder byteOrder, final long offset) {
         if (byteOrder == ByteOrder.BIG_ENDIAN) {

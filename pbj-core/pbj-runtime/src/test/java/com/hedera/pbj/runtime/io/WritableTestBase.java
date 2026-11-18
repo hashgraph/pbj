@@ -12,6 +12,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.MemoryData;
 import com.hedera.pbj.runtime.io.buffer.RandomAccessData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -143,7 +144,13 @@ public abstract class WritableTestBase extends SequentialTestBase {
             //noinspection DataFlowIssue
             assertThatThrownBy(() -> seq.writeBytes((byte[]) null)).isInstanceOf(NullPointerException.class);
             //noinspection DataFlowIssue
-            assertThatThrownBy(() -> seq.writeBytes(null, 0, 10)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> seq.writeBytes((byte[]) null, 0, 10)).isInstanceOf(NullPointerException.class);
+
+            //noinspection DataFlowIssue
+            assertThatThrownBy(() -> seq.writeBytes((RandomAccessData) null)).isInstanceOf(NullPointerException.class);
+            //noinspection DataFlowIssue
+            assertThatThrownBy(() -> seq.writeBytes((RandomAccessData) null, 0, 10))
+                    .isInstanceOf(NullPointerException.class);
 
             // When we try to write bytes using a null ByteBuffer, then we get a NullPointerException
             //noinspection DataFlowIssue
@@ -219,6 +226,10 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // When we try to write a BufferedData, then we get a BufferOverflowException
             final var bufferedData = BufferedData.allocate(10);
             assertThatThrownBy(() -> seq.writeBytes(bufferedData)).isInstanceOf(BufferOverflowException.class);
+
+            // When we try to write a MemoryData, then we get a BufferOverflowException
+            final var memoryData = MemoryData.allocate(10);
+            assertThatThrownBy(() -> seq.writeBytes(memoryData)).isInstanceOf(BufferOverflowException.class);
 
             // When we try to write Bytes, then we get a BufferOverflowException
             final var bytes = Bytes.wrap("abc");
@@ -418,37 +429,38 @@ public abstract class WritableTestBase extends SequentialTestBase {
         @Test
         @DisplayName("Writing bytes from a src BufferedData where the src is smaller than the sequence limit")
         void writeSmallerSrcBufferedData() {
-            // Given a sequence with a src BufferedData who's size is less than the limit
+            // Given a sequence with a BufferedData who's size is less than the limit
             final var seq = sequence();
             seq.limit(10);
-            // When we try writing bytes from the src
-            final var src = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5});
+            // When we try writing bytes from the data
+            final var data = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5});
             final var pos = seq.position();
-            seq.writeBytes(src);
+            seq.writeBytes(data);
             // Then the sequence received those bytes and the position is updated
             final var writtenBytes =
                     new byte[1024]; // make large enough to hold extra bytes should they have been written
-            assertThat(src.getBytes(0, writtenBytes)).isEqualTo(5);
+            assertThat(data.getBytes(0, writtenBytes)).isEqualTo(5);
             assertThat(extractWrittenBytes(seq)).isEqualTo(Arrays.copyOfRange(writtenBytes, 0, 5));
             assertThat(seq.position()).isEqualTo(pos + 5);
-            assertThat(src.position()).isEqualTo(5);
+            assertThat(data.position()).isEqualTo(0); // unchanged
         }
 
         @Test
         @DisplayName(
                 "Writing bytes from a src BufferedData with offset where the src is smaller than the sequence limit")
         void writeSmallerSrcBufferedDataWithOffset() {
-            // Given a sequence with a src ByteBuffer who's size is less than the limit
+            // Given a sequence with a ByteBuffer who's size is less than the limit
             final var seq = sequence();
             seq.limit(10);
-            final var src = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5});
-            src.position(2);
-            // When we try writing bytes from the src
+            final var data = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5});
+            data.position(2); // this should be ignored
+            // When we try writing bytes from the data
             final var pos = seq.position();
-            seq.writeBytes(src);
+            seq.writeBytes(data);
             // Then the sequence received those bytes and the position is updated
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {3, 4, 5});
-            assertThat(seq.position()).isEqualTo(pos + 3);
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {1, 2, 3, 4, 5});
+            assertThat(seq.position()).isEqualTo(pos + 5);
+            assertThat(data.position()).isEqualTo(2); // unchanged
         }
 
         @Test
@@ -569,14 +581,15 @@ public abstract class WritableTestBase extends SequentialTestBase {
                 "Writing bytes from a src BufferedData with offset where the src is the same length as the sequence limit")
         void writeSrcBufferedDataWithOffset() {
             final var seq = sequence();
-            seq.limit(5);
-            final var src = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
-            src.position(2);
-            src.limit(7);
+            seq.limit(7);
+            final var data = BufferedData.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10});
+            data.position(2); // ignored
+            data.limit(7);
             final var pos = seq.position();
-            seq.writeBytes(src);
-            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {3, 4, 5, 6, 7});
-            assertThat(seq.position()).isEqualTo(pos + 5);
+            seq.writeBytes(data);
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {1, 2, 3, 4, 5, 6, 7});
+            assertThat(seq.position()).isEqualTo(pos + 7);
+            assertThat(data.position()).isEqualTo(2); // unchanged
         }
 
         @Test
@@ -653,6 +666,18 @@ public abstract class WritableTestBase extends SequentialTestBase {
             // Then nothing was received and the position is unchanged
             assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[0]);
             assertThat(seq.position()).isEqualTo(pos);
+        }
+
+        @Test
+        void writeMemoryData() {
+            final var seq = sequence();
+            final var data = MemoryData.wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+            data.position(2); // this should be ignored
+            data.limit(6);
+            seq.writeBytes(data);
+            assertThat(seq.position()).isEqualTo(6);
+            assertThat(data.position()).isEqualTo(2); // unchanged
+            assertThat(extractWrittenBytes(seq)).isEqualTo(new byte[] {0, 1, 2, 3, 4, 5});
         }
 
         @Test
