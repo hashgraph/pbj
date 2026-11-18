@@ -242,7 +242,7 @@ public class WritableStreamingData implements WritableSequentialData, Closeable,
         if (remaining() < length) {
             throw new BufferOverflowException();
         }
-        position += src.writeTo(out, Math.toIntExact(offset), Math.toIntExact(length));
+        position += src.writeTo(out, offset, length);
     }
 
     // ================================================================================================================

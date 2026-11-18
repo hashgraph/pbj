@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
@@ -148,7 +149,7 @@ public interface WritableSequentialData extends SequentialData {
     /**
      * This method writes the given random access object. Bytes starting from the specified
      * offset and up to offset + length are written. The {@link #position()} is then incremented
-     * by the number of bytes written, usually {@code src.length()}.
+     * by the number of bytes written, usually src length.
      *
      * @param src The source random access object to write
      * @param offset The offset of the first byte in the source object
@@ -157,8 +158,17 @@ public interface WritableSequentialData extends SequentialData {
      */
     default void writeBytes(@NonNull final RandomAccessData src, final long offset, final long length)
             throws BufferOverflowException {
+        if (offset < 0) {
+            throw new IndexOutOfBoundsException("Negative offset: " + offset);
+        }
+        if (length < 0) {
+            throw new IllegalArgumentException("Negative length: " + length);
+        }
         if (remaining() < length) {
             throw new BufferOverflowException();
+        }
+        if (offset > src.length() - length) {
+            throw new BufferUnderflowException();
         }
         for (long i = 0; i < length; i++) {
             writeByte(src.getByte(offset + i));

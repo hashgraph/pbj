@@ -1005,8 +1005,7 @@ public sealed class BufferedData
             setPositionAndLimit(currentLimit, offset, offset + length);
             return dst.putBytes(dstOffset, buffer);
         } finally {
-            buffer.position(currentPosition);
-            buffer.limit(currentLimit);
+            setPositionAndLimit(offset + length, currentPosition, currentLimit);
         }
     }
 

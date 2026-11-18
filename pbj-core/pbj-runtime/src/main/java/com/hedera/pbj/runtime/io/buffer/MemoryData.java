@@ -69,7 +69,7 @@ public final class MemoryData
     // INTERNAL STATE
 
     /// The backing MemorySegment
-    final MemorySegment segment;
+    private final MemorySegment segment;
 
     /// The current read/write position.
     private long position = 0;
@@ -415,6 +415,8 @@ public final class MemoryData
             throw new BufferOverflowException();
         }
         final long position = position();
+        // Future work: if src is a MemoryData object, its segment can be copied without
+        // converting it to a byte buffer
         final long bytesWritten = src.writeTo(this, position);
         assert bytesWritten == src.length();
         position(position + bytesWritten);
@@ -426,6 +428,8 @@ public final class MemoryData
         if (remaining() < length) {
             throw new BufferOverflowException();
         }
+        // Future work: if src is a MemoryData object, its segment can be copied without
+        // converting it to a byte buffer
         final long position = position();
         final long bytesWritten = src.writeTo(this, position, offset, length);
         assert bytesWritten == length;

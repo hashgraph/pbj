@@ -50,7 +50,7 @@ public class RandomAccessArray implements RandomAccessData {
 
     @Override
     public long writeTo(@NonNull MessageDigest digest, final long offset, final long length) {
-        digest.update(array, Math.toIntExact(offset), Math.toIntExact(offset + length));
+        digest.update(array, Math.toIntExact(offset), Math.toIntExact(length));
         return length;
     }
 

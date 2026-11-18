@@ -164,14 +164,29 @@ public interface RandomAccessData {
     /// Writes the entire contents of the given random access data to the current
     /// object at a specified offset.
     ///
-    /// @return The number of bytes written.
+    /// @param offset The offset in the current object to write at
+    /// @param src The random access object to write
+    /// @return The number of bytes written
     /// @throws BufferOverflowException if the number of available bytes in the input
-    /// is greater than the remaining bytes after the offset in this object
+    ///         is greater than the remaining bytes after the offset in this object
     ///
     default long putBytes(final long offset, @NonNull final RandomAccessData src) {
         return src.writeTo(this, offset);
     }
 
+    ///
+    /// Writes the given random access data to the current object at a specified offset.
+    /// Bytes from srcOffset (incl) to srcOffset + length (excl) in the given random
+    /// access object are written.
+    ///
+    /// @param offset The offset in the current object to write at
+    /// @param src The random access object to write
+    /// @param srcOffset The offset of the first byte in the random access object to write
+    /// @param length The number of bytes to write
+    /// @return The number of bytes written
+    /// @throws BufferOverflowException if the number of available bytes in the input
+    ///         is greater than the remaining bytes after the offset in this object
+    ///
     default long putBytes(
             final long offset, @NonNull final RandomAccessData src, final long srcOffset, final long length) {
         return src.writeTo(this, offset, srcOffset, length);
@@ -834,7 +849,7 @@ public interface RandomAccessData {
     long writeTo(@NonNull final OutputStream outStream, final long offset, final long length);
 
     ///
-    /// Writes the entire current object into a given message digest object at a specified offset.
+    /// Writes the entire current object into a given message digest object.
     ///
     /// @param digest a MessageDigest to write data to
     /// @return the number of bytes written
@@ -844,8 +859,8 @@ public interface RandomAccessData {
     }
 
     ///
-    /// Writes the current object into a given message digest object at a specified offset.
-    /// Bytes from offset (incl) to offset + length (excl) are written.
+    /// Writes the current object into a given message digest object. Bytes from
+    /// offset (incl) to offset + length (excl) are written.
     ///
     /// @param digest a message digest to write data to
     /// @param offset an offset of the first byte to write
@@ -854,10 +869,10 @@ public interface RandomAccessData {
     ///
     default long writeTo(@NonNull final MessageDigest digest, final long offset, final long length) {
         checkOffset(offset);
-        if (length >= length() - offset) {
+        if (length > length() - offset) {
             throw new BufferUnderflowException();
         }
-        for (int i = 0; i < length; i++) {
+        for (long i = 0; i < length; i++) {
             digest.update(getByte(offset + i));
         }
         return length;
@@ -893,10 +908,10 @@ public interface RandomAccessData {
     default long writeTo(
             @NonNull final RandomAccessData dst, final long dstOffset, final long offset, final long length) {
         checkOffset(offset);
-        if (length >= length() - offset) {
+        if (length > length() - offset) {
             throw new BufferUnderflowException();
         }
-        for (int i = 0; i < length; i++) {
+        for (long i = 0; i < length; i++) {
             dst.putByte(dstOffset + i, getByte(offset + i));
         }
         return length;

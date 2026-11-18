@@ -361,8 +361,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      */
     @Override
     public long writeTo(@NonNull final OutputStream outStream, final long offset, final long length) {
+        validateOffsetLength(offset, length);
         try {
-            outStream.write(buffer, Math.toIntExact(start + offset), Math.toIntExact(length));
+            outStream.write(buffer, calculateOffset(offset), Math.toIntExact(length));
             return length;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -387,11 +388,12 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
      * @param dst The OutputStream to copy into.
-     * @param dstOffset The offset from the start of this {@link Bytes} object to get the bytes from.
+     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
      * @param length The number of bytes to extract.
      */
-    public long writeTo(@NonNull final WritableSequentialData dst, final int dstOffset, final int length) {
-        dst.writeBytes(buffer, Math.toIntExact(start + dstOffset), length);
+    public long writeTo(@NonNull final WritableSequentialData dst, final int offset, final int length) {
+        validateOffsetLength(offset, length);
+        dst.writeBytes(buffer, calculateOffset(offset), length);
         return length;
     }
 
@@ -435,6 +437,7 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     @Override
     public long writeTo(@NonNull final MessageDigest digest, final long offset, final long length) {
+        validateOffsetLength(offset, length);
         digest.update(buffer, calculateOffset(offset), Math.toIntExact(length));
         return length;
     }
