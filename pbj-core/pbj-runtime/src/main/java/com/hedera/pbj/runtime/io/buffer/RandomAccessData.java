@@ -869,6 +869,7 @@ public interface RandomAccessData {
     ///
     default long writeTo(@NonNull final MessageDigest digest, final long offset, final long length) {
         checkOffset(offset);
+        checkLength(length);
         if (length > length() - offset) {
             throw new BufferUnderflowException();
         }
@@ -908,8 +909,12 @@ public interface RandomAccessData {
     default long writeTo(
             @NonNull final RandomAccessData dst, final long dstOffset, final long offset, final long length) {
         checkOffset(offset);
+        checkLength(length);
         if (length > length() - offset) {
             throw new BufferUnderflowException();
+        }
+        if (length > dst.length() - dstOffset) {
+            throw new BufferOverflowException();
         }
         for (long i = 0; i < length; i++) {
             dst.putByte(dstOffset + i, getByte(offset + i));
@@ -930,6 +935,15 @@ public interface RandomAccessData {
     default void checkOffset(final long offset) {
         if (offset < 0) {
             throw new IndexOutOfBoundsException("offset " + offset + " is negative");
+        }
+    }
+
+    /**
+     * Throws {@code IllegalArgumentException} if the given {@code length} is negative.
+     */
+    default void checkLength(final long length) {
+        if (length < 0) {
+            throw new IllegalArgumentException("length " + length + " is negative");
         }
     }
 

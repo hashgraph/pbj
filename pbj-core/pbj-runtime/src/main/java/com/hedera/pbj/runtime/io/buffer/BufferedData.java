@@ -951,62 +951,37 @@ public sealed class BufferedData
 
     @Override
     public long writeTo(@NonNull final MessageDigest digest) {
-        final int currentPosition = buffer.position();
-        try {
-            buffer.position(0);
-            // The current implementation in JDK supports array-based ByteBuffers directly and efficiently,
-            // and for direct buffers, it creates a temporary array and reads bytes in chunks, which seems
-            // more reasonable than allocating a single large byte array to consume all the data at once.
-            // So we probably don't need faster versions of this method because this one should be the fastest
-            digest.update(buffer);
-            return length();
-        } finally {
-            buffer.position(currentPosition);
-        }
+        // The current implementation in JDK supports array-based ByteBuffers directly and efficiently,
+        // and for direct buffers, it creates a temporary array and reads bytes in chunks, which seems
+        // more reasonable than allocating a single large byte array to consume all the data at once.
+        // So we probably don't need faster versions of this method because this one should be the fastest
+        digest.update(buffer.duplicate().position(0));
+        return length();
     }
 
     @Override
     public long writeTo(@NonNull final MessageDigest digest, final long offset, final long length) {
         validateCanRead(offset, length);
-        final int currentPosition = buffer.position();
-        final int currentLimit = buffer.limit();
-        try {
-            setPositionAndLimit(currentLimit, offset, offset + length);
-            // The current implementation in JDK supports array-based ByteBuffers directly and efficiently,
-            // and for direct buffers, it creates a temporary array and reads bytes in chunks, which seems
-            // more reasonable than allocating a single large byte array to consume all the data at once.
-            // So we probably don't need faster versions of this method because this one should be the fastest
-            digest.update(buffer);
-            return length;
-        } finally {
-            setPositionAndLimit(offset + length, currentPosition, currentLimit);
-        }
+        // The current implementation in JDK supports array-based ByteBuffers directly and efficiently,
+        // and for direct buffers, it creates a temporary array and reads bytes in chunks, which seems
+        // more reasonable than allocating a single large byte array to consume all the data at once.
+        // So we probably don't need faster versions of this method because this one should be the fastest
+        digest.update(buffer.duplicate().position(Math.toIntExact(offset)).limit(Math.toIntExact(offset + length)));
+        return length;
     }
 
     @Override
     public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
-        final int currentPosition = buffer.position();
-        try {
-            // buffer.limit() is not updated, since it defines the size of the current object
-            buffer.position(0);
-            return dst.putBytes(dstOffset, buffer);
-        } finally {
-            buffer.position(currentPosition);
-        }
+        return dst.putBytes(dstOffset, buffer.duplicate().position(0));
     }
 
     @Override
     public long writeTo(
             @NonNull final RandomAccessData dst, final long dstOffset, final long offset, final long length) {
         validateCanRead(offset, length);
-        final int currentPosition = buffer.position();
-        final int currentLimit = buffer.limit();
-        try {
-            setPositionAndLimit(currentLimit, offset, offset + length);
-            return dst.putBytes(dstOffset, buffer);
-        } finally {
-            setPositionAndLimit(offset + length, currentPosition, currentLimit);
-        }
+        return dst.putBytes(
+                dstOffset,
+                buffer.duplicate().position(Math.toIntExact(offset)).limit(Math.toIntExact(offset + length)));
     }
 
     // Helper methods
@@ -1030,16 +1005,6 @@ public sealed class BufferedData
     protected void validateCanWrite(final long len) {
         if (remaining() < len) {
             throw new BufferOverflowException();
-        }
-    }
-
-    private void setPositionAndLimit(final long currentLimit, final long position, final long limit) {
-        if (position <= currentLimit) {
-            buffer.position(Math.toIntExact(position));
-            buffer.limit(Math.toIntExact(limit));
-        } else {
-            buffer.limit(Math.toIntExact(limit));
-            buffer.position(Math.toIntExact(position));
         }
     }
 }

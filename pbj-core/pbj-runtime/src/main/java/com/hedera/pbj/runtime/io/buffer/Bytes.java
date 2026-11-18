@@ -375,10 +375,10 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
      * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
-     * @param wsd the OutputStream to copy into
+     * @param dst The writable sequential object to write to
      */
-    public long writeTo(@NonNull final WritableSequentialData wsd) {
-        wsd.writeBytes(buffer, start, length);
+    public long writeTo(@NonNull final WritableSequentialData dst) {
+        dst.writeBytes(buffer, start, length);
         return length;
     }
 
@@ -387,13 +387,13 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * of the data. The implementation relies on a well-behaved WritableSequentialData that doesn't modify the buffer data.
      * The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      *
-     * @param dst The OutputStream to copy into.
-     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from.
-     * @param length The number of bytes to extract.
+     * @param dst The writable sequential object to write to
+     * @param offset The offset from the start of this {@link Bytes} object to get the bytes from
+     * @param length The number of bytes to write
      */
-    public long writeTo(@NonNull final WritableSequentialData dst, final int offset, final int length) {
+    public long writeTo(@NonNull final WritableSequentialData dst, final long offset, final long length) {
         validateOffsetLength(offset, length);
-        dst.writeBytes(buffer, calculateOffset(offset), length);
+        dst.writeBytes(buffer, calculateOffset(offset), Math.toIntExact(length));
         return length;
     }
 
