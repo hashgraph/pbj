@@ -58,15 +58,15 @@ public abstract class RandomAccessWriteTestBase {
         final byte[] arr = new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
         final RandomAccessData out = randomAccessData(arr);
         final BufferedData data = BufferedData.wrap(new byte[] {0, 1, 2, 3, 4, 5});
-        data.position(4);
+        data.position(4); // this should be ignored
         out.putBytes(3, data);
-        assertArrayEquals(new byte[] {0, 0, 0, 4, 5, 0, 0, 0, 0, 0}, arr);
+        assertArrayEquals(new byte[] {0, 0, 0, 0, 1, 2, 3, 4, 5, 0}, arr);
         if (out instanceof BufferedSequentialData bsout) {
             // out.position is not changed
             assertEquals(0, bsout.position());
         }
-        assertEquals(6, data.position());
-        assertEquals(0, data.remaining());
+        assertEquals(4, data.position()); // unchanged
+        assertEquals(6, data.limit()); // unchanged
     }
 
     @Test
@@ -81,8 +81,8 @@ public abstract class RandomAccessWriteTestBase {
             // out.position is not changed
             assertEquals(0, bsout.position());
         }
-        assertEquals(3, data.position());
-        assertEquals(0, data.remaining());
+        assertEquals(0, data.position()); // unchanged
+        assertEquals(3, data.remaining()); // unchanged
     }
 
     @Test
@@ -101,13 +101,13 @@ public abstract class RandomAccessWriteTestBase {
         final MemoryData data = MemoryData.wrap(new byte[] {0, 1, 2, 3, 4, 5});
         data.position(2);
         out.putBytes(3, data);
-        assertArrayEquals(new byte[] {0, 0, 0, 2, 3, 4, 5, 0, 0, 0}, arr);
+        assertArrayEquals(new byte[] {0, 0, 0, 0, 1, 2, 3, 4, 5, 0}, arr);
         if (out instanceof BufferedSequentialData bsout) {
             // out.position is not changed
             assertEquals(0, bsout.position());
         }
-        assertEquals(6, data.position());
-        assertEquals(0, data.remaining());
+        assertEquals(2, data.position()); // unchanged
+        assertEquals(6, data.limit()); // unchanged
     }
 
     @Test
@@ -122,8 +122,8 @@ public abstract class RandomAccessWriteTestBase {
             // out.position is not changed
             assertEquals(0, bsout.position());
         }
-        assertEquals(2, data.position());
-        assertEquals(0, data.remaining());
+        assertEquals(0, data.position()); // unchanged
+        assertEquals(2, data.limit()); // unchanged
     }
 
     @Test
@@ -191,9 +191,9 @@ public abstract class RandomAccessWriteTestBase {
         void writeWithPosTest() {
             final byte[] arr = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
             final RandomAccessData out = randomAccessData(arr);
-            data.position(1);
-            assertEquals(2, data.writeTo(out, 5));
-            assertArrayEquals(new byte[] {0, 1, 2, 3, 4, 16, 17, 7, 8, 9}, arr);
+            data.position(1); // this should be ignored
+            assertEquals(3, data.writeTo(out, 5));
+            assertArrayEquals(new byte[] {0, 1, 2, 3, 4, 15, 16, 17, 8, 9}, arr);
         }
 
         @Test
@@ -214,8 +214,9 @@ public abstract class RandomAccessWriteTestBase {
         @Test
         void writeWithPosOverflowsTest() {
             final RandomAccessData out = randomAccessData(new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
-            data.position(1);
-            assertDoesNotThrow(() -> data.writeTo(out, 8));
+            data.position(1); // this should be ignored
+            assertThrows(BufferOverflowException.class, () -> data.writeTo(out, 8));
+            assertDoesNotThrow(() -> data.writeTo(out, 7));
         }
 
         @Test
@@ -231,12 +232,12 @@ public abstract class RandomAccessWriteTestBase {
             final BufferedData out = BufferedData.wrap(arr);
             out.position(2);
             final BufferedSequentialData data = bufferedSequentialData(new byte[] {0, 1, 2, 3, 4, 5});
-            data.position(1);
-            data.limit(3);
+            data.position(1); // this must be ignored, data must be written in full (0 to length)
+            data.limit(3); // this defines data length, must not be ignored
             out.writeBytes(data);
-            assertArrayEquals(new byte[] {0, 0, 1, 2, 0, 0, 0, 0, 0, 0}, arr);
-            assertEquals(4, out.position());
-            assertEquals(3, data.position());
+            assertArrayEquals(new byte[] {0, 0, 0, 1, 2, 0, 0, 0, 0, 0}, arr);
+            assertEquals(5, out.position());
+            assertEquals(1, data.position()); // unchanged
         }
 
         @Test
@@ -245,12 +246,12 @@ public abstract class RandomAccessWriteTestBase {
             final MemoryData out = MemoryData.wrap(arr);
             out.position(2);
             final BufferedSequentialData data = bufferedSequentialData(new byte[] {0, 1, 2, 3, 4, 5});
-            data.position(1);
-            data.limit(3);
+            data.position(1); // this must be ignored, data must be written in full (0 to length)
+            data.limit(3); // this defines data length, must not be ignored
             out.writeBytes(data);
-            assertArrayEquals(new byte[] {0, 0, 1, 2, 0, 0, 0, 0, 0, 0}, arr);
-            assertEquals(4, out.position());
-            assertEquals(3, data.position());
+            assertArrayEquals(new byte[] {0, 0, 0, 1, 2, 0, 0, 0, 0, 0}, arr);
+            assertEquals(5, out.position());
+            assertEquals(1, data.position()); // unchanged
         }
     }
 

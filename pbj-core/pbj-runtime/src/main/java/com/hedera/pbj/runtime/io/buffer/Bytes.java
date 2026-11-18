@@ -360,9 +360,9 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      * <p>The destination object may receive a direct reference to the underlying byte array, and it MUST NOT modify it.
      */
     @Override
-    public long writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
+    public long writeTo(@NonNull final OutputStream outStream, final long offset, final long length) {
         try {
-            outStream.write(buffer, Math.toIntExact(start + offset), length);
+            outStream.write(buffer, Math.toIntExact(start + offset), Math.toIntExact(length));
             return length;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -397,8 +397,14 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
 
     @Override
     public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
-        dst.putBytes(dstOffset, buffer, start, length);
-        return length;
+        return dst.putBytes(dstOffset, buffer, start, length);
+    }
+
+    @Override
+    public long writeTo(
+            @NonNull final RandomAccessData dst, final long dstOffset, final long offset, final long length) {
+        validateOffsetLength(offset, length);
+        return dst.putBytes(dstOffset, buffer, calculateOffset(offset), Math.toIntExact(length));
     }
 
     /**
@@ -424,6 +430,12 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
     @Override
     public long writeTo(@NonNull final MessageDigest digest) {
         digest.update(buffer, start, length);
+        return length;
+    }
+
+    @Override
+    public long writeTo(@NonNull final MessageDigest digest, final long offset, final long length) {
+        digest.update(buffer, calculateOffset(offset), Math.toIntExact(length));
         return length;
     }
 

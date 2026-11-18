@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.lang.foreign.MemorySegment;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -797,26 +796,24 @@ public sealed class BufferedData
      */
     @Override
     public void writeBytes(@NonNull final RandomAccessData src) {
-        if (src instanceof Bytes buf) {
-            if (remaining() < src.length()) {
-                throw new BufferOverflowException();
-            }
-            buf.writeTo(buffer);
-        } else if (src instanceof BufferedData bd) {
-            // No need to check remaining bytes in either buffer, put() will take care of it
-            buffer.put(bd.buffer);
-        } else if (src instanceof MemoryData md) {
-            final long srcRemaining = md.remaining();
-            if (remaining() < srcRemaining) {
-                throw new BufferOverflowException();
-            }
-            // MemorySegment.ofBuffer() takes buffer's current position into consideration, so dstOffset is 0
-            MemorySegment.copy(md.segment, md.position(), MemorySegment.ofBuffer(buffer), 0, srcRemaining);
-            position(position() + srcRemaining);
-            md.position(md.position() + srcRemaining);
-        } else {
-            WritableSequentialData.super.writeBytes(src);
+        if (remaining() < src.length()) {
+            throw new BufferOverflowException();
         }
+        final long position = position();
+        final long bytesWritten = src.writeTo(this, position);
+        assert bytesWritten == src.length();
+        position(position + bytesWritten);
+    }
+
+    @Override
+    public void writeBytes(@NonNull final RandomAccessData src, final long offset, final long length) {
+        if (remaining() < length) {
+            throw new BufferOverflowException();
+        }
+        final long position = position();
+        final long bytesWritten = src.writeTo(this, position, offset, length);
+        assert bytesWritten == length;
+        position(position + bytesWritten);
     }
 
     /**
@@ -931,19 +928,22 @@ public sealed class BufferedData
     @Override
     public long writeTo(@NonNull OutputStream outStream) {
         try {
+            // Future work: both lines below are not very friendly to GC
             final WritableByteChannel channel = Channels.newChannel(outStream);
-            return channel.write(buffer);
+            return channel.write(buffer.duplicate().position(0));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
     @Override
-    public long writeTo(@NonNull OutputStream outStream, int offset, int length) {
+    public long writeTo(@NonNull OutputStream outStream, long offset, long length) {
         validateCanRead(offset, length);
         try {
+            // Future work: both lines below are not very friendly to GC
             final WritableByteChannel channel = Channels.newChannel(outStream);
-            return channel.write(buffer.duplicate().position(offset).limit(offset + length));
+            return channel.write(
+                    buffer.duplicate().position(Math.toIntExact(offset)).limit(Math.toIntExact(offset + length)));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -951,19 +951,63 @@ public sealed class BufferedData
 
     @Override
     public long writeTo(@NonNull final MessageDigest digest) {
-        final long len = buffer.remaining();
-        // The current implementation in JDK supports array-based ByteBuffers directly and efficiently,
-        // and for direct buffers, it creates a temporary array and reads bytes in chunks, which seems
-        // more reasonable than allocating a single large byte array to consume all the data at once.
-        // So we probably don't need faster versions of this method because this one should be the fastest.
-        digest.update(buffer);
-        return len;
+        final int currentPosition = buffer.position();
+        try {
+            buffer.position(0);
+            // The current implementation in JDK supports array-based ByteBuffers directly and efficiently,
+            // and for direct buffers, it creates a temporary array and reads bytes in chunks, which seems
+            // more reasonable than allocating a single large byte array to consume all the data at once.
+            // So we probably don't need faster versions of this method because this one should be the fastest
+            digest.update(buffer);
+            return length();
+        } finally {
+            buffer.position(currentPosition);
+        }
+    }
+
+    @Override
+    public long writeTo(@NonNull final MessageDigest digest, final long offset, final long length) {
+        validateCanRead(offset, length);
+        final int currentPosition = buffer.position();
+        final int currentLimit = buffer.limit();
+        try {
+            setPositionAndLimit(currentLimit, offset, offset + length);
+            // The current implementation in JDK supports array-based ByteBuffers directly and efficiently,
+            // and for direct buffers, it creates a temporary array and reads bytes in chunks, which seems
+            // more reasonable than allocating a single large byte array to consume all the data at once.
+            // So we probably don't need faster versions of this method because this one should be the fastest
+            digest.update(buffer);
+            return length;
+        } finally {
+            setPositionAndLimit(offset + length, currentPosition, currentLimit);
+        }
     }
 
     @Override
     public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
-        // RandomAccessData.putBytes(long, ByteBuffer) respects buffer's position and limit
-        return dst.putBytes(dstOffset, buffer);
+        final int currentPosition = buffer.position();
+        try {
+            // buffer.limit() is not updated, since it defines the size of the current object
+            buffer.position(0);
+            return dst.putBytes(dstOffset, buffer);
+        } finally {
+            buffer.position(currentPosition);
+        }
+    }
+
+    @Override
+    public long writeTo(
+            @NonNull final RandomAccessData dst, final long dstOffset, final long offset, final long length) {
+        validateCanRead(offset, length);
+        final int currentPosition = buffer.position();
+        final int currentLimit = buffer.limit();
+        try {
+            setPositionAndLimit(currentLimit, offset, offset + length);
+            return dst.putBytes(dstOffset, buffer);
+        } finally {
+            buffer.position(currentPosition);
+            buffer.limit(currentLimit);
+        }
     }
 
     // Helper methods
@@ -987,6 +1031,16 @@ public sealed class BufferedData
     protected void validateCanWrite(final long len) {
         if (remaining() < len) {
             throw new BufferOverflowException();
+        }
+    }
+
+    private void setPositionAndLimit(final long currentLimit, final long position, final long limit) {
+        if (position <= currentLimit) {
+            buffer.position(Math.toIntExact(position));
+            buffer.limit(Math.toIntExact(limit));
+        } else {
+            buffer.limit(Math.toIntExact(limit));
+            buffer.position(Math.toIntExact(position));
         }
     }
 }

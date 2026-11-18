@@ -161,7 +161,8 @@ public interface RandomAccessData {
     }
 
     ///
-    /// Writes the given random access data to the current object at a specified offset.
+    /// Writes the entire contents of the given random access data to the current
+    /// object at a specified offset.
     ///
     /// @return The number of bytes written.
     /// @throws BufferOverflowException if the number of available bytes in the input
@@ -169,6 +170,11 @@ public interface RandomAccessData {
     ///
     default long putBytes(final long offset, @NonNull final RandomAccessData src) {
         return src.writeTo(this, offset);
+    }
+
+    default long putBytes(
+            final long offset, @NonNull final RandomAccessData src, final long srcOffset, final long length) {
+        return src.writeTo(this, offset, srcOffset, length);
     }
 
     /**
@@ -812,29 +818,53 @@ public interface RandomAccessData {
      * @param outStream the OutputStream to copy into
      * @return the number of bytes written
      */
-    long writeTo(@NonNull final OutputStream outStream);
+    default long writeTo(@NonNull final OutputStream outStream) {
+        return writeTo(outStream, 0, length());
+    }
 
     /**
      * A helper method for efficient copy of our data into an OutputStream without creating a defensive copy
      * of the data. The implementation relies on a well-behaved OutputStream that doesn't modify the buffer data.
      *
-     * @param outStream the OutputStream to copy into.
-     * @param offset the offset from the start of this object to get the bytes from
-     * @param length the number of bytes to write
+     * @param outStream an output stream to copy into
+     * @param offset an offset of the first byte to write
+     * @param length a number of bytes to write starting at the offset
      * @return the number of bytes written
      */
-    long writeTo(@NonNull final OutputStream outStream, final int offset, final int length);
+    long writeTo(@NonNull final OutputStream outStream, final long offset, final long length);
 
     ///
-    /// Writes the data into a given MessageDigest object.
+    /// Writes the entire current object into a given message digest object at a specified offset.
     ///
     /// @param digest a MessageDigest to write data to
     /// @return the number of bytes written
     ///
-    long writeTo(@NonNull final MessageDigest digest);
+    default long writeTo(@NonNull final MessageDigest digest) {
+        return writeTo(digest, 0, length());
+    }
 
     ///
-    /// Writes the data into a given random access object at a specified offset.
+    /// Writes the current object into a given message digest object at a specified offset.
+    /// Bytes from offset (incl) to offset + length (excl) are written.
+    ///
+    /// @param digest a message digest to write data to
+    /// @param offset an offset of the first byte to write
+    /// @param length a number of bytes to write starting at the offset
+    /// @return the number of bytes written
+    ///
+    default long writeTo(@NonNull final MessageDigest digest, final long offset, final long length) {
+        checkOffset(offset);
+        if (length >= length() - offset) {
+            throw new BufferUnderflowException();
+        }
+        for (int i = 0; i < length; i++) {
+            digest.update(getByte(offset + i));
+        }
+        return length;
+    }
+
+    ///
+    /// Writes the entire current object into a given random access object at a specified offset.
     ///
     /// @param dst a RandomAccessData object to write data to
     /// @param dstOffset an offset in the destination object to write data at
@@ -842,7 +872,35 @@ public interface RandomAccessData {
     /// @throws BufferOverflowException if there is no room in the target object to
     ///         write all bytes from this object at the specified offset
     ///
-    long writeTo(@NonNull final RandomAccessData dst, final long dstOffset);
+    default long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
+        return writeTo(dst, dstOffset, 0, length());
+    }
+
+    ///
+    /// Writes the current object into a given random access object at a specified offset. Bytes
+    /// from offset (incl) to offset + length (excl) are written.
+    ///
+    /// @param dst a random access object to write data to
+    /// @param dstOffset an offset in the destination object to write data at
+    /// @param offset an offset of the first byte to write
+    /// @param length a number of bytes to write starting at the offset
+    /// @return the number of bytes written
+    /// @throws BufferUnderflowException if there is no length bytes in this object starting at
+    ///         the specified offset
+    /// @throws BufferOverflowException if there is no room in the target object to
+    ///         write all bytes from this object at the specified offset
+    ///
+    default long writeTo(
+            @NonNull final RandomAccessData dst, final long dstOffset, final long offset, final long length) {
+        checkOffset(offset);
+        if (length >= length() - offset) {
+            throw new BufferUnderflowException();
+        }
+        for (int i = 0; i < length; i++) {
+            dst.putByte(dstOffset + i, getByte(offset + i));
+        }
+        return length;
+    }
 
     /**
      * Throws {@code IndexOutOfBoundsException} if the given {@code offset} is negative.

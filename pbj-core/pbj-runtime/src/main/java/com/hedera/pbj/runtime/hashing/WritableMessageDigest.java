@@ -94,14 +94,20 @@ public class WritableMessageDigest implements WritableSequentialData {
     }
 
     @Override
-    public void writeBytes(@NonNull ByteBuffer src) throws BufferOverflowException, UncheckedIOException {
+    public void writeBytes(@NonNull ByteBuffer src) throws BufferOverflowException {
         position += src.remaining();
         digest.update(src);
     }
 
     @Override
-    public void writeBytes(@NonNull RandomAccessData src) throws BufferOverflowException, UncheckedIOException {
+    public void writeBytes(@NonNull RandomAccessData src) throws BufferOverflowException {
         position += src.writeTo(digest);
+    }
+
+    @Override
+    public void writeBytes(@NonNull RandomAccessData src, final long offset, final long length)
+            throws BufferOverflowException {
+        position += src.writeTo(digest, offset, length);
     }
 
     /**

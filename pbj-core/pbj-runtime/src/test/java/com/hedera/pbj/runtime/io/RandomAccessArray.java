@@ -38,7 +38,7 @@ public class RandomAccessArray implements RandomAccessData {
     }
 
     @Override
-    public long writeTo(@NonNull final OutputStream outStream, final int offset, final int length) {
+    public long writeTo(@NonNull final OutputStream outStream, final long offset, final long length) {
         throw new UnsupportedOperationException();
     }
 
@@ -46,6 +46,12 @@ public class RandomAccessArray implements RandomAccessData {
     public long writeTo(@NonNull MessageDigest digest) {
         digest.update(array);
         return array.length;
+    }
+
+    @Override
+    public long writeTo(@NonNull MessageDigest digest, final long offset, final long length) {
+        digest.update(array, Math.toIntExact(offset), Math.toIntExact(offset + length));
+        return length;
     }
 
     @Override

@@ -50,19 +50,9 @@ public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
         }
 
         @Override
-        public long writeTo(@NonNull OutputStream outStream) {
+        public long writeTo(@NonNull OutputStream outStream, final long offset, final long length) {
             try {
-                outStream.write(bytes);
-                return bytes.length;
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
-        @Override
-        public long writeTo(@NonNull OutputStream outStream, int offset, int length) {
-            try {
-                outStream.write(bytes, offset, length);
+                outStream.write(bytes, Math.toIntExact(offset), Math.toIntExact(offset + length));
                 return length;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -70,14 +60,15 @@ public class StubbedRandomAccessDataTest extends RandomAccessTestBase {
         }
 
         @Override
-        public long writeTo(@NonNull MessageDigest digest) {
-            digest.update(bytes);
-            return bytes.length;
+        public long writeTo(@NonNull MessageDigest digest, final long offset, final long length) {
+            digest.update(bytes, Math.toIntExact(offset), Math.toIntExact(offset + length));
+            return length;
         }
 
         @Override
-        public long writeTo(@NonNull final RandomAccessData dst, final long dstOffset) {
-            return dst.putBytes(dstOffset, bytes);
+        public long writeTo(
+                @NonNull final RandomAccessData dst, final long dstOffset, final long offset, final long length) {
+            return dst.putBytes(dstOffset, bytes, Math.toIntExact(offset), Math.toIntExact(length));
         }
     }
 }

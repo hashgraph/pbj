@@ -183,6 +183,44 @@ public class WritableMessageDigestTest {
     @Test
     void testWriteBufferedData() {
         final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final BufferedData data = BufferedData.wrap(array);
+        wmd.writeBytes(data);
+        // digest() resets the position, so check it first
+        assertEquals(array.length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
+
+    @Test
+    void testWriteBufferedDataWithPos() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        final int offset = 2;
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final BufferedData data = BufferedData.wrap(array);
+        data.position(offset); // ignored
+        wmd.writeBytes(data);
+        // digest() resets the position, so check it first
+        assertEquals(array.length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
+
+    @Test
+    void testWriteBufferedDataWithPosAndLimit() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         final int offset = 2;
         final int length = 5;
 
@@ -192,9 +230,7 @@ public class WritableMessageDigestTest {
 
         final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
         final BufferedData data = BufferedData.wrap(array);
-        data.position(offset);
-        data.limit(offset + length);
-        wmd.writeBytes(data);
+        wmd.writeBytes(data, offset, length);
         // digest() resets the position, so check it first
         assertEquals(length, wmd.position());
         final byte[] digest = wmd.digest();
@@ -205,6 +241,44 @@ public class WritableMessageDigestTest {
     @Test
     void testWriteMemoryData() {
         final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final MemoryData data = MemoryData.wrap(array);
+        wmd.writeBytes(data);
+        // digest() resets the position, so check it first
+        assertEquals(array.length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
+
+    @Test
+    void testWriteMemoryDataWithPos() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        final int offset = 2;
+
+        final MessageDigest ctrlDigest = buildDigest();
+        ctrlDigest.update(array);
+        final byte[] expectedDigest = ctrlDigest.digest();
+
+        final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
+        final MemoryData data = MemoryData.wrap(array);
+        data.position(offset); // ignored
+        wmd.writeBytes(data);
+        // digest() resets the position, so check it first
+        assertEquals(array.length, wmd.position());
+        final byte[] digest = wmd.digest();
+
+        assertArrayEquals(expectedDigest, digest);
+    }
+
+    @Test
+    void testWriteMemoryDataWithPosAndLimit() {
+        final byte[] array = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         final int offset = 2;
         final int length = 5;
 
@@ -214,9 +288,7 @@ public class WritableMessageDigestTest {
 
         final WritableMessageDigest wmd = new WritableMessageDigest(buildDigest());
         final MemoryData data = MemoryData.wrap(array);
-        data.position(offset);
-        data.limit(offset + length);
-        wmd.writeBytes(data);
+        wmd.writeBytes(data, offset, length);
         // digest() resets the position, so check it first
         assertEquals(length, wmd.position());
         final byte[] digest = wmd.digest();
