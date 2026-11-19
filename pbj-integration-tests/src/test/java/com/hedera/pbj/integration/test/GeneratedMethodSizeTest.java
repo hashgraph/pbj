@@ -32,6 +32,7 @@ final class GeneratedMethodSizeTest {
         assertTrue(Files.isDirectory(GENERATED_SOURCES), GENERATED_SOURCES.toAbsolutePath() + " not found");
         final List<String> tooLarge = new ArrayList<>();
         int classes = 0;
+        int nestedClasses = 0;
         try (Stream<Path> sources = Files.walk(GENERATED_SOURCES)) {
             for (final Path source :
                     sources.filter(p -> p.toString().endsWith(".java")).toList()) {
@@ -47,12 +48,17 @@ final class GeneratedMethodSizeTest {
                             })
                             .toList()) {
                         classes++;
+                        if (!file.equals(classFile)) {
+                            nestedClasses++;
+                        }
                         tooLarge.addAll(methodsOverBudget(Files.readAllBytes(file)));
                     }
                 }
             }
         }
         assertTrue(classes > 1000, "only " + classes + " generated classes found");
+        // nested classes include inner messages, Builders, oneof enums and Views
+        assertTrue(nestedClasses > 500, "only " + nestedClasses + " nested generated classes found");
         assertTrue(tooLarge.isEmpty(), "Generated methods over " + BUDGET + " bytes:\n" + String.join("\n", tooLarge));
     }
 

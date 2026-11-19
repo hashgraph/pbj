@@ -90,10 +90,11 @@ final class InlineSetterTest {
             writer.addTokens(0, num, num);
         }
         writer.end();
-        final var model = com.hedera.hapi.node.token.TokenAssociateTransactionBody.newBuilder()
-                .account(AccountID.newBuilder().accountNum(1001).build())
-                .tokens(tokens)
-                .build();
+        final com.hedera.hapi.node.token.TokenAssociateTransactionBody model =
+                com.hedera.hapi.node.token.TokenAssociateTransactionBody.newBuilder()
+                        .account(AccountID.newBuilder().accountNum(1001).build())
+                        .tokens(tokens)
+                        .build();
         assertEquals(
                 com.hedera.hapi.node.token.TokenAssociateTransactionBody.PROTOBUF.toBytes(model), buffer.toBytes());
     }

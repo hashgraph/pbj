@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.PackedLongWriter;
 import com.hedera.pbj.runtime.io.buffer.ProtoWriteBuffer;
 import com.hedera.pbj.runtime.io.buffer.ProtoWriteBuffer.LengthReservation;
 import com.hedera.pbj.test.custom.proto.pbj.CustomWriterCycles;
@@ -585,7 +586,8 @@ final class WriterTest {
             child.end();
             root.end();
             assertWrites(WriterNode.PROTOBUF, expected, buffer.toBytes());
-            assertEquals(WriterNode.PROTOBUF.toBytes(expected.child()), buffer.bytes(child.offset(), child.length()));
+            assertEquals(
+                    WriterNode.PROTOBUF.toBytes(expected.child()), buffer.unsafeBytes(child.offset(), child.length()));
         }
     }
 
@@ -632,12 +634,13 @@ final class WriterTest {
             child.end();
             ranges.add(new int[] {child.offset(), child.length()});
             // hashing or sending an item can happen as soon as it ends
-            assertEquals(WriterNode.PROTOBUF.toBytes(item), buffer.bytes(child.offset(), child.length()));
+            assertEquals(WriterNode.PROTOBUF.toBytes(item), buffer.unsafeBytes(child.offset(), child.length()));
         }
         root.end();
         // and every range is still right once the message is complete
         for (int i = 0; i < items.size(); i++) {
-            assertEquals(WriterNode.PROTOBUF.toBytes(items.get(i)), buffer.bytes(ranges.get(i)[0], ranges.get(i)[1]));
+            assertEquals(
+                    WriterNode.PROTOBUF.toBytes(items.get(i)), buffer.unsafeBytes(ranges.get(i)[0], ranges.get(i)[1]));
         }
         assertWrites(
                 WriterNode.PROTOBUF, WriterNode.newBuilder().children(items).build(), buffer.toBytes());
@@ -842,7 +845,7 @@ final class WriterTest {
                 if (random.nextBoolean()) {
                     rw.int64Values(longs.stream().mapToLong(Long::longValue).toArray(), 0, longs.size());
                 } else {
-                    final var packed = rw.int64Values();
+                    final PackedLongWriter packed = rw.int64Values();
                     longs.forEach(packed::add);
                 }
                 for (final WriterLeaf leaf : root.repeated().leaves()) {

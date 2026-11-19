@@ -74,8 +74,7 @@ class CodecMeasureRecordMethodGenerator {
             final String oneOfType = modelClassName + "." + oneOfField.nameCamelFirstUpper() + "OneOfType";
             getValueCode = "data." + oneOfField.nameCamelFirstLower() + "().as()";
             prefix += "if (data." + oneOfField.nameCamelFirstLower() + "().kind() == " + oneOfType + "."
-                    + Common.camelToUpperSnake(field.name()) + ")";
-            prefix += "\n";
+                    + Common.camelToUpperSnake(field.name()) + ") ";
         }
 
         final String writeMethodName = field.methodNameType();

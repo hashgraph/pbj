@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
+import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.Utf8Tools;
@@ -41,6 +42,26 @@ public final class ArrayCursor {
      * {@link #bytes} then returns views of it instead of copies, since {@link Bytes} is immutable.
      */
     private @Nullable Bytes source;
+
+    /** The bits of a tag's first byte that hold its continuation bit and its wire type. */
+    private static final int ONE_BYTE_TAG_WIRE_TYPE_BITS = 0x80 | ProtoConstants.TAG_WIRE_TYPE_MASK;
+
+    /**
+     * {@link ProtoConstants#WIRE_TYPE_DELIMITED}'s value: a one-byte tag of a length-delimited field has these as its
+     * {@link #ONE_BYTE_TAG_WIRE_TYPE_BITS}.
+     */
+    private static final int WIRE_TYPE_DELIMITED = ProtoConstants.WIRE_TYPE_DELIMITED.ordinal();
+
+    /** The empty array that cursors created with nothing to read yet point at, shared so none allocates one. */
+    private static final byte[] EMPTY = new byte[0];
+
+    /**
+     * Create a cursor with nothing to read yet, to be pointed at bytes with {@code reset}. Generated views create their
+     * reusable cursors this way.
+     */
+    public ArrayCursor() {
+        this(EMPTY, 0, 0, null);
+    }
 
     /**
      * Create a cursor over {@code in[offset, limit)}.
@@ -212,11 +233,13 @@ public final class ArrayCursor {
     }
 
     /**
-     * The array this cursor reads. Views use it to decode fields at the offsets they recorded; it must not be modified.
+     * The array this cursor reads, without copying it. This is unsafe: when the cursor reads a {@link Bytes}, it is that
+     * supposedly immutable value's backing array, so it must never be modified, and it holds bytes outside this
+     * cursor's range too. Generated views use it to decode fields at the offsets they recorded.
      *
      * @return the array
      */
-    public byte[] array() {
+    public byte[] unsafeArray() {
         return in;
     }
 
@@ -268,7 +291,8 @@ public final class ArrayCursor {
         if (q < limit) {
             final int b = in[q];
             // a one-byte tag (no continuation bit) of wire type 2, for one of the fields
-            if ((b & 0x87) == 2 && ((fieldMask >>> (b >>> 3)) & 1) != 0) {
+            if ((b & ONE_BYTE_TAG_WIRE_TYPE_BITS) == WIRE_TYPE_DELIMITED
+                    && ((fieldMask >>> (b >>> ProtoParserTools.TAG_FIELD_OFFSET)) & 1) != 0) {
                 p = q + 1;
                 return b;
             }

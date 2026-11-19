@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.buffer.ProtoWriteBuffer;
 import com.hedera.pbj.runtime.io.buffer.ReverseBuffer;
@@ -54,7 +55,7 @@ final class SyntheticBlockTest {
         for (final BlockItem item : items) {
             String kind = item.item().kind().toString();
             if (item.hasTransactionResult()) {
-                final var r = item.transactionResultOrThrow();
+                final TransactionResult r = item.transactionResultOrThrow();
                 kind += r.tokenTransferLists().isEmpty()
                         ? (r.transferList() == null ? " plain" : " transfer list")
                         : " token transfers "
@@ -64,7 +65,7 @@ final class SyntheticBlockTest {
             k[0]++;
             k[1] += BlockItem.PROTOBUF.measureRecord(item) + 2;
             if (item.hasStateChanges()) {
-                for (final var change : item.stateChangesOrThrow().stateChanges()) {
+                for (final StateChange change : item.stateChangesOrThrow().stateChanges()) {
                     String op = "  change " + change.changeOperation().kind();
                     if (change.hasMapUpdate()) {
                         op += " "
