@@ -82,7 +82,8 @@ final class ViewInPlaceAccessorsTest {
     @Test
     void repeatedBytesElementsAreReadInPlace() throws ParseException {
         final TransactionBody.View view = new TransactionBody.View().wrap(TransactionBody.PROTOBUF.toBytes(BODY));
-        final var transactions = view.atomicBatch().transactions();
+        final AtomicBatchTransactionBody.View.TransactionsCursor transactions =
+                view.atomicBatch().transactions();
         assertEquals(true, transactions.next());
         assertEquals(3, transactions.valueLength());
         assertEquals(1, transactions.valueByteAt(0));

@@ -70,7 +70,7 @@ public class BlockItemWriterBench {
     private static final BlockItemValues VALUES;
 
     static {
-        try (var in = new BufferedInputStream(new GZIPInputStream(Objects.requireNonNull(
+        try (BufferedInputStream in = new BufferedInputStream(new GZIPInputStream(Objects.requireNonNull(
                 BlockItemWriterBench.class.getResourceAsStream("/000000000000000000000000000000030221.blk.gz"))))) {
             BLOCK = Block.PROTOBUF.parse(Block.PROTOBUF.toBytes(Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()))));
         } catch (IOException e) {

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
+import static com.hedera.pbj.compiler.impl.Common.WRAPPER_TYPES;
 import static java.util.Collections.emptyList;
 import static java.util.regex.Matcher.quoteReplacement;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.EnumDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.FieldContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageElementContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageTypeContext;
@@ -23,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -384,8 +387,10 @@ public final class LookupHelper {
         boolean changed = true;
         while (changed) {
             changed = false;
-            for (var it = candidates.entrySet().iterator(); it.hasNext(); ) {
-                final var candidate = it.next();
+            for (Iterator<Map.Entry<String, Map<String, String>>> it =
+                            candidates.entrySet().iterator();
+                    it.hasNext(); ) {
+                final Map.Entry<String, Map<String, String>> candidate = it.next();
                 for (Map.Entry<String, String> field : candidate.getValue().entrySet()) {
                     if (!candidates.containsKey(field.getValue())) {
                         viewDenials.put(
@@ -426,14 +431,15 @@ public final class LookupHelper {
             }
             final List<Map.Entry<String, Protobuf3Parser.Type_Context>> fields = new ArrayList<>();
             if (element.oneof() != null) {
-                for (var alternative : element.oneof().oneofField()) {
+                for (Protobuf3Parser.OneofFieldContext alternative :
+                        element.oneof().oneofField()) {
                     fields.add(Map.entry(alternative.fieldName().getText(), alternative.type_()));
                 }
             }
-            final var field = element.field();
+            final FieldContext field = element.field();
             if (field != null && field.fieldName() != null) {
                 // repeated wrapper types are not supported
-                final var type = field.type_().messageType();
+                final MessageTypeContext type = field.type_().messageType();
                 if (field.REPEATED() != null
                         && type != null
                         && WRAPPER_TYPES.contains(type.messageName().getText())) {
@@ -446,7 +452,7 @@ public final class LookupHelper {
                 fields.add(Map.entry(field.fieldName().getText(), field.type_()));
             }
             for (Map.Entry<String, Protobuf3Parser.Type_Context> f : fields) {
-                final var type = f.getValue().messageType();
+                final MessageTypeContext type = f.getValue().messageType();
                 if (type == null || WRAPPER_TYPES.contains(type.messageName().getText())) {
                     continue;
                 }
@@ -586,7 +592,8 @@ public final class LookupHelper {
                         element.mapField().type_()));
             }
             if (element.oneof() != null) {
-                for (var alternative : element.oneof().oneofField()) {
+                for (Protobuf3Parser.OneofFieldContext alternative :
+                        element.oneof().oneofField()) {
                     types.add(Map.entry(alternative.fieldName().getText(), alternative.type_()));
                 }
             }
@@ -647,7 +654,7 @@ public final class LookupHelper {
                         false));
             } else if (element.oneof() != null) {
                 InlineField alternative = null;
-                for (var field : element.oneof().oneofField()) {
+                for (Protobuf3Parser.OneofFieldContext field : element.oneof().oneofField()) {
                     final Field.FieldType type = inlineType(message, field.type_());
                     if (type != null) {
                         if (alternative != null) {
@@ -747,7 +754,8 @@ public final class LookupHelper {
                                 element.field().type_(),
                                 visiting);
             } else if (element.oneof() != null) {
-                for (var alternative : element.oneof().oneofField()) {
+                for (Protobuf3Parser.OneofFieldContext alternative :
+                        element.oneof().oneofField()) {
                     final long alternativeSize = maxFieldSize(
                             name, Integer.parseInt(alternative.fieldNumber().getText()), alternative.type_(), visiting);
                     size = alternativeSize < 0 || size < 0 ? -1 : Math.max(size, alternativeSize);
@@ -804,18 +812,6 @@ public final class LookupHelper {
         }
         return value < 0 ? -1 : tag + value;
     }
-
-    /** The {@code google.protobuf} wrapper types, which views read as boxed values. */
-    private static final Set<String> WRAPPER_TYPES = Set.of(
-            "StringValue",
-            "BoolValue",
-            "Int32Value",
-            "UInt32Value",
-            "Int64Value",
-            "UInt64Value",
-            "FloatValue",
-            "DoubleValue",
-            "BytesValue");
 
     /** Whether a message has {@code pbj.fast_parse}, from its comments, its file's, or the project. */
     private boolean fastParse(String name, MessageDefContext message) {

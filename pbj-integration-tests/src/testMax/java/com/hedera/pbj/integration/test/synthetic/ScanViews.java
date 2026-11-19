@@ -4,11 +4,15 @@ package com.hedera.pbj.integration.test.synthetic;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockFooter;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapChangeValue;
+import com.hedera.hapi.block.stream.output.MapDeleteChange;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
+import com.hedera.hapi.block.stream.output.QueuePushChange;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -17,11 +21,14 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.AccountTokenAssociation;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntry;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.TokenRelation;
@@ -46,7 +53,7 @@ public final class ScanViews {
     /** Sum every field of every item of an encoded block. */
     public long block(final Bytes encoded) throws ParseException {
         long sum = 0;
-        for (var items = block.wrap(encoded).items(); items.next(); ) {
+        for (Block.View.ItemsCursor items = block.wrap(encoded).items(); items.next(); ) {
             sum += item(items.value());
         }
         return sum;
@@ -132,7 +139,7 @@ public final class ScanViews {
     private long blockProof(final BlockProof.View p) throws ParseException {
         long sum = p.block() + p.proofKind().protoOrdinal();
         if (p.hasSignedBlockProof()) {
-            final var signed = p.signedBlockProof();
+            final TssSignedBlockProof.View signed = p.signedBlockProof();
             final int n = signed.blockSignatureLength();
             sum += n == 0 ? 0 : n + signed.blockSignatureByteAt(0) + signed.blockSignatureByteAt(n - 1);
         }
@@ -145,7 +152,7 @@ public final class ScanViews {
 
     private long tokenTransferList(final TokenTransferList.View t) throws ParseException {
         long sum = t.hasToken() ? tokenId(t.token()) : 0;
-        for (var transfers = t.transfers(); transfers.next(); ) {
+        for (TokenTransferList.View.TransfersCursor transfers = t.transfers(); transfers.next(); ) {
             sum += accountAmount(transfers.value());
         }
         return sum;
@@ -157,11 +164,13 @@ public final class ScanViews {
                 + (r.hasParentConsensusTimestamp() ? timestamp(r.parentConsensusTimestamp()) : 0)
                 + r.transactionFeeCharged();
         if (r.hasTransferList()) {
-            for (var amounts = r.transferList().accountAmounts(); amounts.next(); ) {
+            for (TransferList.View.AccountAmountsCursor amounts =
+                            r.transferList().accountAmounts();
+                    amounts.next(); ) {
                 sum += accountAmount(amounts.value());
             }
         }
-        for (var lists = r.tokenTransferLists(); lists.next(); ) {
+        for (TransactionResult.View.TokenTransferListsCursor lists = r.tokenTransferLists(); lists.next(); ) {
             sum += tokenTransferList(lists.value());
         }
         return sum;
@@ -234,18 +243,20 @@ public final class ScanViews {
                         + bool(update.identical());
             }
             case MAP_DELETE -> {
-                final var delete = c.mapDelete();
+                final MapDeleteChange.View delete = c.mapDelete();
                 sum += delete.hasKey() ? mapChangeKey(delete.key()) : 0;
             }
             case SINGLETON_UPDATE -> {
-                final var singleton = c.singletonUpdate();
+                final SingletonUpdateChange.View singleton = c.singletonUpdate();
                 // the wrapper's value is only available boxed, which allocates for values over 127
                 sum += singleton.newValueKind().protoOrdinal() + singleton.entityNumberValueOrElse(0);
             }
             case QUEUE_PUSH -> {
-                final var push = c.queuePush();
+                final QueuePushChange.View push = c.queuePush();
                 sum += push.valueKind().protoOrdinal();
-                for (var entries = push.transactionReceiptEntriesElement().entries(); entries.next(); ) {
+                for (TransactionReceiptEntries.View.EntriesCursor entries =
+                                push.transactionReceiptEntriesElement().entries();
+                        entries.next(); ) {
                     sum += receiptEntry(entries.value());
                 }
             }
@@ -257,7 +268,7 @@ public final class ScanViews {
 
     private long stateChanges(final StateChanges.View s) throws ParseException {
         long sum = s.hasConsensusTimestamp() ? timestamp(s.consensusTimestamp()) : 0;
-        for (var changes = s.stateChanges(); changes.next(); ) {
+        for (StateChanges.View.StateChangesCursor changes = s.stateChanges(); changes.next(); ) {
             sum += stateChange(changes.value());
         }
         return sum;
@@ -270,7 +281,7 @@ public final class ScanViews {
         final SignedTransaction.View s = signed.wrap(signedTransaction);
         long sum = bool(s.useSerializedTxMessageHashAlgorithm());
         if (s.hasSigMap()) {
-            for (var pairs = s.sigMap().sigPair(); pairs.next(); ) {
+            for (SignatureMap.View.SigPairCursor pairs = s.sigMap().sigPair(); pairs.next(); ) {
                 final SignaturePair.View pair = pairs.value();
                 final int prefix = pair.pubKeyPrefixLength();
                 sum += (prefix == 0 ? 0 : prefix + pair.pubKeyPrefixByteAt(0) + pair.pubKeyPrefixByteAt(prefix - 1))
@@ -303,17 +314,21 @@ public final class ScanViews {
             case CRYPTO_TRANSFER -> {
                 final CryptoTransferTransactionBody.View transfer = b.cryptoTransfer();
                 if (transfer.hasTransfers()) {
-                    for (var amounts = transfer.transfers().accountAmounts(); amounts.next(); ) {
+                    for (TransferList.View.AccountAmountsCursor amounts =
+                                    transfer.transfers().accountAmounts();
+                            amounts.next(); ) {
                         sum += accountAmount(amounts.value());
                     }
                 }
-                for (var lists = transfer.tokenTransfers(); lists.next(); ) {
+                for (CryptoTransferTransactionBody.View.TokenTransfersCursor lists = transfer.tokenTransfers();
+                        lists.next(); ) {
                     sum += tokenTransferList(lists.value());
                 }
             }
             case ATOMIC_BATCH -> {
                 final AtomicBatchTransactionBody.View batch = b.atomicBatch();
-                for (var transactions = batch.transactions(); transactions.next(); ) {
+                for (AtomicBatchTransactionBody.View.TransactionsCursor transactions = batch.transactions();
+                        transactions.next(); ) {
                     final int n = transactions.valueLength();
                     sum += n == 0 ? 0 : n + transactions.valueByteAt(0) + transactions.valueByteAt(n - 1);
                 }

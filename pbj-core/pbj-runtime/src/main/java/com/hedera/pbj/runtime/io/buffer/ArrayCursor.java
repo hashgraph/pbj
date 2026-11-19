@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
+import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.Utf8Tools;
@@ -41,6 +42,26 @@ public final class ArrayCursor {
      * {@link #bytes} then returns views of it instead of copies, since {@link Bytes} is immutable.
      */
     private @Nullable Bytes source;
+
+    /** The bits of a tag's first byte that hold its continuation bit and its wire type. */
+    private static final int ONE_BYTE_TAG_WIRE_TYPE_BITS = 0x80 | ProtoConstants.TAG_WIRE_TYPE_MASK;
+
+    /**
+     * {@link ProtoConstants#WIRE_TYPE_DELIMITED}'s value: a one-byte tag of a length-delimited field has these as its
+     * {@link #ONE_BYTE_TAG_WIRE_TYPE_BITS}.
+     */
+    private static final int WIRE_TYPE_DELIMITED = ProtoConstants.WIRE_TYPE_DELIMITED.ordinal();
+
+    /** The empty array that cursors created with nothing to read yet point at, shared so none allocates one. */
+    private static final byte[] EMPTY = new byte[0];
+
+    /**
+     * Create a cursor with nothing to read yet, to be pointed at bytes with {@code reset}. Generated views create their
+     * reusable cursors this way.
+     */
+    public ArrayCursor() {
+        this(EMPTY, 0, 0, null);
+    }
 
     /**
      * Create a cursor over {@code in[offset, limit)}.
@@ -212,11 +233,13 @@ public final class ArrayCursor {
     }
 
     /**
-     * The array this cursor reads. Views use it to decode fields at the offsets they recorded; it must not be modified.
+     * The array this cursor reads, without copying it. This is unsafe: when the cursor reads a {@link Bytes}, it is that
+     * supposedly immutable value's backing array, so it must never be modified, and it holds bytes outside this
+     * cursor's range too. Generated views use it to decode fields at the offsets they recorded.
      *
      * @return the array
      */
-    public byte[] array() {
+    public byte[] unsafeArray() {
         return in;
     }
 
@@ -256,49 +279,46 @@ public final class ArrayCursor {
         return false;
     }
 
-    /** The most fields {@link #run} counts. */
+    /** The most fields {@link #peekRepeatedCount} counts. */
     static final int MAX_RUN = 4096;
-    /** The most bytes {@link #run} looks through. */
+    /** The most bytes {@link #peekRepeatedCount} looks through. */
     static final int MAX_RUN_BYTES = 64 * 1024;
 
     /**
      * Count the length-delimited fields with a one-byte tag that follow one another from here, as the elements of a
-     * repeated field do, without reading them: so a parser can size their list once. Stops at anything malformed, which
-     * reading the fields then reports. Only short runs are counted, which are still in cache when they are read: for a
-     * longer one, such as a block's items, counting first was slower than letting the list grow.
+     * repeated field do, without consuming them: generated array parsers call it to size a repeated field's list once.
+     * The lengths are read with {@link #varint()}, and the position is restored afterwards. Stops at anything
+     * malformed, which reading the fields then reports. Only short runs are counted, which are still in cache when they
+     * are read: for a longer one, such as a block's items, counting first was slower than letting the list grow.
      *
      * @param tag the fields' one-byte tag, wire type 2
      * @return the number of such fields before any other byte, or 0 if the next byte is not {@code tag} or the run is
      *     longer than {@value #MAX_RUN} fields or {@value #MAX_RUN_BYTES} bytes
      */
-    public int run(final byte tag) {
+    public int peekRepeatedCount(final byte tag) {
+        final int start = p;
         final int end = p + Math.min(limit - p, MAX_RUN_BYTES);
-        int q = p;
         int count = 0;
-        while (q < limit && in[q] == tag) {
-            if (count == MAX_RUN || q >= end) {
-                return 0;
-            }
-            q++;
-            // the length: a varint of at most five bytes
-            int length = 0;
-            int shift = 0;
-            byte b;
-            do {
-                if (q >= limit || shift > 28) {
+        try {
+            while (p < limit && in[p] == tag) {
+                if (count == MAX_RUN || p >= end) {
+                    return 0;
+                }
+                p++;
+                final long length = varint();
+                if (length < 0 || length > limit - p) {
                     return count;
                 }
-                b = in[q++];
-                length |= (b & 0x7F) << shift;
-                shift += 7;
-            } while (b < 0);
-            if (length < 0 || length > limit - q) {
-                return count;
+                p += (int) length;
+                count++;
             }
-            q += length;
-            count++;
+            return count;
+        } catch (final RuntimeException malformed) {
+            // a length that runs past the limit, or doesn't end: reading the fields reports it
+            return count;
+        } finally {
+            p = start;
         }
-        return count;
     }
 
     /**
@@ -313,7 +333,8 @@ public final class ArrayCursor {
         if (q < limit) {
             final int b = in[q];
             // a one-byte tag (no continuation bit) of wire type 2, for one of the fields
-            if ((b & 0x87) == 2 && ((fieldMask >>> (b >>> 3)) & 1) != 0) {
+            if ((b & ONE_BYTE_TAG_WIRE_TYPE_BITS) == WIRE_TYPE_DELIMITED
+                    && ((fieldMask >>> (b >>> ProtoParserTools.TAG_FIELD_OFFSET)) & 1) != 0) {
                 p = q + 1;
                 return b;
             }

@@ -13,8 +13,9 @@ import java.util.Arrays;
  * written since it began: there is no measuring pass. Fields and list elements are written in reverse order, so the
  * result reads front to back in field order, byte-identical to the forward writers.
  *
- * <p>Write with {@code Codec.writeReverse(item, buffer)}, then read the result with {@link #bytes()} (a view, valid until
- * the buffer is reset or written to again), {@link #toBytes()} or {@link #copyTo}. Call {@link #reset()} before reusing
+ * <p>Write with {@code Codec.writeReverse(item, buffer)}, then read the result with {@link #toBytes()} or
+ * {@link #copyTo}, which copy it, or {@link #unsafeBytes()}, which doesn't (a view, valid only until the buffer is reset
+ * or written to again). Call {@link #reset()} before reusing
  * the buffer. Once it has grown to fit the largest message, writing allocates nothing.
  *
  * <p>Not thread safe.
@@ -30,8 +31,25 @@ public final class ReverseBuffer {
      * @param initialCapacity the initial capacity in bytes; the buffer grows as needed
      */
     public ReverseBuffer(final int initialCapacity) {
-        buf = new byte[Math.max(16, initialCapacity)];
+        buf = new byte[capacityFor(Math.max(MIN_CAPACITY, initialCapacity))];
         pos = buf.length;
+    }
+
+    /** The smallest capacity, in bytes. */
+    private static final int MIN_CAPACITY = 16;
+
+    /** The largest capacity that is a power of two and an array length. */
+    private static final int MAX_POWER_OF_TWO_CAPACITY = 1 << 30;
+
+    /**
+     * The capacity for at least {@code needed} bytes: the next power of two, so a buffer that grows by doubling only
+     * ever has power-of-two sizes. Above {@value #MAX_POWER_OF_TWO_CAPACITY} it is exactly {@code needed}.
+     */
+    private static int capacityFor(final int needed) {
+        if (needed > MAX_POWER_OF_TWO_CAPACITY) {
+            return needed;
+        }
+        return Math.max(MIN_CAPACITY, Integer.highestOneBit(needed - 1) << 1);
     }
 
     /** Discard the output, ready to write another message. */
@@ -78,7 +96,8 @@ public final class ReverseBuffer {
 
     private void grow(final int n) {
         final int length = buf.length - pos;
-        final int capacity = Math.max(buf.length * 2, length + n + 16);
+        // double, or more if one write needs more, staying a power of two
+        final int capacity = capacityFor(Math.addExact(length, n));
         final byte[] bigger = new byte[capacity];
         System.arraycopy(buf, pos, bigger, capacity - length, length);
         buf = bigger;
@@ -248,8 +267,14 @@ public final class ReverseBuffer {
         return buf;
     }
 
-    /** @return a view of the output, valid until the buffer is reset or written to */
-    public @NonNull Bytes bytes() {
+    /**
+     * The output, without copying it. This is unsafe: unlike other {@link Bytes}, it is not immutable. It shares this
+     * buffer's array, so it changes when the buffer is reset and written to again, and a buffer that grows leaves it
+     * behind. Use it right away, or use {@link #toBytes()} for a copy.
+     *
+     * @return a view of the output, valid until the buffer is reset or written to
+     */
+    public @NonNull Bytes unsafeBytes() {
         return Bytes.wrap(buf, pos, buf.length - pos);
     }
 
