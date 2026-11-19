@@ -7,6 +7,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -19,6 +20,55 @@ public final class Common {
     public static final String FIELD_INDENT = " ".repeat(4);
 
     public static final int DEFAULT_INDENT = 4;
+
+    /**
+     * The {@code google.protobuf} wrapper message types, such as {@code StringValue}, which PBJ maps to nullable Java
+     * values instead of messages.
+     */
+    public static final Set<String> WRAPPER_TYPES = Set.of(
+            "StringValue",
+            "BoolValue",
+            "Int32Value",
+            "UInt32Value",
+            "Int64Value",
+            "UInt64Value",
+            "FloatValue",
+            "DoubleValue",
+            "BytesValue");
+
+    /** What generated {@code hashCode()} code writes where it mixes a value into the hash being computed. */
+    private static final String HASH_COMBINE = "$hashCombine(";
+
+    /**
+     * Expand every {@code $hashCombine(value)} in generated code into the statement that mixes {@code value} into the
+     * hash code being computed in {@code result}, or that only multiplies it, for a null element, when {@code value} is
+     * empty. Every generated {@code hashCode()} combines values this way, so the formula is in this one place.
+     *
+     * @param code generated code
+     * @return the code with every {@code $hashCombine(…)} expanded
+     */
+    public static String expandHashCombine(final String code) {
+        final StringBuilder sb = new StringBuilder();
+        int from = 0;
+        for (int start = code.indexOf(HASH_COMBINE); start >= 0; start = code.indexOf(HASH_COMBINE, from)) {
+            // the value is everything up to the matching closing parenthesis, which may contain parentheses itself
+            int end = start + HASH_COMBINE.length();
+            for (int depth = 0; depth > 0 || code.charAt(end) != ')'; end++) {
+                if (code.charAt(end) == '(') {
+                    depth++;
+                } else if (code.charAt(end) == ')') {
+                    depth--;
+                }
+            }
+            final String value = code.substring(start + HASH_COMBINE.length(), end);
+            sb.append(code, from, start).append("result = 31 * result");
+            if (!value.isEmpty()) {
+                sb.append(" + ").append(value);
+            }
+            from = end + 1;
+        }
+        return sb.append(code, from, code.length()).toString();
+    }
     /** Wire format code for var int */
     public static final int TYPE_VARINT = 0;
     /** Wire format code for fixed 64bit number */
@@ -229,8 +279,8 @@ public final class Common {
                 // the same as OneOf.hashCode(), for a oneof that is not unset
                 generatedCodeSoFar += """
                         if ($kind != $enum.UNSET || $value != null) {
-                           result = 31 * result + ((31 + Integer.hashCode($kind.protoOrdinal())) * 31
-                                   + ($value == null ? 0 : $value.hashCode()));
+                           $hashCombine(((31 + Integer.hashCode($kind.protoOrdinal())) * 31
+                                   + ($value == null ? 0 : $value.hashCode())));
                         }
                         """.replace("$kind", oneOf.kindName())
                         .replace("$value", oneOf.valueName())
@@ -248,7 +298,7 @@ public final class Common {
                         || f.type() == Field.FieldType.UINT32) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != $modelClassName.DEFAULT.$thatFieldName$suffix) {
-                                result = 31 * result + Integer.hashCode($prefixFieldName$fieldName);
+                                $hashCombine(Integer.hashCode($prefixFieldName$fieldName));
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -263,7 +313,7 @@ public final class Common {
                         || f.type() == Field.FieldType.UINT64) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != $modelClassName.DEFAULT.$thatFieldName$suffix) {
-                                result = 31 * result + Long.hashCode($prefixFieldName$fieldName);
+                                $hashCombine(Long.hashCode($prefixFieldName$fieldName));
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -274,7 +324,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.BOOL) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != $modelClassName.DEFAULT.$thatFieldName$suffix) {
-                               result = 31 * result + Boolean.hashCode($prefixFieldName$fieldName);
+                               $hashCombine(Boolean.hashCode($prefixFieldName$fieldName));
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -285,7 +335,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.FLOAT) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != $modelClassName.DEFAULT.$thatFieldName$suffix) {
-                               result = 31 * result + Float.hashCode($prefixFieldName$fieldName);
+                               $hashCombine(Float.hashCode($prefixFieldName$fieldName));
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -296,7 +346,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.DOUBLE) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != $modelClassName.DEFAULT.$thatFieldName$suffix) {
-                               result = 31 * result + Double.hashCode($prefixFieldName$fieldName);
+                               $hashCombine(Double.hashCode($prefixFieldName$fieldName));
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -307,7 +357,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.BYTES) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                               result = 31 * result + $prefixFieldName$fieldName.hashCode();
+                               $hashCombine($prefixFieldName$fieldName.hashCode());
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -318,7 +368,7 @@ public final class Common {
                 } else if (f.type() == Field.FieldType.ENUM) {
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                               result = 31 * result + Integer.hashCode(EnumWithProtoMetadata.protoOrdinal($prefixFieldName$fieldName));
+                               $hashCombine(Integer.hashCode(EnumWithProtoMetadata.protoOrdinal($prefixFieldName$fieldName)));
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -327,11 +377,11 @@ public final class Common {
                             .replace("$thatFieldName", f.nameCamelFirstLower())
                             .replace("$fieldName", fieldNamePrefix.isBlank() ? f.nameCamelFirstLower() : f.name());
                 } else if (f.type() == Field.FieldType.MAP) {
-                    generatedCodeSoFar = getMapHashCodeGeneration(generatedCodeSoFar, f, fieldNamePrefix);
+                    generatedCodeSoFar += getMapHashCodeGeneration(f, fieldNamePrefix);
                 } else if (f.type() == Field.FieldType.STRING || f.parent() == null) { // process sub message
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                               result = 31 * result + $prefixFieldName$fieldName.hashCode();
+                               $hashCombine($prefixFieldName$fieldName.hashCode());
                             }
                             """)
                             .replace("$modelClassName", modelClassName)
@@ -354,7 +404,7 @@ public final class Common {
      * @param generatedCodeSoFar The string that the codegen is generated into.
      * @param f The field for which to generate the hash code.
      *
-     * @return Updated codegen string.
+     * @return The code combining the map field into {@code result}.
      */
     @NonNull
     private static String getPrimitiveWrapperHashCodeGeneration(
@@ -363,7 +413,7 @@ public final class Common {
             case "StringValue" ->
                 generatedCodeSoFar += ("""
                     if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                        result = 31 * result + $prefixFieldName$fieldName.hashCode();
+                        $hashCombine($prefixFieldName$fieldName.hashCode());
                     }
                     """)
                         .replace("$modelClassName", modelClassName)
@@ -374,7 +424,7 @@ public final class Common {
             case "BoolValue" ->
                 generatedCodeSoFar += ("""
                     if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                        result = 31 * result + Boolean.hashCode($prefixFieldName$fieldName);
+                        $hashCombine(Boolean.hashCode($prefixFieldName$fieldName));
                     }
                     """)
                         .replace("$modelClassName", modelClassName)
@@ -385,7 +435,7 @@ public final class Common {
             case "Int32Value", "UInt32Value" ->
                 generatedCodeSoFar += ("""
                     if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                        result = 31 * result + Integer.hashCode($prefixFieldName$fieldName);
+                        $hashCombine(Integer.hashCode($prefixFieldName$fieldName));
                     }
                     """)
                         .replace("$modelClassName", modelClassName)
@@ -396,7 +446,7 @@ public final class Common {
             case "Int64Value", "UInt64Value" ->
                 generatedCodeSoFar += ("""
                     if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                        result = 31 * result + Long.hashCode($prefixFieldName$fieldName);
+                        $hashCombine(Long.hashCode($prefixFieldName$fieldName));
                     }
                     """)
                         .replace("$modelClassName", modelClassName)
@@ -407,7 +457,7 @@ public final class Common {
             case "FloatValue" ->
                 generatedCodeSoFar += ("""
                     if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                        result = 31 * result + Float.hashCode($prefixFieldName$fieldName);
+                        $hashCombine(Float.hashCode($prefixFieldName$fieldName));
                     }
                     """)
                         .replace("$modelClassName", modelClassName)
@@ -418,7 +468,7 @@ public final class Common {
             case "DoubleValue" ->
                 generatedCodeSoFar += ("""
                     if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                        result = 31 * result + Double.hashCode($prefixFieldName$fieldName);
+                        $hashCombine(Double.hashCode($prefixFieldName$fieldName));
                     }
                     """)
                         .replace("$modelClassName", modelClassName)
@@ -429,7 +479,7 @@ public final class Common {
             case "BytesValue" ->
                 generatedCodeSoFar += ("""
                     if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
-                        result = 31 * result + ($prefixFieldName$fieldName == null ? 0 : $prefixFieldName$fieldName.hashCode());
+                        $hashCombine(($prefixFieldName$fieldName == null ? 0 : $prefixFieldName$fieldName.hashCode()));
                     }
                     """)
                         .replace("$modelClassName", modelClassName)
@@ -457,9 +507,9 @@ public final class Common {
                 if (list$$fieldName != null) {
                     for (Object o : list$$fieldName) {
                         if (o != null) {
-                            result = 31 * result + o.hashCode();
+                            $hashCombine(o.hashCode());
                         } else {
-                            result = 31 * result;
+                            $hashCombine();
                         }
                    }
                 }
@@ -472,26 +522,24 @@ public final class Common {
     /**
      * Get the hashcode codegen for a map field.
      *
-     * @param generatedCodeSoFar The string that the codegen is generated into.
      * @param f The field for which to generate the hash code.
      *
      * @return Updated codegen string.
      */
     @NonNull
-    private static String getMapHashCodeGeneration(
-            String generatedCodeSoFar, final Field f, final String fieldNamePrefix) {
-        generatedCodeSoFar += ("""
+    private static String getMapHashCodeGeneration(final Field f, final String fieldNamePrefix) {
+        return ("""
                 for (Object k : $mapSortedKeys) {
                     if (k != null) {
-                        result = 31 * result + k.hashCode();
+                        $hashCombine(k.hashCode());
                     } else {
-                        result = 31 * result;
+                        $hashCombine();
                     }
                     Object v = $prefix$fieldName.get(k);
                     if (v != null) {
-                        result = 31 * result + v.hashCode();
+                        $hashCombine(v.hashCode());
                     } else {
-                        result = 31 * result;
+                        $hashCombine();
                     }
                 }
                 """)
@@ -502,7 +550,6 @@ public final class Common {
                                 : "(Iterable) $prefix$fieldName.keySet().stream().sorted()::iterator")
                 .replace("$prefix", fieldNamePrefix)
                 .replace("$fieldName", f.nameCamelFirstLower());
-        return generatedCodeSoFar;
     }
 
     /**

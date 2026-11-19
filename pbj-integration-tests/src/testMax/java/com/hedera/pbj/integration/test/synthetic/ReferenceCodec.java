@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.integration.test.synthetic;
 
+import com.hedera.pbj.runtime.ProtoWriterTools;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -71,14 +72,9 @@ public final class ReferenceCodec {
         return (v >>> 1) ^ -(v & 1);
     }
 
-    private static int varintSize(long value) {
-        int size = 1;
-        value >>>= 7;
-        while (value != 0) {
-            size++;
-            value >>>= 7;
-        }
-        return size;
+    /** The size of a varint: PBJ's branch-free formula, which only measures, so the reference shares it. */
+    private static int varintSize(final long value) {
+        return ProtoWriterTools.sizeOfUnsignedVarInt64(value);
     }
 
     private static int tagSize(final int fieldNumber, final int wireType) {

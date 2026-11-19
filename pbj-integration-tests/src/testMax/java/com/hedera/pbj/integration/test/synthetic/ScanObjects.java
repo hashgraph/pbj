@@ -7,6 +7,9 @@ import com.hedera.hapi.block.stream.output.BlockFooter;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapChangeValue;
+import com.hedera.hapi.block.stream.output.MapUpdateChange;
+import com.hedera.hapi.block.stream.output.QueuePushChange;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -23,6 +26,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntry;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.ParseException;
@@ -230,17 +234,17 @@ public final class ScanObjects {
         long sum = c.stateId() + c.changeOperation().kind().protoOrdinal();
         switch (c.changeOperation().kind()) {
             case MAP_UPDATE -> {
-                final var update = c.mapUpdateOrThrow();
+                final MapUpdateChange update = c.mapUpdateOrThrow();
                 sum += mapChangeKey(update.key()) + mapChangeValue(update.value()) + bool(update.identical());
             }
             case MAP_DELETE -> sum += mapChangeKey(c.mapDeleteOrThrow().key());
             case SINGLETON_UPDATE -> {
-                final var singleton = c.singletonUpdateOrThrow();
+                final SingletonUpdateChange singleton = c.singletonUpdateOrThrow();
                 sum += singleton.newValue().kind().protoOrdinal();
                 sum += singleton.entityNumberValueOrThrow();
             }
             case QUEUE_PUSH -> {
-                final var push = c.queuePushOrThrow();
+                final QueuePushChange push = c.queuePushOrThrow();
                 sum += push.value().kind().protoOrdinal();
                 final List<TransactionReceiptEntry> entries =
                         push.transactionReceiptEntriesElementOrThrow().entries();
@@ -293,7 +297,7 @@ public final class ScanObjects {
                 + b.data().kind().protoOrdinal();
         switch (b.data().kind()) {
             case CRYPTO_TRANSFER -> {
-                final var transfer = b.cryptoTransferOrThrow();
+                final CryptoTransferTransactionBody transfer = b.cryptoTransferOrThrow();
                 if (transfer.transfers() != null) {
                     sum += accountAmounts(transfer.transfers().accountAmounts());
                 }

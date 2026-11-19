@@ -44,7 +44,7 @@ public class BlockItemViewBench {
     private static final List<Bytes> ITEM_BYTES = new ArrayList<>();
 
     static {
-        try (var in = new BufferedInputStream(new GZIPInputStream(Objects.requireNonNull(
+        try (BufferedInputStream in = new BufferedInputStream(new GZIPInputStream(Objects.requireNonNull(
                 BlockItemViewBench.class.getResourceAsStream("/000000000000000000000000000000030221.blk.gz"))))) {
             for (final BlockItem item :
                     Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes())).items()) {
@@ -74,7 +74,7 @@ public class BlockItemViewBench {
                     if (changes.hasConsensusTimestamp()) {
                         sum += changes.consensusTimestamp().seconds();
                     }
-                    for (var it = changes.stateChanges(); it.next(); ) {
+                    for (StateChanges.View.StateChangesCursor it = changes.stateChanges(); it.next(); ) {
                         sum += it.value().stateId()
                                 + it.value().changeOperationKind().ordinal();
                     }

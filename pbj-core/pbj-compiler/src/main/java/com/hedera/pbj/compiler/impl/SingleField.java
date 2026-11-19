@@ -103,17 +103,8 @@ public record SingleField(
      * {@inheritDoc}
      */
     @Override
-    public boolean optionalValueType() { // Move logic for checking built in types to common
-        return type == SingleField.FieldType.MESSAGE
-                && (messageType.equals("StringValue")
-                        || messageType.equals("Int32Value")
-                        || messageType.equals("UInt32Value")
-                        || messageType.equals("Int64Value")
-                        || messageType.equals("UInt64Value")
-                        || messageType.equals("FloatValue")
-                        || messageType.equals("DoubleValue")
-                        || messageType.equals("BoolValue")
-                        || messageType.equals("BytesValue"));
+    public boolean optionalValueType() {
+        return type == SingleField.FieldType.MESSAGE && Common.WRAPPER_TYPES.contains(messageType);
     }
 
     /**
