@@ -355,7 +355,7 @@ own data before turning it on (see [codec-protobuf.md](codec-protobuf.md#reverse
 ReverseBuffer buffer = new ReverseBuffer(4096);
 buffer.reset();
 HelloRequest.PROTOBUF.writeReverse(request, buffer);
-Bytes written = buffer.bytes();  // valid until the buffer is reset or written to again
+Bytes written = buffer.unsafeBytes();  // valid until the buffer is reset or written to again
 ```
 
 ### JSON
@@ -399,7 +399,7 @@ final Order.View view = new Order.View();
 for (Bytes bytes : orders) {
     view.wrap(bytes);   // or wrap(bytes, strictMode, maxDepth, maxSize), as for parse()
     total += view.amount();
-    for (var line = view.lines(); line.next(); ) {
+    for (Order.View.LinesCursor line = view.lines(); line.next(); ) {
         count += line.value().quantity();
     }
 }
@@ -418,13 +418,13 @@ Keeping a reference and reading it later reads whatever the view was last wrappe
 ```java
 // Wrong: every element of the list is the same child view, wrapped over the last line
 List<OrderLine.View> lines = new ArrayList<>();
-for (var line = view.lines(); line.next(); ) {
+for (Order.View.LinesCursor line = view.lines(); line.next(); ) {
     lines.add(line.value());
 }
 
 // Right: copy what you need, or parse the element into a model object
 List<OrderLine> lines = new ArrayList<>();
-for (var line = view.lines(); line.next(); ) {
+for (Order.View.LinesCursor line = view.lines(); line.next(); ) {
     lines.add(line.value().toModel());
 }
 ```
@@ -471,7 +471,7 @@ final Bytes encoded = buffer.bytes();                               // a view, v
 - **Objects and pre-encoded bytes.** A nested message can also be written from a model object, `price(Price)`, or as
   pre-encoded bytes, `priceRaw(Bytes)`, which must be the canonical encoding of the field's type. Fields whose types
   come from other modules (dependency jars) have only these two forms. `writeFrom(object)` writes every field of an
-  object, and allocates nothing.
+  object with its codec's byte-array writer, and allocates nothing.
 - **Item byte ranges.** After a nested message ends, `offset()` and `length()` locate its encoded bytes (without tag
   and length) in `buffer.array()`. You can hash or send a block item as soon as it ends, before the block is finished:
 

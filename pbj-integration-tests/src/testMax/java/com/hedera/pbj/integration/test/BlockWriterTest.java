@@ -71,7 +71,7 @@ final class BlockWriterTest {
             }
             writer.end();
             assertEquals(Block.PROTOBUF.toBytes(block), buffer.bytes(), reservation.name());
-            System.out.printf(
+            System.err.printf(
                     "Block of %,d items, %,d bytes, %s length reservation: %,d moves (%.4f per item)%n",
                     items.size(),
                     buffer.length(),
@@ -85,7 +85,7 @@ final class BlockWriterTest {
     void itemsFromValuesAndObjectsAreTheModelsBytes() {
         final Map<String, Integer> kinds = new TreeMap<>();
         values.items().forEach(item -> kinds.merge(item.item().kind().name(), 1, Integer::sum));
-        System.out.printf(
+        System.err.printf(
                 "Extracted the values of %,d of %,d block items: %s%n",
                 values.items().size(), block.items().size(), kinds);
         assertTrue(values.items().size() > block.items().size() * 0.95, "most items are covered");
@@ -165,9 +165,11 @@ final class BlockWriterTest {
                 }
             }
             blockWriter.end();
-            blockAllocation[0] = Math.min(blockAllocation[0], allocatedBytes() - before - measuring);
+            // reading the counter doesn't always allocate the same, so a round with nothing else allocated can come out
+            // a few bytes below zero: that is zero
+            blockAllocation[0] = Math.min(blockAllocation[0], Math.max(0, allocatedBytes() - before - measuring));
         }
-        System.out.printf(
+        System.err.printf(
                 "Writer allocation: from values %d B/item, from objects %d B/item, whole block with hashing %d B%n",
                 fromValues, fromObjects, blockAllocation[0]);
         assertEquals(0, fromValues, "writing block items from values");

@@ -43,15 +43,6 @@ public final class ProtoWriteBuffer {
     /** Free bytes {@link #ensure} keeps past the bytes asked for, so the common cases need no exact room check. */
     static final int SLACK = Long.BYTES;
 
-    /** The size of a varint of up to 56 bits, by its number of leading zeros. */
-    private static final byte[] VARINT_SIZES = new byte[65];
-
-    static {
-        for (int zeros = 0; zeros <= 64; zeros++) {
-            VARINT_SIZES[zeros] = (byte) Math.max(1, (64 - zeros + 6) / 7);
-        }
-    }
-
     /** How the buffer guesses the size of a nested message's length prefix before the message is written. */
     public enum LengthReservation {
         /**
@@ -235,7 +226,7 @@ public final class ProtoWriteBuffer {
 
     /** The number of bytes of the unsigned varint encoding of a non-negative int. */
     static int varintSize(final int value) {
-        return VARINT_SIZES[Long.numberOfLeadingZeros(value)];
+        return ProtoWriterTools.sizeOfUnsignedVarInt32(value);
     }
 
     // ------------------------------------------------------------------------------------ for generated writers

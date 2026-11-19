@@ -236,7 +236,7 @@ public final class TestGenerator implements Generator {
                         """
                         {
                             final List<Object> elements = new ArrayList<>();
-                            for (var it = view.$name(); it.next(); ) {
+                            for ($model.View.$NameCursor it = view.$name(); it.next(); ) {
                                 elements.add($element);
                             }
                             assertEquals(modelObj.$getter(), elements);
@@ -246,6 +246,8 @@ public final class TestGenerator implements Generator {
                                 .replace(
                                         "$element",
                                         field.type() == Field.FieldType.MESSAGE ? "it.value().toModel()" : "it.value()")
+                                .replace("$model", modelClassName)
+                                .replace("$Name", field.nameCamelFirstUpper())
                                 .replace("$name", name));
                 continue;
             }
@@ -733,7 +735,7 @@ public final class TestGenerator implements Generator {
                     assertEquals(bytes, reverseBuffer.toBytes());
                     reverseBuffer.reset();
                     $modelClassName.PROTOBUF.writeReverse(modelObj, reverseBuffer);
-                    assertEquals(bytes, reverseBuffer.bytes());
+                    assertEquals(bytes, reverseBuffer.unsafeBytes());
                 
                     // Test JSON Writing
                     final CharBufferToWritableSequentialData charBufferToWritableSequentialData = new CharBufferToWritableSequentialData(charBuffer);

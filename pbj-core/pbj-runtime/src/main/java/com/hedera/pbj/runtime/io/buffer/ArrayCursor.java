@@ -42,6 +42,17 @@ public final class ArrayCursor {
      */
     private @Nullable Bytes source;
 
+    /** The empty array that cursors created with nothing to read yet point at, shared so none allocates one. */
+    private static final byte[] EMPTY = new byte[0];
+
+    /**
+     * Create a cursor with nothing to read yet, to be pointed at bytes with {@code reset}. Generated views create their
+     * reusable cursors this way.
+     */
+    public ArrayCursor() {
+        this(EMPTY, 0, 0, null);
+    }
+
     /**
      * Create a cursor over {@code in[offset, limit)}.
      *
@@ -188,11 +199,13 @@ public final class ArrayCursor {
     }
 
     /**
-     * The array this cursor reads. Views use it to decode fields at the offsets they recorded; it must not be modified.
+     * The array this cursor reads, without copying it. This is unsafe: when the cursor reads a {@link Bytes}, it is that
+     * supposedly immutable value's backing array, so it must never be modified, and it holds bytes outside this
+     * cursor's range too. Generated views use it to decode fields at the offsets they recorded.
      *
      * @return the array
      */
-    public byte[] array() {
+    public byte[] unsafeArray() {
         return in;
     }
 

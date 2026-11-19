@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.PackedLongWriter;
 import com.hedera.pbj.runtime.io.buffer.ProtoWriteBuffer;
 import com.hedera.pbj.runtime.io.buffer.ProtoWriteBuffer.LengthReservation;
 import com.hedera.pbj.test.custom.proto.pbj.CustomWriterCycles;
@@ -842,7 +843,7 @@ final class WriterTest {
                 if (random.nextBoolean()) {
                     rw.int64Values(longs.stream().mapToLong(Long::longValue).toArray(), 0, longs.size());
                 } else {
-                    final var packed = rw.int64Values();
+                    final PackedLongWriter packed = rw.int64Values();
                     longs.forEach(packed::add);
                 }
                 for (final WriterLeaf leaf : root.repeated().leaves()) {
