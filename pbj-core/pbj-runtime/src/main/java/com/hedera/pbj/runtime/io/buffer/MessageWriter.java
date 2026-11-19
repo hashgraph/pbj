@@ -108,7 +108,6 @@ public abstract class MessageWriter {
      * @param tag the field's tag, wire type 2
      */
     protected final void openChild(@NonNull final MessageWriter child, final int perTypeReserve, final int tag) {
-        final ProtoWriteBuffer out = this.out;
         open(
                 child,
                 out.adaptive && child.lastLengthSize != 0 ? child.lastLengthSize : out.oneByte ? 1 : perTypeReserve,

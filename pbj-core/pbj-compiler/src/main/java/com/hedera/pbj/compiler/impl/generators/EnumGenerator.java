@@ -107,7 +107,7 @@ public final class EnumGenerator {
             public static $enumName fromString(String name) {
                 return switch(name) {
                     $fromStringCaseStatements
-                    default -> throw new IllegalArgumentException("Unknown token kyc status "+name);
+                    default -> throw new IllegalArgumentException("Unknown $enumName name: " + name);
                 };
             }""";
 
@@ -115,7 +115,7 @@ public final class EnumGenerator {
             public static $enumName fromString(String name) {
                 final $enumName value = BY_NAME.get(name);
                 if (value == null) {
-                    throw new IllegalArgumentException("Unknown token kyc status "+name);
+                    throw new IllegalArgumentException("Unknown $enumName name: " + name);
                 }
                 return value;
             }

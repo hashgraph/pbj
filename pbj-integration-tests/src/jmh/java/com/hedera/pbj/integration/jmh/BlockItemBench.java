@@ -58,10 +58,8 @@ import org.openjdk.jmh.infra.Blackhole;
 @BenchmarkMode(Mode.AverageTime)
 public class BlockItemBench {
     /**
-     * The sample block files in {@code src/jmh/resources} that parse with the current HAPI schema. Block 497558 was
-     * written with an older {@code BlockHeader} layout, whose field now has a different wire type, and no longer parses
-     * with PBJ (it fails with "Wire type 'Group Start' is unsupported"), so only block 030221 is used. It alone has
-     * 67,869 items, every kind the newer block has, and 21,981 signed transactions.
+     * The sample block files in {@code src/jmh/resources}. Block 030221 has 67,869 items, every block item kind, and
+     * 21,981 signed transactions.
      */
     private static final String[] BLOCK_FILES = {"/000000000000000000000000000000030221.blk.gz"};
 

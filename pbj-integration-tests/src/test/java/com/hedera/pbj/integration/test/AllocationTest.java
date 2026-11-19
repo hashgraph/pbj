@@ -10,6 +10,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.PackedDoubleWriter;
 import com.hedera.pbj.runtime.io.buffer.ProtoWriteBuffer;
 import com.hedera.pbj.runtime.io.buffer.ReverseBuffer;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.MixedFastInner;
@@ -18,6 +19,7 @@ import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterChoice;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterColor;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterLeaf;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterMaps;
+import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterRepeated;
 import com.hedera.pbj.test.proto.java.pbj.integration.tests.WriterRoot;
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,10 +50,7 @@ final class AllocationTest {
      */
     private static final int ITERATIONS = 50_000;
 
-    /**
-     * The sample block shared with the JMH benchmarks. The other sample block, 497558, was written with an older
-     * {@code BlockHeader} layout and no longer parses with the current HAPI schema.
-     */
+    /** The sample block shared with the JMH benchmarks. */
     private static final Path SAMPLE_BLOCK = Path.of("src/jmh/resources/000000000000000000000000000000030221.blk.gz");
 
     /**
@@ -170,7 +169,7 @@ final class AllocationTest {
         ITEMS_BY_KIND.forEach(
                 (kind, items) -> figures.put(kind, writeByteArrayPerOperation(items, BlockItem.PROTOBUF)));
         figures.put("SignedTransaction", writeByteArrayPerOperation(TRANSACTIONS, SignedTransaction.PROTOBUF));
-        System.out.println("write(T, byte[], int) with cached size, bytes per operation: " + figures);
+        System.err.println("write(T, byte[], int) with cached size, bytes per operation: " + figures);
         figures.forEach((kind, bytes) -> assertTrue(
                 bytes <= WRITE_BYTE_ARRAY_CEILING,
                 kind + " allocated " + bytes + " bytes per write, ceiling " + WRITE_BYTE_ARRAY_CEILING));
@@ -201,7 +200,7 @@ final class AllocationTest {
             }
             bytesPerOperation = (allocatedBytes() - before) / fresh.size();
         }
-        System.out.println(
+        System.err.println(
                 "protobufSize() and write(T, byte[], int) of fresh objects, bytes per operation: " + bytesPerOperation);
         assertEquals(0L, bytesPerOperation, "measuring and writing a fresh object");
     }
@@ -218,7 +217,7 @@ final class AllocationTest {
             buffer.reset();
             SignedTransaction.PROTOBUF.writeReverse(TRANSACTIONS.get(i % TRANSACTIONS.size()), buffer);
         }));
-        System.out.println("writeReverse into a warm buffer, bytes per operation: " + figures);
+        System.err.println("writeReverse into a warm buffer, bytes per operation: " + figures);
         figures.forEach(
                 (kind, bytes) -> assertEquals(0L, bytes, kind + " allocated " + bytes + " bytes per reverse write"));
     }
@@ -275,7 +274,13 @@ final class AllocationTest {
                     .doubleValue(1.5)
                     .stringValue(utf8, 0, utf8.length)
                     .color(WriterColor.WRITER_COLOR_RED);
-            final var repeated = root.repeated().int64Values(numbers, 0, numbers.length);
+            final WriterRepeated.Writer repeated = root.repeated().int64Values(numbers, 0, numbers.length);
+            // packed fields written element by element, through the writer's reused packed-field writers
+            final PackedDoubleWriter doubles = repeated.doubleValues();
+            for (int j = 0; j < 3; j++) {
+                doubles.add(i + j);
+            }
+            repeated.boolValues().add(true).add(false);
             for (int j = 0; j < 3; j++) {
                 repeated.addLeaves().id(j).stamp(i);
             }
@@ -303,7 +308,7 @@ final class AllocationTest {
         final Map<String, Long> figures = new TreeMap<>();
         ITEMS_BY_KIND.forEach((kind, items) -> figures.put(kind, parsePerOperation(items, BlockItem.PROTOBUF)));
         figures.put("SignedTransaction", parsePerOperation(TRANSACTIONS, SignedTransaction.PROTOBUF));
-        System.out.println("parse(Bytes), bytes per operation: " + figures);
+        System.err.println("parse(Bytes), bytes per operation: " + figures);
         // the build says which configuration generated the code; oneofs are unboxed in max unless overridden
         final boolean unboxed = "max".equals(System.getProperty("pbj.performance"))
                         && !"boxed".equals(System.getProperty("pbj.oneofStorage"))
