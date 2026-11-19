@@ -482,7 +482,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                             }
                             final var limitBefore = input.limit();
                             // Make sure that we have enough bytes in the message to read the subObject.
-                            final var end = input.position() + messageLength;
+                            final long end = input.position() + messageLength;
                             if (end > limitBefore) {
                                 throw new BufferUnderflowException();
                             }
@@ -529,7 +529,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                             }
                             final var __map_limitBefore = input.limit();
                             // Make sure that we have enough bytes in the message to read the entry.
-                            final var __map_end = input.position() + __map_messageLength;
+                            final long __map_end = input.position() + __map_messageLength;
                             if (__map_end > __map_limitBefore) {
                                 throw new BufferUnderflowException();
                             }
@@ -633,6 +633,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
             return read;
         }
         final String name = "readField_" + helperPrefix + field.name();
+        final String type = field.optionalValueType() ? field.javaFieldType() : field.javaFieldTypeBase();
         // spotless:off
         sbFunc.append("""
 
@@ -642,13 +643,15 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                         throws ParseException, IOException {
                 $read    return value;
                 }
-                """.replace("$type", field.optionalValueType() ? field.javaFieldType() : field.javaFieldTypeBase())
+                """.replace("$type", type)
                 .replace("$name", name)
                 .replace("$field", field.name())
                 .replace("$read", read.indent(DEFAULT_INDENT))
                 .indent(DEFAULT_INDENT));
         // spotless:on
-        return "final var value = %s(input, strictMode, parseUnknownFields, maxDepth, maxSize);%n".formatted(name);
+        return "final $type value = $name(input, strictMode, parseUnknownFields, maxDepth, maxSize);\n"
+                .replace("$type", type)
+                .replace("$name", name);
     }
 
     static String readMethod(Field field, ContextualLookupHelper lookupHelper) {

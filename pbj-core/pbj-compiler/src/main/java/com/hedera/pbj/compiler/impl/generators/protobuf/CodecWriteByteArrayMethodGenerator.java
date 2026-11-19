@@ -72,10 +72,11 @@ final class CodecWriteByteArrayMethodGenerator {
                 }
                 return offset - startOffset;
             }
-            """
+            $inlineHelpers"""
             .replace("$modelClass", modelClassName)
             .replace("$fieldWriteLines", fieldWriteLines.indent(DEFAULT_INDENT))
-            .concat(inline.helpers())
+            // the helper methods the code above calls, after the method
+            .replace("$inlineHelpers", inline.helpers())
             .indent(DEFAULT_INDENT);
         // spotless:on
     }
@@ -138,7 +139,7 @@ final class CodecWriteByteArrayMethodGenerator {
             getValueCode = "(%s)data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
             prefix = oneOfGuard
                     ? prefix
-                            + "if (data.%s().kind() == %s.%s)%n"
+                            + "if (data.%s().kind() == %s.%s) "
                                     .formatted(
                                             oneOfField.nameCamelFirstLower(),
                                             oneOfType,

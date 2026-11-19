@@ -42,10 +42,7 @@ final class AllocationTest {
      */
     private static final int ITERATIONS = 50_000;
 
-    /**
-     * The sample block shared with the JMH benchmarks. The other sample block, 497558, was written with an older
-     * {@code BlockHeader} layout and no longer parses with the current HAPI schema.
-     */
+    /** The sample block shared with the JMH benchmarks. */
     private static final Path SAMPLE_BLOCK = Path.of("src/jmh/resources/000000000000000000000000000000030221.blk.gz");
 
     /**
@@ -144,7 +141,7 @@ final class AllocationTest {
         ITEMS_BY_KIND.forEach(
                 (kind, items) -> figures.put(kind, writeByteArrayPerOperation(items, BlockItem.PROTOBUF)));
         figures.put("SignedTransaction", writeByteArrayPerOperation(TRANSACTIONS, SignedTransaction.PROTOBUF));
-        System.out.println("write(T, byte[], int) with cached size, bytes per operation: " + figures);
+        System.err.println("write(T, byte[], int) with cached size, bytes per operation: " + figures);
         figures.forEach((kind, bytes) -> assertTrue(
                 bytes <= WRITE_BYTE_ARRAY_CEILING,
                 kind + " allocated " + bytes + " bytes per write, ceiling " + WRITE_BYTE_ARRAY_CEILING));
@@ -175,7 +172,7 @@ final class AllocationTest {
             }
             bytesPerOperation = (allocatedBytes() - before) / fresh.size();
         }
-        System.out.println(
+        System.err.println(
                 "protobufSize() and write(T, byte[], int) of fresh objects, bytes per operation: " + bytesPerOperation);
         assertEquals(0L, bytesPerOperation, "measuring and writing a fresh object");
     }
@@ -234,7 +231,7 @@ final class AllocationTest {
         final Map<String, Long> figures = new TreeMap<>();
         ITEMS_BY_KIND.forEach((kind, items) -> figures.put(kind, parsePerOperation(items, BlockItem.PROTOBUF)));
         figures.put("SignedTransaction", parsePerOperation(TRANSACTIONS, SignedTransaction.PROTOBUF));
-        System.out.println("parse(Bytes), bytes per operation: " + figures);
+        System.err.println("parse(Bytes), bytes per operation: " + figures);
         assertEquals(PARSE_CEILINGS.keySet(), figures.keySet(), "a ceiling for every kind in the sample blocks");
         figures.forEach((kind, bytes) -> assertTrue(
                 bytes <= PARSE_CEILINGS.get(kind),

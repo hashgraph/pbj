@@ -7,6 +7,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -19,6 +20,21 @@ public final class Common {
     public static final String FIELD_INDENT = " ".repeat(4);
 
     public static final int DEFAULT_INDENT = 4;
+
+    /**
+     * The {@code google.protobuf} wrapper message types, such as {@code StringValue}, which PBJ maps to nullable Java
+     * values instead of messages.
+     */
+    public static final Set<String> WRAPPER_TYPES = Set.of(
+            "StringValue",
+            "BoolValue",
+            "Int32Value",
+            "UInt32Value",
+            "Int64Value",
+            "UInt64Value",
+            "FloatValue",
+            "DoubleValue",
+            "BytesValue");
     /** Wire format code for var int */
     public static final int TYPE_VARINT = 0;
     /** Wire format code for fixed 64bit number */
@@ -317,7 +333,7 @@ public final class Common {
                             .replace("$thatFieldName", f.nameCamelFirstLower())
                             .replace("$fieldName", fieldNamePrefix.isBlank() ? f.nameCamelFirstLower() : f.name());
                 } else if (f.type() == Field.FieldType.MAP) {
-                    generatedCodeSoFar = getMapHashCodeGeneration(generatedCodeSoFar, f, fieldNamePrefix);
+                    generatedCodeSoFar += getMapHashCodeGeneration(f, fieldNamePrefix);
                 } else if (f.type() == Field.FieldType.STRING || f.parent() == null) { // process sub message
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
@@ -344,7 +360,7 @@ public final class Common {
      * @param generatedCodeSoFar The string that the codegen is generated into.
      * @param f The field for which to generate the hash code.
      *
-     * @return Updated codegen string.
+     * @return The code combining the map field into {@code result}.
      */
     @NonNull
     private static String getPrimitiveWrapperHashCodeGeneration(
@@ -462,15 +478,13 @@ public final class Common {
     /**
      * Get the hashcode codegen for a map field.
      *
-     * @param generatedCodeSoFar The string that the codegen is generated into.
      * @param f The field for which to generate the hash code.
      *
      * @return Updated codegen string.
      */
     @NonNull
-    private static String getMapHashCodeGeneration(
-            String generatedCodeSoFar, final Field f, final String fieldNamePrefix) {
-        generatedCodeSoFar += ("""
+    private static String getMapHashCodeGeneration(final Field f, final String fieldNamePrefix) {
+        return ("""
                 for (Object k : $mapSortedKeys) {
                     if (k != null) {
                         result = 31 * result + k.hashCode();
@@ -492,7 +506,6 @@ public final class Common {
                                 : "(Iterable) $prefix$fieldName.keySet().stream().sorted()::iterator")
                 .replace("$prefix", fieldNamePrefix)
                 .replace("$fieldName", f.nameCamelFirstLower());
-        return generatedCodeSoFar;
     }
 
     /**

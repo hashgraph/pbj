@@ -228,7 +228,7 @@ final class ViewValidationTest {
         assertEquals(3, view.innerChoice().value());
         assertEquals("memo", view.memo());
         final List<Integer> values = new ArrayList<>();
-        for (final var it = view.inners(); it.next(); ) {
+        for (final ViewCheckOuter.View.InnersCursor it = view.inners(); it.next(); ) {
             values.add(it.value().value());
         }
         assertEquals(List.of(4, 5), values);
@@ -244,7 +244,7 @@ final class ViewValidationTest {
         final byte[] array = ViewCheckOuter.PROTOBUF.toBytes(outer).toByteArray();
         final ViewCheckOuter.View view = new ViewCheckOuter.View().wrap(array, 0, array.length);
         final Bytes payload = view.payload();
-        final var payloads = view.payloads();
+        final ViewCheckOuter.View.PayloadsCursor payloads = view.payloads();
         assertTrue(payloads.next());
         final Bytes element = payloads.value();
         final ViewCheckOuter model = view.toModel();
@@ -269,7 +269,7 @@ final class ViewValidationTest {
         final byte[] copy = new byte[5];
         assertEquals(3, view.payloadCopyTo(copy, 2));
         assertArrayEquals(new byte[] {0, 0, 1, 2, 3}, copy);
-        final var payloads = view.payloads();
+        final ViewCheckOuter.View.PayloadsCursor payloads = view.payloads();
         assertTrue(payloads.next());
         assertEquals(Bytes.wrap(new byte[] {4, 5}), payloads.value());
         final byte[] elementCopy = new byte[2];
@@ -309,7 +309,7 @@ final class ViewValidationTest {
         final ViewCheckOuter.View view = new ViewCheckOuter.View().wrap(bytes);
         assertEquals(5, view.numbersCount());
         final List<Long> numbers = new ArrayList<>();
-        for (final var it = view.numbers(); it.next(); ) {
+        for (final ViewCheckOuter.View.NumbersCursor it = view.numbers(); it.next(); ) {
             numbers.add(it.value());
         }
         assertEquals(List.of(1L, -2L, 3L, -4L, 5L), numbers);
@@ -376,7 +376,7 @@ final class ViewValidationTest {
         assertEquals("text", view.textChoice());
         assertNotNull(view.inner());
         final List<String> names = new ArrayList<>();
-        for (final var it = view.names(); it.next(); ) {
+        for (final ViewCheckOuter.View.NamesCursor it = view.names(); it.next(); ) {
             names.add(it.value());
         }
         assertArrayEquals(new String[] {"a", "é"}, names.toArray());
