@@ -25,14 +25,14 @@ final class CodecWriteMethodGenerator {
             final String schemaClassName,
             final List<Field> fields,
             final ContextualLookupHelper lookupHelper) {
-        final String fieldWriteLines = new InlineFieldCodeGenerator(
-                        InlineFieldCodeGenerator.Target.STREAM,
-                        "data.",
-                        lookupHelper,
-                        field -> generateFieldWriteLines(
-                                        field, modelClassName, schemaClassName, valueCode(field), true, false)
-                                + "\n")
-                .fieldsInOrder(fields);
+        final InlineFieldCodeGenerator inline = new InlineFieldCodeGenerator(
+                InlineFieldCodeGenerator.Target.STREAM,
+                "data.",
+                lookupHelper,
+                field -> generateFieldWriteLines(field, modelClassName, schemaClassName, valueCode(field), true, false)
+                        + "\n",
+                modelClassName);
+        final String fieldWriteLines = inline.fieldsInOrder(fields);
         // spotless:off
         return
             """
@@ -67,9 +67,11 @@ final class CodecWriteMethodGenerator {
                     });
                 }
             }
-            """
+            $inlineHelpers"""
             .replace("$modelClass", modelClassName)
             .replace("$fieldWriteLines", fieldWriteLines.indent(DEFAULT_INDENT))
+            // the helper methods the code above calls, after the method
+            .replace("$inlineHelpers", inline.helpers())
             .indent(DEFAULT_INDENT);
         // spotless:on
     }

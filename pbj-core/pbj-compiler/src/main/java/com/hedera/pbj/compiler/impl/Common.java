@@ -333,7 +333,7 @@ public final class Common {
                             .replace("$thatFieldName", f.nameCamelFirstLower())
                             .replace("$fieldName", fieldNamePrefix.isBlank() ? f.nameCamelFirstLower() : f.name());
                 } else if (f.type() == Field.FieldType.MAP) {
-                    generatedCodeSoFar += getMapHashCodeGeneration(generatedCodeSoFar, f, fieldNamePrefix);
+                    generatedCodeSoFar += getMapHashCodeGeneration(f, fieldNamePrefix);
                 } else if (f.type() == Field.FieldType.STRING || f.parent() == null) { // process sub message
                     generatedCodeSoFar += ("""
                             if ($prefixFieldName$fieldName != null && !$prefixFieldName$fieldName.equals($modelClassName.DEFAULT.$thatFieldName$suffix)) {
@@ -360,7 +360,7 @@ public final class Common {
      * @param generatedCodeSoFar The string that the codegen is generated into.
      * @param f The field for which to generate the hash code.
      *
-     * @return Updated codegen string.
+     * @return The code combining the map field into {@code result}.
      */
     @NonNull
     private static String getPrimitiveWrapperHashCodeGeneration(
@@ -478,15 +478,13 @@ public final class Common {
     /**
      * Get the hashcode codegen for a map field.
      *
-     * @param generatedCodeSoFar The string that the codegen is generated into.
      * @param f The field for which to generate the hash code.
      *
      * @return Updated codegen string.
      */
     @NonNull
-    private static String getMapHashCodeGeneration(
-            String generatedCodeSoFar, final Field f, final String fieldNamePrefix) {
-        generatedCodeSoFar += ("""
+    private static String getMapHashCodeGeneration(final Field f, final String fieldNamePrefix) {
+        return ("""
                 for (Object k : $mapSortedKeys) {
                     if (k != null) {
                         result = 31 * result + k.hashCode();
@@ -508,7 +506,6 @@ public final class Common {
                                 : "(Iterable) $prefix$fieldName.keySet().stream().sorted()::iterator")
                 .replace("$prefix", fieldNamePrefix)
                 .replace("$fieldName", f.nameCamelFirstLower());
-        return generatedCodeSoFar;
     }
 
     /**
@@ -884,6 +881,27 @@ public final class Common {
         //noinspection ResultOfMethodCallIgnored
         packagePath.mkdirs();
         return new File(packagePath, className + ".java");
+    }
+
+    /**
+     * The most fields, counting each oneof alternative, a message can have with all of them parsed, written and indexed
+     * inline. Larger messages, such as HAPI's {@code TransactionBody} and {@code StateValue}, put the code for nested
+     * messages and oneof alternatives in small helper methods, to keep each generated method well under HotSpot's
+     * 8000-byte limit for compiling a method at all. Smaller messages keep everything inline.
+     */
+    public static final int MAX_INLINE_FIELDS = 32;
+
+    /**
+     * The number of fields of a message, counting each oneof alternative.
+     *
+     * @param fields the message's fields
+     * @return the count
+     */
+    public static long fieldCount(final List<Field> fields) {
+        return fields.stream()
+                .mapToLong(field ->
+                        field instanceof OneOfField oneOf ? oneOf.fields().size() : 1)
+                .sum();
     }
 
     /**
