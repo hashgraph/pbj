@@ -50,6 +50,31 @@ public final class ProtoParserTools {
     }
 
     /**
+     * Make room in a list for {@code count} more items, before adding them: the empty list becomes a new list of exactly
+     * that capacity, so a repeated field's elements, counted first, are stored without growing an array.
+     *
+     * @param list the list items will be added to, or Collections.EMPTY_LIST
+     * @param count the number of items about to be added, at most {@code max}
+     * @param max the most items the list may hold, which a parser checks as it adds them
+     * @return the list to add the items to
+     * @param <T> the type of the items
+     */
+    public static <T> List<T> presize(List<T> list, final int count, final int max) {
+        if (count <= 0) {
+            return list;
+        }
+        final int capacity = Math.min(count, Math.max(0, max));
+        if (list == Collections.EMPTY_LIST) {
+            return new UnmodifiableArrayList<>(capacity);
+        }
+        if (list instanceof java.util.ArrayList<T> arrayList) {
+            // a count is at most half the bytes left, so this does not overflow
+            arrayList.ensureCapacity(list.size() + capacity);
+        }
+        return list;
+    }
+
+    /**
      * Add an entry to a map returning a new map with the entry or the same map with the entry added. If the map is
      * Collections.EMPTY_MAP then a new map is created and returned with the entry added.
      *
