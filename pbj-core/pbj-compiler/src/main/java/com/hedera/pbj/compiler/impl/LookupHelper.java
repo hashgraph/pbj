@@ -654,7 +654,7 @@ public final class LookupHelper {
                         false));
             } else if (element.oneof() != null) {
                 InlineField alternative = null;
-                for (var field : element.oneof().oneofField()) {
+                for (Protobuf3Parser.OneofFieldContext field : element.oneof().oneofField()) {
                     final Field.FieldType type = inlineType(message, field.type_());
                     if (type != null) {
                         if (alternative != null) {
