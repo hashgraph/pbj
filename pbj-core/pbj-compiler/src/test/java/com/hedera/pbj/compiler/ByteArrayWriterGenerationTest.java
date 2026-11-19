@@ -77,6 +77,12 @@ class ByteArrayWriterGenerationTest {
         assertTrue(stream.contains("writeMessage(out, HolderSchema.EXTERNAL,"), stream);
         assertFalse(stream.contains("ExternalProtoCodec.writeTo"), stream);
 
+        // the parser too: nested codecs from this build are called directly, dependencies through their Codec
+        final String parser = codec.substring(codec.indexOf("public static @NonNull Holder parseFrom("));
+        assertTrue(parser.contains("local.codec.LocalProtoCodec.parseFrom(input, strictMode"), parser);
+        assertTrue(parser.contains("External.PROTOBUF.parse(input, strictMode"), parser);
+        assertFalse(parser.contains("ExternalProtoCodec.parseFrom"), parser);
+
         // and so does protobufSize(): nested models from this build are measured directly
         final String model = Files.readString(out.resolve("local/Holder.java"));
         final String size = model.substring(model.indexOf("public int protobufSize()"));
