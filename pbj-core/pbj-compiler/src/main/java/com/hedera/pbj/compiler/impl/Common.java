@@ -952,6 +952,13 @@ public final class Common {
     public static final int MAX_INLINE_FIELDS = 32;
 
     /**
+     * The most alternatives a oneof can have for generated array parsers and views to read it in their in-order fast
+     * path, one {@code at()} test per alternative: wider oneofs, such as a transaction body's, would make the fast path
+     * too large for the JIT to compile well, and are read by the tag switch that follows it.
+     */
+    public static final int MAX_FAST_PATH_ONEOF_ALTERNATIVES = 4;
+
+    /**
      * The number of fields of a message, counting each oneof alternative.
      *
      * @param fields the message's fields

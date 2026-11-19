@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
+import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.Utf8Tools;
@@ -41,6 +42,15 @@ public final class ArrayCursor {
      * {@link #bytes} then returns views of it instead of copies, since {@link Bytes} is immutable.
      */
     private @Nullable Bytes source;
+
+    /** The bits of a tag's first byte that hold its continuation bit and its wire type. */
+    private static final int ONE_BYTE_TAG_WIRE_TYPE_BITS = 0x80 | ProtoConstants.TAG_WIRE_TYPE_MASK;
+
+    /**
+     * {@link ProtoConstants#WIRE_TYPE_DELIMITED}'s value: a one-byte tag of a length-delimited field has these as its
+     * {@link #ONE_BYTE_TAG_WIRE_TYPE_BITS}.
+     */
+    private static final int WIRE_TYPE_DELIMITED = ProtoConstants.WIRE_TYPE_DELIMITED.ordinal();
 
     /** The empty array that cursors created with nothing to read yet point at, shared so none allocates one. */
     private static final byte[] EMPTY = new byte[0];
@@ -160,6 +170,30 @@ public final class ArrayCursor {
         return this;
     }
 
+    /**
+     * Point this cursor at {@code length} bytes from {@code offset} within what {@code outer} reads, the array and
+     * {@link Bytes} it reads included. Views use it for the messages they contain: the outer cursor's range was checked
+     * when it was set, so only that these bytes lie inside it is.
+     *
+     * @param outer the cursor reading the bytes around these
+     * @param offset index of the first byte to read
+     * @param length the number of bytes to read
+     * @return this cursor
+     * @throws IndexOutOfBoundsException if the bytes are not inside what {@code outer} reads
+     */
+    public ArrayCursor reset(@NonNull final ArrayCursor outer, final int offset, final int length) {
+        if (offset < outer.start || length < 0 || length > outer.limit - offset) {
+            throw new IndexOutOfBoundsException(
+                    "offset " + offset + ", length " + length + ", outside " + outer.start + " to " + outer.limit);
+        }
+        this.in = outer.in;
+        this.p = offset;
+        this.limit = offset + length;
+        this.start = offset;
+        this.source = outer.source;
+        return this;
+    }
+
     /** @return the {@link Bytes} this cursor reads, or null if it reads a plain array */
     public @Nullable Bytes source() {
         return source;
@@ -246,6 +280,27 @@ public final class ArrayCursor {
     }
 
     /**
+     * If the next byte is the one-byte tag of a length-delimited field whose number is in {@code fieldMask}, consume it
+     * and return it: generated views use it for a oneof's message alternatives, any one of which comes next.
+     *
+     * @param fieldMask bit {@code n} set for each field number {@code n}, from 1 to 15, to match
+     * @return the tag, or 0 if the next byte is not such a tag
+     */
+    public int atField(final int fieldMask) {
+        final int q = p;
+        if (q < limit) {
+            final int b = in[q];
+            // a one-byte tag (no continuation bit) of wire type 2, for one of the fields
+            if ((b & ONE_BYTE_TAG_WIRE_TYPE_BITS) == WIRE_TYPE_DELIMITED
+                    && ((fieldMask >>> (b >>> ProtoParserTools.TAG_FIELD_OFFSET)) & 1) != 0) {
+                p = q + 1;
+                return b;
+            }
+        }
+        return 0;
+    }
+
+    /**
      * If the next two bytes are a two-byte tag, consume them and return true.
      *
      * @param tag0 the tag's first byte
@@ -279,10 +334,14 @@ public final class ArrayCursor {
         return varintWide();
     }
 
-    /** The multi-byte varint read: the XOR chain of {@code ByteArrayBufferedData}, with limit checks. */
+    /**
+     * The multi-byte varint read: the XOR chain of {@code ByteArrayBufferedData}, with limit checks. The chain may
+     * read past the limit, but not past the array: a small message's limit is usually less than ten bytes away, while
+     * the array goes on. A varint that ends past the limit is an underflow, as it is when read a byte at a time.
+     */
     private long varintWide() {
         int q = p;
-        if (limit - q >= 10) {
+        if (in.length - q >= 10) {
             long v = in[q++];
             if ((v ^= (long) in[q++] << 7) < 0L) {
                 v ^= (~0L << 7);
@@ -311,8 +370,12 @@ public final class ArrayCursor {
                 // a tenth byte: only its lowest bit fits in a long and the chain above already set it, so, as
                 // ByteArrayBufferedData does, reject a tenth byte that continues or leaves that bit clear
                 if (v < 0L && isBadTenthByte(in[q++])) {
-                    throw new DataEncodingException("Malformed var int");
+                    // past the limit, it is an underflow first, as when read a byte at a time
+                    throw q > limit ? new BufferUnderflowException() : new DataEncodingException("Malformed var int");
                 }
+            }
+            if (q > limit) {
+                throw new BufferUnderflowException();
             }
             p = q;
             return v;
