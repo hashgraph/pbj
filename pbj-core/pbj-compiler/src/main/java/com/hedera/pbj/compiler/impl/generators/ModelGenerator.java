@@ -373,8 +373,8 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         // protobuf size method
-        bodyContent +=
-                LazyGetProtobufSizeMethodGenerator.generateLazyGetProtobufSize(fieldsNoPrecomputed, schemaClassName);
+        bodyContent += LazyGetProtobufSizeMethodGenerator.generateLazyGetProtobufSize(
+                fieldsNoPrecomputed, schemaClassName, lookupHelper);
         bodyContent += "\n";
 
         if (lookupHelper.hasDiffApis(msgDef)) {
