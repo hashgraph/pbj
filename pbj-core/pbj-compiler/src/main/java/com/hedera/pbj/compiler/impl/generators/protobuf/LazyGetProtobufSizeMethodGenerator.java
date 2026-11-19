@@ -113,7 +113,6 @@ public class LazyGetProtobufSizeMethodGenerator {
         String prefix = "// [" + field.fieldNumber() + "] - " + field.name();
         prefix += "\n";
 
-        String statementIndent = "";
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = modelClassName == null
@@ -121,12 +120,9 @@ public class LazyGetProtobufSizeMethodGenerator {
                     : modelClassName + "." + oneOfField.nameCamelFirstUpper() + "OneOfType";
             getValueCode = oneOfField.nameCamelFirstLower() + ".as()";
             if (oneOfGuard) {
+                // one line, as the guarded statement is a single statement
                 prefix += "if (" + oneOfField.nameCamelFirstLower() + ".kind() == " + oneOfType + "."
-                        + Common.camelToUpperSnake(field.name()) + ")";
-                prefix += "\n";
-                // The statement below is the (unbraced) body of the "if" above, so indent it one level
-                // deeper than the "if" itself to make that visually clear.
-                statementIndent = " ".repeat(DEFAULT_INDENT);
+                        + Common.camelToUpperSnake(field.name()) + ") ";
             } else {
                 prefix = "";
             }
@@ -135,7 +131,6 @@ public class LazyGetProtobufSizeMethodGenerator {
         final String writeMethodName = field.methodNameType();
         if (field.optionalValueType()) {
             return prefix
-                    + statementIndent
                     + switch (field.messageType()) {
                         case "StringValue" ->
                             "_size += sizeOfOptionalString(%s, %s);".formatted(fieldDef, getValueCode);
@@ -201,7 +196,6 @@ public class LazyGetProtobufSizeMethodGenerator {
             // spotless:on
         } else {
             return prefix
-                    + statementIndent
                     + switch (field.type()) {
                         case ENUM -> "_size += sizeOfEnum(%s, %s);".formatted(fieldDef, getValueCode);
                         case STRING ->

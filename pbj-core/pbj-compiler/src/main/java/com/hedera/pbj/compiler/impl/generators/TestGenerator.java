@@ -662,7 +662,7 @@ public final class TestGenerator implements Generator {
                     assertEquals(bytes, reverseBuffer.toBytes());
                     reverseBuffer.reset();
                     $modelClassName.PROTOBUF.writeReverse(modelObj, reverseBuffer);
-                    assertEquals(bytes, reverseBuffer.bytes());
+                    assertEquals(bytes, reverseBuffer.unsafeBytes());
                 
                     // Test JSON Writing
                     final CharBufferToWritableSequentialData charBufferToWritableSequentialData = new CharBufferToWritableSequentialData(charBuffer);
