@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+import "google/protobuf/wrappers.proto";
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+
+/**
+ * The same message with boxed and unboxed oneof storage, for OneofStorageTest: both must behave the same, apart from
+ * the identity of the OneOf the unboxed one builds on each call.
+ */
+
+// <<<pbj.oneof_storage = "boxed">>>
+message BoxedChoice {
+  int64 id = 1;
+  oneof choice {
+    string text = 2;
+    OneofLeaf leaf = 3;
+    google.protobuf.StringValue wrapped = 4;
+    OneofColor color = 5;
+    sint32 number = 6;
+  }
+}
+
+// <<<pbj.oneof_storage = "unboxed">>>
+message UnboxedChoice {
+  int64 id = 1;
+  oneof choice {
+    string text = 2;
+    OneofLeaf leaf = 3;
+    google.protobuf.StringValue wrapped = 4;
+    OneofColor color = 5;
+    sint32 number = 6;
+  }
+}
+
+message OneofLeaf {
+  int32 value = 1;
+}
+
+enum OneofColor {
+  ONEOF_RED = 0;
+  ONEOF_GREEN = 1;
+}

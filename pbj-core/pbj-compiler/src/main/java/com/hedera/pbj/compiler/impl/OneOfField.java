@@ -9,6 +9,9 @@ import java.util.stream.Collectors;
 
 /**
  * An implementation of Field for OneOf fields
+ *
+ * @param unboxed true if the model stores the oneof as a kind field and a value field ({@code pbj.oneof_storage =
+ *     "unboxed"}) instead of a {@code OneOf} object
  */
 public record OneOfField(
         String parentMessageName,
@@ -17,7 +20,8 @@ public record OneOfField(
         List<Field> fields,
         boolean repeated,
         boolean deprecated,
-        boolean comparable)
+        boolean comparable,
+        boolean unboxed)
         implements Field {
     /**
      * Create a OneOf field from parser context
@@ -42,7 +46,10 @@ public record OneOfField(
                 new ArrayList<>(oneOfContext.oneofField().size()),
                 false,
                 getDeprecatedOption(oneOfContext.optionStatement()),
-                isComparable(oneOfContext, lookupHelper));
+                isComparable(oneOfContext, lookupHelper),
+                lookupHelper.oneofStorage((Protobuf3Parser.MessageDefContext)
+                                oneOfContext.getParent().getParent().getParent())
+                        == PerformanceOptions.OneofStorage.UNBOXED);
         for (var field : oneOfContext.oneofField()) {
             fields.add(new SingleField(field, this, lookupHelper));
         }
@@ -156,6 +163,16 @@ public record OneOfField(
     @Override
     public String parserFieldsSetMethodCase() {
         return fields.stream().map(Field::parserFieldsSetMethodCase).collect(Collectors.joining("\n"));
+    }
+
+    /** @return the name of the model field, and accessor, holding the kind of an unboxed oneof */
+    public String kindName() {
+        return nameCamelFirstLower() + "Kind";
+    }
+
+    /** @return the name of the model field holding the value of an unboxed oneof */
+    public String valueName() {
+        return nameCamelFirstLower() + "Value";
     }
 
     /**

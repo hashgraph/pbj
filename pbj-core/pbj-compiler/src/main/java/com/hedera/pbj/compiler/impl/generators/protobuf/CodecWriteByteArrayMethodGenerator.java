@@ -136,12 +136,16 @@ final class CodecWriteByteArrayMethodGenerator {
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
             final String oneOfType = "%s.%sOneOfType".formatted(modelClassName, oneOfField.nameCamelFirstUpper());
-            getValueCode = "(%s)data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
+            getValueCode = oneOfField.unboxed()
+                    ? "data.%s()".formatted(field.nameCamelFirstLower())
+                    : "(%s)data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
             prefix = oneOfGuard
                     ? prefix
-                            + "if (data.%s().kind() == %s.%s) "
+                            + "if (data.%s == %s.%s) "
                                     .formatted(
-                                            oneOfField.nameCamelFirstLower(),
+                                            oneOfField.unboxed()
+                                                    ? oneOfField.kindName() + "()"
+                                                    : oneOfField.nameCamelFirstLower() + "().kind()",
                                             oneOfType,
                                             Common.camelToUpperSnake(field.name()))
                     : "";

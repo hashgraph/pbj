@@ -106,12 +106,27 @@ if (pbjPerformance == "max") {
     sourceSets.named("jmh") { java.srcDir("src/jmhMax/java") }
 }
 
+// `-PpbjOneofStorage=boxed` (or `unboxed`) overrides the oneof storage of the configuration above,
+// to compare the two
+// with everything else the same
+val pbjOneofStorage = providers.gradleProperty("pbjOneofStorage").orNull
+
+require(pbjOneofStorage == null || pbjOneofStorage == "boxed" || pbjOneofStorage == "unboxed") {
+    "pbjOneofStorage must be \"boxed\" or \"unboxed\", not \"$pbjOneofStorage\""
+}
+
 // Tests can tell which configuration they run in
-tasks.withType<Test>().configureEach { systemProperties["pbj.performance"] = pbjPerformance }
+tasks.withType<Test>().configureEach {
+    systemProperties["pbj.performance"] = pbjPerformance
+    systemProperties["pbj.oneofStorage"] = pbjOneofStorage ?: ""
+}
 
 // Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
 pbj {
     performance = pbjPerformance
+    if (pbjOneofStorage != null) {
+        oneofStorage = pbjOneofStorage
+    }
     javaPackageSuffix = ".pbj.integration.tests"
     // StateValue is the catalog Hiero uses, so every HAPI state value is a diff root.
     diffMessageContainers = setOf("proto.DiffCatalog", "com.hedera.hapi.platform.state.StateValue")

@@ -146,6 +146,8 @@ final class InlineFieldCodeGenerator {
                 i++;
             }
             final List<Field> run = sorted.subList(runStart, i);
+            // an unboxed oneof's kind has its own getter, which allocates nothing
+            final String kind = oneOf.unboxed() ? oneOf.kindName() + "()" : oneOf.nameCamelFirstLower() + "().kind()";
             if (run.size() == 1) {
                 final Field alternative = run.getFirst();
                 final String body = helpersForMessages && alternative.type() == Field.FieldType.MESSAGE
@@ -153,13 +155,13 @@ final class InlineFieldCodeGenerator {
                         : field(alternative);
                 sb.append("""
                         // [$number] - $name
-                        if ($receiver$oneOf().kind() == $oneOfType.$kind) {
+                        if ($receiver$oneOfKind == $oneOfType.$kind) {
                         $body}
                         """.replace("$number", Integer.toString(alternative.fieldNumber()))
                         .replace("$name", alternative.name())
                         .replace("$receiver", receiver)
                         .replace("$oneOfType", oneOf.getEnumClassRef())
-                        .replace("$oneOf", oneOf.nameCamelFirstLower())
+                        .replace("$oneOfKind", kind)
                         .replace("$kind", Common.camelToUpperSnake(alternative.name()))
                         .replace("$body", body.indent(DEFAULT_INDENT)));
                 continue;
@@ -181,12 +183,12 @@ final class InlineFieldCodeGenerator {
                         .replace("$body", body.indent(DEFAULT_INDENT)));
             }
             sb.append("""
-                    switch ($receiver$oneOf().kind()) {
+                    switch ($receiver$kind) {
                     $cases    default:
                             break;
                     }
                     """.replace("$receiver", receiver)
-                    .replace("$oneOf", oneOf.nameCamelFirstLower())
+                    .replace("$kind", kind)
                     .replace("$cases", cases.toString().indent(DEFAULT_INDENT)));
         }
         return sb.toString();
@@ -367,12 +369,18 @@ final class InlineFieldCodeGenerator {
         final String local = localName(field);
         // enums are written by their proto ordinal
         final String javaType = field.type() == Field.FieldType.ENUM ? "int" : field.javaFieldType();
-        final String oneOfValue =
-                inOneOf ? "%s%s().as()".formatted(receiver, field.parent().nameCamelFirstLower()) : "";
+        // an unboxed oneof's value is read with the alternative's typed getter, which allocates nothing
+        final String oneOfValue = !inOneOf
+                ? ""
+                : field.parent().unboxed()
+                        ? "%s%s()".formatted(receiver, field.nameCamelFirstLower())
+                        : "%s%s().as()".formatted(receiver, field.parent().nameCamelFirstLower());
         final String read = !inOneOf
                 ? read(field)
                 : field.type() == Field.FieldType.ENUM
-                        ? "((%s) %s).protoOrdinal()".formatted(field.javaFieldType(), oneOfValue)
+                        ? (field.parent().unboxed()
+                                ? "%s.protoOrdinal()".formatted(oneOfValue)
+                                : "((%s) %s).protoOrdinal()".formatted(field.javaFieldType(), oneOfValue))
                         : oneOfValue;
         final int tagSize = tagSize(field.fieldNumber(), field.type().wireType());
         final String tag = tagCode(field.fieldNumber(), field.type().wireType());

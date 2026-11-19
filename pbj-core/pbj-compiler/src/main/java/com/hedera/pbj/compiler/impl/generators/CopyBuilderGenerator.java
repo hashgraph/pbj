@@ -46,6 +46,19 @@ final class CopyBuilderGenerator {
                 + (fields.isEmpty() ? "" : ", ") + "$unknownFields";
     }
 
+    /**
+     * The model's fields as constructor arguments, read from inside the model: an unboxed oneof is passed as a
+     * {@code OneOf}, from its getter.
+     */
+    static String modelConstructorArguments(List<Field> fields) {
+        return fields.stream()
+                        .map(field -> field instanceof OneOfField oneOf && oneOf.unboxed()
+                                ? field.nameCamelFirstLower() + "()"
+                                : field.nameCamelFirstLower())
+                        .collect(Collectors.joining(", "))
+                + (fields.isEmpty() ? "" : ", ") + "$unknownFields";
+    }
+
     /** Extra parameters of the {@link ConstructorTracking#TRACKED} constructor. */
     static String constructorParameters(String model, List<Field> fields) {
         return ", final " + model + " $origin, final " + maskType(fields) + " $changed";
@@ -103,7 +116,7 @@ final class CopyBuilderGenerator {
 
     /** Body of {@code copyBuilder()}, which starts a lineage on an untracked instance and continues it otherwise. */
     static String copyBuilderBody(List<Field> fields, boolean tracking) {
-        final String create = "new Builder(" + constructorArguments(fields) + ")";
+        final String create = "new Builder(" + modelConstructorArguments(fields) + ")";
         if (!tracking) {
             return "return " + create + ";";
         }
@@ -187,7 +200,7 @@ final class CopyBuilderGenerator {
                         : "$copyBuilderChanged")
                 .replace("$model", model)
                 .replace("$maskType", maskType(fields))
-                .replace("$arguments", constructorArguments(fields))
+                .replace("$arguments", modelConstructorArguments(fields))
                 .indent(DEFAULT_INDENT);
         // spotless:on
     }
