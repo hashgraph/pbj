@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.runtime;
 
+import com.hedera.pbj.runtime.internal.ArrayInputs;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.CodingErrorAction;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -244,27 +241,21 @@ public final class ProtoParserTools {
         if (length > maxSize) {
             throw new ParseException("size " + length + " is greater than max " + maxSize);
         }
-        if (input.remaining() < length) {
+        if (length < 0 || input.remaining() < length) {
             throw new BufferUnderflowException();
         }
-        final ByteBuffer bb = ByteBuffer.allocate(length);
-        final long bytesRead = input.readBytes(bb);
-        if (bytesRead != length) {
+        // decode straight from the backing array when there is one, otherwise from a copy of the bytes
+        final byte[] array = ArrayInputs.array(input);
+        if (array != null) {
+            final String value = Utf8Tools.decodeUtf8Strict(array, ArrayInputs.index(input), length);
+            input.skip(length);
+            return value;
+        }
+        final byte[] bytes = new byte[length];
+        if (input.readBytes(bytes) != length) {
             throw new BufferUnderflowException();
         }
-        bb.rewind();
-
-        try {
-            // Shouldn't use `new String()` because we want to error out on malformed UTF-8 bytes.
-            return StandardCharsets.UTF_8
-                    .newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(bb)
-                    .toString();
-        } catch (CharacterCodingException e) {
-            throw new MalformedProtobufException("Malformed UTF-8 string encountered", e);
-        }
+        return Utf8Tools.decodeUtf8Strict(bytes, 0, length);
     }
 
     /**

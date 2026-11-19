@@ -166,4 +166,74 @@ public final class Utf8Tools {
         }
         return j - offset;
     }
+
+    /**
+     * Decode UTF-8 bytes into a String, rejecting malformed input exactly as the JDK decoder does in REPORT mode, without
+     * the decoder's buffers: all-ASCII input becomes a compact Latin-1 string, and anything else is validated, then
+     * decoded.
+     *
+     * @param in the bytes
+     * @param offset the index of the first byte
+     * @param length the number of bytes
+     * @return the string
+     * @throws MalformedProtobufException if the bytes are not well-formed UTF-8
+     */
+    public static String decodeUtf8Strict(@NonNull final byte[] in, final int offset, final int length)
+            throws MalformedProtobufException {
+        if (length == 0) {
+            return "";
+        }
+        final int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            if (in[i] < 0) {
+                if (!isWellFormedUtf8(in, i, end)) {
+                    throw new MalformedProtobufException("Malformed UTF-8 string encountered");
+                }
+                return new String(in, offset, length, java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+        return new String(in, offset, length, java.nio.charset.StandardCharsets.ISO_8859_1);
+    }
+
+    /**
+     * Whether {@code in[offset, end)} is well-formed UTF-8: no stray continuation bytes, overlong forms, surrogates,
+     * code points over U+10FFFF or truncated sequences. The same rules as the JDK decoder in REPORT mode.
+     *
+     * @param in the bytes
+     * @param offset the index of the first byte to check
+     * @param end the index after the last byte
+     * @return true if well-formed
+     */
+    public static boolean isWellFormedUtf8(@NonNull final byte[] in, final int offset, final int end) {
+        int i = offset;
+        while (i < end) {
+            final int c = in[i] & 0xFF;
+            if (c < 0x80) {
+                i++;
+            } else if (c < 0xC2) {
+                // a continuation byte, or an overlong two-byte form
+                return false;
+            } else if (c < 0xE0) {
+                if (i + 1 >= end || (in[i + 1] & 0xC0) != 0x80) return false;
+                i += 2;
+            } else if (c < 0xF0) {
+                if (i + 2 >= end) return false;
+                final int c1 = in[i + 1] & 0xFF;
+                if ((c1 & 0xC0) != 0x80 || (in[i + 2] & 0xC0) != 0x80) return false;
+                // overlong forms, and the surrogates U+D800 to U+DFFF
+                if ((c == 0xE0 && c1 < 0xA0) || (c == 0xED && c1 >= 0xA0)) return false;
+                i += 3;
+            } else if (c < 0xF5) {
+                if (i + 3 >= end) return false;
+                final int c1 = in[i + 1] & 0xFF;
+                if ((c1 & 0xC0) != 0x80 || (in[i + 2] & 0xC0) != 0x80 || (in[i + 3] & 0xC0) != 0x80) return false;
+                // overlong forms, and code points over U+10FFFF
+                if ((c == 0xF0 && c1 < 0x90) || (c == 0xF4 && c1 >= 0x90)) return false;
+                i += 4;
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
 }
