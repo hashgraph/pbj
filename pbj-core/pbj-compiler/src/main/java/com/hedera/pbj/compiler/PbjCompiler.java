@@ -145,6 +145,7 @@ public abstract class PbjCompiler {
         final LookupHelper lookupHelper = new LookupHelper(allProtobufFiles, javaPackageSuffix);
         lookupHelper.selectDiffMessages(diffMessages, diffMessageContainers);
         lookupHelper.markSourceFiles(sourceFiles);
+        lookupHelper.setProjectOptions(projectOptions);
         // for each proto src directory generate code
         for (final File protoFile : sourceFiles) {
             if (protoFile.exists()

@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+
+/**
+ * Messages with and without pbj.fast_parse nested in each other. The generated tests round-trip them through both
+ * parsers, in canonical and reversed field order. With -PpbjPerformance=max the messages without a comment get
+ * fast_parse from the project, and MixedSlowInner still opts out.
+ */
+
+// <<<pbj.fast_parse = true>>>
+message MixedFastOuter {
+  int64 id = 1;
+  MixedSlowInner slow = 2;
+  string name = 3;
+  MixedFastInner fast = 4;
+  bytes data = 5;
+  uint32 small = 6;
+}
+
+// <<<pbj.fast_parse = false>>>
+message MixedSlowInner {
+  int32 count = 1;
+  MixedFastInner fast = 2;
+  string label = 3;
+}
+
+// <<<pbj.fast_parse = true>>>
+message MixedFastInner {
+  sint64 delta = 1;
+  bool flag = 2;
+  double ratio = 3;
+  fixed32 fixed = 4;
+  MixedKind kind = 5;
+  sfixed64 big = 6;
+  float scale = 7;
+  sint32 offset = 8;
+  // a two-byte tag
+  string far = 20;
+}
+
+/** No comment: fast_parse only from the project setting. */
+message MixedPlain {
+  MixedFastOuter outer = 1;
+  uint64 total = 2;
+}
+
+enum MixedKind {
+  MIXED_UNKNOWN = 0;
+  MIXED_A = 1;
+  MIXED_B = 2;
+}
