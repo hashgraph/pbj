@@ -25,11 +25,10 @@ import java.util.stream.Stream;
  *
  * <p>Writers emit fields in field-number order, so the parser first tests for each field's tag in that order, one byte
  * compare per field (the in-order fast path); repeated fields loop on their tag. Small oneofs, of at most
- * {@value #MAX_FAST_PATH_ALTERNATIVES} alternatives such as an id's, are in it as one chain of compares; wider oneofs and
- * maps stay out of it: copying every alternative of a wide oneof into it doubles the method and made parsing slower in
- * the prototype. A general
- * loop then handles anything else exactly as {@code parseImpl} does: fields out of order or repeated, oneofs, maps,
- * unknown fields, and strict mode.
+ * {@value Common#MAX_FAST_PATH_ONEOF_ALTERNATIVES} alternatives such as an id's, are in it as one chain of compares;
+ * wider oneofs and maps stay out of it: copying every alternative of a wide oneof into it doubles the method and made
+ * parsing slower in the prototype. A general loop then handles anything else exactly as {@code parseImpl} does: fields
+ * out of order or repeated, oneofs, maps, unknown fields, and strict mode.
  */
 final class CodecParseArrayMethodGenerator {
 
@@ -74,7 +73,7 @@ final class CodecParseArrayMethodGenerator {
                 final String read = oneOfAlternative((SingleField) field, lookupHelper, helpers);
                 cases.append(caseCode(field, wireType(field), read));
                 final OneOfField oneOf = field.parent();
-                if (oneOf.fields().size() <= MAX_FAST_PATH_ALTERNATIVES) {
+                if (oneOf.fields().size() <= Common.MAX_FAST_PATH_ONEOF_ALTERNATIVES) {
                     final StringBuilder chain = chains.computeIfAbsent(oneOf, o -> {
                         fastPath.append(chainMarker(o));
                         return new StringBuilder();
@@ -275,7 +274,7 @@ final class CodecParseArrayMethodGenerator {
             final int[] tagBytes = Common.tagBytes(field.fieldNumber(), wireType);
             if (tagBytes.length == 1) {
                 // count the elements that follow one another, then read them into a list of exactly that size
-                fastPath.append("%s = presize(%s, input.run((byte) 0x%02X), %s);%n"
+                fastPath.append("%s = presize(%s, input.peekRepeatedCount((byte) 0x%02X), %s);%n"
                         .formatted(temp, temp, tagBytes[0], maxSize(field)));
             }
             fastPath.append(fastPathCode(field, wireType, "while", addOne));
@@ -313,9 +312,6 @@ final class CodecParseArrayMethodGenerator {
         cases.append(caseCode(field, wireType, addOne));
         cases.append(caseCode(field, Common.TYPE_LENGTH_DELIMITED, packed));
     }
-
-    /** The most alternatives a oneof can have to be in the in-order fast path. */
-    private static final int MAX_FAST_PATH_ALTERNATIVES = 4;
 
     /** Where a small oneof's chain goes in the fast path, until it is complete. */
     private static String chainMarker(final OneOfField oneOf) {
