@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+
+import "google/protobuf/wrappers.proto";
+
+/**
+ * Messages for ViewValidationTest: views validate as parsing does, with the caller's limits and strict mode, and are
+ * denied to messages that can't have them.
+ */
+
+// <<<pbj.views = true>>>
+message ViewCheckOuter {
+  ViewCheckInner inner = 1;
+  oneof choice {
+    ViewCheckInner inner_choice = 2;
+    string text_choice = 3;
+  }
+  repeated sint64 numbers = 4;
+  repeated string names = 5;
+  string name = 6;
+  repeated ViewCheckInner inners = 7;
+  bytes payload = 8;
+  repeated bytes payloads = 9;
+  google.protobuf.StringValue memo = 10;
+}
+
+// <<<pbj.views = true>>>
+message ViewCheckInner {
+  int32 value = 1;
+  ViewCheckLeaf leaf = 2;
+}
+
+// <<<pbj.views = true>>>
+message ViewCheckLeaf {
+  int32 value = 1;
+}
+
+/** Asks for a view, but maps are not supported by views. */
+// <<<pbj.views = true>>>
+message ViewCheckWithMap {
+  map<string, int32> counts = 1;
+}
+
+/** Turns views off. */
+// <<<pbj.views = false>>>
+message ViewCheckOptedOut {
+  int32 value = 1;
+}
+
+/** Asks for a view, but contains a message that has none. */
+// <<<pbj.views = true>>>
+message ViewCheckDenied {
+  ViewCheckOptedOut opted_out = 1;
+  int32 value = 2;
+}
