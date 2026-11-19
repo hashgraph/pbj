@@ -150,11 +150,11 @@ public final class ProtoArrayWriterTools {
             return writeUnsignedVarInt(out, p, v);
         }
         final long b0 = (v & 0x7F) | 0x80;
-        final long b1 = ((v >>> 7) & 0x7F) | 0x80;
         if (v < (1L << 14)) {
             SHORT_BIG_ENDIAN.set(out, p, (short) (b0 << 8 | (v >>> 7)));
             return 2;
         }
+        final long b1 = ((v >>> 7) & 0x7F) | 0x80;
         if (v < (1L << 21)) {
             SHORT_BIG_ENDIAN.set(out, p, (short) (b0 << 8 | b1));
             out[p + 2] = (byte) (v >>> 14);
