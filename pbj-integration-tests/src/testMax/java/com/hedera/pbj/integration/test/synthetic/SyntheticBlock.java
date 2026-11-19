@@ -685,7 +685,7 @@ public final class SyntheticBlock {
                 header.hapiProtoVersion().minor(66);
                 header.softwareVersion().minor(66);
                 header.number(c.l());
-                writeTimestamp(c, header.blockTimestamp());
+                header.blockTimestamp(c.l(), c.i());
                 header.hashAlgorithm(BlockHashAlgorithm.SHA2_384);
             }
             case KIND_SIGNED_TRANSACTION -> w.signedTransaction(c.heap(), c.i(), c.i());
@@ -705,38 +705,34 @@ public final class SyntheticBlock {
         }
     }
 
-    private static void writeTimestamp(final Cursor c, final Timestamp.Writer w) {
-        w.seconds(c.l()).nanos(c.i());
-    }
-
     private static void writeTransactionResult(final Cursor c, final TransactionResult.Writer w) {
         w.statusProtoOrdinal(c.i());
-        writeTimestamp(c, w.consensusTimestamp());
+        w.consensusTimestamp(c.l(), c.i());
         w.transactionFeeCharged(c.l());
         final int transfers = c.i();
         if (transfers > 0) {
             final TransferList.Writer list = w.transferList();
             for (int i = 0; i < transfers; i++) {
                 final AccountAmount.Writer amount = list.addAccountAmounts();
-                amount.accountID().accountNum(c.l());
+                amount.accountID(0, 0, c.l());
                 amount.amount(c.l());
             }
         }
         final int lists = c.i();
         for (int i = 0; i < lists; i++) {
             final TokenTransferList.Writer list = w.addTokenTransferLists();
-            list.token().tokenNum(c.l());
+            list.token(0, 0, c.l());
             final int count = c.i();
             for (int j = 0; j < count; j++) {
                 final AccountAmount.Writer amount = list.addTransfers();
-                amount.accountID().accountNum(c.l());
+                amount.accountID(0, 0, c.l());
                 amount.amount(c.l());
             }
         }
     }
 
     private static void writeStateChanges(final Cursor c, final StateChanges.Writer w) {
-        writeTimestamp(c, w.consensusTimestamp());
+        w.consensusTimestamp(c.l(), c.i());
         final int count = c.i();
         for (int i = 0; i < count; i++) {
             final StateChange.Writer change = w.addStateChanges().stateId(c.i());
@@ -747,16 +743,16 @@ public final class SyntheticBlock {
                     final long token = c.l();
                     final MapUpdateChange.Writer update = change.mapUpdate();
                     final AccountTokenAssociation.Writer key = update.key().tokenRelationshipKey();
-                    key.accountId().accountNum(account);
-                    key.tokenId().tokenNum(token);
+                    key.accountId(0, 0, account);
+                    key.tokenId(0, 0, token);
                     final TokenRelation.Writer relation = update.value().tokenRelationValue();
-                    relation.tokenId().tokenNum(token);
-                    relation.accountId().accountNum(account);
+                    relation.tokenId(0, 0, token);
+                    relation.accountId(0, 0, account);
                     relation.balance(c.l()).automaticAssociation(c.l() != 0);
                 }
                 case OP_ACCOUNT -> {
                     final MapUpdateChange.Writer update = change.mapUpdate();
-                    update.key().accountIdKey().accountNum(c.l());
+                    update.key().accountIdKey(0, 0, c.l());
                     update.value().tokenRelationValue().balance(c.l());
                 }
                 case OP_NFT, OP_NFT_PRIVATE -> {
@@ -764,23 +760,23 @@ public final class SyntheticBlock {
                     final long serial = c.l();
                     final MapUpdateChange.Writer update = change.mapUpdate();
                     final NftID.Writer key = update.key().nftIdKey();
-                    key.tokenId().tokenNum(token);
+                    key.tokenId(0, 0, token);
                     key.serialNumber(serial);
                     final Nft.Writer nft = update.value().nftValue();
                     if (op == OP_NFT) {
                         final NftID.Writer id = nft.nftId();
-                        id.tokenId().tokenNum(token);
+                        id.tokenId(0, 0, token);
                         id.serialNumber(serial);
                     }
-                    nft.ownerId().accountNum(c.l());
+                    nft.ownerId(0, 0, c.l());
                     if (op == OP_NFT) {
-                        nft.spenderId().accountNum(c.l());
+                        nft.spenderId(0, 0, c.l());
                     }
-                    writeTimestamp(c, nft.mintTime());
+                    nft.mintTime(c.l(), c.i());
                 }
                 case OP_NFT_DELETE -> {
                     final NftID.Writer key = change.mapDelete().key().nftIdKey();
-                    key.tokenId().tokenNum(c.l());
+                    key.tokenId(0, 0, c.l());
                     key.serialNumber(c.l());
                 }
                 case OP_SINGLETON -> change.singletonUpdate().entityNumberValue(c.l());
@@ -790,8 +786,8 @@ public final class SyntheticBlock {
                             .addEntries();
                     entry.nodeId(c.l());
                     final TransactionID.Writer id = entry.transactionId();
-                    writeTimestamp(c, id.transactionValidStart());
-                    id.accountID().accountNum(c.l());
+                    id.transactionValidStart(c.l(), c.i());
+                    id.accountID(0, 0, c.l());
                     entry.statusProtoOrdinal(c.i());
                 }
                 default -> change.queuePop();
