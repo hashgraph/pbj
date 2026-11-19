@@ -181,7 +181,7 @@ final class CodecParseArrayMethodGenerator {
             case ENUM ->
                 """
                     final int enumOrdinal = (int) input.varint();
-                    final var value = $enum.fromProtobufOrdinal(enumOrdinal);
+                    final $enum value = $enum.fromProtobufOrdinal(enumOrdinal);
                     $temp = value != $enum.UNRECOGNIZED ? value : Integer.valueOf(enumOrdinal);
                     """.replace("$enum", Common.snakeToCamel(field.messageType(), true))
                         .replace("$temp", temp);

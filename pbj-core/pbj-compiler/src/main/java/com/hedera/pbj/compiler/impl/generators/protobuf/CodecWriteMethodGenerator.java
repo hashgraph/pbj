@@ -127,7 +127,7 @@ final class CodecWriteMethodGenerator {
             getValueCode = "(%s)data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
             prefix = oneOfGuard
                     ? prefix
-                            + "if (data.%s().kind() == %s.%s)%n"
+                            + "if (data.%s().kind() == %s.%s) "
                                     .formatted(
                                             oneOfField.nameCamelFirstLower(),
                                             oneOfType,

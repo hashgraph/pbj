@@ -7,6 +7,7 @@ import static java.util.regex.Matcher.quoteReplacement;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.EnumDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.FieldContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageElementContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageTypeContext;
@@ -298,7 +299,9 @@ public final class LookupHelper {
         if (known != null) {
             return known;
         }
-        // provisionally true, so messages that contain each other don't recurse forever
+        // Provisionally true while the result is computed: nestedArrayParsersAvailable calls back into this method for
+        // nested messages, and for a message that contains itself, directly or through others, that call finds this
+        // entry instead of recursing forever. The final result replaces it below.
         arrayParsers.put(name, Boolean.TRUE);
         final boolean result =
                 fastParse(name, message) && arrayParserSupports(message) && nestedArrayParsersAvailable(name, message);
@@ -325,7 +328,7 @@ public final class LookupHelper {
      */
     private boolean nestedArrayParsersAvailable(String name, MessageDefContext message) {
         for (MessageElementContext element : message.messageBody().messageElement()) {
-            final var field = element.field();
+            final FieldContext field = element.field();
             if (field == null || field.fieldName() == null || field.type_().messageType() == null) {
                 continue;
             }
@@ -368,20 +371,21 @@ public final class LookupHelper {
             "BytesValue");
 
     /**
-     * Whether the array parser supports every field of a message: singular scalars, strings, bytes, enums and messages,
-     * not repeated fields, maps, oneofs or {@code google.protobuf} wrapper types.
+     * Whether the array parser supports every field of a message. It supports singular scalars, strings, bytes, enums
+     * and messages. It does not support yet repeated fields, maps, oneofs, or fields of the {@code google.protobuf}
+     * wrapper types (such as {@code StringValue}), so this returns false for a message with any of those.
      */
     static boolean arrayParserSupports(MessageDefContext message) {
         for (MessageElementContext element : message.messageBody().messageElement()) {
             if (element.oneof() != null || element.mapField() != null) {
                 return false;
             }
-            final var field = element.field();
+            final FieldContext field = element.field();
             if (field != null && field.fieldName() != null) {
                 if (field.REPEATED() != null) {
                     return false;
                 }
-                final var type = field.type_().messageType();
+                final MessageTypeContext type = field.type_().messageType();
                 if (type != null && WRAPPER_TYPES.contains(type.messageName().getText())) {
                     return false;
                 }
