@@ -347,7 +347,7 @@ public abstract class Codec<T> {
     }
 
     /**
-     * Write an item back to front into a reusable {@link ReverseBuffer}. The output, {@code buffer.bytes()}, is the same
+     * Write an item back to front into a reusable {@link ReverseBuffer}. The output, {@code buffer.unsafeBytes()}, is the same
      * bytes {@link #toBytes} returns. Codecs generated with {@code pbj.fast_write} write in reverse, so nothing is
      * measured first; this default implementation measures the item and writes it forward into the buffer.
      *

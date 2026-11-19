@@ -376,7 +376,7 @@ Also:
 - **Runtime:** add `ReverseBuffer` (5.4), reusable and growable.
 - **Generated code:** `static void writeReverse(T, ReverseBuffer)` for flagged messages.
 - **New public API (additive, on `Codec`):** `void writeReverse(T item, ReverseBuffer buffer)`. The result is
-  available as `buffer.bytes()` (a `Bytes` view over the end of the buffer), `copyTo(byte[], int)` or `toBytes()`.
+  available as `buffer.unsafeBytes()` (a `Bytes` view over the end of the buffer), `copyTo(byte[], int)` or `toBytes()`.
   Codecs without the flag implement it by measuring and writing forward into the buffer.
 - **`toBytes(T)`** may use it internally (reverse write into a pooled buffer, then copy into an exact-size array),
   but only if that measures faster.

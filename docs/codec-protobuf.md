@@ -258,7 +258,7 @@ final ReverseBuffer buffer = new ReverseBuffer(4096);
 for (Order order : orders) {
     buffer.reset();
     Order.PROTOBUF.writeReverse(order, buffer);
-    send(buffer.bytes());   // a view, valid until the next reset or write; toBytes() or copyTo() copy it
+    send(buffer.unsafeBytes());   // a view, valid until the next reset or write; toBytes() or copyTo() copy it
 }
 ```
 

@@ -339,7 +339,7 @@ own data before turning it on (see [codec-protobuf.md](codec-protobuf.md#reverse
 ReverseBuffer buffer = new ReverseBuffer(4096);
 buffer.reset();
 HelloRequest.PROTOBUF.writeReverse(request, buffer);
-Bytes written = buffer.bytes();  // valid until the buffer is reset or written to again
+Bytes written = buffer.unsafeBytes();  // valid until the buffer is reset or written to again
 ```
 
 ### JSON
