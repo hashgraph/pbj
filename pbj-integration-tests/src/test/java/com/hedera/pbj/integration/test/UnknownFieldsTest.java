@@ -11,6 +11,7 @@ import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.ReverseBuffer;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import com.hedera.pbj.test.proto.pbj.MessageWithBytes;
 import com.hedera.pbj.test.proto.pbj.MessageWithBytesAndString;
@@ -97,6 +98,20 @@ public class UnknownFieldsTest {
 
         // and ensure it's equal to what we started with:
         assertEquals(EverythingTestData.EVERYTHING, everything);
+    }
+
+    @Test
+    void testUnknownFieldsWriteReverseIntoSmallBuffer() throws Exception {
+        final Bytes everythingBytes = Everything.PROTOBUF.toBytes(EverythingTestData.EVERYTHING);
+        final MessageWithEverythingUnknownFields msg = MessageWithEverythingUnknownFields.PROTOBUF.parse(
+                everythingBytes.toReadableSequentialData(), false, true, 16);
+        assertFalse(msg.getUnknownFields().isEmpty());
+
+        // A 16-byte buffer has to grow while the unknown fields are written, which replaces its array
+        final ReverseBuffer out = new ReverseBuffer(16);
+        MessageWithEverythingUnknownFields.PROTOBUF.writeReverse(msg, out);
+        assertEquals(MessageWithEverythingUnknownFields.PROTOBUF.toBytes(msg), out.toBytes());
+        assertEquals(EverythingTestData.EVERYTHING, Everything.PROTOBUF.parse(out.toBytes()));
     }
 
     @Test

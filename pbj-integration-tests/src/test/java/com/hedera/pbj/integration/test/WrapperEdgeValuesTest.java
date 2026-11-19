@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.ReverseBuffer;
 import com.hedera.pbj.test.proto.pbj.Everything;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,6 +82,9 @@ final class WrapperEdgeValuesTest {
         assertEquals(expected, Bytes.wrap(array, 0, written), "write(T, byte[], int)");
         assertEquals(expected, Everything.PROTOBUF.toBytes(value), "toBytes");
         assertEquals(expected.length(), Everything.PROTOBUF.measureRecord(value), "measureRecord");
+        final ReverseBuffer reverse = new ReverseBuffer(16);
+        Everything.PROTOBUF.writeReverse(value, reverse);
+        assertEquals(expected, reverse.toBytes(), "writeReverse");
 
         // protoc reads exactly what was written, and writes it back the same
         final byte[] protoc = com.hedera.pbj.test.proto.java.Everything.parseFrom(expected.toByteArray())
