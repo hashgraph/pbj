@@ -61,7 +61,7 @@ public class BlockItemKindBench {
 
     @Setup(Level.Trial)
     public void load() throws IOException, ParseException {
-        try (var in = new BufferedInputStream(new GZIPInputStream(
+        try (BufferedInputStream in = new BufferedInputStream(new GZIPInputStream(
                 Objects.requireNonNull(BlockItemKindBench.class.getResourceAsStream(BLOCK_FILE))))) {
             final Block block = Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
             int max = 0;

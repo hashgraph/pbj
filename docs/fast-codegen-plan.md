@@ -376,7 +376,7 @@ Also:
 - **Runtime:** add `ReverseBuffer` (5.4), reusable and growable.
 - **Generated code:** `static void writeReverse(T, ReverseBuffer)` for flagged messages.
 - **New public API (additive, on `Codec`):** `void writeReverse(T item, ReverseBuffer buffer)`. The result is
-  available as `buffer.bytes()` (a `Bytes` view over the end of the buffer), `copyTo(byte[], int)` or `toBytes()`.
+  available as `buffer.unsafeBytes()` (a `Bytes` view over the end of the buffer), `copyTo(byte[], int)` or `toBytes()`.
   Codecs without the flag implement it by measuring and writing forward into the buffer.
 - **`toBytes(T)`** may use it internally (reverse write into a pooled buffer, then copy into an exact-size array),
   but only if that measures faster.
@@ -512,9 +512,8 @@ Report before (the previous PR's branch) against after:
    from `-prof gc` next to `gc.alloc.rate.norm`.
 4. **protoc columns.** Report protoc next to PBJ: `BlockItemBench`'s `*ProtoC*` cases, `ProtobufObjectBench` and
    `ProtobufObjectArrayBench`.
-5. **Block files.** Block `…497558` was written with an older `BlockHeader` layout and no longer parses with the
-   current HAPI schema, so `BlockItemBench` uses block `…030221` (67,869 items, every kind, 21,981 signed
-   transactions).
+5. **Block files.** The benchmarks use block `…030221` (67,869 items, every kind, 21,981 signed transactions). The
+   older block `…497558`, written with an older `BlockHeader` layout that no longer parses, was removed.
 6. **Profiles when a step underperforms.** async-profiler's `ann` option labels frames `_[j]` (compiled), `_[i]`
    (inlined), `_[1]` (C1) and `_[0]` (interpreted), which shows directly which per-field calls were not inlined.
    `-XX:+UnlockDiagnosticVMOptions -XX:+PrintInlining` explains why.

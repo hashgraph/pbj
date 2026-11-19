@@ -3,6 +3,7 @@ package com.hedera.pbj.compiler.impl;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.FieldContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageElementContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageTypeContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.OneofFieldContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.Type_Context;
@@ -88,7 +89,7 @@ public class ContextualLookupHelper {
      */
     public void checkOptions(MessageDefContext message) {
         optionLevels(message);
-        for (var element : message.messageBody().messageElement()) {
+        for (final MessageElementContext element : message.messageBody().messageElement()) {
             if (element.messageDef() != null) {
                 checkOptions(element.messageDef());
             }

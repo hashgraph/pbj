@@ -352,7 +352,7 @@ own data before turning it on (see [codec-protobuf.md](codec-protobuf.md#reverse
 ReverseBuffer buffer = new ReverseBuffer(4096);
 buffer.reset();
 HelloRequest.PROTOBUF.writeReverse(request, buffer);
-Bytes written = buffer.bytes();  // valid until the buffer is reset or written to again
+Bytes written = buffer.unsafeBytes();  // valid until the buffer is reset or written to again
 ```
 
 ### JSON
@@ -396,7 +396,7 @@ final Order.View view = new Order.View();
 for (Bytes bytes : orders) {
     view.wrap(bytes);   // or wrap(bytes, strictMode, maxDepth, maxSize), as for parse()
     total += view.amount();
-    for (var line = view.lines(); line.next(); ) {
+    for (Order.View.LinesCursor line = view.lines(); line.next(); ) {
         count += line.value().quantity();
     }
 }
@@ -415,13 +415,13 @@ Keeping a reference and reading it later reads whatever the view was last wrappe
 ```java
 // Wrong: every element of the list is the same child view, wrapped over the last line
 List<OrderLine.View> lines = new ArrayList<>();
-for (var line = view.lines(); line.next(); ) {
+for (Order.View.LinesCursor line = view.lines(); line.next(); ) {
     lines.add(line.value());
 }
 
 // Right: copy what you need, or parse the element into a model object
 List<OrderLine> lines = new ArrayList<>();
-for (var line = view.lines(); line.next(); ) {
+for (Order.View.LinesCursor line = view.lines(); line.next(); ) {
     lines.add(line.value().toModel());
 }
 ```

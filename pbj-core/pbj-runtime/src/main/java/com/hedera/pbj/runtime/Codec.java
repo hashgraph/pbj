@@ -121,14 +121,13 @@ public abstract class Codec<T> {
                 return value;
             }
         }
-        // Parsers narrow the input's limit to each nested message. Generated parsers restore it when parsing fails
-        // part way, but other codecs may not, so restore it here too: callers see the same limit after a failure.
+        // Parsers narrow the input's limit to each nested message, and leave it narrowed when parsing fails part way.
+        // Restore it whatever happens, so callers always see the limit they had before.
         final long limit = input.limit();
         try {
             return parseImpl(input, strictMode, parseUnknownFields, maxDepth, maxSize);
-        } catch (final ParseException | RuntimeException e) {
+        } finally {
             input.limit(limit);
-            throw e;
         }
     }
 
@@ -348,7 +347,7 @@ public abstract class Codec<T> {
     }
 
     /**
-     * Write an item back to front into a reusable {@link ReverseBuffer}. The output, {@code buffer.bytes()}, is the same
+     * Write an item back to front into a reusable {@link ReverseBuffer}. The output, {@code buffer.unsafeBytes()}, is the same
      * bytes {@link #toBytes} returns. Codecs generated with {@code pbj.fast_write} write in reverse, so nothing is
      * measured first; this default implementation measures the item and writes it forward into the buffer.
      *

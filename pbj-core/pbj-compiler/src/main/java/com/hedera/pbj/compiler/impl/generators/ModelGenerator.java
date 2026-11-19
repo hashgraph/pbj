@@ -221,72 +221,29 @@ public final class ModelGenerator implements Generator {
         bodyContent += "\n";
 
         // constructors: w/o unknownFields, and with unknownFields; both w/ real enums and with Object
-        bodyContent += generateConstructor(
-                javaRecordName,
-                fields,
-                false,
-                false,
-                false,
-                fieldsNoPrecomputed,
-                true,
-                msgDef,
-                lookupHelper,
-                publicTracking);
+        final ConstructorSpec model = ConstructorSpec.of(javaRecordName, fields, fieldsNoPrecomputed)
+                .withThrowOnOneOfNull()
+                .withTracking(publicTracking);
+        bodyContent += generateConstructor(model, msgDef, lookupHelper);
         bodyContent += "\n";
         if (hasEnums(fieldsNoPrecomputed)) {
-            bodyContent += generateConstructor(
-                    javaRecordName,
-                    fields,
-                    false,
-                    false,
-                    true,
-                    fieldsNoPrecomputed,
-                    true,
-                    msgDef,
-                    lookupHelper,
-                    publicTracking);
+            bodyContent += generateConstructor(model.withObjectForEnum(), msgDef, lookupHelper);
             bodyContent += "\n";
         }
-        bodyContent += generateConstructor(
-                javaRecordName,
-                fields,
-                true,
-                false,
-                false,
-                fieldsNoPrecomputed,
-                true,
-                msgDef,
-                lookupHelper,
-                publicTracking);
+        bodyContent += generateConstructor(model.withUnknownFields(), msgDef, lookupHelper);
         bodyContent += "\n";
         if (hasEnums(fieldsNoPrecomputed)) {
-            bodyContent += generateConstructor(
-                    javaRecordName,
-                    fields,
-                    true,
-                    false,
-                    true,
-                    fieldsNoPrecomputed,
-                    true,
-                    msgDef,
-                    lookupHelper,
-                    publicTracking);
+            bodyContent += generateConstructor(model.withUnknownFields().withObjectForEnum(), msgDef, lookupHelper);
             bodyContent += "\n";
         }
         if (hasUnboxedConstructor(msgDef, fieldsNoPrecomputed, lookupHelper)) {
             // for the parsers: each unboxed oneof as its kind and value, with enums as Object like their temporaries
             bodyContent += generateConstructor(
-                    javaRecordName,
-                    fields,
-                    true,
-                    false,
-                    hasEnums(fieldsNoPrecomputed),
-                    fieldsNoPrecomputed,
-                    true,
+                    model.withUnknownFields()
+                            .withObjectForEnum(hasEnums(fieldsNoPrecomputed))
+                            .withUnboxedParams(),
                     msgDef,
-                    lookupHelper,
-                    publicTracking,
-                    true);
+                    lookupHelper);
             bodyContent += "\n";
         }
         // And if the model is cacheable, then also ctors w/ $hashCode
@@ -295,56 +252,17 @@ public final class ModelGenerator implements Generator {
                         .getCacheableMessageCacheSize(
                                 lookupHelper.getLookupHelper().getFullyQualifiedProtoNameForContext(msgDef))
                 != null) {
-            bodyContent += generateConstructor(
-                    javaRecordName,
-                    fields,
-                    false,
-                    true,
-                    false,
-                    fieldsNoPrecomputed,
-                    true,
-                    msgDef,
-                    lookupHelper,
-                    publicTracking);
+            bodyContent += generateConstructor(model.withHashCode(), msgDef, lookupHelper);
             bodyContent += "\n";
             if (hasEnums(fieldsNoPrecomputed)) {
-                bodyContent += generateConstructor(
-                        javaRecordName,
-                        fields,
-                        false,
-                        true,
-                        true,
-                        fieldsNoPrecomputed,
-                        true,
-                        msgDef,
-                        lookupHelper,
-                        publicTracking);
+                bodyContent += generateConstructor(model.withHashCode().withObjectForEnum(), msgDef, lookupHelper);
                 bodyContent += "\n";
             }
-            bodyContent += generateConstructor(
-                    javaRecordName,
-                    fields,
-                    true,
-                    true,
-                    false,
-                    fieldsNoPrecomputed,
-                    true,
-                    msgDef,
-                    lookupHelper,
-                    publicTracking);
+            bodyContent += generateConstructor(model.withUnknownFields().withHashCode(), msgDef, lookupHelper);
             bodyContent += "\n";
             if (hasEnums(fieldsNoPrecomputed)) {
                 bodyContent += generateConstructor(
-                        javaRecordName,
-                        fields,
-                        true,
-                        true,
-                        true,
-                        fieldsNoPrecomputed,
-                        true,
-                        msgDef,
-                        lookupHelper,
-                        publicTracking);
+                        model.withUnknownFields().withHashCode().withObjectForEnum(), msgDef, lookupHelper);
                 bodyContent += "\n";
             }
         }
@@ -352,16 +270,11 @@ public final class ModelGenerator implements Generator {
         if (lookupHelper.generateCopyBuilderTracking(msgDef)) {
             // private constructor used by Builder.build() to carry provenance into the new instance
             bodyContent += generateConstructor(
-                    javaRecordName,
-                    fields,
-                    true,
-                    false,
-                    true,
-                    fieldsNoPrecomputed,
-                    true,
+                    model.withTracking(ConstructorTracking.TRACKED)
+                            .withUnknownFields()
+                            .withObjectForEnum(),
                     msgDef,
-                    lookupHelper,
-                    ConstructorTracking.TRACKED);
+                    lookupHelper);
             bodyContent += "\n";
         }
 
@@ -898,7 +811,7 @@ public final class ModelGenerator implements Generator {
                 """
                     if ($unknownFields != null) {
                         for (int i = 0; i < $unknownFields.size(); i++) {
-                            result = 31 * result + $unknownFields.get(i).hashCode();
+                            $hashCombine($unknownFields.get(i).hashCode());
                         }
                     }
                 """;
@@ -909,7 +822,7 @@ public final class ModelGenerator implements Generator {
                 $hashCodeManipulation
                 """.replace("$hashCodeManipulation", HASH_CODE_MANIPULATION);
         // spotless:on
-        return bodyContent;
+        return Common.expandHashCombine(bodyContent);
     }
 
     /**
@@ -971,55 +884,138 @@ public final class ModelGenerator implements Generator {
     }
 
     /**
-     * Generates a pre-populated constructor for a class.
-     * @param fields the fields to use for the code generation
+     * What a generated constructor takes and does, for {@link #generateConstructor}. Start from {@link #of} and add
+     * what differs from a plain public constructor taking every field.
+     *
+     * @param name the constructor's name: the model's, or {@code Builder}
+     * @param fields all the message's fields
+     * @param fieldsNoPrecomputed the fields the constructor takes
+     * @param initUnknownFields true to also take the unknown fields
+     * @param initHashCode true to also take a precomputed hash code
+     * @param objectForEnum true to take enums as {@code Object}, so unrecognized ordinals can be passed as integers
+     * @param throwOnOneOfNull true to reject a null {@code OneOf}
      * @param tracking how the constructor initializes copy-builder provenance
-     * @return the generated code
+     * @param unboxedParams true to take each unboxed oneof as its kind and value instead of a {@code OneOf}
      */
-    private static String generateConstructor(
-            final String constructorName,
-            final List<Field> fields,
-            final boolean initUnknownFields,
-            final boolean initHashCode,
-            final boolean objectForEnum,
-            final List<Field> fieldsNoPrecomputed,
-            final boolean shouldThrowOnOneOfNull,
-            final MessageDefContext msgDef,
-            final ContextualLookupHelper lookupHelper,
-            final ConstructorTracking tracking) {
-        return generateConstructor(
-                constructorName,
-                fields,
-                initUnknownFields,
-                initHashCode,
-                objectForEnum,
-                fieldsNoPrecomputed,
-                shouldThrowOnOneOfNull,
-                msgDef,
-                lookupHelper,
-                tracking,
-                false);
+    private record ConstructorSpec(
+            String name,
+            List<Field> fields,
+            List<Field> fieldsNoPrecomputed,
+            boolean initUnknownFields,
+            boolean initHashCode,
+            boolean objectForEnum,
+            boolean throwOnOneOfNull,
+            ConstructorTracking tracking,
+            boolean unboxedParams) {
+
+        /** A public constructor taking {@code fieldsNoPrecomputed}, and nothing else. */
+        static ConstructorSpec of(final String name, final List<Field> fields, final List<Field> fieldsNoPrecomputed) {
+            return new ConstructorSpec(
+                    name, fields, fieldsNoPrecomputed, false, false, false, false, ConstructorTracking.NONE, false);
+        }
+
+        ConstructorSpec withUnknownFields() {
+            return new ConstructorSpec(
+                    name,
+                    fields,
+                    fieldsNoPrecomputed,
+                    true,
+                    initHashCode,
+                    objectForEnum,
+                    throwOnOneOfNull,
+                    tracking,
+                    unboxedParams);
+        }
+
+        ConstructorSpec withHashCode() {
+            return new ConstructorSpec(
+                    name,
+                    fields,
+                    fieldsNoPrecomputed,
+                    initUnknownFields,
+                    true,
+                    objectForEnum,
+                    throwOnOneOfNull,
+                    tracking,
+                    unboxedParams);
+        }
+
+        ConstructorSpec withObjectForEnum(final boolean objectForEnum) {
+            return new ConstructorSpec(
+                    name,
+                    fields,
+                    fieldsNoPrecomputed,
+                    initUnknownFields,
+                    initHashCode,
+                    objectForEnum,
+                    throwOnOneOfNull,
+                    tracking,
+                    unboxedParams);
+        }
+
+        ConstructorSpec withObjectForEnum() {
+            return withObjectForEnum(true);
+        }
+
+        ConstructorSpec withThrowOnOneOfNull() {
+            return new ConstructorSpec(
+                    name,
+                    fields,
+                    fieldsNoPrecomputed,
+                    initUnknownFields,
+                    initHashCode,
+                    objectForEnum,
+                    true,
+                    tracking,
+                    unboxedParams);
+        }
+
+        ConstructorSpec withTracking(final ConstructorTracking tracking) {
+            return new ConstructorSpec(
+                    name,
+                    fields,
+                    fieldsNoPrecomputed,
+                    initUnknownFields,
+                    initHashCode,
+                    objectForEnum,
+                    throwOnOneOfNull,
+                    tracking,
+                    unboxedParams);
+        }
+
+        ConstructorSpec withUnboxedParams() {
+            return new ConstructorSpec(
+                    name,
+                    fields,
+                    fieldsNoPrecomputed,
+                    initUnknownFields,
+                    initHashCode,
+                    objectForEnum,
+                    throwOnOneOfNull,
+                    tracking,
+                    true);
+        }
     }
 
     /**
      * Generates a pre-populated constructor for a class.
-     * @param fields the fields to use for the code generation
-     * @param tracking how the constructor initializes copy-builder provenance
-     * @param unboxedParams true to take each unboxed oneof as its kind and value instead of a {@code OneOf}
+     *
+     * @param spec what the constructor takes and does
+     * @param msgDef the message
+     * @param lookupHelper the lookup helper
      * @return the generated code
      */
     private static String generateConstructor(
-            final String constructorName,
-            final List<Field> fields,
-            final boolean initUnknownFields,
-            final boolean initHashCode,
-            final boolean objectForEnum,
-            final List<Field> fieldsNoPrecomputed,
-            final boolean shouldThrowOnOneOfNull,
-            final MessageDefContext msgDef,
-            final ContextualLookupHelper lookupHelper,
-            final ConstructorTracking tracking,
-            final boolean unboxedParams) {
+            final ConstructorSpec spec, final MessageDefContext msgDef, final ContextualLookupHelper lookupHelper) {
+        final String constructorName = spec.name();
+        final List<Field> fields = spec.fields();
+        final boolean initUnknownFields = spec.initUnknownFields();
+        final boolean initHashCode = spec.initHashCode();
+        final boolean objectForEnum = spec.objectForEnum();
+        final List<Field> fieldsNoPrecomputed = spec.fieldsNoPrecomputed();
+        final boolean shouldThrowOnOneOfNull = spec.throwOnOneOfNull();
+        final ConstructorTracking tracking = spec.tracking();
+        final boolean unboxedParams = spec.unboxedParams();
         if (fields.isEmpty() && !initUnknownFields) {
             return "";
         }
@@ -1612,6 +1608,7 @@ public final class ModelGenerator implements Generator {
                 generateBuilderMethods(builderMethods, msgDef, field, lookupHelper, trackingMark);
             }
         }
+        final ConstructorSpec builder = ConstructorSpec.of("Builder", fields, fields);
         // spotless:off
         return """
             /**
@@ -1661,10 +1658,10 @@ public final class ModelGenerator implements Generator {
                             + " " + field.nameCamelFirstLower()
                             + " = " + getDefaultValue(field, msgDef, lookupHelper);
                 }).collect(Collectors.joining(";\n    ")))
-                .replace("$prePopulatedBuilder", generateConstructor("Builder", fields, false, false, false, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE))
-                .replace("$prePopulatedObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, false, false, true, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE) : "")
-                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor("Builder", fields, true, false, false, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE))
-                .replace("$prePopulatedWithUnknownFieldsObjectForEnumBuilder", hasEnums(fields) ? generateConstructor("Builder", fields, true, false, true, fields, false, msgDef, lookupHelper, ConstructorTracking.NONE) : "")
+                .replace("$prePopulatedBuilder", generateConstructor(builder, msgDef, lookupHelper))
+                .replace("$prePopulatedObjectForEnumBuilder", hasEnums(fields) ? generateConstructor(builder.withObjectForEnum(), msgDef, lookupHelper) : "")
+                .replace("$prePopulatedWithUnknownFieldsBuilder", generateConstructor(builder.withUnknownFields(), msgDef, lookupHelper))
+                .replace("$prePopulatedWithUnknownFieldsObjectForEnumBuilder", hasEnums(fields) ? generateConstructor(builder.withUnknownFields().withObjectForEnum(), msgDef, lookupHelper) : "")
                 .replace("$trackingFields", lookupHelper.generateCopyBuilderTracking(msgDef)
                         ? "\n" + CopyBuilderGenerator.builderMembers(javaRecordName, fields)
                                 .indent(DEFAULT_INDENT).stripTrailing()

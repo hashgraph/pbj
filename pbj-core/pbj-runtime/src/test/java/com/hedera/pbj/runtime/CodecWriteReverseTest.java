@@ -33,7 +33,7 @@ final class CodecWriteReverseTest {
         final ReverseBuffer buffer = new ReverseBuffer(64);
         codec(3).writeReverse(new byte[] {4, 5, 6}, buffer);
         codec(3).writeReverse(new byte[] {1, 2, 3}, buffer);
-        assertEquals(Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6}), buffer.bytes());
+        assertEquals(Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6}), buffer.unsafeBytes());
     }
 
     @Test

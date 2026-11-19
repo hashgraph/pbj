@@ -341,13 +341,15 @@ final class CodecWriteReverseMethodGenerator {
             final String list = field.type() == Field.FieldType.ENUM
                     ? "data.%sProtoOrdinals()".formatted(name)
                     : "data.%s()".formatted(name);
+            final String listType = field.type() == Field.FieldType.ENUM ? "List<Integer>" : field.javaFieldType();
             if (field.type() == Field.FieldType.MESSAGE) {
                 return prefix
                         + """
-                        final var $local = $list;
+                        final $listType $local = $list;
                         for (int i = $local.size() - 1; i >= 0; i--) {
                         $nested$tag}
-                        """.replace("$local", local)
+                        """.replace("$listType", listType)
+                                .replace("$local", local)
                                 .replace("$list", list)
                                 .replace(
                                         "$nested",
@@ -359,10 +361,11 @@ final class CodecWriteReverseMethodGenerator {
                 // repeated strings and bytes: one field per element
                 return prefix
                         + """
-                        final var $local = $list;
+                        final $listType $local = $list;
                         for (int i = $local.size() - 1; i >= 0; i--) {
                         $value$tag}
-                        """.replace("$local", local)
+                        """.replace("$listType", listType)
+                                .replace("$local", local)
                                 .replace("$list", list)
                                 .replace(
                                         "$value",
@@ -373,14 +376,15 @@ final class CodecWriteReverseMethodGenerator {
             // repeated numbers, bools and enums: packed
             return prefix
                     + """
-                    final var $local = $list;
+                    final $listType $local = $list;
                     if (!$local.isEmpty()) {
                         final int mark = out.mark();
                         for (int i = $local.size() - 1; i >= 0; i--) {
                     $value    }
                         out.lengthSince(mark);
                     $tag}
-                    """.replace("$local", local)
+                    """.replace("$listType", listType)
+                            .replace("$local", local)
                             .replace("$list", list)
                             .replace(
                                     "$value",
