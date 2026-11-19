@@ -4,6 +4,7 @@ syntax = "proto3";
 package proto;
 
 import "enum_defined.proto";
+import "writerShared.proto";
 
 option java_package = "com.hedera.pbj.test.custom.proto.java";
 option java_multiple_files = true;
@@ -16,5 +17,75 @@ message CustomMessage {
   bytes bytes = 1;
   oneof response {
     pbj.integ.test.enumeration.defined.PbjEnumDefined status = 2;
+  }
+}
+
+/**
+ * A message with writers whose fields have types from another module: the main source set, which this one depends on and
+ * which is not generated with it. Those fields get no child writer, only methods writing objects and pre-encoded
+ * bytes.
+ */
+// <<<pbj.writers = true>>>
+message CustomWriterHolder {
+  int32 id = 1;
+  pbj.integ.test.writer.shared.SharedLeaf leaf = 2;
+  repeated pbj.integ.test.writer.shared.SharedLeaf leaves = 3;
+  oneof choice {
+    pbj.integ.test.writer.shared.SharedLeaf leaf_choice = 4;
+    string text = 5;
+  }
+  map<string, pbj.integ.test.writer.shared.SharedLeaf> leaf_map = 6;
+  CustomWriterLocal local = 7;
+}
+
+/** A message from this module, reachable from CustomWriterHolder, so it gets a writer too. */
+message CustomWriterLocal {
+  string name = 1;
+}
+
+/**
+ * Messages that contain each other, for WriterTest: writers are on for CustomWriterCycles, and reach every message in
+ * the cycles once. They are here, rather than with the other writer test messages, because the generated tests, which
+ * this source set has none of, can't build test objects for recursive messages.
+ */
+// <<<pbj.writers = true>>>
+message CustomWriterCycles {
+  WriterNode node = 1;
+  WriterPairA pair = 2;
+  WriterTriX tri = 3;
+}
+
+/** A message that contains itself, to any depth. */
+message WriterNode {
+  int32 value = 1;
+  WriterNode child = 2;
+  repeated WriterNode children = 3;
+  bytes payload = 4;
+}
+
+/** Two messages that contain each other. */
+message WriterPairA {
+  WriterPairB b = 1;
+  string name = 2;
+}
+
+message WriterPairB {
+  WriterPairA a = 1;
+  repeated WriterPairA as = 2;
+}
+
+/** Three messages that contain each other in a cycle. */
+message WriterTriX {
+  WriterTriY y = 1;
+}
+
+message WriterTriY {
+  WriterTriZ z = 1;
+}
+
+message WriterTriZ {
+  oneof choice {
+    WriterTriX x = 1;
+    string text = 2;
   }
 }

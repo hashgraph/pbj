@@ -64,8 +64,10 @@ final class CodecWriteByteArrayMethodGenerator {
                     @NonNull final $modelClass data, @NonNull final byte[] output, final int startOffset, final int end) {
                 int offset = startOffset;
             $fieldWriteLines
-                // Write unknown fields if there are any
-                for (final UnknownField uf : data.getUnknownFields()) {
+                // Write unknown fields if there are any, by index so no iterator is allocated
+                final List<UnknownField> unknownFields = data.getUnknownFields();
+                for (int i = 0; i < unknownFields.size(); i++) {
+                    final UnknownField uf = unknownFields.get(i);
                     final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
                     offset += ProtoArrayWriterTools.writeUnsignedVarInt(output, offset, tag);
                     offset += uf.bytes().writeTo(output, offset);
