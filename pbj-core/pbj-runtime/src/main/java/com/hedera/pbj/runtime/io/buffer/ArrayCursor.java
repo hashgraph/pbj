@@ -42,6 +42,17 @@ public final class ArrayCursor {
      */
     private @Nullable Bytes source;
 
+    /** The empty array that cursors created with nothing to read yet point at, shared so none allocates one. */
+    private static final byte[] EMPTY = new byte[0];
+
+    /**
+     * Create a cursor with nothing to read yet, to be pointed at bytes with {@code reset}. Generated views create their
+     * reusable cursors this way.
+     */
+    public ArrayCursor() {
+        this(EMPTY, 0, 0, null);
+    }
+
     /**
      * Create a cursor over {@code in[offset, limit)}.
      *

@@ -130,7 +130,7 @@ final class ViewGenerator {
                  * {@code toModel()}, before reading further. Not thread safe.
                  */
                 public static final class View {
-                    private final ArrayCursor cursor = new ArrayCursor(new byte[0], 0, 0);
+                    private final ArrayCursor cursor = new ArrayCursor();
                     private byte[] in;
                     /** The Bytes holding {@code in}, if this view wraps one, so bytes fields need not be copied */
                     private Bytes source;
@@ -569,72 +569,72 @@ final class ViewGenerator {
         // spotless:off
         parts.accessors().append("""
 
-                /** @return the number of {@code $field} elements */
-                public int $nameCount() {
-                    return $name_count;
-                }
-
-                /**
-                 * @return a cursor over the {@code $field} elements, positioned before the first: call
-                 *     {@code next()} to move to each one. The same cursor is reset and returned on each call.
-                 */
-                public $NameCursor $name() {
-                    if ($name_cursor == null) {
-                        $name_cursor = new $NameCursor();
-                    }
-                    return $name_cursor.reset();
-                }
-
-                /** A reusable cursor over the {@code $field} elements. */
-                public final class $NameCursor {
-                    private final ArrayCursor c = new ArrayCursor(new byte[0], 0, 0);
-                    private int remaining;
-                    private int packedEnd = -1;
-                    private long value;
-                    private int offset;
-                    private int length;
-                    private $childType child;
-
-                    private $NameCursor reset() {
-                        remaining = $name_count;
-                        packedEnd = -1;
-                        if ($name_first >= 0) {
-                            c.reset(in, $name_first, end);
+                        /** @return the number of {@code $field} elements */
+                        public int $nameCount() {
+                            return $name_count;
                         }
-                        return this;
-                    }
 
-                    /**
-                     * Move to the next element.
-                     *
-                     * @return false when there are no more elements
-                     * @throws ParseException if a nested message is malformed
-                     */
-                    public boolean next() throws ParseException {
-                        if (remaining == 0) {
-                            return false;
-                        }
-                        remaining--;
-                        try {
-                            while (true) {
-                $packedStep
-                                final int tag = c.tag();
-                                if (tag == $elementTag) {
-                $read
-                                    return true;
-                                }
-                $packedTagCase
-                                c.unknownField(tag, false, false, false, null, maxSize);
+                        /**
+                         * @return a cursor over the {@code $field} elements, positioned before the first: call
+                         *     {@code next()} to move to each one. The same cursor is reset and returned on each call.
+                         */
+                        public $NameCursor $name() {
+                            if ($name_cursor == null) {
+                                $name_cursor = new $NameCursor();
                             }
-                        } catch (final ParseException e) {
-                            throw e;
-                        } catch (final Exception e) {
-                            throw new ParseException(e);
+                            return $name_cursor.reset();
                         }
-                    }
-                $elementAccessors
-                }
-                """
+
+                        /** A reusable cursor over the {@code $field} elements. */
+                        public final class $NameCursor {
+                            private final ArrayCursor c = new ArrayCursor();
+                            private int remaining;
+                            private int packedEnd = -1;
+                            private long value;
+                            private int offset;
+                            private int length;
+                            private $childType child;
+
+                            private $NameCursor reset() {
+                                remaining = $name_count;
+                                packedEnd = -1;
+                                if ($name_first >= 0) {
+                                    c.reset(in, $name_first, end);
+                                }
+                                return this;
+                            }
+
+                            /**
+                             * Move to the next element.
+                             *
+                             * @return false when there are no more elements
+                             * @throws ParseException if a nested message is malformed
+                             */
+                            public boolean next() throws ParseException {
+                                if (remaining == 0) {
+                                    return false;
+                                }
+                                remaining--;
+                                try {
+                                    while (true) {
+                        $packedStep
+                                        final int tag = c.tag();
+                                        if (tag == $elementTag) {
+                        $read
+                                            return true;
+                                        }
+                        $packedTagCase
+                                        c.unknownField(tag, false, false, false, null, maxSize);
+                                    }
+                                } catch (final ParseException e) {
+                                    throw e;
+                                } catch (final Exception e) {
+                                    throw new ParseException(e);
+                                }
+                            }
+                        $elementAccessors
+                        }
+                        """
                 .replace("$packedStep", packedStep.indent(DEFAULT_INDENT * 4))
                 .replace("$packedTagCase", packedTagCase.indent(DEFAULT_INDENT * 4))
                 .replace("$read", read.indent(DEFAULT_INDENT * 5))
