@@ -455,7 +455,7 @@ final Account.Writer account = update.value().accountValue();
 account.accountId().accountNum(accountNum);
 account.tinybarBalance(balance).memo(memo);
 changes.end();
-final Bytes encoded = buffer.bytes();                               // a view, valid until the buffer is written to
+final Bytes encoded = buffer.unsafeBytes();                               // a view, valid until the buffer is written to
 ```
 
 - **Order.** Write fields in field-number order. Each singular field may be written once, the elements of a repeated

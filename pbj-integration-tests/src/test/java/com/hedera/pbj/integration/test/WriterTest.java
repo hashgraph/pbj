@@ -586,7 +586,8 @@ final class WriterTest {
             child.end();
             root.end();
             assertWrites(WriterNode.PROTOBUF, expected, buffer.toBytes());
-            assertEquals(WriterNode.PROTOBUF.toBytes(expected.child()), buffer.bytes(child.offset(), child.length()));
+            assertEquals(
+                    WriterNode.PROTOBUF.toBytes(expected.child()), buffer.unsafeBytes(child.offset(), child.length()));
         }
     }
 
@@ -633,12 +634,13 @@ final class WriterTest {
             child.end();
             ranges.add(new int[] {child.offset(), child.length()});
             // hashing or sending an item can happen as soon as it ends
-            assertEquals(WriterNode.PROTOBUF.toBytes(item), buffer.bytes(child.offset(), child.length()));
+            assertEquals(WriterNode.PROTOBUF.toBytes(item), buffer.unsafeBytes(child.offset(), child.length()));
         }
         root.end();
         // and every range is still right once the message is complete
         for (int i = 0; i < items.size(); i++) {
-            assertEquals(WriterNode.PROTOBUF.toBytes(items.get(i)), buffer.bytes(ranges.get(i)[0], ranges.get(i)[1]));
+            assertEquals(
+                    WriterNode.PROTOBUF.toBytes(items.get(i)), buffer.unsafeBytes(ranges.get(i)[0], ranges.get(i)[1]));
         }
         assertWrites(
                 WriterNode.PROTOBUF, WriterNode.newBuilder().children(items).build(), buffer.toBytes());

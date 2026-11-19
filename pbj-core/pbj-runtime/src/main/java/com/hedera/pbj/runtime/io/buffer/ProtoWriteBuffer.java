@@ -22,8 +22,8 @@ import java.util.Objects;
  * bytes are moved by the difference, so the output is always canonical. How the guess is made is set by
  * {@link LengthReservation}; the default remembers, for each nested field, the size of the last length written there.
  *
- * <p>The buffer owns its array and doubles it when full. Read the result with {@link #bytes()} (a view, valid until the
- * buffer is written to again or reset), {@link #toBytes()} (a copy) or {@link #copyTo}. The bytes of any finished nested
+ * <p>The buffer owns its array and doubles it when full. Read the result with {@link #toBytes()} (a copy),
+ * {@link #copyTo}, or {@link #unsafeBytes()} (a view, valid until the buffer is written to again or reset). The bytes of any finished nested
  * message are {@code [writer.offset(), writer.offset() + writer.length())} of {@link #array()}, so a block item can be
  * hashed or sent as soon as it ends: see {@link MessageWriter#offset()}. Call {@link #reset()} before writing the next
  * message. Once the buffer has grown to fit the largest message, writing allocates nothing.
@@ -125,19 +125,26 @@ public final class ProtoWriteBuffer {
         return buf;
     }
 
-    /** @return a view of the output, valid until the buffer is written to or reset */
-    public @NonNull Bytes bytes() {
+    /**
+     * The output, without copying it. This is unsafe: unlike other {@link Bytes}, it is not immutable. It shares this
+     * buffer's array, so it changes when the buffer is reset and written to again, and a buffer that grows leaves it
+     * behind. Use it right away, or use {@link #toBytes()} for a copy.
+     *
+     * @return a view of the output, valid until the buffer is written to or reset
+     */
+    public @NonNull Bytes unsafeBytes() {
         return Bytes.wrap(buf, 0, pos);
     }
 
     /**
-     * A view of part of the output, such as the bytes of a finished nested message.
+     * Part of the output, such as the bytes of a finished nested message, without copying it. This is unsafe in the same
+     * way as {@link #unsafeBytes()}.
      *
      * @param offset where the bytes start
      * @param length the number of bytes
      * @return a view of {@code [offset, offset + length)}, valid until the buffer is written to or reset
      */
-    public @NonNull Bytes bytes(final int offset, final int length) {
+    public @NonNull Bytes unsafeBytes(final int offset, final int length) {
         if (offset < 0 || length < 0 || offset + length > pos) {
             throw new IndexOutOfBoundsException(
                     "[" + offset + ", " + (offset + length) + ") is not within the output [0, " + pos + ")");

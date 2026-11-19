@@ -70,7 +70,7 @@ final class BlockWriterTest {
                         leafHash(digest, buffer.array(), itemWriter.offset(), itemWriter.length()));
             }
             writer.end();
-            assertEquals(Block.PROTOBUF.toBytes(block), buffer.bytes(), reservation.name());
+            assertEquals(Block.PROTOBUF.toBytes(block), buffer.unsafeBytes(), reservation.name());
             System.err.printf(
                     "Block of %,d items, %,d bytes, %s length reservation: %,d moves (%.4f per item)%n",
                     items.size(),
@@ -100,7 +100,7 @@ final class BlockWriterTest {
             buffer.reset();
             values.write(cursor, writer.start(buffer));
             writer.end();
-            assertEquals(BlockItem.PROTOBUF.toBytes(item), buffer.bytes());
+            assertEquals(BlockItem.PROTOBUF.toBytes(item), buffer.unsafeBytes());
         }
     }
 
