@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hedera.pbj.test.proto.java";
+option java_multiple_files = true;
+
+/**
+ * Field names that clash with the locals of generated writers, and with the names those locals are renamed to. The
+ * generated code must still compile, and the generated tests round-trip it against protoc.
+ */
+message LocalNameClash {
+  int64 size = 1;
+  int64 size_value = 2;
+  string end = 3;
+  string end_value = 4;
+  int32 offset = 5;
+  int32 offset_value = 6;
+  int32 offset_value2 = 7;
+  bytes data = 8;
+  LocalNameItem item = 9;
+  repeated LocalNameItem item_value = 10;
+  oneof choice {
+    int64 tag = 11;
+    string tag_value = 12;
+  }
+}
+
+/** A nested message for LocalNameClash's item fields. */
+message LocalNameItem {
+  int64 size = 1;
+}
