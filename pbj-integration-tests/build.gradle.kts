@@ -106,6 +106,7 @@ tasks.withType<Test>().configureEach { systemProperties["pbj.performance"] = pbj
 
 // Avoid a clash with Google protoc models when .proto files don't specify `pbj.java_package`:
 pbj {
+    performance = pbjPerformance
     javaPackageSuffix = ".pbj.integration.tests"
     // StateValue is the catalog Hiero uses, so every HAPI state value is a diff root.
     diffMessageContainers = setOf("proto.DiffCatalog", "com.hedera.hapi.platform.state.StateValue")

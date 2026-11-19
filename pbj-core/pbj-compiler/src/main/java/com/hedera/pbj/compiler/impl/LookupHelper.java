@@ -227,6 +227,24 @@ public final class LookupHelper {
         return Boolean.TRUE.equals(messageOptionValue(message, option));
     }
 
+    /**
+     * Read every option set by a list of special option comments, from a file or a message. When an option is set
+     * more than once, the last value wins.
+     *
+     * @param comments the option comments
+     * @return option names to their values, without quotes
+     */
+    public static Map<String, String> optionCommentValues(List<Protobuf3Parser.OptionCommentContext> comments) {
+        final Map<String, String> values = new HashMap<>();
+        for (Protobuf3Parser.OptionCommentContext comment : comments) {
+            final java.util.regex.Matcher matcher = OPTION_COMMENT.matcher(comment.getText());
+            if (matcher.find()) {
+                values.put(matcher.group(1), matcher.group(2).trim());
+            }
+        }
+        return values;
+    }
+
     /** Read a boolean PBJ message option from its special comments, or null when it is absent. */
     public static @Nullable Boolean messageOptionValue(MessageDefContext message, String option) {
         for (Protobuf3Parser.OptionCommentContext comment : message.optionComment()) {

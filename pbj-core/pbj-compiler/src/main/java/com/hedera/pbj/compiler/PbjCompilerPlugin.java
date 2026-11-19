@@ -116,6 +116,11 @@ public abstract class PbjCompilerPlugin implements Plugin<Project> {
                     pbjTask.getGenerateCopyBuilderTracking().set(pbj.getGenerateCopyBuilderTracking());
                     pbjTask.getDiffMessages().set(pbj.getDiffMessages());
                     pbjTask.getDiffMessageContainers().set(pbj.getDiffMessageContainers());
+                    pbjTask.getFastParse().set(pbj.getFastParse());
+                    pbjTask.getFastWrite().set(pbj.getFastWrite());
+                    pbjTask.getGenerateViews().set(pbj.getGenerateViews());
+                    pbjTask.getOneofStorage().set(pbj.getOneofStorage());
+                    pbjTask.getPerformance().set(pbj.getPerformance());
                 });
 
         // 5) register fact that pbj should be run before compiling  by informing the 'java' part

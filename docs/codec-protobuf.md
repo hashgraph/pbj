@@ -210,3 +210,20 @@ data.getUnknownFields().forEach(uf -> {
     uf.bytes().writeTo(out);
 });
 ```
+
+## Performance Options
+
+Generated codecs can include extra fast paths, chosen per message with the options in
+[usage-guide.md](usage-guide.md#performance-options). All are off by default; `pbj.performance = "max"` turns them
+all on. Generated code stays byte-identical to protoc with any combination, and a message with one setting can
+contain messages with another.
+
+| Option | What it generates |
+|---|---|
+| `pbj.fast_parse` | A byte-array parser with in-order fast paths, used automatically by `parse` for array-backed input |
+| `pbj.fast_write` | A back-to-front writer into a reusable buffer: no measuring pass, no allocation |
+| `pbj.views` | A zero-copy, reusable view class that reads fields in place from encoded bytes |
+| `pbj.oneof_storage = "unboxed"` | Models store each oneof as a kind and a value, so parsing allocates no `OneOf` |
+
+The option names are reserved now; the code they generate is added step by step (see
+[fast-codegen-plan.md](fast-codegen-plan.md)), and until then an option has no effect.

@@ -27,6 +27,12 @@ pbj {
     diffMessages = setOf<String>()           // diff roots by protobuf message name (default: empty)
     diffMessageContainers = setOf<String>()  // catalogs whose message-valued fields are diff roots (default: empty)
     generateCopyBuilderTracking = false      // copy-builder tracking on larger diff roots (default: false)
+    // Fast code generation, see "Performance Options" below. Unset by default.
+    fastParse = false                // byte-array parser with in-order fast paths
+    fastWrite = false                // back-to-front writer into a reusable buffer
+    generateViews = false            // zero-copy views over encoded bytes
+    oneofStorage = "boxed"           // "boxed" or "unboxed" oneof fields
+    performance = "default"          // "max" turns all four on
 }
 ```
 
@@ -131,6 +137,45 @@ message Token { ... }
 
 `pbj.copy_builder_tracking = true` also makes the message a diff root. `pbj.copy_builder_tracking = false` only turns
 tracking off. On its own it doesn't select a root, so combine it with `pbj.diff = true` or a Gradle selection.
+
+### Performance Options
+
+Some code generation speed-ups are always on. Others generate noticeably more code or add API, so they are opt-in,
+per message, per proto file or for the whole project:
+
+| Comment (file or message) | Gradle (`pbj { }`) | Values | Default |
+|---|---|---|---|
+| `// <<<pbj.fast_parse = true>>>` | `fastParse` | true / false | false |
+| `// <<<pbj.fast_write = true>>>` | `fastWrite` | true / false | false |
+| `// <<<pbj.views = true>>>` | `generateViews` | true / false | false |
+| `// <<<pbj.oneof_storage = "unboxed">>>` | `oneofStorage` | `"boxed"` / `"unboxed"` | `"boxed"` |
+| `// <<<pbj.performance = "max">>>` | `performance` | `"default"` / `"max"` | `"default"` |
+
+`performance` is shorthand: `"max"` turns the other four on, and `"default"` sets them to their defaults. What each
+option generates is described in [codec-protobuf.md](codec-protobuf.md#performance-options).
+
+For each message, an option comes from the first of these that sets it: the message's comments, the file's comments,
+the Gradle project, the built-in default. At each level a specific option wins over `performance`. A message's
+options apply to that message only, not to messages nested in it.
+
+Option comments directly before a `message` belong to that message. Put file options before another statement, such
+as `package`:
+
+```protobuf
+syntax = "proto3";
+// <<<pbj.performance = "max">>>
+package com.example;
+
+// Everything at its default for this message
+// <<<pbj.performance = "default">>>
+message Settings { ... }
+
+// Everything on except the reverse writer
+// <<<pbj.fast_write = false>>>
+message Order { ... }
+```
+
+An invalid value, such as `pbj.fast_parse = yes`, fails the build with a message naming the file or message.
 
 ## Working with Generated Model Objects
 

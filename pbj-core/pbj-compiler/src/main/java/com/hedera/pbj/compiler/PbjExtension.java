@@ -37,4 +37,40 @@ public interface PbjExtension {
      * The catalogs themselves are not selected. Empty by default.
      */
     SetProperty<String> getDiffMessageContainers();
+
+    /**
+     * Project default for {@code pbj.fast_parse}: generate a byte-array parser with in-order fast paths, used
+     * automatically for array-backed input. Unset by default (off). A file or message comment overrides it.
+     * @return the fast parse property
+     */
+    Property<Boolean> getFastParse();
+
+    /**
+     * Project default for {@code pbj.fast_write}: generate a back-to-front writer into a reusable buffer. Unset by
+     * default (off). A file or message comment overrides it.
+     * @return the fast write property
+     */
+    Property<Boolean> getFastWrite();
+
+    /**
+     * Project default for {@code pbj.views}: generate zero-copy views over encoded bytes. Unset by default (off). A
+     * file or message comment overrides it.
+     * @return the views property
+     */
+    Property<Boolean> getGenerateViews();
+
+    /**
+     * Project default for {@code pbj.oneof_storage}: {@code "boxed"} (a {@code OneOf} object per oneof field) or
+     * {@code "unboxed"} (a kind field and a value field). Unset by default ({@code "boxed"}). A file or message comment
+     * overrides it.
+     * @return the oneof storage property
+     */
+    Property<String> getOneofStorage();
+
+    /**
+     * Project default for {@code pbj.performance}, shorthand for the four options above: {@code "max"} turns them all
+     * on, {@code "default"} leaves them at their defaults. Unset by default. The specific properties above win over it.
+     * @return the performance property
+     */
+    Property<String> getPerformance();
 }
