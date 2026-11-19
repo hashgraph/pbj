@@ -105,14 +105,38 @@ final class CodecWriteByteArrayMethodGenerator {
                 i++;
                 continue;
             }
-            // a run of adjacent alternatives of the same oneof becomes one switch
-            final StringBuilder cases = new StringBuilder();
+            // a run of adjacent alternatives of the same oneof becomes one switch, or an if for a single one
+            final int runStart = i;
             while (i < sorted.size() && sorted.get(i).parent() == oneOf) {
-                final Field alternative = sorted.get(i);
+                i++;
+            }
+            final List<Field> run = sorted.subList(runStart, i);
+            if (run.size() == 1) {
+                final Field alternative = run.getFirst();
+                sb.append("""
+                        // [$number] - $name
+                        if (data.$oneOf().kind() == $oneOfType.$kind) {
+                        $body}
+                        """.replace("$number", Integer.toString(alternative.fieldNumber()))
+                        .replace("$name", alternative.name())
+                        .replace("$oneOfType", oneOfTypeName(modelClassName, oneOf))
+                        .replace("$oneOf", oneOf.nameCamelFirstLower())
+                        .replace("$kind", Common.camelToUpperSnake(alternative.name()))
+                        .replace(
+                                "$body",
+                                generateInlineFieldWrite(
+                                                alternative, modelClassName, schemaClassName, lookupHelper, names)
+                                        .indent(DEFAULT_INDENT)));
+                continue;
+            }
+            final StringBuilder cases = new StringBuilder();
+            for (final Field alternative : run) {
+                // each case has its own block, as the cases declare locals with the same names
                 cases.append("""
                         // [$number] - $name
-                        case $kind -> {
-                        $body}
+                        case $kind: {
+                        $body    break;
+                        }
                         """.replace("$number", Integer.toString(alternative.fieldNumber()))
                         .replace("$name", alternative.name())
                         .replace("$kind", Common.camelToUpperSnake(alternative.name()))
@@ -121,11 +145,11 @@ final class CodecWriteByteArrayMethodGenerator {
                                 generateInlineFieldWrite(
                                                 alternative, modelClassName, schemaClassName, lookupHelper, names)
                                         .indent(DEFAULT_INDENT)));
-                i++;
             }
             sb.append("""
                     switch (data.$oneOf().kind()) {
-                    $cases    default -> {}
+                    $cases    default:
+                            break;
                     }
                     """.replace("$oneOf", oneOf.nameCamelFirstLower())
                     .replace("$cases", cases.toString().indent(DEFAULT_INDENT)));
@@ -157,6 +181,11 @@ final class CodecWriteByteArrayMethodGenerator {
             if ((tag >>> 7) == 0) return sb.toString();
             tag >>>= 7;
         }
+    }
+
+    /** The Java name of a oneof's kind enum, such as {@code Model.ChoiceOneOfType}. */
+    private static String oneOfTypeName(final String modelClassName, final OneOfField oneOf) {
+        return "%s.%sOneOfType".formatted(modelClassName, oneOf.nameCamelFirstUpper());
     }
 
     /** The Java name of a local holding a field's value, avoiding the names the write method uses itself. */
@@ -216,8 +245,8 @@ final class CodecWriteByteArrayMethodGenerator {
             return fallback(field, modelClassName, schemaClassName);
         }
         final String local = localName(field, fieldNames);
-        // outside a oneof, var avoids naming the type; inside, the type is needed to read the OneOf's value
-        final String javaType = !inOneOf ? "var" : field.type() == Field.FieldType.ENUM ? "int" : field.javaFieldType();
+        // enums are written by their proto ordinal
+        final String javaType = field.type() == Field.FieldType.ENUM ? "int" : field.javaFieldType();
         final String read = inOneOf
                 ? (field.type() == Field.FieldType.ENUM
                         ? "((%s) data.%s().as()).protoOrdinal()"
@@ -233,14 +262,16 @@ final class CodecWriteByteArrayMethodGenerator {
             }
             return prefix
                     + """
-                    final var $local = $read;
+                    final $type $local = $read;
                     for (int i = 0; i < $local.size(); i++) {
-                        final var item = $local.get(i);
+                        final $itemType item = $local.get(i);
                     $tag    final int size = item.protobufSize();
                         offset += ProtoArrayWriterTools.writeVarInt(output, offset, end, size);
                         offset += $codec.writeTo(item, output, offset, offset + size);
                     }
-                    """.replace("$local", local)
+                    """.replace("$itemType", field.javaFieldTypeBase())
+                            .replace("$type", javaType)
+                            .replace("$local", local)
                             .replace("$read", read)
                             .replace("$tag", tag.indent(DEFAULT_INDENT))
                             .replace("$codec", codec);
@@ -274,10 +305,11 @@ final class CodecWriteByteArrayMethodGenerator {
                 }
                 return prefix
                         + """
-                        final var $local = $read;
+                        final $type $local = $read;
                         if ($local != null) {
                         $tag$write}
-                        """.replace("$local", local)
+                        """.replace("$type", javaType)
+                                .replace("$local", local)
                                 .replace("$read", read)
                                 .replace("$tag", tag.indent(DEFAULT_INDENT))
                                 .replace("$write", write.indent(DEFAULT_INDENT));
@@ -399,11 +431,11 @@ final class CodecWriteByteArrayMethodGenerator {
 
         if (field.parent() != null) {
             final OneOfField oneOfField = field.parent();
-            final String oneOfType = "%s.%sOneOfType".formatted(modelClassName, oneOfField.nameCamelFirstUpper());
+            final String oneOfType = oneOfTypeName(modelClassName, oneOfField);
             getValueCode = "(%s)data.%s().as()".formatted(field.javaFieldType(), oneOfField.nameCamelFirstLower());
             prefix = oneOfGuard
                     ? prefix
-                            + "if (data.%s().kind() == %s.%s)%n"
+                            + "if (data.%s().kind() == %s.%s) "
                                     .formatted(
                                             oneOfField.nameCamelFirstLower(),
                                             oneOfType,
