@@ -37,17 +37,17 @@ class PerformanceOptionsTest {
     }
 
     private static Parsed parse(String proto, PerformanceOptions project) {
-        final var parser =
+        final Protobuf3Parser parser =
                 new Protobuf3Parser(new CommonTokenStream(new Protobuf3Lexer(CharStreams.fromString(proto))));
         final Protobuf3Parser.ProtoContext doc = parser.proto();
-        final var helper = new ContextualLookupHelper(
+        final ContextualLookupHelper helper = new ContextualLookupHelper(
                 null,
                 new File("test.proto"),
                 false,
                 PerformanceOptions.fromComments(doc.optionComment(), "test.proto"),
                 project);
         final Map<String, MessageDefContext> messages = new HashMap<>();
-        for (var def : doc.topLevelDef()) {
+        for (final Protobuf3Parser.TopLevelDefContext def : doc.topLevelDef()) {
             if (def.messageDef() != null) collect(def.messageDef(), messages);
         }
         return new Parsed(helper, messages);
@@ -55,7 +55,8 @@ class PerformanceOptionsTest {
 
     private static void collect(MessageDefContext message, Map<String, MessageDefContext> messages) {
         messages.put(message.messageName().getText(), message);
-        for (var element : message.messageBody().messageElement()) {
+        for (final Protobuf3Parser.MessageElementContext element :
+                message.messageBody().messageElement()) {
             if (element.messageDef() != null) collect(element.messageDef(), messages);
         }
     }
@@ -71,7 +72,7 @@ class PerformanceOptionsTest {
                 syntax = "proto3";
                 message Plain { int64 a = 1; }
                 """, PerformanceOptions.NONE);
-        final var message = parsed.message("Plain");
+        final MessageDefContext message = parsed.message("Plain");
         assertFalse(parsed.helper().fastParse(message));
         assertFalse(parsed.helper().fastWrite(message));
         assertFalse(parsed.helper().generateViews(message));
@@ -84,7 +85,7 @@ class PerformanceOptionsTest {
                 syntax = "proto3";
                 message Plain { int64 a = 1; }
                 """, project(null, null, null, null, "max"));
-        final var message = parsed.message("Plain");
+        final MessageDefContext message = parsed.message("Plain");
         assertTrue(parsed.helper().fastParse(message));
         assertTrue(parsed.helper().fastWrite(message));
         assertTrue(parsed.helper().generateViews(message));
@@ -97,7 +98,7 @@ class PerformanceOptionsTest {
                 syntax = "proto3";
                 message Plain { int64 a = 1; }
                 """, project(null, "false", null, "boxed", "max"));
-        final var message = parsed.message("Plain");
+        final MessageDefContext message = parsed.message("Plain");
         assertTrue(parsed.helper().fastParse(message));
         assertFalse(parsed.helper().fastWrite(message));
         assertEquals(BOXED, parsed.helper().oneofStorage(message));
@@ -116,8 +117,8 @@ class PerformanceOptionsTest {
 
                 message FromFile { int64 a = 1; }
                 """, project("true", "true", "false", null, null));
-        final var flagged = parsed.message("Flagged");
-        final var fromFile = parsed.message("FromFile");
+        final MessageDefContext flagged = parsed.message("Flagged");
+        final MessageDefContext fromFile = parsed.message("FromFile");
         // message comment beats file comment
         assertTrue(parsed.helper().fastParse(flagged));
         // file comment beats project
@@ -144,18 +145,18 @@ class PerformanceOptionsTest {
 
                 message Max { int64 a = 1; }
                 """, PerformanceOptions.NONE);
-        final var helper = parsed.helper();
-        final var optedOut = parsed.message("OptedOut");
+        final ContextualLookupHelper helper = parsed.helper();
+        final MessageDefContext optedOut = parsed.message("OptedOut");
         assertFalse(helper.fastParse(optedOut));
         assertFalse(helper.fastWrite(optedOut));
         assertFalse(helper.generateViews(optedOut));
         assertEquals(BOXED, helper.oneofStorage(optedOut));
         // a specific option beats performance; at the message level it also beats the file's performance
-        final var mostlyMax = parsed.message("MostlyMax");
+        final MessageDefContext mostlyMax = parsed.message("MostlyMax");
         assertTrue(helper.fastParse(mostlyMax));
         assertFalse(helper.fastWrite(mostlyMax));
         assertEquals(UNBOXED, helper.oneofStorage(mostlyMax));
-        final var max = parsed.message("Max");
+        final MessageDefContext max = parsed.message("Max");
         assertTrue(helper.fastWrite(max));
         assertTrue(helper.generateViews(max));
     }
@@ -168,7 +169,7 @@ class PerformanceOptionsTest {
                 // <<<pbj.oneof_storage = "boxed">>>
                 message Mixed { int64 a = 1; }
                 """, PerformanceOptions.NONE);
-        final var mixed = parsed.message("Mixed");
+        final MessageDefContext mixed = parsed.message("Mixed");
         assertTrue(parsed.helper().fastParse(mixed));
         assertEquals(BOXED, parsed.helper().oneofStorage(mixed));
     }
@@ -206,10 +207,10 @@ class PerformanceOptionsTest {
 
     @Test
     void invalidValuesAreRejected() {
-        final var badBoolean = assertThrows(
+        final PbjCompilerException badBoolean = assertThrows(
                 PbjCompilerException.class, () -> PerformanceOptions.of("yes", null, null, null, null, "test project"));
         assertTrue(badBoolean.getMessage().contains("pbj.fast_parse must be true or false"), badBoolean.getMessage());
-        final var badChoice = assertThrows(
+        final PbjCompilerException badChoice = assertThrows(
                 PbjCompilerException.class,
                 () -> PerformanceOptions.of(null, null, null, "packed", null, "test project"));
         assertTrue(badChoice.getMessage().contains("pbj.oneof_storage must be one of"), badChoice.getMessage());
@@ -229,7 +230,7 @@ class PerformanceOptionsTest {
                 // <<<pbj.oneof_storage = "packed">>>
                 message Bad { int64 a = 1; }
                 """, PerformanceOptions.NONE);
-        final var badMessage =
+        final PbjCompilerException badMessage =
                 assertThrows(PbjCompilerException.class, () -> parsed.helper().checkOptions(parsed.message("Bad")));
         assertTrue(badMessage.getMessage().contains("message Bad"), badMessage.getMessage());
     }
@@ -246,7 +247,7 @@ class PerformanceOptionsTest {
                 }
                 """);
         final Path out = directory.resolve("out");
-        final var error = assertThrows(
+        final PbjCompilerException error = assertThrows(
                 PbjCompilerException.class,
                 () -> PbjCompiler.compileFilesIn(
                         List.of(proto.toFile()),
@@ -276,7 +277,7 @@ class PerformanceOptionsTest {
                 """);
         final Path plain = directory.resolve("plain");
         final Path max = directory.resolve("max");
-        for (var run : List.of(
+        for (final Map.Entry<Path, PerformanceOptions> run : List.of(
                 Map.entry(plain, PerformanceOptions.NONE), Map.entry(max, project(null, null, null, null, "max")))) {
             PbjCompiler.compileFilesIn(
                     List.of(proto.toFile()),

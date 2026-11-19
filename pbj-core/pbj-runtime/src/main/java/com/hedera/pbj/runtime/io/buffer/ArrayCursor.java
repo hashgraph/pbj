@@ -188,11 +188,13 @@ public final class ArrayCursor {
     }
 
     /**
-     * The array this cursor reads. Views use it to decode fields at the offsets they recorded; it must not be modified.
+     * The array this cursor reads, without copying it. This is unsafe: when the cursor reads a {@link Bytes}, it is that
+     * supposedly immutable value's backing array, so it must never be modified, and it holds bytes outside this
+     * cursor's range too. Generated views use it to decode fields at the offsets they recorded.
      *
      * @return the array
      */
-    public byte[] array() {
+    public byte[] unsafeArray() {
         return in;
     }
 

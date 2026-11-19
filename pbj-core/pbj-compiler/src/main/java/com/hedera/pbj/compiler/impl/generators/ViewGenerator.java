@@ -28,6 +28,25 @@ final class ViewGenerator {
 
     private ViewGenerator() {}
 
+    /**
+     * The name of the view's private field holding the offset of a delimited field. The view's own state separates the
+     * field's name and the state's role with an underscore, which camel case Java field names never have, so the names
+     * cannot clash with another field's.
+     */
+    private static String offsetVar(final String name) {
+        return name + "_offset";
+    }
+
+    /** The name of the view's private field holding the length of a delimited field. */
+    private static String lengthVar(final String name) {
+        return name + "_length";
+    }
+
+    /** The name of the view's private field holding a number, bool or enum field's decoded value. */
+    private static String valueVar(final String name) {
+        return name + "_value";
+    }
+
     /** The code generated for the view, built field by field. */
     private record Parts(
             StringBuilder state,
@@ -262,7 +281,7 @@ final class ViewGenerator {
                         this.start = start;
                         end = cursor.limit();
                         source = cursor.source();
-                        in = cursor.array();
+                        in = cursor.unsafeArray();
                         if (strictMode) {
                             // strict mode fails fast: validate nested messages now, not when they are read
                             try {
@@ -309,23 +328,24 @@ final class ViewGenerator {
         if (tagBytes.length > 2) {
             return "";
         }
-        return "%s (cursor.at(%s)) {%n%s}%n"
-                .formatted(
-                        keyword,
-                        Arrays.stream(tagBytes)
-                                .mapToObj(b -> "(byte) 0x%02X".formatted(b))
-                                .collect(Collectors.joining(", ")),
-                        body.indent(DEFAULT_INDENT));
+        final String tag = Arrays.stream(tagBytes)
+                .mapToObj(b -> "(byte) 0x%02X".formatted(b))
+                .collect(Collectors.joining(", "));
+        return """
+                $keyword (cursor.at($tag)) {
+                $body}
+                """.replace("$keyword", keyword).replace("$tag", tag).replace("$body", body.indent(DEFAULT_INDENT));
     }
 
     private static String caseCode(final SingleField field, final int wireType, final String body) {
-        return "case %d /* [%s] field=%d [%s] */ -> {%n%s}%n"
-                .formatted(
-                        Common.getTag(wireType, field.fieldNumber()),
-                        field.type(),
-                        field.fieldNumber(),
-                        field.name(),
-                        body.indent(DEFAULT_INDENT));
+        return """
+                case $tag /* [$type] field=$number [$field] */ -> {
+                $body}
+                """.replace("$tag", Integer.toString(Common.getTag(wireType, field.fieldNumber())))
+                .replace("$type", field.type().toString())
+                .replace("$number", Integer.toString(field.fieldNumber()))
+                .replace("$field", field.name())
+                .replace("$body", body.indent(DEFAULT_INDENT));
     }
 
     /** An expression decoding one non-delimited value from {@code cursor} into a long. */
@@ -351,73 +371,81 @@ final class ViewGenerator {
                 : field.type().wireType();
         String record;
         if (wireType == Common.TYPE_LENGTH_DELIMITED) {
-            parts.state().append("private int %sOffset = -1;%nprivate int %sLength;%n".formatted(name, name));
-            parts.resets().append("%sOffset = -1;%n".formatted(name));
+            parts.state().append("""
+                    private int $offset = -1;
+                    private int $length;
+                    """.replace("$offset", offsetVar(name)).replace("$length", lengthVar(name)));
+            parts.resets().append("$offset = -1;\n".replace("$offset", offsetVar(name)));
             // strings are checked to be valid UTF-8 while wrapping, as parsing does
-            record = "%sLength = cursor.%s(maxSize, \"%s\");%n%sOffset = cursor.position();%ncursor.skip(%sLength);%n"
-                    .formatted(
-                            name,
-                            field.type() == Field.FieldType.STRING ? "stringLength" : "length",
-                            field.name(),
-                            name,
-                            name);
+            record = """
+                    $length = cursor.$read(maxSize, "$field");
+                    $offset = cursor.position();
+                    cursor.skip($length);
+                    """.replace("$read", field.type() == Field.FieldType.STRING ? "stringLength" : "length")
+                    .replace("$field", field.name())
+                    .replace("$offset", offsetVar(name))
+                    .replace("$length", lengthVar(name));
         } else {
             // numbers are decoded once, while wrapping; absent fields keep their default, 0
-            parts.state().append("private long %sValue;%n".formatted(name));
-            parts.resets().append("%sValue = 0;%n".formatted(name));
-            record = "%sValue = %s;%n".formatted(name, decode(field.type(), "cursor"));
+            parts.state().append("private long $value;\n".replace("$value", valueVar(name)));
+            parts.resets().append("$value = 0;\n".replace("$value", valueVar(name)));
+            record = "$value = $decode;\n"
+                    .replace("$value", valueVar(name))
+                    .replace("$decode", decode(field.type(), "cursor"));
         }
         if (field.type() == Field.FieldType.MESSAGE && !field.optionalValueType()) {
             // as in parsing, strict mode rejects a singular message, or a oneof with a message alternative, seen twice
             record = """
-                    if (strictMode && %s) {
-                        throw new ParseException("A non-repeated %s encountered more than once");
+                    if (strictMode && $isSet) {
+                        throw new ParseException("A non-repeated $field encountered more than once");
                     }
-                    """.formatted(
-                            oneOfKind == null ? name + "Offset >= 0" : oneOfKind + " != 0",
+                    """.replace("$isSet", oneOfKind == null ? offsetVar(name) + " >= 0" : oneOfKind + " != 0").replace(
+                            "$field",
                             oneOfKind == null ? field.name() : field.parent().name())
                     + record;
-            parts.resets().append("%sViewCurrent = false;%n".formatted(name));
+            parts.resets().append("$name_viewCurrent = false;\n".replace("$name", name));
         }
         if (oneOfKind != null) {
-            record += "%s = %d;%n".formatted(oneOfKind, field.fieldNumber());
+            record += "$kind = $number;\n"
+                    .replace("$kind", oneOfKind)
+                    .replace("$number", Integer.toString(field.fieldNumber()));
         } else {
             parts.fastPath().append(fastPath("if", field.fieldNumber(), wireType, record));
         }
         parts.cases().append(caseCode(field, wireType, record));
-        final String guard = oneOfKind == null ? "" : "%s == %d".formatted(oneOfKind, field.fieldNumber());
+        final String guard = oneOfKind == null ? "" : oneOfKind + " == " + field.fieldNumber();
         parts.accessors()
                 .append(field.optionalValueType() ? wrapperAccessor(field, name, guard) : accessor(field, name, guard));
         if (field.type() == Field.FieldType.MESSAGE) {
             // reading a nested message or wrapper value validates it; absent ones are skipped by the accessor
-            parts.validations().append("%s();%n".formatted(name));
+            parts.validations().append(name + "();\n");
         }
     }
 
     /** A oneof: each alternative is recorded like a singular field, and the oneof remembers the last one seen. */
     private static void oneOf(final OneOfField oneOf, final Parts parts) {
-        final String kind = oneOf.nameCamelFirstLower() + "Kind";
-        parts.state().append("private int %s;%n".formatted(kind));
-        parts.resets().append("%s = 0;%n".formatted(kind));
+        final String kind = oneOf.nameCamelFirstLower() + "_kind";
+        parts.state().append("private int " + kind + ";\n");
+        parts.resets().append(kind + " = 0;\n");
         final StringBuilder kinds = new StringBuilder();
         for (final Field alternative : oneOf.fields()) {
             singular((SingleField) alternative, kind, parts);
-            kinds.append("case %d -> %s.%s;%n"
-                    .formatted(
-                            alternative.fieldNumber(),
-                            oneOf.getEnumClassRef(),
-                            Common.camelToUpperSnake(alternative.name())));
+            kinds.append("case $number -> $enum.$alternative;\n"
+                    .replace("$number", Integer.toString(alternative.fieldNumber()))
+                    .replace("$enum", oneOf.getEnumClassRef())
+                    .replace("$alternative", Common.camelToUpperSnake(alternative.name())));
         }
         parts.accessors().append("""
 
                 /** @return which alternative of {@code $name} is set, as in the model */
-                public $enum $kind() {
+                public $enum $accessor() {
                     return switch ($kind) {
                 $kinds        default -> $enum.UNSET;
                     };
                 }
                 """.replace("$kinds", kinds.toString().indent(DEFAULT_INDENT * 2))
                 .replace("$enum", oneOf.getEnumClassRef())
+                .replace("$accessor", oneOf.nameCamelFirstLower() + "Kind")
                 .replace("$kind", kind)
                 .replace("$name", oneOf.name()));
     }
@@ -432,19 +460,25 @@ final class ViewGenerator {
         final boolean delimited = wireType == Common.TYPE_LENGTH_DELIMITED;
         final int elementTag = Common.getTag(wireType, field.fieldNumber());
         final int packedTag = Common.getTag(Common.TYPE_LENGTH_DELIMITED, field.fieldNumber());
-        parts.state()
-                .append("private int %sFirst = -1;%nprivate int %sCount;%nprivate %sCursor %sCursor;%n"
-                        .formatted(name, name, field.nameCamelFirstUpper(), name));
-        parts.resets().append("%sFirst = -1;%n%sCount = 0;%n".formatted(name, name));
+        parts.state().append("""
+                private int $name_first = -1;
+                private int $name_count;
+                private $NameCursor $name_cursor;
+                """.replace("$Name", field.nameCamelFirstUpper()).replace("$name", name));
+        parts.resets().append("""
+                $name_first = -1;
+                $name_count = 0;
+                """.replace("$name", name));
         final String element = delimited
-                ? "cursor.skip(cursor.%s(maxSize, \"%s\"));%n"
-                        .formatted(field.type() == Field.FieldType.STRING ? "stringLength" : "length", field.name())
-                : "%s;%n".formatted(skipValue(field.type(), "cursor"));
+                ? "cursor.skip(cursor.$read(maxSize, \"$field\"));\n"
+                        .replace("$read", field.type() == Field.FieldType.STRING ? "stringLength" : "length")
+                        .replace("$field", field.name())
+                : skipValue(field.type(), "cursor") + ";\n";
         final String unpacked = """
-                if ($nameFirst < 0) {
-                    $nameFirst = $tagStart;
+                if ($name_first < 0) {
+                    $name_first = $tagStart;
                 }
-                $nameCount++;
+                $name_count++;
                 $element""".replace("$element", element);
         final int tagLength = Common.tagBytes(field.fieldNumber(), wireType).length;
         parts.fastPath()
@@ -462,14 +496,14 @@ final class ViewGenerator {
         if (!delimited) {
             final String packed =
                     """
-                    if ($nameFirst < 0) {
-                        $nameFirst = $tagStart;
+                    if ($name_first < 0) {
+                        $name_first = $tagStart;
                     }
                     final int packedLength = cursor.length(maxSize, "$field");
                     final int packedEnd = cursor.position() + packedLength;
                     while (cursor.position() < packedEnd) {
                         $decode;
-                        $nameCount++;
+                        $name_count++;
                     }
                     if (cursor.position() != packedEnd) {
                         throw new java.nio.BufferOverflowException();
@@ -505,13 +539,16 @@ final class ViewGenerator {
                     offset = c.position();
                     c.skip(length);
                     """;
-                    default -> "value = %s;%n".formatted(decode(field.type(), "c"));
+                    default -> "value = " + decode(field.type(), "c") + ";\n";
                 };
         if (field.type() == Field.FieldType.MESSAGE) {
             // moving the cursor to each element wraps, and so validates, it
             parts.validations()
-                    .append("for (final var elements = %s(); elements.next(); ) {%n    // validated by next()%n}%n"
-                            .formatted(name));
+                    .append("""
+                            for (final $NameCursor elements = $name(); elements.next(); ) {
+                                // validated by next()
+                            }
+                            """.replace("$Name", field.nameCamelFirstUpper()).replace("$name", name));
         }
         final String packedStep = delimited ? "" : """
                 if (packedEnd >= 0) {
@@ -534,7 +571,7 @@ final class ViewGenerator {
 
                 /** @return the number of {@code $field} elements */
                 public int $nameCount() {
-                    return $nameCount;
+                    return $name_count;
                 }
 
                 /**
@@ -542,10 +579,10 @@ final class ViewGenerator {
                  *     {@code next()} to move to each one. The same cursor is reset and returned on each call.
                  */
                 public $NameCursor $name() {
-                    if ($nameCursor == null) {
-                        $nameCursor = new $NameCursor();
+                    if ($name_cursor == null) {
+                        $name_cursor = new $NameCursor();
                     }
-                    return $nameCursor.reset();
+                    return $name_cursor.reset();
                 }
 
                 /** A reusable cursor over the {@code $field} elements. */
@@ -559,10 +596,10 @@ final class ViewGenerator {
                     private $childType child;
 
                     private $NameCursor reset() {
-                        remaining = $nameCount;
+                        remaining = $name_count;
                         packedEnd = -1;
-                        if ($nameFirst >= 0) {
-                            c.reset(in, $nameFirst, end);
+                        if ($name_first >= 0) {
+                            c.reset(in, $name_first, end);
                         }
                         return this;
                     }
@@ -680,40 +717,40 @@ final class ViewGenerator {
 
     /** The accessors for one singular field or oneof alternative, which return defaults unless {@code guard} holds. */
     private static String accessor(final SingleField field, final String name, final String guard) {
-        final String doc = "%n/** @return {@code %s}, or its default when absent */%n".formatted(field.name());
-        final String v = name + "Value";
+        final String doc =
+                "\n/** @return {@code $field}, or its default when absent */\n".replace("$field", field.name());
         final String when = guard.isEmpty() ? "" : guard + " ? ";
         final String otherwise = guard.isEmpty() ? "" : " : 0";
+        final String number =
+                switch (field.type()) {
+                    case INT32, UINT32, FIXED32, SFIXED32 ->
+                        "public int $name() {\n    return $when(int) $v$otherwise;\n}\n";
+                    case SINT32 ->
+                        "public int $name() {\n    return $when(int) (($v >>> 1) ^ -($v & 1))$otherwise;\n}\n";
+                    case INT64, UINT64, FIXED64, SFIXED64 ->
+                        "public long $name() {\n    return $when$v$otherwise;\n}\n";
+                    case SINT64 -> "public long $name() {\n    return $when($v >>> 1) ^ -($v & 1)$otherwise;\n}\n";
+                    case BOOL -> "public boolean $name() {\n    return $guard$v != 0;\n}\n";
+                    case FLOAT ->
+                        "public float $name() {\n    return $whenFloat.intBitsToFloat((int) $v)$otherwise;\n}\n";
+                    case DOUBLE ->
+                        "public double $name() {\n    return $whenDouble.longBitsToDouble($v)$otherwise;\n}\n";
+                    default -> null;
+                };
+        if (number != null) {
+            return doc
+                    + number.replace("$guard", guard.isEmpty() ? "" : guard + " && ")
+                            .replace("$when", when)
+                            .replace("$otherwise", otherwise)
+                            .replace("$v", valueVar(name))
+                            .replace("$name", name);
+        }
         return switch (field.type()) {
-            case INT32, UINT32, FIXED32, SFIXED32 ->
-                doc + "public int %s() {%n    return %s(int) %s%s;%n}%n".formatted(name, when, v, otherwise);
-            case SINT32 ->
-                doc
-                        + "public int %s() {%n    return %s(int) ((%s >>> 1) ^ -(%s & 1))%s;%n}%n"
-                                .formatted(name, when, v, v, otherwise);
-            case INT64, UINT64, FIXED64, SFIXED64 ->
-                doc + "public long %s() {%n    return %s%s%s;%n}%n".formatted(name, when, v, otherwise);
-            case SINT64 ->
-                doc
-                        + "public long %s() {%n    return %s(%s >>> 1) ^ -(%s & 1)%s;%n}%n"
-                                .formatted(name, when, v, v, otherwise);
-            case BOOL ->
-                doc
-                        + "public boolean %s() {%n    return %s%s != 0;%n}%n"
-                                .formatted(name, guard.isEmpty() ? "" : guard + " && ", v);
-            case FLOAT ->
-                doc
-                        + "public float %s() {%n    return %sFloat.intBitsToFloat((int) %s)%s;%n}%n"
-                                .formatted(name, when, v, otherwise);
-            case DOUBLE ->
-                doc
-                        + "public double %s() {%n    return %sDouble.longBitsToDouble(%s)%s;%n}%n"
-                                .formatted(name, when, v, otherwise);
             case ENUM ->
                 doc
                         + """
                     public int $nameProtoOrdinal() {
-                        return $when(int) $nameValue$otherwise;
+                        return $when(int) $name_value$otherwise;
                     }
 
                     /** @return {@code $field} as an enum constant, {@code UNRECOGNIZED} for an unknown ordinal */
@@ -730,7 +767,7 @@ final class ViewGenerator {
 
                     /** @return the length in bytes of {@code $field}, 0 when absent */
                     public int $nameLength() {
-                        return $absent ? 0 : $nameLength;
+                        return $absent ? 0 : $name_length;
                     }
 
                     /**
@@ -743,7 +780,7 @@ final class ViewGenerator {
                     public int $nameCopyTo(@NonNull final byte[] dst, final int dstOffset) {
                         final int length = $nameLength();
                         if (length > 0) {
-                            System.arraycopy(in, $nameOffset, dst, dstOffset, length);
+                            System.arraycopy(in, $name_offset, dst, dstOffset, length);
                         }
                         return length;
                     }
@@ -757,7 +794,7 @@ final class ViewGenerator {
                         return length == 0
                                 ? other.length == 0
                                 : java.util.Arrays.equals(
-                                        in, $nameOffset, $nameOffset + length, other, 0, other.length);
+                                        in, $name_offset, $name_offset + length, other, 0, other.length);
                     }
 
                     /** @return {@code $field}, $returns */
@@ -775,15 +812,15 @@ final class ViewGenerator {
                         .replace(
                                 "$value",
                                 field.type() == Field.FieldType.STRING
-                                        ? "new String(in, $nameOffset, $nameLength, java.nio.charset.StandardCharsets.UTF_8)"
-                                        : "ArrayCursor.bytes(source, in, $nameOffset, $nameLength)")
+                                        ? "new String(in, $name_offset, $name_length, java.nio.charset.StandardCharsets.UTF_8)"
+                                        : "ArrayCursor.bytes(source, in, $name_offset, $name_length)")
                         .replace("$name", name)
                         .replace("$field", field.name());
             case MESSAGE ->
                 """
 
-                    private $type.View $nameView;
-                    private boolean $nameViewCurrent;
+                    private $type.View $name_view;
+                    private boolean $name_viewCurrent;
 
                     /** @return true if {@code $field} is present */
                     public boolean has$Name() {
@@ -799,15 +836,15 @@ final class ViewGenerator {
                         if ($absent) {
                             return null;
                         }
-                        if ($nameView == null) {
-                            $nameView = new $type.View();
-                        } else if ($nameViewCurrent && $nameView.wraps(in, $nameOffset, $nameLength)) {
+                        if ($name_view == null) {
+                            $name_view = new $type.View();
+                        } else if ($name_viewCurrent && $name_view.wraps(in, $name_offset, $name_length)) {
                             // already wrapped over this field since this view was wrapped: don't index it again
-                            return $nameView;
+                            return $name_view;
                         }
-                        $nameView.wrap(source, in, $nameOffset, $nameLength, strictMode, maxDepth - 1, maxSize);
-                        $nameViewCurrent = true;
-                        return $nameView;
+                        $name_view.wrap(source, in, $name_offset, $name_length, strictMode, maxDepth - 1, maxSize);
+                        $name_viewCurrent = true;
+                        return $name_view;
                     }
                     """.replace("$absent", absent(name, guard))
                         .replace("$type", field.javaFieldTypeBase())
@@ -849,11 +886,11 @@ final class ViewGenerator {
                     if ($absent) {
                         return null;
                     }
-                    if ($nameLength == 0) {
+                    if ($name_length == 0) {
                         return $default;
                     }
                     try {
-                        cursor.reset(source, in, $nameOffset, $nameOffset + $nameLength);
+                        cursor.reset(source, in, $name_offset, $name_offset + $name_length);
                         // the wrapper's one field: its tag, then the value
                         cursor.tag();
                         return $read;
@@ -876,6 +913,6 @@ final class ViewGenerator {
 
     /** The condition for a delimited field being absent: no offset recorded, or another oneof alternative set. */
     private static String absent(final String name, final String guard) {
-        return guard.isEmpty() ? name + "Offset < 0" : "!(" + guard + ") || " + name + "Offset < 0";
+        return guard.isEmpty() ? offsetVar(name) + " < 0" : "!(" + guard + ") || " + offsetVar(name) + " < 0";
     }
 }
