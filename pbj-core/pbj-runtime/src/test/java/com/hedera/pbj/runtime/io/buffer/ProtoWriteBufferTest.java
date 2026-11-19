@@ -207,7 +207,7 @@ final class ProtoWriteBufferTest {
                     "child " + i);
             assertEquals(
                     delimited(0x0A, new byte[i * 37]).length,
-                    buffer.bytes(ranges[i][0], ranges[i][1]).length());
+                    buffer.unsafeBytes(ranges[i][0], ranges[i][1]).length());
         }
     }
 
@@ -375,10 +375,10 @@ final class ProtoWriteBufferTest {
         final ProtoWriteBuffer buffer = new ProtoWriteBuffer(1);
         new NodeWriter(1).start(buffer).single(3).end();
         final byte[] expected = {0x20, 3};
-        assertEquals(Bytes.wrap(expected), buffer.bytes());
+        assertEquals(Bytes.wrap(expected), buffer.unsafeBytes());
         assertEquals(Bytes.wrap(expected), buffer.toBytes());
-        assertEquals(Bytes.wrap(new byte[] {3}), buffer.bytes(1, 1));
-        assertThrows(IndexOutOfBoundsException.class, () -> buffer.bytes(1, 2));
+        assertEquals(Bytes.wrap(new byte[] {3}), buffer.unsafeBytes(1, 1));
+        assertThrows(IndexOutOfBoundsException.class, () -> buffer.unsafeBytes(1, 2));
         final byte[] copy = new byte[3];
         assertEquals(2, buffer.copyTo(copy, 1));
         assertArrayEquals(new byte[] {0, 0x20, 3}, copy);

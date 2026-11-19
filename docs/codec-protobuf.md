@@ -259,7 +259,7 @@ final ReverseBuffer buffer = new ReverseBuffer(4096);
 for (Order order : orders) {
     buffer.reset();
     Order.PROTOBUF.writeReverse(order, buffer);
-    send(buffer.bytes());   // a view, valid until the next reset or write; toBytes() or copyTo() copy it
+    send(buffer.unsafeBytes());   // a view, valid until the next reset or write; toBytes() or copyTo() copy it
 }
 ```
 
@@ -296,7 +296,7 @@ for (Bytes bytes : orders) {
     if (view.hasCustomer()) {
         names.add(view.customer().name());   // a child view, re-wrapped with the parent
     }
-    for (var line = view.lines(); line.next(); ) {
+    for (Order.View.LinesCursor line = view.lines(); line.next(); ) {
         count += line.value().quantity();
     }
 }
@@ -390,5 +390,6 @@ Wrapper values are written as the model writes them too: `UInt32Value` of 2^31 o
 **Nested lengths.** A nested message's length comes before it, so the writer reserves bytes for it and writes it when
 the message ends. The guess is one byte when the message's largest encoding is under 128 bytes (only bounded fields),
 two otherwise, and by default afterwards the size used last time for the same field. A wrong guess moves the message's
-bytes. `writeFrom` sizes each nested message from the object's `protobufSize()`, so it never moves bytes.
+bytes. `writeFrom` writes the whole object with its codec's byte-array writer, which sizes nested messages from the
+objects' `protobufSize()`, so it never moves bytes.
 

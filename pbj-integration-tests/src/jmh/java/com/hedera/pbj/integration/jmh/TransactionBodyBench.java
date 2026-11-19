@@ -57,7 +57,7 @@ public class TransactionBodyBench {
 
     @Setup
     public void setup() throws IOException, ParseException {
-        try (var in = new BufferedInputStream(new GZIPInputStream(
+        try (BufferedInputStream in = new BufferedInputStream(new GZIPInputStream(
                 Objects.requireNonNull(TransactionBodyBench.class.getResourceAsStream(BLOCK_FILE))))) {
             final Block block = Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
             for (final BlockItem item : block.items()) {

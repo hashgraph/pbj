@@ -83,7 +83,6 @@ final class WriterGenerator {
             ContextualLookupHelper lookupHelper,
             StringBuilder state,
             StringBuilder methods,
-            StringBuilder writeFrom,
             Set<String> signatures,
             Map<OneOfField, Integer> oneofBits) {
 
@@ -190,7 +189,6 @@ final class WriterGenerator {
                 lookupHelper,
                 new StringBuilder(),
                 new StringBuilder(),
-                new StringBuilder(),
                 new HashSet<>(),
                 new IdentityHashMap<>());
         for (final Field field : fields) {
@@ -228,7 +226,6 @@ final class WriterGenerator {
                 singular(single, parts);
             }
         }
-        writeFrom(sorted, parts, Common.fieldCount(fields) > Common.MAX_INLINE_FIELDS);
         // spotless:off
         return """
                 /**
@@ -270,10 +267,10 @@ final class WriterGenerator {
                     }
                 $methods
                     /**
-                     * Write every field of a model object, and its unknown fields, as {@code $model.PROTOBUF} would. Nested
-                     * messages are written through child writers, with their length prefixes sized from the objects'
-                     * {@code protobufSize()}. Call it on an open writer with nothing written yet; afterwards, only
-                     * {@link #end()} may be called. Allocates nothing.
+                     * Write every field of a model object, and its unknown fields, with {@code $model.PROTOBUF}'s own
+                     * byte-array writer, straight into the buffer: the bytes are exactly the object's encoding. Call it on an
+                     * open writer with nothing written yet; afterwards, only {@link #end()} may be called. Allocates
+                     * nothing.
                      *
                      * @param data the object to write
                      * @return this writer
@@ -281,12 +278,8 @@ final class WriterGenerator {
                      */
                     public Writer writeFrom(@NonNull final $model data) {
                         beginWriteFrom();
-                $writeFrom
-                        final List<UnknownField> unknownFields = data.getUnknownFields();
-                        for (int i = 0; i < unknownFields.size(); i++) {
-                            final UnknownField uf = unknownFields.get(i);
-                            out.tagRaw((uf.field() << ProtoParserTools.TAG_FIELD_OFFSET) | uf.wireType().ordinal(), uf.bytes());
-                        }
+                        out.ensure(data.protobufSize());
+                        out.advance($model.PROTOBUF.write(data, out.array(), out.position()));
                         finishWriteFrom();
                         return this;
                     }
@@ -294,7 +287,6 @@ final class WriterGenerator {
                 """
                 .replace("$state", parts.state().toString().indent(DEFAULT_INDENT))
                 .replace("$methods", parts.methods().toString().indent(DEFAULT_INDENT))
-                .replace("$writeFrom", parts.writeFrom().toString().indent(DEFAULT_INDENT * 2))
                 .replace("$model", modelClass)
                 .indent(DEFAULT_INDENT)
                 // String.indent indents blank lines too
@@ -981,167 +973,5 @@ final class WriterGenerator {
                         + writeKey
                         + writeValue
                         + "return this;\n");
-    }
-
-    // --------------------------------------------------------------------------------------------- writeFrom
-
-    /**
-     * Generate the body of {@code writeFrom}: every field from the model's getters, in field-number order. In messages
-     * with many fields, such as HAPI's {@code TransactionBody}, each message alternative of a oneof is written by its
-     * own small method, to keep {@code writeFrom} well under HotSpot's 8,000-byte limit for compiling a method.
-     */
-    private static void writeFrom(final List<Field> sorted, final Parts parts, final boolean helpers) {
-        final StringBuilder sb = parts.writeFrom();
-        int i = 0;
-        while (i < sorted.size()) {
-            final Field field = sorted.get(i);
-            final OneOfField oneOf = field.parent();
-            if (oneOf == null) {
-                sb.append("// [%d] - %s%n".formatted(field.fieldNumber(), field.name()));
-                sb.append(writeFromField(field, "data." + field.nameCamelFirstLower() + "()", parts));
-                i++;
-                continue;
-            }
-            // a run of adjacent alternatives of the same oneof becomes one switch
-            final StringBuilder cases = new StringBuilder();
-            while (i < sorted.size() && sorted.get(i).parent() == oneOf) {
-                final SingleField alternative = (SingleField) sorted.get(i);
-                final String read = oneOf.unboxed()
-                        ? "data.%s()".formatted(alternative.nameCamelFirstLower())
-                        : "data.%s().as()".formatted(oneOf.nameCamelFirstLower());
-                final String javaType = alternative.type() == FieldType.ENUM
-                        ? alternative.javaFieldTypeBase()
-                        : alternative.javaFieldType();
-                String body = "final %s value = %s;%n".formatted(javaType, read)
-                        + writeFromField(alternative, "value", parts);
-                if (helpers && alternative.type() == FieldType.MESSAGE) {
-                    final String helper = "writeFrom_" + alternative.name();
-                    parts.methods()
-                            .append("%n/** Writes the oneof alternative {@code %s}, for {@link #writeFrom}. */%n"
-                                    .formatted(alternative.name()))
-                            .append("private void %s(final %s data) {%n%s}%n"
-                                    .formatted(helper, parts.modelClass(), body.indent(DEFAULT_INDENT)));
-                    body = "%s(data);%n".formatted(helper);
-                }
-                cases.append("case %s -> {%n%s}%n"
-                        .formatted(Common.camelToUpperSnake(alternative.name()), body.indent(DEFAULT_INDENT)));
-                i++;
-            }
-            sb.append("switch (data.%s) {%n%s    default -> {}%n}%n"
-                    .formatted(
-                            oneOf.unboxed() ? oneOf.kindName() + "()" : oneOf.nameCamelFirstLower() + "().kind()",
-                            cases.toString().indent(DEFAULT_INDENT)));
-        }
-    }
-
-    /**
-     * Code writing a nested message from a model object, not null, through its child writer: the object's size is
-     * known, so the length prefix is reserved exactly and the message's bytes never move.
-     */
-    private static String writeFromChild(final SingleField field, final String value, final Parts parts) {
-        final String writer = baseName(field) + "Writer";
-        return (field.repeated() ? "checkRepeatedField(%d);%n" : "checkField(%d);%n").formatted(field.fieldNumber())
-                + parts.oneofCheck(field)
-                + guarded(writer + " == null", "%s = new %s.Writer();%n".formatted(writer, field.javaFieldTypeBase()))
-                + "openChildSized(%s, %s.protobufSize(), %s);%n"
-                        .formatted(writer, value, tag(field.fieldNumber(), Common.TYPE_LENGTH_DELIMITED))
-                + "%s.writeFrom(%s).end();%n".formatted(writer, value);
-    }
-
-    /** Code writing one field, or oneof alternative, whose value is {@code read}, with the writer's methods. */
-    private static String writeFromField(final Field field, final String read, final Parts parts) {
-        final String name = baseName(field);
-        final boolean inOneof = field.parent() != null;
-        if (field instanceof MapField map) {
-            final SingleField value = (SingleField) map.valueField();
-            final boolean child = value.type() == FieldType.MESSAGE
-                    && parts.lookup().hasWriter(value.messageTypeModelPackage(), value.completeClassName());
-            return """
-                    {
-                        final var map = (PbjMap%s) %s;
-                        final var keys = map.getSortedKeys();
-                        for (int i = 0; i < keys.size(); i++) {
-                            final var key = keys.get(i);
-                            %s;
-                        }
-                    }
-                    """.formatted(
-                            map.javaGenericType(),
-                            read,
-                            child
-                                    ? "put%s(key).writeFrom(map.get(key)).end()".formatted(upperName(field))
-                                    : "put%s(key, map.get(key))".formatted(upperName(field)));
-        }
-        final SingleField single = (SingleField) field;
-        final FieldType type = single.type();
-        if (single.optionalValueType()) {
-            return guarded("value != null", "%s(value);%n".formatted(name))
-                    .transform(code -> inOneof
-                            ? code
-                            : "{%n    final var value = %s;%n%s}%n".formatted(read, code.indent(DEFAULT_INDENT)));
-        }
-        if (type == FieldType.MESSAGE) {
-            final boolean child =
-                    parts.lookup().hasWriter(single.messageTypeModelPackage(), single.completeClassName());
-            if (single.repeated()) {
-                return """
-                        {
-                            final var list = %s;
-                            for (int i = 0; i < list.size(); i++) {
-                            %s}
-                        }
-                        """.formatted(
-                        read,
-                        (child
-                                        ? "final var item = list.get(i);\n" + writeFromChild(single, "item", parts)
-                                        : "add%s(list.get(i));%n".formatted(upperName(field)))
-                                .indent(DEFAULT_INDENT));
-            }
-            if (!child) {
-                return "%s(%s);%n".formatted(name, read);
-            }
-            if (inOneof) {
-                // a null alternative is written as an empty message, as the model writes it
-                return "if (value == null) {%n    %s().end();%n} else {%n%s}%n"
-                        .formatted(name, writeFromChild(single, "value", parts).indent(DEFAULT_INDENT));
-            }
-            return "{%n    final var value = %s;%n%s}%n"
-                    .formatted(
-                            read,
-                            guarded("value != null", writeFromChild(single, "value", parts))
-                                    .indent(DEFAULT_INDENT));
-        }
-        if (single.repeated()) {
-            final String list =
-                    type == FieldType.ENUM ? "data.%sProtoOrdinals()".formatted(field.nameCamelFirstLower()) : read;
-            if (type == FieldType.STRING || type == FieldType.BYTES) {
-                return """
-                        {
-                            final var list = %s;
-                            for (int i = 0; i < list.size(); i++) {
-                                add%s(list.get(i));
-                            }
-                        }
-                        """.formatted(list, upperName(field));
-            }
-            return """
-                    {
-                        final var list = %s;
-                        if (!list.isEmpty()) {
-                            final var packed = %s();
-                            for (int i = 0; i < list.size(); i++) {
-                                packed.add(list.get(i));
-                            }
-                            packed.end();
-                        }
-                    }
-                    """.formatted(list, name);
-        }
-        if (type == FieldType.ENUM) {
-            return inOneof
-                    ? "%sProtoOrdinal(value.protoOrdinal());%n".formatted(name)
-                    : "%sProtoOrdinal(data.%sProtoOrdinal());%n".formatted(name, field.nameCamelFirstLower());
-        }
-        return "%s(%s);%n".formatted(name, read);
     }
 }

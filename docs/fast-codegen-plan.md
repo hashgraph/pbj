@@ -377,7 +377,7 @@ Also:
 - **Runtime:** add `ReverseBuffer` (5.4), reusable and growable.
 - **Generated code:** `static void writeReverse(T, ReverseBuffer)` for flagged messages.
 - **New public API (additive, on `Codec`):** `void writeReverse(T item, ReverseBuffer buffer)`. The result is
-  available as `buffer.bytes()` (a `Bytes` view over the end of the buffer), `copyTo(byte[], int)` or `toBytes()`.
+  available as `buffer.unsafeBytes()` (a `Bytes` view over the end of the buffer), `copyTo(byte[], int)` or `toBytes()`.
   Codecs without the flag implement it by measuring and writing forward into the buffer.
 - **`toBytes(T)`** may use it internally (reverse write into a pooled buffer, then copy into an exact-size array),
   but only if that measures faster.
@@ -458,8 +458,8 @@ worklist over a visited set, so cycles are reached once; an explicit `false` on 
   number while nothing is open inside the message, `Integer.MAX_VALUE` while a child is open or the writer is not,
   which sends the check to a slow path that ends the child (auto-close) or throws.
 - **Nested lengths.** The parent writes the tag and reserves 1 or 2 bytes, per type or adaptively; the child's
-  `close` patches the length, moving the body only when the guess was wrong. `writeFrom` reserves exactly, from the
-  object's cached `protobufSize()`.
+  `close` patches the length, moving the body only when the guess was wrong. `writeFrom` hands the whole object to
+  its codec's straight-line byte-array writer, which sizes everything from the cached `protobufSize()`.
 - **One buffer call per field.** `tagVarint`, `tagFixed32`, `tagString`, … make room, write the tag and the value.
   Their common case is a few stores inline and everything else out of line: C2 stops inlining a compile at 8,000
   bytes of inlined bytecode (`DesiredMethodLimit`), and a writer method for a 40-field message such as `Account` ran
@@ -533,9 +533,8 @@ Report before (the previous PR's branch) against after:
    from `-prof gc` next to `gc.alloc.rate.norm`.
 4. **protoc columns.** Report protoc next to PBJ: `BlockItemBench`'s `*ProtoC*` cases, `ProtobufObjectBench` and
    `ProtobufObjectArrayBench`.
-5. **Block files.** Block `…497558` was written with an older `BlockHeader` layout and no longer parses with the
-   current HAPI schema, so `BlockItemBench` uses block `…030221` (67,869 items, every kind, 21,981 signed
-   transactions).
+5. **Block files.** The benchmarks use block `…030221` (67,869 items, every kind, 21,981 signed transactions). The
+   older block `…497558`, written with an older `BlockHeader` layout that no longer parses, was removed.
 6. **Profiles when a step underperforms.** async-profiler's `ann` option labels frames `_[j]` (compiled), `_[i]`
    (inlined), `_[1]` (C1) and `_[0]` (interpreted), which shows directly which per-field calls were not inlined.
    `-XX:+UnlockDiagnosticVMOptions -XX:+PrintInlining` explains why.

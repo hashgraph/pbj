@@ -208,14 +208,15 @@ final class CodecParseArrayMethodGenerator {
 
     /** A switch case for one tag. */
     private static String caseCode(final Field field, final int wireType, final String body) {
-        return "case %d /* type=%d [%s] field=%d [%s] */ -> {%n%s}%n"
-                .formatted(
-                        Common.getTag(wireType, field.fieldNumber()),
-                        wireType,
-                        field.type(),
-                        field.fieldNumber(),
-                        field.name(),
-                        body.indent(DEFAULT_INDENT));
+        return """
+                case $tag /* type=$wireType [$type] field=$number [$name] */ -> {
+                $body}
+                """.replace("$tag", Integer.toString(Common.getTag(wireType, field.fieldNumber())))
+                .replace("$wireType", Integer.toString(wireType))
+                .replace("$type", field.type().toString())
+                .replace("$number", Integer.toString(field.fieldNumber()))
+                .replace("$name", field.name())
+                .replace("$body", body.indent(DEFAULT_INDENT));
     }
 
     /**
@@ -227,13 +228,13 @@ final class CodecParseArrayMethodGenerator {
         if (tagBytes.length > 2) {
             return "";
         }
-        return "%s (input.at(%s)) {%n%s}%n"
-                .formatted(
-                        keyword,
-                        Arrays.stream(tagBytes)
-                                .mapToObj(b -> "(byte) 0x%02X".formatted(b))
-                                .collect(Collectors.joining(", ")),
-                        body.indent(DEFAULT_INDENT));
+        final String tag = Arrays.stream(tagBytes)
+                .mapToObj(b -> "(byte) 0x%02X".formatted(b))
+                .collect(Collectors.joining(", "));
+        return """
+                $keyword (input.at($tag)) {
+                $body}
+                """.replace("$keyword", keyword).replace("$tag", tag).replace("$body", body.indent(DEFAULT_INDENT));
     }
 
     /**
@@ -265,8 +266,10 @@ final class CodecParseArrayMethodGenerator {
                 .replace("$maxSize", maxSize(field))
                 .replace("$name", field.name())
                 .replace("$type", valueType(field)));
-        final String addOne = "%s = addArray_%s(input, %s, strictMode, parseUnknownFields, maxDepth, maxSize);%n"
-                .formatted(temp, field.name(), temp);
+        final String addOne =
+                "$temp = addArray_$name(input, $temp, strictMode, parseUnknownFields, maxDepth, maxSize);\n"
+                        .replace("$temp", temp)
+                        .replace("$name", field.name());
         final int wireType = field.type().wireType();
         if (wireType == Common.TYPE_LENGTH_DELIMITED) {
             final int[] tagBytes = Common.tagBytes(field.fieldNumber(), wireType);
@@ -303,7 +306,9 @@ final class CodecParseArrayMethodGenerator {
                 .replace("$maxSize", maxSize(field))
                 .replace("$name", field.name())
                 .replace("$element", element.indent(DEFAULT_INDENT * 2)));
-        final String packed = "%s = addPackedArray_%s(input, %s, maxSize);%n".formatted(temp, field.name(), temp);
+        final String packed = "$temp = addPackedArray_$name(input, $temp, maxSize);\n"
+                .replace("$temp", temp)
+                .replace("$name", field.name());
         fastPath.append(fastPathCode(field, Common.TYPE_LENGTH_DELIMITED, "if", packed));
         cases.append(caseCode(field, wireType, addOne));
         cases.append(caseCode(field, Common.TYPE_LENGTH_DELIMITED, packed));
@@ -481,7 +486,7 @@ final class CodecParseArrayMethodGenerator {
             case ENUM ->
                 """
                     final int enumOrdinal = (int) input.varint();
-                    final var enumValue = $enum.fromProtobufOrdinal(enumOrdinal);
+                    final $enum enumValue = $enum.fromProtobufOrdinal(enumOrdinal);
                     $target = $value;
                     """.replace(
                                 "$value",
