@@ -48,8 +48,8 @@ primitive fields of the view) with the same fast path and validation as the pars
 API decisions:
 - **Nested in the model** (`BlockItem.View`), so nested messages get nested views without a new file type.
 - **Reusable, owned by the parent.** Each nested message has one child view, re-wrapped on access; repeated fields
-  give a reusable cursor (`for (var c = view.items(); c.next(); ) { … c.value() … }`). Nothing is allocated after the
-  first wrap. The price: a child view is valid until the next access to the same field.
+  give a reusable cursor (`for (Block.View.ItemsCursor c = view.items(); c.next(); ) { … c.value() … }`). Nothing is
+  allocated after the first wrap. The price: a child view is valid until the next access to the same field.
 - **Wrapper types read without boxing:** `xxxOrElse(long)` next to the boxed accessor.
 - **Bytes read in place:** `xxxByteAt(int)`, and `xxxAs(view)` wraps any view over a bytes field holding a message
   (such as `SignedTransaction.bodyBytes`) without copying it. Every view implements `MessageView` for this.
@@ -74,7 +74,10 @@ API decisions:
 - **One-call setters for small messages:** `amount.accountID(shard, realm, num)`. Messages of up to six number, bool or
   enum fields with nothing nested are written in one call with no child writer; ids and timestamps are most of HAPI's
   nested messages, so this was the writers' single biggest win (−19%).
-- **`writeFrom(object)`** writes a model object through the writer, reserving lengths exactly from its cached size.
+- **`writeFrom(object)`** writes a model object with its codec's straight-line byte-array writer, straight into the
+  writer's buffer, sized from the object's cached size. An earlier version wrote each field through the writer's own
+  methods, a second copy of the same logic; handing the object to the codec is simpler and faster
+  (`BlockItemWriterBench.writerFromObjects` about 270 → 145 ns/op on an Apple laptop, not yet re-measured on EPYC).
 
 ## What it costs per nested message
 
