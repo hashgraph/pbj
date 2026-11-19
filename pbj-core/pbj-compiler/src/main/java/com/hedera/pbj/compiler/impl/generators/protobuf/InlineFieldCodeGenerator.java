@@ -112,23 +112,44 @@ final class InlineFieldCodeGenerator {
                 i++;
                 continue;
             }
-            // a run of adjacent alternatives of the same oneof becomes one switch
-            final StringBuilder cases = new StringBuilder();
+            // a run of adjacent alternatives of the same oneof becomes one switch, or an if for a single one
+            final int runStart = i;
             while (i < sorted.size() && sorted.get(i).parent() == oneOf) {
-                final Field alternative = sorted.get(i);
+                i++;
+            }
+            final List<Field> run = sorted.subList(runStart, i);
+            if (run.size() == 1) {
+                final Field alternative = run.getFirst();
+                sb.append("""
+                        // [$number] - $name
+                        if ($receiver$oneOf().kind() == $oneOfType.$kind) {
+                        $body}
+                        """.replace("$number", Integer.toString(alternative.fieldNumber()))
+                        .replace("$name", alternative.name())
+                        .replace("$receiver", receiver)
+                        .replace("$oneOfType", oneOf.getEnumClassRef())
+                        .replace("$oneOf", oneOf.nameCamelFirstLower())
+                        .replace("$kind", Common.camelToUpperSnake(alternative.name()))
+                        .replace("$body", field(alternative).indent(DEFAULT_INDENT)));
+                continue;
+            }
+            final StringBuilder cases = new StringBuilder();
+            for (final Field alternative : run) {
+                // each case has its own block, as the cases declare locals with the same names
                 cases.append("""
                         // [$number] - $name
-                        case $kind -> {
-                        $body}
+                        case $kind: {
+                        $body    break;
+                        }
                         """.replace("$number", Integer.toString(alternative.fieldNumber()))
                         .replace("$name", alternative.name())
                         .replace("$kind", Common.camelToUpperSnake(alternative.name()))
                         .replace("$body", field(alternative).indent(DEFAULT_INDENT)));
-                i++;
             }
             sb.append("""
                     switch ($receiver$oneOf().kind()) {
-                    $cases    default -> {}
+                    $cases    default:
+                            break;
                     }
                     """.replace("$receiver", receiver)
                     .replace("$oneOf", oneOf.nameCamelFirstLower())
@@ -274,8 +295,8 @@ final class InlineFieldCodeGenerator {
             return fallback.apply(field);
         }
         final String local = localName(field);
-        // outside a oneof, var avoids naming the type; inside, the type is needed to read the OneOf's value
-        final String javaType = !inOneOf ? "var" : field.type() == Field.FieldType.ENUM ? "int" : field.javaFieldType();
+        // enums are written by their proto ordinal
+        final String javaType = field.type() == Field.FieldType.ENUM ? "int" : field.javaFieldType();
         final String oneOfValue =
                 inOneOf ? "%s%s().as()".formatted(receiver, field.parent().nameCamelFirstLower()) : "";
         final String read = !inOneOf
@@ -294,11 +315,13 @@ final class InlineFieldCodeGenerator {
             if (field.repeated()) {
                 return prefix
                         + """
-                        final var $local = $read;
+                        final $type $local = $read;
                         for (int i = 0; i < $local.size(); i++) {
-                            final var item = $local.get(i);
+                            final $itemType item = $local.get(i);
                         $tag$nested}
-                        """.replace("$local", local)
+                        """.replace("$itemType", field.javaFieldTypeBase())
+                                .replace("$type", javaType)
+                                .replace("$local", local)
                                 .replace("$read", read)
                                 .replace("$tag", tag.indent(DEFAULT_INDENT))
                                 .replace(
@@ -328,10 +351,11 @@ final class InlineFieldCodeGenerator {
             }
             return prefix
                     + """
-                    final var $local = $read;
+                    final $type $local = $read;
                     if ($local != null) {
                     $tag$nested}
-                    """.replace("$local", local)
+                    """.replace("$type", javaType)
+                            .replace("$local", local)
                             .replace("$read", read)
                             .replace("$tag", tag.indent(DEFAULT_INDENT))
                             .replace("$nested", nested.indent(DEFAULT_INDENT));
