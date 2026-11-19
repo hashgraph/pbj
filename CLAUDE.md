@@ -64,6 +64,13 @@ cd pbj-integration-tests
 - **Helidon 4.4.0** for HTTP/2 and gRPC
 - **JUnit 5**, Mockito, AssertJ for testing
 
+## Performance Work
+
+Before changing generated codecs, the runtime's I/O or anything on a hot path, read
+[docs/performance/README.md](docs/performance/README.md): the rules learned from the fast code generation series, how to
+measure (decisions are made on AMD EPYC, not Apple Silicon), JIT limits, and what was already tried and reverted. Record
+new lessons in §9 of [docs/fast-codegen-plan.md](docs/fast-codegen-plan.md).
+
 ## Key Design Principles
 
 - Getters return `null` for absent fields (not defaults) — use `foo()` or `fooOrElse(default)`
