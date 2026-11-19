@@ -464,7 +464,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                             }
                             final var limitBefore = input.limit();
                             // Make sure that we have enough bytes in the message to read the subObject.
-                            final var end = input.position() + messageLength;
+                            final long end = input.position() + messageLength;
                             if (end > limitBefore) {
                                 throw new BufferUnderflowException();
                             }
@@ -506,7 +506,7 @@ private static %s case%d(ReadableSequentialData input, int maxSize, %s %s) throw
                             }
                             final var __map_limitBefore = input.limit();
                             // Make sure that we have enough bytes in the message to read the entry.
-                            final var __map_end = input.position() + __map_messageLength;
+                            final long __map_end = input.position() + __map_messageLength;
                             if (__map_end > __map_limitBefore) {
                                 throw new BufferUnderflowException();
                             }

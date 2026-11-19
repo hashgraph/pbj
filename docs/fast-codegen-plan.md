@@ -512,9 +512,8 @@ Report before (the previous PR's branch) against after:
    from `-prof gc` next to `gc.alloc.rate.norm`.
 4. **protoc columns.** Report protoc next to PBJ: `BlockItemBench`'s `*ProtoC*` cases, `ProtobufObjectBench` and
    `ProtobufObjectArrayBench`.
-5. **Block files.** Block `…497558` was written with an older `BlockHeader` layout and no longer parses with the
-   current HAPI schema, so `BlockItemBench` uses block `…030221` (67,869 items, every kind, 21,981 signed
-   transactions).
+5. **Block files.** The benchmarks use block `…030221` (67,869 items, every kind, 21,981 signed transactions). The
+   older block `…497558`, written with an older `BlockHeader` layout that no longer parses, was removed.
 6. **Profiles when a step underperforms.** async-profiler's `ann` option labels frames `_[j]` (compiled), `_[i]`
    (inlined), `_[1]` (C1) and `_[0]` (interpreted), which shows directly which per-field calls were not inlined.
    `-XX:+UnlockDiagnosticVMOptions -XX:+PrintInlining` explains why.

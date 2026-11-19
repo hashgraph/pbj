@@ -178,7 +178,7 @@ public abstract class ProtobufObjectArrayBench<P, G extends GeneratedMessage> {
 
             // load the protobuf bytes
             try (var in = new ReadableStreamingData(new BufferedInputStream(new GZIPInputStream(Objects.requireNonNull(
-                    SampleBlockBench.class.getResourceAsStream("/000000000000000000000000000000497558.blk.gz")))))) {
+                    SampleBlockBench.class.getResourceAsStream("/000000000000000000000000000000030221.blk.gz")))))) {
                 final Block TEST_BLOCK = com.hedera.hapi.block.stream.Block.PROTOBUF.parse(in);
                 benchmarkState.configure(
                         TEST_BLOCK, Block.PROTOBUF, com.hedera.hapi.block.stream.protoc.Block::parseFrom);
