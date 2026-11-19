@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.pbj.compiler.impl;
 
+import static com.hedera.pbj.compiler.impl.Common.WRAPPER_TYPES;
 import static java.util.Collections.emptyList;
 import static java.util.regex.Matcher.quoteReplacement;
 
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Lexer;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.EnumDefContext;
+import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.FieldContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageDefContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageElementContext;
 import com.hedera.pbj.compiler.impl.grammar.Protobuf3Parser.MessageTypeContext;
@@ -362,31 +364,19 @@ public final class LookupHelper {
         return message != null && hasView(messageDefinitions.get(message));
     }
 
-    /** The {@code google.protobuf} wrapper types, which views do not support yet. */
-    private static final Set<String> WRAPPER_TYPES = Set.of(
-            "StringValue",
-            "BoolValue",
-            "Int32Value",
-            "UInt32Value",
-            "Int64Value",
-            "UInt64Value",
-            "FloatValue",
-            "DoubleValue",
-            "BytesValue");
-
     private boolean viewSupports(String name, MessageDefContext message) {
         for (MessageElementContext element : message.messageBody().messageElement()) {
             if (element.oneof() != null || element.mapField() != null) {
                 return false;
             }
-            final var field = element.field();
+            final FieldContext field = element.field();
             if (field == null || field.fieldName() == null) {
                 continue;
             }
             if (field.REPEATED() != null) {
                 return false;
             }
-            final var type = field.type_().messageType();
+            final MessageTypeContext type = field.type_().messageType();
             if (type == null) {
                 continue;
             }

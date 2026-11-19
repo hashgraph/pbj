@@ -299,11 +299,12 @@ for (Bytes bytes : orders) {
 ```
 
 `wrap` indexes the message in one pass, with the same in-order fast path and the same checks of tags, wire types,
-lengths, bools and UTF-8 as parsing; a malformed message throws `ParseException`. Numbers are decoded into fields of
-the view, and strings, bytes and nested messages are recorded as offsets and lengths. String and bytes fields also have
-`xxxArray()`, `xxxOffset()`, `xxxLength()` and `xxxEquals(byte[])`, which read them without allocating; `xxx()` builds a
-`String` or `Bytes`. An enum field's `xxxProtoOrdinal()` returns the raw number. `toModel()` parses the wrapped bytes
-into a model object. Wrapping and reading numbers, enums, nested views and offsets allocate nothing.
+lengths, bools and UTF-8 as parsing; a malformed message throws `ParseException`. Numbers are decoded into fields of the
+view, and strings, bytes and nested messages are recorded as offsets and lengths. String and bytes fields also have
+`xxxOffset()`, `xxxLength()` and `xxxEquals(byte[])`, which read them without allocating, and `xxxUnsafeArray()`, the
+wrapped array itself, which must never be modified; `xxx()` builds a `String` or `Bytes`. An enum field's
+`xxxProtoOrdinal()` returns the raw number. `toModel()` parses the wrapped bytes into a model object. Wrapping and
+reading numbers, enums, nested views and offsets allocate nothing.
 
 A view and its child views are reused, so a child view returned earlier reads whatever its parent was last wrapped
 over. The wrapped bytes must not change while a view reads them.

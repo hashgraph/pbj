@@ -7,6 +7,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -19,6 +20,21 @@ public final class Common {
     public static final String FIELD_INDENT = " ".repeat(4);
 
     public static final int DEFAULT_INDENT = 4;
+
+    /**
+     * The {@code google.protobuf} wrapper message types, such as {@code StringValue}, which PBJ maps to nullable Java
+     * values instead of messages.
+     */
+    public static final Set<String> WRAPPER_TYPES = Set.of(
+            "StringValue",
+            "BoolValue",
+            "Int32Value",
+            "UInt32Value",
+            "Int64Value",
+            "UInt64Value",
+            "FloatValue",
+            "DoubleValue",
+            "BytesValue");
     /** Wire format code for var int */
     public static final int TYPE_VARINT = 0;
     /** Wire format code for fixed 64bit number */

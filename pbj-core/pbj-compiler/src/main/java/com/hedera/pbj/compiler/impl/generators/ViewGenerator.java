@@ -54,24 +54,28 @@ final class ViewGenerator {
             final int wireType = field.type().wireType();
             final String record;
             if (wireType == Common.TYPE_LENGTH_DELIMITED) {
-                state.append("private int %sOffset = -1;%nprivate int %sLength;%n".formatted(name, name));
-                resets.append("%sOffset = -1;%n".formatted(name));
+                state.append("""
+                        private int $offset = -1;
+                        private int $length;
+                        """.replace("$offset", offsetVar(name)).replace("$length", lengthVar(name)));
+                resets.append("$offset = -1;\n".replace("$offset", offsetVar(name)));
                 // strings are checked to be valid UTF-8 while wrapping, as parsing does
-                record =
-                        "%sLength = cursor.%s(Codec.DEFAULT_MAX_SIZE, \"%s\");%n%sOffset = cursor.position();%ncursor.skip(%sLength);%n"
-                                .formatted(
-                                        name,
-                                        field.type() == Field.FieldType.STRING ? "stringLength" : "length",
-                                        field.name(),
-                                        name,
-                                        name);
+                record = """
+                        $length = cursor.$read(Codec.DEFAULT_MAX_SIZE, "$field");
+                        $offset = cursor.position();
+                        cursor.skip($length);
+                        """.replace("$read", field.type() == Field.FieldType.STRING ? "stringLength" : "length")
+                        .replace("$field", field.name())
+                        .replace("$offset", offsetVar(name))
+                        .replace("$length", lengthVar(name));
             } else {
                 // numbers are decoded once, while wrapping; absent fields keep their default, 0
-                state.append("private long %sValue;%n".formatted(name));
-                resets.append("%sValue = 0;%n".formatted(name));
-                record = "%sValue = %s;%n"
-                        .formatted(
-                                name,
+                state.append("private long $value;\n".replace("$value", valueVar(name)));
+                resets.append("$value = 0;\n".replace("$value", valueVar(name)));
+                record = "$value = $read;\n"
+                        .replace("$value", valueVar(name))
+                        .replace(
+                                "$read",
                                 switch (field.type()) {
                                     case BOOL -> "cursor.bool() ? 1 : 0";
                                     case FIXED32, SFIXED32, FLOAT -> "cursor.fixed32()";
@@ -81,20 +85,24 @@ final class ViewGenerator {
             }
             final int[] tagBytes = Common.tagBytes(field.fieldNumber(), wireType);
             if (tagBytes.length <= 2) {
-                fastPath.append("if (cursor.at(%s)) {%n%s}%n"
-                        .formatted(
+                fastPath.append("""
+                        if (cursor.at($tag)) {
+                        $record}
+                        """.replace(
+                                "$tag",
                                 Arrays.stream(tagBytes)
                                         .mapToObj(b -> "(byte) 0x%02X".formatted(b))
-                                        .collect(Collectors.joining(", ")),
-                                record.indent(DEFAULT_INDENT)));
+                                        .collect(Collectors.joining(", ")))
+                        .replace("$record", record.indent(DEFAULT_INDENT)));
             }
-            cases.append("case %d /* [%s] field=%d [%s] */ -> {%n%s}%n"
-                    .formatted(
-                            Common.getTag(wireType, field.fieldNumber()),
-                            field.type(),
-                            field.fieldNumber(),
-                            field.name(),
-                            record.indent(DEFAULT_INDENT)));
+            cases.append("""
+                    case $tag /* [$type] field=$number [$field] */ -> {
+                    $record}
+                    """.replace("$tag", Integer.toString(Common.getTag(wireType, field.fieldNumber())))
+                    .replace("$type", field.type().toString())
+                    .replace("$number", Integer.toString(field.fieldNumber()))
+                    .replace("$field", field.name())
+                    .replace("$record", record.indent(DEFAULT_INDENT)));
             accessors.append(accessor(field, name));
         }
         // spotless:off
@@ -160,7 +168,7 @@ final class ViewGenerator {
                             throw new ParseException("Reached maximum allowed depth of nested messages");
                         }
                         this.depth = depth;
-                        in = cursor.array();
+                        in = cursor.unsafeArray();
                         start = cursor.position();
                         end = cursor.limit();
                 $resets
@@ -207,27 +215,49 @@ final class ViewGenerator {
         // spotless:on
     }
 
+    /**
+     * The name of the view's private field holding the offset of a string, bytes or message field. The names of the
+     * view's own state separate the field's name and their role with an underscore, which the camel case Java names of
+     * fields never have, so they cannot clash with another field's names.
+     */
+    private static String offsetVar(final String name) {
+        return name + "_offset";
+    }
+
+    /** The name of the view's private field holding the length of a string, bytes or message field. */
+    private static String lengthVar(final String name) {
+        return name + "_length";
+    }
+
+    /** The name of the view's private field holding a number, bool or enum field's decoded value. */
+    private static String valueVar(final String name) {
+        return name + "_value";
+    }
+
     /** The accessors for one field. */
     private static String accessor(final SingleField field, final String name) {
-        final String doc = "%n/** @return {@code %s}, or its default when absent */%n".formatted(field.name());
-        final String v = name + "Value";
+        final String doc =
+                "\n/** @return {@code $field}, or its default when absent */\n".replace("$field", field.name());
+        final String number =
+                switch (field.type()) {
+                    case INT32, UINT32, FIXED32, SFIXED32 -> "public int $name() {\n    return (int) $v;\n}\n";
+                    case SINT32 -> "public int $name() {\n    return (int) (($v >>> 1) ^ -($v & 1));\n}\n";
+                    case INT64, UINT64, FIXED64, SFIXED64 -> "public long $name() {\n    return $v;\n}\n";
+                    case SINT64 -> "public long $name() {\n    return ($v >>> 1) ^ -($v & 1);\n}\n";
+                    case BOOL -> "public boolean $name() {\n    return $v != 0;\n}\n";
+                    case FLOAT -> "public float $name() {\n    return Float.intBitsToFloat((int) $v);\n}\n";
+                    case DOUBLE -> "public double $name() {\n    return Double.longBitsToDouble($v);\n}\n";
+                    default -> null;
+                };
+        if (number != null) {
+            return doc + number.replace("$name", name).replace("$v", valueVar(name));
+        }
         return switch (field.type()) {
-            case INT32, UINT32, FIXED32, SFIXED32 ->
-                doc + "public int %s() {%n    return (int) %s;%n}%n".formatted(name, v);
-            case SINT32 ->
-                doc + "public int %s() {%n    return (int) ((%s >>> 1) ^ -(%s & 1));%n}%n".formatted(name, v, v);
-            case INT64, UINT64, FIXED64, SFIXED64 -> doc + "public long %s() {%n    return %s;%n}%n".formatted(name, v);
-            case SINT64 -> doc + "public long %s() {%n    return (%s >>> 1) ^ -(%s & 1);%n}%n".formatted(name, v, v);
-            case BOOL -> doc + "public boolean %s() {%n    return %s != 0;%n}%n".formatted(name, v);
-            case FLOAT ->
-                doc + "public float %s() {%n    return Float.intBitsToFloat((int) %s);%n}%n".formatted(name, v);
-            case DOUBLE ->
-                doc + "public double %s() {%n    return Double.longBitsToDouble(%s);%n}%n".formatted(name, v);
             case ENUM ->
                 doc
                         + """
                     public int $nameProtoOrdinal() {
-                        return (int) $nameValue;
+                        return (int) $name_value;
                     }
 
                     /** @return {@code $field} as an enum constant, {@code UNRECOGNIZED} for an unknown ordinal */
@@ -240,18 +270,23 @@ final class ViewGenerator {
             case STRING, BYTES ->
                 """
 
-                    /** @return the offset of {@code $field} in {@link #$nameArray()}, 0 when absent */
+                    /** @return the offset of {@code $field} in {@link #$nameUnsafeArray()}, 0 when absent */
                     public int $nameOffset() {
-                        return $nameOffset < 0 ? 0 : $nameOffset;
+                        return $name_offset < 0 ? 0 : $name_offset;
                     }
 
                     /** @return the length in bytes of {@code $field}, 0 when absent */
                     public int $nameLength() {
-                        return $nameOffset < 0 ? 0 : $nameLength;
+                        return $name_offset < 0 ? 0 : $name_length;
                     }
 
-                    /** @return the wrapped array, which holds {@code $field}; do not modify it */
-                    public byte[] $nameArray() {
+                    /**
+                     * The wrapped array, which holds {@code $field}, without copying it. This is unsafe: it may be the
+                     * backing array of an immutable {@code Bytes}, so it must never be modified.
+                     *
+                     * @return the wrapped array
+                     */
+                    public byte[] $nameUnsafeArray() {
                         return in;
                     }
 
@@ -266,7 +301,7 @@ final class ViewGenerator {
 
                     /** @return {@code $field}, $returns */
                     public $type $name() {
-                        return $nameOffset < 0 ? $default : $value;
+                        return $name_offset < 0 ? $default : $value;
                     }
                     """.replace(
                                 "$returns",
@@ -278,18 +313,18 @@ final class ViewGenerator {
                         .replace(
                                 "$value",
                                 field.type() == Field.FieldType.STRING
-                                        ? "new String(in, $nameOffset, $nameLength, java.nio.charset.StandardCharsets.UTF_8)"
-                                        : "Bytes.wrap(in, $nameOffset, $nameLength)")
+                                        ? "new String(in, $name_offset, $name_length, java.nio.charset.StandardCharsets.UTF_8)"
+                                        : "Bytes.wrap(in, $name_offset, $name_length)")
                         .replace("$name", name)
                         .replace("$field", field.name());
             case MESSAGE ->
                 """
 
-                    private $type.View $nameView;
+                    private $type.View $name_view;
 
                     /** @return true if {@code $field} is present */
                     public boolean has$Name() {
-                        return $nameOffset >= 0;
+                        return $name_offset >= 0;
                     }
 
                     /**
@@ -297,13 +332,13 @@ final class ViewGenerator {
                      * @throws ParseException if the nested message is malformed
                      */
                     public $type.View $name() throws ParseException {
-                        if ($nameOffset < 0) {
+                        if ($name_offset < 0) {
                             return null;
                         }
-                        if ($nameView == null) {
-                            $nameView = new $type.View();
+                        if ($name_view == null) {
+                            $name_view = new $type.View();
                         }
-                        return $nameView.wrap(in, $nameOffset, $nameLength, depth + 1);
+                        return $name_view.wrap(in, $name_offset, $name_length, depth + 1);
                     }
                     """.replace("$type", field.javaFieldTypeBase())
                         .replace("$Name", field.nameCamelFirstUpper())
