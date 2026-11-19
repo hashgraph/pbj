@@ -58,6 +58,12 @@ public final class Bytes implements RandomAccessData, Comparable<Bytes> {
      */
     public static final Comparator<Bytes> SORT_BY_UNSIGNED_VALUE = valueSorter(Byte::compareUnsigned);
 
+    static {
+        // Bytes are read through a RandomAccessSequenceAdapter, which installs the access too; installing it here as
+        // well keeps every class ArrayInputsAccess reads the same
+        ArrayInputsAccess.install();
+    }
+
     /** byte[] used as backing buffer */
     private final byte[] buffer;
 
