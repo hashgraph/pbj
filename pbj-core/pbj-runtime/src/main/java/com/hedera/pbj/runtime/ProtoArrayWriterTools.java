@@ -415,7 +415,7 @@ public final class ProtoArrayWriterTools {
             bytesWritten += writeUnsignedVarInt(
                     output,
                     offset + bytesWritten,
-                    value == 0 ? 0 : sizeOfTag(newField, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfVarInt32(value));
+                    value == 0 ? 0 : sizeOfTag(newField, WIRE_TYPE_VARINT_OR_ZIGZAG) + sizeOfUnsignedVarInt32(value));
             bytesWritten += writeUInt32(output, offset + bytesWritten, newField, value, true);
         }
         return bytesWritten;
@@ -584,7 +584,8 @@ public final class ProtoArrayWriterTools {
             bytesWritten += writeTag(output, offset, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, sizeOfFloat(newField, value));
-            bytesWritten += writeFixed32(output, offset + bytesWritten, newField, Float.floatToIntBits(value), true);
+            // like the length, treats -0.0 as the default
+            bytesWritten += writeFloat(output, offset + bytesWritten, newField, value);
         }
         return bytesWritten;
     }
@@ -605,7 +606,8 @@ public final class ProtoArrayWriterTools {
             bytesWritten += writeTag(output, offset, field, WIRE_TYPE_DELIMITED);
             final var newField = field.type().optionalFieldDefinition;
             bytesWritten += writeUnsignedVarInt(output, offset + bytesWritten, sizeOfDouble(newField, value));
-            bytesWritten += writeFixed64(output, offset + bytesWritten, newField, Double.doubleToLongBits(value), true);
+            // like the length, treats -0.0 as the default
+            bytesWritten += writeDouble(output, offset + bytesWritten, newField, value);
         }
         return bytesWritten;
     }

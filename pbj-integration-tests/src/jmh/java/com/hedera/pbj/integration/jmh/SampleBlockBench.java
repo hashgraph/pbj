@@ -44,7 +44,7 @@ public class SampleBlockBench {
     static {
         // load the protobuf bytes
         try (var in = new BufferedInputStream(new GZIPInputStream(Objects.requireNonNull(
-                SampleBlockBench.class.getResourceAsStream("/000000000000000000000000000000497558.blk.gz"))))) {
+                SampleBlockBench.class.getResourceAsStream("/000000000000000000000000000000030221.blk.gz"))))) {
             TEST_BLOCK_PROTOBUF_BYTES = in.readAllBytes();
         } catch (IOException e) {
             throw new RuntimeException(e);
