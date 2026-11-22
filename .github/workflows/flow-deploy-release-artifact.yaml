@@ -41,7 +41,7 @@ jobs:
       prerelease: ${{ steps.info.outputs.prerelease }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -90,7 +90,7 @@ jobs:
         (needs.prepare-release.outputs.mode == 'specified' && needs.prepare-release.outputs.prerelease != 'true') || needs.prepare-release.outputs.mode == 'snapshot'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
